@@ -28,6 +28,7 @@ class OverlayTapTask:
     region_name: str = ""
     tap_x_pct: float | None = None  # % of frame; set when overlay used ``search_region``
     tap_y_pct: float | None = None
+    threshold: float | None = None
     skip_fsm: bool = field(default=True, init=False)
     skip_account_check: bool = field(default=True, init=False)
 
@@ -68,6 +69,7 @@ class OverlayTapTask:
             )
         else:
             point = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+
         logger.info(
             "overlay_tap %s region=%s → (%d,%d) on %s",
             self.task_id,

@@ -12,6 +12,11 @@ from scenarios.models import Scenario
 
 logger = logging.getLogger(__name__)
 
+_WATCH_LOCK = threading.RLock()
+# Guard against multiple Observer instances watching the same directory in one process.
+# This can happen when Streamlit reloads or when async services are started twice.
+_WATCHING_PATHS: set[str] = set()
+
 
 class _ScenarioReloadHandler(FileSystemEventHandler):
     def __init__(self, loader: ScenarioLoader) -> None:
@@ -59,9 +64,15 @@ class ScenarioLoader:
             return list(self._scenarios)
 
     def start_watching(self) -> None:
+        watch_key = str(self._path.resolve())
+        with _WATCH_LOCK:
+            if watch_key in _WATCHING_PATHS:
+                return
         with self._lock:
             if self._observer is not None:
                 if self._observer.is_alive():
+                    with _WATCH_LOCK:
+                        _WATCHING_PATHS.add(watch_key)
                     return
                 try:
                     self._observer.stop()
@@ -72,8 +83,17 @@ class ScenarioLoader:
 
             handler = _ScenarioReloadHandler(self)
             self._observer = Observer()
-            self._observer.schedule(handler, str(self._path), recursive=False)
-            self._observer.start()
+            try:
+                self._observer.schedule(handler, str(self._path), recursive=False)
+                self._observer.start()
+            except RuntimeError as exc:
+                # watchdog fsevents can raise "already scheduled" if something else
+                # in this process already registered the same watch.
+                logger.warning("Scenario watcher start failed (%s): %s", self._path, exc)
+                self._observer = None
+                return
+            with _WATCH_LOCK:
+                _WATCHING_PATHS.add(watch_key)
             logger.info("Watching scenario directory: %s", self._path)
 
     def stop_watching(self) -> None:
@@ -82,3 +102,9 @@ class ScenarioLoader:
                 self._observer.stop()
                 self._observer.join(timeout=2)
                 self._observer = None
+        try:
+            watch_key = str(self._path.resolve())
+        except OSError:
+            return
+        with _WATCH_LOCK:
+            _WATCHING_PATHS.discard(watch_key)

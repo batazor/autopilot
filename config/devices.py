@@ -13,6 +13,7 @@ Format mirrors db/devices.yaml:
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -92,10 +93,13 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
 
 
 _registry: DeviceRegistry | None = None
+_registry_lock = threading.Lock()
 
 
 def get_device_registry() -> DeviceRegistry:
     global _registry  # noqa: PLW0603
     if _registry is None:
-        _registry = load_devices()
+        with _registry_lock:
+            if _registry is None:
+                _registry = load_devices()
     return _registry

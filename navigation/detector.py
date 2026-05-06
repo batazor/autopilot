@@ -5,6 +5,7 @@ import logging
 from enum import StrEnum
 
 import numpy as np
+from tenacity import RetryError
 
 from layout import screens
 from ocr.client import OcrClient
@@ -20,6 +21,7 @@ class ScreenName(StrEnum):
     GATHERING = "gathering"
     ALLIANCE = "alliance"
     ACCOUNT_SWITCHER = "account_switcher"
+    CHIEF_PROFILE = "chief_profile"
     UNKNOWN = "unknown"
 
 
@@ -42,6 +44,10 @@ _SCREEN_LANDMARKS: dict[ScreenName, list[tuple[object, list[str]]]] = {
     ScreenName.ACCOUNT_SWITCHER: [
         (screens.ACCOUNT_SWITCHER.title_region, ["account", "switch", "player"]),
     ],
+    ScreenName.CHIEF_PROFILE: [
+        # OCR keywords are weak here; prefer overlay icon match. Still useful as a hint.
+        (screens.CHIEF_PROFILE.title_region, ["chief", "profile"]),
+    ],
 }
 
 
@@ -62,6 +68,11 @@ class ScreenDetector:
 
         try:
             results = await self._client.ocr_regions(image, all_regions)
+        except RetryError as exc:
+            # Tenacity wraps the root exception; surface the actual cause for faster diagnosis.
+            root = exc.last_attempt.exception() if exc.last_attempt else exc
+            logger.error("OCR failed during screen detection: %s", root, exc_info=True)
+            return ScreenName.UNKNOWN
         except Exception:
             logger.exception("OCR failed during screen detection")
             return ScreenName.UNKNOWN

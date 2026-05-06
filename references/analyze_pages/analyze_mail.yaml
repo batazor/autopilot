@@ -1,0 +1,28 @@
+overlay:
+  - name: mail_page_back.visible
+    region: back_button
+    action: findIcon
+    threshold: 0.9
+    enqueue_tap: false
+
+  - name: mail_gift.visible
+    region: mail_gift
+    action: findIcon
+    threshold: 0.9
+
+  - name: big_claim_button.visible
+    region: big_claim_button
+    action: findIcon
+    threshold: 0.9
+
+  # ---------------------------------------------------------------------------
+  # Page detection via OCR of `page_title` bbox (area.json).
+  # Add more rules like this for each page title you want to detect.
+  # ---------------------------------------------------------------------------
+  - name: page.mail.visible
+    region: page_title
+    action: readText
+    expected: ["Mail", "Почта", "Письма"]
+    fuzzy_threshold: 0.75
+    enqueue_tap: false
+

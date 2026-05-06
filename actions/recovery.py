@@ -27,7 +27,7 @@ class RecoveryHandler:
 
     async def recover_to_main(self, instance_id: str) -> bool:
         for _ in range(5):
-            self._actions.back(instance_id)
+            # No-op: do not press phone BACK; do not guess UI coords here.
             await asyncio.sleep(0.8)
 
         await asyncio.sleep(1.5)

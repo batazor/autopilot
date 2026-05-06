@@ -69,9 +69,16 @@ class AccountSwitcherScreen:
     back_btn = Point(30, 60)
 
 
+class ChiefProfileScreen:
+    # Approximate title region (720×1280). Tune via OCR/labeling if needed.
+    title_region = Region(80, 0, 360, 80)
+    back_btn = Point(30, 60)
+
+
 MAIN_CITY = MainCityScreen()
 ARENA = ArenaScreen()
 TRAINING = TrainingScreen()
 GATHERING = GatheringScreen()
 ALLIANCE = AllianceScreen()
 ACCOUNT_SWITCHER = AccountSwitcherScreen()
+CHIEF_PROFILE = ChiefProfileScreen()

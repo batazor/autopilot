@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import time
+from datetime import timedelta
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 
 from config.loader import load_settings
-from ui.bot_services import ensure_embedded_bot
+from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
+from ui.keys import OVERVIEW_FEEDBACK
 from ui.redis_client import (
     count_claimed_slots,
     count_queue_tasks,
@@ -20,16 +21,12 @@ from ui.redis_client import (
 
 ensure_embedded_bot()
 
-st_autorefresh(interval=2000, key="overview_refresh")
-
 st.title("Overview")
 
-if "overview_feedback" not in st.session_state:
-    st.session_state.overview_feedback = None
-
-
-def _set_feedback(text: str) -> None:
-    st.session_state.overview_feedback = text
+if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
+    restart_embedded_bot()
+    st.success("Bot restart triggered")
+    st.rerun()
 
 
 def _format_elapsed(seconds: float) -> str:
@@ -52,18 +49,34 @@ def _elapsed_since(ts_str: str) -> str | None:
     return _format_elapsed(delta)
 
 
-def _device_status_dot(row: dict[str, str]) -> str:
-    """Green = worker OK and not paused; red = offline, paused, crashed, or restarting."""
+def _is_recent(ts_str: str, *, max_age_s: float) -> bool:
+    ts_str = ts_str.strip()
+    if not ts_str:
+        return False
+    try:
+        ts = float(ts_str)
+    except ValueError:
+        return False
+    return (time.time() - ts) <= max_age_s
+
+
+def _device_status_cell(row: dict[str, str]) -> str:
+    """Compact status cell with an explicit reason."""
     if not row:
-        return "🔴"
+        return "🔴 no redis state"
     if row.get("paused") == "1":
-        return "🔴"
-    st_val = (row.get("state") or "").lower()
-    if st_val == "restarting":
-        return "🔴"
-    if st_val == "crashed":
-        return "🔴"
-    return "🟢"
+        return "🔴 paused"
+    st_val = (row.get("state") or "").strip().lower()
+    # Heartbeat-based liveness: state can be stale (e.g. restarting stuck) even while worker is alive.
+    alive = _is_recent(row.get("last_seen_at") or "", max_age_s=10.0)
+    if st_val in {"restarting", "crashed"}:
+        return f"{'🟡' if alive else '🔴'} {st_val}{' (alive)' if alive else ''}"
+    if not (row.get("worker_started_at") or "").strip():
+        # Worker state exists but didn't record a start timestamp yet.
+        return "🟡 starting"
+    if alive:
+        return "🟢 running"
+    return "🔴 stale"
 
 
 def _task_cell(row: dict[str, str]) -> str:
@@ -77,8 +90,8 @@ def _task_cell(row: dict[str, str]) -> str:
 
 
 _DEVICES_HELP = (
-    "Device: instance id from settings. Status: green = worker running; "
-    "red = no Redis state, paused, crashed, or restarting. "
+    "Device: instance id from settings. Status: shows worker health from Redis "
+    "(e.g. no redis state / paused / crashed / restarting). "
     "Player: active account after a successful switch. "
     "Task: queue task type while it runs (with elapsed time). "
     "Session: uptime since the worker connected to Redis "
@@ -86,106 +99,120 @@ _DEVICES_HELP = (
     "Row: pause **or** resume (one control by worker state), open Instance page."
 )
 
-
-fb = st.session_state.overview_feedback
-if fb:
-    st.info(fb)
-
-settings = load_settings()
-client = require_redis_connection()
-
-n_inst = len(settings.instances)
-n_players = sum(len(i.player_ids) for i in settings.instances)
-q = count_queue_tasks(client)
-claimed = count_claimed_slots(client)
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Instances", n_inst)
-c2.metric("Players", n_players)
-c3.metric("Queue tasks", q)
-c4.metric("Cooperative locks", claimed)
-
-st.divider()
-
-st.subheader("Devices", help=_DEVICES_HELP)
-st.caption(
-    "**Worker is running** when Status is 🟢 and **Session** shows uptime "
-    "(Redis `wos:instance:<id>:state`). Embedded bot starts from **`ui/app.py`** "
-    "or when this Overview/Instance page loads standalone. "
-    "**⏸ Pause** stops dequeuing tasks and **ADB rolling preview PNG** until **▶ Resume**."
-)
-
 # Column weights: data + compact icon actions
-# (Streamlit cannot embed buttons in st.dataframe cells).
-_TABLE_COLS = [2.2, 0.45, 1.25, 2.35, 1.35, 0.5, 0.48]
+_TABLE_COLS = [2.0, 0.6, 1.25, 1.25, 2.15, 1.25, 0.5, 0.48]
 
-if settings.instances:
-    hdr = st.columns(_TABLE_COLS)
-    hdr[0].markdown("**Device**")
-    hdr[1].markdown("**Status**")
-    hdr[2].markdown("**Player**")
-    hdr[3].markdown("**Task**")
-    hdr[4].markdown("**Session**")
-    hdr[5].markdown("**▶⏸**")
-    hdr[6].markdown("**🔗**")
 
-    for inst in settings.instances:
-        row = get_instance_state(client, inst.instance_id)
-        active = (row.get("active_player") or "").strip() or "—"
-        session_uptime = _elapsed_since(row.get("worker_started_at") or "") or "—"
-        dot = _device_status_dot(row)
-        task_c = _task_cell(row)
-        paused = row.get("paused") == "1"
+@st.fragment(run_every=timedelta(seconds=2))
+def _dashboard() -> None:
+    """Auto-refreshing section — only this fragment reruns every 2 s, not the full page."""
+    st.session_state.setdefault(OVERVIEW_FEEDBACK, None)
 
-        r = st.columns(_TABLE_COLS)
-        r[0].markdown(inst.instance_id)
-        r[1].markdown(dot)
-        r[2].markdown(active)
-        r[3].markdown(task_c)
-        r[4].markdown(session_uptime)
-        with r[5]:
-            if paused:
-                if st.button(
-                    "▶",
-                    key=f"ov-resume-{inst.instance_id}",
-                    help="Resume this instance worker (starts dequeuing tasks again).",
-                    width="stretch",
-                ):
-                    push_instance_command(client, inst.instance_id, {"cmd": "resume"})
-                    _set_feedback(f"`{inst.instance_id}`: resume sent to worker.")
-            else:
-                if st.button(
-                    "⏸",
-                    key=f"ov-pause-{inst.instance_id}",
-                    help="Pause this instance worker (stops dequeuing tasks until resumed).",
-                    width="stretch",
-                ):
-                    push_instance_command(client, inst.instance_id, {"cmd": "pause"})
-                    _set_feedback(f"`{inst.instance_id}`: pause sent to worker.")
-        with r[6]:
-            st.page_link(
-                "views/instance.py",
-                label="🔗",
-                query_params={"instance_id": inst.instance_id},
-                help=(
-                    "Instance — screenshots, queue commands, FSM history "
-                    f"for `{inst.instance_id}`."
-                ),
-                width="stretch",
-            )
+    fb = st.session_state.overview_feedback
+    if fb:
+        msg_col, btn_col = st.columns([10, 1])
+        with msg_col:
+            st.info(fb)
+        with btn_col:
+            if st.button("✕", help="Dismiss", key="ov_dismiss_btn"):
+                st.session_state.overview_feedback = None
+                st.rerun()
+
+    settings = load_settings()
+    client = require_redis_connection()
+
+    n_inst = len(settings.instances)
+    n_players = sum(len(i.player_ids) for i in settings.instances)
+    q = count_queue_tasks(client)
+    claimed = count_claimed_slots(client)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Instances", n_inst)
+    c2.metric("Players", n_players)
+    c3.metric("Queue tasks", q)
+    c4.metric("Cooperative locks", claimed)
 
     st.divider()
-    for inst in settings.instances:
-        with st.expander(f"Players & FSM · {inst.instance_id}", expanded=False):
-            pcols = st.columns(min(4, max(1, len(inst.player_ids))))
-            for idx, pid in enumerate(inst.player_ids):
-                with pcols[idx % len(pcols)]:
-                    fsm = get_player_fsm(client, pid) or "unknown"
-                    st.text(f"{pid}\n{fsm}")
-        st.divider()
-else:
-    st.info("No instances in **config/settings.yaml**.")
 
-if st.button("Dismiss banner"):
-    st.session_state.overview_feedback = None
-    st.rerun()
+    st.subheader("Devices", help=_DEVICES_HELP)
+    st.caption(
+        "**Worker is running** when Status is 🟢 and **Session** shows uptime "
+        "(Redis `wos:instance:<id>:state`). Embedded bot starts from **`ui/app.py`** "
+        "or when this Overview/Instance page loads standalone. "
+        "**⏸ Pause** stops dequeuing tasks and **ADB rolling preview PNG** until **▶ Resume**."
+    )
+
+    if settings.instances:
+        hdr = st.columns(_TABLE_COLS)
+        hdr[0].markdown("**Device**")
+        hdr[1].markdown("**Status**")
+        hdr[2].markdown("**Player**")
+        hdr[3].markdown("**Node**")
+        hdr[4].markdown("**Task**")
+        hdr[5].markdown("**Session**")
+        hdr[6].markdown("**▶⏸**")
+        hdr[7].markdown("**🔗**")
+
+        for inst in settings.instances:
+            row = get_instance_state(client, inst.instance_id)
+            active = (row.get("active_player") or "").strip() or "—"
+            session_uptime = _elapsed_since(row.get("worker_started_at") or "") or "—"
+            status_cell = _device_status_cell(row)
+            node = (row.get("current_screen") or "").strip() or "—"
+            task_c = _task_cell(row)
+            paused = row.get("paused") == "1"
+
+            r = st.columns(_TABLE_COLS)
+            r[0].markdown(inst.instance_id)
+            r[1].markdown(status_cell)
+            r[2].markdown(active)
+            r[3].markdown(node)
+            r[4].markdown(task_c)
+            r[5].markdown(session_uptime)
+            with r[6]:
+                if paused:
+                    if st.button(
+                        "▶",
+                        key=f"ov-resume-{inst.instance_id}",
+                        help="Resume this instance worker (starts dequeuing tasks again).",
+                        width="stretch",
+                    ):
+                        push_instance_command(client, inst.instance_id, {"cmd": "resume"})
+                        st.session_state.overview_feedback = f"`{inst.instance_id}`: resume sent to worker."
+                        st.rerun()
+                else:
+                    if st.button(
+                        "⏸",
+                        key=f"ov-pause-{inst.instance_id}",
+                        help="Pause this instance worker (stops dequeuing tasks until resumed).",
+                        width="stretch",
+                    ):
+                        push_instance_command(client, inst.instance_id, {"cmd": "pause"})
+                        st.session_state.overview_feedback = f"`{inst.instance_id}`: pause sent to worker."
+                        st.rerun()
+            with r[7]:
+                st.page_link(
+                    "views/instance.py",
+                    label="🔗",
+                    query_params={"instance_id": inst.instance_id},
+                    help=(
+                        "Instance — screenshots, queue commands, FSM history "
+                        f"for `{inst.instance_id}`."
+                    ),
+                    width="stretch",
+                )
+
+        st.divider()
+        for inst in settings.instances:
+            with st.expander(f"Players & FSM · {inst.instance_id}", expanded=False):
+                pcols = st.columns(min(4, max(1, len(inst.player_ids))))
+                for idx, pid in enumerate(inst.player_ids):
+                    with pcols[idx % len(pcols)]:
+                        fsm = get_player_fsm(client, pid) or "unknown"
+                        st.text(f"{pid}\n{fsm}")
+            st.divider()
+    else:
+        st.info("No instances in **config/settings.yaml**.")
+
+
+_dashboard()

@@ -10,7 +10,9 @@ from __future__ import annotations
 import io
 import json
 import math
+import os
 import re
+import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -33,10 +35,25 @@ from ui.overlay_yaml_sync import (
     rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
-from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
-from ui.labeling_reference_panel import (
+from ui.keys import (
+    ACTIVE_IMAGE_PATH,
+    ANNOT_LABELING_REF,
+    AREA_DOC,
+    CANVAS_LAST_SIG,
+    CANVAS_REV,
+    ENTRY_IDX,
+    IMAGE_ERROR,
+    LABELING_TEMPORAL_REGIONS,
     LABELING_PENDING_CAPTURE_REL,
     LABELING_SELECTION_BEFORE_CAPTURE,
+    LOAD_ERROR,
+    OVL_YAML_WARN,
+    PENDING_IMAGE_PATH,
+    PIL_ORIGINAL,
+    SELECTED_REGION_IDX,
+)
+from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
+from ui.labeling_reference_panel import (
     labeling_forced_reference_rel,
     labeling_resolve_sel,
     render_labeling_reference_column,
@@ -167,6 +184,21 @@ def crop_region(
     R = max(L + 1, min(R, W))
     B = max(T + 1, min(B, Ht))
     return image.crop((L, T, R, B))
+
+
+def _canvas_component_key(*, drawing_mode: str) -> str:
+    """Stable key for the drawable canvas component.
+
+    Avoid coupling the key to `entry_idx` so that switching the active image (ref)
+    or doing quick `st.rerun()` cycles doesn't generate a burst of "unregistered ComponentInstance"
+    warnings from stale frontend messages.
+    """
+    import hashlib
+
+    active = str(st.session_state.get(ACTIVE_IMAGE_PATH, "") or "")
+    rev = int(st.session_state.get(CANVAS_REV, 0) or 0)
+    h = hashlib.sha256(active.encode("utf-8")).hexdigest()[:10]
+    return f"canvas_{h}_{rev}_{drawing_mode}"
 
 
 def _safe_crop_filename_part(name: str, fallback: str) -> str:
@@ -360,7 +392,13 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
 def save_json(path: Path, doc: AreaDocDict) -> None:
     """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``)."""
     validate_unique_region_names(doc)
-    path.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    content = json.dumps(doc, indent=2)
+    with tempfile.NamedTemporaryFile(
+        "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
+    ) as f:
+        f.write(content)
+        tmp = f.name
+    os.replace(tmp, path)
 
 
 def load_json(path: Path) -> AreaDocDict:
@@ -424,6 +462,28 @@ def successor_screens(screen_id: str, doc: AreaDocDict) -> list[str]:
 def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[str]:
     """Options for Screen ID: ``""`` = None; then sorted ids from FSM + entries (always includes ``current``)."""
     ids: set[str] = set(all_fsm_screen_ids(doc))
+    # Seed options with the "known" screen ids from runtime navigation/detection,
+    # so the dropdown isn't empty before the user defines FSM transitions.
+    try:
+        from navigation.detector import ScreenName
+
+        ids.update(
+            s.value for s in ScreenName if getattr(s, "value", None) and s != ScreenName.UNKNOWN
+        )
+    except Exception:
+        pass
+    try:
+        from navigation.screen_graph import EDGE_TAPS
+
+        for a, b in EDGE_TAPS.keys():
+            if a:
+                ids.add(str(a))
+            if b:
+                ids.add(str(b))
+    except Exception:
+        pass
+    # Legacy/manual ids used by tasks/analyzers but not in ScreenName yet.
+    ids.update({"mail"})
     cur = (current_screen_id or "").strip()
     if cur:
         ids.add(cur)
@@ -561,7 +621,7 @@ def _render_regions_expander(
         if st.button("Add region", key=f"area_add_region_{_rk}", width="stretch"):
             regs = current_regions()
             ow, oh = 720, 1280
-            pil_i: Image.Image | None = st.session_state.get("pil_original")
+            pil_i: Image.Image | None = st.session_state.get(PIL_ORIGINAL)
             if pil_i is not None:
                 ow, oh = pil_i.size
             regs.append(_default_region(ow, oh))
@@ -720,7 +780,15 @@ def _render_regions_expander(
                         ]
                     ov_changed = True
                 if ov_changed:
-                    validate_unique_region_names(st.session_state.area_doc)
+                    try:
+                        validate_unique_region_names(st.session_state.area_doc)
+                    except ValueError as _e:
+                        # Roll back: reload the doc from disk so in-memory state stays consistent.
+                        st.session_state.area_doc = load_json(AREA_JSON_PATH)
+                        st.session_state.canvas_rev = int(st.session_state.get(CANVAS_REV, 0)) + 1
+                        st.session_state.last_canvas_sig = ""
+                        st.error(f"Region validation failed — changes discarded: {_e}")
+                        st.rerun()
                     set_current_regions(regions)
                     synced = sync_findicon_overlay_aux_keys(
                         REPO_ROOT,
@@ -729,7 +797,7 @@ def _render_regions_expander(
                         use_tap=_regions_contains(tn_ov),
                     )
                     if not synced:
-                        st.session_state["_ovl_yaml_warn"] = (
+                        st.session_state[OVL_YAML_WARN] = (
                             f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
                             "`references/analyze.yaml` — regions updated; edit YAML by hand."
                         )
@@ -990,20 +1058,20 @@ def resize_for_canvas(im: Image.Image, max_side: int) -> tuple[Image.Image, floa
 
 
 def init_session() -> None:
-    if "area_doc" not in st.session_state:
+    if AREA_DOC not in st.session_state:
         try:
             st.session_state.area_doc = load_json(AREA_JSON_PATH)
         except (json.JSONDecodeError, OSError, ValueError) as e:
             st.session_state.area_doc = default_area_doc([])
             st.session_state.load_error = str(e)
-    if "entry_idx" not in st.session_state:
+    if ENTRY_IDX not in st.session_state:
         screens = st.session_state.area_doc.get("screens") or []
         st.session_state.entry_idx = 0 if screens else -1
-    if "selected_region_idx" not in st.session_state:
+    if SELECTED_REGION_IDX not in st.session_state:
         st.session_state.selected_region_idx = 0
-    if "canvas_rev" not in st.session_state:
+    if CANVAS_REV not in st.session_state:
         st.session_state.canvas_rev = 0
-    if "last_canvas_sig" not in st.session_state:
+    if CANVAS_LAST_SIG not in st.session_state:
         st.session_state.last_canvas_sig = ""
 
 
@@ -1016,6 +1084,12 @@ def ensure_entry(entries: list[AreaEntryDict], idx: int) -> None:
 
 
 def current_regions() -> list[RegionDict]:
+    # Labeling temporal refs are not persisted to `area.json` until the user assigns a basename.
+    # While a `references/temporal/...` image is active, keep regions in session_state only.
+    ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
+    if "/temporal/" in ref.replace("\\", "/"):
+        v = st.session_state.get(LABELING_TEMPORAL_REGIONS)
+        return list(v) if isinstance(v, list) else []
     entries: list[AreaEntryDict] = st.session_state.area_doc["screens"]
     idx: int = st.session_state.entry_idx
     if idx < 0 or idx >= len(entries):
@@ -1025,6 +1099,10 @@ def current_regions() -> list[RegionDict]:
 
 
 def set_current_regions(regions: list[RegionDict]) -> None:
+    ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
+    if "/temporal/" in ref.replace("\\", "/"):
+        st.session_state[LABELING_TEMPORAL_REGIONS] = list(regions)
+        return
     entries: list[AreaEntryDict] = st.session_state.area_doc["screens"]
     idx: int = st.session_state.entry_idx
     if idx < 0 or idx >= len(entries):
@@ -1084,12 +1162,12 @@ def render_area_annotator_ui(
         )
     )
 
-    if "load_error" in st.session_state:
+    if LOAD_ERROR in st.session_state:
         st.warning(f"Could not load area.json: {st.session_state.load_error}")
         del st.session_state.load_error
 
-    if "_ovl_yaml_warn" in st.session_state:
-        st.warning(st.session_state.pop("_ovl_yaml_warn"))
+    if OVL_YAML_WARN in st.session_state:
+        st.warning(st.session_state.pop(OVL_YAML_WARN))
 
     doc: AreaDocDict = st.session_state.area_doc
     entries: list[AreaEntryDict] = doc["screens"]
@@ -1110,7 +1188,7 @@ def render_area_annotator_ui(
         elif forced_reference_rel:
             ei_new = ensure_entry_for_reference_path(entries, forced_reference_rel)
             st.session_state.entry_idx = ei_new
-            prev_ref = st.session_state.get("_annot_labeling_ref")
+            prev_ref = st.session_state.get(ANNOT_LABELING_REF)
             if prev_ref != forced_reference_rel:
                 st.session_state._annot_labeling_ref = forced_reference_rel
                 st.session_state.canvas_rev += 1
@@ -1120,8 +1198,8 @@ def render_area_annotator_ui(
                 if lp_forced.is_file():
                     st.session_state.pending_image_path = str(lp_forced.resolve())
         else:
-            st.session_state.pop("pil_original", None)
-            st.session_state.pop("_annot_labeling_ref", None)
+            st.session_state.pop(PIL_ORIGINAL, None)
+            st.session_state.pop(ANNOT_LABELING_REF, None)
 
     if not entries:
         st.session_state.entry_idx = -1
@@ -1201,7 +1279,7 @@ def render_area_annotator_ui(
             _render_fsm_expander(doc)
 
     # Load image from disk (pending capture or entry OCR path)
-    pil_original: Image.Image | None = st.session_state.get("pil_original")
+    pil_original: Image.Image | None = st.session_state.get(PIL_ORIGINAL)
     image_rel = None
     if entries and 0 <= entry_idx < len(entries):
         image_rel = entries[entry_idx].get("ocr")
@@ -1221,9 +1299,12 @@ def render_area_annotator_ui(
         sel_r = labeling_resolve_sel(labeling_ref_root, labeling_existing)
         effective_forced_ref = labeling_forced_reference_rel(sel_r, labeling_existing)
         if effective_forced_ref:
-            ei_new = ensure_entry_for_reference_path(entries, effective_forced_ref)
-            st.session_state.entry_idx = ei_new
-            prev_ref = st.session_state.get("_annot_labeling_ref")
+            # Pending captures live under `references/temporal/` and should not create `area.json` entries.
+            _is_temporal = "/temporal/" in effective_forced_ref.replace("\\", "/")
+            if not _is_temporal:
+                ei_new = ensure_entry_for_reference_path(entries, effective_forced_ref)
+                st.session_state.entry_idx = ei_new
+            prev_ref = st.session_state.get(ANNOT_LABELING_REF)
             if prev_ref != effective_forced_ref:
                 st.session_state._annot_labeling_ref = effective_forced_ref
                 st.session_state.canvas_rev += 1
@@ -1245,7 +1326,7 @@ def render_area_annotator_ui(
         if entries and 0 <= entry_idx < len(entries):
             image_rel = entries[entry_idx].get("ocr")
 
-        pending = st.session_state.pop("pending_image_path", None)
+        pending = st.session_state.pop(PENDING_IMAGE_PATH, None)
         if labeling_png_bytes and effective_forced_ref:
             try:
                 pil_original = Image.open(io.BytesIO(labeling_png_bytes)).convert("RGBA")
@@ -1271,7 +1352,7 @@ def render_area_annotator_ui(
                     st.session_state.image_error = str(e)
 
     else:
-        pending = st.session_state.pop("pending_image_path", None)
+        pending = st.session_state.pop(PENDING_IMAGE_PATH, None)
         if labeling_mode and forced_reference_rel and labeling_png_bytes:
             try:
                 pil_original = Image.open(io.BytesIO(labeling_png_bytes)).convert("RGBA")
@@ -1296,7 +1377,7 @@ def render_area_annotator_ui(
                 except OSError as e:
                     st.session_state.image_error = str(e)
 
-    if "image_error" in st.session_state:
+    if IMAGE_ERROR in st.session_state:
         st.error(st.session_state.image_error)
         del st.session_state.image_error
 
@@ -1381,7 +1462,7 @@ def render_area_annotator_ui(
                     width=canvas_w,
                     drawing_mode=drawing_mode_labeling,
                     initial_drawing=initial,
-                    key=f"canvas_{st.session_state.entry_idx}_{st.session_state.canvas_rev}_{drawing_mode_labeling}",
+                    key=_canvas_component_key(drawing_mode=drawing_mode_labeling),
                 )
 
                 if canvas_result and canvas_result.json_data:
@@ -1450,7 +1531,7 @@ def render_area_annotator_ui(
                     width=canvas_w,
                     drawing_mode=drawing_mode,
                     initial_drawing=initial,
-                    key=f"canvas_{st.session_state.entry_idx}_{st.session_state.canvas_rev}_{drawing_mode}",
+                    key=_canvas_component_key(drawing_mode=drawing_mode),
                 )
 
                 if canvas_result and canvas_result.json_data:

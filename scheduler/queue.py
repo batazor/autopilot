@@ -26,6 +26,8 @@ class QueueItem:
     # Optional tap override (% of framebuffer). Used when overlay matched inside ``search_region``.
     tap_x_pct: float | None = None
     tap_y_pct: float | None = None
+    # Optional overlay match threshold (when task_type == "overlay_tap")
+    threshold: float | None = None
 
 
 class RedisQueue:
@@ -45,6 +47,7 @@ class RedisQueue:
         *,
         tap_x_pct: float | None = None,
         tap_y_pct: float | None = None,
+        threshold: float | None = None,
         skip_if_duplicate: bool = False,
     ) -> bool:
         """Enqueue a task.
@@ -78,6 +81,8 @@ class RedisQueue:
             body["tap_x_pct"] = float(tap_x_pct)
         if tap_y_pct is not None:
             body["tap_y_pct"] = float(tap_y_pct)
+        if threshold is not None:
+            body["threshold"] = float(threshold)
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         await self._redis.zadd(_QUEUE_KEY, {payload: run_at})
@@ -141,6 +146,8 @@ class RedisQueue:
         tap_y = data.get("tap_y_pct")
         tap_x_pct = float(tap_x) if tap_x is not None else None
         tap_y_pct = float(tap_y) if tap_y is not None else None
+        thr = data.get("threshold")
+        threshold = float(thr) if thr is not None else None
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
@@ -151,6 +158,7 @@ class RedisQueue:
             region=region,
             tap_x_pct=tap_x_pct,
             tap_y_pct=tap_y_pct,
+            threshold=threshold,
         )
 
     async def peek_all(self) -> list[QueueItem]:
@@ -166,6 +174,8 @@ class RedisQueue:
             tap_y = data.get("tap_y_pct")
             tap_x_pct = float(tap_x) if tap_x is not None else None
             tap_y_pct = float(tap_y) if tap_y is not None else None
+            thr = data.get("threshold")
+            threshold = float(thr) if thr is not None else None
             results.append(
                 QueueItem(
                     task_id=data["task_id"],
@@ -177,6 +187,7 @@ class RedisQueue:
                     region=region,
                     tap_x_pct=tap_x_pct,
                     tap_y_pct=tap_y_pct,
+                    threshold=threshold,
                 )
             )
         return results

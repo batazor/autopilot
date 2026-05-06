@@ -9,7 +9,8 @@ from datetime import timedelta
 import streamlit as st
 
 from config.loader import load_settings
-from ui.bot_services import ensure_embedded_bot
+from ui.adb_reference_shot import capture_rolling_live_preview_adb
+from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
     fetch_fsm_history,
@@ -18,8 +19,8 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
-from ui.reference_preview import load_rolling_instance_preview
-from ui.settings_state import ensure_ui_settings_session_defaults
+from ui.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
+from ui.settings_state import ensure_ui_settings_session_defaults, get_ui_adb_bin
 
 ensure_embedded_bot()
 
@@ -28,6 +29,24 @@ _PREVIEW_REFRESH_SEC = max(
     float(load_settings().worker.device_reference_snapshot_interval_seconds),
 )
 _STALE_PREVIEW_AFTER_SEC = max(12.0, _PREVIEW_REFRESH_SEC * 3)
+_PREVIEW_CACHE_KEY = "_instance_preview_cache"
+
+
+def _load_preview_cached(instance_id: str) -> tuple[bytes | None, str, float | None]:
+    """Return PNG bytes from session_state cache; read from disk only when mtime changes."""
+    path = rolling_live_preview_path(instance_id)
+    cache: dict = st.session_state.setdefault(_PREVIEW_CACHE_KEY, {})
+    if not path.is_file():
+        cache.pop(instance_id, None)
+        return None, "", None
+    mtime = path.stat().st_mtime
+    entry = cache.get(instance_id)
+    if entry is not None and entry["mtime"] == mtime:
+        return entry["bytes"], entry["rel"], mtime
+    img_bytes, rel, _ = load_rolling_instance_preview(instance_id)
+    if img_bytes is not None:
+        cache[instance_id] = {"mtime": mtime, "bytes": img_bytes, "rel": rel}
+    return img_bytes, rel, mtime
 
 
 @st.fragment(run_every=timedelta(seconds=_PREVIEW_REFRESH_SEC))
@@ -40,7 +59,7 @@ def _reference_preview_fragment(instance_id: str) -> None:
         "Use **`uv run wos`** / **`ui/app.py`** so the worker runs."
     )
 
-    img_bytes, ref_cap, shot_mtime = load_rolling_instance_preview(instance_id)
+    img_bytes, ref_cap, shot_mtime = _load_preview_cached(instance_id)
 
     if img_bytes is not None:
         now_ts = time.time()
@@ -107,6 +126,11 @@ def _reference_preview_fragment(instance_id: str) -> None:
 
 st.title("Instance")
 
+if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
+    restart_embedded_bot()
+    st.success("Bot restart triggered")
+    st.rerun()
+
 ensure_ui_settings_session_defaults()
 
 settings = load_settings()
@@ -131,7 +155,7 @@ inst_cfg = next(i for i in settings.instances if i.instance_id == instance_id)
 col_left, col_right = st.columns([3, 2], gap="medium")
 
 with col_left:
-    with st.expander("Manual controls", expanded=False):
+    with st.expander("Manual controls", expanded=True):
         if not inst_cfg.player_ids:
             st.warning(
                 "No **player_ids** for this instance in config — "
@@ -166,6 +190,9 @@ with col_left:
         if st.button("Force recovery"):
             push_instance_command(client, instance_id, {"cmd": "recovery"})
             st.success("recovery queued")
+        if st.button("Restart game"):
+            push_instance_command(client, instance_id, {"cmd": "restart"})
+            st.success("restart queued")
 
     with st.expander("FSM history (per player)", expanded=False):
         if not inst_cfg.player_ids:
@@ -180,8 +207,24 @@ with col_left:
                         ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry["ts"]))
                         st.text(f"{ts}  →  {entry['state']}")
 
-    st.subheader("Stats")
-    st.caption("Use logs and Redis state above for operational visibility.")
-
 with col_right:
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if st.button("Обновить скриншот", type="primary", use_container_width=True):
+            with st.spinner("ADB screencap…"):
+                _png, rel, err = capture_rolling_live_preview_adb(
+                    inst_cfg,
+                    adb_bin=get_ui_adb_bin(),
+                )
+            if err:
+                st.error(f"Не удалось обновить скриншот (`{rel}`): {err}")
+            else:
+                # Invalidate cache for this instance so the next fragment tick reads the new bytes.
+                cache: dict = st.session_state.get(_PREVIEW_CACHE_KEY, {})
+                if isinstance(cache, dict):
+                    cache.pop(instance_id, None)
+                st.success(f"Скриншот обновлён: `{rel}`")
+                st.rerun()
+    with c2:
+        st.caption("Перезаписывает rolling preview в `references/temporal/`.")
     _reference_preview_fragment(instance_id)

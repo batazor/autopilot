@@ -20,6 +20,7 @@ from scheduler.queue import RedisQueue
 logger = logging.getLogger(__name__)
 
 _SCHEDULER_UI_QUEUE = "wos:ui:command:scheduler"
+_CRON_KEY = "wos:scheduler:cron:last_run"
 
 
 class SchedulerRunner:
@@ -36,6 +37,109 @@ class SchedulerRunner:
         self._redis = aioredis.from_url(self._settings.redis.url)
         self._queue = RedisQueue(self._redis)
         self._scenario_loader.start_watching()
+
+    def _cron_specs_dir(self) -> Path:
+        # Stable location for cron-maintenance jobs (YAML specs).
+        return Path(__file__).resolve().parent.parent / "scenarios" / "by_cron"
+
+    @staticmethod
+    def _cron_due(expr: str, now: float) -> bool:
+        """Minimal cron matcher supporting:
+
+        - "*/N * * * *"  (every N minutes)
+        - "M */H * * *"  (minute M, every H hours)
+        """
+        expr = (expr or "").strip().strip('"').strip("'")
+        parts = expr.split()
+        if len(parts) != 5:
+            return False
+        minute, hour, _dom, _mon, _dow = parts
+        lt = time.localtime(now)
+        m = lt.tm_min
+        h = lt.tm_hour
+
+        if minute.startswith("*/") and hour == "*":
+            try:
+                n = int(minute[2:])
+            except ValueError:
+                return False
+            return n > 0 and (m % n == 0)
+
+        if hour.startswith("*/"):
+            try:
+                hh = int(hour[2:])
+                mm = int(minute)
+            except ValueError:
+                return False
+            return hh > 0 and (m == mm) and (h % hh == 0)
+
+        return False
+
+    async def _run_cron_specs(self) -> None:
+        """Enqueue cron-based jobs (no extra checks beyond cron)."""
+        assert self._redis is not None and self._queue is not None
+        now = time.time()
+        cron_dir = self._cron_specs_dir()
+        if not cron_dir.is_dir():
+            return
+
+        import yaml
+
+        for yml in sorted(cron_dir.glob("*.yaml")):
+            try:
+                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
+            except Exception:
+                logger.exception("Cron spec load failed: %s", yml)
+                continue
+            if not isinstance(raw, dict):
+                continue
+            enabled = bool(raw.get("enabled", True))
+            if not enabled:
+                continue
+            expr = str(raw.get("cron") or "").strip()
+            node = str(raw.get("node") or "").strip()
+            task_type = str(raw.get("task") or raw.get("task_type") or "").strip()
+            prio = int(raw.get("priority") or 1)
+            name = str(raw.get("name") or "").strip() or yml.stem
+            if not expr or (not task_type and not node):
+                continue
+            if not self._cron_due(expr, now):
+                continue
+
+            # Use `name` as the human identifier; normalize to a slug for keys.
+            import re
+
+            spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
+
+            # Once-per-minute guard (scheduler ticks faster than cron granularity).
+            guard = f"{spec_slug}:{int(now // 60)}"
+            if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]
+                continue
+            await self._redis.hset(_CRON_KEY, guard, "1")
+            await self._redis.expire(_CRON_KEY, 60 * 60 * 24)
+
+            # Default mapping: node -> "<node>_check"
+            if not task_type:
+                task_type = f"{node}_check"
+            for inst in self._settings.instances:
+                for player_id in inst.player_ids:
+                    await self._queue.schedule(
+                        task_id=f"cron:{spec_slug}:{player_id}:{int(now)}",
+                        player_id=player_id,
+                        task_type=task_type,
+                        priority=prio,
+                        run_at=now,
+                        instance_id=inst.instance_id,
+                        skip_if_duplicate=True,
+                    )
+                    logger.info(
+                        "Cron enqueued: %s (%s) %s for %s/%s",
+                        name,
+                        expr,
+                        task_type,
+                        inst.instance_id,
+                        player_id,
+                    )
 
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         states: dict[str, dict[str, object]] = {}
@@ -86,6 +190,7 @@ class SchedulerRunner:
         return filtered
 
     async def _run_once(self) -> None:
+        await self._run_cron_specs()
         player_states = await self._load_player_states()
         scenarios = self._scenario_loader.load_all()
         player_instance_map = await self._build_player_instance_map()

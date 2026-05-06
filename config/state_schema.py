@@ -51,7 +51,7 @@ class Exploration(BaseModel):
 
 class Heroes(BaseModel):
     isnotify: bool = False
-    list: dict[str, object] = Field(default_factory=dict)
+    entries: dict[str, object] = Field(default_factory=dict)
 
 
 class MessagesState(BaseModel):

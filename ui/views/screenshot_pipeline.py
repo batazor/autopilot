@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -12,107 +11,26 @@ import numpy as np
 import streamlit as st
 import yaml
 
-from analysis.overlay import run_overlay_analysis
+from analysis.overlay import load_analyze_yaml
 from config.loader import load_settings
-from layout.area_lookup import screen_region_by_name
+from ui.keys import PIPELINE_OVERLAY_CACHE
+from ui.pipeline.data import force_nonce, get_or_build_pipeline_cache
+from ui.pipeline.debug_flow import debug_flow_mode_fragment
+from ui.pipeline.overlay_viz import (
+    annotate_overlay_debug,
+    maybe_downscale_for_ui,
+    region_area_action,
+)
 from ui.reference_preview import rolling_live_preview_path
 
 _REPO = Path(__file__).resolve().parents[2]
 _ANALYZE = _REPO / "references" / "analyze.yaml"
+_AREA = _REPO / "area.json"
 _REFRESH_UI = max(1.0, float(load_settings().worker.device_reference_snapshot_interval_seconds))
 
-
-def _region_area_action(area_doc: dict[str, Any], region_name: str) -> str:
-    pair = screen_region_by_name(area_doc, str(region_name or "").strip())
-    if pair is None:
-        return ""
-    return str(pair[1].get("action") or "")
-
-
-def _bbox_pct_to_px_rect(bb: dict[str, Any], wi: int, hi: int) -> tuple[int, int, int, int]:
-    x = float(bb.get("x") or 0.0)
-    y = float(bb.get("y") or 0.0)
-    w = float(bb.get("width") or 0.0)
-    h = float(bb.get("height") or 0.0)
-    left = max(0, min(wi - 1, int(x / 100.0 * wi)))
-    top = max(0, min(hi - 1, int(y / 100.0 * hi)))
-    right = max(left + 1, min(wi, int((x + w) / 100.0 * wi)))
-    bottom = max(top + 1, min(hi, int((y + h) / 100.0 * hi)))
-    return left, top, right, bottom
-
-
-def _maybe_downscale_for_ui(image_bgr: np.ndarray, max_side: int = 960) -> np.ndarray:
-    hi, wi = image_bgr.shape[:2]
-    m = max(hi, wi)
-    if m <= max_side:
-        return image_bgr
-    scale = max_side / float(m)
-    return cv2.resize(
-        image_bgr,
-        (int(round(wi * scale)), int(round(hi * scale))),
-        interpolation=cv2.INTER_AREA,
-    )
-
-
-def _annotate_overlay_debug(
-    image_bgr: np.ndarray,
-    results: dict[str, Any],
-    logical_names: list[str],
-    area_doc: dict[str, Any],
-    rule_search: dict[str, str],
-) -> np.ndarray:
-    vis = image_bgr.copy()
-    hi, wi = vis.shape[:2]
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    for logical in logical_names:
-        p = results.get(logical)
-        if not isinstance(p, dict):
-            continue
-        sr_nm = str(p.get("search_region") or rule_search.get(logical, "") or "").strip()
-        if sr_nm:
-            pr = screen_region_by_name(area_doc, sr_nm)
-            if pr:
-                reg_s = pr[1]
-                search_bbox = reg_s.get("bbox")
-                if isinstance(search_bbox, dict):
-                    L, T, R, B = _bbox_pct_to_px_rect(search_bbox, wi, hi)
-                    cv2.rectangle(vis, (L, T), (R, B), (0, 200, 255), 1)
-
-        tl = p.get("top_left")
-        tw = int(p.get("template_w") or 0)
-        th = int(p.get("template_h") or 0)
-        matched = bool(p.get("matched"))
-        if isinstance(tl, (list, tuple)) and len(tl) >= 2 and tw > 0 and th > 0:
-            x0 = int(float(tl[0]))
-            y0 = int(float(tl[1]))
-            x1, y1 = min(wi, x0 + tw), min(hi, y0 + th)
-            box_col = (0, 220, 0) if matched else (0, 200, 255)
-            cv2.rectangle(vis, (x0, y0), (x1, y1), box_col, 2)
-            cx, cy = x0 + tw // 2, y0 + th // 2
-            cv2.circle(vis, (cx, cy), 5, box_col, 2)
-            label = (logical[:28] + (" ✓" if matched else " ✗")) if logical else ""
-            if label:
-                cv2.putText(
-                    vis,
-                    label,
-                    (x0 + 2, max(18, y0 - 4)),
-                    font,
-                    0.42,
-                    box_col,
-                    1,
-                    cv2.LINE_AA,
-                )
-
-        txp = p.get("tap_x_pct")
-        typ = p.get("tap_y_pct")
-        if txp is not None and typ is not None:
-            tx = int(float(txp) / 100.0 * wi)
-            ty = int(float(typ) / 100.0 * hi)
-            tx = max(0, min(wi - 1, tx))
-            ty = max(0, min(hi - 1, ty))
-            cv2.drawMarker(vis, (tx, ty), (0, 0, 255), cv2.MARKER_CROSS, 18, 2)
-            cv2.circle(vis, (tx, ty), 9, (0, 0, 255), 2)
-    return vis
+# ---------------------------------------------------------------------------
+# Live status fragment
+# ---------------------------------------------------------------------------
 
 
 @st.fragment(run_every=timedelta(seconds=_REFRESH_UI))
@@ -126,6 +44,18 @@ def _overlay_live_status_fragment() -> None:
     iids = [i.instance_id for i in insts]
     instance_id = st.selectbox("Instance (rolling PNG)", iids, key="pipeline_overlay_instance")
 
+    c1, c2 = st.columns([1, 3], vertical_alignment="center")
+    with c1:
+        if st.button("Refresh now", use_container_width=True, key="pipeline_overlay_refresh_now"):
+            st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
+            # Ensure we don't keep stale computed images/results around.
+            cache: dict = st.session_state.get(PIPELINE_OVERLAY_CACHE, {})
+            if isinstance(cache, dict):
+                cache.pop(instance_id, None)
+            st.rerun()
+    with c2:
+        st.caption("Forces overlay re-run even if mtimes didn't change.")
+
     only_exist = st.checkbox(
         "Only `exist` regions (from `area.json`) ",
         value=False,
@@ -133,41 +63,32 @@ def _overlay_live_status_fragment() -> None:
         help="When unchecked, every overlay rule row is shown with its region action.",
     )
 
-    preview_path = rolling_live_preview_path(instance_id)
-    if not preview_path.is_file():
-        rel = preview_path.relative_to(_REPO)
-        st.info(
-            f"No rolling file yet: `{rel}` — start the worker or capture from **Instance**."
-        )
+    data, rebuilt = get_or_build_pipeline_cache(
+        instance_id, repo_root=_REPO, area_path=_AREA, analyze_path=_ANALYZE
+    )
+    if rebuilt:
+        # Only show the "loading" UI when we actually rebuilt.
+        # Streamlit doesn't support a conditional spinner after-the-fact,
+        # so we show a small status line instead.
+        st.caption("Updated: rolling PNG + overlay analysis recomputed.")
+
+    if data is None:
+        preview_path = rolling_live_preview_path(instance_id)
+        if not preview_path.is_file():
+            rel = preview_path.relative_to(_REPO)
+            st.info(
+                f"No rolling file yet: `{rel}` — start the worker or capture from **Instance**."
+            )
+        else:
+            st.warning("Could not decode PNG (corrupt or unreadable).")
         return
 
-    image_bgr = cv2.imread(str(preview_path))
-    if image_bgr is None:
-        st.warning("Could not decode PNG (corrupt or unreadable).")
-        return
-
-    area_doc = json.loads((_REPO / "area.json").read_text(encoding="utf-8"))
-    results = run_overlay_analysis(image_bgr, repo_root=_REPO)
-
-    rule_order: list[str] = []
-    rule_search: dict[str, str] = {}
-    rule_tap: dict[str, str] = {}
-    if _ANALYZE.is_file():
-        raw = yaml.safe_load(_ANALYZE.read_text(encoding="utf-8"))
-        ov = raw.get("overlay") if isinstance(raw, dict) else None
-        lst = ov if isinstance(ov, list) else []
-        for r in lst:
-            if not isinstance(r, dict):
-                continue
-            nm = str(r.get("name") or "").strip()
-            if nm:
-                rule_order.append(nm)
-                sr = r.get("search_region")
-                if sr:
-                    rule_search[nm] = str(sr).strip()
-                tr = r.get("tap_region")
-                if tr:
-                    rule_tap[nm] = str(tr).strip()
+    image_bgr: np.ndarray = data["image_bgr"]
+    results: dict[str, Any] = data["results"]
+    area_doc: dict[str, Any] = data["area_doc"]
+    rule_order: list[str] = data["rule_order"]
+    rule_search: dict[str, str] = data["rule_search"]
+    rule_tap: dict[str, str] = data["rule_tap"]
 
     rows_out: list[dict[str, object]] = []
     visible_logicals: list[str] = []
@@ -176,7 +97,7 @@ def _overlay_live_status_fragment() -> None:
         if not isinstance(payload, dict):
             continue
         region_name = str(payload.get("region") or "").strip()
-        area_action = _region_area_action(area_doc, region_name)
+        area_action = region_area_action(area_doc, region_name)
         if only_exist and area_action != "exist":
             continue
         visible_logicals.append(logical)
@@ -194,6 +115,22 @@ def _overlay_live_status_fragment() -> None:
 
         sr_disp = payload.get("search_region") or rule_search.get(logical, "")
         tr_disp = payload.get("tap_region") or rule_tap.get(logical, "")
+
+        # Normalize for Arrow: ensure score/threshold are numeric or None.
+        score_f: float | None = None
+        if score is not None and str(score).strip() != "":
+            try:
+                score_f = float(score)
+            except (TypeError, ValueError):
+                score_f = None
+
+        thr_f: float | None = None
+        if thr is not None and str(thr).strip() != "":
+            try:
+                thr_f = float(thr)
+            except (TypeError, ValueError):
+                thr_f = None
+
         rows_out.append(
             {
                 "overlay_rule": logical,
@@ -202,8 +139,10 @@ def _overlay_live_status_fragment() -> None:
                 "search_region": sr_disp,
                 "tap_region": tr_disp,
                 "status": status,
-                "score": "" if score is None else round(float(score), 4),
-                "threshold": "" if thr is None else thr,
+                # Keep Arrow-friendly types: use None instead of "" so Streamlit doesn't
+                # infer a mixed object column and fail conversion.
+                "score": None if score_f is None else round(score_f, 4),
+                "threshold": thr_f,
                 "notes": notes.strip(),
             }
         )
@@ -237,14 +176,14 @@ def _overlay_live_status_fragment() -> None:
                     "or wait until a rule matches."
                 )
             else:
-                vis = _annotate_overlay_debug(
+                vis = annotate_overlay_debug(
                     image_bgr,
                     results,
                     logicals_draw,
                     area_doc,
                     rule_search,
                 )
-                vis_ui = _maybe_downscale_for_ui(vis)
+                vis_ui = maybe_downscale_for_ui(vis)
                 st.image(
                     cv2.cvtColor(vis_ui, cv2.COLOR_BGR2RGB),
                     width="stretch",
@@ -288,7 +227,19 @@ def _overlay_live_status_fragment() -> None:
     st.dataframe(rows_out, hide_index=True, width="stretch")
 
 
+
+# ---------------------------------------------------------------------------
+# Page layout (static)
+# ---------------------------------------------------------------------------
+
 st.title("Screenshot pipeline")
+
+st.page_link(
+    "views/fsm.py",
+    label="FSM",
+    help="Open the screen transition graph (FSM).",
+    width="content",
+)
 
 settings = load_settings()
 wcfg = settings.worker
@@ -328,7 +279,9 @@ st.markdown(
 
 st.subheader("Current overlay rules")
 if _ANALYZE.is_file():
-    raw = yaml.safe_load(_ANALYZE.read_text(encoding="utf-8"))
+    # Read once — reuse for both the parsed table and the raw display in the expander.
+    _analyze_raw_text = _ANALYZE.read_text(encoding="utf-8")
+    raw = load_analyze_yaml(_ANALYZE)
     overlay = raw.get("overlay") if isinstance(raw, dict) else None
     rules = overlay if isinstance(overlay, list) else []
     rows_static: list[dict[str, object]] = []
@@ -352,7 +305,7 @@ if _ANALYZE.is_file():
     else:
         st.info("No entries under `overlay` in analyze.yaml.")
     with st.expander("Raw `references/analyze.yaml`"):
-        st.code(_ANALYZE.read_text(encoding="utf-8"), language="yaml")
+        st.code(_analyze_raw_text, language="yaml")
 else:
     st.warning(f"Missing file: `{_ANALYZE}`")
 
@@ -368,6 +321,9 @@ visual check. Large **`search_region`** ROI increases false positives on the wro
 """.strip()
 )
 _overlay_live_status_fragment()
+
+st.divider()
+debug_flow_mode_fragment(repo_root=_REPO, area_path=_AREA, analyze_path=_ANALYZE)
 
 st.divider()
 st.subheader("YAML scenarios under `scenarios/` (not every screenshot)")

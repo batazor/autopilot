@@ -68,6 +68,10 @@ tasks:
     cooldown_seconds: 1
     max_attempts: 50
     timeout_seconds: 30
+  mail:
+    cooldown_seconds: 3600
+    max_attempts: 3
+    timeout_seconds: 90
 
 worker:
   # adb path for worker (screencap rolling preview, taps, shell); align with UI adb override when needed.

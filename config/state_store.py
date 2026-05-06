@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import threading
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,7 @@ from config.state_schema import GamerState, StateDB
 logger = logging.getLogger(__name__)
 
 _STATE_PATH = Path(__file__).parent.parent / "db" / "state.yaml"
+_MISSING = object()  # sentinel for getattr default — distinguishes "attr is None" from "attr missing"
 
 
 def _flatten(obj: Any, prefix: str, out: dict[str, Any]) -> None:
@@ -67,8 +70,20 @@ class GamerStateStore:
                 obj[attr] = value
             elif hasattr(obj, attr):
                 setattr(obj, attr, value)
+            else:
+                logger.warning("_set_nested: unknown attribute %r on %s", attr, type(obj).__name__)
         else:
-            child = getattr(obj, attr, None) if not isinstance(obj, dict) else obj.get(attr)
+            if isinstance(obj, dict):
+                child = obj.get(attr)
+            else:
+                child = getattr(obj, attr, _MISSING)
+                if child is _MISSING:
+                    logger.warning(
+                        "_set_nested: unknown attribute %r on %s — key not set",
+                        attr,
+                        type(obj).__name__,
+                    )
+                    return
             if child is not None:
                 self._set_nested(child, parts[1:], value)
 
@@ -120,11 +135,18 @@ class StateStore:
 
     def reload(self) -> None:
         with self._lock:
-            self._db = _load_state_db(self._path)
-            self._stores = {
-                str(g.id): GamerStateStore(g, self._db, self._path, self._lock)
-                for g in self._db.gamers
-            }
+            new_db = _load_state_db(self._path)
+            new_gamers = {str(g.id): g for g in new_db.gamers}
+            # Update existing stores in-place so callers that cached a GamerStateStore
+            # reference don't silently keep writing to the pre-reload _db.
+            for pid, store in self._stores.items():
+                if pid in new_gamers:
+                    store._gamer = new_gamers[pid]
+                    store._db = new_db
+            for pid, gamer in new_gamers.items():
+                if pid not in self._stores:
+                    self._stores[pid] = GamerStateStore(gamer, new_db, self._path, self._lock)
+            self._db = new_db
 
 
 def _load_state_db(path: Path) -> StateDB:
@@ -137,16 +159,25 @@ def _load_state_db(path: Path) -> StateDB:
 def _save_state_db(db: StateDB, path: Path) -> None:
     try:
         data = db.model_dump(mode="json")
-        path.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False))
+        content = yaml.dump(data, allow_unicode=True, sort_keys=False)
+        with tempfile.NamedTemporaryFile(
+            "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
+        ) as f:
+            f.write(content)
+            tmp = f.name
+        os.replace(tmp, path)
     except Exception:
         logger.exception("Failed to persist state to %s", path)
 
 
 _global_store: StateStore | None = None
+_global_store_lock = threading.Lock()
 
 
 def get_state_store() -> StateStore:
     global _global_store  # noqa: PLW0603
     if _global_store is None:
-        _global_store = StateStore()
+        with _global_store_lock:
+            if _global_store is None:
+                _global_store = StateStore()
     return _global_store

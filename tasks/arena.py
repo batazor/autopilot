@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 from datetime import UTC, datetime, timedelta
 
 from actions.tap import BotActions
@@ -23,6 +24,7 @@ class ArenaTask:
     priority: int = 500
     cooldown_seconds: int = 10800
     is_cooperative: bool = False
+    redis_client: Any | None = field(default=None, repr=False)
     task_type: str = field(default="arena", init=False)
 
     def estimate_duration(self) -> int:
@@ -34,6 +36,7 @@ class ArenaTask:
         navigator = Navigator(
             capture_fn=actions.capture_screen_bgr,
             tap_fn=actions.tap,
+            redis_client=self.redis_client,
         )
 
         ok = await navigator.navigate_to(ScreenName.ARENA, instance_id)

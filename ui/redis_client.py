@@ -29,6 +29,8 @@ class InstanceStateRow(TypedDict, total=False):
     active_player: str
     paused: str
     worker_started_at: str
+    last_seen_at: str
+    last_error: str
     current_task_type: str
     current_task_id: str
     current_task_player: str

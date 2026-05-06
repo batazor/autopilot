@@ -15,6 +15,7 @@ from navigation.fsm_screen_map import (
     TROOPS_EDGES,
     TUNDRA_ADVENTURE_EDGES,
 )
+from navigation.screen_graph import EDGE_TAPS, bfs_route, route_taps
 
 _REGIONS: tuple[tuple[str, dict[str, frozenset[str]]], ...] = (
     ("Tundra Adventure", TUNDRA_ADVENTURE_EDGES),
@@ -271,6 +272,88 @@ with tab_merged:
         "Merged graph (`merge_fsm_edges`): node color by region; screens that appear in more than one "
         "region use the **multi** tint."
     )
+
+    st.subheader("Bot route planner (tap graph)")
+    st.caption(
+        "This uses the bot's **tap-action** navigation graph (`navigation/screen_graph.py`, `EDGE_TAPS`). "
+        "It can differ from the broader FSM topology visualized above."
+    )
+
+    def _tap_graph_nodes() -> list[str]:
+        nodes: set[str] = set()
+        for a, b in EDGE_TAPS:
+            nodes.add(str(a))
+            nodes.add(str(b))
+        return sorted(nodes)
+
+    def _plan_bot_route(src: str, dst: str) -> tuple[list[str] | None, str]:
+        """Returns (path, mode) where mode ∈ {"direct", "via_main_city"}."""
+        p = bfs_route(src, dst)
+        if p is not None:
+            return p, "direct"
+        # Hub routing via main_city (same as Navigator).
+        hub = "main_city"
+        p1 = bfs_route(src, hub)
+        p2 = bfs_route(hub, dst)
+        if p1 and p2:
+            return p1 + p2[1:], "via_main_city"
+        return None, "direct"
+
+    nodes = _tap_graph_nodes()
+    if not nodes:
+        st.info("No tap edges registered yet (EDGE_TAPS is empty).")
+    else:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            src = st.selectbox("From screen", nodes, index=0, key="fsm_route_from")
+        with col_b:
+            idx_to = nodes.index("main_city") if "main_city" in nodes else min(1, len(nodes) - 1)
+            dst = st.selectbox("To screen", nodes, index=idx_to, key="fsm_route_to")
+
+        path, mode = _plan_bot_route(str(src), str(dst))
+        if path is None:
+            st.error(f"No bot route found for `{src}` → `{dst}` (and no route via `main_city`).")
+        else:
+            if mode == "via_main_city" and src != dst:
+                st.info("Showing route **via `main_city`** (hub route).")
+
+            st.markdown("**Planned screen path**")
+            st.code(" -> ".join(path), language="text")
+
+            hop_taps = route_taps(path[0], path[-1])
+            if hop_taps is None and len(path) > 1:
+                # `route_taps` is stricter (requires taps for every hop). We can still expand manually.
+                expanded: list[list[object]] = []
+                ok = True
+                for a, b in zip(path, path[1:]):
+                    taps = EDGE_TAPS.get((a, b))
+                    if taps is None:
+                        ok = False
+                        break
+                    expanded.append(list(taps))
+                if ok:
+                    hop_taps = expanded  # type: ignore[assignment]
+
+            st.markdown("**Per-hop taps**")
+            if len(path) <= 1:
+                st.caption("Already on target screen.")
+            elif hop_taps is None:
+                st.info(
+                    "Path exists, but one or more hops are missing tap coordinates in `EDGE_TAPS`."
+                )
+            else:
+                rows: list[dict[str, object]] = []
+                for i, (a, b) in enumerate(zip(path, path[1:])):
+                    taps = hop_taps[i] if i < len(hop_taps) else []
+                    rows.append(
+                        {
+                            "hop": f"{a} → {b}",
+                            "taps": len(taps),
+                            "tap_points": ", ".join(str(t) for t in taps),
+                        }
+                    )
+                st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
     with st.expander("Interactive graph", expanded=True):
         _render_flow(
             "fsm_merged",

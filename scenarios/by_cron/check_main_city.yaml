@@ -1,0 +1,12 @@
+name: Check Main City
+enabled: true
+
+cron: "*/5 * * * *"
+priority: 10
+
+# Optional: semantic node for humans / future routing.
+node: main_city
+
+# What is actually enqueued.
+task: main_city_check
+

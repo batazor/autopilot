@@ -497,6 +497,207 @@
           "overlay_auxiliary": true
         }
       ]
+    },
+    {
+      "id": 14,
+      "screen_id": "",
+      "ocr": "references/confirm_button.png",
+      "regions": [
+        {
+          "name": "confirm_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.71042471042471,
+            "y": 77.71739130434783,
+            "width": 31.000000000000004,
+            "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "confirm_button_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.505791505791506,
+            "y": 60.0,
+            "width": 94.7992277992278,
+            "height": 35.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "screen_id": "",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "is_has_new_mail",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.99,
+          "bbox": {
+            "x": 89.1891891891892,
+            "y": 84.84130434782608,
+            "width": 6.401544401544401,
+            "height": 4.3652173913043475,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "is_main_city",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 13.281853281853282,
+            "y": 0.32608695652173914,
+            "width": 5.399613899613899,
+            "height": 6.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "is_new_chapter",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.664092664092664,
+            "y": 85.97826086956522,
+            "width": 8.3996138996139,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "screen_id": "",
+      "ocr": "references/mail_page.png",
+      "regions": [
+        {
+          "name": "back_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.3474903474903475,
+            "y": -0.10869565217391304,
+            "width": 10.6003861003861,
+            "height": 5.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page_title",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.544401544401545,
+            "y": 0.32608695652173914,
+            "width": 72.0,
+            "height": 4.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mail_gift",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 85.65637065637065,
+            "y": 17.391304347826086,
+            "width": 10.3996138996139,
+            "height": 5.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "screen_id": "",
+      "ocr": "references/big_claim_button.png",
+      "regions": [
+        {
+          "name": "big_claim_button",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.166023166023166,
+            "y": 57.28260869565217,
+            "width": 33.2007722007722,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "screen_id": "chief_profile",
+      "ocr": "references/chief_profile.png",
+      "regions": [
+        {
+          "name": "chief_profile_title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.737451737451737,
+            "y": 0.32608695652173914,
+            "width": 29.0,
+            "height": 4.556521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "profile_btn",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.1196911196911197,
+            "y": 0.43478260869565216,
+            "width": 9.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

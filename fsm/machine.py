@@ -42,9 +42,10 @@ class PlayerFSM:
 
         self.machine = Machine(
             model=self,
-            states=list(PlayerState),
+            # transitions.Machine registers states by string name; use enum values.
+            states=[s.value for s in PlayerState],
             transitions=PLAYER_TRANSITIONS,
-            initial=PlayerState.IDLE,
+            initial=PlayerState.IDLE.value,
             after_state_change=self._persist_state,
         )
 
@@ -87,8 +88,30 @@ class PlayerFSM:
         raw = await self._redis.hget(self._redis_key, "fsm_state")
         if raw:
             saved_state = raw.decode() if isinstance(raw, bytes) else raw
-            if saved_state in list(PlayerState):
-                self.machine.set_state(saved_state)
+            saved_state = str(saved_state).strip()
+            valid = {s.value for s in PlayerState}
+            if saved_state in valid:
+                try:
+                    self.machine.set_state(saved_state)
+                except Exception:
+                    # State list may change across versions; reset safely.
+                    logger.warning(
+                        "Player %s: invalid saved FSM state %r — resetting to %s",
+                        self.player_id,
+                        saved_state,
+                        PlayerState.IDLE,
+                        exc_info=True,
+                    )
+                    await self._redis.hset(self._redis_key, "fsm_state", PlayerState.IDLE)
+                    self.machine.set_state(PlayerState.IDLE)
+            elif saved_state:
+                logger.warning(
+                    "Player %s: unknown saved FSM state %r — resetting to %s",
+                    self.player_id,
+                    saved_state,
+                    PlayerState.IDLE,
+                )
+                await self._redis.hset(self._redis_key, "fsm_state", PlayerState.IDLE)
 
     def on_enter_recovering(self) -> None:
         logger.warning("Player %s entering recovery", self.player_id)

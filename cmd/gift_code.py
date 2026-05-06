@@ -18,6 +18,7 @@ import asyncio
 import logging
 from pathlib import Path
 
+from config.logging_stdout import setup_stdout_logging
 from gift.redeemer import run_gift_code_redeemer
 from gift.scraper import poll_once
 
@@ -42,7 +43,7 @@ async def _main(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    setup_stdout_logging(logging.INFO)
     parser = argparse.ArgumentParser(description="Redeem WOS gift codes via Century API")
     parser.add_argument("--codes", default="db/giftCodes.yaml")
     parser.add_argument("--devices", default="db/devices.yaml")

@@ -126,3 +126,43 @@ def rename_reference_to_basename(
     except OSError as exc:
         return False, str(exc)
     return True, f"Renamed to `{dest.name}`."
+
+
+def move_temporal_to_reference_basename(
+    *,
+    src_temporal: Path,
+    name_input: str,
+    instance_id: str,
+) -> tuple[bool, str, str | None]:
+    """Move a pending PNG from ``references/temporal/`` to ``references/<basename>.png``.
+
+    Returns ``(ok, message, new_rel_under_references_or_none)``.
+    """
+    raw = name_input.strip()
+    if not raw:
+        return False, "Enter a basename first.", None
+
+    root = references_root()
+    src = src_temporal.resolve()
+    if not src.is_file():
+        return False, f"Source missing: `{src.name}`.", None
+
+    try:
+        rel = src.relative_to(root)
+    except ValueError:
+        return False, "Invalid source path.", None
+
+    if len(rel.parts) == 0 or rel.parts[0] != TEMPORAL_SUBDIR:
+        return False, "Source must be under `references/temporal/`.", None
+
+    dest_base = reference_file_basename(raw, instance_id)
+    dest = (root / f"{dest_base}.png").resolve()
+    if dest.is_file():
+        return False, f"Target already exists: `{dest.name}` — remove it or choose another name.", None
+
+    try:
+        src.rename(dest)
+    except OSError as exc:
+        return False, str(exc), None
+
+    return True, f"Saved as `{dest.name}`.", f"{dest_base}.png"

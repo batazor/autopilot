@@ -5,13 +5,16 @@ All touch input and framebuffer capture use ``adb`` (no macOS Quartz window capt
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import subprocess
 import time
+import uuid
 from datetime import timedelta
 
 import numpy as np
+import redis
 
 from capture.adb_screencap import (
     DEFAULT_ADB_BIN,
@@ -25,6 +28,133 @@ from layout.types import Point, Region
 logger = logging.getLogger(__name__)
 
 _GAME_PACKAGE = "com.gof.global"
+
+_redis_client: redis.Redis | None = None
+
+
+def _redis() -> redis.Redis:
+    """Lazy sync Redis client for UI click approvals."""
+    global _redis_client
+    if _redis_client is None:
+        settings = get_settings()
+        _redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    return _redis_client
+
+
+def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[bool, str | None]:
+    """If approval mode is enabled, block until UI approves/rejects.
+
+    Contract (no stack):
+    - At most one pending request per instance stored at
+      ``wos:ui:click_approval:current:<instance_id>``.
+    - UI writes decision to ``wos:ui:click_approval:response:<instance_id>``.
+    """
+    enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
+    enabled = str(_redis().get(enabled_key) or "").strip().lower() in {"1", "true", "yes", "on"}
+    if not enabled:
+        return True, None
+
+    hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
+    # Safety: enabled but page not open => block all inputs.
+    if not _redis().get(hb_key):
+        return False, None
+
+    current_key = f"wos:ui:click_approval:current:{instance_id}"
+    resp_key = f"wos:ui:click_approval:response:{instance_id}"
+
+    req_id: str | None = None
+
+    # Create a new request only if there isn't one already.
+    if not _redis().get(current_key):
+        req_id = f"adb:{instance_id}:{uuid.uuid4().hex[:12]}"
+
+        # Attach context for debugging ("who" + "why").
+        ctx: dict[str, object] = {}
+        try:
+            inst_state_key = f"wos:instance:{instance_id}:state"
+            raw = _redis().hgetall(inst_state_key)
+            if raw:
+                ctx = {
+                    "current_screen": (raw.get("current_screen") or "").strip(),
+                    "current_task_type": (raw.get("current_task_type") or "").strip(),
+                    "current_task_id": (raw.get("current_task_id") or "").strip(),
+                    "current_task_player": (raw.get("current_task_player") or "").strip(),
+                    "current_task_region": (raw.get("current_task_region") or "").strip(),
+                    "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
+                }
+        except Exception:
+            ctx = {}
+
+        p = dict(payload)
+        p.update(
+            {
+                "request_id": req_id,
+                "instance_id": instance_id,
+                "created_at": time.time(),
+                "status": "waiting",
+                "source": {
+                    "component": "actions.tap.AdbController",
+                    "note": "ADB input request (approval mode enabled)",
+                },
+                "context": ctx,
+            }
+        )
+
+        # Promote overlay threshold to top-level for convenience (when present).
+        thr_s = str(ctx.get("current_task_threshold") or "").strip()
+        if thr_s and "threshold" not in p:
+            try:
+                p["threshold"] = float(thr_s)
+            except ValueError:
+                pass
+
+        # Clear stale decision and store "current" request (single slot).
+        try:
+            _redis().delete(resp_key)
+        except Exception:
+            pass
+        _redis().set(current_key, json.dumps(p), ex=120)
+    else:
+        # Reuse existing request id (if present) so the caller can mark execution.
+        try:
+            raw_existing = _redis().get(current_key)
+            if raw_existing:
+                req_id = str(json.loads(raw_existing).get("request_id") or "") or None
+        except Exception:
+            req_id = None
+
+    deadline = time.time() + 60.0
+    decision: str | None = None
+    while time.time() < deadline:
+        raw = _redis().get(resp_key)
+        if raw:
+            decision = str(raw).strip().lower()
+            break
+        time.sleep(0.2)
+
+    if decision in {"approve", "reject"}:
+        # Persist decision time on the current payload for UI/debug.
+        try:
+            raw_cur = _redis().get(current_key)
+            if raw_cur:
+                doc = json.loads(raw_cur)
+                doc["decision"] = decision
+                doc["approved_at"] = time.time() if decision == "approve" else None
+                doc["rejected_at"] = time.time() if decision == "reject" else None
+                doc["status"] = "approved" if decision == "approve" else "rejected"
+                _redis().set(current_key, json.dumps(doc), ex=120)
+        except Exception:
+            logger.debug("Failed to mark decision timestamps", exc_info=True)
+
+    # On reject/timeout, clear slot so the bot can proceed.
+    if decision != "approve":
+        try:
+            _redis().delete(current_key)
+            _redis().delete(resp_key)
+        except Exception:
+            logger.debug("approval cleanup failed", exc_info=True)
+
+    return decision == "approve", req_id
 
 
 def _clamp(val: int, lo: int, hi: int) -> int:
@@ -41,10 +171,11 @@ def _jitter(value: int, spread: int) -> int:
 class AdbController:
     """ADB wrapper matching the Go DeviceController interface."""
 
-    def __init__(self, device_serial: str, *, adb_bin: str = DEFAULT_ADB_BIN) -> None:
+    def __init__(self, instance_id: str, device_serial: str, *, adb_bin: str = DEFAULT_ADB_BIN) -> None:
         resolved = resolve_adb_executable(adb_bin)
         if resolved is None:
             raise RuntimeError(MSG_ADB_NOT_FOUND)
+        self._instance_id = instance_id
         self._adb_exe = resolved
         self._serial = device_serial
         self._verify_available()
@@ -164,8 +295,32 @@ class AdbController:
         """Tap center of Point with ±2 px jitter."""
         x = _jitter(point.x, 2)
         y = _jitter(point.y, 2)
+        ok, req_id = _require_approval(
+            self._instance_id,
+            {"type": "tap", "x": int(x), "y": int(y), "serial": self._serial},
+        )
+        if not ok:
+            logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
+            return
+        if req_id is not None:
+            try:
+                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
+                raw = _redis().get(current_key)
+                if raw:
+                    doc = json.loads(raw)
+                    doc["executed_at"] = time.time()
+                    doc["status"] = "executing"
+                    _redis().set(current_key, json.dumps(doc), ex=120)
+            except Exception:
+                logger.debug("Failed to mark executed_at", exc_info=True)
         self._shell("input", "tap", str(x), str(y))
         logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
+        if req_id is not None:
+            try:
+                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
+                _redis().delete(f"wos:ui:click_approval:response:{self._instance_id}")
+            except Exception:
+                logger.debug("Failed to cleanup approval keys after tap", exc_info=True)
 
     def tap_region(self, region: Region) -> None:
         """Tap center of Region with ±5% size jitter, clamped inside bounds."""
@@ -175,8 +330,38 @@ class AdbController:
         spread_y = max(1, int(region.h * 0.05))
         x = _clamp(_jitter(cx, spread_x), region.x, region.x + region.w - 1)
         y = _clamp(_jitter(cy, spread_y), region.y, region.y + region.h - 1)
+        ok, req_id = _require_approval(
+            self._instance_id,
+            {
+                "type": "tap_region",
+                "x": int(x),
+                "y": int(y),
+                "serial": self._serial,
+                "region": {"x": region.x, "y": region.y, "w": region.w, "h": region.h},
+            },
+        )
+        if not ok:
+            logger.info("ADB tap_region blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
+            return
+        if req_id is not None:
+            try:
+                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
+                raw = _redis().get(current_key)
+                if raw:
+                    doc = json.loads(raw)
+                    doc["executed_at"] = time.time()
+                    doc["status"] = "executing"
+                    _redis().set(current_key, json.dumps(doc), ex=120)
+            except Exception:
+                logger.debug("Failed to mark executed_at", exc_info=True)
         self._shell("input", "tap", str(x), str(y))
         logger.debug("TapRegion (%d, %d) on %s", x, y, self._serial)
+        if req_id is not None:
+            try:
+                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
+                _redis().delete(f"wos:ui:click_approval:response:{self._instance_id}")
+            except Exception:
+                logger.debug("Failed to cleanup approval keys after tap_region", exc_info=True)
 
     def swipe(
         self,
@@ -190,8 +375,40 @@ class AdbController:
         x2 = _jitter(end.x, 2)
         y2 = _jitter(end.y, 2)
         ms = int(duration.total_seconds() * 1000)
+        ok, req_id = _require_approval(
+            self._instance_id,
+            {
+                "type": "swipe",
+                "x1": int(x1),
+                "y1": int(y1),
+                "x2": int(x2),
+                "y2": int(y2),
+                "ms": int(ms),
+                "serial": self._serial,
+            },
+        )
+        if not ok:
+            logger.info("ADB swipe blocked (no approval): %s", self._instance_id)
+            return
+        if req_id is not None:
+            try:
+                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
+                raw = _redis().get(current_key)
+                if raw:
+                    doc = json.loads(raw)
+                    doc["executed_at"] = time.time()
+                    doc["status"] = "executing"
+                    _redis().set(current_key, json.dumps(doc), ex=120)
+            except Exception:
+                logger.debug("Failed to mark executed_at", exc_info=True)
         self._shell("input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
         logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
+        if req_id is not None:
+            try:
+                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
+                _redis().delete(f"wos:ui:click_approval:response:{self._instance_id}")
+            except Exception:
+                logger.debug("Failed to cleanup approval keys after swipe", exc_info=True)
 
     def swipe_direction(
         self,
@@ -221,17 +438,32 @@ class AdbController:
 
     def type_text(self, text: str) -> None:
         escaped = text.replace(" ", "%s").replace("'", "\\'")
+        ok, req_id = _require_approval(
+            self._instance_id,
+            {"type": "type_text", "text": text, "serial": self._serial},
+        )
+        if not ok:
+            logger.info("ADB type_text blocked (no approval): %s", self._instance_id)
+            return
+        if req_id is not None:
+            try:
+                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
+                raw = _redis().get(current_key)
+                if raw:
+                    doc = json.loads(raw)
+                    doc["executed_at"] = time.time()
+                    doc["status"] = "executing"
+                    _redis().set(current_key, json.dumps(doc), ex=120)
+            except Exception:
+                logger.debug("Failed to mark executed_at", exc_info=True)
         self._shell("input", "text", escaped)
         logger.debug("Type '%s' on %s", text, self._serial)
-
-    def key_event(self, keycode: int) -> None:
-        self._shell("input", "keyevent", str(keycode))
-
-    def back(self) -> None:
-        self.key_event(4)
-
-    def home(self) -> None:
-        self.key_event(3)
+        if req_id is not None:
+            try:
+                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
+                _redis().delete(f"wos:ui:click_approval:response:{self._instance_id}")
+            except Exception:
+                logger.debug("Failed to cleanup approval keys after type_text", exc_info=True)
 
     # ------------------------------------------------------------------
     # Screenshot via ADB
@@ -277,7 +509,11 @@ class BotActions:
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
             serial = self._get_serial(instance_id)
-            self._controllers[instance_id] = AdbController(serial, adb_bin=self._adb_bin())
+            self._controllers[instance_id] = AdbController(
+                instance_id,
+                serial,
+                adb_bin=self._adb_bin(),
+            )
         return self._controllers[instance_id]
 
     def _get_serial(self, instance_id: str) -> str:
@@ -327,10 +563,10 @@ class BotActions:
         self._controller(instance_id).long_tap(point, timedelta(milliseconds=duration_ms))
 
     def back(self, instance_id: str) -> None:
-        self._controller(instance_id).back()
+        logger.debug("BotActions.back(%s): no-op (phone BACK not allowed)", instance_id)
 
     def home(self, instance_id: str) -> None:
-        self._controller(instance_id).home()
+        logger.debug("BotActions.home(%s): no-op (phone HOME not allowed)", instance_id)
 
     def type_text(self, instance_id: str, text: str) -> None:
         self._controller(instance_id).type_text(text)

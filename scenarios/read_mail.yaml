@@ -1,0 +1,13 @@
+id: read_mail
+name: "Read mail"
+priority: 120
+repeat: true
+enabled: false
+
+steps:
+  - id: step_read_mail
+    task: mail
+    priority: 600
+    cooldown: 30m
+    max_attempts: 3
+

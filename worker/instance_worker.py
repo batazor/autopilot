@@ -31,6 +31,7 @@ from tasks.beast import BeastTask
 from tasks.daily import DailyCheckinTask
 from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
+from tasks.main_city_check import MainCityCheckTask
 from tasks.overlay_tap import OverlayTapTask
 from tasks.training import TrainingTask
 
@@ -43,6 +44,7 @@ _TASK_REGISTRY: dict[str, type] = {
     "daily_checkin": DailyCheckinTask,
     "defend_ally": DefendAllyTask,
     "beast": BeastTask,
+    "main_city_check": MainCityCheckTask,
 }
 
 
@@ -85,12 +87,31 @@ class InstanceWorker:
                 "active_player": "",
                 "paused": "0",
                 "worker_started_at": str(time.time()),
+                "last_seen_at": str(time.time()),
+                "last_error": "",
                 "current_task_type": "",
                 "current_task_id": "",
                 "current_task_player": "",
                 "current_task_started_at": "",
+                "current_screen": "",
             },
         )
+
+    async def _set_instance_state(self, state: InstanceState, *, error: str = "") -> None:
+        """Persist instance state to Redis for UI/debugging."""
+        self._instance_state = state
+        if self._redis is None:
+            return
+        mapping: dict[str, str] = {"state": str(state)}
+        if error:
+            mapping["last_error"] = error[:500]
+        else:
+            # Clear stale error when state changes successfully.
+            mapping["last_error"] = ""
+        try:
+            await self._redis.hset(f"wos:instance:{self._cfg.instance_id}:state", mapping=mapping)
+        except Exception:
+            logger.debug("Failed to persist instance state to Redis", exc_info=True)
 
     def _worker_adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
@@ -101,7 +122,7 @@ class InstanceWorker:
         (repo_root / "references").mkdir(parents=True, exist_ok=True)
         base = reference_file_basename(reference_name, self._cfg.instance_id)
         path = reference_png_abs_path(repo_root, base, self._cfg.instance_id)
-        logger.info(
+        logger.debug(
             "[ui] %s: ADB screencap (serial=%s) → %s",
             self._cfg.instance_id,
             self._cfg.bluestacks_window_title,
@@ -113,7 +134,7 @@ class InstanceWorker:
             serial=self._cfg.bluestacks_window_title,
         )
         if ok:
-            logger.info("[ui] %s: saved screenshot %s", self._cfg.instance_id, path)
+            logger.debug("[ui] %s: saved screenshot %s", self._cfg.instance_id, path)
         else:
             logger.error("[ui] %s: screenshot failed: %s", self._cfg.instance_id, msg)
             raise RuntimeError(msg)
@@ -170,6 +191,8 @@ class InstanceWorker:
                     await self._schedule_manual_task(pid, ttype)
             case "recovery":
                 await self._recovery.recover_to_main(self._cfg.instance_id)  # type: ignore[union-attr]
+            case "restart":
+                await self._restart_instance()
             case _:
                 logger.warning("Unknown UI command: %s", cmd)
 
@@ -212,6 +235,7 @@ class InstanceWorker:
                 region_name=region,
                 tap_x_pct=item.tap_x_pct,
                 tap_y_pct=item.tap_y_pct,
+                threshold=item.threshold,
             )
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
@@ -221,6 +245,7 @@ class InstanceWorker:
             task_id=item.task_id,
             player_id=item.player_id,
             priority=item.priority,
+            redis_client=self._redis,
         )
 
     async def _execute_task(self, item: QueueItem, task: BaseTask) -> TaskResult | None:
@@ -289,26 +314,27 @@ class InstanceWorker:
 
     async def _restart_instance(self) -> None:
         logger.warning("Restarting BlueStacks instance %s", self._cfg.instance_id)
-        self._instance_state = InstanceState.RESTARTING
-        await self._redis.hset(  # type: ignore[union-attr]
-            f"wos:instance:{self._cfg.instance_id}:state",
-            "state",
-            InstanceState.RESTARTING,
-        )
+        await self._set_instance_state(InstanceState.RESTARTING)
         await self._redis.delete(f"wos:instance:{self._cfg.instance_id}:lock")
 
-        ok = await self._recovery.restart_game(self._cfg.instance_id)  # type: ignore[union-attr]
-        if ok:
-            self._instance_state = InstanceState.READY
-            await self._redis.hset(  # type: ignore[union-attr]
-                f"wos:instance:{self._cfg.instance_id}:state",
-                "state",
-                InstanceState.READY,
+        # Restart must not depend on OCR availability (OCR is optional/remote).
+        try:
+            self._bot_actions.restart_application(self._cfg.instance_id)
+            await asyncio.sleep(3.0)
+            await asyncio.to_thread(self._bot_actions.ensure_game_foreground, self._cfg.instance_id)
+        except Exception:
+            logger.exception("Failed to restart application on %s", self._cfg.instance_id)
+            await self._set_instance_state(
+                InstanceState.CRASHED, error="restart_application failed (see logs)"
             )
-            # Dismiss entry screens that appear after game restart
+            return
+
+        await self._set_instance_state(InstanceState.READY)
+        # Dismiss entry screens that appear after game restart (best-effort).
+        try:
             await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
-        else:
-            logger.critical("Failed to restart instance %s", self._cfg.instance_id)
+        except Exception:
+            logger.debug("Ad-skip after restart failed", exc_info=True)
 
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
@@ -321,19 +347,30 @@ class InstanceWorker:
         active = await self._switcher.current_player(self._cfg.instance_id)  # type: ignore[union-attr]
         player_id = active if active else self._cfg.player_ids[0]
         now = time.time()
+        is_main = bool(
+            isinstance(overlay_results.get("main_city.visible"), dict)
+            and overlay_results.get("main_city.visible", {}).get("matched")
+        )
         for name, payload in overlay_results.items():
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
                 continue
+            if not payload.get("enqueue_tap", True):
+                continue
             region = str(payload.get("region") or "").strip()
             if not region:
+                continue
+            # Safety: only click the new-chapter hint on main page.
+            if name == "new_chapter.visible" and not is_main:
                 continue
             task_id = f"ovl:{self._cfg.instance_id}:{name}:{uuid.uuid4().hex[:8]}"
             tap_x = payload.get("tap_x_pct")
             tap_y = payload.get("tap_y_pct")
             tap_x_pct = float(tap_x) if tap_x is not None else None
             tap_y_pct = float(tap_y) if tap_y is not None else None
+            thr = payload.get("threshold")
+            threshold = float(thr) if thr is not None else None
             queued = await self._queue.schedule(  # type: ignore[union-attr]
                 task_id=task_id,
                 player_id=player_id,
@@ -344,6 +381,7 @@ class InstanceWorker:
                 region=region,
                 tap_x_pct=tap_x_pct,
                 tap_y_pct=tap_y_pct,
+                threshold=threshold,
                 skip_if_duplicate=True,
             )
             if queued:
@@ -357,7 +395,19 @@ class InstanceWorker:
         """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
         repo_root = Path(__file__).resolve().parent.parent
         try:
-            results = run_overlay_analysis(image_bgr, repo_root=repo_root)
+            # Read current_screen written by Navigator after successful navigation.
+            current_screen: str | None = None
+            if self._redis is not None:
+                raw = await self._redis.hget(
+                    f"wos:instance:{self._cfg.instance_id}:state", "current_screen"
+                )
+                if raw:
+                    current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
+                    current_screen = current_screen.strip() or None
+
+            results = await run_overlay_analysis(
+                image_bgr, repo_root=repo_root, current_screen=current_screen
+            )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
             return
@@ -370,7 +420,7 @@ class InstanceWorker:
         base = reference_file_basename(None, self._cfg.instance_id)
         path = reference_png_abs_path(repo_root, base, self._cfg.instance_id)
 
-        logger.info(
+        logger.debug(
             "[rolling] %s: ADB screencap (serial=%s) → %s",
             self._cfg.instance_id,
             self._cfg.bluestacks_window_title,
@@ -410,7 +460,7 @@ class InstanceWorker:
 
         self._rolling_snap_seq += 1
         h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
-        logger.info(
+        logger.debug(
             "[rolling] %s: saved screenshot %s (%d×%d), tick #%d",
             self._cfg.instance_id,
             path,
@@ -483,92 +533,123 @@ class InstanceWorker:
         )
         health_interval = self._settings.worker.health_check_interval_seconds
         last_health_check = time.monotonic()
+        last_heartbeat = 0.0
 
-        while True:
+        try:
+            while True:
+            # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
+                now_m = time.monotonic()
+                if now_m - last_heartbeat >= 2.0:
+                    try:
+                        await self._redis.hset(  # type: ignore[union-attr]
+                            f"wos:instance:{self._cfg.instance_id}:state",
+                            "last_seen_at",
+                            str(time.time()),
+                        )
+                    except Exception:
+                        logger.debug("Failed to write last_seen_at heartbeat", exc_info=True)
+                    last_heartbeat = now_m
+
             # Periodic health check
-            if time.monotonic() - last_health_check >= health_interval:
-                alive = await self._health_check()
-                if not alive:
-                    await self._restart_instance()
-                last_health_check = time.monotonic()
+                if time.monotonic() - last_health_check >= health_interval:
+                    alive = await self._health_check()
+                    if not alive:
+                        await self._restart_instance()
+                    last_health_check = time.monotonic()
 
-            await self._drain_ui_commands()
-            while self._ui_paused:
                 await self._drain_ui_commands()
-                await asyncio.sleep(0.3)
+                while self._ui_paused:
+                    await self._drain_ui_commands()
+                    await asyncio.sleep(0.3)
 
-            item = await self._pop_next_task()
-            if item is None:
-                await asyncio.sleep(2.0)
-                continue
+                item = await self._pop_next_task()
+                if item is None:
+                    await asyncio.sleep(2.0)
+                    continue
 
-            task = self._build_task(item)
-            if task is None:
-                continue
+                task = self._build_task(item)
+                if task is None:
+                    continue
 
-            skip_account = getattr(task, "skip_account_check", False)
-            self._task_busy.set()
+                skip_account = getattr(task, "skip_account_check", False)
+                self._task_busy.set()
 
-            state_key = f"wos:instance:{self._cfg.instance_id}:state"
-            await self._redis.hset(  # type: ignore[union-attr]
-                state_key,
-                mapping={
-                    "current_task_type": item.task_type,
-                    "current_task_id": item.task_id,
-                    "current_task_player": item.player_id,
-                    "current_task_started_at": str(time.time()),
-                },
-            )
-            logger.info(
-                "Task start %s: id=%s type=%s player=%s prio=%s",
-                self._cfg.instance_id,
-                item.task_id,
-                item.task_type,
-                item.player_id,
-                item.priority,
-            )
-            try:
-                if not skip_account:
-                    await self._ensure_account(item.player_id)
-                result = await self._execute_task(item, task)
-                await self._drain_ui_commands()
-                if result is not None and result.next_run_at is not None:
-                    import time as stdlib_time
-
-                    run_at = stdlib_time.mktime(result.next_run_at.timetuple())
-                    await self._queue.schedule(  # type: ignore[union-attr]
-                        task_id=item.task_id,
-                        player_id=item.player_id,
-                        task_type=item.task_type,
-                        priority=item.priority,
-                        run_at=run_at,
-                        instance_id=self._cfg.instance_id,
-                        region=item.region,
-                    )
-                if result is not None:
-                    logger.info(
-                        "Task done %s: id=%s success=%s next_run_at=%s",
-                        self._cfg.instance_id,
-                        item.task_id,
-                        getattr(result, "success", None),
-                        getattr(result, "next_run_at", None),
-                    )
-                else:
-                    logger.info(
-                        "Task done %s: id=%s (no result)",
-                        self._cfg.instance_id,
-                        item.task_id,
-                    )
-            except Exception as exc:
-                await self._handle_failure(item, exc)
-            finally:
-                self._task_busy.clear()
+                state_key = f"wos:instance:{self._cfg.instance_id}:state"
+                await self._set_instance_state(InstanceState.BUSY)
                 await self._redis.hset(  # type: ignore[union-attr]
                     state_key,
                     mapping={
-                        "current_task_type": "",
-                        "current_task_id": "",
-                        "current_task_player": "",
-                        "current_task_started_at": "",
+                        "current_task_type": item.task_type,
+                        "current_task_id": item.task_id,
+                        "current_task_player": item.player_id,
+                        "current_task_started_at": str(time.time()),
+                        "current_task_region": item.region or "",
+                        "current_task_threshold": (
+                            "" if item.threshold is None else str(item.threshold)
+                        ),
                     },
                 )
+                logger.info(
+                    "Task start %s: id=%s type=%s player=%s prio=%s",
+                    self._cfg.instance_id,
+                    item.task_id,
+                    item.task_type,
+                    item.player_id,
+                    item.priority,
+                )
+                try:
+                    if not skip_account:
+                        await self._ensure_account(item.player_id)
+                    result = await self._execute_task(item, task)
+                    await self._drain_ui_commands()
+                    if result is not None and result.next_run_at is not None:
+                        import time as stdlib_time
+
+                        run_at = stdlib_time.mktime(result.next_run_at.timetuple())
+                        await self._queue.schedule(  # type: ignore[union-attr]
+                            task_id=item.task_id,
+                            player_id=item.player_id,
+                            task_type=item.task_type,
+                            priority=item.priority,
+                            run_at=run_at,
+                            instance_id=self._cfg.instance_id,
+                            region=item.region,
+                        )
+                    if result is not None:
+                        logger.info(
+                            "Task done %s: id=%s success=%s next_run_at=%s",
+                            self._cfg.instance_id,
+                            item.task_id,
+                            getattr(result, "success", None),
+                            getattr(result, "next_run_at", None),
+                        )
+                    else:
+                        logger.info(
+                            "Task done %s: id=%s (no result)",
+                            self._cfg.instance_id,
+                            item.task_id,
+                        )
+                except Exception as exc:
+                    await self._set_instance_state(
+                        InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}"
+                    )
+                    await self._handle_failure(item, exc)
+                finally:
+                    self._task_busy.clear()
+                    await self._set_instance_state(InstanceState.READY)
+                    await self._redis.hset(  # type: ignore[union-attr]
+                        state_key,
+                        mapping={
+                            "current_task_type": "",
+                            "current_task_id": "",
+                            "current_task_player": "",
+                            "current_task_started_at": "",
+                            "current_task_region": "",
+                            "current_task_threshold": "",
+                        },
+                    )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            await self._set_instance_state(InstanceState.CRASHED, error=f"worker crashed: {exc!s}")
+            raise

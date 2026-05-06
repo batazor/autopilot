@@ -29,6 +29,14 @@ def reference_png_abs_path(repo_root: Path, base: str, instance_id: str) -> Path
     return refs / f"{base}.png"
 
 
+def temporal_png_abs_path(repo_root: Path, base: str) -> Path:
+    """Path for a temporary PNG under ``references/temporal/<base>.png`` (non-rolling)."""
+    refs = repo_root / "references" / TEMPORAL_SUBDIR
+    out = refs / f"{base}.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
+
+
 def is_preview_snapshot_stem(stem: str, instance_id: str) -> bool:
     """True for the rolling preview file stem ``{instance_id}_current_state``."""
     return stem == f"{instance_id}_{_DEFAULT_BASE_SUFFIX}"

@@ -13,6 +13,8 @@ from tasks.beast import BeastTask
 from tasks.daily import DailyCheckinTask
 from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
+from tasks.mail import MailTask
+from tasks.main_city_check import MainCityCheckTask
 from tasks.training import TrainingTask
 
 logger = logging.getLogger(__name__)
@@ -24,6 +26,8 @@ _TASK_FACTORIES: dict[str, type] = {
     "daily_checkin": DailyCheckinTask,
     "defend_ally": DefendAllyTask,
     "beast": BeastTask,
+    "mail": MailTask,
+    "main_city_check": MainCityCheckTask,
 }
 
 

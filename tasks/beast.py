@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 from datetime import UTC, datetime, timedelta
 
 from actions.tap import BotActions
@@ -25,6 +26,7 @@ class BeastTask:
     priority: int = 700
     cooldown_seconds: int = 3600
     is_cooperative: bool = True
+    redis_client: Any | None = field(default=None, repr=False)
     task_type: str = field(default="beast", init=False)
 
     def estimate_duration(self) -> int:
@@ -36,6 +38,7 @@ class BeastTask:
         navigator = Navigator(
             capture_fn=actions.capture_screen_bgr,
             tap_fn=actions.tap,
+            redis_client=self.redis_client,
         )
 
         ok = await navigator.navigate_to(ScreenName.ALLIANCE, instance_id)
