@@ -155,6 +155,16 @@ def _optional_fuzzy_threshold(rule: dict[str, Any]) -> float | None:
         return None
 
 
+def _optional_priority(rule: dict[str, Any]) -> int | None:
+    v = rule.get("priority")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _optional_expected_texts(rule: dict[str, Any]) -> list[str]:
     v = rule.get("expected")
     if isinstance(v, list):
@@ -186,6 +196,7 @@ async def evaluate_overlay_rules_async(
             continue
         set_node = rule.get("set_node")
         set_node_s = str(set_node).strip() if isinstance(set_node, str) else ""
+        priority = _optional_priority(rule)
         # Screen filter: skip screen-specific rules when current screen doesn't match.
         rule_screens = rule.get("screens")
         if not rule_screens:
@@ -414,6 +425,8 @@ async def evaluate_overlay_rules_async(
                     }
                     if set_node_s:
                         hit["set_node"] = set_node_s
+                    if priority is not None:
+                        hit["priority"] = priority
                     if min_sat is not None:
                         hit["min_match_saturation"] = min_sat
                     if mean_sat is not None:
@@ -472,6 +485,8 @@ async def evaluate_overlay_rules_async(
             }
             if set_node_s:
                 hit1["set_node"] = set_node_s
+            if priority is not None:
+                hit1["priority"] = priority
             if min_sat is not None:
                 hit1["min_match_saturation"] = min_sat
             if mean_sat_1 is not None:
@@ -565,6 +580,8 @@ async def evaluate_overlay_rules_async(
             }
             if set_node_s:
                 out[logical_name]["set_node"] = set_node_s
+            if priority is not None:
+                out[logical_name]["priority"] = priority
             continue
 
         out[logical_name] = {"matched": False, "reason": "unsupported_action", "action": action}

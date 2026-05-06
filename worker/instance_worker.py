@@ -15,7 +15,6 @@ import redis.asyncio as aioredis
 
 from account.switcher import AccountSwitcher
 from actions.ad_skip import AdSkipper
-from actions.recovery import RecoveryHandler
 from actions.tap import BotActions
 from analysis.overlay import run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
@@ -56,7 +55,6 @@ class InstanceWorker:
         self._queue: RedisQueue | None = None
         self._claims: CooperativeClaims | None = None
         self._switcher: AccountSwitcher | None = None
-        self._recovery: RecoveryHandler | None = None
         self._ad_skipper: AdSkipper | None = None
         self._bot_actions = BotActions()
         self._player_fsms: dict[str, PlayerFSM] = {}
@@ -70,7 +68,6 @@ class InstanceWorker:
         self._queue = RedisQueue(self._redis)
         self._claims = CooperativeClaims(self._redis)
         self._switcher = AccountSwitcher(self._redis)
-        self._recovery = RecoveryHandler()
         self._ad_skipper = AdSkipper(self._cfg.instance_id)
 
         loop = asyncio.get_running_loop()
@@ -189,8 +186,6 @@ class InstanceWorker:
                 ttype = str(data.get("task_type", ""))
                 if pid and ttype:
                     await self._schedule_manual_task(pid, ttype)
-            case "recovery":
-                await self._recovery.recover_to_main(self._cfg.instance_id)  # type: ignore[union-attr]
             case "restart":
                 await self._restart_instance()
             case _:
@@ -300,9 +295,6 @@ class InstanceWorker:
 
     async def _handle_failure(self, item: QueueItem, error: Exception) -> None:
         logger.error("Unhandled failure for task %s: %s", item.task_id, error)
-        ok = await self._recovery.recover_to_main(self._cfg.instance_id)  # type: ignore[union-attr]
-        if not ok:
-            await self._restart_instance()
 
     async def _health_check(self) -> bool:
         try:
@@ -381,11 +373,13 @@ class InstanceWorker:
             threshold = float(thr) if thr is not None else None
             sn = payload.get("set_node")
             set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
+            pr = payload.get("priority")
+            priority = int(pr) if pr is not None else 50_000
             queued = await self._queue.schedule(  # type: ignore[union-attr]
                 task_id=task_id,
                 player_id=player_id,
                 task_type="overlay_tap",
-                priority=50_000,
+                priority=priority,
                 run_at=now,
                 instance_id=self._cfg.instance_id,
                 region=region,

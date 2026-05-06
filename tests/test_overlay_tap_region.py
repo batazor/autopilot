@@ -99,6 +99,24 @@ def test_tap_region_overrides_1to1_match_centre(tap_overlay_repo: tuple[Path, di
     assert row.get("tap_region") == "icon_tap"
 
 
+def test_overlay_rule_priority_is_preserved(tap_overlay_repo: tuple[Path, dict]) -> None:
+    repo, bundle = tap_overlay_repo
+    rules = [
+        {
+            "name": "t.visible",
+            "region": "icon",
+            "tap_region": "icon_tap",
+            "action": "findIcon",
+            "threshold": 0.99,
+            "priority": 60_000,
+        }
+    ]
+    out = evaluate_overlay_rules(bundle["frame"], bundle["doc"], repo, rules)
+    row = out["t.visible"]
+    assert row.get("matched") is True
+    assert row.get("priority") == 60_000
+
+
 def test_unknown_tap_region_fails_closed(tap_overlay_repo: tuple[Path, dict]) -> None:
     repo, bundle = tap_overlay_repo
     rules = [

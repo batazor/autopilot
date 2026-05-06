@@ -698,6 +698,44 @@
           }
         }
       ]
+    },
+    {
+      "id": 19,
+      "screen_id": "",
+      "ocr": "references/survivors_have_arrived.png",
+      "regions": [
+        {
+          "name": "accept_all_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.984555984555984,
+            "y": 34.45652173913044,
+            "width": 28.78185328185328,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "accept_all_button_tap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.972972972972975,
+            "y": 87.82608695652173,
+            "width": 28.78185328185328,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
     }
   ]
 }

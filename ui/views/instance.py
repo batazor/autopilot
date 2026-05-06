@@ -187,9 +187,6 @@ with col_left:
                     )
                     st.success("run_task queued")
 
-        if st.button("Force recovery"):
-            push_instance_command(client, instance_id, {"cmd": "recovery"})
-            st.success("recovery queued")
         if st.button("Restart game"):
             push_instance_command(client, instance_id, {"cmd": "restart"})
             st.success("restart queued")
