@@ -10,20 +10,18 @@ overlay:
     region: mail_gift
     action: findIcon
     threshold: 0.9
+    node: mail
+    priority: 70_000
 
   - name: big_claim_button.visible
     region: big_claim_button
     action: findIcon
     threshold: 0.9
 
-  # ---------------------------------------------------------------------------
-  # Page detection via OCR of `page_title` bbox (area.json).
-  # Add more rules like this for each page title you want to detect.
-  # ---------------------------------------------------------------------------
   - name: page.mail.visible
     region: page_title
     action: readText
-    expected: ["Mail", "Почта", "Письма"]
+    expected: ["Mail"]
     fuzzy_threshold: 0.75
     enqueue_tap: false
     set_node: mail

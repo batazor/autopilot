@@ -13,6 +13,7 @@ from tasks.daily import DailyCheckinTask
 from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
 from tasks.mail import MailTask
+from tasks.mail_gift_check import MailGiftCheckTask
 from tasks.main_city_check import MainCityCheckTask
 from tasks.page_detect import PageDetectTask
 from tasks.training import TrainingTask
@@ -27,6 +28,7 @@ _TASK_FACTORIES: dict[str, type] = {
     "defend_ally": DefendAllyTask,
     "beast": BeastTask,
     "mail": MailTask,
+    "mail_gift_check": MailGiftCheckTask,
     "main_city_check": MainCityCheckTask,
     "page_detect": PageDetectTask,
 }

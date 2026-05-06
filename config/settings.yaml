@@ -72,6 +72,10 @@ tasks:
     cooldown_seconds: 3600
     max_attempts: 3
     timeout_seconds: 90
+  mail_gift_check:
+    cooldown_seconds: 15
+    max_attempts: 10
+    timeout_seconds: 10
   page_detect:
     cooldown_seconds: 5
     max_attempts: 100

@@ -31,6 +31,7 @@ from tasks.daily import DailyCheckinTask
 from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
 from tasks.main_city_check import MainCityCheckTask
+from tasks.mail_gift_check import MailGiftCheckTask
 from tasks.overlay_tap import OverlayTapTask
 from tasks.page_detect import PageDetectTask
 from tasks.training import TrainingTask
@@ -45,6 +46,7 @@ _TASK_REGISTRY: dict[str, type] = {
     "defend_ally": DefendAllyTask,
     "beast": BeastTask,
     "main_city_check": MainCityCheckTask,
+    "mail_gift_check": MailGiftCheckTask,
     "page_detect": PageDetectTask,
 }
 
@@ -64,6 +66,22 @@ class InstanceWorker:
         self._ui_paused = False
         self._task_busy = asyncio.Event()
         self._rolling_snap_seq = 0
+        self._last_current_screen: str | None = None
+
+    async def _schedule_mail_gift_on_enter_mail(self) -> None:
+        if self._queue is None or not self._cfg.player_ids:
+            return
+        now = time.time()
+        player_id = self._cfg.player_ids[0]
+        await self._queue.schedule(
+            task_id=f"mail_gift_enter:{self._cfg.instance_id}:{int(now)}",
+            player_id=player_id,
+            task_type="mail_gift_check",
+            priority=500,
+            run_at=now,
+            instance_id=self._cfg.instance_id,
+            skip_if_duplicate=True,
+        )
 
     async def _connect(self) -> None:
         self._redis = aioredis.from_url(self._settings.redis.url)
@@ -440,6 +458,12 @@ class InstanceWorker:
                 if raw:
                     current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
                     current_screen = current_screen.strip() or None
+
+            # One-shot hooks on screen transitions.
+            if current_screen != self._last_current_screen:
+                if current_screen == "mail":
+                    await self._schedule_mail_gift_on_enter_mail()
+                self._last_current_screen = current_screen
 
             results = await run_overlay_analysis(
                 image_bgr, repo_root=repo_root, current_screen=current_screen

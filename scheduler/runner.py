@@ -125,10 +125,14 @@ class SchedulerRunner:
             if not task_type:
                 task_type = f"{node}_check"
             for inst in self._settings.instances:
-                if when_current_screen in {"unknown", "none", "empty"}:
+                if when_current_screen:
                     current_screen = await self._instance_current_screen(inst.instance_id)
-                    if current_screen:
-                        continue
+                    if when_current_screen in {"unknown", "none", "empty"}:
+                        if current_screen:
+                            continue
+                    else:
+                        if current_screen.lower() != when_current_screen:
+                            continue
                 player_ids = inst.player_ids[:1] if scope == "instance" else inst.player_ids
                 for player_id in player_ids:
                     # Once-per-minute guard (scheduler ticks faster than cron granularity).
