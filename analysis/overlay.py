@@ -184,6 +184,8 @@ async def evaluate_overlay_rules_async(
     for rule in overlay_rules:
         if not isinstance(rule, dict):
             continue
+        set_node = rule.get("set_node")
+        set_node_s = str(set_node).strip() if isinstance(set_node, str) else ""
         # Screen filter: skip screen-specific rules when current screen doesn't match.
         rule_screens = rule.get("screens")
         if not rule_screens:
@@ -410,6 +412,8 @@ async def evaluate_overlay_rules_async(
                         "tap_y_pct": tap_y_pct,
                         "enqueue_tap": enqueue_tap,
                     }
+                    if set_node_s:
+                        hit["set_node"] = set_node_s
                     if min_sat is not None:
                         hit["min_match_saturation"] = min_sat
                     if mean_sat is not None:
@@ -466,6 +470,8 @@ async def evaluate_overlay_rules_async(
                 "region": region_name,
                 "enqueue_tap": enqueue_tap,
             }
+            if set_node_s:
+                hit1["set_node"] = set_node_s
             if min_sat is not None:
                 hit1["min_match_saturation"] = min_sat
             if mean_sat_1 is not None:
@@ -557,6 +563,8 @@ async def evaluate_overlay_rules_async(
                 "match": best,
                 "enqueue_tap": enqueue_tap,
             }
+            if set_node_s:
+                out[logical_name]["set_node"] = set_node_s
             continue
 
         out[logical_name] = {"matched": False, "reason": "unsupported_action", "action": action}

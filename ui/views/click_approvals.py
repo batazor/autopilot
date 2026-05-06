@@ -18,8 +18,8 @@ import numpy as np
 import streamlit as st
 
 from config.loader import load_settings
-from ui.redis_client import get_instance_state, require_redis_connection
 from ui.preview_display import png_bytes_fitted
+from ui.redis_client import get_instance_state, require_redis_connection
 from ui.reference_preview import load_rolling_instance_preview
 
 settings = load_settings()
@@ -35,13 +35,12 @@ instance_id = st.selectbox("Instance", inst_ids, key="click_approval_instance")
 hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
 enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
 current_key = f"wos:ui:click_approval:current:{instance_id}"
-resp_key = f"wos:ui:click_approval:response:{instance_id}"
 
 row = get_instance_state(client, instance_id)
 node = (row.get("current_screen") or "").strip() or "—"
 st.title(f"Click approvals · {instance_id} · node: {node}")
 
-_PREVIEW_MAX_SIDE = 520
+_PREVIEW_MAX_SIDE = 360
 
 
 def _render_preview_with_point(
@@ -83,7 +82,7 @@ def _render_preview_with_point(
         cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
-    st.image(fitted, caption=cap, width="stretch")
+    st.image(fitted, caption=cap, width=_PREVIEW_MAX_SIDE)
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -127,12 +126,21 @@ def _pending_request() -> None:
 
     c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
     with c1:
-        if st.button("✅ Approve", type="primary", use_container_width=True, key=f"appr-{instance_id}"):
-            client.set(resp_key, "approve", ex=120)
+        if st.button(
+            "✅ Approve",
+            type="primary",
+            use_container_width=True,
+            key=f"appr-{instance_id}",
+        ):
+            response_key = str(payload.get("response_key") or "").strip()
+            if response_key:
+                client.set(response_key, "approve", ex=120)
             st.rerun()
     with c2:
         if st.button("❌ Reject", use_container_width=True, key=f"rej-{instance_id}"):
-            client.set(resp_key, "reject", ex=120)
+            response_key = str(payload.get("response_key") or "").strip()
+            if response_key:
+                client.set(response_key, "reject", ex=120)
             st.rerun()
     with c3:
         if st.button("🗑 Drop (no response)", use_container_width=True, key=f"drop-{instance_id}"):
@@ -159,4 +167,3 @@ if enabled_ui != enabled_now:
 _heartbeat()
 st.divider()
 _pending_request()
-

@@ -7,6 +7,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from actions.tap import BotActions
 from layout.area_lookup import screen_region_by_name
@@ -29,11 +30,18 @@ class OverlayTapTask:
     tap_x_pct: float | None = None  # % of frame; set when overlay used ``search_region``
     tap_y_pct: float | None = None
     threshold: float | None = None
+    # If set, assume we've navigated to this screen after tapping.
+    set_node: str | None = None
+    # Optional Redis client to persist current_screen for overlay filters/UI.
+    redis_client: Any | None = None
     skip_fsm: bool = field(default=True, init=False)
     skip_account_check: bool = field(default=True, init=False)
 
     def estimate_duration(self) -> int:
         return 15
+
+    def _state_key(self, instance_id: str) -> str:
+        return f"wos:instance:{instance_id}:state"
 
     async def execute(self, instance_id: str) -> TaskResult:
         key = str(self.region_name or "").strip()
@@ -78,6 +86,15 @@ class OverlayTapTask:
             point.y,
             instance_id,
         )
-        actions.tap(instance_id, point)
+        tapped = actions.tap(instance_id, point)
+        if not tapped:
+            return TaskResult(success=False, next_run_at=None)
         await asyncio.sleep(0.35)
+
+        sn = str(self.set_node or "").strip()
+        if sn and self.redis_client is not None:
+            try:
+                await self.redis_client.hset(self._state_key(instance_id), "current_screen", sn)
+            except Exception:
+                logger.debug("overlay_tap: failed to write current_screen=%s", sn, exc_info=True)
         return TaskResult(success=True, next_run_at=None)

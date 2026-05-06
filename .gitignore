@@ -14,3 +14,5 @@ db/*.yaml
 
 # Runtime / UI temporal screenshots (do not commit)
 references/temporal/
+.wos.nohup.log
+.wos.pid

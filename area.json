@@ -38,9 +38,9 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 52.638888888888886,
+            "x": 52.63899613899614,
             "y": 39.375,
-            "width": 5.416666666666667,
+            "width": 5.416988416988417,
             "height": 6.875,
             "rotation": 0.0,
             "original_width": 720,
@@ -53,10 +53,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 41.99999999999999,
-            "y": 9.453125,
-            "width": 28.0,
-            "height": 48.43984375,
+            "x": 2.1235521235521237,
+            "y": 9.453260869565218,
+            "width": 67.2007722007722,
+            "height": 48.44021739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -68,10 +68,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 44.861111111111114,
-            "y": 48.90625,
-            "width": 5.416666666666667,
-            "height": 3.96484375,
+            "x": 44.86100386100386,
+            "y": 48.90652173913043,
+            "width": 5.416988416988417,
+            "height": 3.965217391304347,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -590,7 +590,7 @@
     },
     {
       "id": 16,
-      "screen_id": "",
+      "screen_id": "mail",
       "ocr": "references/mail_page.png",
       "regions": [
         {

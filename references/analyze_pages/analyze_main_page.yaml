@@ -3,6 +3,7 @@ overlay:
     region: is_has_new_mail
     action: findIcon
     threshold: 0.99
+    set_node: mail
 
   - name: main_city.visible
     region: is_main_city

@@ -236,6 +236,8 @@ class InstanceWorker:
                 tap_x_pct=item.tap_x_pct,
                 tap_y_pct=item.tap_y_pct,
                 threshold=item.threshold,
+                set_node=item.set_node,
+                redis_client=self._redis,
             )
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
@@ -303,13 +305,19 @@ class InstanceWorker:
             await self._restart_instance()
 
     async def _health_check(self) -> bool:
-        for proc in psutil.process_iter(["name", "cmdline"]):
-            try:
-                name = proc.info["name"] or ""
-                if "bluestacks" in name.lower():
-                    return True
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
+        try:
+            for proc in psutil.process_iter(["name", "cmdline"]):
+                try:
+                    name = proc.info["name"] or ""
+                    if "bluestacks" in name.lower():
+                        return True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except PermissionError:
+            # Some macOS environments deny sysctl-based PID enumeration.
+            # Treat as "unknown but OK" to avoid a restart loop.
+            logger.debug("Health check skipped (no permission to enumerate processes)")
+            return True
         return False
 
     async def _restart_instance(self) -> None:
@@ -371,6 +379,8 @@ class InstanceWorker:
             tap_y_pct = float(tap_y) if tap_y is not None else None
             thr = payload.get("threshold")
             threshold = float(thr) if thr is not None else None
+            sn = payload.get("set_node")
+            set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
             queued = await self._queue.schedule(  # type: ignore[union-attr]
                 task_id=task_id,
                 player_id=player_id,
@@ -382,6 +392,7 @@ class InstanceWorker:
                 tap_x_pct=tap_x_pct,
                 tap_y_pct=tap_y_pct,
                 threshold=threshold,
+                set_node=set_node,
                 skip_if_duplicate=True,
             )
             if queued:
