@@ -11,3 +11,6 @@ __pycache__/
 
 # Local DB files (gift codes, device serials, synced state — do not commit)
 db/*.yaml
+
+# Runtime / UI temporal screenshots (do not commit)
+references/temporal/
