@@ -85,6 +85,190 @@
       "screen_id": "",
       "ocr": "references/ahnd_pointer_2.png",
       "regions": []
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/hand_pointer_small_reverse.png",
+      "regions": [
+        {
+          "name": "hand_pointer_small_reverse",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.888888888888886,
+            "y": 84.375,
+            "width": 6.666666666666667,
+            "height": 6.40625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "hand_pointer_small_reverse_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.22222222222222,
+            "y": 79.921875,
+            "width": 33.86666666666667,
+            "height": 18.0015625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        },
+        {
+          "name": "hand_pointer_small_reverse_tap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.833333333333336,
+            "y": 91.875,
+            "width": 7.802777777777778,
+            "height": 4.9328125,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/hand_pointer_small.png",
+      "regions": [
+        {
+          "name": "hand_pointer_small",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.741312741312742,
+            "y": 65.65217391304348,
+            "width": 10.81081081081081,
+            "height": 3.8043478260869565,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "hand_pointer_small_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.756756756756757,
+            "y": 36.84782608695652,
+            "width": 89.5965250965251,
+            "height": 61.24130434782608,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        },
+        {
+          "name": "hand_pointer_small_tap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.142857142857143,
+            "y": 72.6086956521739,
+            "width": 8.0,
+            "height": 3.8043478260869565,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "screen_id": "",
+      "ocr": "references/claim.png",
+      "regions": [
+        {
+          "name": "claim_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.7104247104247,
+            "y": 39.45652173913044,
+            "width": 16.77027027027027,
+            "height": 3.7695652173913046,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "claim_button_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.563706563706564,
+            "y": 14.021739130434783,
+            "width": 88.04440154440154,
+            "height": 83.44782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "",
+      "ocr": "references/upgrade_building.png",
+      "regions": [
+        {
+          "name": "upgrade_building",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 75.25096525096525,
+            "y": 49.130434782608695,
+            "width": 20.0,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "upgrade_building_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.505791505791506,
+            "y": 39.130434782608695,
+            "width": 94.7992277992278,
+            "height": 51.516304347826086,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
     }
   ]
 }

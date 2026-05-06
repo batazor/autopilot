@@ -23,6 +23,25 @@ def load_analyze_yaml(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def centers_delta_pct_between_regions(
+    area_doc: dict[str, Any],
+    from_region: str,
+    to_region: str,
+) -> tuple[float, float] | None:
+    """Vector ``to_center - from_center`` in percent of frame (from ``area.json`` bboxes)."""
+    pa = screen_region_by_name(area_doc, from_region)
+    pb = screen_region_by_name(area_doc, to_region)
+    if pa is None or pb is None:
+        return None
+    ba = pa[1].get("bbox")
+    bb = pb[1].get("bbox")
+    if not isinstance(ba, dict) or not isinstance(bb, dict):
+        return None
+    ax, ay = bbox_percent_center_xy_pct(ba)
+    bx, by = bbox_percent_center_xy_pct(bb)
+    return bx - ax, by - ay
+
+
 def evaluate_overlay_rules(
     image_bgr: np.ndarray,
     area_doc: dict[str, Any],
@@ -72,8 +91,49 @@ def evaluate_overlay_rules(
                 continue
 
             tap_region_name = str(rule.get("tap_region") or "").strip()
+            tap_offset_from_match = bool(rule.get("tap_offset_from_match"))
             tap_override_pct: tuple[float, float] | None = None
-            if tap_region_name:
+            tap_delta_pct: tuple[float, float] | None = None
+
+            if tap_offset_from_match:
+                if not tap_region_name:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "tap_offset_requires_tap_region",
+                        "region": region_name,
+                    }
+                    continue
+                pair_t = screen_region_by_name(area_doc, tap_region_name)
+                if pair_t is None:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "unknown_tap_region",
+                        "region": region_name,
+                        "tap_region": tap_region_name,
+                    }
+                    continue
+                entry_t, _ = pair_t
+                if str(entry_t.get("ocr") or "").strip() != ref_rel:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "tap_region_screen_mismatch",
+                        "region": region_name,
+                        "tap_region": tap_region_name,
+                    }
+                    continue
+                tap_delta_pct = centers_delta_pct_between_regions(
+                    area_doc, region_name, tap_region_name
+                )
+                if tap_delta_pct is None:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "tap_offset_delta_failed",
+                        "region": region_name,
+                        "tap_region": tap_region_name,
+                        "detail": "need bbox on region and tap_region",
+                    }
+                    continue
+            elif tap_region_name:
                 pair_t = screen_region_by_name(area_doc, tap_region_name)
                 if pair_t is None:
                     out[logical_name] = {
@@ -105,6 +165,8 @@ def evaluate_overlay_rules(
                 tap_override_pct = bbox_percent_center_xy_pct(tap_bbox)
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+            tw_tpl = int(tpl.shape[1])
+            th_tpl = int(tpl.shape[0])
             search_region_name = str(rule.get("search_region") or "").strip()
 
             try:
@@ -138,21 +200,27 @@ def evaluate_overlay_rules(
                         }
                         continue
                     res = match_template_in_search_roi_bbox_percent(image_bgr, tpl, search_bbox)
-                    tw = int(tpl.shape[1])
-                    th = int(tpl.shape[0])
-                    cx_px = res["top_left"][0] + tw / 2.0
-                    cy_px = res["top_left"][1] + th / 2.0
-                    if tap_override_pct is not None:
+                    cx_px = res["top_left"][0] + tw_tpl / 2.0
+                    cy_px = res["top_left"][1] + th_tpl / 2.0
+                    mx_pct = 100.0 * cx_px / wi
+                    my_pct = 100.0 * cy_px / hi
+                    if tap_delta_pct is not None:
+                        ddx, ddy = tap_delta_pct
+                        tap_x_pct = mx_pct + ddx
+                        tap_y_pct = my_pct + ddy
+                    elif tap_override_pct is not None:
                         tap_x_pct, tap_y_pct = tap_override_pct
                     else:
-                        tap_x_pct = 100.0 * cx_px / wi
-                        tap_y_pct = 100.0 * cy_px / hi
+                        tap_x_pct = mx_pct
+                        tap_y_pct = my_pct
                     score = res["score"]
                     hit: dict[str, Any] = {
                         "matched": score >= threshold,
                         "score": score,
                         "threshold": threshold,
                         "top_left": list(res["top_left"]),
+                        "template_w": tw_tpl,
+                        "template_h": th_tpl,
                         "action": "findIcon",
                         "region": region_name,
                         "search_region": search_region_name,
@@ -161,6 +229,11 @@ def evaluate_overlay_rules(
                     }
                     if tap_region_name:
                         hit["tap_region"] = tap_region_name
+                    if tap_delta_pct is not None:
+                        hit["tap_delta_x_pct"] = tap_delta_pct[0]
+                        hit["tap_delta_y_pct"] = tap_delta_pct[1]
+                        hit["tap_match_x_pct"] = mx_pct
+                        hit["tap_match_y_pct"] = my_pct
                     out[logical_name] = hit
                     continue
 
@@ -170,15 +243,31 @@ def evaluate_overlay_rules(
                 continue
 
             score = res["score"]
+            tl_x = float(res["top_left"][0])
+            tl_y = float(res["top_left"][1])
+            mx_pct = 100.0 * (tl_x + tw_tpl / 2.0) / wi
+            my_pct = 100.0 * (tl_y + th_tpl / 2.0) / hi
+
             hit1: dict[str, Any] = {
                 "matched": score >= threshold,
                 "score": score,
                 "threshold": threshold,
                 "top_left": list(res["top_left"]),
+                "template_w": tw_tpl,
+                "template_h": th_tpl,
                 "action": "findIcon",
                 "region": region_name,
             }
-            if tap_override_pct is not None:
+            if tap_delta_pct is not None:
+                ddx, ddy = tap_delta_pct
+                hit1["tap_x_pct"] = mx_pct + ddx
+                hit1["tap_y_pct"] = my_pct + ddy
+                hit1["tap_region"] = tap_region_name
+                hit1["tap_delta_x_pct"] = ddx
+                hit1["tap_delta_y_pct"] = ddy
+                hit1["tap_match_x_pct"] = mx_pct
+                hit1["tap_match_y_pct"] = my_pct
+            elif tap_override_pct is not None:
                 tx, ty = tap_override_pct
                 hit1["tap_x_pct"] = tx
                 hit1["tap_y_pct"] = ty

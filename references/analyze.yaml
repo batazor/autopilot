@@ -1,3 +1,4 @@
+# tap_offset_from_match: animated tap — delta from primary ``region`` bbox centre → ``tap_region`` centre.
 overlay:
 - name: skip_button.visible
   region: skip_button
@@ -7,5 +8,31 @@ overlay:
   region: hand_pointer
   search_region: hand_pointer_search
   action: findIcon
-  threshold: 0.72
+  # Sliding-window peak NCC in a large ROI can hit ~0.8 on unrelated UI; keep above accidental peaks.
+  threshold: 0.88
   tap_region: hand_pointer_tap
+  tap_offset_from_match: true
+- name: hand_pointer_small_reverse.visible
+  region: hand_pointer_small_reverse
+  search_region: hand_pointer_small_reverse_search
+  action: findIcon
+  threshold: 0.88
+  tap_region: hand_pointer_small_reverse_tap
+  tap_offset_from_match: true
+- name: hand_pointer_small.visible
+  region: hand_pointer_small
+  search_region: hand_pointer_small_search
+  action: findIcon
+  threshold: 0.88
+  tap_region: hand_pointer_small_tap
+  tap_offset_from_match: true
+- name: claim_button.visible
+  region: claim_button
+  search_region: claim_button_search
+  action: findIcon
+  threshold: 0.88
+- name: upgrade_building.visible
+  region: upgrade_building
+  search_region: upgrade_building_search
+  action: findIcon
+  threshold: 0.88

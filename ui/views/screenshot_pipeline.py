@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 import streamlit as st
 import yaml
 
@@ -26,6 +27,92 @@ def _region_area_action(area_doc: dict[str, Any], region_name: str) -> str:
     if pair is None:
         return ""
     return str(pair[1].get("action") or "")
+
+
+def _bbox_pct_to_px_rect(bb: dict[str, Any], wi: int, hi: int) -> tuple[int, int, int, int]:
+    x = float(bb.get("x") or 0.0)
+    y = float(bb.get("y") or 0.0)
+    w = float(bb.get("width") or 0.0)
+    h = float(bb.get("height") or 0.0)
+    left = max(0, min(wi - 1, int(x / 100.0 * wi)))
+    top = max(0, min(hi - 1, int(y / 100.0 * hi)))
+    right = max(left + 1, min(wi, int((x + w) / 100.0 * wi)))
+    bottom = max(top + 1, min(hi, int((y + h) / 100.0 * hi)))
+    return left, top, right, bottom
+
+
+def _maybe_downscale_for_ui(image_bgr: np.ndarray, max_side: int = 960) -> np.ndarray:
+    hi, wi = image_bgr.shape[:2]
+    m = max(hi, wi)
+    if m <= max_side:
+        return image_bgr
+    scale = max_side / float(m)
+    return cv2.resize(
+        image_bgr,
+        (int(round(wi * scale)), int(round(hi * scale))),
+        interpolation=cv2.INTER_AREA,
+    )
+
+
+def _annotate_overlay_debug(
+    image_bgr: np.ndarray,
+    results: dict[str, Any],
+    logical_names: list[str],
+    area_doc: dict[str, Any],
+    rule_search: dict[str, str],
+) -> np.ndarray:
+    vis = image_bgr.copy()
+    hi, wi = vis.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    for logical in logical_names:
+        p = results.get(logical)
+        if not isinstance(p, dict):
+            continue
+        sr_nm = str(p.get("search_region") or rule_search.get(logical, "") or "").strip()
+        if sr_nm:
+            pr = screen_region_by_name(area_doc, sr_nm)
+            if pr:
+                reg_s = pr[1]
+                search_bbox = reg_s.get("bbox")
+                if isinstance(search_bbox, dict):
+                    L, T, R, B = _bbox_pct_to_px_rect(search_bbox, wi, hi)
+                    cv2.rectangle(vis, (L, T), (R, B), (0, 200, 255), 1)
+
+        tl = p.get("top_left")
+        tw = int(p.get("template_w") or 0)
+        th = int(p.get("template_h") or 0)
+        matched = bool(p.get("matched"))
+        if isinstance(tl, (list, tuple)) and len(tl) >= 2 and tw > 0 and th > 0:
+            x0 = int(float(tl[0]))
+            y0 = int(float(tl[1]))
+            x1, y1 = min(wi, x0 + tw), min(hi, y0 + th)
+            box_col = (0, 220, 0) if matched else (0, 200, 255)
+            cv2.rectangle(vis, (x0, y0), (x1, y1), box_col, 2)
+            cx, cy = x0 + tw // 2, y0 + th // 2
+            cv2.circle(vis, (cx, cy), 5, box_col, 2)
+            label = (logical[:28] + (" ✓" if matched else " ✗")) if logical else ""
+            if label:
+                cv2.putText(
+                    vis,
+                    label,
+                    (x0 + 2, max(18, y0 - 4)),
+                    font,
+                    0.42,
+                    box_col,
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        txp = p.get("tap_x_pct")
+        typ = p.get("tap_y_pct")
+        if txp is not None and typ is not None:
+            tx = int(float(txp) / 100.0 * wi)
+            ty = int(float(typ) / 100.0 * hi)
+            tx = max(0, min(wi - 1, tx))
+            ty = max(0, min(hi - 1, ty))
+            cv2.drawMarker(vis, (tx, ty), (0, 0, 255), cv2.MARKER_CROSS, 18, 2)
+            cv2.circle(vis, (tx, ty), 9, (0, 0, 255), 2)
+    return vis
 
 
 @st.fragment(run_every=timedelta(seconds=_REFRESH_UI))
@@ -83,6 +170,7 @@ def _overlay_live_status_fragment() -> None:
                     rule_tap[nm] = str(tr).strip()
 
     rows_out: list[dict[str, object]] = []
+    visible_logicals: list[str] = []
     for logical in rule_order:
         payload = results.get(logical)
         if not isinstance(payload, dict):
@@ -91,6 +179,7 @@ def _overlay_live_status_fragment() -> None:
         area_action = _region_area_action(area_doc, region_name)
         if only_exist and area_action != "exist":
             continue
+        visible_logicals.append(logical)
 
         matched = bool(payload.get("matched"))
         status = "Found" if matched else "Not found"
@@ -119,9 +208,82 @@ def _overlay_live_status_fragment() -> None:
             }
         )
 
+    with st.expander("Rolling frame: template match vs tap (debug)", expanded=True):
+        show_dbg = st.checkbox(
+            "Draw match box / search ROI / tap on the rolling PNG",
+            value=True,
+            key="pipeline_overlay_debug_viz",
+        )
+        dbg_include_not_found = st.checkbox(
+            "Also draw **Not found** rules (below threshold)",
+            value=False,
+            key="pipeline_overlay_debug_include_not_found",
+            help="By default only **Found** overlays are drawn.",
+        )
+        if show_dbg and visible_logicals:
+            only_found = not dbg_include_not_found
+            logicals_draw = (
+                [
+                    ln
+                    for ln in visible_logicals
+                    if bool(results.get(ln, {}).get("matched"))
+                ]
+                if only_found
+                else visible_logicals
+            )
+            if only_found and not logicals_draw:
+                st.caption(
+                    "No **Found** overlays to draw — enable **Also draw Not found…** "
+                    "or wait until a rule matches."
+                )
+            else:
+                vis = _annotate_overlay_debug(
+                    image_bgr,
+                    results,
+                    logicals_draw,
+                    area_doc,
+                    rule_search,
+                )
+                vis_ui = _maybe_downscale_for_ui(vis)
+                st.image(
+                    cv2.cvtColor(vis_ui, cv2.COLOR_BGR2RGB),
+                    use_container_width=True,
+                )
+                st.caption(
+                    "**Orange** outline: `search_region` ROI · "
+                    "**Green** / **cyan** box: template match "
+                    "(green = Found, cyan = below threshold) · "
+                    "**Red** cross: tap target (`tap_x_pct` / `tap_y_pct`). "
+                    + (
+                        "Showing **Found** only (enable the checkbox above for Not found)."
+                        if only_found
+                        else "Showing **Found** and **Not found**."
+                    )
+                )
+        elif show_dbg:
+            st.caption("Nothing to draw — no overlay rows pass the current filter.")
+
     if not rows_out:
         st.info("No overlay rows to show (check YAML or turn off the `exist` filter).")
         return
+
+    show_table = st.checkbox(
+        "Show overlay status table",
+        value=True,
+        key="pipeline_overlay_show_table",
+    )
+    if not show_table:
+        return
+
+    rows_out.sort(
+        key=lambda row: (
+            0 if row.get("status") == "Found" else 1,
+            str(row.get("overlay_rule") or ""),
+        )
+    )
+    st.caption(
+        "Sorted by **status**: **Found** first, **Not found** after; ties use rule name."
+    )
 
     st.dataframe(rows_out, hide_index=True, use_container_width=True)
 
@@ -159,7 +321,8 @@ st.markdown(
    `references/analyze.yaml`; for `findIcon`, template from `references/crop/` and regions from
    `area.json` (optional **`search_region`**: sliding `matchTemplate` in a larger ROI).
 4. **Queue taps** → matched rules schedule `overlay_tap` (dedup per region).
-   Tap: **`tap_region`** if set; else match centre (**`search_region`**); else template bbox centre.
+   Tap: **`tap_offset_from_match`** = match + labeled delta; else **`tap_region`**; else match; else
+   template bbox centre.
 """
 )
 
@@ -198,7 +361,10 @@ st.caption(
     """
 Runs **`run_overlay_analysis`** on the rolling PNG (same as worker; worker may skip when busy).
 **`area_action`** from **`area.json`**.
-For **`exist`**, **Found** / **Not found** = template score vs overlay threshold.
+For **`exist`**, **Found** means the best OpenCV **TM_CCOEFF_NORMED** score (in the region bbox,
+or the **peak inside `search_region`** when set) is **≥** the rule **`threshold`** — not a human
+visual check. Large **`search_region`** ROI increases false positives on the wrong screen; raise
+**`threshold`** or tighten the ROI in **`area.json`** if needed.
 """.strip()
 )
 _overlay_live_status_fragment()

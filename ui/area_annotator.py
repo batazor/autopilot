@@ -30,6 +30,7 @@ from layout.area_regions import validate_unique_region_names
 from ui.overlay_yaml_sync import (
     overlay_search_region_name,
     overlay_tap_region_name,
+    rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
@@ -100,6 +101,8 @@ TYPES = ("integer", "string", "boolean")
 CANVAS_VERSION = "4.4.6"
 # Drawable canvas display size (longer side cap); no separate zoom control.
 CANVAS_DISPLAY_MAX_SIDE = 1280
+# Labeling layout: slightly smaller canvas so the reference / regions column gets more width.
+LABELING_CANVAS_DISPLAY_MAX_SIDE = 920
 # Region preview thumbnail in the Regions expander (longer side cap).
 REGION_PREVIEW_MAX_SIDE = 400
 
@@ -510,12 +513,50 @@ def _render_regions_expander(
                 "threshold", min_value=0.0, max_value=1.0, value=float(reg.get("threshold", 0.9)), step=0.05
             )
             if st.form_submit_button("Apply edits"):
-                reg["name"] = name.strip() or reg.get("name", "region")
+                old_name = str(reg.get("name", "") or "").strip()
+                new_name = str(name.strip() or old_name or "region")
+                touched_restore: list[tuple[RegionDict, str]] = []
+
+                if (
+                    new_name != old_name
+                    and old_name
+                    and not old_name.endswith("_search")
+                    and not old_name.endswith("_tap")
+                ):
+                    sn_old = overlay_search_region_name(old_name)
+                    sn_new = overlay_search_region_name(new_name)
+                    tn_old = overlay_tap_region_name(old_name)
+                    tn_new = overlay_tap_region_name(new_name)
+                    for r in regions:
+                        rnm = str(r.get("name", "") or "").strip()
+                        if rnm == sn_old:
+                            touched_restore.append((r, sn_old))
+                            r["name"] = sn_new
+                        elif rnm == tn_old:
+                            touched_restore.append((r, tn_old))
+                            r["name"] = tn_new
+
+                touched_restore.append((reg, old_name))
+                reg["name"] = new_name
                 reg["action"] = action
                 reg["type"] = rtype
                 reg["threshold"] = threshold
-                set_current_regions(regions)
-                st.success("Saved region metadata.")
+                try:
+                    validate_unique_region_names(st.session_state.area_doc)
+                except ValueError as e:
+                    for rdict, prev_nm in touched_restore:
+                        rdict["name"] = prev_nm
+                    st.error(str(e))
+                else:
+                    if (
+                        new_name != old_name
+                        and old_name
+                        and not old_name.endswith("_search")
+                        and not old_name.endswith("_tap")
+                    ):
+                        rename_findicon_overlay_primary(REPO_ROOT, old_name, new_name)
+                    set_current_regions(regions)
+                    st.success("Saved region metadata.")
 
         if labeling_mode:
             ei_ov = int(st.session_state.entry_idx)
@@ -946,7 +987,9 @@ def render_area_annotator_ui(
     canvas_max_side = (
         int(labeling_canvas_max_side)
         if labeling_mode and labeling_canvas_max_side is not None
-        else CANVAS_DISPLAY_MAX_SIDE
+        else (
+            LABELING_CANVAS_DISPLAY_MAX_SIDE if labeling_mode else CANVAS_DISPLAY_MAX_SIDE
+        )
     )
 
     if "load_error" in st.session_state:
@@ -997,7 +1040,7 @@ def render_area_annotator_ui(
     entry_idx: int = st.session_state.entry_idx
 
     if labeling_mode:
-        mid_col, right_col = st.columns([2.78, 1.22], gap="small")
+        mid_col, right_col = st.columns([1.95, 1.55], gap="small")
     else:
         left_col, mid_col, right_col = st.columns([1.0, 2.2, 1.25], gap="medium")
 
