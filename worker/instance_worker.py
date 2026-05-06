@@ -3,23 +3,26 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
 
+import numpy as np
 import psutil
 import redis.asyncio as aioredis
 
 from account.switcher import AccountSwitcher
 from actions.ad_skip import AdSkipper
-from actions.tap import BotActions
 from actions.recovery import RecoveryHandler
+from actions.tap import BotActions
+from analysis.overlay import run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
-from capture.window import QuartzCapture
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from fsm.machine import PlayerFSM
-from fsm.states import InstanceState, PlayerState
+from fsm.states import InstanceState
 from scheduler.claims import CooperativeClaims
 from scheduler.queue import QueueItem, RedisQueue
 from tasks.arena import ArenaTask
@@ -28,8 +31,8 @@ from tasks.beast import BeastTask
 from tasks.daily import DailyCheckinTask
 from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
+from tasks.overlay_tap import OverlayTapTask
 from tasks.training import TrainingTask
-from .redis_log_handler import RedisAsyncLogHandler
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +56,12 @@ class InstanceWorker:
         self._switcher: AccountSwitcher | None = None
         self._recovery: RecoveryHandler | None = None
         self._ad_skipper: AdSkipper | None = None
-        self._capture = QuartzCapture()
+        self._bot_actions = BotActions()
         self._player_fsms: dict[str, PlayerFSM] = {}
         self._instance_state = InstanceState.READY
         self._ui_paused = False
+        self._task_busy = asyncio.Event()
+        self._rolling_snap_seq = 0
 
     async def _connect(self) -> None:
         self._redis = aioredis.from_url(self._settings.redis.url)
@@ -87,27 +92,30 @@ class InstanceWorker:
             },
         )
 
-        log_handler = RedisAsyncLogHandler(self._redis, self._cfg.instance_id)
-        log_handler.setLevel(logging.INFO)
-        log_handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-        )
-        logger.addHandler(log_handler)
+    def _worker_adb_bin(self) -> str:
+        pref = (self._settings.worker.adb_executable or "").strip()
+        return pref if pref else DEFAULT_ADB_BIN
 
     async def _push_ui_screenshot(self, reference_name: str | None = None) -> None:
         repo_root = Path(__file__).resolve().parent.parent
         (repo_root / "references").mkdir(parents=True, exist_ok=True)
         base = reference_file_basename(reference_name, self._cfg.instance_id)
         path = reference_png_abs_path(repo_root, base, self._cfg.instance_id)
+        logger.info(
+            "[ui] %s: ADB screencap (serial=%s) → %s",
+            self._cfg.instance_id,
+            self._cfg.bluestacks_window_title,
+            path,
+        )
         ok, msg = adb_screencap_to_file(
             path,
-            adb_bin=DEFAULT_ADB_BIN,
+            adb_bin=self._worker_adb_bin(),
             serial=self._cfg.bluestacks_window_title,
         )
         if ok:
-            logger.info("Reference screenshot (ADB) saved to %s", path)
+            logger.info("[ui] %s: saved screenshot %s", self._cfg.instance_id, path)
         else:
-            logger.error("ADB screenshot failed: %s", msg)
+            logger.error("[ui] %s: screenshot failed: %s", self._cfg.instance_id, msg)
             raise RuntimeError(msg)
 
     async def _schedule_manual_task(self, player_id: str, task_type: str) -> None:
@@ -192,6 +200,19 @@ class InstanceWorker:
             await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
+        if item.task_type == "overlay_tap":
+            region = str(item.region or "").strip()
+            if not region:
+                logger.error("overlay_tap missing region on queue item %s", item.task_id)
+                return None
+            return OverlayTapTask(
+                task_id=item.task_id,
+                player_id=item.player_id,
+                priority=item.priority,
+                region_name=region,
+                tap_x_pct=item.tap_x_pct,
+                tap_y_pct=item.tap_y_pct,
+            )
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
             logger.error("Unknown task type: %s", item.task_type)
@@ -202,13 +223,11 @@ class InstanceWorker:
             priority=item.priority,
         )
 
-    async def _execute_task(self, item: QueueItem) -> TaskResult | None:
-        task = self._build_task(item)
-        if task is None:
-            return None
+    async def _execute_task(self, item: QueueItem, task: BaseTask) -> TaskResult | None:
+        skip_fsm = getattr(task, "skip_fsm", False)
 
         fsm = self._player_fsms.get(item.player_id)
-        if fsm:
+        if fsm and not skip_fsm:
             fsm.start_navigate()
 
         try:
@@ -220,7 +239,7 @@ class InstanceWorker:
                     logger.info("Cooperative task %s already claimed, skipping", task.task_type)
                     return None
 
-            if fsm:
+            if fsm and not skip_fsm:
                 fsm.start_execute()
 
             result = await asyncio.wait_for(
@@ -228,26 +247,29 @@ class InstanceWorker:
                 timeout=self._settings.worker.task_timeout_seconds,
             )
 
-            if fsm:
+            if fsm and not skip_fsm:
                 fsm.finish()
 
             return result
 
         except TimeoutError:
             logger.error("Task %s timed out on %s", item.task_id, self._cfg.instance_id)
-            if fsm:
+            if fsm and not skip_fsm:
                 fsm.recover()
             return None
 
         except Exception as exc:
             logger.exception("Task %s failed: %s", item.task_id, exc)
-            if fsm:
+            if fsm and not skip_fsm:
                 fsm.recover()
             return None
 
         finally:
             if task.is_cooperative:
                 await self._claims.release(task.task_type, item.player_id)  # type: ignore[union-attr]
+
+    def _ensure_whiteout_at_worker_start(self) -> None:
+        BotActions().ensure_game_foreground(self._cfg.instance_id)
 
     async def _handle_failure(self, item: QueueItem, error: Exception) -> None:
         logger.error("Unhandled failure for task %s: %s", item.task_id, error)
@@ -256,7 +278,6 @@ class InstanceWorker:
             await self._restart_instance()
 
     async def _health_check(self) -> bool:
-        title = self._cfg.bluestacks_window_title
         for proc in psutil.process_iter(["name", "cmdline"]):
             try:
                 name = proc.info["name"] or ""
@@ -289,9 +310,177 @@ class InstanceWorker:
         else:
             logger.critical("Failed to restart instance %s", self._cfg.instance_id)
 
+    def _grab_layout_bgr(self) -> np.ndarray:
+        return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
+
+    async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
+        """Enqueue ``overlay_tap`` for each matched overlay rule (deduped per region)."""
+        if not self._cfg.player_ids:
+            return
+
+        active = await self._switcher.current_player(self._cfg.instance_id)  # type: ignore[union-attr]
+        player_id = active if active else self._cfg.player_ids[0]
+        now = time.time()
+        for name, payload in overlay_results.items():
+            if not isinstance(payload, dict):
+                continue
+            if not payload.get("matched"):
+                continue
+            region = str(payload.get("region") or "").strip()
+            if not region:
+                continue
+            task_id = f"ovl:{self._cfg.instance_id}:{name}:{uuid.uuid4().hex[:8]}"
+            tap_x = payload.get("tap_x_pct")
+            tap_y = payload.get("tap_y_pct")
+            tap_x_pct = float(tap_x) if tap_x is not None else None
+            tap_y_pct = float(tap_y) if tap_y is not None else None
+            queued = await self._queue.schedule(  # type: ignore[union-attr]
+                task_id=task_id,
+                player_id=player_id,
+                task_type="overlay_tap",
+                priority=50_000,
+                run_at=now,
+                instance_id=self._cfg.instance_id,
+                region=region,
+                tap_x_pct=tap_x_pct,
+                tap_y_pct=tap_y_pct,
+                skip_if_duplicate=True,
+            )
+            if queued:
+                logger.info(
+                    "Device overlay matched %s → queued overlay_tap region=%s",
+                    name,
+                    region,
+                )
+
+    async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
+        """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
+        repo_root = Path(__file__).resolve().parent.parent
+        try:
+            results = run_overlay_analysis(image_bgr, repo_root=repo_root)
+        except Exception:
+            logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
+            return
+        await self._schedule_overlay_matches(results)
+
+    async def _device_reference_snapshot_tick(self) -> None:
+        """ADB screencap → rolling preview PNG + overlay rules (same frame)."""
+        repo_root = Path(__file__).resolve().parent.parent
+        (repo_root / "references").mkdir(parents=True, exist_ok=True)
+        base = reference_file_basename(None, self._cfg.instance_id)
+        path = reference_png_abs_path(repo_root, base, self._cfg.instance_id)
+
+        logger.info(
+            "[rolling] %s: ADB screencap (serial=%s) → %s",
+            self._cfg.instance_id,
+            self._cfg.bluestacks_window_title,
+            path,
+        )
+
+        try:
+            image_bgr = await asyncio.to_thread(self._grab_layout_bgr)
+        except Exception:
+            logger.exception(
+                "[rolling] %s: screenshot failed (exception during capture)",
+                self._cfg.instance_id,
+            )
+            return
+
+        def _write_png_atomic(p: Path, img: np.ndarray) -> bool:
+            """Write to a temp file in the same dir, then ``os.replace`` (atomic on macOS/Linux)."""
+            import cv2
+
+            p.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(prefix=".rolling-", suffix=".png", dir=p.parent)
+            os.close(fd)
+            tmp = Path(tmp_name)
+            try:
+                if not cv2.imwrite(str(tmp), img):
+                    tmp.unlink(missing_ok=True)
+                    return False
+                os.replace(tmp, p)
+                return True
+            except OSError:
+                tmp.unlink(missing_ok=True)
+                raise
+
+        if not await asyncio.to_thread(_write_png_atomic, path, image_bgr):
+            logger.warning("[rolling] %s: PNG write failed %s", self._cfg.instance_id, path)
+            return
+
+        self._rolling_snap_seq += 1
+        h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+        logger.info(
+            "[rolling] %s: saved screenshot %s (%d×%d), tick #%d",
+            self._cfg.instance_id,
+            path,
+            w,
+            h,
+            self._rolling_snap_seq,
+        )
+
+        cfg = self._settings.worker
+        overlay_skipped_busy = not cfg.overlay_analyze_when_busy and self._task_busy.is_set()
+        if overlay_skipped_busy:
+            logger.debug(
+                "overlay-after-snapshot skipped (task busy, overlay_analyze_when_busy=false)"
+            )
+            return
+        await self._overlay_analyze_bgr(image_bgr)
+
+    async def _device_reference_snapshot_loop(self) -> None:
+        cfg = self._settings.worker
+        await asyncio.sleep(0.5)
+        logger.info(
+            "[rolling] %s: snapshot loop started (interval=%.2fs)",
+            self._cfg.instance_id,
+            float(cfg.device_reference_snapshot_interval_seconds),
+        )
+        while True:
+            try:
+                interval = cfg.device_reference_snapshot_interval_seconds
+                await asyncio.sleep(max(0.3, float(interval)))
+                if self._ui_paused:
+                    continue
+                await self._device_reference_snapshot_tick()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "device_reference_snapshot_loop error on %s", self._cfg.instance_id
+                )
+
     async def run(self) -> None:
         await self._connect()
         logger.info("Worker started for instance %s", self._cfg.instance_id)
+        logger.info(
+            "ADB config for %s: serial=%s adb_executable=%s",
+            self._cfg.instance_id,
+            self._cfg.bluestacks_window_title,
+            self._worker_adb_bin(),
+        )
+        repo_root = Path(__file__).resolve().parent.parent
+        rolling_path = reference_png_abs_path(
+            repo_root,
+            reference_file_basename(None, self._cfg.instance_id),
+            self._cfg.instance_id,
+        )
+        logger.info(
+            "Rolling preview %s: interval=%.2fs path=%s",
+            self._cfg.instance_id,
+            float(self._settings.worker.device_reference_snapshot_interval_seconds),
+            rolling_path,
+        )
+        try:
+            await asyncio.to_thread(self._ensure_whiteout_at_worker_start)
+        except Exception:
+            logger.exception(
+                "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
+            )
+        asyncio.create_task(
+            self._device_reference_snapshot_loop(),
+            name=f"refsnap-{self._cfg.instance_id}",
+        )
         health_interval = self._settings.worker.health_check_interval_seconds
         last_health_check = time.monotonic()
 
@@ -313,6 +502,13 @@ class InstanceWorker:
                 await asyncio.sleep(2.0)
                 continue
 
+            task = self._build_task(item)
+            if task is None:
+                continue
+
+            skip_account = getattr(task, "skip_account_check", False)
+            self._task_busy.set()
+
             state_key = f"wos:instance:{self._cfg.instance_id}:state"
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
@@ -323,11 +519,20 @@ class InstanceWorker:
                     "current_task_started_at": str(time.time()),
                 },
             )
+            logger.info(
+                "Task start %s: id=%s type=%s player=%s prio=%s",
+                self._cfg.instance_id,
+                item.task_id,
+                item.task_type,
+                item.player_id,
+                item.priority,
+            )
             try:
-                await self._ensure_account(item.player_id)
-                result = await self._execute_task(item)
+                if not skip_account:
+                    await self._ensure_account(item.player_id)
+                result = await self._execute_task(item, task)
                 await self._drain_ui_commands()
-                if result and result.next_run_at:
+                if result is not None and result.next_run_at is not None:
                     import time as stdlib_time
 
                     run_at = stdlib_time.mktime(result.next_run_at.timetuple())
@@ -340,9 +545,24 @@ class InstanceWorker:
                         instance_id=self._cfg.instance_id,
                         region=item.region,
                     )
+                if result is not None:
+                    logger.info(
+                        "Task done %s: id=%s success=%s next_run_at=%s",
+                        self._cfg.instance_id,
+                        item.task_id,
+                        getattr(result, "success", None),
+                        getattr(result, "next_run_at", None),
+                    )
+                else:
+                    logger.info(
+                        "Task done %s: id=%s (no result)",
+                        self._cfg.instance_id,
+                        item.task_id,
+                    )
             except Exception as exc:
                 await self._handle_failure(item, exc)
             finally:
+                self._task_busy.clear()
                 await self._redis.hset(  # type: ignore[union-attr]
                     state_key,
                     mapping={

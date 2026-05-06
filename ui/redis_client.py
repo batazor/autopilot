@@ -151,7 +151,9 @@ def push_scheduler_command(client: redis.Redis, cmd: dict[str, object]) -> None:
     client.lpush("wos:ui:command:scheduler", json.dumps(cmd))
 
 
-def fetch_fsm_history(client: redis.Redis, player_id: str, limit: int = 20) -> list[FsmHistoryEntry]:
+def fetch_fsm_history(
+    client: redis.Redis, player_id: str, limit: int = 20
+) -> list[FsmHistoryEntry]:
     key = f"wos:player:{player_id}:fsm_history"
     items = client.lrange(key, 0, limit - 1)
     out: list[FsmHistoryEntry] = []
@@ -164,13 +166,3 @@ def fetch_fsm_history(client: redis.Redis, player_id: str, limit: int = 20) -> l
         except (json.JSONDecodeError, TypeError, ValueError):
             continue
     return out
-
-
-def fetch_logs(client: redis.Redis, instance_id: str, limit: int = 200) -> list[str]:
-    key = f"wos:log:{instance_id}"
-    items = client.lrange(key, 0, limit - 1)
-    return [str(x) for x in items]
-
-
-def clear_logs(client: redis.Redis, instance_id: str) -> None:
-    client.delete(f"wos:log:{instance_id}")

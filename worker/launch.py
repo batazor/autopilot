@@ -25,16 +25,25 @@ def main() -> None:
     port = os.environ.get("WOS_STREAMLIT_PORT", _DEFAULT_UI_PORT)
     root = str(repo)
     env = os.environ.copy()
+    # Line-oriented logs (worker / rolling screenshots) must appear immediately
+    # when stdout is a pipe or IDE-captured stream — avoid full buffering.
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    # Streamlit may block on a first-run welcome prompt (email).
+    # Force non-interactive mode for Cursor terminals/CI.
+    env.setdefault("STREAMLIT_SERVER_PROMPT", "false")
     sep = os.pathsep
     prev = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = root + (sep + prev if prev else "")
 
     argv = [
         sys.executable,
+        "-u",
         "-m",
         "streamlit",
         "run",
         str(repo / "ui" / "app.py"),
+        "--server.headless",
+        "true",
         "--server.port",
         port,
         "--browser.gatherUsageStats",

@@ -9,10 +9,16 @@ import streamlit as st
 from st_ant_tree import st_ant_tree
 
 from config.reference_naming import TEMPORAL_SUBDIR, reference_file_basename
+from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
 from ui.reference_preview import rename_reference_to_basename
 from ui.reference_tree import build_reference_dir_tree, dir_node_to_ant_tree_data
 
 LABELING_BN_SYNC_SEL = "labeling_basename_sync_sel"
+# Increment after New screenshot so st_ant_tree remounts (fixes stale selection overwrite).
+LABELING_REF_TREE_NONCE = "labeling_ref_tree_nonce"
+# Last **New screenshot** path (under ``references/``) not yet committed via **Save area.json**.
+LABELING_PENDING_CAPTURE_REL = "labeling_pending_capture_rel"
+LABELING_SELECTION_BEFORE_CAPTURE = "labeling_selection_before_capture"
 
 
 def labeling_basename_widget_key(sel: str | None) -> str:
@@ -65,14 +71,16 @@ def render_labeling_reference_column(
         if existing:
             default_rel = existing[0].relative_to(ref_root).as_posix()
             stored = st.session_state.get("labeling_tree_selection")
-            if stored:
-                if stored == TEMPORAL_SUBDIR or stored.startswith(f"{TEMPORAL_SUBDIR}/"):
-                    stored = None
+            if stored and (
+                stored == TEMPORAL_SUBDIR or stored.startswith(f"{TEMPORAL_SUBDIR}/")
+            ):
+                stored = None
             if not stored or not (ref_root / stored).is_file():
                 stored = default_rel
                 st.session_state["labeling_tree_selection"] = stored
 
             tree_data = dir_node_to_ant_tree_data(build_reference_dir_tree(existing, ref_root))
+            tree_nonce = int(st.session_state.get(LABELING_REF_TREE_NONCE, 0))
             picked = st_ant_tree(
                 treeData=tree_data,
                 treeCheckable=False,
@@ -85,12 +93,12 @@ def render_labeling_reference_column(
                 treeLine=True,
                 only_children_select=True,
                 allowClear=False,
-                key="labeling_ref_ant_tree",
+                key=f"labeling_ref_ant_tree_{tree_nonce}",
             )
 
             sel = stored
             one = _ant_tree_single_value(picked)
-            if one:
+            if one and (ref_root / one).is_file():
                 sel = one
             if not sel or not (ref_root / sel).is_file():
                 sel = default_rel
@@ -127,8 +135,8 @@ def render_labeling_reference_column(
                     label_visibility="collapsed",
                     placeholder="without .png",
                     help=(
-                        "Filled from the selected file. Press **Enter** or click **💾** to rename on disk. "
-                        "**New screenshot** uses this field too (empty → preview snapshot name)."
+                        "From selection; **Enter** or **💾** renames on disk. "
+                        "**New screenshot** uses its own unique name."
                     ),
                 )
             with _submit_col:
@@ -155,13 +163,79 @@ def render_labeling_reference_column(
                     ok, msg = rename_reference_to_basename(src, name_raw, instance_id)
                     if ok:
                         new_rel = f"{dest_base}.png"
+                        repo_rt = ref_root.parent
+                        sync_ok, sync_err, n_ocr = sync_area_json_ocr_after_reference_rename(
+                            repo_rt,
+                            old_rel_under_refs=sel_out.replace("\\", "/"),
+                            new_rel_under_refs=new_rel.replace("\\", "/"),
+                        )
+                        flash = msg
+                        if sync_ok and n_ocr:
+                            flash += f" · Updated **area.json** (**{n_ocr}** ``ocr`` path(s))."
+                        elif not sync_ok and sync_err:
+                            flash += f" · **area.json** not updated: {sync_err}"
                         st.session_state["labeling_tree_selection"] = new_rel
                         st.session_state[LABELING_BN_SYNC_SEL] = new_rel
                         st.session_state[labeling_basename_widget_key(new_rel)] = dest_base
-                        st.session_state["labeling_rename_flash"] = msg
+                        st.session_state["labeling_rename_flash"] = flash
+                        st.session_state[LABELING_REF_TREE_NONCE] = (
+                            int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
+                        )
+                        try:
+                            from ui.area_annotator import AREA_JSON_PATH, load_json
+
+                            st.session_state.area_doc = load_json(AREA_JSON_PATH)
+                            st.session_state.canvas_rev = (
+                                int(st.session_state.get("canvas_rev", 0)) + 1
+                            )
+                            st.session_state.last_canvas_sig = ""
+                        except (OSError, ValueError):
+                            pass
                         st.rerun()
                     else:
                         st.error(msg)
 
         if not existing:
             st.info("No PNGs yet — use **New screenshot**.")
+
+
+def purge_reference_png_and_area_entries(repo_root: Path, ref_root: Path, rel_posix: str) -> None:
+    """Delete PNG under ``references/`` and drop matching ``area_doc`` screen rows."""
+    rel_posix = rel_posix.replace("\\", "/").strip()
+    if not rel_posix or rel_posix.startswith("..") or "/.." in rel_posix:
+        return
+    path = ref_root / rel_posix
+    try:
+        if path.is_file():
+            path.unlink()
+    except OSError:
+        pass
+    try:
+        target = (repo_root / "references" / rel_posix).resolve()
+    except OSError:
+        return
+    doc = st.session_state.get("area_doc")
+    if not isinstance(doc, dict):
+        return
+    entries = doc.get("screens")
+    if not isinstance(entries, list):
+        return
+    kept: list = []
+    for e in entries:
+        if not isinstance(e, dict):
+            kept.append(e)
+            continue
+        raw = str(e.get("ocr") or "").strip()
+        if not raw:
+            kept.append(e)
+            continue
+        p = Path(raw)
+        if not p.is_absolute():
+            p = repo_root / p
+        try:
+            if p.resolve() == target:
+                continue
+        except OSError:
+            pass
+        kept.append(e)
+    doc["screens"] = kept

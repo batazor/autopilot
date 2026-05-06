@@ -7,6 +7,7 @@ import signal
 import time
 
 from config.loader import InstanceConfig, get_settings
+from config.logging_stdout import setup_stdout_logging
 from scheduler.runner import main as scheduler_main
 
 logger = logging.getLogger(__name__)
@@ -16,10 +17,7 @@ _shutdown = False
 
 
 def _worker_process(instance_config: InstanceConfig) -> None:
-    import asyncio
-    import logging
-
-    logging.basicConfig(level=logging.INFO)
+    setup_stdout_logging()
     from worker.instance_worker import InstanceWorker
 
     worker = InstanceWorker(instance_config)
@@ -49,7 +47,11 @@ class Supervisor:
             daemon=False,
         )
         proc.start()
-        logger.info("Spawned worker for instance %s (pid=%d)", instance_config.instance_id, proc.pid)
+        logger.info(
+            "Spawned worker for instance %s (pid=%d)",
+            instance_config.instance_id,
+            proc.pid,
+        )
         return proc
 
     def _spawn_scheduler(self) -> multiprocessing.Process:
@@ -99,7 +101,7 @@ class Supervisor:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    setup_stdout_logging()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     supervisor.run()

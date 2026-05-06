@@ -35,3 +35,12 @@ def capture_reference_adb(
         return None, rel, msg
     rel = path.relative_to(rr / "references").as_posix()
     return path.read_bytes(), rel, ""
+
+
+def capture_rolling_live_preview_adb(
+    inst: InstanceConfig,
+    *,
+    adb_bin: str = DEFAULT_ADB_BIN,
+) -> tuple[bytes | None, str, str]:
+    """ADB capture into ``references/temporal/{instance_id}_current_state.png`` (same path as the worker)."""
+    return capture_reference_adb(inst, "", adb_bin=adb_bin)

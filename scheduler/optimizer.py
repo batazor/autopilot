@@ -34,6 +34,9 @@ class TaskOptimizer:
             for task in tasks:
                 all_tasks.append((player_id, task, task.priority))
 
+        if not all_tasks:
+            return {pid: [] for pid in players}
+
         model = cp_model.CpModel()
 
         # x[i] = 1 if task i is assigned

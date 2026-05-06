@@ -8,7 +8,9 @@ from typing import Protocol, runtime_checkable
 @dataclass
 class TaskResult:
     success: bool
-    next_run_at: datetime
+    """When ``None``, the worker does not re-queue this task (one-shot completion)."""
+
+    next_run_at: datetime | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
 

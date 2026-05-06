@@ -1,14 +1,28 @@
-"""Device screenshot via ``adb exec-out screencap -p`` (no Quartz)."""
+"""Device screenshot via ``adb exec-out screencap -p``."""
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
 
+import numpy as np
+
 # Homebrew (Apple Silicon) is often missing from the GUI/Streamlit PATH.
 DEFAULT_ADB_BIN = "/opt/homebrew/bin/adb"
+DEFAULT_ADB_TIMEOUT_SECONDS = 10.0
+logger = logging.getLogger(__name__)
+
+MSG_ADB_NOT_FOUND = (
+    "**adb** not found (Platform Tools are not on this process's PATH). "
+    "Options: in the UI set a full path, e.g. "
+    "`/opt/homebrew/bin/adb` (Homebrew on Apple Silicon) or "
+    "`~/Library/Android/sdk/platform-tools/adb`; or set **ANDROID_HOME**; "
+    "in a shell run `which adb`. "
+    "In `config/settings.yaml` set **`worker.adb_executable`** for the embedded worker."
+)
 
 
 def resolve_adb_executable(user_pref: str = "adb") -> str | None:
@@ -45,17 +59,16 @@ def resolve_adb_executable(user_pref: str = "adb") -> str | None:
     return None
 
 
-def adb_screencap_png(adb_bin: str = DEFAULT_ADB_BIN, serial: str | None = None) -> tuple[bytes | None, str]:
+def adb_screencap_png(
+    adb_bin: str = DEFAULT_ADB_BIN,
+    serial: str | None = None,
+    *,
+    timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
+) -> tuple[bytes | None, str]:
     """Return (PNG bytes, empty str) on success, or (None, error message)."""
     resolved = resolve_adb_executable(adb_bin)
     if resolved is None:
-        return None, (
-            "**adb** not found (Platform Tools are not on this process's PATH). "
-            "Options: in the UI set a full path, e.g. "
-            "`/opt/homebrew/bin/adb` (Homebrew on Apple Silicon) or "
-            "`~/Library/Android/sdk/platform-tools/adb`; or set **ANDROID_HOME**; "
-            "in a shell run `which adb`."
-        )
+        return None, MSG_ADB_NOT_FOUND
     cmd: list[str] = [resolved]
     if serial and str(serial).strip():
         cmd.extend(["-s", str(serial).strip()])
@@ -63,22 +76,52 @@ def adb_screencap_png(adb_bin: str = DEFAULT_ADB_BIN, serial: str | None = None)
     try:
         proc = subprocess.run(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             check=False,
+            timeout=float(timeout_seconds) if timeout_seconds else None,
         )
+    except subprocess.TimeoutExpired:
+        msg = f"ADB screencap timed out after {timeout_seconds:.1f}s (serial={serial!r})."
+        logger.error("ADB screencap timeout: exe=%s serial=%s", resolved, serial)
+        return None, msg
     except FileNotFoundError:
         return None, f"Failed to run {resolved!r} (FileNotFoundError)."
     if proc.returncode != 0:
         err = proc.stderr.decode(errors="replace").strip() or "unknown error"
-        return None, f"ADB failed (exit {proc.returncode}): {err}"
+        msg = f"ADB failed (exit {proc.returncode}): {err}"
+        logger.error("ADB screencap failed: exe=%s serial=%s err=%s", resolved, serial, err)
+        return None, msg
     data = proc.stdout
     if not data.startswith(b"\x89PNG"):
-        return None, (
-            "ADB did not return PNG. Check `adb devices`, **bluestacks_window_title** for the serial, "
-            "and USB authorization on the device."
+        msg = (
+            "ADB did not return PNG. Check `adb devices` and "
+            "**bluestacks_window_title** (serial); verify USB authorization."
         )
+        logger.error(
+            "ADB screencap bad output: exe=%s serial=%s bytes=%d",
+            resolved,
+            serial,
+            len(data or b""),
+        )
+        return None, msg
     return data, ""
+
+
+def adb_screencap_bgr(
+    adb_bin: str = DEFAULT_ADB_BIN,
+    serial: str | None = None,
+) -> tuple[np.ndarray | None, str]:
+    """Decode ADB PNG screencap to BGR ``numpy`` array (OpenCV convention)."""
+    data, err = adb_screencap_png(adb_bin, serial)
+    if data is None:
+        return None, err
+    import cv2
+
+    arr = np.frombuffer(data, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if img is None:
+        return None, "cv2.imdecode failed (invalid PNG from adb screencap)"
+    return img, ""
 
 
 def adb_screencap_to_file(

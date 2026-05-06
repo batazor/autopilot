@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
 from layout import screens
-from navigation.detector import ScreenDetector, ScreenName
+from navigation.detector import ScreenName
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
 from ocr.fuzzy import match
@@ -33,10 +32,9 @@ class BeastTask:
 
     async def execute(self, instance_id: str) -> TaskResult:
         actions = BotActions()
-        capture = QuartzCapture()
         ocr = OcrClient()
         navigator = Navigator(
-            capture_fn=lambda iid: capture.capture(capture.find_window(actions._get_window_title(iid))),
+            capture_fn=actions.capture_screen_bgr,
             tap_fn=actions.tap,
         )
 
@@ -44,10 +42,10 @@ class BeastTask:
         if not ok:
             return TaskResult(
                 success=False,
-                next_run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=30),
+                next_run_at=datetime.now(tz=UTC) + timedelta(minutes=30),
             )
 
-        image = capture.capture(capture.find_window(actions._get_window_title(instance_id)))
+        image = actions.capture_screen_bgr(instance_id)
         result = await ocr.ocr_region(image, screens.ALLIANCE.attack_alerts_region)
         beast_available = match(result.text, _BEAST_BUTTON_REGION_KEYWORDS)
 
@@ -55,7 +53,7 @@ class BeastTask:
             logger.debug("No beast available on %s", instance_id)
             return TaskResult(
                 success=True,
-                next_run_at=datetime.now(tz=timezone.utc) + timedelta(seconds=self.cooldown_seconds),
+                next_run_at=datetime.now(tz=UTC) + timedelta(seconds=self.cooldown_seconds),
                 metadata={"action": "none"},
             )
 
@@ -63,7 +61,7 @@ class BeastTask:
         actions.tap(instance_id, screens.ALLIANCE.attack_alerts_region.center())
         await asyncio.sleep(2.0)
 
-        image = capture.capture(capture.find_window(actions._get_window_title(instance_id)))
+        image = actions.capture_screen_bgr(instance_id)
         confirm_result = await ocr.ocr_region(image, screens.ALLIANCE.attack_alerts_region)
         if match(confirm_result.text, ["confirm", "join", "attack"]):
             actions.tap(instance_id, screens.ALLIANCE.help_btn)
@@ -72,6 +70,6 @@ class BeastTask:
         logger.info("Beast hunt joined on %s/%s", instance_id, self.player_id)
         return TaskResult(
             success=True,
-            next_run_at=datetime.now(tz=timezone.utc) + timedelta(seconds=self.cooldown_seconds),
+            next_run_at=datetime.now(tz=UTC) + timedelta(seconds=self.cooldown_seconds),
             metadata={"action": "joined"},
         )

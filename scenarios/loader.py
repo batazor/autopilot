@@ -59,13 +59,26 @@ class ScenarioLoader:
             return list(self._scenarios)
 
     def start_watching(self) -> None:
-        handler = _ScenarioReloadHandler(self)
-        self._observer = Observer()
-        self._observer.schedule(handler, str(self._path), recursive=False)
-        self._observer.start()
-        logger.info("Watching scenario directory: %s", self._path)
+        with self._lock:
+            if self._observer is not None:
+                if self._observer.is_alive():
+                    return
+                try:
+                    self._observer.stop()
+                    self._observer.join(timeout=2)
+                except Exception:
+                    logger.exception("Failed to stop previous scenario observer")
+                self._observer = None
+
+            handler = _ScenarioReloadHandler(self)
+            self._observer = Observer()
+            self._observer.schedule(handler, str(self._path), recursive=False)
+            self._observer.start()
+            logger.info("Watching scenario directory: %s", self._path)
 
     def stop_watching(self) -> None:
-        if self._observer:
-            self._observer.stop()
-            self._observer.join()
+        with self._lock:
+            if self._observer:
+                self._observer.stop()
+                self._observer.join(timeout=2)
+                self._observer = None

@@ -1,3 +1,6 @@
+# Local IDE / agent settings (do not commit)
+.claude/
+
 # Virtual environment
 .venv/
 

@@ -27,8 +27,15 @@ from streamlit_drawable_canvas import st_canvas
 
 from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import validate_unique_region_names
+from ui.overlay_yaml_sync import (
+    overlay_search_region_name,
+    overlay_tap_region_name,
+    sync_findicon_overlay_aux_keys,
+)
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 from ui.labeling_reference_panel import (
+    LABELING_PENDING_CAPTURE_REL,
+    LABELING_SELECTION_BEFORE_CAPTURE,
     labeling_forced_reference_rel,
     labeling_resolve_sel,
     render_labeling_reference_column,
@@ -55,6 +62,8 @@ class RegionDict(TypedDict, total=False):
     type: str
     threshold: float
     bbox: BBoxDict
+    overlay_auxiliary: bool
+    """When True, region is optional overlay helper (search/tap ROI) — skip template crop export."""
 
 
 class AreaEntryDict(TypedDict, total=False):
@@ -91,6 +100,8 @@ TYPES = ("integer", "string", "boolean")
 CANVAS_VERSION = "4.4.6"
 # Drawable canvas display size (longer side cap); no separate zoom control.
 CANVAS_DISPLAY_MAX_SIDE = 1280
+# Region preview thumbnail in the Regions expander (longer side cap).
+REGION_PREVIEW_MAX_SIDE = 400
 
 
 # -----------------------------------------------------------------------------
@@ -179,7 +190,11 @@ def export_region_crops(
         raise ValueError("Invalid reference path for crop export.")
     CROP_DIR.mkdir(parents=True, exist_ok=True)
     ow, oh = pil_original.size
-    indexed = [(i, r) for i, r in enumerate(regions) if r.get("bbox")]
+    indexed = [
+        (i, r)
+        for i, r in enumerate(regions)
+        if r.get("bbox") and not r.get("overlay_auxiliary")
+    ]
     total = len(indexed)
     written: list[Path] = []
     if progress is not None and total > 0:
@@ -502,6 +517,102 @@ def _render_regions_expander(
                 set_current_regions(regions)
                 st.success("Saved region metadata.")
 
+        if labeling_mode:
+            ei_ov = int(st.session_state.entry_idx)
+            bn_ov = str(reg.get("name", "") or "").strip()
+            bbox_src = reg.get("bbox")
+            bbox_ok = isinstance(bbox_src, dict)
+            if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
+                st.caption(
+                    "Optional overlay rectangles — same ``ocr`` frame as this region; "
+                    "updates ``analyze.yaml`` (`search_region` / `tap_region`)."
+                )
+
+                def _regions_contains(nm: str) -> bool:
+                    return any(str(r.get("name", "") or "").strip() == nm for r in regions)
+
+                sn_ov = overlay_search_region_name(bn_ov)
+                tn_ov = overlay_tap_region_name(bn_ov)
+                ks_ov = f"ovl_aux_s_{ei_ov}_{idx}"
+                kt_ov = f"ovl_aux_t_{ei_ov}_{idx}"
+                if ks_ov not in st.session_state:
+                    st.session_state[ks_ov] = _regions_contains(sn_ov)
+                if kt_ov not in st.session_state:
+                    st.session_state[kt_ov] = _regions_contains(tn_ov)
+                want_s_ov = st.checkbox(
+                    f"Search ROI (`{sn_ov}`)",
+                    key=ks_ov,
+                    help="Larger ROI for sliding template match (`search_region`).",
+                )
+                want_t_ov = st.checkbox(
+                    f"Tap zone (`{tn_ov}`)",
+                    key=kt_ov,
+                    help="Tap uses this bbox centre (`tap_region`), not the template match centre.",
+                )
+                ov_changed = False
+                if bbox_ok and want_s_ov != _regions_contains(sn_ov):
+                    if want_s_ov:
+                        aux_r: RegionDict = {
+                            "name": sn_ov,
+                            "action": "exist",
+                            "type": "string",
+                            "threshold": 0.9,
+                            "bbox": dict(bbox_src),
+                            "overlay_auxiliary": True,
+                        }
+                        regions.append(aux_r)
+                    else:
+                        regions[:] = [
+                            x
+                            for x in regions
+                            if str(x.get("name", "") or "").strip() != sn_ov
+                        ]
+                    ov_changed = True
+                if bbox_ok and want_t_ov != _regions_contains(tn_ov):
+                    if want_t_ov:
+                        aux_t: RegionDict = {
+                            "name": tn_ov,
+                            "action": "exist",
+                            "type": "string",
+                            "threshold": 0.9,
+                            "bbox": dict(bbox_src),
+                            "overlay_auxiliary": True,
+                        }
+                        regions.append(aux_t)
+                    else:
+                        regions[:] = [
+                            x
+                            for x in regions
+                            if str(x.get("name", "") or "").strip() != tn_ov
+                        ]
+                    ov_changed = True
+                if ov_changed:
+                    validate_unique_region_names(st.session_state.area_doc)
+                    set_current_regions(regions)
+                    synced = sync_findicon_overlay_aux_keys(
+                        REPO_ROOT,
+                        bn_ov,
+                        use_search=_regions_contains(sn_ov),
+                        use_tap=_regions_contains(tn_ov),
+                    )
+                    if not synced:
+                        st.session_state["_ovl_yaml_warn"] = (
+                            f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
+                            "`references/analyze.yaml` — regions updated; edit YAML by hand."
+                        )
+                    st.session_state.pop(ks_ov, None)
+                    st.session_state.pop(kt_ov, None)
+                    st.session_state.canvas_rev += 1
+                    st.session_state.last_canvas_sig = ""
+                    st.rerun()
+            elif (
+                not bbox_ok
+                and bn_ov
+                and not bn_ov.endswith("_search")
+                and not bn_ov.endswith("_tap")
+            ):
+                st.caption("Draw a bbox on this region before enabling overlay search/tap zones.")
+
         if st.button("Delete region", key=f"del_region_{_rk}"):
             del regions[idx]
             set_current_regions(regions)
@@ -521,7 +632,7 @@ def _render_regions_expander(
             w = bbox["width"] / 100.0 * cw2
             h = bbox["height"] / 100.0 * ch2
             crop = crop_region(canvas_img, left, top, w, h)
-            st.image(crop, width="stretch")
+            st.image(cap_preview_image_max_side(crop, REGION_PREVIEW_MAX_SIDE))
             if labeling_mode:
                 pass
             else:
@@ -539,10 +650,10 @@ def _render_regions_expander(
             if 0 <= ei_crop < len(entries_for_crop):
                 raw_ocr = entries_for_crop[ei_crop].get("ocr")
                 ref_rel = str(raw_ocr).strip() if raw_ocr else None
-            bbox_n = sum(1 for r in regions if r.get("bbox"))
+            bbox_n = sum(1 for r in regions if r.get("bbox") and not r.get("overlay_auxiliary"))
             st.caption(
-                f"**`references/crop/<stem>_<region_name>.png`** — regions with a bbox (overwrites). "
-                f"**{bbox_n}** region(s)."
+                f"**`references/crop/<stem>_<region_name>.png`** — template regions with bbox "
+                f"(overlay search/tap helpers skipped). **{bbox_n}** region(s)."
             )
             if bbox_n == 0:
                 st.caption("Draw at least one region on the canvas.")
@@ -658,7 +769,13 @@ def regions_to_initial_drawing(
         bbox = reg.get("bbox")
         if not bbox:
             continue
-        stroke = "#22c55e" if i == selected_idx else "#ef4444"
+        aux = bool(reg.get("overlay_auxiliary"))
+        if i == selected_idx:
+            stroke = "#22c55e"
+        elif aux:
+            stroke = "#3b82f6"
+        else:
+            stroke = "#ef4444"
         objects.append(_bbox_to_canvas_rect(bbox, canvas_w, canvas_h, stroke))
     return {"version": CANVAS_VERSION, "objects": objects}
 
@@ -711,6 +828,16 @@ def sync_regions_from_canvas(
             nr["bbox"] = bbox
             new_regions.append(nr)
     return new_regions
+
+
+def cap_preview_image_max_side(im: Image.Image, max_side: int) -> Image.Image:
+    """Return a copy scaled so the longer side is at most ``max_side``."""
+    w, h = im.size
+    if max(w, h) <= max_side:
+        return im.copy()
+    out = im.copy()
+    out.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    return out
 
 
 def resize_for_canvas(im: Image.Image, max_side: int) -> tuple[Image.Image, float]:
@@ -825,6 +952,9 @@ def render_area_annotator_ui(
     if "load_error" in st.session_state:
         st.warning(f"Could not load area.json: {st.session_state.load_error}")
         del st.session_state.load_error
+
+    if "_ovl_yaml_warn" in st.session_state:
+        st.warning(st.session_state.pop("_ovl_yaml_warn"))
 
     doc: AreaDocDict = st.session_state.area_doc
     entries: list[AreaEntryDict] = doc["screens"]
@@ -1085,6 +1215,8 @@ def render_area_annotator_ui(
                 try:
                     save_json(AREA_JSON_PATH, st.session_state.area_doc)
                     st.success(f"Wrote {AREA_JSON_PATH}")
+                    st.session_state.pop(LABELING_PENDING_CAPTURE_REL, None)
+                    st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
                 except (OSError, ValueError) as e:
                     st.error(str(e))
 

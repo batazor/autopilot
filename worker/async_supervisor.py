@@ -6,6 +6,7 @@ import asyncio
 import logging
 
 from config.loader import InstanceConfig, get_settings
+from config.logging_stdout import setup_stdout_logging
 from worker.instance_worker import InstanceWorker
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,11 @@ async def _guarded_scheduler() -> None:
 
 async def run_forever_async() -> None:
     """Start the scheduler and one async worker per instance."""
+    setup_stdout_logging()
+    logger.info(
+        "wos: async supervisor running — worker/ADB/rolling logs follow on stdout "
+        "(terminal where `uv run wos` is running)"
+    )
     settings = get_settings()
     tasks = [
         asyncio.create_task(_guarded_worker(inst), name=f"worker-{inst.instance_id}")

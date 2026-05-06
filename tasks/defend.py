@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
 from layout import screens
-from navigation.detector import ScreenDetector, ScreenName
+from navigation.detector import ScreenName
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
 from ocr.fuzzy import match
@@ -31,10 +30,9 @@ class DefendAllyTask:
 
     async def execute(self, instance_id: str) -> TaskResult:
         actions = BotActions()
-        capture = QuartzCapture()
         ocr = OcrClient()
         navigator = Navigator(
-            capture_fn=lambda iid: capture.capture(capture.find_window(actions._get_window_title(iid))),
+            capture_fn=actions.capture_screen_bgr,
             tap_fn=actions.tap,
         )
 
@@ -42,13 +40,13 @@ class DefendAllyTask:
         if not ok:
             return TaskResult(
                 success=False,
-                next_run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=5),
+                next_run_at=datetime.now(tz=UTC) + timedelta(minutes=5),
             )
 
         actions.tap(instance_id, screens.ALLIANCE.members_tab)
         await asyncio.sleep(1.5)
 
-        image = capture.capture(capture.find_window(actions._get_window_title(instance_id)))
+        image = actions.capture_screen_bgr(instance_id)
         alert_result = await ocr.ocr_region(image, screens.ALLIANCE.attack_alerts_region)
 
         ally_under_attack = match(
@@ -59,7 +57,7 @@ class DefendAllyTask:
             logger.debug("No ally under attack on %s", instance_id)
             return TaskResult(
                 success=True,
-                next_run_at=datetime.now(tz=timezone.utc) + timedelta(seconds=self.cooldown_seconds),
+                next_run_at=datetime.now(tz=UTC) + timedelta(seconds=self.cooldown_seconds),
                 metadata={"action": "none"},
             )
 
@@ -69,6 +67,6 @@ class DefendAllyTask:
         logger.info("Defended ally on %s/%s", instance_id, self.player_id)
         return TaskResult(
             success=True,
-            next_run_at=datetime.now(tz=timezone.utc) + timedelta(seconds=self.cooldown_seconds),
+            next_run_at=datetime.now(tz=UTC) + timedelta(seconds=self.cooldown_seconds),
             metadata={"action": "defended"},
         )

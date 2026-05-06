@@ -6,8 +6,6 @@ import logging
 import numpy as np
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
-from layout import screens
 from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
 from ocr.client import OcrClient
@@ -21,14 +19,11 @@ _POPUP_CLOSE_KEYWORDS = ["close", "cancel", "ok", "x", "skip", "later"]
 class RecoveryHandler:
     def __init__(self) -> None:
         self._actions = BotActions()
-        self._capture = QuartzCapture()
         self._detector = ScreenDetector()
         self._ocr = OcrClient()
 
     def _capture_image(self, instance_id: str) -> np.ndarray:
-        title = self._actions._get_window_title(instance_id)
-        wid = self._capture.find_window(title)
-        return self._capture.capture(wid)
+        return self._actions.capture_screen_bgr(instance_id)
 
     async def recover_to_main(self, instance_id: str) -> bool:
         for _ in range(5):

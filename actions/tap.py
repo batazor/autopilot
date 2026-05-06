@@ -1,7 +1,6 @@
 """ADB-based input controller for BlueStacks instances.
 
-All touch input goes through `adb shell input` — never native macOS mouse events.
-Screen capture stays on Quartz (BlueStacks renders to a macOS window).
+All touch input and framebuffer capture use ``adb`` (no macOS Quartz window capture).
 """
 
 from __future__ import annotations
@@ -9,8 +8,17 @@ from __future__ import annotations
 import logging
 import random
 import subprocess
+import time
 from datetime import timedelta
 
+import numpy as np
+
+from capture.adb_screencap import (
+    DEFAULT_ADB_BIN,
+    MSG_ADB_NOT_FOUND,
+    adb_screencap_bgr,
+    resolve_adb_executable,
+)
 from config.loader import get_settings
 from layout.types import Point, Region
 
@@ -33,7 +41,11 @@ def _jitter(value: int, spread: int) -> int:
 class AdbController:
     """ADB wrapper matching the Go DeviceController interface."""
 
-    def __init__(self, device_serial: str) -> None:
+    def __init__(self, device_serial: str, *, adb_bin: str = DEFAULT_ADB_BIN) -> None:
+        resolved = resolve_adb_executable(adb_bin)
+        if resolved is None:
+            raise RuntimeError(MSG_ADB_NOT_FOUND)
+        self._adb_exe = resolved
         self._serial = device_serial
         self._verify_available()
         self.set_brightness(70)
@@ -44,8 +56,17 @@ class AdbController:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def list_devices() -> list[str]:
-        out = _adb("devices")
+    def list_devices(adb_bin: str = DEFAULT_ADB_BIN) -> list[str]:
+        resolved = resolve_adb_executable(adb_bin)
+        if resolved is None:
+            raise RuntimeError(MSG_ADB_NOT_FOUND)
+        proc = subprocess.run(
+            [resolved, "devices"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        out = proc.stdout or ""
         serials: list[str] = []
         for line in out.splitlines()[1:]:
             parts = line.split()
@@ -60,7 +81,13 @@ class AdbController:
         return self._serial
 
     def _verify_available(self) -> None:
-        out = _adb("devices")
+        proc = subprocess.run(
+            [self._adb_exe, "devices"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        out = proc.stdout or ""
         for line in out.splitlines()[1:]:
             parts = line.split()
             if len(parts) >= 2 and parts[0] == self._serial and parts[1] == "device":
@@ -102,10 +129,32 @@ class AdbController:
     def restart_application(self) -> None:
         logger.warning("Restarting %s on %s", _GAME_PACKAGE, self._serial)
         self._shell("am", "force-stop", _GAME_PACKAGE)
-        import time
         time.sleep(2)
         self._shell("monkey", "-p", _GAME_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
         logger.info("Application restarted on %s", self._serial)
+
+    def is_game_foreground(self) -> bool:
+        """True if dumpsys reports Whiteout as the resumed / top activity on this device."""
+        out = self._shell("dumpsys", "activity", "activities")
+        markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
+        for line in out.splitlines():
+            s = line.strip()
+            if _GAME_PACKAGE not in line:
+                continue
+            if any(m in s for m in markers):
+                return True
+        return False
+
+    def ensure_game_foreground(self) -> None:
+        """Start Whiteout if it is not the foreground resumed activity (ADB serial device)."""
+        if self.is_game_foreground():
+            logger.info("Whiteout already foreground (%s on %s)", _GAME_PACKAGE, self._serial)
+            return
+        logger.warning(
+            "Whiteout not in foreground — launching %s on %s", _GAME_PACKAGE, self._serial
+        )
+        self._shell("monkey", "-p", _GAME_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
+        time.sleep(2)
 
     # ------------------------------------------------------------------
     # Touch input — all with jitter to simulate natural fingers
@@ -185,16 +234,16 @@ class AdbController:
         self.key_event(3)
 
     # ------------------------------------------------------------------
-    # Screenshot via ADB (alternative to Quartz for headless use)
+    # Screenshot via ADB
     # ------------------------------------------------------------------
 
     def screenshot_bytes(self) -> bytes:
-        result = subprocess.run(
-            ["adb", "-s", self._serial, "exec-out", "screencap", "-p"],
-            capture_output=True,
-            check=True,
-        )
-        return result.stdout
+        from capture.adb_screencap import adb_screencap_png
+
+        data, err = adb_screencap_png(self._adb_exe, self._serial)
+        if data is None:
+            raise RuntimeError(err)
+        return data
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -202,7 +251,7 @@ class AdbController:
 
     def _shell(self, *args: str) -> str:
         result = subprocess.run(
-            ["adb", "-s", self._serial, "shell"] + list(args),
+            [self._adb_exe, "-s", self._serial, "shell"] + list(args),
             capture_output=True,
             text=True,
         )
@@ -213,14 +262,10 @@ class AdbController:
         return result.stdout.strip()
 
 
-def _adb(*args: str) -> str:
-    result = subprocess.run(["adb"] + list(args), capture_output=True, text=True)
-    return result.stdout
-
-
 # ---------------------------------------------------------------------------
 # BotActions — instance-aware facade used by tasks and the use case executor
 # ---------------------------------------------------------------------------
+
 
 class BotActions:
     """Instance-aware facade: resolves instance_id → ADB serial → AdbController."""
@@ -232,7 +277,7 @@ class BotActions:
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
             serial = self._get_serial(instance_id)
-            self._controllers[instance_id] = AdbController(serial)
+            self._controllers[instance_id] = AdbController(serial, adb_bin=self._adb_bin())
         return self._controllers[instance_id]
 
     def _get_serial(self, instance_id: str) -> str:
@@ -241,20 +286,23 @@ class BotActions:
                 return inst.bluestacks_window_title  # ADB serial for BlueStacks
         raise ValueError(f"Unknown instance_id: {instance_id!r}")
 
-    def window_substring_for_capture(self, instance_id: str) -> str:
-        """Substring for Quartz CGWindowList (owner/name); may differ from the ADB serial."""
-        for inst in self._settings.instances:
-            if inst.instance_id == instance_id:
-                if inst.capture_window_title:
-                    return inst.capture_window_title
-                return inst.bluestacks_window_title
-        raise ValueError(f"Unknown instance_id: {instance_id!r}")
+    def _adb_bin(self) -> str:
+        pref = (self._settings.worker.adb_executable or "").strip()
+        return pref if pref else DEFAULT_ADB_BIN
 
-    def _get_window_title(self, instance_id: str) -> str:
-        return self.window_substring_for_capture(instance_id)
+    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
+        """Framebuffer BGR via ``adb exec-out screencap -p`` (same coordinate space as taps)."""
+        img, err = adb_screencap_bgr(self._adb_bin(), self._get_serial(instance_id))
+        if img is None:
+            raise RuntimeError(err)
+        return img
 
     def tap(self, instance_id: str, point: Point) -> None:
         self._controller(instance_id).tap(point)
+
+    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
+        """Emulator framebuffer size from ``adb shell wm size`` (tap coordinate space)."""
+        return self._controller(instance_id).get_screen_resolution()
 
     def tap_region(self, instance_id: str, region: Region) -> None:
         self._controller(instance_id).tap_region(region)
@@ -289,3 +337,6 @@ class BotActions:
 
     def restart_application(self, instance_id: str) -> None:
         self._controller(instance_id).restart_application()
+
+    def ensure_game_foreground(self, instance_id: str) -> None:
+        self._controller(instance_id).ensure_game_foreground()

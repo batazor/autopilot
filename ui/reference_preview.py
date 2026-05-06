@@ -62,27 +62,20 @@ def _newest_png_for_instance_then_any(root: Path, instance_id: str) -> Path | No
     return all_png[0] if all_png else None
 
 
-def load_reference_preview(instance_id: str, name_input: str) -> tuple[bytes | None, str]:
-    """Load PNG: basename if file exists; else auto-pick newest for instance, then newest overall."""
+def rolling_live_preview_path(instance_id: str) -> Path:
+    """Worker + Instance rolling frame: ``references/temporal/{instance_id}_current_state.png``."""
+    return references_root() / TEMPORAL_SUBDIR / f"{rolling_preview_basename(instance_id)}.png"
+
+
+def load_rolling_instance_preview(instance_id: str) -> tuple[bytes | None, str, float | None]:
+    """Load the live ADB rolling PNG for this instance (mtime = disk ``st_mtime``)."""
     root = references_root()
     root.mkdir(parents=True, exist_ok=True)
-
-    def _rel(p: Path) -> str:
-        return p.relative_to(root).as_posix()
-
-    if name_input.strip():
-        base = reference_file_basename(name_input.strip(), instance_id)
-        if base == rolling_preview_basename(instance_id):
-            path = root / TEMPORAL_SUBDIR / f"{base}.png"
-        else:
-            path = root / f"{base}.png"
-        if path.is_file():
-            return path.read_bytes(), _rel(path)
-        # Basename did not match a file — fall through to automatic PNG.
-    pick = _newest_png_for_instance_then_any(root, instance_id)
-    if pick is not None:
-        return pick.read_bytes(), _rel(pick)
-    return None, ""
+    path = rolling_live_preview_path(instance_id)
+    if path.is_file():
+        rel = path.relative_to(root).as_posix()
+        return path.read_bytes(), rel, path.stat().st_mtime
+    return None, "", None
 
 
 def resolve_rename_source_path(

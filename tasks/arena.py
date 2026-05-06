@@ -3,14 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-
-import numpy as np
+from datetime import UTC, datetime, timedelta
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
 from layout import screens
-from navigation.detector import ScreenDetector, ScreenName
+from navigation.detector import ScreenName
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
 from ocr.fuzzy import match
@@ -33,11 +30,9 @@ class ArenaTask:
 
     async def execute(self, instance_id: str) -> TaskResult:
         actions = BotActions()
-        capture = QuartzCapture()
-        detector = ScreenDetector()
         ocr = OcrClient()
         navigator = Navigator(
-            capture_fn=lambda iid: capture.capture(capture.find_window(actions._get_window_title(iid))),
+            capture_fn=actions.capture_screen_bgr,
             tap_fn=actions.tap,
         )
 
@@ -45,12 +40,12 @@ class ArenaTask:
         if not ok:
             return TaskResult(
                 success=False,
-                next_run_at=datetime.now(tz=timezone.utc) + timedelta(minutes=15),
+                next_run_at=datetime.now(tz=UTC) + timedelta(minutes=15),
             )
 
         fights_done = 0
         for _ in range(10):
-            image = capture.capture(capture.find_window(actions._get_window_title(instance_id)))
+            image = actions.capture_screen_bgr(instance_id)
             ticket_result = await ocr.ocr_region(image, screens.ARENA.tickets_region)
 
             if not ticket_result.text or not any(c.isdigit() for c in ticket_result.text):
@@ -63,7 +58,7 @@ class ArenaTask:
             actions.tap(instance_id, screens.ARENA.fight_btn)
             await asyncio.sleep(5.0)
 
-            image = capture.capture(capture.find_window(actions._get_window_title(instance_id)))
+            image = actions.capture_screen_bgr(instance_id)
             result_ocr = await ocr.ocr_region(image, screens.ARENA.result_region)
             if match(result_ocr.text, ["victory", "defeat", "result"]):
                 actions.tap(instance_id, screens.ARENA.close_result_btn)
@@ -73,6 +68,6 @@ class ArenaTask:
         logger.info("Arena: %d fights on %s/%s", fights_done, instance_id, self.player_id)
         return TaskResult(
             success=True,
-            next_run_at=datetime.now(tz=timezone.utc) + timedelta(seconds=self.cooldown_seconds),
+            next_run_at=datetime.now(tz=UTC) + timedelta(seconds=self.cooldown_seconds),
             metadata={"fights_done": fights_done},
         )

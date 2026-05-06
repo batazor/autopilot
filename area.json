@@ -11,7 +11,7 @@
       "ocr": "references/skip_button.png",
       "regions": [
         {
-          "name": "region_1",
+          "name": "skip_button",
           "action": "text",
           "type": "string",
           "threshold": 0.9,
@@ -26,6 +26,65 @@
           }
         }
       ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/hand_pointer.png",
+      "regions": [
+        {
+          "name": "hand_pointer",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.638888888888886,
+            "y": 39.375,
+            "width": 5.416666666666667,
+            "height": 6.875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "hand_pointer_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.99999999999999,
+            "y": 9.453125,
+            "width": 28.0,
+            "height": 48.43984375,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "hand_pointer_tap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.861111111111114,
+            "y": 48.90625,
+            "width": 5.416666666666667,
+            "height": 3.96484375,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/ahnd_pointer_2.png",
+      "regions": []
     }
   ]
 }

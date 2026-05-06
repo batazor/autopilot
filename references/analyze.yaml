@@ -1,0 +1,11 @@
+overlay:
+- name: skip_button.visible
+  region: skip_button
+  action: findIcon
+  threshold: 0.85
+- name: hand_pointer.visible
+  region: hand_pointer
+  search_region: hand_pointer_search
+  action: findIcon
+  threshold: 0.72
+  tap_region: hand_pointer_tap

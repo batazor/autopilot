@@ -23,6 +23,9 @@ class QueueItem:
     instance_id: str
     # Region name in area.json; bbox is resolved when the task runs.
     region: str | None = None
+    # Optional tap override (% of framebuffer). Used when overlay matched inside ``search_region``.
+    tap_x_pct: float | None = None
+    tap_y_pct: float | None = None
 
 
 class RedisQueue:
@@ -40,9 +43,14 @@ class RedisQueue:
         instance_id: str,
         region: str | None = None,
         *,
+        tap_x_pct: float | None = None,
+        tap_y_pct: float | None = None,
         skip_if_duplicate: bool = False,
     ) -> bool:
-        """Enqueue a task. Returns False if ``skip_if_duplicate`` and same player/type/region already queued."""
+        """Enqueue a task.
+
+        Returns False if ``skip_if_duplicate`` and the same player/type/region is queued.
+        """
         import json
 
         if skip_if_duplicate and await self.has_pending_duplicate(
@@ -66,6 +74,10 @@ class RedisQueue:
         }
         if region is not None and str(region).strip() != "":
             body["region"] = str(region).strip()
+        if tap_x_pct is not None:
+            body["tap_x_pct"] = float(tap_x_pct)
+        if tap_y_pct is not None:
+            body["tap_y_pct"] = float(tap_y_pct)
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         await self._redis.zadd(_QUEUE_KEY, {payload: run_at})
@@ -106,22 +118,40 @@ class RedisQueue:
         instance_players = self._players_for_instance(instance_id)
         candidates = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", now)
 
+        due: list[tuple[str, dict[str, object]]] = []
         for raw in candidates:
             data = json.loads(raw)
             if data["instance_id"] == instance_id and data["player_id"] in instance_players:
-                await self._redis.zrem(_QUEUE_KEY, raw)
-                reg = data.get("region")
-                region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
-                return QueueItem(
-                    task_id=data["task_id"],
-                    player_id=data["player_id"],
-                    task_type=data["task_type"],
-                    priority=data["priority"],
-                    run_at=float(data.get("run_at", now)),
-                    instance_id=data["instance_id"],
-                    region=region,
-                )
-        return None
+                due.append((raw, data))
+
+        if not due:
+            return None
+
+        due.sort(
+            key=lambda item: (
+                -int(item[1].get("priority", 0)),
+                float(item[1].get("run_at", now)),
+            )
+        )
+        raw, data = due[0]
+        await self._redis.zrem(_QUEUE_KEY, raw)
+        reg = data.get("region")
+        region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
+        tap_x = data.get("tap_x_pct")
+        tap_y = data.get("tap_y_pct")
+        tap_x_pct = float(tap_x) if tap_x is not None else None
+        tap_y_pct = float(tap_y) if tap_y is not None else None
+        return QueueItem(
+            task_id=data["task_id"],  # type: ignore[arg-type]
+            player_id=data["player_id"],  # type: ignore[arg-type]
+            task_type=data["task_type"],  # type: ignore[arg-type]
+            priority=int(data.get("priority", 0)),  # type: ignore[arg-type]
+            run_at=float(data.get("run_at", now)),  # type: ignore[arg-type]
+            instance_id=data["instance_id"],  # type: ignore[arg-type]
+            region=region,
+            tap_x_pct=tap_x_pct,
+            tap_y_pct=tap_y_pct,
+        )
 
     async def peek_all(self) -> list[QueueItem]:
         import json
@@ -132,6 +162,10 @@ class RedisQueue:
             data = json.loads(raw)
             reg = data.get("region")
             region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
+            tap_x = data.get("tap_x_pct")
+            tap_y = data.get("tap_y_pct")
+            tap_x_pct = float(tap_x) if tap_x is not None else None
+            tap_y_pct = float(tap_y) if tap_y is not None else None
             results.append(
                 QueueItem(
                     task_id=data["task_id"],
@@ -141,6 +175,8 @@ class RedisQueue:
                     run_at=float(data.get("run_at", score)),
                     instance_id=data["instance_id"],
                     region=region,
+                    tap_x_pct=tap_x_pct,
+                    tap_y_pct=tap_y_pct,
                 )
             )
         return results

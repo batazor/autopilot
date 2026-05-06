@@ -25,7 +25,7 @@ class InstanceConfig:
     bluestacks_window_title: str  # ADB serial (adb -s …)
     google_account: str
     player_ids: list[str]
-    # Substring for Quartz (window name / owner); if None, capture falls back to bluestacks_window_title
+    # Legacy YAML field; screen capture is ADB-only (ignored).
     capture_window_title: str | None = None
 
 
@@ -54,6 +54,12 @@ class WorkerConfig:
     restart_wait_seconds: int = 10
     task_timeout_seconds: int = 300
     bluestacks_launch_timeout_seconds: int = 120
+    overlay_analyze_when_busy: bool = False
+    """If False, skip ``analyze.yaml`` overlay matching while a queue task is executing."""
+    device_reference_snapshot_interval_seconds: float = 2.0
+    """How often to overwrite the rolling preview PNG and run overlay rules on that frame."""
+    adb_executable: str = ""
+    """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
 
 
 @dataclass(frozen=True)

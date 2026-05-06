@@ -5,9 +5,9 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 ## Requirements
 
 - **[uv](https://docs.astral.sh/uv/)** — installs Python **3.13** (see `.python-version`) and project deps from **`uv.lock`**.
-- **macOS** — emulator window capture uses Quartz (`pyobjc-framework-Quartz`).
+- **macOS / Linux / Windows** — framebuffer capture uses **`adb exec-out screencap`** (same as taps).
 - **BlueStacks** with the game; layout target **720×1280 @ 320 DPI** (see `layout/`).
-- **ADB** (Android Platform Tools): taps and screenshots go through `adb`. **Streamlit/Cursor** often start with a reduced PATH — the UI defaults to **`/opt/homebrew/bin/adb`** (Homebrew on Apple Silicon); override with your own path or **`ANDROID_HOME`**. Autodiscovery also checks `~/Library/Android/sdk/platform-tools/adb` and `/usr/local/bin/adb`. Serial = **`bluestacks_window_title`** in `config/settings.yaml`. For **Quartz** (bot tasks, not the ADB screenshot path) set optional **`capture_window_title`**.
+- **ADB** (Android Platform Tools): taps and screenshots go through `adb`. **Streamlit/Cursor** often start with a reduced PATH — the UI defaults to **`/opt/homebrew/bin/adb`** (Homebrew on Apple Silicon); override with your own path or **`ANDROID_HOME`**. Autodiscovery also checks `~/Library/Android/sdk/platform-tools/adb` and `/usr/local/bin/adb`. Serial = **`bluestacks_window_title`** in `config/settings.yaml`. Set **`worker.adb_executable`** if the worker process cannot find `adb`.
 - **Redis** — default URL `redis://localhost:6379/0` in `config/settings.yaml`.
 - **OCR** — PaddleOCR HTTP service (default port **8000**): `docker-compose` image or local optional extra `ocr` in `pyproject.toml`.
 

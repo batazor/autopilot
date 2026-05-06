@@ -8,6 +8,7 @@ import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 from config.loader import load_settings
+from ui.bot_services import ensure_embedded_bot
 from ui.redis_client import (
     count_claimed_slots,
     count_queue_tasks,
@@ -16,6 +17,8 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
+
+ensure_embedded_bot()
 
 st_autorefresh(interval=2000, key="overview_refresh")
 
@@ -74,10 +77,13 @@ def _task_cell(row: dict[str, str]) -> str:
 
 
 _DEVICES_HELP = (
-    "Device: instance id from settings. Status: green = worker running; red = no Redis state, paused, "
-    "crashed, or restarting. Player: active account after a successful switch. Task: queue task type "
-    "while it runs (with elapsed time). Session: uptime since the worker connected to Redis (resets "
-    "when the worker restarts). Row: pause **or** resume (one control by worker state), open Instance page."
+    "Device: instance id from settings. Status: green = worker running; "
+    "red = no Redis state, paused, crashed, or restarting. "
+    "Player: active account after a successful switch. "
+    "Task: queue task type while it runs (with elapsed time). "
+    "Session: uptime since the worker connected to Redis "
+    "(resets when the worker restarts). "
+    "Row: pause **or** resume (one control by worker state), open Instance page."
 )
 
 
@@ -102,8 +108,15 @@ c4.metric("Cooperative locks", claimed)
 st.divider()
 
 st.subheader("Devices", help=_DEVICES_HELP)
+st.caption(
+    "**Worker is running** when Status is 🟢 and **Session** shows uptime "
+    "(Redis `wos:instance:<id>:state`). Embedded bot starts from **`ui/app.py`** "
+    "or when this Overview/Instance page loads standalone. "
+    "**⏸ Pause** stops dequeuing tasks and **ADB rolling preview PNG** until **▶ Resume**."
+)
 
-# Column weights: data + compact icon actions (Streamlit cannot embed buttons in st.dataframe cells).
+# Column weights: data + compact icon actions
+# (Streamlit cannot embed buttons in st.dataframe cells).
 _TABLE_COLS = [2.2, 0.45, 1.25, 2.35, 1.35, 0.5, 0.48]
 
 if settings.instances:
@@ -154,7 +167,10 @@ if settings.instances:
                 "views/instance.py",
                 label="🔗",
                 query_params={"instance_id": inst.instance_id},
-                help=f"Instance — screenshots, queue commands, FSM history for `{inst.instance_id}`.",
+                help=(
+                    "Instance — screenshots, queue commands, FSM history "
+                    f"for `{inst.instance_id}`."
+                ),
                 use_container_width=True,
             )
 

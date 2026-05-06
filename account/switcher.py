@@ -6,7 +6,6 @@ import logging
 import redis.asyncio as aioredis
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
 from config.loader import get_settings
 from layout import screens
 from navigation.detector import ScreenDetector, ScreenName
@@ -23,7 +22,6 @@ class AccountSwitcher:
     def __init__(self, redis_client: aioredis.Redis) -> None:  # type: ignore[type-arg]
         self._redis = redis_client
         self._actions = BotActions()
-        self._capture = QuartzCapture()
         self._detector = ScreenDetector()
         self._ocr = OcrClient()
         self._settings = get_settings()
@@ -34,11 +32,7 @@ class AccountSwitcher:
         )
 
     def _capture_image(self, instance_id: str) -> object:
-        import numpy as np
-
-        title = self._actions._get_window_title(instance_id)
-        wid = self._capture.find_window(title)
-        return self._capture.capture(wid)
+        return self._actions.capture_screen_bgr(instance_id)
 
     async def current_player(self, instance_id: str) -> str | None:
         raw = await self._redis.hget(f"wos:instance:{instance_id}:state", "active_player")
@@ -76,8 +70,6 @@ class AccountSwitcher:
         await asyncio.sleep(3.0)
 
         # Verify the switch succeeded
-        import numpy as np
-
         image = self._capture_image(instance_id)
         result = await self._ocr.ocr_region(
             image,  # type: ignore[arg-type]
@@ -102,7 +94,6 @@ class AccountSwitcher:
 
     def _slot_index(self, player_id: str, instance_id: str) -> int | None:
         for inst in self._settings.instances:
-            if inst.instance_id == instance_id:
-                if player_id in inst.player_ids:
-                    return inst.player_ids.index(player_id)
+            if inst.instance_id == instance_id and player_id in inst.player_ids:
+                return inst.player_ids.index(player_id)
         return None

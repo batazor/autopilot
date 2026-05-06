@@ -9,10 +9,12 @@ from pathlib import Path
 import redis.asyncio as aioredis
 
 from config.loader import get_settings
+from config.logging_stdout import setup_stdout_logging
 from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scenarios.models import Scenario
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
+from scheduler.ortools_executor import get_ortools_executor
 from scheduler.queue import RedisQueue
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,9 @@ class SchedulerRunner:
                 key = f"wos:player:{player_id}:state"
                 raw = await self._redis.hgetall(key)  # type: ignore[union-attr]
                 state = {
-                    k.decode() if isinstance(k, bytes) else k: v.decode() if isinstance(v, bytes) else v
+                    (k.decode() if isinstance(k, bytes) else k): (
+                        v.decode() if isinstance(v, bytes) else v
+                    )
                     for k, v in raw.items()
                 }
                 state["player_id"] = player_id
@@ -102,7 +106,14 @@ class SchedulerRunner:
             player_tasks=player_tasks,
             player_instance_map=player_instance_map,
         )
-        assigned = self._optimizer.optimize(inp)
+        # OR-Tools solve is synchronous. Use a dedicated single-worker pool (not the default
+        # asyncio thread pool) so solves are serialized and the rest of the app stays responsive.
+        loop = asyncio.get_running_loop()
+        assigned = await loop.run_in_executor(
+            get_ortools_executor(),
+            self._optimizer.optimize,
+            inp,
+        )
 
         now = time.time()
         for player_id, tasks in assigned.items():
@@ -156,7 +167,7 @@ class SchedulerRunner:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO)
+    setup_stdout_logging()
     runner = SchedulerRunner()
     asyncio.run(runner.run())
 

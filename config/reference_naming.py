@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+import uuid
+from datetime import datetime
 from pathlib import Path
 
 _REF_NAME_MAX = 120
@@ -18,7 +20,7 @@ def rolling_preview_basename(instance_id: str) -> str:
 
 
 def reference_png_abs_path(repo_root: Path, base: str, instance_id: str) -> Path:
-    """Absolute path under repo: rolling preview → references/temporal/<base>.png, else references/<base>.png."""
+    """Path for ``references/temporal/<base>.png`` (preview) or ``references/<base>.png``."""
     refs = repo_root / "references"
     if base == rolling_preview_basename(instance_id):
         out = refs / TEMPORAL_SUBDIR / f"{base}.png"
@@ -32,10 +34,17 @@ def is_preview_snapshot_stem(stem: str, instance_id: str) -> bool:
     return stem == f"{instance_id}_{_DEFAULT_BASE_SUFFIX}"
 
 
+def unique_label_capture_basename(instance_id: str) -> str:
+    """Basename for a new Labeling capture under ``references/`` (not rolling preview)."""
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    short = uuid.uuid4().hex[:6]
+    return reference_file_basename(f"{instance_id}_shot_{stamp}_{short}", instance_id)
+
+
 def reference_file_basename(raw: str | None, instance_id: str) -> str:
     """Safe basename without .png extension.
 
-    Empty input uses ``{instance_id}_current_state`` so repeated captures overwrite one rolling preview file per instance.
+    Empty input uses ``{instance_id}_current_state`` (rolling preview; repeated captures overwrite).
     """
     default = rolling_preview_basename(instance_id)
     if raw is None or not str(raw).strip():

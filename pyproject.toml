@@ -16,7 +16,6 @@ dependencies = [
     "psutil>=5.9",
     "numpy>=1.26",
     "networkx>=3.2",
-    "pyobjc-framework-Quartz>=10.3",
     "opencv-python-headless>=4.9",
     "ddddocr>=1.4",
     "beautifulsoup4>=4.12",
@@ -67,6 +66,7 @@ package = true
 
 [tool.hatch.build.targets.wheel]
 packages = [
+    "analysis",
     "account",
     "actions",
     "capture",

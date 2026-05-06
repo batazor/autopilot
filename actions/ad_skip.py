@@ -16,7 +16,6 @@ import time
 import numpy as np
 
 from actions.tap import BotActions
-from capture.window import QuartzCapture
 from layout.types import Point, Region
 from ocr.client import OcrClient, OCRResult
 from ocr.fuzzy import match
@@ -69,13 +68,10 @@ class AdSkipper:
     def __init__(self, instance_id: str) -> None:
         self._instance_id = instance_id
         self._actions = BotActions()
-        self._capture = QuartzCapture()
         self._ocr = OcrClient()
 
     def _grab(self) -> np.ndarray:
-        title = self._actions._get_window_title(self._instance_id)
-        wid = self._capture.find_window(title)
-        return self._capture.capture(wid)
+        return self._actions.capture_screen_bgr(self._instance_id)
 
     async def handle_entry_screens(self) -> None:
         """Dismiss all known popups / ads within a 30-second window."""
@@ -105,7 +101,11 @@ class AdSkipper:
                 return  # Confirm closes the entry flow
 
             if _has_popup(detected):
-                logger.info("Ad-skip: closing popup on %s (text=%r)", self._instance_id, detected[0])
+                logger.info(
+                    "Ad-skip: closing popup on %s (text=%r)",
+                    self._instance_id,
+                    detected[0],
+                )
                 self._actions.tap(self._instance_id, _AD_BANNER_CLOSE)
                 await asyncio.sleep(_TAP_PAUSE)
                 # Don't return — loop to catch next popup
@@ -146,15 +146,9 @@ def _collect_texts(results: list[OCRResult]) -> list[str]:
 
 
 def _has_confirm(texts: list[str]) -> bool:
-    for text in texts:
-        if match(text, ["confirm"], threshold=0.82):
-            return True
-    return False
+    return any(match(text, ["confirm"], threshold=0.82) for text in texts)
 
 
 def _has_popup(texts: list[str]) -> bool:
     non_confirm = [kw for kw in _POPUP_KEYWORDS if kw != "confirm"]
-    for text in texts:
-        if match(text, non_confirm, threshold=0.75):
-            return True
-    return False
+    return any(match(text, non_confirm, threshold=0.75) for text in texts)
