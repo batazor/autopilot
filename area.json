@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "fsm": {
+    "initial_screen": "",
+    "transitions": []
+  },
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "",
+      "ocr": "references/skip_button.png",
+      "regions": [
+        {
+          "name": "region_1",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.98765432098766,
+            "y": 6.111111111111111,
+            "width": 13.08641975308642,
+            "height": 2.7777777777777777,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

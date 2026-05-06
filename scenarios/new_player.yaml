@@ -1,0 +1,32 @@
+id: new_player
+name: "New Player Onboarding"
+priority: 50
+repeat: true
+enabled: false
+
+conditions:
+  - type: player_level_min
+    value: 1
+
+steps:
+  - id: step_new_checkin
+    task: daily_checkin
+    priority: 900
+    cooldown: 24h
+    required: true
+
+  - id: step_new_training
+    task: training
+    priority: 700
+    cooldown: 20m
+    params:
+      troop_type: infantry
+      quantity: auto
+
+  - id: step_new_gather
+    task: gathering
+    priority: 500
+    cooldown: 2h
+    params:
+      resources: [wood, food]
+      march_slots: all

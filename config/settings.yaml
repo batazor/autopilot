@@ -1,0 +1,72 @@
+redis:
+  url: "redis://localhost:6379/0"
+  key_prefix: "wos"
+
+ocr:
+  url: "http://localhost:8000"
+  timeout_seconds: 10
+  fuzzy_threshold: 0.80
+
+scheduler:
+  interval_seconds: 30
+  ortools_timeout_seconds: 1.0
+
+instances:
+  - instance_id: "bs1"
+    bluestacks_window_title: "emulator-5554"
+    # BlueStacks window title substring for Quartz (not the ADB serial). Example: BlueStacks Air
+    capture_window_title: "BlueStacks"
+    google_account: "account1@gmail.com"
+    player_ids:
+      - "111111111"
+      - "222222222"
+      - "333333333"
+
+players:
+  player_01:
+    level: 15
+    name: "Hero1"
+  player_02:
+    level: 12
+    name: "Hero2"
+  player_03:
+    level: 8
+    name: "Hero3"
+  player_04:
+    level: 20
+    name: "Hero4"
+  player_05:
+    level: 5
+    name: "Hero5"
+
+tasks:
+  arena:
+    cooldown_seconds: 10800
+    max_attempts: 3
+    timeout_seconds: 120
+  training:
+    cooldown_seconds: 1800
+    max_attempts: 3
+    timeout_seconds: 60
+  gathering:
+    cooldown_seconds: 7200
+    max_attempts: 2
+    timeout_seconds: 90
+  daily_checkin:
+    cooldown_seconds: 86400
+    max_attempts: 1
+    timeout_seconds: 60
+  defend_ally:
+    cooldown_seconds: 600
+    max_attempts: 5
+    timeout_seconds: 30
+  beast:
+    cooldown_seconds: 3600
+    max_attempts: 3
+    timeout_seconds: 180
+
+worker:
+  health_check_interval_seconds: 30
+  restart_wait_seconds: 10
+  task_timeout_seconds: 300
+  bluestacks_launch_timeout_seconds: 120

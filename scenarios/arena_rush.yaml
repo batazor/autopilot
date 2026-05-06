@@ -1,0 +1,29 @@
+id: arena_rush
+name: "Arena Rush"
+priority: 200
+repeat: true
+enabled: false
+
+conditions:
+  - type: time_range
+    from: "08:00"
+    to: "22:00"
+  - type: player_level_min
+    value: 15
+
+steps:
+  - id: step_arena_rush
+    task: arena
+    priority: 950
+    cooldown: 1h
+    max_attempts: 5
+    conditions:
+      - type: resource_min
+        resource: arena_tickets
+        value: 1
+
+  - id: step_daily_checkin_rush
+    task: daily_checkin
+    priority: 850
+    cooldown: 24h
+    required: true
