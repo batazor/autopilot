@@ -110,7 +110,7 @@ edited = st.data_editor(
     },
     disabled=("id", "name", "priority", "steps"),
     hide_index=True,
-    use_container_width=True,
+    width="stretch",
     num_rows="fixed",
     key="scenarios_table",
 )
@@ -174,4 +174,4 @@ for p in all_players:
     sc = get_player_scenario(client, p)
     rows.append({"player_id": p, "scenario_redis": sc or "(none)"})
 
-st.dataframe(rows, hide_index=True, use_container_width=True)
+st.dataframe(rows, hide_index=True, width="stretch")

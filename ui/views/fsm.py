@@ -264,7 +264,7 @@ with tab_regions:
                 key=f"flow-{slug}",
             )
             df = pd.DataFrame(_sorted_edges(edges), columns=["from", "to"])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_merged:
     st.markdown(
@@ -286,5 +286,5 @@ with tab_edges:
         rt = ", ".join(sorted(_screen_regions.get(dst, frozenset())))
         rows.append({"from": src, "to": dst, "regions (from)": rf, "regions (to)": rt})
     with st.expander("Edge table", expanded=True):
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
         st.caption(f"Total edges after merging graphs: **{len(rows)}**.")

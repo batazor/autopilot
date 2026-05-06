@@ -14,13 +14,43 @@ from layout.bbox_percent import bbox_percent_center_xy_pct
 from layout.crop_paths import exported_crop_png
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
+    match_patch_bgr_at_top_left,
     match_template_in_search_roi_bbox_percent,
+    patch_mean_hsv_saturation,
 )
 
 
 def load_analyze_yaml(path: Path) -> dict[str, Any]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else {}
+
+
+def _optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
+    """YAML ``min_match_saturation`` (0–255): reject match if mean HSV S on live patch is below."""
+    v = rule.get("min_match_saturation")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _apply_min_saturation_gate(
+    image_bgr: np.ndarray,
+    top_left: tuple[int, int],
+    tw: int,
+    th: int,
+    min_s: float,
+) -> tuple[bool, float | None, str | None]:
+    """Returns ``(passes, mean_saturation_or_none, fail_reason_or_none)``."""
+    patch = match_patch_bgr_at_top_left(image_bgr, top_left, tw, th)
+    if patch is None:
+        return False, None, "match_patch_out_of_bounds"
+    mean_s = patch_mean_hsv_saturation(patch)
+    if mean_s < float(min_s):
+        return False, mean_s, "low_saturation"
+    return True, mean_s, None
 
 
 def centers_delta_pct_between_regions(
@@ -94,6 +124,7 @@ def evaluate_overlay_rules(
             tap_offset_from_match = bool(rule.get("tap_offset_from_match"))
             tap_override_pct: tuple[float, float] | None = None
             tap_delta_pct: tuple[float, float] | None = None
+            min_sat = _optional_min_match_saturation(rule)
 
             if tap_offset_from_match:
                 if not tap_region_name:
@@ -214,8 +245,17 @@ def evaluate_overlay_rules(
                         tap_x_pct = mx_pct
                         tap_y_pct = my_pct
                     score = res["score"]
+                    matched = score >= threshold
+                    tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
+                    sat_fail: str | None = None
+                    mean_sat: float | None = None
+                    if matched and min_sat is not None:
+                        ok, mean_sat, sat_fail = _apply_min_saturation_gate(
+                            image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
+                        )
+                        matched = ok
                     hit: dict[str, Any] = {
-                        "matched": score >= threshold,
+                        "matched": matched,
                         "score": score,
                         "threshold": threshold,
                         "top_left": list(res["top_left"]),
@@ -227,6 +267,12 @@ def evaluate_overlay_rules(
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
                     }
+                    if min_sat is not None:
+                        hit["min_match_saturation"] = min_sat
+                    if mean_sat is not None:
+                        hit["mean_saturation"] = mean_sat
+                    if sat_fail:
+                        hit["reason"] = sat_fail
                     if tap_region_name:
                         hit["tap_region"] = tap_region_name
                     if tap_delta_pct is not None:
@@ -248,8 +294,21 @@ def evaluate_overlay_rules(
             mx_pct = 100.0 * (tl_x + tw_tpl / 2.0) / wi
             my_pct = 100.0 * (tl_y + th_tpl / 2.0) / hi
 
+            matched_1 = score >= threshold
+            sat_fail_1: str | None = None
+            mean_sat_1: float | None = None
+            if matched_1 and min_sat is not None:
+                ok, mean_sat_1, sat_fail_1 = _apply_min_saturation_gate(
+                    image_bgr,
+                    (int(res["top_left"][0]), int(res["top_left"][1])),
+                    tw_tpl,
+                    th_tpl,
+                    min_sat,
+                )
+                matched_1 = ok
+
             hit1: dict[str, Any] = {
-                "matched": score >= threshold,
+                "matched": matched_1,
                 "score": score,
                 "threshold": threshold,
                 "top_left": list(res["top_left"]),
@@ -258,6 +317,12 @@ def evaluate_overlay_rules(
                 "action": "findIcon",
                 "region": region_name,
             }
+            if min_sat is not None:
+                hit1["min_match_saturation"] = min_sat
+            if mean_sat_1 is not None:
+                hit1["mean_saturation"] = mean_sat_1
+            if sat_fail_1:
+                hit1["reason"] = sat_fail_1
             if tap_delta_pct is not None:
                 ddx, ddy = tap_delta_pct
                 hit1["tap_x_pct"] = mx_pct + ddx

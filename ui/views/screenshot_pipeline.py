@@ -247,7 +247,7 @@ def _overlay_live_status_fragment() -> None:
                 vis_ui = _maybe_downscale_for_ui(vis)
                 st.image(
                     cv2.cvtColor(vis_ui, cv2.COLOR_BGR2RGB),
-                    use_container_width=True,
+                    width="stretch",
                 )
                 st.caption(
                     "**Orange** outline: `search_region` ROI · "
@@ -285,7 +285,7 @@ def _overlay_live_status_fragment() -> None:
         "Sorted by **status**: **Found** first, **Not found** after; ties use rule name."
     )
 
-    st.dataframe(rows_out, hide_index=True, use_container_width=True)
+    st.dataframe(rows_out, hide_index=True, width="stretch")
 
 
 st.title("Screenshot pipeline")
@@ -348,7 +348,7 @@ if _ANALYZE.is_file():
             }
         )
     if rows_static:
-        st.dataframe(rows_static, hide_index=True, use_container_width=True)
+        st.dataframe(rows_static, hide_index=True, width="stretch")
     else:
         st.info("No entries under `overlay` in analyze.yaml.")
     with st.expander("Raw `references/analyze.yaml`"):

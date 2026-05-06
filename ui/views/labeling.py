@@ -12,7 +12,7 @@ from ui.adb_reference_shot import capture_reference_adb
 from ui.area_annotator import (
     REPO_ROOT,
     ensure_entry_for_reference_path,
-    export_region_crops,
+    export_all_region_crops_for_area_doc,
     render_area_annotator_ui,
 )
 from ui.labeling_reference_panel import (
@@ -143,7 +143,10 @@ with hdr_btn:
             type="secondary",
             width="stretch",
             key="labeling_header_crops",
-            help="Save bbox crops under **references/crop/** for the current reference entry.",
+            help=(
+                "Save bbox crops under **references/crop/** for **every** ``area.json`` screen "
+                "whose ``ocr`` PNG exists (skips ``overlay_auxiliary`` regions and missing files)."
+            ),
         )
 
 if discard_capture:
@@ -206,40 +209,28 @@ if new_screenshot:
         st.rerun()
 
 if write_crops:
-    pil = st.session_state.get("pil_original")
     doc = st.session_state.get("area_doc")
-    ei = int(st.session_state.get("entry_idx", -1))
-    entries = (doc or {}).get("screens") or []
-    if pil is None or doc is None:
-        st.error(
-            "Load a reference image first — pick a PNG in the right column or **New screenshot**."
-        )
-    elif ei < 0 or ei >= len(entries):
-        st.error("No **area.json** entry for this reference.")
+    if doc is None:
+        st.error("No area document loaded.")
     else:
-        ref_raw = entries[ei].get("ocr")
-        regions = entries[ei].get("regions") or []
-        ref_s = str(ref_raw).strip() if ref_raw else ""
-        bbox_n = sum(1 for r in regions if r.get("bbox") and not r.get("overlay_auxiliary"))
-        if not ref_s:
-            st.error("Current entry has no reference (**ocr**) path.")
-        elif bbox_n == 0:
-            st.warning("No regions with a bbox — draw regions on the canvas first.")
-        else:
-            prog = st.progress(0)
-            try:
-                outs = export_region_crops(
-                    pil,
-                    ref_s,
-                    regions,
-                    progress=lambda x: prog.progress(x),
-                )
-                rels = [o.relative_to(REPO_ROOT).as_posix() for o in outs]
-                if rels:
-                    st.success("Saved:\n" + "\n".join(f"- `{p}`" for p in rels))
-                else:
-                    st.warning("Nothing written.")
-            except (OSError, ValueError) as e:
-                st.error(str(e))
-            finally:
-                prog.empty()
+        prog = st.progress(0)
+        try:
+            written, warns = export_all_region_crops_for_area_doc(
+                doc,
+                repo_root=REPO_ROOT,
+                progress=lambda x: prog.progress(x),
+            )
+            rels = [p.relative_to(REPO_ROOT).as_posix() for p in written]
+            if rels:
+                preview = "\n".join(f"- `{p}`" for p in rels[:80])
+                more = f"\n… and **{len(rels) - 80}** more." if len(rels) > 80 else ""
+                st.success(f"Wrote **{len(rels)}** crop(s):\n{preview}{more}")
+            else:
+                st.warning("No crops written — check reference PNG paths and non-auxiliary regions.")
+            if warns:
+                with st.expander("Warnings", expanded=False):
+                    st.markdown("\n".join(f"- {w}" for w in warns))
+        except (OSError, ValueError) as e:
+            st.error(str(e))
+        finally:
+            prog.empty()

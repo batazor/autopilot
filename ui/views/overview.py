@@ -149,7 +149,7 @@ if settings.instances:
                     "▶",
                     key=f"ov-resume-{inst.instance_id}",
                     help="Resume this instance worker (starts dequeuing tasks again).",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     push_instance_command(client, inst.instance_id, {"cmd": "resume"})
                     _set_feedback(f"`{inst.instance_id}`: resume sent to worker.")
@@ -158,7 +158,7 @@ if settings.instances:
                     "⏸",
                     key=f"ov-pause-{inst.instance_id}",
                     help="Pause this instance worker (stops dequeuing tasks until resumed).",
-                    use_container_width=True,
+                    width="stretch",
                 ):
                     push_instance_command(client, inst.instance_id, {"cmd": "pause"})
                     _set_feedback(f"`{inst.instance_id}`: pause sent to worker.")
@@ -171,7 +171,7 @@ if settings.instances:
                     "Instance — screenshots, queue commands, FSM history "
                     f"for `{inst.instance_id}`."
                 ),
-                use_container_width=True,
+                width="stretch",
             )
 
     st.divider()

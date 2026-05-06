@@ -100,3 +100,25 @@ def match_template_in_search_roi_bbox_percent(
     gx = int(L + x_off)
     gy = int(T + y_off)
     return TemplateMatchResult(score=float(max_val), top_left=(gx, gy))
+
+
+def match_patch_bgr_at_top_left(
+    image_bgr: np.ndarray,
+    top_left: tuple[int, int],
+    tw: int,
+    th: int,
+) -> np.ndarray | None:
+    """Extract ``tw×th`` BGR patch at global ``top_left``; ``None`` if out of frame."""
+    h, w = image_bgr.shape[:2]
+    x0, y0 = int(top_left[0]), int(top_left[1])
+    if x0 < 0 or y0 < 0 or tw < 1 or th < 1 or x0 + tw > w or y0 + th > h:
+        return None
+    return image_bgr[y0 : y0 + th, x0 : x0 + tw]
+
+
+def patch_mean_hsv_saturation(patch_bgr: np.ndarray) -> float:
+    """Mean HSV saturation (S channel, 0–255). Grey UI is usually low vs saturated blue buttons."""
+    if patch_bgr.ndim != 3 or patch_bgr.size == 0:
+        raise ValueError("Expected non-empty HxWx3 BGR patch.")
+    hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    return float(np.mean(hsv[:, :, 1]))

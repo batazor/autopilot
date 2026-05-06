@@ -95,7 +95,6 @@ class AreaDocDict(TypedDict, total=False):
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AREA_JSON_PATH = REPO_ROOT / "area.json"
 REFERENCES_DIR = REPO_ROOT / "references"
-CROP_DIR = REFERENCES_DIR / "crop"
 ACTIONS = ("text", "exist", "color_check", "click")
 TYPES = ("integer", "string", "boolean")
 CANVAS_VERSION = "4.4.6"
@@ -182,16 +181,19 @@ def export_region_crops(
     reference_repo_rel: str,
     regions: list[RegionDict],
     *,
+    repo_root: Path | None = None,
     progress: Callable[[float], None] | None = None,
 ) -> list[Path]:
     """Write ``references/crop/<reference_stem>_<region_name>.png`` for each region with a bbox.
 
     ``progress`` receives fraction in ``[0.0, 1.0]`` after each file is written (optional UI hook).
     """
+    root = repo_root or REPO_ROOT
+    crop_out_dir = root / "references" / "crop"
     stem = Path(reference_repo_rel).stem
     if not stem:
         raise ValueError("Invalid reference path for crop export.")
-    CROP_DIR.mkdir(parents=True, exist_ok=True)
+    crop_out_dir.mkdir(parents=True, exist_ok=True)
     ow, oh = pil_original.size
     indexed = [
         (i, r)
@@ -210,12 +212,102 @@ def export_region_crops(
         w = bbox["width"] / 100.0 * ow
         h = bbox["height"] / 100.0 * oh
         tile = crop_region(pil_original, left, top, w, h)
-        dest = CROP_DIR / f"{stem}_{label}.png"
+        dest = crop_out_dir / f"{stem}_{label}.png"
         tile.save(dest, format="PNG")
         written.append(dest)
         if progress is not None and total > 0:
             progress(min(1.0, (step + 1) / total))
     return written
+
+
+def _count_exportable_crop_regions(regions: list[RegionDict]) -> int:
+    return sum(
+        1
+        for r in regions
+        if r.get("bbox") and not r.get("overlay_auxiliary")
+    )
+
+
+def export_all_region_crops_for_area_doc(
+    doc: AreaDocDict,
+    *,
+    repo_root: Path | None = None,
+    progress: Callable[[float], None] | None = None,
+) -> tuple[list[Path], list[str]]:
+    """Write template crops for every screen whose ``ocr`` PNG exists on disk.
+
+    Uses the same rules as :func:`export_region_crops` (skips ``overlay_auxiliary`` regions).
+
+    Returns ``(written_paths, warnings)`` — warnings list missing reference files or load errors.
+    """
+    root = repo_root or REPO_ROOT
+    written: list[Path] = []
+    warnings: list[str] = []
+    screens = doc.get("screens") or []
+
+    tasks: list[tuple[str, list[RegionDict], Path]] = []
+    for entry in screens:
+        if not isinstance(entry, dict):
+            continue
+        ocr_raw = str(entry.get("ocr") or "").strip()
+        if not ocr_raw:
+            continue
+        rel = Path(ocr_raw)
+        abs_path = rel if rel.is_absolute() else (root / rel)
+        if not abs_path.is_file():
+            warnings.append(f"Skip (missing file): `{ocr_raw}`")
+            continue
+        regions_raw = entry.get("regions")
+        if not isinstance(regions_raw, list):
+            continue
+        regions = [r for r in regions_raw if isinstance(r, dict)]
+        if _count_exportable_crop_regions(regions) == 0:
+            continue
+        tasks.append((ocr_raw, regions, abs_path))
+
+    total_files = sum(_count_exportable_crop_regions(regs) for _, regs, _ in tasks)
+    done_files = 0
+
+    for ocr_raw, regions, abs_path in tasks:
+        n_this = _count_exportable_crop_regions(regions)
+        try:
+            pil = Image.open(abs_path)
+            pil.load()
+        except OSError as e:
+            warnings.append(f"Could not open `{ocr_raw}`: {e}")
+            done_files += n_this
+            if progress is not None and total_files > 0:
+                progress(min(1.0, done_files / total_files))
+            continue
+
+        def _prog_local(frac: float) -> None:
+            if progress is None:
+                return
+            if total_files <= 0:
+                progress(1.0)
+            else:
+                progress(min(1.0, (done_files + frac * n_this) / total_files))
+
+        try:
+            outs = export_region_crops(
+                pil,
+                ocr_raw,
+                regions,
+                repo_root=root,
+                progress=_prog_local,
+            )
+            written.extend(outs)
+        except (OSError, ValueError) as e:
+            warnings.append(f"`{ocr_raw}`: {e}")
+        finally:
+            done_files += n_this
+            if progress is not None and total_files > 0:
+                progress(min(1.0, done_files / total_files))
+
+    if progress is not None and total_files == 0:
+        progress(1.0)
+
+    return written, warnings
 
 
 def default_area_doc(screens: list[AreaEntryDict] | None = None) -> AreaDocDict:

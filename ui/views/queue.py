@@ -41,7 +41,7 @@ else:
             }
         )
 
-    st.dataframe(data, use_container_width=True, hide_index=True)
+    st.dataframe(data, hide_index=True, width="stretch")
 
     st.subheader("Cancel task")
     tid = st.selectbox("task_id", [r.task_id for r in rows])
