@@ -4,6 +4,7 @@ overlay:
     action: findIcon
     threshold: 0.9
     enqueue_tap: false
+    set_node: mail
 
   - name: mail_gift.visible
     region: mail_gift
@@ -25,4 +26,4 @@ overlay:
     expected: ["Mail", "Почта", "Письма"]
     fuzzy_threshold: 0.75
     enqueue_tap: false
-
+    set_node: mail

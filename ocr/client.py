@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 from dataclasses import dataclass
+from datetime import datetime
 
 import cv2  # type: ignore[import-untyped]
 import httpx
@@ -47,13 +49,35 @@ class OcrClient:
         ]
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
+            t0 = time.perf_counter()
             resp = await client.post(
                 f"{self._base_url}/ocr",
                 json={"image_b64": image_b64, "regions": region_payloads},
             )
+            elapsed_ms = 1000.0 * (time.perf_counter() - t0)
             resp.raise_for_status()
 
         raw_results = resp.json()
+        # Log short OCR summary at INFO (useful when tuning regions).
+        try:
+            items = raw_results if isinstance(raw_results, list) else []
+            parts: list[str] = []
+            for item in items[:3]:
+                if not isinstance(item, dict):
+                    continue
+                rid = str(item.get("region_id") or "").strip()
+                txt = str(item.get("text") or "").strip().replace("\n", " ")
+                conf = item.get("confidence")
+                conf_f = float(conf) if isinstance(conf, (int, float, str)) and str(conf) else 0.0
+                if len(txt) > 80:
+                    txt = f"{txt[:77]}..."
+                parts.append(f"{rid} conf={conf_f:.3f} text={txt!r}")
+            if parts:
+                ts = datetime.now().strftime("%H:%M:%S")
+                logger.info("OCR ts=%s ms=%.0f %s", ts, elapsed_ms, " | ".join(parts))
+        except Exception:
+            # Logging must never break OCR flow.
+            pass
         return [
             OCRResult(
                 region_id=item["region_id"],

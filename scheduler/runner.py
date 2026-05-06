@@ -42,6 +42,14 @@ class SchedulerRunner:
         # Stable location for cron-maintenance jobs (YAML specs).
         return Path(__file__).resolve().parent.parent / "scenarios" / "by_cron"
 
+    async def _instance_current_screen(self, instance_id: str) -> str:
+        assert self._redis is not None
+        raw = await self._redis.hget(f"wos:instance:{instance_id}:state", "current_screen")
+        if raw is None:
+            return ""
+        s = raw.decode() if isinstance(raw, bytes) else str(raw)
+        return s.strip()
+
     @staticmethod
     def _cron_due(expr: str, now: float) -> bool:
         """Minimal cron matcher supporting:
@@ -101,6 +109,8 @@ class SchedulerRunner:
             task_type = str(raw.get("task") or raw.get("task_type") or "").strip()
             prio = int(raw.get("priority") or 1)
             name = str(raw.get("name") or "").strip() or yml.stem
+            when_current_screen = str(raw.get("when_current_screen") or "").strip().lower()
+            scope = str(raw.get("scope") or "player").strip().lower()
             if not expr or (not task_type and not node):
                 continue
             if not self._cron_due(expr, now):
@@ -111,18 +121,23 @@ class SchedulerRunner:
 
             spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
 
-            # Once-per-minute guard (scheduler ticks faster than cron granularity).
-            guard = f"{spec_slug}:{int(now // 60)}"
-            if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]
-                continue
-            await self._redis.hset(_CRON_KEY, guard, "1")
-            await self._redis.expire(_CRON_KEY, 60 * 60 * 24)
-
             # Default mapping: node -> "<node>_check"
             if not task_type:
                 task_type = f"{node}_check"
             for inst in self._settings.instances:
-                for player_id in inst.player_ids:
+                if when_current_screen in {"unknown", "none", "empty"}:
+                    current_screen = await self._instance_current_screen(inst.instance_id)
+                    if current_screen:
+                        continue
+                player_ids = inst.player_ids[:1] if scope == "instance" else inst.player_ids
+                for player_id in player_ids:
+                    # Once-per-minute guard (scheduler ticks faster than cron granularity).
+                    guard = f"{spec_slug}:{inst.instance_id}:{player_id}:{int(now // 60)}"
+                    if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]
+                        continue
+                    await self._redis.hset(_CRON_KEY, guard, "1")
+                    await self._redis.expire(_CRON_KEY, 60 * 60 * 24)
+
                     await self._queue.schedule(
                         task_id=f"cron:{spec_slug}:{player_id}:{int(now)}",
                         player_id=player_id,

@@ -117,6 +117,25 @@ def test_overlay_rule_priority_is_preserved(tap_overlay_repo: tuple[Path, dict])
     assert row.get("priority") == 60_000
 
 
+def test_overlay_rule_set_node_is_preserved(tap_overlay_repo: tuple[Path, dict]) -> None:
+    repo, bundle = tap_overlay_repo
+    rules = [
+        {
+            "name": "t.visible",
+            "region": "icon",
+            "action": "findIcon",
+            "threshold": 0.99,
+            "enqueue_tap": False,
+            "set_node": "mail",
+        }
+    ]
+    out = evaluate_overlay_rules(bundle["frame"], bundle["doc"], repo, rules)
+    row = out["t.visible"]
+    assert row.get("matched") is True
+    assert row.get("enqueue_tap") is False
+    assert row.get("set_node") == "mail"
+
+
 def test_unknown_tap_region_fails_closed(tap_overlay_repo: tuple[Path, dict]) -> None:
     repo, bundle = tap_overlay_repo
     rules = [

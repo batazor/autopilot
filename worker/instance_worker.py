@@ -32,6 +32,7 @@ from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
 from tasks.main_city_check import MainCityCheckTask
 from tasks.overlay_tap import OverlayTapTask
+from tasks.page_detect import PageDetectTask
 from tasks.training import TrainingTask
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ _TASK_REGISTRY: dict[str, type] = {
     "defend_ally": DefendAllyTask,
     "beast": BeastTask,
     "main_city_check": MainCityCheckTask,
+    "page_detect": PageDetectTask,
 }
 
 
@@ -147,6 +149,35 @@ class InstanceWorker:
             instance_id=self._cfg.instance_id,
         )
         logger.info("Manual task queued: %s %s", task_type, player_id)
+
+    async def _schedule_page_detect_if_unknown(self, *, reason: str) -> None:
+        if self._redis is None or self._queue is None or not self._cfg.player_ids:
+            return
+
+        raw = await self._redis.hget(
+            f"wos:instance:{self._cfg.instance_id}:state",
+            "current_screen",
+        )
+        current_screen = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+        if current_screen:
+            return
+
+        player_id = self._cfg.player_ids[0]
+        queued = await self._queue.schedule(
+            task_id=f"page_detect:{self._cfg.instance_id}:{reason}:{uuid.uuid4().hex[:8]}",
+            player_id=player_id,
+            task_type="page_detect",
+            priority=90_000,
+            run_at=time.time(),
+            instance_id=self._cfg.instance_id,
+            skip_if_duplicate=True,
+        )
+        if queued:
+            logger.info(
+                "Queued page_detect for %s (reason=%s)",
+                self._cfg.instance_id,
+                reason,
+            )
 
     async def _handle_ui_command(self, raw: str | bytes) -> None:
         text = raw.decode() if isinstance(raw, bytes) else raw
@@ -532,6 +563,7 @@ class InstanceWorker:
             logger.exception(
                 "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
             )
+        await self._schedule_page_detect_if_unknown(reason="startup")
         asyncio.create_task(
             self._device_reference_snapshot_loop(),
             name=f"refsnap-{self._cfg.instance_id}",

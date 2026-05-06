@@ -429,7 +429,7 @@ class AdbController:
         direction: str,
         delta: int,
         duration: timedelta = timedelta(milliseconds=300),
-    ) -> None:
+    ) -> bool:
         """Swipe left/right/up/down by delta pixels from screen center."""
         w, h = self.get_screen_resolution()
         cx, cy = w // 2, h // 2
@@ -444,7 +444,7 @@ class AdbController:
                 start, end = Point(cx, cy), Point(cx, cy + delta)
             case _:
                 raise ValueError(f"Unknown swipe direction: {direction!r}")
-        self.swipe(start, end, duration)
+        return self.swipe(start, end, duration)
 
     def long_tap(self, point: Point, duration: timedelta = timedelta(milliseconds=800)) -> bool:
         """Long-press via swipe with same start/end coords."""
@@ -569,8 +569,8 @@ class BotActions:
 
     def swipe_direction(
         self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
-    ) -> None:
-        self._controller(instance_id).swipe_direction(
+    ) -> bool:
+        return self._controller(instance_id).swipe_direction(
             direction, delta, timedelta(milliseconds=duration_ms)
         )
 

@@ -10,10 +10,10 @@ overlay:
     action: findIcon
     threshold: 0.9
     enqueue_tap: false
+    set_node: main_city
 
   - name: new_chapter.visible
     region: is_new_chapter
     action: findIcon
     threshold: 0.9
     node: main_city
-

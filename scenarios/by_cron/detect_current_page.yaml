@@ -1,0 +1,12 @@
+name: Detect Current Page
+enabled: true
+
+cron: "*/1 * * * *"
+priority: 90000
+
+# Enqueue only when Redis has no known node for the instance.
+when_current_screen: unknown
+
+node: current_page
+task: page_detect
+scope: instance

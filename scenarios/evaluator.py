@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from config.loader import get_settings
-from fsm.states import PlayerState
-from scenarios.models import Scenario, ScenarioStep, StepCondition
+from scenarios.models import Scenario, StepCondition
 from tasks.arena import ArenaTask
 from tasks.base import BaseTask
 from tasks.beast import BeastTask
@@ -15,6 +14,7 @@ from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
 from tasks.mail import MailTask
 from tasks.main_city_check import MainCityCheckTask
+from tasks.page_detect import PageDetectTask
 from tasks.training import TrainingTask
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ _TASK_FACTORIES: dict[str, type] = {
     "beast": BeastTask,
     "mail": MailTask,
     "main_city_check": MainCityCheckTask,
+    "page_detect": PageDetectTask,
 }
 
 
@@ -37,7 +38,7 @@ class ScenarioEvaluator:
         conditions: list[StepCondition],
         player_state: dict[str, object],
     ) -> bool:
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         settings = get_settings()
 
         for cond in conditions:
@@ -74,8 +75,6 @@ class ScenarioEvaluator:
             return []
 
         player_id = str(player_state.get("player_id", ""))
-        settings = get_settings()
-
         if not self.evaluate_conditions(scenario.conditions, player_state):
             return []
 
@@ -89,7 +88,6 @@ class ScenarioEvaluator:
                 logger.warning("Unknown task type: %s", step.task)
                 continue
 
-            task_cfg = settings.tasks.get(step.task)
             cooldown = int(step.cooldown.total_seconds())
 
             task_kwargs: dict[str, object] = {

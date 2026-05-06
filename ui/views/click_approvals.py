@@ -14,6 +14,7 @@ import time
 from datetime import timedelta
 
 import cv2
+import httpx
 import numpy as np
 import streamlit as st
 
@@ -36,11 +37,36 @@ hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
 enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
 current_key = f"wos:ui:click_approval:current:{instance_id}"
 
-row = get_instance_state(client, instance_id)
-node = (row.get("current_screen") or "").strip() or "—"
-st.title(f"Click approvals · {instance_id} · node: {node}")
-
 _PREVIEW_MAX_SIDE = 360
+
+
+@st.cache_data(ttl=5)
+def _ocr_health_status() -> tuple[bool, str]:
+    url = str(getattr(settings, "ocr", None).url if getattr(settings, "ocr", None) else "").strip()
+    if not url:
+        return False, "OCR url is not configured"
+    try:
+        with httpx.Client(timeout=1.0) as c:
+            r = c.get(f"{url}/health")
+            r.raise_for_status()
+        return True, "ok"
+    except Exception as exc:  # noqa: BLE001 - UI diagnostic only
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+@st.fragment(run_every=timedelta(seconds=1))
+def _header() -> None:
+    row = get_instance_state(client, instance_id)
+    node = (row.get("current_screen") or "").strip() or "—"
+    st.title(f"Click approvals · {instance_id} · node: {node}")
+    ok, detail = _ocr_health_status()
+    if not ok:
+        ocr_url = str(settings.ocr.url).strip()
+        st.warning(
+            f"OCR service is not available ({ocr_url}). "
+            f"Please start OCR (e.g. docker-compose) — otherwise screen OCR/detection may stall. "
+            f"Details: {detail}"
+        )
 
 
 def _render_preview_with_point(
@@ -48,17 +74,19 @@ def _render_preview_with_point(
     instance_id: str,
     x: int | None,
     y: int | None,
+    where: object | None = None,
 ) -> None:
+    ui = where if where is not None else st
     png, rel, mtime = load_rolling_instance_preview(instance_id)
     if png is None:
-        st.info(f"No rolling preview yet for `{instance_id}`.")
+        ui.info(f"No rolling preview yet for `{instance_id}`.")
         return
 
     # Decode PNG to draw crosshair in pixel coords.
     arr = np.frombuffer(png, dtype=np.uint8)
     bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if bgr is None:
-        st.warning("Could not decode rolling PNG.")
+        ui.warning("Could not decode rolling PNG.")
         return
 
     h, w = int(bgr.shape[0]), int(bgr.shape[1])
@@ -73,7 +101,7 @@ def _render_preview_with_point(
 
     ok, enc = cv2.imencode(".png", bgr)
     if not ok:
-        st.warning("Could not encode preview image.")
+        ui.warning("Could not encode preview image.")
         return
     out_png = enc.tobytes()
     fitted, native, _disp = png_bytes_fitted(out_png, _PREVIEW_MAX_SIDE)
@@ -82,7 +110,7 @@ def _render_preview_with_point(
         cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
-    st.image(fitted, caption=cap, width=_PREVIEW_MAX_SIDE)
+    ui.image(fitted, caption=cap, width=_PREVIEW_MAX_SIDE)
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -103,17 +131,24 @@ def _heartbeat() -> None:
 
 @st.fragment(run_every=timedelta(seconds=1))
 def _pending_request() -> None:
+    col_img, col_events = st.columns([1, 1.25], gap="large")
     raw = client.get(current_key)
     if not raw:
-        _render_preview_with_point(instance_id=instance_id, x=None, y=None)
-        st.success("No pending click requests.")
+        with col_img:
+            st.subheader("Screenshot")
+            _render_preview_with_point(instance_id=instance_id, x=None, y=None, where=st)
+        with col_events:
+            st.subheader("Approvals")
+            st.success("No pending click requests.")
         return
 
-    st.subheader("Pending click")
+    with col_events:
+        st.subheader("Approvals")
     try:
         payload = json.loads(raw)
     except Exception:
-        st.error("Invalid pending payload JSON. Clearing.")
+        with col_events:
+            st.error("Invalid pending payload JSON. Clearing.")
         client.delete(current_key)
         return
 
@@ -121,31 +156,37 @@ def _pending_request() -> None:
     y = payload.get("y")
     x_i = int(x) if isinstance(x, (int, float)) else None
     y_i = int(y) if isinstance(y, (int, float)) else None
-    _render_preview_with_point(instance_id=instance_id, x=x_i, y=y_i)
-    st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
+    with col_img:
+        st.subheader("Screenshot")
+        _render_preview_with_point(instance_id=instance_id, x=x_i, y=y_i, where=st)
 
-    c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
-    with c1:
-        if st.button(
-            "✅ Approve",
-            type="primary",
-            use_container_width=True,
-            key=f"appr-{instance_id}",
-        ):
-            response_key = str(payload.get("response_key") or "").strip()
-            if response_key:
-                client.set(response_key, "approve", ex=120)
-            st.rerun()
-    with c2:
-        if st.button("❌ Reject", use_container_width=True, key=f"rej-{instance_id}"):
-            response_key = str(payload.get("response_key") or "").strip()
-            if response_key:
-                client.set(response_key, "reject", ex=120)
-            st.rerun()
-    with c3:
-        if st.button("🗑 Drop (no response)", use_container_width=True, key=f"drop-{instance_id}"):
-            client.delete(current_key)
-            st.rerun()
+    with col_events:
+        st.caption("Pending click request (needs approval).")
+        with st.expander("Payload", expanded=True):
+            st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
+
+        c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
+        with c1:
+            if st.button(
+                "✅ Approve",
+                type="primary",
+                use_container_width=True,
+                key=f"appr-{instance_id}",
+            ):
+                response_key = str(payload.get("response_key") or "").strip()
+                if response_key:
+                    client.set(response_key, "approve", ex=120)
+                st.rerun()
+        with c2:
+            if st.button("❌ Reject", use_container_width=True, key=f"rej-{instance_id}"):
+                response_key = str(payload.get("response_key") or "").strip()
+                if response_key:
+                    client.set(response_key, "reject", ex=120)
+                st.rerun()
+        with c3:
+            if st.button("🗑 Drop (no response)", use_container_width=True, key=f"drop-{instance_id}"):
+                client.delete(current_key)
+                st.rerun()
 
 
 st.caption(
@@ -164,6 +205,7 @@ if enabled_ui != enabled_now:
         client.delete(hb_key)
     st.rerun()
 
+_header()
 _heartbeat()
 st.divider()
 _pending_request()
