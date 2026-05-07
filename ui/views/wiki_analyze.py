@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -64,110 +63,51 @@ def _load_analyze_manifest(path: Path) -> tuple[list[Path], list[dict[str, Any]]
     return (loaded, overlay_merged)
 
 
-@dataclass(frozen=True)
-class RegionRef:
-    name: str
-    screen_id: str
-    ocr: str
-    bbox: dict[str, Any] | None
+def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
+    pu = rule.get("pushScenario")
+    if not isinstance(pu, list):
+        pu = rule.get("pushUsecase")  # backward compat
+    if not isinstance(pu, list):
+        return []
 
-
-def _index_regions(area_doc: dict[str, Any]) -> dict[str, RegionRef]:
-    out: dict[str, RegionRef] = {}
-    for scr in (area_doc.get("screens") or []) if isinstance(area_doc, dict) else []:
-        if not isinstance(scr, dict):
-            continue
-        screen_id = str(scr.get("screen_id") or "")
-        ocr = str(scr.get("ocr") or "")
-        for reg in scr.get("regions") or []:
-            if not isinstance(reg, dict):
-                continue
-            nm = str(reg.get("name") or "").strip()
-            if not nm:
-                continue
-            bbox = reg.get("bbox")
-            out[nm] = RegionRef(name=nm, screen_id=screen_id, ocr=ocr, bbox=bbox if isinstance(bbox, dict) else None)
-    return out
-
-
-def _rule_regions(rule: dict[str, Any]) -> list[str]:
-    keys = ["region", "search_region", "tap_region"]
     out: list[str] = []
-    for k in keys:
-        v = rule.get(k)
-        if isinstance(v, str) and v.strip():
-            out.append(v.strip())
-    return out
+    for item in pu:
+        if not isinstance(item, dict):
+            continue
+        task = item.get("task")
+        src = task if isinstance(task, dict) else item
+        nm = str(src.get("name") or src.get("type") or "").strip()
+        if nm:
+            out.append(nm)
+    # Deduplicate, keep stable order
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+    return uniq
 
 
-def _render_rule(rule: dict[str, Any], *, regions_idx: dict[str, RegionRef]) -> None:
+def _render_rule(rule: dict[str, Any]) -> None:
     name = str(rule.get("name") or "").strip() or "(unnamed)"
     action = str(rule.get("action") or "").strip() or "(no action)"
-    region = str(rule.get("region") or "").strip()
-    node = str(rule.get("node") or "").strip()
-    set_node = str(rule.get("set_node") or "").strip()
+    st.markdown(f"**`{name}`** · `{action}`")
 
-    # Compact header (less vertical noise than 4 columns).
-    st.markdown(f"**`{name}`** · action `{action}`" + (f" · region `{region}`" if region else ""))
-    if node or set_node:
-        st.caption(f"flow: `{node or '∅'}` → `{set_node or '∅'}`")
-
-    meta = {
-        "threshold": rule.get("threshold"),
-        "priority": rule.get("priority"),
-        "ttl": rule.get("ttl"),
-        "min_match_saturation": rule.get("min_match_saturation"),
-        "expected": rule.get("expected"),
-        "fuzzy_threshold": rule.get("fuzzy_threshold"),
-        "tap_offset_from_match": rule.get("tap_offset_from_match"),
-    }
-    meta = {k: v for k, v in meta.items() if v is not None}
-    if meta:
-        stoggle(
-            "Meta",
-            yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip(),
-        )
-
-    regs = _rule_regions(rule)
-    if regs:
-        st.markdown("**Regions**")
-        for nm in regs:
-            ref = regions_idx.get(nm)
-            if ref is None:
-                st.markdown(f"- `{nm}` (not found in `area.json`)")
-            else:
-                scr = ref.screen_id or "(no screen_id)"
-                ocr = ref.ocr or "(no ocr)"
-                st.markdown(f"- `{nm}` · screen `{scr}` · ocr `{ocr}`")
-                if ref.bbox:
-                    stoggle(
-                        f"bbox: {nm}",
-                        yaml.safe_dump(ref.bbox, allow_unicode=True, sort_keys=False).strip(),
-                    )
-
-    pu = rule.get("pushUsecase")
-    if isinstance(pu, list) and pu:
-        stoggle(
-            "pushUsecase",
-            yaml.safe_dump(pu, allow_unicode=True, sort_keys=False).strip(),
-        )
-
-    extra_keys = [
-        "search_region",
-        "tap_region",
-        "tap_offset_from_match",
-        "set_node",
-        "node",
-        "set_node",
-        "expected",
-        "fuzzy_threshold",
-    ]
-    extras = {k: rule.get(k) for k in extra_keys if rule.get(k) is not None}
-    if extras:
-        stoggle(
-            "Details",
-            yaml.safe_dump(extras, allow_unicode=True, sort_keys=False).strip(),
-        )
+    scenarios = _push_scenario_names(rule)
+    if scenarios:
+        st.markdown("**pushScenario**")
+        for s in scenarios:
+            c1, c2 = st.columns([3, 1], vertical_alignment="center")
+            with c1:
+                st.markdown(f"- `{s}`")
+            with c2:
+                st.page_link(
+                    "views/wiki_scenarios.py",
+                    label="Open",
+                    query_params={"q": s, "show_all": "1"},
+                    use_container_width=True,
+                )
 
 
 st.title("Wiki · Analyze")
@@ -175,10 +115,6 @@ st.caption("Browse `references/analyze.yaml` overlay rules as a readable story."
 
 repo_root = _repo_root()
 analyze_path = repo_root / "references" / "analyze.yaml"
-area_path = repo_root / "area.json"
-
-area_doc = _load_yaml_dict(area_path) if area_path.is_file() else {}
-regions_idx = _index_regions(area_doc)
 
 loaded_files, overlay_rules = _load_analyze_manifest(analyze_path)
 if not overlay_rules:
@@ -191,7 +127,7 @@ if loaded_files:
         "\n".join(f"- `{p.relative_to(repo_root).as_posix()}`" for p in loaded_files),
     )
 
-q = st.text_input("Filter (name/action/region contains)", value="", key="wiki_analyze_filter").strip().lower()
+q = st.text_input("Filter (name/action contains)", value="", key="wiki_analyze_filter").strip().lower()
 
 filtered: list[dict[str, Any]] = []
 for r in overlay_rules:
@@ -201,11 +137,6 @@ for r in overlay_rules:
         [
             str(r.get("name") or ""),
             str(r.get("action") or ""),
-            str(r.get("region") or ""),
-            str(r.get("search_region") or ""),
-            str(r.get("tap_region") or ""),
-            str(r.get("node") or ""),
-            str(r.get("set_node") or ""),
         ]
     ).lower()
     if q and q not in hay:
@@ -226,8 +157,7 @@ for node in sorted(groups.keys(), key=lambda s: (s == "none", s)):
         for idx, rule in enumerate(groups[node], start=1):
             nm = str(rule.get("name") or "").strip() or f"rule_{idx}"
             act = str(rule.get("action") or "").strip() or "action"
-            reg = str(rule.get("region") or "").strip()
-            label = f"{nm} · `{act}`" + (f" · `{reg}`" if reg else "")
+            label = f"{nm} · `{act}`"
             with st.expander(label, expanded=False):
-                _render_rule(rule, regions_idx=regions_idx)
+                _render_rule(rule)
 

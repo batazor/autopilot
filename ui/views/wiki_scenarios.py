@@ -305,8 +305,14 @@ if not files:
 area_doc = _load_yaml(area_path) if area_path.is_file() else {}
 regions_idx = _index_regions(area_doc)
 
-q = st.text_input("Filter (name/path/key contains)", value="", key="wiki_scenarios_filter").strip().lower()
-show_enabled_only = st.checkbox("Only enabled=true", value=True)
+params = st.query_params
+q_param = params.get("q")
+q_default = q_param if isinstance(q_param, str) else ""
+show_all = params.get("show_all")
+show_all_flag = (str(show_all).strip() == "1") if show_all is not None else False
+
+q = st.text_input("Filter (name/path/key contains)", value=q_default, key="wiki_scenarios_filter").strip().lower()
+show_enabled_only = st.checkbox("Only enabled=true", value=not show_all_flag)
 
 items: list[tuple[Path, dict[str, Any]]] = []
 for p in files:

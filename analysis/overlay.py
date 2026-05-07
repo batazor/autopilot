@@ -115,12 +115,12 @@ def load_analyze_yaml(path: Path) -> dict[str, Any]:
     return raw
 
 
-def _optional_push_usecase_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
+def _optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
     """Optional task enqueue hints for matched overlays.
 
     Preferred (nested, readable) form:
 
-    pushUsecase:
+    pushScenario:
       - task:
           name: is_new_people
           priority: 80000
@@ -132,7 +132,11 @@ def _optional_push_usecase_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
     """
     out: list[dict[str, Any]] = []
 
-    pu = rule.get("pushUsecase")
+    pu = rule.get("pushScenario")
+    if not isinstance(pu, list):
+        # Backward compat
+        pu = rule.get("pushUsecase")
+
     if isinstance(pu, list):
         for item in pu:
             if not isinstance(item, dict):
@@ -416,7 +420,7 @@ async def evaluate_overlay_rules_async(
             tap_override_pct: tuple[float, float] | None = None
             tap_delta_pct: tuple[float, float] | None = None
             min_sat = _optional_min_match_saturation(rule)
-            push_tasks = _optional_push_usecase_tasks(rule)
+            push_tasks = _optional_push_scenario_tasks(rule)
 
             if tap_offset_from_match:
                 if not tap_region_name:
@@ -560,7 +564,7 @@ async def evaluate_overlay_rules_async(
                         "tap_y_pct": tap_y_pct,
                     }
                     if push_tasks:
-                        hit["pushUsecase"] = push_tasks
+                        hit["pushScenario"] = push_tasks
                     if set_node_s:
                         hit["set_node"] = set_node_s
                     if priority is not None:
@@ -620,7 +624,7 @@ async def evaluate_overlay_rules_async(
                 "region": region_name,
             }
             if push_tasks:
-                hit1["pushUsecase"] = push_tasks
+                hit1["pushScenario"] = push_tasks
             if set_node_s:
                 hit1["set_node"] = set_node_s
             if priority is not None:

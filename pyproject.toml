@@ -82,7 +82,6 @@ packages = [
     "scenarios",
     "tasks",
     "ui",
-    "usecases",
     "worker",
 ]
 

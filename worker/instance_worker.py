@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import tempfile
@@ -26,14 +25,19 @@ from scheduler.claims import CooperativeClaims
 from scheduler.queue import QueueItem, RedisQueue
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
+from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
+from worker.instance_worker_tasks import InstanceWorkerTasksMixin
+from worker.instance_worker_ui import InstanceWorkerUiMixin
 
 logger = logging.getLogger(__name__)
 
-_TASK_REGISTRY: dict[str, type] = {
-}
+_TASK_REGISTRY: dict[str, type] = {}
+
+# Redis hash for UI/monitoring.
+_INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
 
-class InstanceWorker:
+class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, InstanceWorkerTasksMixin):
     def __init__(self, instance_config: InstanceConfig) -> None:
         self._cfg = instance_config
         self._settings = get_settings()
@@ -96,7 +100,10 @@ class InstanceWorker:
             # Clear stale error when state changes successfully.
             mapping["last_error"] = ""
         try:
-            await self._redis.hset(f"wos:instance:{self._cfg.instance_id}:state", mapping=mapping)
+            await self._redis.hset(
+                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                mapping=mapping,
+            )
         except Exception:
             logger.debug("Failed to persist instance state to Redis", exc_info=True)
 
@@ -105,91 +112,18 @@ class InstanceWorker:
         return pref if pref else DEFAULT_ADB_BIN
 
     async def _push_ui_screenshot(self, reference_name: str | None = None) -> None:
-        repo_root = Path(__file__).resolve().parent.parent
-        (repo_root / "references").mkdir(parents=True, exist_ok=True)
-        base = reference_file_basename(reference_name, self._cfg.instance_id)
-        path = reference_png_abs_path(repo_root, base, self._cfg.instance_id)
-        logger.debug(
-            "[ui] %s: ADB screencap (serial=%s) → %s",
-            self._cfg.instance_id,
-            self._cfg.bluestacks_window_title,
-            path,
-        )
-        ok, msg = adb_screencap_to_file(
-            path,
-            adb_bin=self._worker_adb_bin(),
-            serial=self._cfg.bluestacks_window_title,
-        )
-        if ok:
-            logger.debug("[ui] %s: saved screenshot %s", self._cfg.instance_id, path)
-        else:
-            logger.error("[ui] %s: screenshot failed: %s", self._cfg.instance_id, msg)
-            raise RuntimeError(msg)
+        raise NotImplementedError  # provided by InstanceWorkerUiMixin
 
     async def _schedule_manual_task(self, player_id: str, task_type: str) -> None:
-        task_id = f"ui:{player_id}:{task_type}:{uuid.uuid4().hex[:8]}"
-        await self._queue.schedule(  # type: ignore[union-attr]
-            task_id=task_id,
-            player_id=player_id,
-            task_type=task_type,
-            priority=10_000,
-            run_at=time.time(),
-            instance_id=self._cfg.instance_id,
-        )
-        logger.info("Manual task queued: %s %s", task_type, player_id)
+        raise NotImplementedError  # provided by InstanceWorkerUiMixin
 
     # Legacy hook removed: page detection will be a DSL scenario when needed.
 
     async def _handle_ui_command(self, raw: str | bytes) -> None:
-        text = raw.decode() if isinstance(raw, bytes) else raw
-        try:
-            data: dict[str, object] = json.loads(text)
-        except json.JSONDecodeError:
-            logger.warning("Invalid UI command JSON")
-            return
-        cmd = str(data.get("cmd", ""))
-        inst_key = f"wos:instance:{self._cfg.instance_id}:state"
-        match cmd:
-            case "pause":
-                self._ui_paused = True
-                await self._redis.hset(inst_key, "paused", "1")  # type: ignore[union-attr]
-                logger.info("UI pause enabled for %s", self._cfg.instance_id)
-            case "resume":
-                self._ui_paused = False
-                await self._redis.hset(inst_key, "paused", "0")  # type: ignore[union-attr]
-                logger.info("UI pause cleared for %s", self._cfg.instance_id)
-            case "screenshot":
-                try:
-                    ref = data.get("name")
-                    if ref is None:
-                        ref = data.get("reference_name")
-                    ref_s = str(ref).strip() if ref is not None else None
-                    if ref_s == "":
-                        ref_s = None
-                    await self._push_ui_screenshot(reference_name=ref_s)
-                except Exception:
-                    logger.exception("UI screenshot failed")
-            case "switch_player":
-                pid = str(data.get("player_id", ""))
-                if pid:
-                    await self._switcher.switch_to(pid, self._cfg.instance_id)  # type: ignore[union-attr]
-            case "run_task":
-                pid = str(data.get("player_id", ""))
-                ttype = str(data.get("task_type", ""))
-                if pid and ttype:
-                    await self._schedule_manual_task(pid, ttype)
-            case "restart":
-                await self._restart_instance()
-            case _:
-                logger.warning("Unknown UI command: %s", cmd)
+        raise NotImplementedError  # provided by InstanceWorkerUiMixin
 
     async def _drain_ui_commands(self) -> None:
-        key = f"wos:ui:command:{self._cfg.instance_id}"
-        while True:
-            raw = await self._redis.rpop(key)  # type: ignore[union-attr]
-            if raw is None:
-                break
-            await self._handle_ui_command(raw)
+        raise NotImplementedError  # provided by InstanceWorkerUiMixin
 
     async def _pop_next_task(self) -> QueueItem | None:
         return await self._queue.pop_due(self._cfg.instance_id)  # type: ignore[union-attr]
@@ -322,82 +256,16 @@ class InstanceWorker:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
 
     async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
-        """Handle matched overlay rules.
+        raise NotImplementedError  # provided by InstanceWorkerOverlayMixin
 
-        Current policy: overlay analysis never enqueues tap actions. It may only enqueue
-        DSL scenarios via `pushUsecase` (and other non-tap metadata).
-        """
-        if not self._cfg.player_ids:
-            return
-
-        active = await self._switcher.current_player(self._cfg.instance_id)  # type: ignore[union-attr]
-        player_id = active if active else self._cfg.player_ids[0]
-        now = time.time()
-        is_main = bool(
-            isinstance(overlay_results.get("main_city.visible"), dict)
-            and overlay_results.get("main_city.visible", {}).get("matched")
-        )
-
-        for _name, payload in overlay_results.items():
-            if not isinstance(payload, dict):
-                continue
-            if not payload.get("matched"):
-                continue
-
-            # Optional YAML-driven task enqueue (pushUsecase / push_task_type).
-            # Safety: currently only allow this from main city overlays.
-            try:
-                if is_main and self._queue is not None:
-                    pu = payload.get("pushUsecase")
-                    if isinstance(pu, list):
-                        for item in pu:
-                            if not isinstance(item, dict):
-                                continue
-                            t = str(item.get("name") or item.get("type") or "").strip()
-                            if not t:
-                                continue
-                            pr_raw = item.get("priority")
-                            pr = int(pr_raw) if pr_raw is not None else 80_000
-
-                            # Optional TTL guard to avoid re-queueing while we're busy with other tasks.
-                            ttl_raw = item.get("ttl")
-                            if ttl_raw is None:
-                                ttl_raw = item.get("ttl_seconds")  # backward compat
-                            ttl = parse_duration_seconds(ttl_raw)
-                            if ttl and self._redis is not None:
-                                guard_key = f"wos:overlay:push_ttl:{self._cfg.instance_id}:{player_id}:{t}"
-                                ok = await self._redis.set(guard_key, "1", ex=int(ttl), nx=True)
-                                if not ok:
-                                    continue
-
-                            await self._queue.schedule(
-                                task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",
-                                player_id=player_id,
-                                task_type=t,
-                                priority=pr,
-                                run_at=now,
-                                instance_id=self._cfg.instance_id,
-                                skip_if_duplicate=True,
-                            )
-                    else:
-                        # Backward compat: flat keys
-                        push_t = str(payload.get("push_task_type") or "").strip()
-                        if push_t:
-                            pr_raw = payload.get("push_task_priority")
-                            pr = int(pr_raw) if pr_raw is not None else 80_000
-                            await self._queue.schedule(
-                                task_id=f"ovl:{self._cfg.instance_id}:{push_t}:{uuid.uuid4().hex[:8]}",
-                                player_id=player_id,
-                                task_type=push_t,
-                                priority=pr,
-                                run_at=now,
-                                instance_id=self._cfg.instance_id,
-                                skip_if_duplicate=True,
-                            )
-            except Exception:
-                logger.debug("Failed to enqueue pushUsecase task(s) from overlay", exc_info=True)
-
-            # NOTE: Intentionally no tap scheduling from overlay analysis.
+    async def _enqueue_push_scenarios_from_overlay(
+        self,
+        payload: dict[str, object],
+        *,
+        player_id: str,
+        run_at: float,
+    ) -> None:
+        raise NotImplementedError  # provided by InstanceWorkerOverlayMixin
 
     async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
         """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
@@ -413,11 +281,8 @@ class InstanceWorker:
                     current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
                     current_screen = current_screen.strip() or None
 
-            # One-shot hooks on screen transitions.
-            if current_screen != self._last_current_screen:
-                if current_screen == "mail":
-                    await self._schedule_mail_gift_on_enter_mail()
-                self._last_current_screen = current_screen
+            # One-shot hooks on screen transitions (currently none).
+            self._last_current_screen = current_screen
 
             results = await run_overlay_analysis(
                 image_bgr,
@@ -555,12 +420,12 @@ class InstanceWorker:
 
         try:
             while True:
-            # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
+                # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
                 now_m = time.monotonic()
                 if now_m - last_heartbeat >= 2.0:
                     try:
                         await self._redis.hset(  # type: ignore[union-attr]
-                            f"wos:instance:{self._cfg.instance_id}:state",
+                            _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
                             "last_seen_at",
                             str(time.time()),
                         )
@@ -568,10 +433,9 @@ class InstanceWorker:
                         logger.debug("Failed to write last_seen_at heartbeat", exc_info=True)
                     last_heartbeat = now_m
 
-            # Periodic health check
+                # Periodic health check
                 if time.monotonic() - last_health_check >= health_interval:
-                    alive = await self._health_check()
-                    if not alive:
+                    if not await self._health_check():
                         await self._restart_instance()
                     last_health_check = time.monotonic()
 
@@ -589,87 +453,11 @@ class InstanceWorker:
                 if task is None:
                     continue
 
-                skip_account = getattr(task, "skip_account_check", False)
-                self._task_busy.set()
-
-                state_key = f"wos:instance:{self._cfg.instance_id}:state"
-                await self._set_instance_state(InstanceState.BUSY)
-                await self._redis.hset(  # type: ignore[union-attr]
-                    state_key,
-                    mapping={
-                        "current_task_type": item.task_type,
-                        "current_task_id": item.task_id,
-                        "current_task_player": item.player_id,
-                        "current_task_started_at": str(time.time()),
-                        "current_task_region": item.region or "",
-                        "current_task_threshold": (
-                            "" if item.threshold is None else str(item.threshold)
-                        ),
-                        "current_task_score": ("" if item.score is None else str(item.score)),
-                    },
-                )
-                logger.info(
-                    "Task start %s: id=%s type=%s player=%s prio=%s",
-                    self._cfg.instance_id,
-                    item.task_id,
-                    item.task_type,
-                    item.player_id,
-                    item.priority,
-                )
-                try:
-                    if not skip_account:
-                        await self._ensure_account(item.player_id)
-                    result = await self._execute_task(item, task)
-                    await self._drain_ui_commands()
-                    if result is not None and result.next_run_at is not None:
-                        import time as stdlib_time
-
-                        run_at = stdlib_time.mktime(result.next_run_at.timetuple())
-                        await self._queue.schedule(  # type: ignore[union-attr]
-                            task_id=item.task_id,
-                            player_id=item.player_id,
-                            task_type=item.task_type,
-                            priority=item.priority,
-                            run_at=run_at,
-                            instance_id=self._cfg.instance_id,
-                            region=item.region,
-                        )
-                    if result is not None:
-                        logger.info(
-                            "Task done %s: id=%s success=%s next_run_at=%s",
-                            self._cfg.instance_id,
-                            item.task_id,
-                            getattr(result, "success", None),
-                            getattr(result, "next_run_at", None),
-                        )
-                    else:
-                        logger.info(
-                            "Task done %s: id=%s (no result)",
-                            self._cfg.instance_id,
-                            item.task_id,
-                        )
-                except Exception as exc:
-                    await self._set_instance_state(
-                        InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}"
-                    )
-                    await self._handle_failure(item, exc)
-                finally:
-                    self._task_busy.clear()
-                    await self._set_instance_state(InstanceState.READY)
-                    await self._redis.hset(  # type: ignore[union-attr]
-                        state_key,
-                        mapping={
-                            "current_task_type": "",
-                            "current_task_id": "",
-                            "current_task_player": "",
-                            "current_task_started_at": "",
-                            "current_task_region": "",
-                            "current_task_threshold": "",
-                            "current_task_score": "",
-                        },
-                    )
+                await self._run_one_queue_item(item, task)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             await self._set_instance_state(InstanceState.CRASHED, error=f"worker crashed: {exc!s}")
             raise
+
+    # _run_one_queue_item and _reschedule_if_needed are provided by InstanceWorkerTasksMixin

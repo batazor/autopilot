@@ -63,15 +63,32 @@ class DslScenarioTask:
 
         repo_root = _repo_root()
 
-        # Current convention: task_type == scenario YAML filename under imperative_drafts.
-        # Expand later when we introduce namespaces (e.g. "main_city/is_new_people").
-        path = repo_root / "scenarios" / "imperative_drafts" / "main_city" / f"{key}.yaml"
-        if not path.is_file():
+        # Resolve scenario by key: search recursively under `scenarios/`, excluding drafts.
+        scenarios_root = repo_root / "scenarios"
+        if not scenarios_root.is_dir():
             return TaskResult(
                 success=False,
                 next_run_at=None,
-                metadata={"reason": "scenario_not_found", "path": str(path)},
+                metadata={"reason": "scenario_root_missing", "path": str(scenarios_root)},
             )
+
+        hits: list[Path] = []
+        for p in scenarios_root.rglob(f"{key}.yaml"):
+            rel = p.relative_to(scenarios_root).as_posix()
+            # Exclude drafts (never execute).
+            if rel.startswith("drafts/"):
+                continue
+            hits.append(p)
+
+        if not hits:
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={"reason": "scenario_not_found", "key": key},
+            )
+        # Deterministic: prefer shorter relative path, then lexicographic.
+        hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
+        path = hits[0]
 
         doc = _load_yaml(path)
         steps = doc.get("steps")

@@ -22,7 +22,7 @@ overlay:
     action: findIcon
     threshold: 0.92
     node: main_city
-    pushUsecase:
+    pushScenario:
       - task:
           name: is_new_people
           priority: 80000
