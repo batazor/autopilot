@@ -5,6 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 
+def is_auxiliary_overlay_region(reg: dict[str, Any]) -> bool:
+    """True for overlay search zones, tap helpers, or explicit ``overlay_auxiliary`` flags."""
+    if reg.get("overlay_auxiliary"):
+        return True
+    nm = str(reg.get("name", "") or "").strip()
+    return nm.endswith("_search") or nm.endswith("_tap")
+
+
 def collect_region_name_counts(doc: dict[str, Any]) -> dict[str, int]:
     """Count non-empty region names across all screen entries."""
     counts: dict[str, int] = {}

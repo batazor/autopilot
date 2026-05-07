@@ -10,6 +10,7 @@ from io import BytesIO
 import streamlit as st
 from PIL import Image, ImageDraw
 
+from layout.area_regions import is_auxiliary_overlay_region
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import list_reference_pngs, references_root
 
@@ -90,6 +91,29 @@ def _index_area(doc: dict[str, object]) -> tuple[dict[str, set[str]], dict[str, 
     return regions_by_ref, screen_id_by_ref, region_bbox_by_ref
 
 
+def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
+    """Region names for Gallery filter: exclude overlay search ROIs and tap helpers."""
+    names: set[str] = set()
+    screens = doc.get("screens") if isinstance(doc, dict) else None
+    if not isinstance(screens, list):
+        return []
+    for e in screens:
+        if not isinstance(e, dict):
+            continue
+        raw_regs = e.get("regions")
+        if not isinstance(raw_regs, list):
+            continue
+        for r in raw_regs:
+            if not isinstance(r, dict):
+                continue
+            if is_auxiliary_overlay_region(r):
+                continue
+            nm = str(r.get("name") or "").strip()
+            if nm:
+                names.add(nm)
+    return sorted(names)
+
+
 def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, int, int, int] | None:
     try:
         x = float(bbox.get("x", 0.0))
@@ -140,7 +164,7 @@ ref_root = references_root()
 
 area_doc = _load_area_doc()
 regions_by_ref, screen_id_by_ref, region_bbox_by_ref = _index_area(area_doc)
-all_regions = sorted({r for regs in regions_by_ref.values() for r in regs})
+all_regions = _primary_region_names_for_filter(area_doc)
 
 def _qp_get_str(key: str, default: str = "") -> str:
     v = st.query_params.get(key)
@@ -230,7 +254,8 @@ region_sel = st.multiselect(
     "Filter by regions (from `area.json`)",
     options=all_regions,
     default=qp_regions,
-    help="Show screenshots that contain **all** selected regions in `area.json`.",
+    help="Primary regions only (no `*_search` zones, `*_tap` points, or `overlay_auxiliary`). "
+    "Show screenshots that contain **all** selected regions.",
 )
 
 def _sync_query_params() -> None:
