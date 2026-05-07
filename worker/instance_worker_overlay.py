@@ -63,6 +63,8 @@ class InstanceWorkerOverlayMixin:
             return
 
         reg_snap = str(payload.get("region") or "").strip() or None
+        tap_x_pct = _overlay_metric_float(payload.get("tap_x_pct"))
+        tap_y_pct = _overlay_metric_float(payload.get("tap_y_pct"))
         threshold_snap = _overlay_metric_float(payload.get("threshold"))
         score_snap = _overlay_metric_float(payload.get("score"))
         if self._redis is not None:
@@ -109,6 +111,8 @@ class InstanceWorkerOverlayMixin:
                     run_at=run_at,
                     instance_id=self._cfg.instance_id,
                     region=reg_nm,
+                    tap_x_pct=tap_x_pct,
+                    tap_y_pct=tap_y_pct,
                     threshold=threshold,
                     score=score,
                     skip_if_duplicate=True,
@@ -132,8 +136,9 @@ class InstanceWorkerOverlayMixin:
             run_at=run_at,
             instance_id=self._cfg.instance_id,
             region=reg_nm,
+            tap_x_pct=tap_x_pct,
+            tap_y_pct=tap_y_pct,
             threshold=threshold,
             score=score,
             skip_if_duplicate=True,
         )
-

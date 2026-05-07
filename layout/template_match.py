@@ -14,10 +14,41 @@ import numpy as np
 
 
 class TemplateMatchResult(TypedDict):
-    # TM_CCOEFF_NORMED (1:1 bbox patch vs template yields one coefficient).
+    # Conservative score: structural NCC capped by BGR color similarity.
     score: float
     # Global top-left (x, y); crop rounding matches labeling export.
     top_left: tuple[int, int]
+    # Raw grayscale TM_CCOEFF_NORMED score before the color-similarity cap.
+    score_ncc: float
+    # Mean absolute BGR similarity: 1.0 is identical, 0.0 is maximally different.
+    score_color: float
+
+
+def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> float:
+    """Return a strict per-pixel BGR similarity score in ``[0, 1]``.
+
+    Grayscale normalized correlation can be very high for the wrong UI patch when gradients line up.
+    Capping it with color similarity rejects matches that miss saturated landmarks (red crosshair,
+    yellow border, blue button, etc.).
+    """
+    if patch_bgr.shape != template_bgr.shape:
+        raise ValueError(
+            f"Color score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
+        )
+    diff = np.abs(patch_bgr.astype(np.float32) - template_bgr.astype(np.float32))
+    mae = float(np.mean(diff))
+    return max(0.0, min(1.0, 1.0 - mae / 255.0))
+
+
+def _combined_match_score(
+    patch_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+) -> tuple[float, float, float]:
+    pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+    score_ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
+    score_color = _color_similarity_score(patch_bgr, template_bgr)
+    return min(score_ncc, score_color), score_ncc, score_color
 
 
 def patch_bgr_from_bbox_percent(
@@ -66,10 +97,13 @@ def match_crop_1to1_at_bbox_percent(
             "Use the same frame size as when exporting references/crop."
         )
 
-    pg = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY)
-    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    score = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
-    return TemplateMatchResult(score=score, top_left=(L, T))
+    score, score_ncc, score_color = _combined_match_score(patch, template_bgr)
+    return TemplateMatchResult(
+        score=score,
+        top_left=(L, T),
+        score_ncc=score_ncc,
+        score_color=score_color,
+    )
 
 
 def match_template_in_search_roi_bbox_percent(
@@ -99,7 +133,15 @@ def match_template_in_search_roi_bbox_percent(
     x_off, y_off = max_loc
     gx = int(L + x_off)
     gy = int(T + y_off)
-    return TemplateMatchResult(score=float(max_val), top_left=(gx, gy))
+    patch = roi[y_off : y_off + th, x_off : x_off + tw]
+    score_color = _color_similarity_score(patch, template_bgr)
+    score_ncc = float(max_val)
+    return TemplateMatchResult(
+        score=min(score_ncc, score_color),
+        top_left=(gx, gy),
+        score_ncc=score_ncc,
+        score_color=score_color,
+    )
 
 
 def match_patch_bgr_at_top_left(

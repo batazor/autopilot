@@ -19,6 +19,7 @@ from config.reference_naming import (
 )
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
+from layout.types import Point
 from tasks.base import TaskResult
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,9 @@ class DslScenarioTask:
     task_type: str = field(default="dsl_scenario", init=False)
 
     scenario_key: str = ""
+    tap_region: str = ""
+    tap_x_pct: float | None = None
+    tap_y_pct: float | None = None
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
@@ -292,7 +296,18 @@ class DslScenarioTask:
                     if pair is None or not isinstance(pair[1].get("bbox"), dict):
                         logger.warning("dsl_scenario: region not found in area.json: %s", reg)
                     else:
-                        pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
+                        tap_region = str(self.tap_region or "").strip()
+                        if (
+                            self.tap_x_pct is not None
+                            and self.tap_y_pct is not None
+                            and (not tap_region or tap_region == reg)
+                        ):
+                            pt = Point(
+                                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
+                                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
+                            )
+                        else:
+                            pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
                         tapped = actions.tap(instance_id, pt, approval_region=reg)
                         if not tapped:
                             logger.info(
@@ -372,4 +387,3 @@ class DslScenarioTask:
         logger.info("dsl_scenario done: %s (%s)", key, instance_id)
         await self._clear_step_context(instance_id)
         return TaskResult(success=True, next_run_at=None, metadata={"scenario": key})
-

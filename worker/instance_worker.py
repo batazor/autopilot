@@ -126,6 +126,23 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             },
         )
 
+    async def _disconnect_redis(self) -> None:
+        """Drain async Redis connections before the supervisor event loop stops."""
+        client = self._redis
+        self._redis = None
+        self._queue = None
+        self._claims = None
+        if client is None:
+            return
+        try:
+            await client.aclose()
+        except Exception:
+            logger.debug(
+                "Redis aclose failed for instance %s",
+                self._cfg.instance_id,
+                exc_info=True,
+            )
+
     async def _set_instance_state(self, state: InstanceState, *, error: str = "") -> None:
         """Persist instance state to Redis for UI/debugging."""
         self._instance_state = state
@@ -211,6 +228,9 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 player_id=item.player_id,
                 priority=item.priority,
                 scenario_key=item.task_type,
+                tap_region=item.region or "",
+                tap_x_pct=item.tap_x_pct,
+                tap_y_pct=item.tap_y_pct,
                 redis_client=self._redis,
             )
         return factory(  # type: ignore[return-value]
@@ -531,5 +551,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 self._blocking_pool.shutdown(wait=False, cancel_futures=True)
             except Exception:
                 logger.debug("blocking thread pool shutdown failed", exc_info=True)
+            await self._disconnect_redis()
 
     # _run_one_queue_item and _reschedule_if_needed are provided by InstanceWorkerTasksMixin

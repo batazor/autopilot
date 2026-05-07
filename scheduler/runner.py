@@ -38,6 +38,17 @@ class SchedulerRunner:
         self._queue = RedisQueue(self._redis)
         self._scenario_loader.start_watching()
 
+    async def _disconnect_redis(self) -> None:
+        client = self._redis
+        self._redis = None
+        self._queue = None
+        if client is None:
+            return
+        try:
+            await client.aclose()
+        except Exception:
+            logger.debug("Scheduler Redis aclose failed", exc_info=True)
+
     def _cron_specs_dir(self) -> Path:
         # Stable location for cron-maintenance jobs (YAML specs).
         return Path(__file__).resolve().parent.parent / "scenarios" / "by_cron"
@@ -293,6 +304,7 @@ class SchedulerRunner:
             # Lets the next SchedulerRunner start a fresh filesystem watch (avoids duplicate FSEvents).
             self._scenario_loader.stop_watching()
             shutdown_ortools_executor(wait=False, cancel_futures=True)
+            await self._disconnect_redis()
 
 
 def main() -> None:

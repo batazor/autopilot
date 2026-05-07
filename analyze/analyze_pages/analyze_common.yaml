@@ -62,7 +62,6 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_offset_from_match: true
 
 - name: hand_pointer_small.visible
   region: hand_pointer_small
@@ -71,7 +70,6 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_offset_from_match: true
 
 - name: claim_button.visible
   region: claim_button

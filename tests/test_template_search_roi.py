@@ -49,3 +49,39 @@ def test_match_template_complains_when_template_larger_than_roi() -> None:
     }
     with pytest.raises(ValueError, match="must fit inside"):
         match_template_in_search_roi_bbox_percent(frame, tpl, bbox)
+
+
+def test_match_template_caps_high_ncc_with_color_difference() -> None:
+    hi, wi = 160, 120
+    frame = np.zeros((hi, wi, 3), dtype=np.uint8)
+
+    template = np.zeros((90, 40, 3), dtype=np.uint8)
+    template[:] = (150, 190, 210)
+    template[:, 2:6] = (0, 220, 255)
+    template[:, -6:-2] = (0, 220, 255)
+    template[2:6, :] = (0, 220, 255)
+    template[-6:-2, :] = (0, 220, 255)
+    cv2_color_red = (0, 0, 255)
+    template[35:55, 16:24] = cv2_color_red
+
+    # Similar luminance gradient, but none of the red/yellow landmarks.
+    false_patch = np.zeros_like(template)
+    false_patch[:] = (130, 130, 130)
+    false_patch[:, :20] = (170, 150, 130)
+    false_patch[:, 20:] = (95, 120, 145)
+
+    frame[20:110, 30:70] = false_patch
+    bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 100.0,
+        "height": 100.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+
+    res = match_template_in_search_roi_bbox_percent(frame, template, bbox)
+
+    assert res["score"] < 0.98
+    assert res["score"] <= res["score_color"]

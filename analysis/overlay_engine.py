@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 
 from analysis.overlay_rules import (
+    centers_delta_pct_between_regions,
     optional_expected_texts,
     optional_fuzzy_threshold,
     optional_min_match_saturation,
@@ -59,6 +60,20 @@ def _bbox_percent_to_region_px(
     width = max(1, min(wi - left, int(round(w / 100.0 * wi))))
     height = max(1, min(hi - top, int(round(h / 100.0 * hi))))
     return Region(left, top, width, height)
+
+
+def _tap_region_delta_pct(
+    area_doc: dict[str, Any],
+    region_name: str,
+    rule: dict[str, Any],
+) -> tuple[str, float, float] | None:
+    tap_region = str(rule.get("tap_region") or f"{region_name}_tap").strip()
+    if not tap_region:
+        return None
+    delta = centers_delta_pct_between_regions(area_doc, region_name, tap_region)
+    if delta is None:
+        return None
+    return tap_region, delta[0], delta[1]
 
 
 async def evaluate_overlay_rules_async(
@@ -218,6 +233,11 @@ async def evaluate_overlay_rules_async(
                     my_pct = 100.0 * cy_px / hi
                     tap_x_pct = mx_pct
                     tap_y_pct = my_pct
+                    tap_delta = _tap_region_delta_pct(area_doc, region_name, rule)
+                    if tap_delta is not None:
+                        _tap_region, dx_pct, dy_pct = tap_delta
+                        tap_x_pct = mx_pct + dx_pct
+                        tap_y_pct = my_pct + dy_pct
                     score = res["score"]
                     matched = score >= threshold
                     tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
@@ -231,6 +251,8 @@ async def evaluate_overlay_rules_async(
                     hit: dict[str, Any] = {
                         "matched": matched,
                         "score": score,
+                        "score_ncc": res.get("score_ncc"),
+                        "score_color": res.get("score_color"),
                         "threshold": threshold,
                         "top_left": list(res["top_left"]),
                         "template_w": tw_tpl,
@@ -241,6 +263,13 @@ async def evaluate_overlay_rules_async(
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
                     }
+                    if tap_delta is not None:
+                        tap_region, dx_pct, dy_pct = tap_delta
+                        hit["tap_region"] = tap_region
+                        hit["tap_delta_x_pct"] = dx_pct
+                        hit["tap_delta_y_pct"] = dy_pct
+                        hit["tap_match_x_pct"] = mx_pct
+                        hit["tap_match_y_pct"] = my_pct
                     if push_tasks:
                         hit["pushScenario"] = push_tasks
                     if set_node_s:
@@ -287,6 +316,8 @@ async def evaluate_overlay_rules_async(
             hit1: dict[str, Any] = {
                 "matched": matched_1,
                 "score": score,
+                "score_ncc": res.get("score_ncc"),
+                "score_color": res.get("score_color"),
                 "threshold": threshold,
                 "top_left": list(res["top_left"]),
                 "template_w": tw_tpl,
