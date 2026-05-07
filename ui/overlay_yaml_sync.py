@@ -1,4 +1,8 @@
-"""Keep ``analyze.yaml`` overlay keys in sync with optional ``*_search`` regions."""
+"""Overlay YAML helpers: legacy explicit ``search_region`` cleanup.
+
+Runtime resolves ``{primary}_search`` when present in ``area.json`` (see
+``analysis.overlay_rules.resolved_search_region_for_findicon``).
+"""
 
 from __future__ import annotations
 
@@ -51,14 +55,20 @@ def sync_findicon_overlay_aux_keys(
     *,
     use_search: bool,
 ) -> bool:
-    """Set or remove ``search_region`` on the matching overlay rule.
+    """Remove obsolete explicit ``search_region`` from the matching ``findIcon`` rule.
 
-    Returns True if ``analyze.yaml`` was written.
+    Sliding ROI is inferred when ``{primary}_search`` exists in ``area.json`` on the same
+    screen as ``primary``. Explicit YAML overrides remain supported for non-standard names.
+
+    Returns True if a matching overlay rule exists (even when no file write was needed).
+
+    ``use_search`` is retained for Labeling call sites; matching mode follows ``area.json``.
     """
+    _ = use_search
     primary = str(primary_region or "").strip()
     if not primary:
         return False
-    sn = overlay_search_region_name(primary)
+    any_match = False
     for path in _iter_analyze_sources(repo_root):
         if not path.is_file():
             continue
@@ -74,11 +84,10 @@ def sync_findicon_overlay_aux_keys(
                 continue
             if str(rule.get("action") or "").strip() != "findIcon":
                 continue
-            if use_search:
-                rule["search_region"] = sn
-            else:
+            any_match = True
+            if "search_region" in rule:
                 rule.pop("search_region", None)
-            changed_rule = True
+                changed_rule = True
             break
         if not changed_rule:
             continue
@@ -92,8 +101,7 @@ def sync_findicon_overlay_aux_keys(
             ),
             encoding="utf-8",
         )
-        return True
-    return False
+    return any_match
 
 
 def rename_findicon_overlay_primary(
@@ -103,15 +111,14 @@ def rename_findicon_overlay_primary(
 ) -> bool:
     """Sync ``analyze.yaml`` after a primary region rename in ``area.json``.
 
-    Sets matching ``findIcon`` rule ``region`` to ``new_primary``. Rewrites ``search_region``
-    when it still equals ``{old}_search``.
+    Sets matching ``findIcon`` rule ``region`` to ``new_primary``. Drops explicit
+    ``search_region`` when it equals ``{old}_search`` (runtime uses ``{new}_search``).
     """
     old_primary = str(old_primary or "").strip()
     new_primary = str(new_primary or "").strip()
     if not old_primary or not new_primary or old_primary == new_primary:
         return False
     sn_old = overlay_search_region_name(old_primary)
-    sn_new = overlay_search_region_name(new_primary)
     wrote = False
     for path in _iter_analyze_sources(repo_root):
         if not path.is_file():
@@ -130,7 +137,7 @@ def rename_findicon_overlay_primary(
                 continue
             rule["region"] = new_primary
             if str(rule.get("search_region") or "").strip() == sn_old:
-                rule["search_region"] = sn_new
+                rule.pop("search_region", None)
             changed = True
         if not changed:
             continue

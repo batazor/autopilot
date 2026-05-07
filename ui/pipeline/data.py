@@ -10,6 +10,8 @@ import streamlit as st
 import yaml
 
 from analysis.overlay import load_analyze_yaml, run_overlay_analysis_sync
+from analysis.overlay_rules import resolved_search_region_for_findicon
+from layout.area_lookup import screen_region_by_name
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.reference_preview import rolling_live_preview_path
 
@@ -142,8 +144,20 @@ def get_or_build_pipeline_cache(
                 if not nm:
                     continue
                 rule_order.append(nm)
-                if sr := r.get("search_region"):
-                    rule_search[nm] = str(sr).strip()
+                reg_nm = str(r.get("region") or "").strip()
+                pair_rr = screen_region_by_name(area_doc, reg_nm) if reg_nm else None
+                ref_rr = (
+                    str(pair_rr[0].get("ocr") or "").strip()
+                    if pair_rr is not None
+                    else ""
+                )
+                sr_eff = (
+                    resolved_search_region_for_findicon(area_doc, reg_nm, ref_rr, r)
+                    if pair_rr is not None
+                    else ""
+                )
+                if sr_eff:
+                    rule_search[nm] = sr_eff
                 if nd := r.get("node"):
                     rule_node[nm] = str(nd).strip()
         except (OSError, yaml.YAMLError):

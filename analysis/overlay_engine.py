@@ -15,6 +15,7 @@ from analysis.overlay_rules import (
     optional_priority,
     optional_push_scenario_tasks,
     optional_ttl_seconds,
+    resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
 from layout.crop_paths import exported_crop_png
@@ -194,7 +195,9 @@ async def evaluate_overlay_rules_async(
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
             th_tpl = int(tpl.shape[0])
-            search_region_name = str(rule.get("search_region") or "").strip()
+            search_region_name = resolved_search_region_for_findicon(
+                area_doc, region_name, ref_rel, rule
+            )
 
             try:
                 if search_region_name:

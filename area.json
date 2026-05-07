@@ -12,14 +12,14 @@
       "regions": [
         {
           "name": "skip_button",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 80.98765432098766,
-            "y": 6.111111111111111,
-            "width": 13.08641975308642,
-            "height": 2.7777777777777777,
+            "x": 80.98841698841699,
+            "y": 6.110869565217391,
+            "width": 13.08687258687259,
+            "height": 2.7782608695652176,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -435,6 +435,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "upgrade_big_button_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.505791505791506,
+            "y": 72.0,
+            "width": 94.7992277992278,
+            "height": 26.64891304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },

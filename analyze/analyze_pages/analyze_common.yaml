@@ -19,8 +19,12 @@ overlay:
 - name: skip_button.visible
   region: skip_button
   action: findIcon
-  threshold: 0.85
-  ttl: 2
+  priority: 60000
+  threshold: 0.95
+  ttl: 4
+  pushScenario:
+    - name: skip_button
+      priority: 60000
 
 - name: accept_all_button.visible
   region: accept_all_button
@@ -46,7 +50,6 @@ overlay:
 
 - name: hand_pointer.visible
   region: hand_pointer
-  search_region: hand_pointer_search
   action: findIcon
   priority: 60000
   threshold: 0.98
@@ -57,7 +60,6 @@ overlay:
 
 - name: hand_pointer_small_reverse.visible
   region: hand_pointer_small_reverse
-  search_region: hand_pointer_small_reverse_search
   action: findIcon
   priority: 60000
   threshold: 0.92
@@ -68,7 +70,6 @@ overlay:
 
 - name: hand_pointer_small.visible
   region: hand_pointer_small
-  search_region: hand_pointer_small_search
   action: findIcon
   priority: 60000
   threshold: 0.92
@@ -76,21 +77,18 @@ overlay:
 
 - name: claim_button.visible
   region: claim_button
-  search_region: claim_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: upgrade_building.visible
   region: upgrade_building
-  search_region: upgrade_building_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: upgrade_button.visible
   region: upgrade_button
-  search_region: upgrade_button_search
   action: findIcon
   threshold: 0.91
   min_match_saturation: 48
@@ -107,35 +105,30 @@ overlay:
 
 - name: go_button.visible
   region: go_button
-  search_region: go_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: build_button.visible
   region: build_button
-  search_region: build_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: build_building_item.visible
   region: build_building_item
-  search_region: build_building_item_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: add_worker_button.visible
   region: add_worker_button
-  search_region: add_worker_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
 
 - name: confirm_button.visible
   region: confirm_button
-  search_region: confirm_button_search
   action: findIcon
   priority: 88_000
   threshold: 0.98

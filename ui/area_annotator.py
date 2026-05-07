@@ -719,22 +719,22 @@ def _render_regions_expander(
             bbox_src = reg.get("bbox")
             bbox_ok = isinstance(bbox_src, dict)
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
+                sn_ov = overlay_search_region_name(bn_ov)
                 st.caption(
-                    "Optional overlay rectangles — same ``ocr`` frame as this region; "
-                    "updates ``analyze/analyze.yaml`` (`search_region`)."
+                    f"Optional overlay rectangles — same ``ocr`` frame as this region. "
+                    f"Sliding match uses ``{sn_ov}`` from ``area.json`` automatically; "
+                    "YAML cleanup removes obsolete explicit ``search_region`` keys."
                 )
 
                 def _regions_contains(nm: str) -> bool:
                     return any(str(r.get("name", "") or "").strip() == nm for r in regions)
-
-                sn_ov = overlay_search_region_name(bn_ov)
                 ks_ov = f"ovl_aux_s_{ei_ov}_{idx}"
                 if ks_ov not in st.session_state:
                     st.session_state[ks_ov] = _regions_contains(sn_ov)
                 want_s_ov = st.checkbox(
                     f"Search ROI (`{sn_ov}`)",
                     key=ks_ov,
-                    help="Larger ROI for sliding template match (`search_region`).",
+                    help=f"Larger ROI for sliding template match (saved as `{sn_ov}` in area.json).",
                 )
                 ov_changed = False
                 if bbox_ok and want_s_ov != _regions_contains(sn_ov):

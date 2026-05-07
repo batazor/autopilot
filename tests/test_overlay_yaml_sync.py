@@ -31,8 +31,26 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
     assert sync_findicon_overlay_aux_keys(tmp_path, "foo", use_search=True) is True
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     rule = doc["overlay"][0]
-    assert rule["search_region"] == "foo_search"
+    assert "search_region" not in rule
 
+    path.write_text(
+        yaml.dump(
+            {
+                "overlay": [
+                    {
+                        "name": "foo.visible",
+                        "region": "foo",
+                        "action": "findIcon",
+                        "threshold": 0.9,
+                        "search_region": "foo_search",
+                    }
+                ]
+            },
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
     assert sync_findicon_overlay_aux_keys(tmp_path, "foo", use_search=False) is True
     doc2 = yaml.safe_load(path.read_text(encoding="utf-8"))
     rule2 = doc2["overlay"][0]
@@ -60,6 +78,6 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     rule = doc["overlay"][0]
     assert rule["region"] == "new"
-    assert rule["search_region"] == "new_search"
+    assert "search_region" not in rule
 
     assert rename_findicon_overlay_primary(tmp_path, "nope", "x") is False
