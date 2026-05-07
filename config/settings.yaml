@@ -89,4 +89,4 @@ worker:
   task_timeout_seconds: 300
   bluestacks_launch_timeout_seconds: 120
   overlay_analyze_when_busy: false
-  device_reference_snapshot_interval_seconds: 2.0
+  device_reference_snapshot_interval_seconds: 1.0

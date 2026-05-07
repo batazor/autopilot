@@ -16,7 +16,7 @@ import redis.asyncio as aioredis
 from account.switcher import AccountSwitcher
 from actions.ad_skip import AdSkipper
 from actions.tap import BotActions
-from analysis.overlay import run_overlay_analysis
+from analysis.overlay import parse_duration_seconds, run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
@@ -32,6 +32,7 @@ from tasks.defend import DefendAllyTask
 from tasks.gathering import GatheringTask
 from tasks.main_city_check import MainCityCheckTask
 from tasks.mail_gift_check import MailGiftCheckTask
+from tasks.dsl_scenario import DslScenarioTask
 from tasks.overlay_tap import OverlayTapTask
 from tasks.page_detect import PageDetectTask
 from tasks.training import TrainingTask
@@ -67,6 +68,7 @@ class InstanceWorker:
         self._task_busy = asyncio.Event()
         self._rolling_snap_seq = 0
         self._last_current_screen: str | None = None
+        self._overlay_rule_eval_state: dict[str, float] = {}
 
     async def _schedule_mail_gift_on_enter_mail(self) -> None:
         if self._queue is None or not self._cfg.player_ids:
@@ -285,8 +287,14 @@ class InstanceWorker:
             )
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
-            logger.error("Unknown task type: %s", item.task_type)
-            return None
+            # Default: treat unknown task_type as a DSL scenario key.
+            return DslScenarioTask(
+                task_id=item.task_id,
+                player_id=item.player_id,
+                priority=item.priority,
+                scenario_key=item.task_type,
+                redis_client=self._redis,
+            )
         return factory(  # type: ignore[return-value]
             task_id=item.task_id,
             player_id=item.player_id,
@@ -389,7 +397,11 @@ class InstanceWorker:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
 
     async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
-        """Enqueue ``overlay_tap`` for each matched overlay rule (deduped per region)."""
+        """Handle matched overlay rules.
+
+        Current policy: overlay analysis never enqueues tap actions. It may only enqueue
+        DSL scenarios via `pushUsecase` (and other non-tap metadata).
+        """
         if not self._cfg.player_ids:
             return
 
@@ -400,50 +412,67 @@ class InstanceWorker:
             isinstance(overlay_results.get("main_city.visible"), dict)
             and overlay_results.get("main_city.visible", {}).get("matched")
         )
-        for name, payload in overlay_results.items():
+
+        for _name, payload in overlay_results.items():
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
                 continue
-            if not payload.get("enqueue_tap", True):
-                continue
-            region = str(payload.get("region") or "").strip()
-            if not region:
-                continue
-            # Safety: only click the new-chapter hint on main page.
-            if name == "new_chapter.visible" and not is_main:
-                continue
-            task_id = f"ovl:{self._cfg.instance_id}:{name}:{uuid.uuid4().hex[:8]}"
-            tap_x = payload.get("tap_x_pct")
-            tap_y = payload.get("tap_y_pct")
-            tap_x_pct = float(tap_x) if tap_x is not None else None
-            tap_y_pct = float(tap_y) if tap_y is not None else None
-            thr = payload.get("threshold")
-            threshold = float(thr) if thr is not None else None
-            sn = payload.get("set_node")
-            set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
-            pr = payload.get("priority")
-            priority = int(pr) if pr is not None else 50_000
-            queued = await self._queue.schedule(  # type: ignore[union-attr]
-                task_id=task_id,
-                player_id=player_id,
-                task_type="overlay_tap",
-                priority=priority,
-                run_at=now,
-                instance_id=self._cfg.instance_id,
-                region=region,
-                tap_x_pct=tap_x_pct,
-                tap_y_pct=tap_y_pct,
-                threshold=threshold,
-                set_node=set_node,
-                skip_if_duplicate=True,
-            )
-            if queued:
-                logger.info(
-                    "Device overlay matched %s → queued overlay_tap region=%s",
-                    name,
-                    region,
-                )
+
+            # Optional YAML-driven task enqueue (pushUsecase / push_task_type).
+            # Safety: currently only allow this from main city overlays.
+            try:
+                if is_main and self._queue is not None:
+                    pu = payload.get("pushUsecase")
+                    if isinstance(pu, list):
+                        for item in pu:
+                            if not isinstance(item, dict):
+                                continue
+                            t = str(item.get("name") or item.get("type") or "").strip()
+                            if not t:
+                                continue
+                            pr_raw = item.get("priority")
+                            pr = int(pr_raw) if pr_raw is not None else 80_000
+
+                            # Optional TTL guard to avoid re-queueing while we're busy with other tasks.
+                            ttl_raw = item.get("ttl")
+                            if ttl_raw is None:
+                                ttl_raw = item.get("ttl_seconds")  # backward compat
+                            ttl = parse_duration_seconds(ttl_raw)
+                            if ttl and self._redis is not None:
+                                guard_key = f"wos:overlay:push_ttl:{self._cfg.instance_id}:{player_id}:{t}"
+                                ok = await self._redis.set(guard_key, "1", ex=int(ttl), nx=True)
+                                if not ok:
+                                    continue
+
+                            await self._queue.schedule(
+                                task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",
+                                player_id=player_id,
+                                task_type=t,
+                                priority=pr,
+                                run_at=now,
+                                instance_id=self._cfg.instance_id,
+                                skip_if_duplicate=True,
+                            )
+                    else:
+                        # Backward compat: flat keys
+                        push_t = str(payload.get("push_task_type") or "").strip()
+                        if push_t:
+                            pr_raw = payload.get("push_task_priority")
+                            pr = int(pr_raw) if pr_raw is not None else 80_000
+                            await self._queue.schedule(
+                                task_id=f"ovl:{self._cfg.instance_id}:{push_t}:{uuid.uuid4().hex[:8]}",
+                                player_id=player_id,
+                                task_type=push_t,
+                                priority=pr,
+                                run_at=now,
+                                instance_id=self._cfg.instance_id,
+                                skip_if_duplicate=True,
+                            )
+            except Exception:
+                logger.debug("Failed to enqueue pushUsecase task(s) from overlay", exc_info=True)
+
+            # NOTE: Intentionally no tap scheduling from overlay analysis.
 
     async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
         """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
@@ -466,7 +495,10 @@ class InstanceWorker:
                 self._last_current_screen = current_screen
 
             results = await run_overlay_analysis(
-                image_bgr, repo_root=repo_root, current_screen=current_screen
+                image_bgr,
+                repo_root=repo_root,
+                current_screen=current_screen,
+                rule_eval_state=self._overlay_rule_eval_state,
             )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
@@ -648,6 +680,7 @@ class InstanceWorker:
                         "current_task_threshold": (
                             "" if item.threshold is None else str(item.threshold)
                         ),
+                        "current_task_score": ("" if item.score is None else str(item.score)),
                     },
                 )
                 logger.info(
@@ -707,6 +740,7 @@ class InstanceWorker:
                             "current_task_started_at": "",
                             "current_task_region": "",
                             "current_task_threshold": "",
+                            "current_task_score": "",
                         },
                     )
         except asyncio.CancelledError:

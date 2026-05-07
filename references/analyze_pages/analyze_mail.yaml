@@ -3,7 +3,6 @@ overlay:
     region: back_button
     action: findIcon
     threshold: 0.9
-    enqueue_tap: false
     set_node: mail
 
   - name: mail_gift.visible
@@ -23,5 +22,4 @@ overlay:
     action: readText
     expected: ["Mail"]
     fuzzy_threshold: 0.75
-    enqueue_tap: false
     set_node: mail

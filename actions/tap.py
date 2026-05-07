@@ -80,6 +80,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 "current_task_player": (raw.get("current_task_player") or "").strip(),
                 "current_task_region": (raw.get("current_task_region") or "").strip(),
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
+                "current_task_score": (raw.get("current_task_score") or "").strip(),
             }
     except Exception:
         ctx = {}

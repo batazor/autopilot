@@ -28,8 +28,12 @@ class QueueItem:
     tap_y_pct: float | None = None
     # Optional overlay match threshold (when task_type == "overlay_tap")
     threshold: float | None = None
+    # Optional overlay match score/confidence (when task_type == "overlay_tap")
+    score: float | None = None
     # Optional "assume screen after tap" (overlay_tap only)
     set_node: str | None = None
+    # Optional DSL scenario key (imperative_drafts runner).
+    dsl_scenario: str | None = None
 
 
 class RedisQueue:
@@ -50,7 +54,9 @@ class RedisQueue:
         tap_x_pct: float | None = None,
         tap_y_pct: float | None = None,
         threshold: float | None = None,
+        score: float | None = None,
         set_node: str | None = None,
+        dsl_scenario: str | None = None,
         skip_if_duplicate: bool = False,
     ) -> bool:
         """Enqueue a task.
@@ -86,8 +92,12 @@ class RedisQueue:
             body["tap_y_pct"] = float(tap_y_pct)
         if threshold is not None:
             body["threshold"] = float(threshold)
+        if score is not None:
+            body["score"] = float(score)
         if set_node is not None and str(set_node).strip() != "":
             body["set_node"] = str(set_node).strip()
+        if dsl_scenario is not None and str(dsl_scenario).strip() != "":
+            body["dsl_scenario"] = str(dsl_scenario).strip()
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         await self._redis.zadd(_QUEUE_KEY, {payload: run_at})
@@ -153,8 +163,12 @@ class RedisQueue:
         tap_y_pct = float(tap_y) if tap_y is not None else None
         thr = data.get("threshold")
         threshold = float(thr) if thr is not None else None
+        sc = data.get("score")
+        score = float(sc) if sc is not None else None
         sn = data.get("set_node")
         set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
+        ds = data.get("dsl_scenario")
+        dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
@@ -166,7 +180,9 @@ class RedisQueue:
             tap_x_pct=tap_x_pct,
             tap_y_pct=tap_y_pct,
             threshold=threshold,
+            score=score,
             set_node=set_node,
+            dsl_scenario=dsl_scenario,
         )
 
     async def peek_all(self) -> list[QueueItem]:
@@ -184,8 +200,12 @@ class RedisQueue:
             tap_y_pct = float(tap_y) if tap_y is not None else None
             thr = data.get("threshold")
             threshold = float(thr) if thr is not None else None
+            sc = data.get("score")
+            score = float(sc) if sc is not None else None
             sn = data.get("set_node")
             set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
+            ds = data.get("dsl_scenario")
+            dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
             results.append(
                 QueueItem(
                     task_id=data["task_id"],
@@ -198,7 +218,9 @@ class RedisQueue:
                     tap_x_pct=tap_x_pct,
                     tap_y_pct=tap_y_pct,
                     threshold=threshold,
+                    score=score,
                     set_node=set_node,
+                    dsl_scenario=dsl_scenario,
                 )
             )
         return results

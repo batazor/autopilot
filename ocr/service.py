@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import threading
 from collections.abc import Iterable
 from typing import Any
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="WOS OCR Service")
 _paddle: PaddleOCR | None = None
+_paddle_lock = threading.Lock()
 
 
 def get_paddle() -> PaddleOCR:
@@ -136,8 +138,24 @@ def ocr_endpoint(req: OcrRequest) -> list[OcrResultItem]:
 
         # Newer PaddleOCR releases do not accept `cls=` at call time.
         # Angle classification is controlled by `use_angle_cls` at init.
-        ocr_out = paddle.ocr(crop)
-        combined_text, avg_conf = _extract_text_confidence(ocr_out)
+        try:
+            # PaddleOCR/PaddleX inference may not be thread-safe and can crash the
+            # process (native "double free" / corruption) under concurrent access.
+            # Serialize calls to reduce sporadic 500s and container restarts.
+            with _paddle_lock:
+                ocr_out = paddle.ocr(crop)
+            combined_text, avg_conf = _extract_text_confidence(ocr_out)
+        except Exception:
+            logger.exception(
+                "OCR failed region=%s crop_xywh=(%d,%d,%d,%d) crop_shape=%s",
+                region.region_id,
+                x1,
+                y1,
+                x2 - x1,
+                y2 - y1,
+                getattr(crop, "shape", None),
+            )
+            combined_text, avg_conf = "", 0.0
         results.append(
             OcrResultItem(region_id=region.region_id, text=combined_text, confidence=avg_conf)
         )

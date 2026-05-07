@@ -51,6 +51,7 @@ from ui.keys import (
     PENDING_IMAGE_PATH,
     PIL_ORIGINAL,
     SELECTED_REGION_IDX,
+    SELECTED_REGION_NAME,
 )
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 from ui.labeling_reference_panel import (
@@ -628,6 +629,9 @@ def _render_regions_expander(
             set_current_regions(regs)
             st.session_state.canvas_rev += 1
             st.session_state.selected_region_idx = len(regs) - 1
+            st.session_state.selected_region_name = _selected_region_name_from_idx(
+                regs, len(regs) - 1
+            )
             st.rerun()
 
         regions = current_regions()
@@ -637,14 +641,16 @@ def _render_regions_expander(
             return
 
         names = [f"{i}: {r.get('name', '')}" for i, r in enumerate(regions)]
+        idx_init = _resolve_selected_region_idx(regions)
         r_sel = st.radio(
             "Select region",
             range(len(names)),
             format_func=lambda i: names[i],
-            index=min(st.session_state.selected_region_idx, len(names) - 1),
+            index=idx_init,
             horizontal=False,
         )
         st.session_state.selected_region_idx = int(r_sel)
+        st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))
 
         idx = int(st.session_state.selected_region_idx)
         reg = regions[idx]
@@ -707,6 +713,8 @@ def _render_regions_expander(
                         and not old_name.endswith("_tap")
                     ):
                         rename_findicon_overlay_primary(REPO_ROOT, old_name, new_name)
+                    if str(st.session_state.get(SELECTED_REGION_NAME) or "").strip() == old_name:
+                        st.session_state.selected_region_name = new_name
                     set_current_regions(regions)
                     st.success("Saved region metadata.")
 
@@ -815,9 +823,15 @@ def _render_regions_expander(
                 st.caption("Draw a bbox on this region before enabling overlay search/tap zones.")
 
         if st.button("Delete region", key=f"del_region_{_rk}"):
+            deleting_name = str(regions[idx].get("name") or "").strip()
             del regions[idx]
             set_current_regions(regions)
+            if str(st.session_state.get(SELECTED_REGION_NAME) or "").strip() == deleting_name:
+                st.session_state.selected_region_name = ""
             st.session_state.selected_region_idx = max(0, idx - 1)
+            st.session_state.selected_region_name = _selected_region_name_from_idx(
+                regions, int(st.session_state.selected_region_idx)
+            )
             st.session_state.canvas_rev += 1
             st.session_state.last_canvas_sig = ""
             st.rerun()
@@ -935,13 +949,19 @@ def _default_region(orig_w: int, orig_h: int) -> RegionDict:
 
 
 def _bbox_to_canvas_rect(
-    bbox: BBoxDict, canvas_w: int, canvas_h: int, stroke: str, stroke_width: int = 2
+    bbox: BBoxDict,
+    canvas_w: int,
+    canvas_h: int,
+    *,
+    stroke: str,
+    stroke_width: int = 2,
+    region_name: str = "",
 ) -> dict[str, Any]:
     left = bbox["x"] / 100.0 * canvas_w
     top = bbox["y"] / 100.0 * canvas_h
     width = bbox["width"] / 100.0 * canvas_w
     height = bbox["height"] / 100.0 * canvas_h
-    return {
+    doc: dict[str, Any] = {
         "type": "rect",
         "version": CANVAS_VERSION,
         "originX": "left",
@@ -957,6 +977,13 @@ def _bbox_to_canvas_rect(
         "scaleX": 1.0,
         "scaleY": 1.0,
     }
+    # Keep a stable link between Fabric objects and `area.json` regions.
+    # `streamlit-drawable-canvas` may reorder objects, so syncing by list index causes "floating"
+    # regions (moving one box updates another region). We store the region name on the object.
+    rn = str(region_name or "").strip()
+    if rn:
+        doc["wos_region_name"] = rn
+    return doc
 
 
 def regions_to_initial_drawing(
@@ -977,31 +1004,79 @@ def regions_to_initial_drawing(
             stroke = "#3b82f6"
         else:
             stroke = "#ef4444"
-        objects.append(_bbox_to_canvas_rect(bbox, canvas_w, canvas_h, stroke))
+        objects.append(
+            _bbox_to_canvas_rect(
+                bbox,
+                canvas_w,
+                canvas_h,
+                stroke=stroke,
+                region_name=str(reg.get("name") or "").strip(),
+            )
+        )
     return {"version": CANVAS_VERSION, "objects": objects}
 
 
-def parse_canvas_rects(json_data: Any) -> list[tuple[float, float, float, float, float, float, float]]:
+def _origin_offset(value: float, size: float, origin: str) -> float:
+    """Convert Fabric origin-based coordinate to top-left coordinate."""
+    o = (origin or "left").strip().lower()
+    if o == "center":
+        return value - size / 2.0
+    if o == "right":
+        return value - size
+    # "left" (and unknown): treat as top-left already
+    return value
+
+
+def _canvas_obj_to_bbox(
+    obj: dict[str, Any],
+    *,
+    canvas_w: int,
+    canvas_h: int,
+    orig_w: int,
+    orig_h: int,
+) -> BBoxDict | None:
+    """Normalize Fabric rect object into a stable percent bbox.
+
+    `streamlit-drawable-canvas` may emit `originX/originY` other than left/top (e.g. center),
+    and different versions may represent scaling via `scaleX/scaleY` and/or baked into `width/height`.
+    To avoid feedback loops ("jumping" rectangles), we always convert to **top-left + effective size**
+    in canvas coordinates first, then map to percentages.
     """
-    Return list of (left, top, width, height, rotation, scaleX, scaleY) from Fabric/json objects.
-    """
-    if not json_data or not isinstance(json_data, dict):
-        return []
-    out: list[tuple[float, float, float, float, float, float, float]] = []
-    for obj in json_data.get("objects") or []:
-        if not isinstance(obj, dict):
-            continue
-        if obj.get("type") != "rect":
-            continue
-        left = float(obj.get("left", 0.0))
-        top = float(obj.get("top", 0.0))
-        w = float(obj.get("width", 0.0))
-        h = float(obj.get("height", 0.0))
-        rot = float(obj.get("angle", 0.0) or 0.0)
-        sx = float(obj.get("scaleX", 1.0) or 1.0)
-        sy = float(obj.get("scaleY", 1.0) or 1.0)
-        out.append((left, top, w, h, rot, sx, sy))
-    return out
+    if obj.get("type") != "rect":
+        return None
+
+    left = float(obj.get("left", 0.0) or 0.0)
+    top = float(obj.get("top", 0.0) or 0.0)
+    w_raw = float(obj.get("width", 0.0) or 0.0)
+    h_raw = float(obj.get("height", 0.0) or 0.0)
+    rot = float(obj.get("angle", 0.0) or 0.0)
+
+    # Fabric keeps base width/height + scale for transforms; sometimes scale is already baked.
+    sx = float(obj.get("scaleX", 1.0) or 1.0)
+    sy = float(obj.get("scaleY", 1.0) or 1.0)
+
+    # Be tolerant to negative scales (flip); we only care about bbox extent.
+    eff_w = abs(w_raw * sx)
+    eff_h = abs(h_raw * sy)
+
+    origin_x = str(obj.get("originX", "left") or "left")
+    origin_y = str(obj.get("originY", "top") or "top")
+    left_tl = _origin_offset(left, eff_w, origin_x)
+    top_tl = _origin_offset(top, eff_h, origin_y)
+
+    return convert_bbox(
+        left_tl,
+        top_tl,
+        eff_w,
+        eff_h,
+        canvas_w,
+        canvas_h,
+        orig_w,
+        orig_h,
+        rot,
+        1.0,
+        1.0,
+    )
 
 
 def sync_regions_from_canvas(
@@ -1012,22 +1087,56 @@ def sync_regions_from_canvas(
     orig_w: int,
     orig_h: int,
 ) -> list[RegionDict]:
-    rects = parse_canvas_rects(json_data)
-    if not rects:
+    if not json_data or not isinstance(json_data, dict):
         return regions
     new_regions: list[RegionDict] = []
-    for i, r in enumerate(rects):
-        left, top, w, h, rot, sx, sy = r
-        bbox = convert_bbox(left, top, w, h, canvas_w, canvas_h, orig_w, orig_h, rot, sx, sy)
-        if i < len(regions):
+    rect_objs = [o for o in (json_data.get("objects") or []) if isinstance(o, dict)]
+    rect_objs = [o for o in rect_objs if o.get("type") == "rect"]
+    if not rect_objs:
+        return regions
+
+    # Build a stable mapping from canvas objects to regions by name.
+    # Fall back to index only if we don't have a name tag.
+    by_name: dict[str, RegionDict] = {}
+    for r in regions:
+        nm = str(r.get("name") or "").strip()
+        if nm:
+            by_name[nm] = r
+
+    used_names: set[str] = set()
+    used_idx: set[int] = set()
+
+    for i, obj in enumerate(rect_objs):
+        bbox = _canvas_obj_to_bbox(
+            obj,
+            canvas_w=canvas_w,
+            canvas_h=canvas_h,
+            orig_w=orig_w,
+            orig_h=orig_h,
+        )
+        if bbox is None:
+            continue
+
+        tag = str(obj.get("wos_region_name") or "").strip()
+        if tag and tag in by_name and tag not in used_names:
+            base = dict(by_name[tag])
+            base["bbox"] = bbox
+            new_regions.append(base)  # type: ignore[arg-type]
+            used_names.add(tag)
+            continue
+
+        # Fallback: keep old behavior (index-based) for untaged / freshly drawn rects.
+        if i < len(regions) and i not in used_idx:
             base = dict(regions[i])
             base["bbox"] = bbox
             new_regions.append(base)  # type: ignore[arg-type]
-        else:
-            nr = _default_region(orig_w, orig_h)
-            nr["name"] = f"region_{i + 1}"
-            nr["bbox"] = bbox
-            new_regions.append(nr)
+            used_idx.add(i)
+            continue
+
+        nr = _default_region(orig_w, orig_h)
+        nr["name"] = f"region_{i + 1}"
+        nr["bbox"] = bbox
+        new_regions.append(nr)
     return new_regions
 
 
@@ -1069,10 +1178,41 @@ def init_session() -> None:
         st.session_state.entry_idx = 0 if screens else -1
     if SELECTED_REGION_IDX not in st.session_state:
         st.session_state.selected_region_idx = 0
+    if SELECTED_REGION_NAME not in st.session_state:
+        st.session_state.selected_region_name = ""
     if CANVAS_REV not in st.session_state:
         st.session_state.canvas_rev = 0
     if CANVAS_LAST_SIG not in st.session_state:
         st.session_state.last_canvas_sig = ""
+
+
+def _selected_region_name_from_idx(regions: list[RegionDict], idx: int) -> str:
+    if not regions:
+        return ""
+    if idx < 0 or idx >= len(regions):
+        return ""
+    return str(regions[idx].get("name") or "").strip()
+
+
+def _resolve_selected_region_idx(regions: list[RegionDict]) -> int:
+    """Return stable selected idx, preferring selection by region name."""
+    if not regions:
+        st.session_state.selected_region_idx = 0
+        st.session_state.selected_region_name = ""
+        return 0
+
+    want_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
+    if want_name:
+        for i, r in enumerate(regions):
+            if str(r.get("name") or "").strip() == want_name:
+                st.session_state.selected_region_idx = i
+                return i
+
+    idx = int(st.session_state.get(SELECTED_REGION_IDX, 0) or 0)
+    idx = max(0, min(idx, len(regions) - 1))
+    st.session_state.selected_region_idx = idx
+    st.session_state.selected_region_name = _selected_region_name_from_idx(regions, idx)
+    return idx
 
 
 def ensure_entry(entries: list[AreaEntryDict], idx: int) -> None:
@@ -1447,9 +1587,7 @@ def render_area_annotator_ui(
                 canvas_w, canvas_h = canvas_img.size
 
                 regions = current_regions()
-                sel = st.session_state.selected_region_idx
-                if regions and sel >= len(regions):
-                    st.session_state.selected_region_idx = sel = len(regions) - 1
+                sel = _resolve_selected_region_idx(regions)
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
 
                 canvas_result = st_canvas(
@@ -1469,6 +1607,7 @@ def render_area_annotator_ui(
                     sig = json.dumps(canvas_result.json_data, sort_keys=True)
                     if sig != st.session_state.last_canvas_sig:
                         st.session_state.last_canvas_sig = sig
+                        prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
                         updated = sync_regions_from_canvas(
                             regions,
                             canvas_result.json_data,
@@ -1478,6 +1617,9 @@ def render_area_annotator_ui(
                             orig_h,
                         )
                         set_current_regions(updated)
+                        if prev_sel_name:
+                            st.session_state.selected_region_name = prev_sel_name
+                        _resolve_selected_region_idx(updated)
 
     else:
         # ----- Standalone: canvas center; regions + save right -----
@@ -1492,9 +1634,7 @@ def render_area_annotator_ui(
                 canvas_w, canvas_h = canvas_img.size
 
                 regions = current_regions()
-                sel = st.session_state.selected_region_idx
-                if regions and sel >= len(regions):
-                    st.session_state.selected_region_idx = sel = len(regions) - 1
+                sel = _resolve_selected_region_idx(regions)
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
 
                 _tool_help = (
@@ -1538,6 +1678,7 @@ def render_area_annotator_ui(
                     sig = json.dumps(canvas_result.json_data, sort_keys=True)
                     if sig != st.session_state.last_canvas_sig:
                         st.session_state.last_canvas_sig = sig
+                        prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
                         updated = sync_regions_from_canvas(
                             regions,
                             canvas_result.json_data,
@@ -1547,6 +1688,9 @@ def render_area_annotator_ui(
                             orig_h,
                         )
                         set_current_regions(updated)
+                        if prev_sel_name:
+                            st.session_state.selected_region_name = prev_sel_name
+                        _resolve_selected_region_idx(updated)
 
                 st.caption(
                     "Editing borders: switch to **Move / resize**, click the box, then drag edges or corners. "

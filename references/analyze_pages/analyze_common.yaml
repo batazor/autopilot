@@ -1,8 +1,24 @@
 overlay:
+- name: reconnect_button.visible
+  region: reconnect_button
+  action: findIcon
+  priority: 999_000
+  threshold: 0.92
+  ttl: 5
+
+- name: ads_rookie_value_pack.visible
+  region: ads_rookie_value_pack
+  action: findIcon
+  priority: 90_000
+  threshold: 0.9
+  ttl: 3
+
 - name: skip_button.visible
   region: skip_button
   action: findIcon
   threshold: 0.85
+  ttl: 2
+
 - name: accept_all_button.visible
   region: accept_all_button
   action: findIcon
@@ -10,83 +26,100 @@ overlay:
   threshold: 0.92
   min_match_saturation: 48
   tap_region: accept_all_button_tap
+
 - name: page.chief_profile.visible
   region: chief_profile_title
   action: findIcon
   threshold: 0.9
-  enqueue_tap: false
+  node: none
+  set_node: chief_profile
+
 - name: hand_pointer.visible
   region: hand_pointer
   search_region: hand_pointer_search
   action: findIcon
   priority: 60000
-  threshold: 0.88
+  threshold: 0.92
+  min_match_saturation: 40
   tap_region: hand_pointer_tap
   tap_offset_from_match: true
+
 - name: hand_pointer_small_reverse.visible
   region: hand_pointer_small_reverse
   search_region: hand_pointer_small_reverse_search
   action: findIcon
   priority: 60000
-  threshold: 0.88
+  threshold: 0.92
+  min_match_saturation: 40
   tap_region: hand_pointer_small_reverse_tap
   tap_offset_from_match: true
+
 - name: hand_pointer_small.visible
   region: hand_pointer_small
   search_region: hand_pointer_small_search
   action: findIcon
   priority: 60000
-  threshold: 0.88
+  threshold: 0.92
+  min_match_saturation: 40
   tap_region: hand_pointer_small_tap
   tap_offset_from_match: true
+
 - name: claim_button.visible
   region: claim_button
   search_region: claim_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: upgrade_building.visible
   region: upgrade_building
   search_region: upgrade_building_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: upgrade_button.visible
   region: upgrade_button
   search_region: upgrade_button_search
   action: findIcon
   threshold: 0.91
   min_match_saturation: 48
+
 - name: upgrade_big_button.visible
   region: upgrade_big_button
   search_region: upgrade_big_button_search
   action: findIcon
   threshold: 0.92
   min_match_saturation: 48
+
 - name: go_button.visible
   region: go_button
   search_region: go_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: build_button.visible
   region: build_button
   search_region: build_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: build_building_item.visible
   region: build_building_item
   search_region: build_building_item_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: add_worker_button.visible
   region: add_worker_button
   search_region: add_worker_button_search
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48
+
 - name: confirm_button.visible
   region: confirm_button
   search_region: confirm_button_search

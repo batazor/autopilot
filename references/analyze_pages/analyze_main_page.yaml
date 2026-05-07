@@ -9,7 +9,6 @@ overlay:
     region: is_main_city
     action: findIcon
     threshold: 0.9
-    enqueue_tap: false
     set_node: main_city
 
   - name: new_chapter.visible
@@ -17,3 +16,14 @@ overlay:
     action: findIcon
     threshold: 0.9
     node: main_city
+
+  - name: isNewPeople.visible
+    region: isNewPeople
+    action: findIcon
+    threshold: 0.92
+    node: main_city
+    pushUsecase:
+      - task:
+          name: is_new_people
+          priority: 80000
+          ttl: 15m

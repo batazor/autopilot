@@ -20,6 +20,7 @@ screenshot_pipeline_page = st.Page(
     str(_ui_dir / "views" / "screenshot_pipeline.py"),
     title="Screenshot pipeline",
 )
+gallery_page = st.Page(str(_ui_dir / "views" / "gallery.py"), title="Gallery")
 click_approvals_page = st.Page(
     str(_ui_dir / "views" / "click_approvals.py"),
     title="Click approvals",
@@ -33,7 +34,8 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 st.navigation(
     {
         "Operate": [overview, instance_page, queue_page],
-        "Debug": [screenshot_pipeline_page, click_approvals_page, fsm_page, labeling_page],
+        "Wiki": [gallery_page, labeling_page],
+        "Debug": [screenshot_pipeline_page, click_approvals_page, fsm_page],
         "Config": [scenarios_page, settings_page],
     }
 ).run()

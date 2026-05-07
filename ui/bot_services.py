@@ -11,10 +11,27 @@ import threading
 
 from config.logging_stdout import setup_stdout_logging
 
+_THREAD_NAME = "wos-async-services"
+
 _started = False
 _lock = threading.Lock()
 _stop_event: threading.Event | None = None
 _thread: threading.Thread | None = None
+
+
+def _existing_supervisor_thread() -> threading.Thread | None:
+    """Return a live supervisor thread already running in this process, if any.
+
+    Streamlit may re-import ``ui.bot_services`` (module reload), which resets
+    the module-level guards above. To avoid spawning a second supervisor (and
+    a second scenarios watchdog observer that would clash with the first via
+    fsevents' "already scheduled" RuntimeError), look at the process-wide
+    thread list — that survives any number of module reloads.
+    """
+    for t in threading.enumerate():
+        if t.name == _THREAD_NAME and t.is_alive():
+            return t
+    return None
 
 
 def ensure_embedded_bot() -> None:
@@ -22,6 +39,12 @@ def ensure_embedded_bot() -> None:
     global _started, _stop_event, _thread
     with _lock:
         if _started:
+            return
+        existing = _existing_supervisor_thread()
+        if existing is not None:
+            # Another module instance already started the supervisor.
+            _thread = existing
+            _started = True
             return
         setup_stdout_logging()
 
@@ -34,7 +57,7 @@ def ensure_embedded_bot() -> None:
             asyncio.run(run_forever_async(stop_event=_stop_event))
 
         _stop_event = threading.Event()
-        _thread = threading.Thread(target=_run_loop, daemon=True, name="wos-async-services")
+        _thread = threading.Thread(target=_run_loop, daemon=True, name=_THREAD_NAME)
         _thread.start()
         logging.getLogger(__name__).info("Embedded bot thread started (async supervisor)")
         _started = True

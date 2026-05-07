@@ -81,12 +81,6 @@
       ]
     },
     {
-      "id": 3,
-      "screen_id": "",
-      "ocr": "references/ahnd_pointer_2.png",
-      "regions": []
-    },
-    {
       "id": 4,
       "screen_id": "",
       "ocr": "references/hand_pointer_small_reverse.png",
@@ -166,10 +160,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 6.756756756756757,
-            "y": 36.84782608695652,
-            "width": 89.5965250965251,
-            "height": 61.24130434782608,
+            "x": 0.0,
+            "y": 52.0,
+            "width": 45.0,
+            "height": 42.0,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -734,6 +728,94 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "screen_id": "",
+      "ocr": "references/retry_page.png",
+      "regions": [
+        {
+          "name": "reconnect_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.82239382239382,
+            "y": 59.67391304347826,
+            "width": 36.6003861003861,
+            "height": 5.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "screen_id": "",
+      "ocr": "references/ads_rookie_value_pack.png",
+      "regions": [
+        {
+          "name": "ads_rookie_value_pack",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.46718146718146,
+            "y": 7.5,
+            "width": 6.144787644787645,
+            "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "screen_id": "",
+      "ocr": "references/isNewPeople.png",
+      "regions": [
+        {
+          "name": "isNewPeople",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.579150579150578,
+            "y": 18.47826086956522,
+            "width": 8.569498069498069,
+            "height": 6.477173913043479,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "screen_id": "",
+      "ocr": "references/isNewPeople.welcome_in.png",
+      "regions": [
+        {
+          "name": "welcome_in",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.552123552123554,
+            "y": 81.52173913043478,
+            "width": 31.7992277992278,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

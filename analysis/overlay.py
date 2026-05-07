@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,38 @@ from layout.template_match import (
 from layout.types import Region
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
+
+
+def parse_duration_seconds(value: object) -> int | None:
+    """Parse duration into seconds.
+
+    Accepts:
+    - number: seconds (int/float)
+    - string: "<num>[s|m|h|d]" (case-insensitive), e.g. "15m", "2h", "900", "0.5h"
+    """
+    if value is None or isinstance(value, bool):
+        return None
+
+    if isinstance(value, (int, float)):
+        sec = int(value)
+        return sec if sec > 0 else None
+
+    s = str(value).strip()
+    if not s:
+        return None
+
+    mult = 1.0
+    unit = s[-1].lower()
+    num = s
+    if unit in {"s", "m", "h", "d"}:
+        num = s[:-1].strip()
+        mult = {"s": 1.0, "m": 60.0, "h": 3600.0, "d": 86400.0}[unit]
+    try:
+        v = float(num)
+    except (TypeError, ValueError):
+        return None
+    sec = int(v * mult)
+    return sec if sec > 0 else None
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
@@ -80,6 +113,62 @@ def load_analyze_yaml(path: Path) -> dict[str, Any]:
     if overlay_merged:
         raw["overlay"] = overlay_merged
     return raw
+
+
+def _optional_push_usecase_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
+    """Optional task enqueue hints for matched overlays.
+
+    Preferred (nested, readable) form:
+
+    pushUsecase:
+      - task:
+          name: is_new_people
+          priority: 80000
+          ttl: 15m
+
+    Backward compatible (flat) form:
+    - push_task_type: isNewPeople
+    - push_task_priority: 80000
+    """
+    out: list[dict[str, Any]] = []
+
+    pu = rule.get("pushUsecase")
+    if isinstance(pu, list):
+        for item in pu:
+            if not isinstance(item, dict):
+                continue
+            task = item.get("task")
+            if not isinstance(task, dict):
+                continue
+            t = str(task.get("name") or task.get("type") or "").strip()
+            if not t:
+                continue
+            pr_raw = task.get("priority")
+            pr: int | None
+            try:
+                pr = int(pr_raw) if pr_raw is not None else None
+            except (TypeError, ValueError):
+                pr = None
+            ttl_raw = task.get("ttl")
+            if ttl_raw is None:
+                ttl_raw = task.get("ttl_seconds")  # backward compat
+            ttl = parse_duration_seconds(ttl_raw)
+            dsl = str(task.get("dsl_scenario") or "").strip() or None
+            out.append({"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl})
+
+    # Flat fallback
+    if not out:
+        t = str(rule.get("push_task_type") or "").strip()
+        if t:
+            pr_raw = rule.get("push_task_priority")
+            pr2: int | None
+            try:
+                pr2 = int(pr_raw) if pr_raw is not None else None
+            except (TypeError, ValueError):
+                pr2 = None
+            out.append({"type": t, "priority": pr2, "ttl": None, "dsl_scenario": None})
+
+    return out
 
 
 def _optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
@@ -165,6 +254,22 @@ def _optional_priority(rule: dict[str, Any]) -> int | None:
         return None
 
 
+def _optional_ttl_seconds(rule: dict[str, Any]) -> float | None:
+    """YAML ``ttl`` (seconds): minimum gap between successive evaluations of this rule.
+
+    Returns ``None`` for absent / non-positive / non-numeric values so callers can
+    skip the throttle entirely instead of paying for an extra branch.
+    """
+    v = rule.get("ttl")
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        ttl = float(v)
+    except (TypeError, ValueError):
+        return None
+    return ttl if ttl > 0.0 else None
+
+
 def _optional_expected_texts(rule: dict[str, Any]) -> list[str]:
     v = rule.get("expected")
     if isinstance(v, list):
@@ -182,6 +287,7 @@ async def evaluate_overlay_rules_async(
     overlay_rules: list[dict[str, Any]],
     *,
     current_screen: str | None = None,
+    rule_eval_state: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Run ordered overlay rules; returns a dict keyed by rule ``name``.
 
@@ -189,8 +295,21 @@ async def evaluate_overlay_rules_async(
     list are only evaluated when *current_screen* is in that list.  Rules with no
     ``screens`` key (or an empty list) are treated as **global** and always run
     (e.g. ad/popup dismissers).
+
+    The literal value ``none`` (case-insensitive) inside ``node`` / ``screens`` is a
+    sentinel that matches an **unknown** current screen (i.e. ``current_screen is None``
+    or empty). Use it for "page-detect" rules that only make sense before the screen
+    has been identified.
+
+    *rule_eval_state* is an optional mutable mapping ``rule.name → last_eval_monotonic``
+    used to honor a per-rule ``ttl`` (seconds): when the elapsed time since the last
+    evaluation is shorter than ``ttl``, the rule is skipped and a ``ttl_throttled``
+    marker is recorded instead. Pass ``None`` (e.g. from UI/sync callers) to disable
+    throttling entirely.
     """
     out: dict[str, Any] = {}
+    now_mono = time.monotonic()
+    cur_screen_norm = (current_screen or "").strip()
     for rule in overlay_rules:
         if not isinstance(rule, dict):
             continue
@@ -203,24 +322,44 @@ async def evaluate_overlay_rules_async(
             node = rule.get("node")
             if isinstance(node, str) and node.strip():
                 rule_screens = [node.strip()]
-        if rule_screens and current_screen not in rule_screens:
-            continue
+        if rule_screens:
+            allowed = {str(s).strip() for s in rule_screens if str(s).strip()}
+            allowed_lc = {s.lower() for s in allowed}
+            wants_unknown = "none" in allowed_lc
+            if cur_screen_norm:
+                if cur_screen_norm not in allowed:
+                    continue
+            else:
+                if not wants_unknown:
+                    continue
         action = str(rule.get("action") or "").strip()
         logical_name = str(rule.get("name") or "").strip()
         if not logical_name:
             continue
 
+        ttl_seconds = _optional_ttl_seconds(rule)
+        if ttl_seconds is not None and rule_eval_state is not None:
+            last = rule_eval_state.get(logical_name)
+            if last is not None and (now_mono - last) < ttl_seconds:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "ttl_throttled",
+                    "ttl": ttl_seconds,
+                    "next_eval_in": max(0.0, ttl_seconds - (now_mono - last)),
+                    "region": str(rule.get("region") or "").strip(),
+                }
+                continue
+            rule_eval_state[logical_name] = now_mono
+
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
-            enqueue_tap = bool(rule.get("enqueue_tap", True))
             pair = screen_region_by_name(area_doc, region_name)
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
                     "reason": "unknown_region",
                     "region": region_name,
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
             entry, reg = pair
@@ -230,7 +369,6 @@ async def evaluate_overlay_rules_async(
                 out[logical_name] = {
                     "matched": False,
                     "reason": "missing_bbox_or_ocr",
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -262,7 +400,6 @@ async def evaluate_overlay_rules_async(
                     "matched": False,
                     "reason": "missing_crop_png",
                     "path": str(crop_path.relative_to(repo_root)),
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -271,7 +408,6 @@ async def evaluate_overlay_rules_async(
                 out[logical_name] = {
                     "matched": False,
                     "reason": "crop_load_failed",
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -280,6 +416,7 @@ async def evaluate_overlay_rules_async(
             tap_override_pct: tuple[float, float] | None = None
             tap_delta_pct: tuple[float, float] | None = None
             min_sat = _optional_min_match_saturation(rule)
+            push_tasks = _optional_push_usecase_tasks(rule)
 
             if tap_offset_from_match:
                 if not tap_region_name:
@@ -421,8 +558,9 @@ async def evaluate_overlay_rules_async(
                         "search_region": search_region_name,
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
-                        "enqueue_tap": enqueue_tap,
                     }
+                    if push_tasks:
+                        hit["pushUsecase"] = push_tasks
                     if set_node_s:
                         hit["set_node"] = set_node_s
                     if priority is not None:
@@ -449,7 +587,6 @@ async def evaluate_overlay_rules_async(
                     "matched": False,
                     "reason": "shape_mismatch",
                     "detail": str(e),
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -481,8 +618,9 @@ async def evaluate_overlay_rules_async(
                 "template_h": th_tpl,
                 "action": "findIcon",
                 "region": region_name,
-                "enqueue_tap": enqueue_tap,
             }
+            if push_tasks:
+                hit1["pushUsecase"] = push_tasks
             if set_node_s:
                 hit1["set_node"] = set_node_s
             if priority is not None:
@@ -513,7 +651,7 @@ async def evaluate_overlay_rules_async(
         if action == "readText":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
-            enqueue_tap = bool(rule.get("enqueue_tap", True))
+            # Legacy: `enqueue_tap` is ignored (we don't tap from overlay analysis).
             expected = _optional_expected_texts(rule)
             fuzzy_thr = _optional_fuzzy_threshold(rule)
 
@@ -523,7 +661,6 @@ async def evaluate_overlay_rules_async(
                     "matched": False,
                     "reason": "unknown_region",
                     "region": region_name,
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
             _entry, reg = pair
@@ -533,7 +670,6 @@ async def evaluate_overlay_rules_async(
                     "matched": False,
                     "reason": "missing_bbox",
                     "region": region_name,
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -547,7 +683,6 @@ async def evaluate_overlay_rules_async(
                     "matched": False,
                     "reason": "ocr_failed",
                     "detail": str(e),
-                    "enqueue_tap": enqueue_tap,
                 }
                 continue
 
@@ -576,7 +711,6 @@ async def evaluate_overlay_rules_async(
                 "expected": expected,
                 "fuzzy_threshold": fuzzy_thr,
                 "match": best,
-                "enqueue_tap": enqueue_tap,
             }
             if set_node_s:
                 out[logical_name]["set_node"] = set_node_s
@@ -596,11 +730,14 @@ async def run_overlay_analysis(
     analyze_yaml: Path | None = None,
     area_doc: dict[str, Any] | None = None,
     current_screen: str | None = None,
+    rule_eval_state: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Load ``references/analyze.yaml`` (unless overridden) and evaluate ``overlay`` rules.
 
     Pass *current_screen* (a ``ScreenName`` string value) to skip rules whose
     ``screens`` list does not include the current screen.
+
+    Pass *rule_eval_state* (mutable mapping) to enable per-rule ``ttl`` throttling.
     """
     cfg_path = (
         analyze_yaml
@@ -618,7 +755,12 @@ async def run_overlay_analysis(
         area_doc = json.loads(area_path.read_text(encoding="utf-8"))
 
     return await evaluate_overlay_rules_async(
-        image_bgr, area_doc, repo_root, rules, current_screen=current_screen
+        image_bgr,
+        area_doc,
+        repo_root,
+        rules,
+        current_screen=current_screen,
+        rule_eval_state=rule_eval_state,
     )
 
 
@@ -629,6 +771,7 @@ def run_overlay_analysis_sync(
     analyze_yaml: Path | None = None,
     area_doc: dict[str, Any] | None = None,
     current_screen: str | None = None,
+    rule_eval_state: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Sync wrapper for contexts that cannot await (e.g. some Streamlit pages)."""
     return asyncio.run(
@@ -638,6 +781,7 @@ def run_overlay_analysis_sync(
             analyze_yaml=analyze_yaml,
             area_doc=area_doc,
             current_screen=current_screen,
+            rule_eval_state=rule_eval_state,
         )
     )
 
@@ -649,6 +793,7 @@ def evaluate_overlay_rules(
     overlay_rules: list[dict[str, Any]],
     *,
     current_screen: str | None = None,
+    rule_eval_state: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Sync wrapper kept for tests and non-async callers.
 
@@ -667,6 +812,11 @@ def evaluate_overlay_rules(
 
     return asyncio.run(
         evaluate_overlay_rules_async(
-            image_bgr, area_doc, repo_root, overlay_rules, current_screen=current_screen
+            image_bgr,
+            area_doc,
+            repo_root,
+            overlay_rules,
+            current_screen=current_screen,
+            rule_eval_state=rule_eval_state,
         )
     )

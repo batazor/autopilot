@@ -22,6 +22,7 @@ from ui.pipeline.overlay_viz import (
     region_area_action,
 )
 from ui.reference_preview import rolling_live_preview_path
+from ui.redis_client import get_instance_state, require_redis_connection
 
 _REPO = Path(__file__).resolve().parents[2]
 _ANALYZE = _REPO / "references" / "analyze.yaml"
@@ -43,6 +44,9 @@ def _overlay_live_status_fragment() -> None:
 
     iids = [i.instance_id for i in insts]
     instance_id = st.selectbox("Instance (rolling PNG)", iids, key="pipeline_overlay_instance")
+    client = require_redis_connection()
+    inst_state = get_instance_state(client, instance_id)
+    current_screen = str(inst_state.get("current_screen") or "").strip()
 
     c1, c2 = st.columns([1, 3], vertical_alignment="center")
     with c1:
@@ -62,6 +66,26 @@ def _overlay_live_status_fragment() -> None:
         key="pipeline_overlay_exist_only",
         help="When unchecked, every overlay rule row is shown with its region action.",
     )
+
+    cflt1, cflt2 = st.columns([1.4, 1], vertical_alignment="bottom")
+    with cflt1:
+        name_filter = st.text_input(
+            "Filter by zone/rule name",
+            value="",
+            key="pipeline_overlay_name_filter",
+            placeholder="e.g. claim, hand_pointer, isNewPeople…",
+        )
+    with cflt2:
+        only_current_page = st.checkbox(
+            "Only current page",
+            value=False,
+            key="pipeline_overlay_only_current_page",
+            help=(
+                "When enabled, show only rules whose `node` matches the instance current_screen "
+                "(plus global rules without `node`)."
+            ),
+        )
+        st.caption(f"current_screen: `{current_screen or '—'}`")
 
     data, rebuilt = get_or_build_pipeline_cache(
         instance_id, repo_root=_REPO, area_path=_AREA, analyze_path=_ANALYZE
@@ -89,17 +113,36 @@ def _overlay_live_status_fragment() -> None:
     rule_order: list[str] = data["rule_order"]
     rule_search: dict[str, str] = data["rule_search"]
     rule_tap: dict[str, str] = data["rule_tap"]
+    rule_node: dict[str, str] = data.get("rule_node", {})
 
     rows_out: list[dict[str, object]] = []
     visible_logicals: list[str] = []
+    q = (name_filter or "").strip().lower()
     for logical in rule_order:
         payload = results.get(logical)
         if not isinstance(payload, dict):
             continue
+        # Filter by current page (`node`) when requested.
+        node = str(rule_node.get(logical, "") or "").strip()
+        if only_current_page and current_screen:
+            if node and node != current_screen:
+                continue
         region_name = str(payload.get("region") or "").strip()
         area_action = region_area_action(area_doc, region_name)
         if only_exist and area_action != "exist":
             continue
+        # Filter by name (rule/region/search/tap) when requested.
+        if q:
+            hay = " ".join(
+                [
+                    str(logical),
+                    region_name,
+                    str(payload.get("search_region") or rule_search.get(logical, "")),
+                    str(payload.get("tap_region") or rule_tap.get(logical, "")),
+                ]
+            ).lower()
+            if q not in hay:
+                continue
         visible_logicals.append(logical)
 
         matched = bool(payload.get("matched"))
@@ -134,6 +177,7 @@ def _overlay_live_status_fragment() -> None:
         rows_out.append(
             {
                 "overlay_rule": logical,
+                "node": node or "(global)",
                 "region": region_name,
                 "area_action": area_action if area_action else "(unknown)",
                 "search_region": sr_disp,
