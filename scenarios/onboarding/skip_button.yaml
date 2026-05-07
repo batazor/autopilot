@@ -1,0 +1,5 @@
+enabled: true
+name: Tap skip
+
+steps:
+  - click: skip_button
