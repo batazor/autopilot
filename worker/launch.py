@@ -47,11 +47,11 @@ def main() -> None:
             global _STOP_SIGNAL_COUNT
             _STOP_SIGNAL_COUNT += 1
             if _STOP_SIGNAL_COUNT > 1:
-                raise SystemExit(128 + int(signal_number))
+                os._exit(128 + int(signal_number))
             try:
-                from ui.bot_services import stop_embedded_bot
+                from ui.bot_services import request_embedded_bot_stop
 
-                stop_embedded_bot(join_timeout_s=8.0)
+                request_embedded_bot_stop()
             finally:
                 server.stop()
 

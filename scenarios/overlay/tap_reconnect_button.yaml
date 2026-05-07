@@ -1,0 +1,6 @@
+enabled: true
+name: Tap reconnect (disconnect screen)
+
+steps:
+  - click: reconnect_button
+  - wait: 8s

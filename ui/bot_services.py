@@ -72,17 +72,9 @@ def ensure_embedded_bot() -> None:
 def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
     """Request a clean embedded supervisor shutdown."""
     global _started, _stop_event, _thread
-    with _lock:
-        stop_event = _stop_event
-        thread = _thread
-        if not _started or stop_event is None or thread is None:
-            _started = False
-            _stop_event = None
-            _thread = None
-            return
-
-        logging.getLogger(__name__).warning("Stopping embedded bot thread")
-        stop_event.set()
+    stop_event, thread = request_embedded_bot_stop()
+    if stop_event is None or thread is None:
+        return
 
     thread.join(timeout=join_timeout_s)
 
@@ -95,6 +87,23 @@ def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
         _started = False
         _stop_event = None
         _thread = None
+
+
+def request_embedded_bot_stop() -> tuple[threading.Event | None, threading.Thread | None]:
+    """Signal the embedded supervisor to stop without blocking the caller."""
+    global _started, _stop_event, _thread
+    with _lock:
+        stop_event = _stop_event
+        thread = _thread
+        if not _started or stop_event is None or thread is None:
+            _started = False
+            _stop_event = None
+            _thread = None
+            return None, None
+
+        logging.getLogger(__name__).warning("Stopping embedded bot thread")
+        stop_event.set()
+        return stop_event, thread
 
 
 def restart_embedded_bot(*, join_timeout_s: float = 5.0) -> None:

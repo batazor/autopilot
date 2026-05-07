@@ -5,6 +5,9 @@ overlay:
   priority: 999_000
   threshold: 0.92
   ttl: 5
+  pushScenario:
+    - name: tap_reconnect_button
+      priority: 999_000
 
 - name: ads_rookie_value_pack.visible
   region: ads_rookie_value_pack

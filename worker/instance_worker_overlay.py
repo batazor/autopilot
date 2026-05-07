@@ -4,6 +4,7 @@ import logging
 import math
 import time
 import uuid
+from contextlib import suppress
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,34 @@ def _overlay_metric_float(value: object) -> float | None:
     if not math.isfinite(x):
         return None
     return x
+
+
+def _overlay_effective_priority(payload: dict[str, object]) -> int:
+    """Highest priority a matched overlay can enqueue."""
+    best = 0
+    pr_raw = payload.get("priority")
+    with suppress(TypeError, ValueError):
+        best = max(best, int(pr_raw)) if pr_raw is not None else best
+
+    pu = payload.get("pushScenario")
+    if not isinstance(pu, list):
+        pu = payload.get("pushUsecase")
+    if isinstance(pu, list):
+        for item in pu:
+            if not isinstance(item, dict):
+                continue
+            task = item.get("task")
+            src = task if isinstance(task, dict) else item
+            pr_raw = src.get("priority")
+            try:
+                best = max(best, int(pr_raw)) if pr_raw is not None else best
+            except (TypeError, ValueError):
+                continue
+
+    pr_raw = payload.get("push_task_priority")
+    with suppress(TypeError, ValueError):
+        best = max(best, int(pr_raw)) if pr_raw is not None else best
+    return best
 
 
 class InstanceWorkerOverlayMixin:
@@ -40,11 +69,17 @@ class InstanceWorkerOverlayMixin:
             return
 
         now = time.time()
+        matched_payloads: list[dict[str, object]] = []
         for _name, payload in overlay_results.items():
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
                 continue
+            matched_payloads.append(payload)
+
+        matched_payloads.sort(key=_overlay_effective_priority, reverse=True)
+
+        for payload in matched_payloads:
             try:
                 await self._enqueue_push_scenarios_from_overlay(
                     payload, player_id="", run_at=now
