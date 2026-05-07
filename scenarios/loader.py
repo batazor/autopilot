@@ -47,6 +47,8 @@ class ScenarioLoader:
         for yaml_file in sorted(self._path.glob("*.yaml")):
             try:
                 raw = yaml.safe_load(yaml_file.read_text())
+                if isinstance(raw, dict) and "name" not in raw:
+                    raw["name"] = yaml_file.stem
                 scenario = Scenario.model_validate(raw)
                 loaded.append(scenario)
             except Exception:

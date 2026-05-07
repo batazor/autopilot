@@ -89,7 +89,7 @@ area_doc = _load_area_doc()
 regions_by_ref, screen_id_by_ref = _index_area(area_doc)
 all_regions = sorted({r for regs in regions_by_ref.values() for r in regs})
 
-top = st.columns([1.1, 1.0, 1.0, 1.0, 2.2], vertical_alignment="bottom")
+top = st.columns([1.1, 1.0, 2.2], vertical_alignment="bottom")
 with top[0]:
     limit = int(
         st.number_input(
@@ -102,12 +102,9 @@ with top[0]:
         )
     )
 with top[1]:
-    cols_n = int(st.number_input("Columns", min_value=2, max_value=8, value=4, step=1))
-with top[2]:
-    thumb_max = int(st.number_input("Thumb max side", min_value=120, max_value=800, value=260, step=20))
-with top[3]:
+    thumb_max = 500
     group_by = st.selectbox("Group by", options=["none", "page (screen_id)"], index=1)
-with top[4]:
+with top[2]:
     q = st.text_input(
         "Filter by filename",
         value="",
@@ -156,39 +153,40 @@ if not filtered:
     st.stop()
 
 def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
-    cols = st.columns(cols_n)
     for i, p in enumerate(paths):
-        col = cols[i % cols_n]
-        with col:
-            rel = _rel_under_references(p, ref_root)
-            try:
-                data = p.read_bytes()
-                fitted, native, _disp = png_bytes_fitted(data, thumb_max)
-                sid = (screen_id_by_ref.get(rel) or "").strip()
-                regs = regions_by_ref.get(rel, set())
-                extra = []
-                if sid:
-                    extra.append(f"page={sid}")
-                if regs:
-                    extra.append(f"regions={len(regs)}")
-                extra_txt = (" · " + " · ".join(extra)) if extra else ""
-                st.image(
-                    fitted,
-                    caption=f"`{rel}` · {native[0]}×{native[1]}{extra_txt}",
-                    width="stretch",
-                )
-            except OSError as exc:
-                st.error(f"`{rel}`: {exc}")
-                continue
+        rel = _rel_under_references(p, ref_root)
+        try:
+            data = p.read_bytes()
+            fitted, native, _disp = png_bytes_fitted(data, thumb_max)
+            sid = (screen_id_by_ref.get(rel) or "").strip()
+            regs = regions_by_ref.get(rel, set())
+            extra = []
+            if sid:
+                extra.append(f"page={sid}")
+            if regs:
+                extra.append(f"regions={len(regs)}")
+            extra_txt = (" · " + " · ".join(extra)) if extra else ""
+        except OSError as exc:
+            st.error(f"`{rel}`: {exc}")
+            continue
 
+        left, right = st.columns([5, 1.4], vertical_alignment="top")
+        with left:
+            st.image(
+                fitted,
+                caption=f"`{rel}` · {native[0]}×{native[1]}{extra_txt}",
+                width=thumb_max,
+            )
+        with right:
             ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime))
             st.caption(ts)
             st.page_link(
                 "views/labeling.py",
                 label="Open in Labeling",
                 query_params={"ref": rel},
-                width="stretch",
+                use_container_width=True,
             )
+        st.divider()
 
 
 if group_by == "page (screen_id)":

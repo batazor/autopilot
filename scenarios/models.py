@@ -49,7 +49,8 @@ class StepParams(BaseModel):
 
 
 class ScenarioStep(BaseModel):
-    id: str
+    # Step id is optional (legacy); do not require it in YAML.
+    id: str | None = None
     task: str
     priority: int = 500
     cooldown: timedelta
@@ -66,7 +67,6 @@ class ScenarioStep(BaseModel):
 
 
 class Scenario(BaseModel):
-    id: str
     name: str
     priority: int = 100
     repeat: bool = True

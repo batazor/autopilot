@@ -8,6 +8,7 @@ from typing import Any
 
 import streamlit as st
 import yaml
+from streamlit_extras.stoggle import stoggle
 
 
 def _repo_root() -> Path:
@@ -102,12 +103,14 @@ def _rule_regions(rule: dict[str, Any]) -> list[str]:
 def _render_rule(rule: dict[str, Any], *, regions_idx: dict[str, RegionRef]) -> None:
     name = str(rule.get("name") or "").strip() or "(unnamed)"
     action = str(rule.get("action") or "").strip() or "(no action)"
+    region = str(rule.get("region") or "").strip()
+    node = str(rule.get("node") or "").strip()
+    set_node = str(rule.get("set_node") or "").strip()
 
-    header_cols = st.columns([2.2, 1.4, 1.4, 3.0])
-    header_cols[0].markdown(f"**Name**: `{name}`")
-    header_cols[1].markdown(f"**Action**: `{action}`")
-    header_cols[2].markdown(f"**Region**: `{rule.get('region')}`")
-    header_cols[3].markdown(f"**Flow**: `{rule.get('node', '')}` → `{rule.get('set_node', '')}`")
+    # Compact header (less vertical noise than 4 columns).
+    st.markdown(f"**`{name}`** · action `{action}`" + (f" · region `{region}`" if region else ""))
+    if node or set_node:
+        st.caption(f"flow: `{node or '∅'}` → `{set_node or '∅'}`")
 
     meta = {
         "threshold": rule.get("threshold"),
@@ -120,7 +123,10 @@ def _render_rule(rule: dict[str, Any], *, regions_idx: dict[str, RegionRef]) -> 
     }
     meta = {k: v for k, v in meta.items() if v is not None}
     if meta:
-        st.code(yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+        stoggle(
+            "Meta",
+            yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip(),
+        )
 
     regs = _rule_regions(rule)
     if regs:
@@ -134,12 +140,17 @@ def _render_rule(rule: dict[str, Any], *, regions_idx: dict[str, RegionRef]) -> 
                 ocr = ref.ocr or "(no ocr)"
                 st.markdown(f"- `{nm}` · screen `{scr}` · ocr `{ocr}`")
                 if ref.bbox:
-                    st.code(yaml.safe_dump(ref.bbox, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+                    stoggle(
+                        f"bbox: {nm}",
+                        yaml.safe_dump(ref.bbox, allow_unicode=True, sort_keys=False).strip(),
+                    )
 
     pu = rule.get("pushUsecase")
     if isinstance(pu, list) and pu:
-        st.markdown("**pushUsecase**")
-        st.code(yaml.safe_dump(pu, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+        stoggle(
+            "pushUsecase",
+            yaml.safe_dump(pu, allow_unicode=True, sort_keys=False).strip(),
+        )
 
     extra_keys = [
         "search_region",
@@ -153,8 +164,10 @@ def _render_rule(rule: dict[str, Any], *, regions_idx: dict[str, RegionRef]) -> 
     ]
     extras = {k: rule.get(k) for k in extra_keys if rule.get(k) is not None}
     if extras:
-        st.caption("Details")
-        st.code(yaml.safe_dump(extras, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+        stoggle(
+            "Details",
+            yaml.safe_dump(extras, allow_unicode=True, sort_keys=False).strip(),
+        )
 
 
 st.title("Wiki · Analyze")
@@ -172,10 +185,11 @@ if not overlay_rules:
     st.warning(f"No `overlay` rules loaded from `{analyze_path}`.")
     st.stop()
 
-with st.expander("Sources", expanded=False):
-    if loaded_files:
-        for p in loaded_files:
-            st.markdown(f"- `{p.relative_to(repo_root).as_posix()}`")
+if loaded_files:
+    stoggle(
+        "Sources",
+        "\n".join(f"- `{p.relative_to(repo_root).as_posix()}`" for p in loaded_files),
+    )
 
 q = st.text_input("Filter (name/action/region contains)", value="", key="wiki_analyze_filter").strip().lower()
 

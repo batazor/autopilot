@@ -205,23 +205,4 @@ with col_left:
                         st.text(f"{ts}  →  {entry['state']}")
 
 with col_right:
-    c1, c2 = st.columns([1, 1])
-    with c1:
-        if st.button("Обновить скриншот", type="primary", use_container_width=True):
-            with st.spinner("ADB screencap…"):
-                _png, rel, err = capture_rolling_live_preview_adb(
-                    inst_cfg,
-                    adb_bin=get_ui_adb_bin(),
-                )
-            if err:
-                st.error(f"Не удалось обновить скриншот (`{rel}`): {err}")
-            else:
-                # Invalidate cache for this instance so the next fragment tick reads the new bytes.
-                cache: dict = st.session_state.get(_PREVIEW_CACHE_KEY, {})
-                if isinstance(cache, dict):
-                    cache.pop(instance_id, None)
-                st.success(f"Скриншот обновлён: `{rel}`")
-                st.rerun()
-    with c2:
-        st.caption("Перезаписывает rolling preview в `references/temporal/`.")
     _reference_preview_fragment(instance_id)

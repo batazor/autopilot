@@ -100,7 +100,7 @@ _DEVICES_HELP = (
 )
 
 # Column weights: data + compact icon actions
-_TABLE_COLS = [2.0, 0.6, 1.25, 1.25, 2.15, 1.25, 0.5, 0.48]
+_TABLE_COLS = [2.0, 0.8, 1.25, 1.25, 2.15, 1.25, 0.7, 0.7]
 
 
 @st.fragment(run_every=timedelta(seconds=2))
@@ -143,7 +143,7 @@ def _dashboard() -> None:
     )
 
     if settings.instances:
-        hdr = st.columns(_TABLE_COLS)
+        hdr = st.columns(_TABLE_COLS, vertical_alignment="center")
         hdr[0].markdown("**Device**")
         hdr[1].markdown("**Status**")
         hdr[2].markdown("**Player**")
@@ -162,20 +162,20 @@ def _dashboard() -> None:
             task_c = _task_cell(row)
             paused = row.get("paused") == "1"
 
-            r = st.columns(_TABLE_COLS)
-            r[0].markdown(inst.instance_id)
-            r[1].markdown(status_cell)
-            r[2].markdown(active)
-            r[3].markdown(node)
-            r[4].markdown(task_c)
-            r[5].markdown(session_uptime)
+            r = st.columns(_TABLE_COLS, vertical_alignment="center")
+            r[0].code(inst.instance_id, language=None)
+            r[1].write(status_cell)
+            r[2].write(active)
+            r[3].write(node)
+            r[4].write(task_c)
+            r[5].write(session_uptime)
             with r[6]:
                 if paused:
                     if st.button(
                         "▶",
                         key=f"ov-resume-{inst.instance_id}",
                         help="Resume this instance worker (starts dequeuing tasks again).",
-                        width="stretch",
+                        use_container_width=True,
                     ):
                         push_instance_command(client, inst.instance_id, {"cmd": "resume"})
                         st.session_state.overview_feedback = f"`{inst.instance_id}`: resume sent to worker."
@@ -185,7 +185,7 @@ def _dashboard() -> None:
                         "⏸",
                         key=f"ov-pause-{inst.instance_id}",
                         help="Pause this instance worker (stops dequeuing tasks until resumed).",
-                        width="stretch",
+                        use_container_width=True,
                     ):
                         push_instance_command(client, inst.instance_id, {"cmd": "pause"})
                         st.session_state.overview_feedback = f"`{inst.instance_id}`: pause sent to worker."
@@ -199,7 +199,7 @@ def _dashboard() -> None:
                         "Instance — screenshots, queue commands, FSM history "
                         f"for `{inst.instance_id}`."
                     ),
-                    width="stretch",
+                    use_container_width=True,
                 )
 
         st.divider()

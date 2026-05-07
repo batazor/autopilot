@@ -9,6 +9,7 @@ from typing import Any
 import streamlit as st
 import yaml
 from PIL import Image, ImageDraw, ImageFont
+from streamlit_extras.stoggle import stoggle
 
 
 def _repo_root() -> Path:
@@ -273,10 +274,15 @@ def _render_story_steps(*, steps: Any, repo_root: Path, regions_idx: dict[str, R
             params = step.get("params")
             cond = step.get("conditions")
             if isinstance(params, dict) and params:
-                st.code(yaml.safe_dump(params, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+                stoggle(
+                    "Params",
+                    yaml.safe_dump(params, allow_unicode=True, sort_keys=False).strip(),
+                )
             if isinstance(cond, list) and cond:
-                st.caption("Conditions")
-                st.code(yaml.safe_dump(cond, allow_unicode=True, sort_keys=False).strip(), language="yaml")
+                stoggle(
+                    "Conditions",
+                    yaml.safe_dump(cond, allow_unicode=True, sort_keys=False).strip(),
+                )
             continue
 
         # Fallback for unknown step shapes

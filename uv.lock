@@ -1005,6 +1005,19 @@ wheels = [
 ]
 
 [[package]]
+name = "plotly"
+version = "6.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "narwhals" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3a/7f/0f100df1172aadf88a929a9dbb902656b0880ba4b960fe5224867159d8f4/plotly-6.7.0.tar.gz", hash = "sha256:45eea0ff27e2a23ccd62776f77eb43aa1ca03df4192b76036e380bb479b892c6", size = 6911286, upload-time = "2026-04-09T20:36:45.738Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/90/ad/cba91b3bcf04073e4d1655a5c1710ef3f457f56f7d1b79dcc3d72f4dd912/plotly-6.7.0-py3-none-any.whl", hash = "sha256:ac8aca1c25c663a59b5b9140a549264a5badde2e057d79b8c772ae2920e32ff0", size = 9898444, upload-time = "2026-04-09T20:36:39.812Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1830,6 +1843,19 @@ wheels = [
 ]
 
 [[package]]
+name = "streamlit-extras"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "plotly" },
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3c/aa/140b13f426c1f373f91e6ff4a99160596c36c1e12d83f890abc36a82566c/streamlit_extras-1.5.0.tar.gz", hash = "sha256:6647ceeeda580cbc0d0d1515e46ad9b03dc59ff19871876949bf9616ded9f5a0", size = 389970, upload-time = "2026-04-21T14:46:14.735Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/58/8e/c47bc018930338d697989acb5cb36ee4fbb66fa1e3386b1c2b95dd4ec09b/streamlit_extras-1.5.0-py3-none-any.whl", hash = "sha256:1879ac1f5b4e65dbd8fed332b4a5248acaa482c0427d4cbb50848bdf39cec0c2", size = 983226, upload-time = "2026-04-21T14:46:16.426Z" },
+]
+
+[[package]]
 name = "streamlit-react-flow"
 version = "0.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -2153,6 +2179,7 @@ dependencies = [
     { name = "streamlit" },
     { name = "streamlit-autorefresh" },
     { name = "streamlit-drawable-canvas" },
+    { name = "streamlit-extras" },
     { name = "streamlit-react-flow" },
     { name = "tenacity" },
     { name = "transitions" },
@@ -2218,6 +2245,7 @@ requires-dist = [
     { name = "streamlit-drawable-canvas", specifier = ">=0.9.3" },
     { name = "streamlit-drawable-canvas", marker = "extra == 'annotator'", specifier = ">=0.9.3" },
     { name = "streamlit-drawable-canvas", marker = "extra == 'ui'", specifier = ">=0.9.3" },
+    { name = "streamlit-extras", specifier = ">=1.5.0" },
     { name = "streamlit-react-flow", specifier = ">=0.0.3" },
     { name = "streamlit-react-flow", marker = "extra == 'ui'", specifier = ">=0.0.3" },
     { name = "tenacity", specifier = ">=8.3" },
