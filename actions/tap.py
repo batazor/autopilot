@@ -30,8 +30,19 @@ logger = logging.getLogger(__name__)
 _GAME_PACKAGE = "com.gof.global"
 
 _redis_client: redis.Redis | None = None
-_APPROVAL_WAIT_SECONDS = 60.0
 _APPROVAL_POLL_SECONDS = 0.2
+# Approval mode: there is intentionally NO non-decision exit from the wait
+# loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
+# always the operator's. The trade-off: closing the approvals page WILL hang
+# the worker on this task until the page is reopened and a decision is given.
+#
+# How long we wait for the per-instance ``current`` slot to free up before
+# giving up (only relevant if a previous request is still in flight on the
+# same instance). Independent from the operator's review time.
+_APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
+# Redis TTL for the published ``current`` key. Refreshed every iteration so
+# the request never expires while the worker is still polling for a decision.
+_APPROVAL_CURRENT_TTL_SECONDS = 600
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
 
 
@@ -102,9 +113,18 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 "current_task_player": (raw.get("current_task_player") or "").strip(),
                 "current_task_region": task_region,
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
+                "current_task_score": (raw.get("current_task_score") or "").strip(),
                 # YAML scenario key while a `DslScenarioTask` is running.
                 "scenario": (raw.get("current_scenario") or "").strip(),
             }
+            if not ctx["current_task_threshold"]:
+                fb = (raw.get("last_overlay_match_threshold") or "").strip()
+                if fb:
+                    ctx["current_task_threshold"] = fb
+            if not ctx["current_task_score"]:
+                fb = (raw.get("last_overlay_match_score") or "").strip()
+                if fb:
+                    ctx["current_task_score"] = fb
     except Exception:
         ctx = {}
 
@@ -140,19 +160,39 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     )
 
     _redis().delete(resp_key)
-    deadline = time.time() + _APPROVAL_WAIT_SECONDS
-    while time.time() < deadline:
-        if _redis().set(current_key, json.dumps(p), ex=120, nx=True):
+    started_at = time.time()
+    # Phase 1: try to publish the request into the per-instance "current" slot.
+    # ``nx=True`` so we never overwrite an in-flight approval for this instance.
+    # This is bounded ONLY by ``_APPROVAL_PUBLISH_WAIT_SECONDS`` because it is
+    # not waiting on the operator — only on the previous request to clear.
+    publish_deadline = started_at + _APPROVAL_PUBLISH_WAIT_SECONDS
+    while time.time() < publish_deadline:
+        if _redis().set(
+            current_key,
+            json.dumps(p),
+            ex=_APPROVAL_CURRENT_TTL_SECONDS,
+            nx=True,
+        ):
             break
         time.sleep(_APPROVAL_POLL_SECONDS)
     else:
         logger.info("ADB input blocked: approval slot busy for %s", instance_id)
         return False, None
 
-    # Poll ``response_key`` first so the UI can delete ``current`` immediately after
-    # posting approve/reject (clears preview) without being misread as reject here.
+    # Phase 2: wait for an operator decision. There is NO wall-clock timeout
+    # AND NO heartbeat-loss abort — the decision is always the operator's.
+    # The loop only exits when:
+    #   - ``response_key`` is set to "approve" / "reject" by the UI;
+    #   - a foreign request_id has taken over the slot (treated as rejected,
+    #     since the slot can only be reused by another request after this
+    #     ``current`` key has been explicitly cleared or has expired).
+    #
+    # The UI deletes ``current`` immediately after writing the response so the
+    # preview clears; we therefore check ``response_key`` BEFORE inferring
+    # "reject" from a foreign / missing ``current`` payload.
     decision: str | None = None
-    while time.time() < deadline:
+    abort_reason: str = ""
+    while True:
         raw_resp = _redis().get(resp_key)
         if raw_resp:
             decision = str(raw_resp).strip().lower()
@@ -161,9 +201,18 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             raw_cur = _redis().get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") != req_id:
                 decision = "reject"
+                abort_reason = "foreign_request"
                 break
         except Exception:
             logger.debug("Failed to read current approval request", exc_info=True)
+
+        # Refresh TTL unconditionally so the request never silently expires —
+        # we are committed to waiting for an operator decision, however long.
+        try:
+            _redis().expire(current_key, _APPROVAL_CURRENT_TTL_SECONDS)
+        except Exception:
+            logger.debug("Failed to refresh current_key TTL", exc_info=True)
+
         time.sleep(_APPROVAL_POLL_SECONDS)
 
     if decision in {"approve", "reject"}:
@@ -177,7 +226,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                     doc["approved_at"] = time.time() if decision == "approve" else None
                     doc["rejected_at"] = time.time() if decision == "reject" else None
                     doc["status"] = "approved" if decision == "approve" else "rejected"
-                    _redis().set(current_key, json.dumps(doc), ex=120)
+                    _redis().set(
+                        current_key,
+                        json.dumps(doc),
+                        ex=_APPROVAL_CURRENT_TTL_SECONDS,
+                    )
         except Exception:
             logger.debug("Failed to mark decision timestamps", exc_info=True)
 

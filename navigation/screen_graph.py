@@ -85,7 +85,7 @@ def bfs_route(src: str, dst: str) -> list[str] | None:
     return None
 
 
-def route_taps(src: str, dst: str) -> list[list[Point]] | None:
+def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
     """BFS path from *src* to *dst* resolved to per-hop tap sequences.
 
     Returns ``None`` when no path exists in the tap-action graph
@@ -95,8 +95,8 @@ def route_taps(src: str, dst: str) -> list[list[Point]] | None:
     path = bfs_route(src, dst)
     if path is None:
         return None
-    result: list[list[Point]] = []
-    for a, b in zip(path, path[1:]):
+    result: list[list[Tap]] = []
+    for a, b in zip(path, path[1:], strict=False):
         taps = EDGE_TAPS.get((a, b))
         if taps is None:
             return None

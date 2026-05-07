@@ -85,14 +85,15 @@ def evaluate_overlay_rules(
     """Sync wrapper kept for tests and non-async callers."""
     try:
         loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop: safe to asyncio.run
+        pass
+    else:
         if loop.is_running():
             raise RuntimeError(
                 "evaluate_overlay_rules() called from an event loop; "
                 "use await evaluate_overlay_rules_async(...) instead."
             )
-    except RuntimeError:
-        # No running loop: safe to asyncio.run
-        pass
 
     return asyncio.run(
         evaluate_overlay_rules_async(
@@ -116,4 +117,3 @@ __all__ = [
     "run_overlay_analysis_sync",
     "_apply_min_saturation_gate",
 ]
-

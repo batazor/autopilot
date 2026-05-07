@@ -49,7 +49,7 @@ overlay:
   search_region: hand_pointer_search
   action: findIcon
   priority: 60000
-  threshold: 0.92
+  threshold: 0.98
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer

@@ -1,11 +1,25 @@
 from __future__ import annotations
 
 import logging
+import math
 import time
 import uuid
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _overlay_metric_float(value: object) -> float | None:
+    """Coerce overlay ``score`` / ``threshold`` for queue + Redis (reject NaN/inf)."""
+    if value is None:
+        return None
+    try:
+        x = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(x):
+        return None
+    return x
 
 
 class InstanceWorkerOverlayMixin:
@@ -48,6 +62,26 @@ class InstanceWorkerOverlayMixin:
         if self._queue is None:
             return
 
+        reg_snap = str(payload.get("region") or "").strip() or None
+        threshold_snap = _overlay_metric_float(payload.get("threshold"))
+        score_snap = _overlay_metric_float(payload.get("score"))
+        if self._redis is not None:
+            try:
+                snap: dict[str, str] = {}
+                if reg_snap:
+                    snap["last_overlay_match_region"] = reg_snap
+                if threshold_snap is not None:
+                    snap["last_overlay_match_threshold"] = f"{threshold_snap:.6g}"
+                if score_snap is not None:
+                    snap["last_overlay_match_score"] = f"{score_snap:.6g}"
+                if snap:
+                    await self._redis.hset(
+                        f"wos:instance:{self._cfg.instance_id}:state",
+                        mapping=snap,
+                    )
+            except Exception:
+                logger.debug("overlay enqueue: Redis snapshot failed", exc_info=True)
+
         pu = payload.get("pushScenario")
         if not isinstance(pu, list):
             # Backward compat
@@ -63,6 +97,10 @@ class InstanceWorkerOverlayMixin:
                 pr_raw = item.get("priority")
                 pr = int(pr_raw) if pr_raw is not None else 80_000
 
+                reg_nm = reg_snap
+                threshold = threshold_snap
+                score = score_snap
+
                 await self._queue.schedule(
                     task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",
                     player_id=player_id,
@@ -70,6 +108,9 @@ class InstanceWorkerOverlayMixin:
                     priority=pr,
                     run_at=run_at,
                     instance_id=self._cfg.instance_id,
+                    region=reg_nm,
+                    threshold=threshold,
+                    score=score,
                     skip_if_duplicate=True,
                 )
             return
@@ -79,6 +120,10 @@ class InstanceWorkerOverlayMixin:
             return
         pr_raw = payload.get("push_task_priority")
         pr = int(pr_raw) if pr_raw is not None else 80_000
+        reg_nm = reg_snap
+        threshold = threshold_snap
+        score = score_snap
+
         await self._queue.schedule(
             task_id=f"ovl:{self._cfg.instance_id}:{push_t}:{uuid.uuid4().hex[:8]}",
             player_id=player_id,
@@ -86,6 +131,9 @@ class InstanceWorkerOverlayMixin:
             priority=pr,
             run_at=run_at,
             instance_id=self._cfg.instance_id,
+            region=reg_nm,
+            threshold=threshold,
+            score=score,
             skip_if_duplicate=True,
         )
 

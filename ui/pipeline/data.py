@@ -55,13 +55,38 @@ def mtimes(
     )
 
 
+def pipeline_overlay_cache_key(instance_id: str, current_screen: str | None) -> tuple[str, str]:
+    """Cache bucket for rolling-overlay analysis (instance + FSM screen)."""
+    sk = (current_screen or "").strip()
+    return (instance_id, sk)
+
+
+def clear_pipeline_overlay_cache_entries(instance_id: str) -> None:
+    """Drop cached overlay rows for *instance_id* (all ``current_screen`` variants)."""
+    cache = st.session_state.get(PIPELINE_OVERLAY_CACHE)
+    if not isinstance(cache, dict):
+        return
+    for k in list(cache.keys()):
+        if k == instance_id:
+            cache.pop(k, None)
+        elif isinstance(k, tuple) and len(k) >= 1 and k[0] == instance_id:
+            cache.pop(k, None)
+
+
 def get_or_build_pipeline_cache(
-    instance_id: str, *, repo_root: Path, area_path: Path, analyze_path: Path
+    instance_id: str,
+    *,
+    repo_root: Path,
+    area_path: Path,
+    analyze_path: Path,
+    current_screen: str | None = None,
 ) -> tuple[dict[str, Any] | None, bool]:
     """Return analysis data for *instance_id*, rebuilding only when a source file changes.
 
-    Caches in st.session_state[PIPELINE_OVERLAY_CACHE] keyed by instance_id.
-    Invalidated when the rolling PNG, area.json, or analyze.yaml mtime changes.
+    Caches in st.session_state[PIPELINE_OVERLAY_CACHE] keyed by ``(instance_id, current_screen)``.
+    Invalidated when the rolling PNG, area.json, analyze.yaml mtime, **or** ``current_screen``
+    changes — rules with YAML ``node`` / ``screens`` depend on Redis ``current_screen``
+    (same as ``worker/instance_worker.py``).
     """
     preview_mtime, area_mtime, analyze_mtime = mtimes(
         instance_id, repo_root=repo_root, area_path=area_path, analyze_path=analyze_path
@@ -69,8 +94,11 @@ def get_or_build_pipeline_cache(
     if preview_mtime is None:
         return None, False
 
+    screen_key = (current_screen or "").strip()
+    overlay_ck = pipeline_overlay_cache_key(instance_id, current_screen)
+
     cache: dict = st.session_state.setdefault(PIPELINE_OVERLAY_CACHE, {})
-    entry = cache.get(instance_id)
+    entry = cache.get(overlay_ck)
     nonce = force_nonce()
 
     if (
@@ -78,6 +106,7 @@ def get_or_build_pipeline_cache(
         and entry["preview_mtime"] == preview_mtime
         and entry["area_mtime"] == area_mtime
         and entry["analyze_mtime"] == analyze_mtime
+        and entry.get("current_screen", "") == screen_key
         and entry.get("nonce", 0) == nonce
     ):
         return entry, False
@@ -86,7 +115,11 @@ def get_or_build_pipeline_cache(
     if image_bgr is None:
         return None, True
 
-    results = run_overlay_analysis_sync(image_bgr, repo_root=repo_root)
+    results = run_overlay_analysis_sync(
+        image_bgr,
+        repo_root=repo_root,
+        current_screen=screen_key or None,
+    )
 
     area_doc: dict = {}
     if area_path.is_file():
@@ -121,6 +154,7 @@ def get_or_build_pipeline_cache(
         "area_mtime": area_mtime,
         "analyze_mtime": analyze_mtime,
         "nonce": nonce,
+        "current_screen": screen_key,
         "image_bgr": image_bgr,
         "results": results,
         "area_doc": area_doc,
@@ -128,6 +162,6 @@ def get_or_build_pipeline_cache(
         "rule_search": rule_search,
         "rule_node": rule_node,
     }
-    cache[instance_id] = entry
+    cache[overlay_ck] = entry
     return entry, True
 

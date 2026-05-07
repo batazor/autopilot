@@ -262,18 +262,33 @@ class DslScenarioTask:
             if "click" in step:
                 reg = str(step.get("click") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
-                # For click approvals / UI highlighting: always expose the target region.
+                pair = screen_region_by_name(area_doc, reg) if reg else None
+                # For click approvals: expose region + optional threshold (overlay queue may
+                # already set ``current_task_threshold``; do not overwrite).
                 if reg and self.redis_client is not None:
                     try:
-                        await self.redis_client.hset(
-                            f"wos:instance:{instance_id}:state",
-                            "current_task_region",
-                            reg,
-                        )
+                        st_key = f"wos:instance:{instance_id}:state"
+                        mapping: dict[str, str] = {"current_task_region": reg}
+                        if pair is not None:
+                            raw_thr = pair[1].get("threshold")
+                            thr_txt = ""
+                            if isinstance(raw_thr, (int, float)):
+                                thr_txt = f"{float(raw_thr):.6g}"
+                            elif isinstance(raw_thr, str) and str(raw_thr).strip():
+                                thr_txt = str(raw_thr).strip()
+                            if thr_txt:
+                                prev = await self.redis_client.hget(st_key, "current_task_threshold")
+                                prev_s = (
+                                    prev.decode()
+                                    if isinstance(prev, bytes)
+                                    else str(prev or "")
+                                ).strip()
+                                if not prev_s:
+                                    mapping["current_task_threshold"] = thr_txt
+                        await self.redis_client.hset(st_key, mapping=mapping)
                     except Exception:
                         pass
                 if reg:
-                    pair = screen_region_by_name(area_doc, reg)
                     if pair is None or not isinstance(pair[1].get("bbox"), dict):
                         logger.warning("dsl_scenario: region not found in area.json: %s", reg)
                     else:

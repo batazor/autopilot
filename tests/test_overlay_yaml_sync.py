@@ -49,7 +49,6 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
                 "region": "old",
                 "action": "findIcon",
                 "search_region": "old_search",
-                "tap_offset_from_match": True,
                 "threshold": 0.88,
             }
         ]
@@ -62,6 +61,5 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
     rule = doc["overlay"][0]
     assert rule["region"] == "new"
     assert rule["search_region"] == "new_search"
-    assert rule["tap_offset_from_match"] is True
 
     assert rename_findicon_overlay_primary(tmp_path, "nope", "x") is False

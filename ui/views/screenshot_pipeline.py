@@ -9,20 +9,22 @@ from typing import Any
 import cv2
 import numpy as np
 import streamlit as st
-import yaml
 
 from analysis.overlay import load_analyze_yaml
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
-from ui.keys import PIPELINE_OVERLAY_CACHE
-from ui.pipeline.data import force_nonce, get_or_build_pipeline_cache
+from ui.pipeline.data import (
+    clear_pipeline_overlay_cache_entries,
+    force_nonce,
+    get_or_build_pipeline_cache,
+)
 from ui.pipeline.overlay_viz import (
     annotate_overlay_debug,
     maybe_downscale_for_ui,
     region_area_action,
 )
-from ui.reference_preview import rolling_live_preview_path
 from ui.redis_client import get_instance_state, require_redis_connection
+from ui.reference_preview import rolling_live_preview_path
 
 _REPO = Path(__file__).resolve().parents[2]
 _ANALYZE = default_analyze_yaml_path(_REPO)
@@ -52,9 +54,7 @@ def _live_overlay_status_body() -> None:
         if st.button("Refresh now", width="stretch", key="pipeline_overlay_refresh_now"):
             st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
             # Ensure we don't keep stale computed images/results around.
-            cache: dict = st.session_state.get(PIPELINE_OVERLAY_CACHE, {})
-            if isinstance(cache, dict):
-                cache.pop(instance_id, None)
+            clear_pipeline_overlay_cache_entries(instance_id)
             st.rerun()
     with c2:
         st.caption("Forces overlay re-run even if mtimes didn't change.")
@@ -87,7 +87,11 @@ def _live_overlay_status_body() -> None:
         st.caption(f"current_screen: `{current_screen or '—'}`")
 
     data, rebuilt = get_or_build_pipeline_cache(
-        instance_id, repo_root=_REPO, area_path=_AREA, analyze_path=_ANALYZE
+        instance_id,
+        repo_root=_REPO,
+        area_path=_AREA,
+        analyze_path=_ANALYZE,
+        current_screen=current_screen or None,
     )
     if rebuilt:
         # Only show the "loading" UI when we actually rebuilt.
@@ -122,9 +126,8 @@ def _live_overlay_status_body() -> None:
             continue
         # Filter by current page (`node`) when requested.
         node = str(rule_node.get(logical, "") or "").strip()
-        if only_current_page and current_screen:
-            if node and node != current_screen:
-                continue
+        if only_current_page and current_screen and node and node != current_screen:
+            continue
         region_name = str(payload.get("region") or "").strip()
         area_action = region_area_action(area_doc, region_name)
         if only_exist and area_action != "exist":
@@ -310,8 +313,7 @@ st.markdown(
 3. **Overlay** → `run_overlay_analysis` reads the ordered **`overlay`** list in
    `analyze/analyze.yaml`; for `findIcon`, template from `references/crop/` and regions from
    `area.json` (optional **`search_region`**: sliding `matchTemplate` in a larger ROI).
-4. **Queue taps** → matched rules schedule `overlay_tap` (dedup per region).
-   Tap: **`tap_offset_from_match`** = match + labeled delta; else match.
+4. **Queue scenarios** → matched rules may schedule DSL scenarios via `pushScenario`.
 """
 )
 

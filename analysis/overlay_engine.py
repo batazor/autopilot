@@ -7,8 +7,15 @@ from typing import Any
 import cv2
 import numpy as np
 
+from analysis.overlay_rules import (
+    optional_expected_texts,
+    optional_fuzzy_threshold,
+    optional_min_match_saturation,
+    optional_priority,
+    optional_push_scenario_tasks,
+    optional_ttl_seconds,
+)
 from layout.area_lookup import screen_region_by_name
-from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.crop_paths import exported_crop_png
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
@@ -19,16 +26,6 @@ from layout.template_match import (
 from layout.types import Region
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
-
-from analysis.overlay_rules import (
-    centers_delta_pct_between_regions,
-    optional_expected_texts,
-    optional_fuzzy_threshold,
-    optional_min_match_saturation,
-    optional_priority,
-    optional_push_scenario_tasks,
-    optional_ttl_seconds,
-)
 
 
 def _apply_min_saturation_gate(
@@ -176,18 +173,8 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
-            tap_offset_from_match = bool(rule.get("tap_offset_from_match"))
-            tap_delta_pct: tuple[float, float] | None = None
             min_sat = optional_min_match_saturation(rule)
             push_tasks = optional_push_scenario_tasks(rule)
-
-            if tap_offset_from_match:
-                out[logical_name] = {
-                    "matched": False,
-                    "reason": "tap_offset_from_match_not_supported",
-                    "region": region_name,
-                }
-                continue
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
@@ -266,11 +253,6 @@ async def evaluate_overlay_rules_async(
                         hit["mean_saturation"] = mean_sat
                     if sat_fail:
                         hit["reason"] = sat_fail
-                    if tap_delta_pct is not None:
-                        hit["tap_delta_x_pct"] = tap_delta_pct[0]
-                        hit["tap_delta_y_pct"] = tap_delta_pct[1]
-                        hit["tap_match_x_pct"] = mx_pct
-                        hit["tap_match_y_pct"] = my_pct
                     out[logical_name] = hit
                     continue
 
@@ -324,14 +306,6 @@ async def evaluate_overlay_rules_async(
                 hit1["mean_saturation"] = mean_sat_1
             if sat_fail_1:
                 hit1["reason"] = sat_fail_1
-            if tap_delta_pct is not None:
-                ddx, ddy = tap_delta_pct
-                hit1["tap_x_pct"] = mx_pct + ddx
-                hit1["tap_y_pct"] = my_pct + ddy
-                hit1["tap_delta_x_pct"] = ddx
-                hit1["tap_delta_y_pct"] = ddy
-                hit1["tap_match_x_pct"] = mx_pct
-                hit1["tap_match_y_pct"] = my_pct
             out[logical_name] = hit1
             continue
 
@@ -406,4 +380,3 @@ async def evaluate_overlay_rules_async(
         out[logical_name] = {"matched": False, "reason": "unsupported_action", "action": action}
 
     return out
-

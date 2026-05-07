@@ -95,7 +95,10 @@ class RedisQueue:
         if threshold is not None:
             body["threshold"] = float(threshold)
         if score is not None:
-            body["score"] = float(score)
+            fs = float(score)
+            body["score"] = fs
+            # Alias: some payloads/tools only preserved one key; pop_due prefers this first.
+            body["overlay_match_score"] = fs
         if set_node is not None and str(set_node).strip() != "":
             body["set_node"] = str(set_node).strip()
         if dsl_scenario is not None and str(dsl_scenario).strip() != "":
@@ -209,7 +212,9 @@ class RedisQueue:
         tap_y_pct = float(tap_y) if tap_y is not None else None
         thr = data.get("threshold")
         threshold = float(thr) if thr is not None else None
-        sc = data.get("score")
+        sc = data.get("overlay_match_score")
+        if sc is None:
+            sc = data.get("score")
         score = float(sc) if sc is not None else None
         sn = data.get("set_node")
         set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
@@ -246,7 +251,9 @@ class RedisQueue:
             tap_y_pct = float(tap_y) if tap_y is not None else None
             thr = data.get("threshold")
             threshold = float(thr) if thr is not None else None
-            sc = data.get("score")
+            sc = data.get("overlay_match_score")
+            if sc is None:
+                sc = data.get("score")
             score = float(sc) if sc is not None else None
             sn = data.get("set_node")
             set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
