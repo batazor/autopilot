@@ -20,7 +20,6 @@ class ScreenName(StrEnum):
     TRAINING = "training"
     GATHERING = "gathering"
     ALLIANCE = "alliance"
-    ACCOUNT_SWITCHER = "account_switcher"
     CHIEF_PROFILE = "chief_profile"
     UNKNOWN = "unknown"
 
@@ -40,9 +39,6 @@ _SCREEN_LANDMARKS: dict[ScreenName, list[tuple[object, list[str]]]] = {
     ],
     ScreenName.ALLIANCE: [
         (screens.ALLIANCE.title_region, ["alliance", "guild", "member"]),
-    ],
-    ScreenName.ACCOUNT_SWITCHER: [
-        (screens.ACCOUNT_SWITCHER.title_region, ["account", "switch", "player"]),
     ],
     ScreenName.CHIEF_PROFILE: [
         # OCR keywords are weak here; prefer overlay icon match. Still useful as a hint.

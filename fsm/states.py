@@ -9,7 +9,6 @@ class PlayerState(StrEnum):
     EXECUTING = "executing"
     RECOVERING = "recovering"
     GAME_CLOSED = "game_closed"
-    SWITCHING = "switching"
 
 
 class InstanceState(StrEnum):
@@ -23,14 +22,11 @@ PLAYER_TRANSITIONS: list[dict[str, object]] = [
     {"trigger": "start_navigate", "source": PlayerState.IDLE, "dest": PlayerState.NAVIGATING},
     {"trigger": "start_execute", "source": PlayerState.NAVIGATING, "dest": PlayerState.EXECUTING},
     {"trigger": "finish", "source": PlayerState.EXECUTING, "dest": PlayerState.IDLE},
-    {"trigger": "switch_account", "source": PlayerState.IDLE, "dest": PlayerState.SWITCHING},
-    {"trigger": "switched", "source": PlayerState.SWITCHING, "dest": PlayerState.IDLE},
     {
         "trigger": "recover",
         "source": [
             PlayerState.NAVIGATING,
             PlayerState.EXECUTING,
-            PlayerState.SWITCHING,
         ],
         "dest": PlayerState.RECOVERING,
     },

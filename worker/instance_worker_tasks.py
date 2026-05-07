@@ -7,6 +7,7 @@ from typing import Any
 from fsm.states import InstanceState
 from scheduler.queue import QueueItem
 from tasks.base import BaseTask, TaskResult
+from tasks.dsl_scenario import DslScenarioTask
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +39,18 @@ class InstanceWorkerTasksMixin:
 
         state_key = f"wos:instance:{self._cfg.instance_id}:state"
         await self._set_instance_state(InstanceState.BUSY)
+        # Which YAML is running (queue key == scenario stem for `DslScenarioTask`). Ad-skip taps
+        # happen before `execute()` but are still "under" this job — show it in click approvals.
+        scenario_for_job = ""
+        if isinstance(task, DslScenarioTask):
+            scenario_for_job = str(task.scenario_key or item.task_type or "").strip()
         await self._redis.hset(  # type: ignore[union-attr]
             state_key,
             mapping={
-                "current_task_type": item.task_type,
-                "current_task_id": item.task_id,
                 "current_task_player": item.player_id,
                 "current_task_started_at": str(time.time()),
                 "current_task_region": item.region or "",
-                "current_task_threshold": ("" if item.threshold is None else str(item.threshold)),
-                "current_task_score": ("" if item.score is None else str(item.score)),
+                "current_scenario": scenario_for_job,
             },
         )
         logger.info(
@@ -83,13 +86,10 @@ class InstanceWorkerTasksMixin:
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
                 mapping={
-                    "current_task_type": "",
-                    "current_task_id": "",
                     "current_task_player": "",
                     "current_task_started_at": "",
                     "current_task_region": "",
-                    "current_task_threshold": "",
-                    "current_task_score": "",
+                    "current_scenario": "",
                 },
             )
 

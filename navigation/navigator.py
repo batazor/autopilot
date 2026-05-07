@@ -86,10 +86,10 @@ class Navigator:
                 # If the project has a calibrated UI back button region, we try it first.
                 img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
-                if not self._tap_region_name(instance_id, "back_btn", dev_w=dev_w, dev_h=dev_h):
+                if not self._tap_region_name(instance_id, "back_button", dev_w=dev_w, dev_h=dev_h):
                     # No fallback: do not use Android keyevents; do not guess coordinates.
                     logger.warning(
-                        "Unknown screen and no back_btn region; taking no action on %s",
+                        "Unknown screen and no back_button region; taking no action on %s",
                         instance_id,
                     )
                 await asyncio.sleep(1.5)
@@ -106,13 +106,13 @@ class Navigator:
                 else:
                     # Last resort: blind back tap to escape current screen.
                     logger.warning(
-                        "No route %s → main_city on %s; using back_btn",
+                        "No route %s → main_city on %s; using back_button",
                         current,
                         instance_id,
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
-                    self._tap_region_name(instance_id, "back_btn", dev_w=dev_w2, dev_h=dev_h2)
+                    self._tap_region_name(instance_id, "back_button", dev_w=dev_w2, dev_h=dev_h2)
                     await asyncio.sleep(1.5)
                 continue
 

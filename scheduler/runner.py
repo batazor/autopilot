@@ -111,7 +111,11 @@ class SchedulerRunner:
             name = str(raw.get("name") or "").strip() or yml.stem
             when_current_screen = str(raw.get("when_current_screen") or "").strip().lower()
             scope = str(raw.get("scope") or "player").strip().lower()
-            if not expr or (not task_type and not node):
+            if not task_type:
+                # One file per cron job: default queue type is the YAML stem (e.g. `check_main_city.yaml`
+                # → `check_main_city`). Override with explicit `task:` when needed (e.g. `page_detect`).
+                task_type = yml.stem
+            if not expr or not task_type:
                 continue
             if not self._cron_due(expr, now):
                 continue
@@ -120,10 +124,6 @@ class SchedulerRunner:
             import re
 
             spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
-
-            # Default mapping: node -> "<node>_check"
-            if not task_type:
-                task_type = f"{node}_check"
             for inst in self._settings.instances:
                 if when_current_screen:
                     current_screen = await self._instance_current_screen(inst.instance_id)
@@ -273,21 +273,25 @@ class SchedulerRunner:
                     logger.exception("optimize_now failed")
 
     async def run(self) -> None:
-        await self._connect()
-        interval = self._settings.scheduler.interval_seconds
-        logger.info("Scheduler started, interval=%ds", interval)
+        try:
+            await self._connect()
+            interval = self._settings.scheduler.interval_seconds
+            logger.info("Scheduler started, interval=%ds", interval)
 
-        while True:
-            try:
-                await self._run_once()
-            except Exception:
-                logger.exception("Scheduler loop error")
+            while True:
+                try:
+                    await self._run_once()
+                except Exception:
+                    logger.exception("Scheduler loop error")
 
-            end = time.monotonic() + interval
-            while time.monotonic() < end:
-                await self._handle_scheduler_ui_commands()
-                remaining = end - time.monotonic()
-                await asyncio.sleep(min(0.5, remaining) if remaining > 0 else 0.0)
+                end = time.monotonic() + interval
+                while time.monotonic() < end:
+                    await self._handle_scheduler_ui_commands()
+                    remaining = end - time.monotonic()
+                    await asyncio.sleep(min(0.5, remaining) if remaining > 0 else 0.0)
+        finally:
+            # Lets the next SchedulerRunner start a fresh filesystem watch (avoids duplicate FSEvents).
+            self._scenario_loader.stop_watching()
 
 
 def main() -> None:

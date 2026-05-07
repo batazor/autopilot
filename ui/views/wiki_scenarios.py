@@ -254,6 +254,18 @@ def _render_story_steps(*, steps: Any, repo_root: Path, regions_idx: dict[str, R
             w = step.get("wait")
             st.markdown(f"**{idx}.** Wait `{w}`")
             continue
+        if "screenshot" in step:
+            ss = step.get("screenshot")
+            if isinstance(ss, str) and ss.strip():
+                st.markdown(
+                    f"**{idx}.** Screenshot (stem `{ss.strip()}`) → `references/temporal/`"
+                )
+            elif isinstance(ss, dict) and (ss.get("name") or ss.get("basename")):
+                cap = str(ss.get("name") or ss.get("basename") or "").strip()
+                st.markdown(f"**{idx}.** Screenshot (stem `{cap}`) → `references/temporal/`")
+            else:
+                st.markdown(f"**{idx}.** Screenshot → `references/temporal/`")
+            continue
 
         # Scheduler-style scenario (task steps)
         if "task" in step:

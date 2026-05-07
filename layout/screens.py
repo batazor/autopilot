@@ -58,17 +58,6 @@ class AllianceScreen:
     help_btn = Point(500, 900)
     back_btn = Point(30, 60)
 
-
-class AccountSwitcherScreen:
-    title_region = Region(100, 40, 520, 60)
-    account_list_region = Region(50, 150, 620, 900)
-    slot_1 = Point(360, 260)
-    slot_2 = Point(360, 450)
-    slot_3 = Point(360, 640)
-    current_marker_region = Region(580, 200, 80, 600)
-    back_btn = Point(30, 60)
-
-
 class ChiefProfileScreen:
     # Approximate title region (720×1280). Tune via OCR/labeling if needed.
     title_region = Region(80, 0, 360, 80)
@@ -80,5 +69,4 @@ ARENA = ArenaScreen()
 TRAINING = TrainingScreen()
 GATHERING = GatheringScreen()
 ALLIANCE = AllianceScreen()
-ACCOUNT_SWITCHER = AccountSwitcherScreen()
 CHIEF_PROFILE = ChiefProfileScreen()

@@ -31,7 +31,6 @@ client = require_redis_connection()
 
 _REPO = Path(__file__).resolve().parents[2]
 _AREA = _REPO / "area.json"
-_SCENARIOS = _REPO / "scenarios"
 
 inst_ids = [i.instance_id for i in settings.instances]
 if not inst_ids:
@@ -45,6 +44,8 @@ enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
 current_key = f"wos:ui:click_approval:current:{instance_id}"
 
 _PREVIEW_MAX_SIDE = 360
+# Thumbnails below main shot: keep each column narrower so the pair does not overflow.
+_REGION_CROP_MAX_SIDE = 220
 
 
 @st.cache_data(ttl=5)
@@ -95,27 +96,6 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
     right = max(left + 1, min(w, int((x + bw) / 100.0 * w)))
     bottom = max(top + 1, min(h, int((y + bh) / 100.0 * h)))
     return left, top, right, bottom
-
-
-def _detect_scenario_path_from_context(ctx: dict[str, object]) -> str | None:
-    """Best-effort: infer scenario YAML path from current task context."""
-    task_type = str(ctx.get("current_task_type") or "").strip()
-    if not task_type:
-        return None
-
-    # DSL scenarios: current convention is `scenarios/imperative_drafts/main_city/<task_type>.yaml`
-    cand = [
-        _SCENARIOS / "imperative_drafts" / "main_city" / f"{task_type}.yaml",
-        _SCENARIOS / "by_cron" / f"{task_type}.yaml",
-        _SCENARIOS / f"{task_type}.yaml",
-    ]
-    for p in cand:
-        try:
-            if p.is_file():
-                return p.relative_to(_REPO).as_posix()
-        except OSError:
-            continue
-    return None
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -176,38 +156,53 @@ def _render_preview_with_point(
         cv2.rectangle(overlay, (x0, y0), (x1, y1), (0, 220, 255), -1)
         cv2.addWeighted(overlay, 0.12, img, 0.88, 0.0, img)
 
-        # Double-stroke outline: black shadow + bright border.
-        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 0, 0), 5)
-        cv2.rectangle(img, (x0, y0), (x1, y1), (255, 255, 255), 3)
-        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 220, 255), 2)
+        # Slimmer outline (thick strokes looked messy after downscale).
+        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 0, 0), 2, lineType=cv2.LINE_AA)
+        cv2.rectangle(img, (x0, y0), (x1, y1), (255, 255, 255), 1, lineType=cv2.LINE_AA)
+        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 220, 255), 1, lineType=cv2.LINE_AA)
 
         if label:
             font = cv2.FONT_HERSHEY_SIMPLEX
-            text = str(label).strip()
-            if not text:
+            raw_t = str(label).strip()
+            if not raw_t:
                 return
-            (tw, th), base = cv2.getTextSize(text[:80], font, 0.5, 1)
-            pad = 4
-            bx0 = x0
-            by1 = max(0, y0 - 6)
-            by0 = max(0, by1 - (th + base + pad * 2))
-            bx1 = min(w, bx0 + tw + pad * 2)
-            # Background pill for readability.
-            cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 0, 0), -1)
-            cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 220, 255), 1)
+            text = raw_t if len(raw_t) <= 42 else raw_t[:39] + "…"
+            font_scale = 0.45
+            thickness = 1
+            (tw, th), base = cv2.getTextSize(text, font, font_scale, thickness)
+            pad = 3
+            gap = 5
+            lab_h = th + base + pad * 2
+            place_above = y0 >= lab_h + gap
+            if place_above:
+                by1 = y0 - gap
+                by0 = by1 - lab_h
+            else:
+                by0 = y1 + gap
+                by1 = by0 + lab_h
+            bx0 = int(x0)
+            bx1 = bx0 + tw + pad * 2
+            if bx1 > w:
+                bx0 = max(0, w - (tw + pad * 2))
+                bx1 = w
+            by0 = max(0, by0)
+            by1 = min(h, by1)
+            if by1 - by0 < lab_h:
+                by0 = max(0, by1 - lab_h)
+            cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 0, 0), -1, lineType=cv2.LINE_AA)
+            cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 220, 255), 1, lineType=cv2.LINE_AA)
             cv2.putText(
                 img,
-                text[:80],
+                text,
                 (bx0 + pad, by1 - pad - base),
                 font,
-                0.5,
+                font_scale,
                 (255, 255, 255),
-                1,
+                thickness,
                 cv2.LINE_AA,
             )
 
     # Draw the zone we "found" (when available) + its confidence/score.
-    # - For `tap_region`, the approval payload already contains pixel rect.
     # - For `overlay_tap`, we resolve `current_task_region` from context via `area.json`.
     if isinstance(payload, dict):
         # Draw swipe arrow when approving a swipe.
@@ -255,26 +250,12 @@ def _render_preview_with_point(
         ctx = payload.get("context")
         if isinstance(ctx, dict):
             reg_name = str(ctx.get("current_task_region") or "").strip()
-            task_type = str(ctx.get("current_task_type") or "").strip()
-            score_s = str(ctx.get("current_task_score") or "").strip()
-            thr_s = str(ctx.get("current_task_threshold") or "").strip()
-            if task_type == "overlay_tap" and reg_name:
+            if reg_name:
                 area_doc = _load_area_doc()
                 pair = screen_region_by_name(area_doc, reg_name)
                 if pair is not None and isinstance(pair[1].get("bbox"), dict):
                     L, T, R, B = _pct_bbox_to_px_rect(pair[1]["bbox"], w, h)
-                    label = reg_name
-                    try:
-                        if score_s:
-                            label += f" score={float(score_s):.3f}"
-                    except Exception:
-                        pass
-                    try:
-                        if thr_s:
-                            label += f" thr={float(thr_s):.3f}"
-                    except Exception:
-                        pass
-                    _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=label)
+                    _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=reg_name)
     if x is not None and y is not None:
         px = int(max(0, min(w - 1, x)))
         py = int(max(0, min(h - 1, y)))
@@ -295,7 +276,7 @@ def _render_preview_with_point(
         cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
-    ui.image(fitted, caption=cap, width=_PREVIEW_MAX_SIDE)
+    ui.image(fitted, caption=cap, use_container_width=True)
 
     # Show "found" (live crop) vs "sought" (template) for overlay_tap contexts.
     if not isinstance(payload, dict):
@@ -305,8 +286,7 @@ def _render_preview_with_point(
         return
 
     reg_name = str(ctx.get("current_task_region") or "").strip()
-    task_type = str(ctx.get("current_task_type") or "").strip()
-    if not reg_name or task_type != "overlay_tap":
+    if not reg_name:
         return
 
     area_doc = _load_area_doc()
@@ -350,27 +330,32 @@ def _render_preview_with_point(
     except Exception:
         sought_png = None
 
-    c_found, c_sought = ui.columns(2, gap="small")
-    with c_found:
-        if found_png is not None:
-            fitted2, native2, _ = png_bytes_fitted(found_png, _PREVIEW_MAX_SIDE)
-            ui.image(
-                fitted2,
-                caption=f"found: {reg_name} · {native2[0]}×{native2[1]}",
-                width=_PREVIEW_MAX_SIDE,
-            )
-        else:
-            ui.caption("found: —")
-    with c_sought:
-        if sought_png is not None:
-            fitted3, native3, _ = png_bytes_fitted(sought_png, _PREVIEW_MAX_SIDE)
-            ui.image(
-                fitted3,
-                caption=f"sought: {sought_name or reg_name} · {native3[0]}×{native3[1]}",
-                width=_PREVIEW_MAX_SIDE,
-            )
-        else:
-            ui.caption("sought: —")
+    with ui.container(border=True):
+        ui.markdown(f"**Region** `{reg_name}` · live crop vs template")
+        c_found, c_sought = ui.columns(2, gap="medium", vertical_alignment="top")
+        cap_max = _REGION_CROP_MAX_SIDE
+        with c_found:
+            ui.caption("Live (from screenshot)")
+            if found_png is not None:
+                fitted2, native2, _ = png_bytes_fitted(found_png, cap_max)
+                ui.image(
+                    fitted2,
+                    caption=f"{native2[0]}×{native2[1]} px",
+                    use_container_width=True,
+                )
+            else:
+                ui.caption("—")
+        with c_sought:
+            ui.caption("Template (reference crop)")
+            if sought_png is not None:
+                fitted3, native3, _ = png_bytes_fitted(sought_png, cap_max)
+                ui.image(
+                    fitted3,
+                    caption=f"{sought_name or reg_name} · {native3[0]}×{native3[1]} px",
+                    use_container_width=True,
+                )
+            else:
+                ui.caption("—")
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -424,13 +409,19 @@ def _pending_request() -> None:
         st.caption("Pending click request (needs approval).")
         ctx0 = payload.get("context")
         if isinstance(ctx0, dict):
-            scen = _detect_scenario_path_from_context(ctx0)
-            if scen:
-                st.info(f"Scenario click context: `{scen}`")
+            scen_key = str(ctx0.get("scenario") or "").strip()
+            if scen_key:
+                st.info(f"Scenario: `{scen_key}`")
+                st.page_link(
+                    "views/wiki_scenarios.py",
+                    label="Open scenario",
+                    query_params={"q": scen_key},
+                    use_container_width=True,
+                )
         with st.expander("Payload", expanded=True):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
-        c1, c2, c3 = st.columns([1, 1, 2], vertical_alignment="center")
+        c1, c2 = st.columns([1, 1], vertical_alignment="center")
         with c1:
             if st.button(
                 "✅ Approve",
@@ -447,10 +438,6 @@ def _pending_request() -> None:
                 response_key = str(payload.get("response_key") or "").strip()
                 if response_key:
                     client.set(response_key, "reject", ex=120)
-                st.rerun()
-        with c3:
-            if st.button("🗑 Drop (no response)", use_container_width=True, key=f"drop-{instance_id}"):
-                client.delete(current_key)
                 st.rerun()
 
 

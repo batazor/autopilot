@@ -18,7 +18,7 @@ import random
 from datetime import timedelta
 
 from actions.tap import AdbController
-from layout.types import Point, Region
+from layout.types import Point
 
 logger = logging.getLogger(__name__)
 
@@ -59,12 +59,6 @@ async def human_tap(ctrl: AdbController, point: Point) -> None:
     """Tap with pre-tap think delay."""
     await asyncio.sleep(_clamp_positive(_think_delay()))
     ctrl.tap(point)
-
-
-async def human_tap_region(ctrl: AdbController, region: Region) -> None:
-    """Tap region with pre-tap think delay."""
-    await asyncio.sleep(_clamp_positive(_think_delay()))
-    ctrl.tap_region(region)
 
 
 async def human_confirm_tap(ctrl: AdbController, point: Point) -> None:

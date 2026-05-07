@@ -131,14 +131,13 @@ def _overlay_live_status_fragment() -> None:
         area_action = region_area_action(area_doc, region_name)
         if only_exist and area_action != "exist":
             continue
-        # Filter by name (rule/region/search/tap) when requested.
+        # Filter by name (rule/region/search) when requested.
         if q:
             hay = " ".join(
                 [
                     str(logical),
                     region_name,
                     str(payload.get("search_region") or rule_search.get(logical, "")),
-                    str(payload.get("tap_region") or rule_tap.get(logical, "")),
                 ]
             ).lower()
             if q not in hay:
@@ -157,7 +156,6 @@ def _overlay_live_status_fragment() -> None:
         notes = ": ".join(notes_parts)
 
         sr_disp = payload.get("search_region") or rule_search.get(logical, "")
-        tr_disp = payload.get("tap_region") or rule_tap.get(logical, "")
 
         # Normalize for Arrow: ensure score/threshold are numeric or None.
         score_f: float | None = None
@@ -181,7 +179,6 @@ def _overlay_live_status_fragment() -> None:
                 "region": region_name,
                 "area_action": area_action if area_action else "(unknown)",
                 "search_region": sr_disp,
-                "tap_region": tr_disp,
                 "status": status,
                 # Keep Arrow-friendly types: use None instead of "" so Streamlit doesn't
                 # infer a mixed object column and fail conversion.
@@ -316,8 +313,7 @@ st.markdown(
    `references/analyze.yaml`; for `findIcon`, template from `references/crop/` and regions from
    `area.json` (optional **`search_region`**: sliding `matchTemplate` in a larger ROI).
 4. **Queue taps** → matched rules schedule `overlay_tap` (dedup per region).
-   Tap: **`tap_offset_from_match`** = match + labeled delta; else **`tap_region`**; else match; else
-   template bbox centre.
+   Tap: **`tap_offset_from_match`** = match + labeled delta; else match.
 """
 )
 
@@ -333,13 +329,11 @@ if _ANALYZE.is_file():
         if not isinstance(r, dict):
             continue
         sr = r.get("search_region")
-        tr = r.get("tap_region")
         rows_static.append(
             {
                 "name": str(r.get("name", "")),
                 "region": str(r.get("region", "")),
                 "search_region": str(sr).strip() if sr else "",
-                "tap_region": str(tr).strip() if tr else "",
                 "action": str(r.get("action", "")),
                 "threshold": r.get("threshold"),
             }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import threading
 from pathlib import Path
 
@@ -16,6 +17,17 @@ _WATCH_LOCK = threading.RLock()
 # Guard against multiple Observer instances watching the same directory in one process.
 # This can happen when Streamlit reloads or when async services are started twice.
 _WATCHING_PATHS: set[str] = set()
+
+
+def _observer_for_platform() -> Observer:
+    """macOS FSEvents can error with "already scheduled" if the same tree is watched twice
+    (e.g. scheduler restart without tearing down the previous native watch). Polling avoids that.
+    """
+    if sys.platform == "darwin":
+        from watchdog.observers.polling import PollingObserver
+
+        return PollingObserver(timeout=1.0)  # type: ignore[return-value]
+    return Observer()
 
 
 class _ScenarioReloadHandler(FileSystemEventHandler):
@@ -44,9 +56,34 @@ class ScenarioLoader:
 
     def reload(self) -> None:
         loaded: list[Scenario] = []
-        for yaml_file in sorted(self._path.glob("*.yaml")):
+        for yaml_file in sorted(self._path.rglob("*.yaml")):
+            # Draft scenarios are not executable and must never be auto-loaded.
+            if "drafts" in {p.lower() for p in yaml_file.parts}:
+                continue
             try:
                 raw = yaml.safe_load(yaml_file.read_text())
+                # DSL scenarios (imperative click/wait/etc) are executed via `DslScenarioTask`
+                # and must not be validated/loaded as `Scenario`.
+                if isinstance(raw, dict):
+                    steps = raw.get("steps")
+                    if isinstance(steps, list) and steps:
+                        first = steps[0]
+                        if isinstance(first, dict) and "task" not in first:
+                            dsl_keys = {
+                                "click",
+                                "tap",
+                                "wait",
+                                "swipe",
+                                "sleep",
+                                "ocr",
+                                "assert",
+                                "match",
+                                "goto",
+                                "screenshot",
+                                "set_node",
+                            }
+                            if any(k in first for k in dsl_keys):
+                                continue
                 if isinstance(raw, dict) and "name" not in raw:
                     raw["name"] = yaml_file.stem
                 scenario = Scenario.model_validate(raw)
@@ -70,33 +107,29 @@ class ScenarioLoader:
         with _WATCH_LOCK:
             if watch_key in _WATCHING_PATHS:
                 return
-        with self._lock:
-            if self._observer is not None:
-                if self._observer.is_alive():
-                    with _WATCH_LOCK:
+            with self._lock:
+                if self._observer is not None:
+                    if self._observer.is_alive():
                         _WATCHING_PATHS.add(watch_key)
-                    return
-                try:
-                    self._observer.stop()
-                    self._observer.join(timeout=2)
-                except Exception:
-                    logger.exception("Failed to stop previous scenario observer")
-                self._observer = None
+                        return
+                    try:
+                        self._observer.stop()
+                        self._observer.join(timeout=2)
+                    except Exception:
+                        logger.exception("Failed to stop previous scenario observer")
+                    self._observer = None
 
-            handler = _ScenarioReloadHandler(self)
-            self._observer = Observer()
-            try:
-                self._observer.schedule(handler, str(self._path), recursive=False)
-                self._observer.start()
-            except RuntimeError as exc:
-                # watchdog fsevents can raise "already scheduled" if something else
-                # in this process already registered the same watch.
-                logger.warning("Scenario watcher start failed (%s): %s", self._path, exc)
-                self._observer = None
-                return
-            with _WATCH_LOCK:
+                handler = _ScenarioReloadHandler(self)
+                self._observer = _observer_for_platform()
+                try:
+                    self._observer.schedule(handler, str(self._path), recursive=True)
+                    self._observer.start()
+                except RuntimeError as exc:
+                    logger.warning("Scenario watcher start failed (%s): %s", self._path, exc)
+                    self._observer = None
+                    return
                 _WATCHING_PATHS.add(watch_key)
-            logger.info("Watching scenario directory: %s", self._path)
+        logger.info("Watching scenario directory: %s", self._path)
 
     def stop_watching(self) -> None:
         with self._lock:

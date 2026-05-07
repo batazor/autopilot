@@ -9,6 +9,13 @@ from typing import Any
 import yaml
 
 from actions.tap import BotActions
+from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
+from config.loader import get_settings
+from config.reference_naming import (
+    reference_file_basename,
+    temporal_png_abs_path,
+    unique_label_capture_basename,
+)
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from tasks.base import TaskResult
@@ -52,6 +59,28 @@ class DslScenarioTask:
     task_type: str = field(default="dsl_scenario", init=False)
 
     scenario_key: str = ""
+
+    async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
+        if self.redis_client is None:
+            return
+        try:
+            await self.redis_client.hset(
+                f"wos:instance:{instance_id}:state",
+                mapping={"current_scenario": scenario},
+            )
+        except Exception:
+            pass
+
+    async def _clear_step_context(self, instance_id: str) -> None:
+        if self.redis_client is None:
+            return
+        try:
+            await self.redis_client.hset(
+                f"wos:instance:{instance_id}:state",
+                mapping={"current_scenario": ""},
+            )
+        except Exception:
+            pass
 
     def estimate_duration(self) -> int:
         return 15
@@ -106,8 +135,32 @@ class DslScenarioTask:
         for step in steps:
             if not isinstance(step, dict):
                 continue
+            if "set_node" in step:
+                node = str(step.get("set_node") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                if node and self.redis_client is not None:
+                    try:
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "current_screen",
+                            node,
+                        )
+                    except Exception:
+                        pass
+                continue
             if "click" in step:
                 reg = str(step.get("click") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                # For click approvals / UI highlighting: always expose the target region.
+                if reg and self.redis_client is not None:
+                    try:
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "current_task_region",
+                            reg,
+                        )
+                    except Exception:
+                        pass
                 if reg:
                     pair = screen_region_by_name(area_doc, reg)
                     if pair is None or not isinstance(pair[1].get("bbox"), dict):
@@ -120,6 +173,7 @@ class DslScenarioTask:
             if "wait" in step:
                 # Supports "1200ms" (string) or seconds (number).
                 w = step.get("wait")
+                await self._write_step_context(instance_id, scenario=key)
                 seconds = 0.0
                 if isinstance(w, (int, float)):
                     seconds = float(w)
@@ -132,7 +186,50 @@ class DslScenarioTask:
                 if seconds > 0:
                     await asyncio.sleep(seconds)
                 continue
+            if "screenshot" in step:
+                raw_ss = step.get("screenshot")
+                stem: str
+                if raw_ss is None or raw_ss is True or raw_ss == {}:
+                    stem = unique_label_capture_basename(instance_id)
+                elif isinstance(raw_ss, str) and raw_ss.strip():
+                    stem = reference_file_basename(
+                        f"{instance_id}_{raw_ss.strip()}",
+                        instance_id,
+                    )
+                elif isinstance(raw_ss, dict):
+                    name = str(raw_ss.get("name") or raw_ss.get("basename") or "").strip()
+                    stem = (
+                        unique_label_capture_basename(instance_id)
+                        if not name
+                        else reference_file_basename(f"{instance_id}_{name}", instance_id)
+                    )
+                else:
+                    stem = unique_label_capture_basename(instance_id)
+                await self._write_step_context(instance_id, scenario=key)
+                dest = temporal_png_abs_path(repo_root, stem)
+                settings = get_settings()
+                adb_bin = (settings.worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
+                serial: str | None = None
+                for inst in settings.instances:
+                    if inst.instance_id == instance_id:
+                        serial = inst.bluestacks_window_title
+                        break
+                if not serial:
+                    logger.warning("dsl_scenario screenshot: unknown instance_id %s", instance_id)
+                else:
+                    ok, msg = await asyncio.to_thread(
+                        adb_screencap_to_file,
+                        dest,
+                        adb_bin=adb_bin,
+                        serial=serial,
+                    )
+                    if ok:
+                        logger.info("dsl_scenario screenshot saved: %s", msg)
+                    else:
+                        logger.warning("dsl_scenario screenshot failed: %s", msg)
+                continue
 
         logger.info("dsl_scenario done: %s (%s)", key, instance_id)
+        await self._clear_step_context(instance_id)
         return TaskResult(success=True, next_run_at=None, metadata={"scenario": key})
 

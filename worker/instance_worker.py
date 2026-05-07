@@ -11,8 +11,6 @@ from pathlib import Path
 import numpy as np
 import psutil
 import redis.asyncio as aioredis
-
-from account.switcher import AccountSwitcher
 from actions.ad_skip import AdSkipper
 from actions.tap import BotActions
 from analysis.overlay import parse_duration_seconds, run_overlay_analysis
@@ -44,7 +42,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._redis: aioredis.Redis | None = None  # type: ignore[type-arg]
         self._queue: RedisQueue | None = None
         self._claims: CooperativeClaims | None = None
-        self._switcher: AccountSwitcher | None = None
         self._ad_skipper: AdSkipper | None = None
         self._bot_actions = BotActions()
         self._player_fsms: dict[str, PlayerFSM] = {}
@@ -61,7 +58,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._redis = aioredis.from_url(self._settings.redis.url)
         self._queue = RedisQueue(self._redis)
         self._claims = CooperativeClaims(self._redis)
-        self._switcher = AccountSwitcher(self._redis)
         self._ad_skipper = AdSkipper(self._cfg.instance_id)
 
         loop = asyncio.get_running_loop()
@@ -80,11 +76,11 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 "worker_started_at": str(time.time()),
                 "last_seen_at": str(time.time()),
                 "last_error": "",
-                "current_task_type": "",
-                "current_task_id": "",
                 "current_task_player": "",
                 "current_task_started_at": "",
+                "current_task_region": "",
                 "current_screen": "",
+                "current_scenario": "",
             },
         )
 
@@ -111,37 +107,59 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         pref = (self._settings.worker.adb_executable or "").strip()
         return pref if pref else DEFAULT_ADB_BIN
 
-    async def _push_ui_screenshot(self, reference_name: str | None = None) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerUiMixin
-
-    async def _schedule_manual_task(self, player_id: str, task_type: str) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerUiMixin
-
-    # Legacy hook removed: page detection will be a DSL scenario when needed.
-
-    async def _handle_ui_command(self, raw: str | bytes) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerUiMixin
-
-    async def _drain_ui_commands(self) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerUiMixin
-
     async def _pop_next_task(self) -> QueueItem | None:
-        return await self._queue.pop_due(self._cfg.instance_id)  # type: ignore[union-attr]
+        current_screen = ""
+        if self._redis is not None:
+            raw = await self._redis.hget(f"wos:instance:{self._cfg.instance_id}:state", "current_screen")
+            if raw is not None:
+                current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
+                current_screen = current_screen.strip()
+        return await self._queue.pop_due(  # type: ignore[union-attr]
+            self._cfg.instance_id,
+            current_screen=current_screen,
+        )
+
+    async def _resolve_queue_item_player(self, item: QueueItem) -> QueueItem:
+        """Resolve device-level queue items (player_id="") to an actual player id."""
+        if item.player_id:
+            return item
+        active = None
+        if self._redis is not None:
+            raw = await self._redis.hget(
+                f"wos:instance:{self._cfg.instance_id}:state", "active_player"
+            )
+            if raw:
+                active = raw.decode() if isinstance(raw, bytes) else str(raw)
+        resolved = (active or (self._cfg.player_ids[0] if self._cfg.player_ids else "")).strip()
+        if not resolved:
+            return item
+        return QueueItem(
+            task_id=item.task_id,
+            player_id=resolved,
+            task_type=item.task_type,
+            priority=item.priority,
+            run_at=item.run_at,
+            instance_id=item.instance_id,
+            region=item.region,
+            tap_x_pct=item.tap_x_pct,
+            tap_y_pct=item.tap_y_pct,
+            threshold=item.threshold,
+            score=item.score,
+            set_node=item.set_node,
+            dsl_scenario=item.dsl_scenario,
+        )
 
     async def _ensure_account(self, player_id: str) -> None:
-        current = await self._switcher.current_player(self._cfg.instance_id)  # type: ignore[union-attr]
-        if current != player_id:
-            fsm = self._player_fsms.get(player_id)
-            if fsm:
-                fsm.switch_account()
-            ok = await self._switcher.switch_to(player_id, self._cfg.instance_id)  # type: ignore[union-attr]
-            if fsm:
-                if ok:
-                    fsm.switched()
-                else:
-                    fsm.recover()
-            # Dismiss any entry popups / ads that appear after account switch
-            await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
+        # Account switching is not implemented in this codebase. We only persist
+        # the "active_player" label for UI/overlay routing.
+        if self._redis is not None:
+            await self._redis.hset(
+                f"wos:instance:{self._cfg.instance_id}:state",
+                "active_player",
+                player_id,
+            )
+        # Best-effort dismiss entry popups / ads.
+        await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
@@ -165,8 +183,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         skip_fsm = getattr(task, "skip_fsm", False)
 
         fsm = self._player_fsms.get(item.player_id)
-        if fsm and not skip_fsm:
-            fsm.start_navigate()
 
         try:
             if task.is_cooperative:
@@ -177,29 +193,19 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                     logger.info("Cooperative task %s already claimed, skipping", task.task_type)
                     return None
 
-            if fsm and not skip_fsm:
-                fsm.start_execute()
-
             result = await asyncio.wait_for(
                 task.execute(self._cfg.instance_id),
                 timeout=self._settings.worker.task_timeout_seconds,
             )
 
-            if fsm and not skip_fsm:
-                fsm.finish()
-
             return result
 
         except TimeoutError:
             logger.error("Task %s timed out on %s", item.task_id, self._cfg.instance_id)
-            if fsm and not skip_fsm:
-                fsm.recover()
             return None
 
         except Exception as exc:
             logger.exception("Task %s failed: %s", item.task_id, exc)
-            if fsm and not skip_fsm:
-                fsm.recover()
             return None
 
         finally:
@@ -254,18 +260,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
 
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
-
-    async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerOverlayMixin
-
-    async def _enqueue_push_scenarios_from_overlay(
-        self,
-        payload: dict[str, object],
-        *,
-        player_id: str,
-        run_at: float,
-    ) -> None:
-        raise NotImplementedError  # provided by InstanceWorkerOverlayMixin
 
     async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
         """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
@@ -448,6 +442,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 if item is None:
                     await asyncio.sleep(2.0)
                     continue
+                item = await self._resolve_queue_item_player(item)
 
                 task = self._build_task(item)
                 if task is None:

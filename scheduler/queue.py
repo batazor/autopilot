@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
 import redis.asyncio as aioredis
 
@@ -130,22 +132,66 @@ class RedisQueue:
                 return True
         return False
 
-    async def pop_due(self, instance_id: str) -> QueueItem | None:
+    @staticmethod
+    @lru_cache(maxsize=1)
+    def _task_types_requiring_node() -> set[str]:
+        """Task types from `scenarios/by_cron/*.yaml` that declare `node`.
+
+        These tasks must not run while instance `current_screen` is empty/unknown.
+        """
+        repo_root = Path(__file__).resolve().parent.parent
+        cron_dir = repo_root / "scenarios" / "by_cron"
+        if not cron_dir.is_dir():
+            return set()
+        try:
+            import yaml
+        except Exception:
+            return set()
+
+        out: set[str] = set()
+        for yml in sorted(cron_dir.glob("*.yaml")):
+            try:
+                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            if not isinstance(raw, dict):
+                continue
+            if not str(raw.get("node") or "").strip():
+                continue
+            t = str(raw.get("task") or raw.get("task_type") or "").strip()
+            if not t:
+                t = yml.stem
+            if t:
+                out.add(t)
+        return out
+
+    async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
         import json
 
         now = time.time()
-        # Fetch earliest due tasks (score <= now) for players on this instance
+        # Fetch earliest due tasks (score <= now) for players on this instance.
+        # Also allow device-level items with empty player_id ("") which will be
+        # resolved to an active player at execution time.
         instance_players = self._players_for_instance(instance_id)
         candidates = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", now)
 
         due: list[tuple[str, dict[str, object]]] = []
         for raw in candidates:
             data = json.loads(raw)
-            if data["instance_id"] == instance_id and data["player_id"] in instance_players:
+            pid = str(data.get("player_id", ""))
+            if data["instance_id"] == instance_id and (pid == "" or pid in instance_players):
                 due.append((raw, data))
 
         if not due:
             return None
+
+        # Unknown/none: do not run tasks that were defined with a required `node` in specs.
+        if not str(current_screen or "").strip():
+            gated = self._task_types_requiring_node()
+            if gated:
+                due = [x for x in due if str(x[1].get("task_type") or "") not in gated]
+                if not due:
+                    return None
 
         due.sort(
             key=lambda item: (

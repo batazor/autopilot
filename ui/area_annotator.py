@@ -31,7 +31,6 @@ from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import validate_unique_region_names
 from ui.overlay_yaml_sync import (
     overlay_search_region_name,
-    overlay_tap_region_name,
     rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
@@ -683,16 +682,11 @@ def _render_regions_expander(
                 ):
                     sn_old = overlay_search_region_name(old_name)
                     sn_new = overlay_search_region_name(new_name)
-                    tn_old = overlay_tap_region_name(old_name)
-                    tn_new = overlay_tap_region_name(new_name)
                     for r in regions:
                         rnm = str(r.get("name", "") or "").strip()
                         if rnm == sn_old:
                             touched_restore.append((r, sn_old))
                             r["name"] = sn_new
-                        elif rnm == tn_old:
-                            touched_restore.append((r, tn_old))
-                            r["name"] = tn_new
 
                 touched_restore.append((reg, old_name))
                 reg["name"] = new_name
@@ -726,29 +720,20 @@ def _render_regions_expander(
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
                 st.caption(
                     "Optional overlay rectangles — same ``ocr`` frame as this region; "
-                    "updates ``analyze.yaml`` (`search_region` / `tap_region`)."
+                    "updates ``analyze.yaml`` (`search_region`)."
                 )
 
                 def _regions_contains(nm: str) -> bool:
                     return any(str(r.get("name", "") or "").strip() == nm for r in regions)
 
                 sn_ov = overlay_search_region_name(bn_ov)
-                tn_ov = overlay_tap_region_name(bn_ov)
                 ks_ov = f"ovl_aux_s_{ei_ov}_{idx}"
-                kt_ov = f"ovl_aux_t_{ei_ov}_{idx}"
                 if ks_ov not in st.session_state:
                     st.session_state[ks_ov] = _regions_contains(sn_ov)
-                if kt_ov not in st.session_state:
-                    st.session_state[kt_ov] = _regions_contains(tn_ov)
                 want_s_ov = st.checkbox(
                     f"Search ROI (`{sn_ov}`)",
                     key=ks_ov,
                     help="Larger ROI for sliding template match (`search_region`).",
-                )
-                want_t_ov = st.checkbox(
-                    f"Tap zone (`{tn_ov}`)",
-                    key=kt_ov,
-                    help="Tap uses this bbox centre (`tap_region`), not the template match centre.",
                 )
                 ov_changed = False
                 if bbox_ok and want_s_ov != _regions_contains(sn_ov):
@@ -769,24 +754,6 @@ def _render_regions_expander(
                             if str(x.get("name", "") or "").strip() != sn_ov
                         ]
                     ov_changed = True
-                if bbox_ok and want_t_ov != _regions_contains(tn_ov):
-                    if want_t_ov:
-                        aux_t: RegionDict = {
-                            "name": tn_ov,
-                            "action": "exist",
-                            "type": "string",
-                            "threshold": 0.9,
-                            "bbox": dict(bbox_src),
-                            "overlay_auxiliary": True,
-                        }
-                        regions.append(aux_t)
-                    else:
-                        regions[:] = [
-                            x
-                            for x in regions
-                            if str(x.get("name", "") or "").strip() != tn_ov
-                        ]
-                    ov_changed = True
                 if ov_changed:
                     try:
                         validate_unique_region_names(st.session_state.area_doc)
@@ -802,7 +769,6 @@ def _render_regions_expander(
                         REPO_ROOT,
                         bn_ov,
                         use_search=_regions_contains(sn_ov),
-                        use_tap=_regions_contains(tn_ov),
                     )
                     if not synced:
                         st.session_state[OVL_YAML_WARN] = (
@@ -810,7 +776,6 @@ def _render_regions_expander(
                             "`references/analyze.yaml` — regions updated; edit YAML by hand."
                         )
                     st.session_state.pop(ks_ov, None)
-                    st.session_state.pop(kt_ov, None)
                     st.session_state.canvas_rev += 1
                     st.session_state.last_canvas_sig = ""
                     st.rerun()
@@ -820,7 +785,7 @@ def _render_regions_expander(
                 and not bn_ov.endswith("_search")
                 and not bn_ov.endswith("_tap")
             ):
-                st.caption("Draw a bbox on this region before enabling overlay search/tap zones.")
+                st.caption("Draw a bbox on this region before enabling overlay search ROI.")
 
         if st.button("Delete region", key=f"del_region_{_rk}"):
             deleting_name = str(regions[idx].get("name") or "").strip()

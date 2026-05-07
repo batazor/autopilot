@@ -4,3 +4,4 @@ name: "Dismiss rookie value pack"
 steps:
   - click: ads_rookie_value_pack
   - wait: 800ms
+  - set_node: main_city

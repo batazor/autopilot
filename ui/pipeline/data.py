@@ -97,7 +97,6 @@ def get_or_build_pipeline_cache(
 
     rule_order: list[str] = []
     rule_search: dict[str, str] = {}
-    rule_tap: dict[str, str] = {}
     rule_node: dict[str, str] = {}
     if analyze_path.is_file():
         try:
@@ -112,8 +111,6 @@ def get_or_build_pipeline_cache(
                 rule_order.append(nm)
                 if sr := r.get("search_region"):
                     rule_search[nm] = str(sr).strip()
-                if tr := r.get("tap_region"):
-                    rule_tap[nm] = str(tr).strip()
                 if nd := r.get("node"):
                     rule_node[nm] = str(nd).strip()
         except (OSError, yaml.YAMLError):
@@ -129,7 +126,6 @@ def get_or_build_pipeline_cache(
         "area_doc": area_doc,
         "rule_order": rule_order,
         "rule_search": rule_search,
-        "rule_tap": rule_tap,
         "rule_node": rule_node,
     }
     cache[instance_id] = entry

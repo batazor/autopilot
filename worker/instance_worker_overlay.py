@@ -5,8 +5,6 @@ import time
 import uuid
 from typing import Any
 
-from analysis.overlay import parse_duration_seconds
-
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +12,6 @@ class InstanceWorkerOverlayMixin:
     _cfg: Any
     _redis: Any
     _queue: Any
-    _switcher: Any
 
     async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
         """Handle matched overlay rules.
@@ -25,14 +22,14 @@ class InstanceWorkerOverlayMixin:
         if not getattr(self._cfg, "player_ids", None) or self._queue is None:
             return
 
-        active = await self._switcher.current_player(self._cfg.instance_id)  # type: ignore[union-attr]
-        player_id = active if active else self._cfg.player_ids[0]
-        is_main = bool(
-            isinstance(overlay_results.get("main_city.visible"), dict)
-            and overlay_results.get("main_city.visible", {}).get("matched")
-        )
-        if not is_main:
-            return
+        active = None
+        if self._redis is not None:
+            raw = await self._redis.hget(f"wos:instance:{self._cfg.instance_id}:state", "active_player")
+            if raw:
+                active = raw.decode() if isinstance(raw, bytes) else str(raw)
+        # If the active player is unknown (e.g. right after worker start), enqueue device-level
+        # tasks and resolve the player at execution time.
+        player_id = active if active else ""
 
         now = time.time()
         for _name, payload in overlay_results.items():
@@ -69,16 +66,6 @@ class InstanceWorkerOverlayMixin:
                     continue
                 pr_raw = item.get("priority")
                 pr = int(pr_raw) if pr_raw is not None else 80_000
-
-                ttl_raw = item.get("ttl")
-                if ttl_raw is None:
-                    ttl_raw = item.get("ttl_seconds")
-                ttl = parse_duration_seconds(ttl_raw)
-                if ttl and self._redis is not None:
-                    guard_key = f"wos:overlay:push_ttl:{self._cfg.instance_id}:{player_id}:{t}"
-                    ok = await self._redis.set(guard_key, "1", ex=int(ttl), nx=True)
-                    if not ok:
-                        continue
 
                 await self._queue.schedule(
                     task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",

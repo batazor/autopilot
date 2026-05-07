@@ -80,20 +80,22 @@ def _device_status_cell(row: dict[str, str]) -> str:
 
 
 def _task_cell(row: dict[str, str]) -> str:
-    t = (row.get("current_task_type") or "").strip()
-    if not t:
+    """No task type in Redis — only whether a task is in progress and for how long."""
+    st_val = (row.get("state") or "").strip().lower()
+    started = (row.get("current_task_started_at") or "").strip()
+    if st_val != "busy" and not started:
         return "—"
-    elapsed = _elapsed_since(row.get("current_task_started_at") or "")
+    elapsed = _elapsed_since(started) if started else None
     if elapsed:
-        return f"{t} ({elapsed})"
-    return t
+        return f"busy · {elapsed}"
+    return "busy"
 
 
 _DEVICES_HELP = (
     "Device: instance id from settings. Status: shows worker health from Redis "
     "(e.g. no redis state / paused / crashed / restarting). "
     "Player: active account after a successful switch. "
-    "Task: queue task type while it runs (with elapsed time). "
+    "Task: busy while a queue item runs (elapsed since task start). "
     "Session: uptime since the worker connected to Redis "
     "(resets when the worker restarts). "
     "Row: pause **or** resume (one control by worker state), open Instance page."

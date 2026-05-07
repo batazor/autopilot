@@ -11,7 +11,6 @@ import random
 import subprocess
 import time
 import uuid
-from contextlib import suppress
 from datetime import timedelta
 
 import numpy as np
@@ -75,12 +74,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         if raw:
             ctx = {
                 "current_screen": (raw.get("current_screen") or "").strip(),
-                "current_task_type": (raw.get("current_task_type") or "").strip(),
-                "current_task_id": (raw.get("current_task_id") or "").strip(),
                 "current_task_player": (raw.get("current_task_player") or "").strip(),
                 "current_task_region": (raw.get("current_task_region") or "").strip(),
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
-                "current_task_score": (raw.get("current_task_score") or "").strip(),
+                # YAML scenario key while a `DslScenarioTask` is running (incl. ad-skip before steps).
+                "scenario": (raw.get("current_scenario") or "").strip(),
             }
     except Exception:
         ctx = {}
@@ -100,12 +98,6 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             "context": ctx,
         }
     )
-
-    # Promote overlay threshold to top-level for convenience (when present).
-    thr_s = str(ctx.get("current_task_threshold") or "").strip()
-    if thr_s and "threshold" not in p:
-        with suppress(ValueError):
-            p["threshold"] = float(thr_s)
 
     _redis().delete(resp_key)
     deadline = time.time() + _APPROVAL_WAIT_SECONDS
@@ -335,48 +327,6 @@ class AdbController:
                 logger.debug("Failed to cleanup approval keys after tap", exc_info=True)
         return True
 
-    def tap_region(self, region: Region) -> bool:
-        """Tap center of Region with ±5% size jitter, clamped inside bounds."""
-        cx = region.x + region.w // 2
-        cy = region.y + region.h // 2
-        spread_x = max(1, int(region.w * 0.05))
-        spread_y = max(1, int(region.h * 0.05))
-        x = _clamp(_jitter(cx, spread_x), region.x, region.x + region.w - 1)
-        y = _clamp(_jitter(cy, spread_y), region.y, region.y + region.h - 1)
-        ok, req_id = _require_approval(
-            self._instance_id,
-            {
-                "type": "tap_region",
-                "x": int(x),
-                "y": int(y),
-                "serial": self._serial,
-                "region": {"x": region.x, "y": region.y, "w": region.w, "h": region.h},
-            },
-        )
-        if not ok:
-            logger.info("ADB tap_region blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
-            return False
-        if req_id is not None:
-            try:
-                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
-                raw = _redis().get(current_key)
-                if raw:
-                    doc = json.loads(raw)
-                    doc["executed_at"] = time.time()
-                    doc["status"] = "executing"
-                    _redis().set(current_key, json.dumps(doc), ex=120)
-            except Exception:
-                logger.debug("Failed to mark executed_at", exc_info=True)
-        self._shell("input", "tap", str(x), str(y))
-        logger.debug("TapRegion (%d, %d) on %s", x, y, self._serial)
-        if req_id is not None:
-            try:
-                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
-                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-            except Exception:
-                logger.debug("Failed to cleanup approval keys after tap_region", exc_info=True)
-        return True
-
     def swipe(
         self,
         start: Point,
@@ -555,9 +505,6 @@ class BotActions:
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         """Emulator framebuffer size from ``adb shell wm size`` (tap coordinate space)."""
         return self._controller(instance_id).get_screen_resolution()
-
-    def tap_region(self, instance_id: str, region: Region) -> bool:
-        return self._controller(instance_id).tap_region(region)
 
     def swipe(
         self,

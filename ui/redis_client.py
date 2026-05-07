@@ -31,8 +31,6 @@ class InstanceStateRow(TypedDict, total=False):
     worker_started_at: str
     last_seen_at: str
     last_error: str
-    current_task_type: str
-    current_task_id: str
     current_task_player: str
     current_task_started_at: str
 

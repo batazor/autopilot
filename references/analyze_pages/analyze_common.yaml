@@ -16,7 +16,6 @@ overlay:
     - task:
         name: ads_rookie_value_pack
         priority: 90_000
-        ttl: 30m
 
 - name: skip_button.visible
   region: skip_button
@@ -30,7 +29,6 @@ overlay:
   priority: 80000
   threshold: 0.92
   min_match_saturation: 48
-  tap_region: accept_all_button_tap
 
 - name: page.chief_profile.visible
   region: chief_profile_title
@@ -46,7 +44,6 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_region: hand_pointer_tap
   tap_offset_from_match: true
 
 - name: hand_pointer_small_reverse.visible
@@ -56,7 +53,6 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_region: hand_pointer_small_reverse_tap
   tap_offset_from_match: true
 
 - name: hand_pointer_small.visible
@@ -66,7 +62,6 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_region: hand_pointer_small_tap
   tap_offset_from_match: true
 
 - name: claim_button.visible
