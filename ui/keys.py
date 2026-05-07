@@ -44,6 +44,9 @@ ANNOT_LABELING_REF = "_annot_labeling_ref"
 OVL_YAML_WARN = "_ovl_yaml_warn"
 LABELING_TEMPORAL_REGIONS = "_labeling_temporal_regions"
 
+# Session key suffix ``_lbl`` / ``_std``: ``f"{AREA_DELETE_REGION_PENDING_PREFIX}_{rk}"``.
+AREA_DELETE_REGION_PENDING_PREFIX = "area_delete_region_pending"
+
 # ---------------------------------------------------------------------------
 # Overview page
 # ---------------------------------------------------------------------------

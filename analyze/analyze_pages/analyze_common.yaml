@@ -62,6 +62,9 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
+  pushScenario:
+    - name: hand_pointer_small_reverse
+      priority: 60000
 
 - name: hand_pointer_small.visible
   region: hand_pointer_small
@@ -94,10 +97,13 @@ overlay:
 
 - name: upgrade_big_button.visible
   region: upgrade_big_button
-  search_region: upgrade_big_button_search
   action: findIcon
+  priority: 60000
   threshold: 0.92
   min_match_saturation: 48
+  pushScenario:
+    - name: tap_upgrade_big_button
+      priority: 60000
 
 - name: go_button.visible
   region: go_button

@@ -91,10 +91,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 38.888888888888886,
+            "x": 38.88803088803089,
             "y": 84.375,
-            "width": 6.666666666666667,
-            "height": 6.40625,
+            "width": 6.666023166023166,
+            "height": 6.406521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -106,10 +106,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 32.22222222222222,
-            "y": 79.921875,
-            "width": 33.86666666666667,
-            "height": 18.0015625,
+            "x": 32.222007722007724,
+            "y": 25.76086956521739,
+            "width": 65.02509652509653,
+            "height": 71.51847826086957,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -122,10 +122,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 45.833333333333336,
+            "x": 45.833976833976834,
             "y": 91.875,
-            "width": 7.802777777777778,
-            "height": 4.9328125,
+            "width": 7.803088803088803,
+            "height": 4.932608695652174,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -435,22 +435,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "upgrade_big_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 72.0,
-            "width": 94.7992277992278,
-            "height": 26.648695652173913,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
         }
       ]
     },

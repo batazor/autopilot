@@ -37,6 +37,7 @@ from ui.overlay_yaml_sync import (
 from ui.keys import (
     ACTIVE_IMAGE_PATH,
     ANNOT_LABELING_REF,
+    AREA_DELETE_REGION_PENDING_PREFIX,
     AREA_DOC,
     CANVAS_LAST_SIG,
     CANVAS_REV,
@@ -787,23 +788,51 @@ def _render_regions_expander(
             ):
                 st.caption("Draw a bbox on this region before enabling overlay search ROI.")
 
-        if st.button("Delete region", key=f"del_region_{_rk}"):
-            deleting_name = str(regions[idx].get("name") or "").strip()
-            del regions[idx]
-            set_current_regions(regions)
-            if str(st.session_state.get(SELECTED_REGION_NAME) or "").strip() == deleting_name:
-                st.session_state.selected_region_name = ""
-            st.session_state.selected_region_idx = max(0, idx - 1)
-            st.session_state.selected_region_name = _selected_region_name_from_idx(
-                regions, int(st.session_state.selected_region_idx)
-            )
-            st.session_state.canvas_rev += 1
-            st.session_state.last_canvas_sig = ""
+        _del_pending_key = f"{AREA_DELETE_REGION_PENDING_PREFIX}_{_rk}"
+        _raw_pending = st.session_state.get(_del_pending_key)
+        pending_del_idx: int | None = None
+        if isinstance(_raw_pending, int) and 0 <= _raw_pending < len(regions):
+            pending_del_idx = _raw_pending
+        elif _raw_pending is not None:
+            st.session_state.pop(_del_pending_key, None)
+
+        if pending_del_idx is not None:
+            _pend = regions[pending_del_idx]
+            _pend_nm = str(_pend.get("name") or "").strip() or f"(region {pending_del_idx})"
+            st.warning(f"Delete region `{_pend_nm}`? This removes it from this screen entry.")
+            _dc1, _dc2 = st.columns(2)
+            with _dc1:
+                _confirm_del = st.button(
+                    "Confirm delete",
+                    type="primary",
+                    key=f"del_region_confirm_yes_{_rk}",
+                )
+            with _dc2:
+                if st.button("Cancel", key=f"del_region_confirm_no_{_rk}"):
+                    st.session_state.pop(_del_pending_key, None)
+                    st.rerun()
+            if _confirm_del:
+                deleting_name = str(regions[pending_del_idx].get("name") or "").strip()
+                del regions[pending_del_idx]
+                set_current_regions(regions)
+                st.session_state.pop(_del_pending_key, None)
+                if str(st.session_state.get(SELECTED_REGION_NAME) or "").strip() == deleting_name:
+                    st.session_state.selected_region_name = ""
+                st.session_state.selected_region_idx = max(0, pending_del_idx - 1)
+                st.session_state.selected_region_name = _selected_region_name_from_idx(
+                    regions, int(st.session_state.selected_region_idx)
+                )
+                st.session_state.canvas_rev += 1
+                st.session_state.last_canvas_sig = ""
+                st.rerun()
+        elif st.button("Delete region", key=f"del_region_{_rk}"):
+            st.session_state[_del_pending_key] = idx
             st.rerun()
 
         st.divider()
         st.subheader("Region preview" if labeling_mode else "Preview")
-        bbox = reg.get("bbox")
+        reg_for_preview = regions[pending_del_idx] if pending_del_idx is not None else reg
+        bbox = reg_for_preview.get("bbox")
         if pil_original is not None and bbox:
             canvas_img, _ = resize_for_canvas(pil_original, max_side=canvas_max_side)
             cw2, ch2 = canvas_img.size

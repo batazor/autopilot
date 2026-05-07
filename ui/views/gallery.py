@@ -255,7 +255,7 @@ region_sel = st.multiselect(
     options=all_regions,
     default=qp_regions,
     help="Primary regions only (no `*_search` zones, `*_tap` points, or `overlay_auxiliary`). "
-    "Show screenshots that contain **all** selected regions.",
+    "Show screenshots that contain **any** selected region.",
 )
 
 def _sync_query_params() -> None:
@@ -298,7 +298,7 @@ for p in files:
         continue
     if want_regions:
         have = regions_by_ref.get(rel, set())
-        if not want_regions.issubset(have):
+        if not (want_regions & have):
             continue
     filtered.append(p)
 
