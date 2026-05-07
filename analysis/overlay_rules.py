@@ -100,15 +100,14 @@ def optional_priority(rule: dict[str, Any]) -> int | None:
 
 
 def optional_ttl_seconds(rule: dict[str, Any]) -> float | None:
-    """YAML ``ttl`` (seconds): minimum gap between successive evaluations of this rule."""
+    """YAML ``ttl``: minimum gap between successive evaluations (``5``, ``5s``, ``1m``, …)."""
     v = rule.get("ttl")
     if v is None or isinstance(v, bool):
         return None
-    try:
-        ttl = float(v)
-    except (TypeError, ValueError):
+    sec = parse_duration_seconds(v)
+    if sec is None:
         return None
-    return ttl if ttl > 0.0 else None
+    return float(sec)
 
 
 def optional_expected_texts(rule: dict[str, Any]) -> list[str]:

@@ -124,5 +124,11 @@ overlay:
   region: confirm_button
   search_region: confirm_button_search
   action: findIcon
+  priority: 88_000
   threshold: 0.98
   min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - task:
+        name: tap_confirm_button
+        priority: 88_000

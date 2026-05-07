@@ -1,0 +1,5 @@
+enabled: true
+name: Tap confirm dialog
+
+steps:
+  - click: confirm_button
