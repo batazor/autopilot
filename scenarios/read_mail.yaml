@@ -1,4 +1,3 @@
-id: read_mail
 name: "Read mail"
 priority: 120
 repeat: true

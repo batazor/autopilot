@@ -24,31 +24,12 @@ from fsm.machine import PlayerFSM
 from fsm.states import InstanceState
 from scheduler.claims import CooperativeClaims
 from scheduler.queue import QueueItem, RedisQueue
-from tasks.arena import ArenaTask
 from tasks.base import BaseTask, TaskResult
-from tasks.beast import BeastTask
-from tasks.daily import DailyCheckinTask
-from tasks.defend import DefendAllyTask
-from tasks.gathering import GatheringTask
-from tasks.main_city_check import MainCityCheckTask
-from tasks.mail_gift_check import MailGiftCheckTask
 from tasks.dsl_scenario import DslScenarioTask
-from tasks.overlay_tap import OverlayTapTask
-from tasks.page_detect import PageDetectTask
-from tasks.training import TrainingTask
 
 logger = logging.getLogger(__name__)
 
 _TASK_REGISTRY: dict[str, type] = {
-    "arena": ArenaTask,
-    "training": TrainingTask,
-    "gathering": GatheringTask,
-    "daily_checkin": DailyCheckinTask,
-    "defend_ally": DefendAllyTask,
-    "beast": BeastTask,
-    "main_city_check": MainCityCheckTask,
-    "mail_gift_check": MailGiftCheckTask,
-    "page_detect": PageDetectTask,
 }
 
 
@@ -70,20 +51,7 @@ class InstanceWorker:
         self._last_current_screen: str | None = None
         self._overlay_rule_eval_state: dict[str, float] = {}
 
-    async def _schedule_mail_gift_on_enter_mail(self) -> None:
-        if self._queue is None or not self._cfg.player_ids:
-            return
-        now = time.time()
-        player_id = self._cfg.player_ids[0]
-        await self._queue.schedule(
-            task_id=f"mail_gift_enter:{self._cfg.instance_id}:{int(now)}",
-            player_id=player_id,
-            task_type="mail_gift_check",
-            priority=500,
-            run_at=now,
-            instance_id=self._cfg.instance_id,
-            skip_if_duplicate=True,
-        )
+    # Legacy hook removed: mail gift check will be a DSL scenario when needed.
 
     async def _connect(self) -> None:
         self._redis = aioredis.from_url(self._settings.redis.url)
@@ -170,34 +138,7 @@ class InstanceWorker:
         )
         logger.info("Manual task queued: %s %s", task_type, player_id)
 
-    async def _schedule_page_detect_if_unknown(self, *, reason: str) -> None:
-        if self._redis is None or self._queue is None or not self._cfg.player_ids:
-            return
-
-        raw = await self._redis.hget(
-            f"wos:instance:{self._cfg.instance_id}:state",
-            "current_screen",
-        )
-        current_screen = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
-        if current_screen:
-            return
-
-        player_id = self._cfg.player_ids[0]
-        queued = await self._queue.schedule(
-            task_id=f"page_detect:{self._cfg.instance_id}:{reason}:{uuid.uuid4().hex[:8]}",
-            player_id=player_id,
-            task_type="page_detect",
-            priority=90_000,
-            run_at=time.time(),
-            instance_id=self._cfg.instance_id,
-            skip_if_duplicate=True,
-        )
-        if queued:
-            logger.info(
-                "Queued page_detect for %s (reason=%s)",
-                self._cfg.instance_id,
-                reason,
-            )
+    # Legacy hook removed: page detection will be a DSL scenario when needed.
 
     async def _handle_ui_command(self, raw: str | bytes) -> None:
         text = raw.decode() if isinstance(raw, bytes) else raw
@@ -269,22 +210,6 @@ class InstanceWorker:
             await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
-        if item.task_type == "overlay_tap":
-            region = str(item.region or "").strip()
-            if not region:
-                logger.error("overlay_tap missing region on queue item %s", item.task_id)
-                return None
-            return OverlayTapTask(
-                task_id=item.task_id,
-                player_id=item.player_id,
-                priority=item.priority,
-                region_name=region,
-                tap_x_pct=item.tap_x_pct,
-                tap_y_pct=item.tap_y_pct,
-                threshold=item.threshold,
-                set_node=item.set_node,
-                redis_client=self._redis,
-            )
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
             # Default: treat unknown task_type as a DSL scenario key.
@@ -619,7 +544,7 @@ class InstanceWorker:
             logger.exception(
                 "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
             )
-        await self._schedule_page_detect_if_unknown(reason="startup")
+        # Legacy: page detect disabled (YAML-only mode).
         asyncio.create_task(
             self._device_reference_snapshot_loop(),
             name=f"refsnap-{self._cfg.instance_id}",

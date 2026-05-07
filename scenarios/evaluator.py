@@ -6,32 +6,11 @@ from datetime import UTC, datetime
 
 from config.loader import get_settings
 from scenarios.models import Scenario, StepCondition
-from tasks.arena import ArenaTask
 from tasks.base import BaseTask
-from tasks.beast import BeastTask
-from tasks.daily import DailyCheckinTask
-from tasks.defend import DefendAllyTask
-from tasks.gathering import GatheringTask
-from tasks.mail import MailTask
-from tasks.mail_gift_check import MailGiftCheckTask
-from tasks.main_city_check import MainCityCheckTask
-from tasks.page_detect import PageDetectTask
-from tasks.training import TrainingTask
 
 logger = logging.getLogger(__name__)
 
-_TASK_FACTORIES: dict[str, type] = {
-    "arena": ArenaTask,
-    "training": TrainingTask,
-    "gathering": GatheringTask,
-    "daily_checkin": DailyCheckinTask,
-    "defend_ally": DefendAllyTask,
-    "beast": BeastTask,
-    "mail": MailTask,
-    "mail_gift_check": MailGiftCheckTask,
-    "main_city_check": MainCityCheckTask,
-    "page_detect": PageDetectTask,
-}
+_TASK_FACTORIES: dict[str, type] = {}
 
 
 class ScenarioEvaluator:

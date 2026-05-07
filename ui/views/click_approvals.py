@@ -21,6 +21,7 @@ import streamlit as st
 
 from config.loader import load_settings
 from layout.area_lookup import screen_region_by_name
+from layout.crop_paths import exported_crop_png
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import get_instance_state, require_redis_connection
 from ui.reference_preview import load_rolling_instance_preview
@@ -209,6 +210,32 @@ def _render_preview_with_point(
     # - For `tap_region`, the approval payload already contains pixel rect.
     # - For `overlay_tap`, we resolve `current_task_region` from context via `area.json`.
     if isinstance(payload, dict):
+        # Draw swipe arrow when approving a swipe.
+        ptype = str(payload.get("type") or "").strip().lower()
+        if ptype == "swipe":
+            try:
+                x1 = int(payload.get("x1") or 0)
+                y1 = int(payload.get("y1") or 0)
+                x2 = int(payload.get("x2") or 0)
+                y2 = int(payload.get("y2") or 0)
+                ms = int(payload.get("ms") or 0)
+
+                x1 = int(max(0, min(w - 1, x1)))
+                y1 = int(max(0, min(h - 1, y1)))
+                x2 = int(max(0, min(w - 1, x2)))
+                y2 = int(max(0, min(h - 1, y2)))
+
+                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 0, 0), 6, tipLength=0.25)
+                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 220, 255), 3, tipLength=0.25)
+
+                dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+                label = f"swipe {dist:.0f}px"
+                if ms > 0:
+                    label += f" · {ms}ms"
+                _draw_focus_rect(bgr, x0=x1, y0=y1, x1=x1 + 2, y1=y1 + 2, label=label)
+            except Exception:
+                pass
+
         reg = payload.get("region")
         if isinstance(reg, dict):
             try:
@@ -269,6 +296,81 @@ def _render_preview_with_point(
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
     ui.image(fitted, caption=cap, width=_PREVIEW_MAX_SIDE)
+
+    # Show "found" (live crop) vs "sought" (template) for overlay_tap contexts.
+    if not isinstance(payload, dict):
+        return
+    ctx = payload.get("context")
+    if not isinstance(ctx, dict):
+        return
+
+    reg_name = str(ctx.get("current_task_region") or "").strip()
+    task_type = str(ctx.get("current_task_type") or "").strip()
+    if not reg_name or task_type != "overlay_tap":
+        return
+
+    area_doc = _load_area_doc()
+    pair = screen_region_by_name(area_doc, reg_name)
+    if pair is None:
+        return
+    entry, reg = pair
+    if not isinstance(reg.get("bbox"), dict):
+        return
+    ref_rel = str(entry.get("ocr") or "").strip()
+    if not ref_rel:
+        return
+
+    L, T, R, B = _pct_bbox_to_px_rect(reg["bbox"], w, h)
+    pad = 6
+    L = max(0, min(w - 1, int(L - pad)))
+    T = max(0, min(h - 1, int(T - pad)))
+    R = max(L + 1, min(w, int(R + pad)))
+    B = max(T + 1, min(h, int(B + pad)))
+
+    found_png: bytes | None = None
+    try:
+        frag = bgr[T:B, L:R].copy()
+        ok2, enc2 = cv2.imencode(".png", frag)
+        if ok2:
+            found_png = enc2.tobytes()
+    except Exception:
+        found_png = None
+
+    sought_png: bytes | None = None
+    sought_name: str | None = None
+    try:
+        crop_path = exported_crop_png(_REPO, ref_rel, reg_name)
+        if crop_path.is_file():
+            tpl = cv2.imread(str(crop_path))
+            if tpl is not None:
+                ok3, enc3 = cv2.imencode(".png", tpl)
+                if ok3:
+                    sought_png = enc3.tobytes()
+                    sought_name = crop_path.name
+    except Exception:
+        sought_png = None
+
+    c_found, c_sought = ui.columns(2, gap="small")
+    with c_found:
+        if found_png is not None:
+            fitted2, native2, _ = png_bytes_fitted(found_png, _PREVIEW_MAX_SIDE)
+            ui.image(
+                fitted2,
+                caption=f"found: {reg_name} · {native2[0]}×{native2[1]}",
+                width=_PREVIEW_MAX_SIDE,
+            )
+        else:
+            ui.caption("found: —")
+    with c_sought:
+        if sought_png is not None:
+            fitted3, native3, _ = png_bytes_fitted(sought_png, _PREVIEW_MAX_SIDE)
+            ui.image(
+                fitted3,
+                caption=f"sought: {sought_name or reg_name} · {native3[0]}×{native3[1]}",
+                width=_PREVIEW_MAX_SIDE,
+            )
+        else:
+            ui.caption("sought: —")
 
 
 @st.fragment(run_every=timedelta(seconds=1))

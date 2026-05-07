@@ -1,5 +1,5 @@
 name: Detect Current Page
-enabled: true
+enabled: false
 
 cron: "*/1 * * * *"
 priority: 90000
