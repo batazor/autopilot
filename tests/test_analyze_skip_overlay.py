@@ -16,14 +16,14 @@ REPO = Path(__file__).resolve().parents[1]
 @pytest.mark.skipif(
     not (REPO / "references/skip_button.png").is_file()
     or not (REPO / "references/crop/skip_button_skip_button.png").is_file()
-    or not (REPO / "references/analyze.yaml").is_file(),
+    or not (REPO / "analyze" / "analyze.yaml").is_file(),
     reason="skip_button assets or analyze.yaml missing",
 )
 def test_skip_button_overlay_true_on_reference_png() -> None:
     img = cv2.imread(str(REPO / "references/skip_button.png"))
     assert img is not None
     doc = json.loads((REPO / "area.json").read_text(encoding="utf-8"))
-    cfg = load_analyze_yaml(REPO / "references/analyze.yaml")
+    cfg = load_analyze_yaml(REPO / "analyze" / "analyze.yaml")
     overlay = cfg.get("overlay") or []
     out = evaluate_overlay_rules(img, doc, REPO, overlay)
 

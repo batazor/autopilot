@@ -18,18 +18,12 @@ class InstanceWorkerOverlayMixin:
 
         Policy: overlay analysis never enqueues tap actions. It may only enqueue DSL scenarios
         via `pushScenario` (and other non-tap metadata).
-        """
-        if not getattr(self._cfg, "player_ids", None) or self._queue is None:
-            return
 
-        active = None
-        if self._redis is not None:
-            raw = await self._redis.hget(f"wos:instance:{self._cfg.instance_id}:state", "active_player")
-            if raw:
-                active = raw.decode() if isinstance(raw, bytes) else str(raw)
-        # If the active player is unknown (e.g. right after worker start), enqueue device-level
-        # tasks and resolve the player at execution time.
-        player_id = active if active else ""
+        ``pushScenario`` tasks are always **device-level** (``player_id=""``): they do not require
+        a configured player; the worker resolves an active player only when the task needs one.
+        """
+        if self._queue is None:
+            return
 
         now = time.time()
         for _name, payload in overlay_results.items():
@@ -38,7 +32,9 @@ class InstanceWorkerOverlayMixin:
             if not payload.get("matched"):
                 continue
             try:
-                await self._enqueue_push_scenarios_from_overlay(payload, player_id=player_id, run_at=now)
+                await self._enqueue_push_scenarios_from_overlay(
+                    payload, player_id="", run_at=now
+                )
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
 

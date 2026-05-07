@@ -6,6 +6,11 @@ from typing import Any
 import yaml
 
 
+def default_analyze_yaml_path(repo_root: Path) -> Path:
+    """Default overlay manifest path: ``<repo_root>/analyze/analyze.yaml``."""
+    return repo_root / "analyze" / "analyze.yaml"
+
+
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else {}
@@ -29,7 +34,7 @@ def load_analyze_yaml(path: Path) -> dict[str, Any]:
 
     Supports a "manifest" file with:
 
-    - include: ["analyze_pages/analyze_main_page.yaml", ...]
+    - include: ["analyze_pages/analyze_main_page.yaml", ...] (relative to this manifest)
 
     In that case, the returned dict merges keys, and concatenates ``overlay`` lists
     from all included files (and from the manifest itself, if present).

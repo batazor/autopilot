@@ -12,10 +12,10 @@ import streamlit as st
 import yaml
 
 from analysis.overlay import load_analyze_yaml
+from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.pipeline.data import force_nonce, get_or_build_pipeline_cache
-from ui.pipeline.debug_flow import debug_flow_mode_fragment
 from ui.pipeline.overlay_viz import (
     annotate_overlay_debug,
     maybe_downscale_for_ui,
@@ -25,17 +25,16 @@ from ui.reference_preview import rolling_live_preview_path
 from ui.redis_client import get_instance_state, require_redis_connection
 
 _REPO = Path(__file__).resolve().parents[2]
-_ANALYZE = _REPO / "references" / "analyze.yaml"
+_ANALYZE = default_analyze_yaml_path(_REPO)
 _AREA = _REPO / "area.json"
 _REFRESH_UI = max(1.0, float(load_settings().worker.device_reference_snapshot_interval_seconds))
 
 # ---------------------------------------------------------------------------
-# Live status fragment
+# Live overlay body (optionally wrapped in auto-refresh fragment below)
 # ---------------------------------------------------------------------------
 
 
-@st.fragment(run_every=timedelta(seconds=_REFRESH_UI))
-def _overlay_live_status_fragment() -> None:
+def _live_overlay_status_body() -> None:
     settings = load_settings()
     insts = settings.instances
     if not insts:
@@ -50,7 +49,7 @@ def _overlay_live_status_fragment() -> None:
 
     c1, c2 = st.columns([1, 3], vertical_alignment="center")
     with c1:
-        if st.button("Refresh now", use_container_width=True, key="pipeline_overlay_refresh_now"):
+        if st.button("Refresh now", width="stretch", key="pipeline_overlay_refresh_now"):
             st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
             # Ensure we don't keep stale computed images/results around.
             cache: dict = st.session_state.get(PIPELINE_OVERLAY_CACHE, {})
@@ -112,7 +111,6 @@ def _overlay_live_status_fragment() -> None:
     area_doc: dict[str, Any] = data["area_doc"]
     rule_order: list[str] = data["rule_order"]
     rule_search: dict[str, str] = data["rule_search"]
-    rule_tap: dict[str, str] = data["rule_tap"]
     rule_node: dict[str, str] = data.get("rule_node", {})
 
     rows_out: list[dict[str, object]] = []
@@ -310,7 +308,7 @@ st.markdown(
 1. **ADB screencap** → BGR in memory (`BotActions.capture_screen_bgr`).
 2. **Atomic PNG write** → rolling preview path for the instance (**Instance** reads this file).
 3. **Overlay** → `run_overlay_analysis` reads the ordered **`overlay`** list in
-   `references/analyze.yaml`; for `findIcon`, template from `references/crop/` and regions from
+   `analyze/analyze.yaml`; for `findIcon`, template from `references/crop/` and regions from
    `area.json` (optional **`search_region`**: sliding `matchTemplate` in a larger ROI).
 4. **Queue taps** → matched rules schedule `overlay_tap` (dedup per region).
    Tap: **`tap_offset_from_match`** = match + labeled delta; else match.
@@ -342,7 +340,7 @@ if _ANALYZE.is_file():
         st.dataframe(rows_static, hide_index=True, width="stretch")
     else:
         st.info("No entries under `overlay` in analyze.yaml.")
-    with st.expander("Raw `references/analyze.yaml`"):
+    with st.expander("Raw `analyze/analyze.yaml`"):
         st.code(_analyze_raw_text, language="yaml")
 else:
     st.warning(f"Missing file: `{_ANALYZE}`")
@@ -358,10 +356,19 @@ visual check. Large **`search_region`** ROI increases false positives on the wro
 **`threshold`** or tighten the ROI in **`area.json`** if needed.
 """.strip()
 )
-_overlay_live_status_fragment()
-
-st.divider()
-debug_flow_mode_fragment(repo_root=_REPO, area_path=_AREA, analyze_path=_ANALYZE)
+live_updates = st.toggle(
+    "Auto-refresh live overlay",
+    value=True,
+    key="pipeline_live_overlay_auto_refresh",
+    help=(
+        f"When off, this block stops re-running every {_REFRESH_UI:g}s — use **Refresh now** "
+        "or change widgets to update."
+    ),
+)
+if live_updates:
+    st.fragment(run_every=timedelta(seconds=_REFRESH_UI))(_live_overlay_status_body)()
+else:
+    _live_overlay_status_body()
 
 st.divider()
 st.subheader("YAML scenarios under `scenarios/` (not every screenshot)")

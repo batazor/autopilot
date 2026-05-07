@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import atexit
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -18,12 +17,14 @@ def get_ortools_executor() -> ThreadPoolExecutor:
         return _pool
 
 
-def _shutdown_ortools_executor() -> None:
+def shutdown_ortools_executor(*, wait: bool = False, cancel_futures: bool = True) -> None:
+    """Release the OR-Tools thread pool. Safe to call multiple times.
+
+    Not registered on ``atexit``: embedded asyncio runs in a daemon thread; process exit
+    runs exit handlers while that thread may still schedule work — avoid shutdown races.
+    """
     global _pool  # noqa: PLW0603
     with _lock:
         if _pool is not None:
-            _pool.shutdown(wait=False, cancel_futures=True)
+            _pool.shutdown(wait=wait, cancel_futures=cancel_futures)
             _pool = None
-
-
-atexit.register(_shutdown_ortools_executor)

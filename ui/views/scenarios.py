@@ -250,7 +250,7 @@ with tab_cron:
                 pr = int(str(row.get("priority") or "1"))
             except ValueError:
                 pr = 1
-            if cols[6].button("Push", key=f"cron_push_{rk}", use_container_width=True):
+            if cols[6].button("Push", key=f"cron_push_{rk}", width="stretch"):
                 if not task_type:
                     st.error(f"`{nm}` has empty `task`.")
                 else:

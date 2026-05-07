@@ -8,6 +8,7 @@ import threading
 
 from config.loader import InstanceConfig, get_settings
 from config.logging_stdout import setup_stdout_logging
+from scheduler.ortools_executor import shutdown_ortools_executor
 from worker.instance_worker import InstanceWorker
 
 logger = logging.getLogger(__name__)
@@ -54,27 +55,30 @@ async def run_forever_async(*, stop_event: threading.Event | None = None) -> Non
         for inst in settings.instances
     ]
     tasks.append(asyncio.create_task(_guarded_scheduler(), name="scheduler"))
-    if stop_event is None:
-        await asyncio.gather(*tasks)
-        return
-
-    async def _wait_for_stop() -> None:
-        await asyncio.to_thread(stop_event.wait)
-
-    stop_task = asyncio.create_task(_wait_for_stop(), name="supervisor-stop-wait")
     try:
-        done, pending = await asyncio.wait(
-            [*tasks, stop_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if stop_task in done:
-            logger.warning("wos: stop requested — cancelling workers and scheduler")
-            for t in tasks:
-                t.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-        else:
-            # A worker/scheduler finished unexpectedly; propagate (old behavior).
+        if stop_event is None:
             await asyncio.gather(*tasks)
+            return
+
+        async def _wait_for_stop() -> None:
+            await asyncio.to_thread(stop_event.wait)
+
+        stop_task = asyncio.create_task(_wait_for_stop(), name="supervisor-stop-wait")
+        try:
+            done, pending = await asyncio.wait(
+                [*tasks, stop_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if stop_task in done:
+                logger.warning("wos: stop requested — cancelling workers and scheduler")
+                for t in tasks:
+                    t.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+            else:
+                # A worker/scheduler finished unexpectedly; propagate (old behavior).
+                await asyncio.gather(*tasks)
+        finally:
+            stop_task.cancel()
+            await asyncio.gather(stop_task, return_exceptions=True)
     finally:
-        stop_task.cancel()
-        await asyncio.gather(stop_task, return_exceptions=True)
+        shutdown_ortools_executor(wait=False, cancel_futures=True)

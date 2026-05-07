@@ -1,10 +1,13 @@
-"""Per-click approval page: when open, bot clicks require explicit approval.
+"""Approval page: when open, sensitive bot actions require explicit approval.
 
 Contract:
 - Page open => refreshes Redis heartbeat key (per instance).
-- Worker input clicks:
-  - If no heartbeat => do not click
+- Worker inputs (ADB tap/swipe/type, DSL ``set_node``):
+  - Approval gating defaults **ON** when ``enabled`` key is unset (turn OFF in the toggle below).
+  - If no heartbeat => block
   - If heartbeat present => publish single "current" request and wait for approve/reject
+  - After Approve/Reject, UI writes ``response_key`` then deletes ``current`` so the preview clears;
+    worker polls ``response_key`` first so this does not cancel an approve.
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import httpx
 import numpy as np
 import streamlit as st
 
+from actions.tap import click_approval_enabled
 from config.loader import load_settings
 from layout.area_lookup import screen_region_by_name
 from layout.crop_paths import exported_crop_png
@@ -204,9 +208,12 @@ def _render_preview_with_point(
 
     # Draw the zone we "found" (when available) + its confidence/score.
     # - For `overlay_tap`, we resolve `current_task_region` from context via `area.json`.
-    if isinstance(payload, dict):
-        # Draw swipe arrow when approving a swipe.
-        ptype = str(payload.get("type") or "").strip().lower()
+    # - `set_node` only updates the FSM `current_screen`; it does not tap any region,
+    #   so we must NOT draw stale ``current_task_region`` overlays for it (those leak
+    #   from the previous step's task-level Redis context and confuse the operator).
+    ptype = str(payload.get("type") or "").strip().lower() if isinstance(payload, dict) else ""
+    is_set_node = ptype == "set_node"
+    if isinstance(payload, dict) and not is_set_node:
         if ptype == "swipe":
             try:
                 x1 = int(payload.get("x1") or 0)
@@ -276,10 +283,13 @@ def _render_preview_with_point(
         cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
-    ui.image(fitted, caption=cap, use_container_width=True)
+    ui.image(fitted, caption=cap, width="stretch")
 
     # Show "found" (live crop) vs "sought" (template) for overlay_tap contexts.
-    if not isinstance(payload, dict):
+    # Skip for ``set_node`` — that step does not tap, so the task-level
+    # ``current_task_region`` from Redis (e.g. left over from the previous step)
+    # is irrelevant and would render a misleading region preview.
+    if not isinstance(payload, dict) or is_set_node:
         return
     ctx = payload.get("context")
     if not isinstance(ctx, dict):
@@ -341,7 +351,7 @@ def _render_preview_with_point(
                 ui.image(
                     fitted2,
                     caption=f"{native2[0]}×{native2[1]} px",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 ui.caption("—")
@@ -352,7 +362,7 @@ def _render_preview_with_point(
                 ui.image(
                     fitted3,
                     caption=f"{sought_name or reg_name} · {native3[0]}×{native3[1]} px",
-                    use_container_width=True,
+                    width="stretch",
                 )
             else:
                 ui.caption("—")
@@ -385,6 +395,19 @@ def _pending_request() -> None:
         with col_events:
             st.subheader("Approvals")
             st.success("No pending click requests.")
+            st.caption(
+                "Clears **current_screen** in Redis (same as unknown / overlay `node: none`). "
+                "Useful when the worker stuck on the wrong FSM screen."
+            )
+            if st.button(
+                "Reset node to none (unknown)",
+                width="stretch",
+                key=f"reset-node-none-{instance_id}",
+            ):
+                state_key = f"wos:instance:{instance_id}:state"
+                client.hset(state_key, "current_screen", "")
+                st.toast("current_screen cleared.", icon="✓")
+                st.rerun()
         return
 
     with col_events:
@@ -406,18 +429,35 @@ def _pending_request() -> None:
         _render_preview_with_point(instance_id=instance_id, x=x_i, y=y_i, payload=payload, where=st)
 
     with col_events:
-        st.caption("Pending click request (needs approval).")
+        req_type = str(payload.get("type") or "").strip().lower()
         ctx0 = payload.get("context")
-        if isinstance(ctx0, dict):
-            scen_key = str(ctx0.get("scenario") or "").strip()
-            if scen_key:
-                st.info(f"Scenario: `{scen_key}`")
-                st.page_link(
-                    "views/wiki_scenarios.py",
-                    label="Open scenario",
-                    query_params={"q": scen_key},
-                    use_container_width=True,
-                )
+
+        def _scenario_block() -> None:
+            if isinstance(ctx0, dict):
+                scen_key = str(ctx0.get("scenario") or "").strip()
+                if scen_key:
+                    st.info(f"Scenario: `{scen_key}`")
+                    st.page_link(
+                        "views/wiki_scenarios.py",
+                        label="Open scenario",
+                        query_params={"q": scen_key},
+                        width="stretch",
+                    )
+
+        if req_type == "set_node":
+            sn = str(payload.get("set_node") or "").strip()
+            st.caption("Pending **set_node** (needs approval).")
+            _scenario_block()
+            if sn:
+                st.info(f"Will set **current_screen** to `{sn}`.")
+        else:
+            st.caption("Pending click / ADB input (needs approval).")
+            reg_disp = str(payload.get("region") or "").strip()
+            if not reg_disp and isinstance(ctx0, dict):
+                reg_disp = str(ctx0.get("approval_region") or "").strip()
+            if reg_disp:
+                st.info(f"Target region / label: `{reg_disp}`")
+            _scenario_block()
         with st.expander("Payload", expanded=True):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
@@ -426,28 +466,30 @@ def _pending_request() -> None:
             if st.button(
                 "✅ Approve",
                 type="primary",
-                use_container_width=True,
+                width="stretch",
                 key=f"appr-{instance_id}",
             ):
                 response_key = str(payload.get("response_key") or "").strip()
                 if response_key:
                     client.set(response_key, "approve", ex=120)
+                    client.delete(current_key)
                 st.rerun()
         with c2:
-            if st.button("❌ Reject", use_container_width=True, key=f"rej-{instance_id}"):
+            if st.button("❌ Reject", width="stretch", key=f"rej-{instance_id}"):
                 response_key = str(payload.get("response_key") or "").strip()
                 if response_key:
                     client.set(response_key, "reject", ex=120)
+                    client.delete(current_key)
                 st.rerun()
 
 
 st.caption(
-    "Toggle approval mode below. When ON, bot waits for approve on every ADB input."
+    "Toggle approval mode below. **Default ON** when the Redis key is unset — worker waits for approve on each ADB input and each DSL **set_node** step until you turn this OFF."
 )
 
-enabled_now = str(client.get(enabled_key) or "").strip().lower() in {"1", "true", "yes", "on"}
+enabled_now = click_approval_enabled(instance_id)
 enabled_ui = st.toggle(
-    "Approval mode (ON = require approve for every ADB input)",
+    "Approval mode (ON = require approve for ADB input and DSL set_node)",
     value=enabled_now,
     key=f"click_approvals_enabled::{instance_id}",
 )

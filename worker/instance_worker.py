@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
+import functools
 import logging
 import os
 import tempfile
 import time
 import uuid
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
-import psutil
 import redis.asyncio as aioredis
-from actions.ad_skip import AdSkipper
 from actions.tap import BotActions
 from analysis.overlay import parse_duration_seconds, run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
@@ -42,7 +44,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._redis: aioredis.Redis | None = None  # type: ignore[type-arg]
         self._queue: RedisQueue | None = None
         self._claims: CooperativeClaims | None = None
-        self._ad_skipper: AdSkipper | None = None
         self._bot_actions = BotActions()
         self._player_fsms: dict[str, PlayerFSM] = {}
         self._instance_state = InstanceState.READY
@@ -51,6 +52,44 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._rolling_snap_seq = 0
         self._last_current_screen: str | None = None
         self._overlay_rule_eval_state: dict[str, float] = {}
+        # Avoid asyncio default executor shutdown races during app stop/reload (rolling loop uses threads).
+        self._blocking_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix=f"wos-{self._cfg.instance_id}-",
+        )
+        self._rolling_snapshot_task: asyncio.Task[None] | None = None
+        self._overlay_analyze_suppressed_until: float = 0.0
+        self._blocking_executor_live: bool = True
+
+    def _suppress_overlay_after_launch(self, *, reason: str) -> None:
+        grace = float(self._settings.worker.overlay_analyze_after_launch_grace_seconds)
+        if grace <= 0:
+            return
+        self._overlay_analyze_suppressed_until = time.monotonic() + grace
+        logger.info(
+            "[overlay] %s: pause template analyze %.1fs (%s)",
+            self._cfg.instance_id,
+            grace,
+            reason,
+        )
+
+    async def _run_blocking(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+        if not self._blocking_executor_live:
+            raise asyncio.CancelledError()
+        loop = asyncio.get_running_loop()
+        if kwargs:
+            target: Callable[..., Any] = functools.partial(fn, *args, **kwargs)
+        elif args:
+            target = functools.partial(fn, *args)
+        else:
+            target = fn
+        try:
+            return await loop.run_in_executor(self._blocking_pool, target)
+        except RuntimeError as exc:
+            # Pool shut down or interpreter exiting — avoid spamming logs in rolling snapshot loop.
+            if "shutdown" in str(exc).lower():
+                raise asyncio.CancelledError() from exc
+            raise
 
     # Legacy hook removed: mail gift check will be a DSL scenario when needed.
 
@@ -58,8 +97,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._redis = aioredis.from_url(self._settings.redis.url)
         self._queue = RedisQueue(self._redis)
         self._claims = CooperativeClaims(self._redis)
-        self._ad_skipper = AdSkipper(self._cfg.instance_id)
-
         loop = asyncio.get_running_loop()
         for player_id in self._cfg.player_ids:
             fsm = PlayerFSM(player_id, self._redis, loop=loop)
@@ -158,8 +195,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 "active_player",
                 player_id,
             )
-        # Best-effort dismiss entry popups / ads.
-        await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
+        # Popups / ads: use overlay ``pushScenario`` + DSL under ``scenarios/`` (no built-in OCR skip).
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
@@ -219,20 +255,26 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         logger.error("Unhandled failure for task %s: %s", item.task_id, error)
 
     async def _health_check(self) -> bool:
+        """ADB-only: ``dumpsys`` must report Whiteout as resumed foreground activity."""
         try:
-            for proc in psutil.process_iter(["name", "cmdline"]):
-                try:
-                    name = proc.info["name"] or ""
-                    if "bluestacks" in name.lower():
-                        return True
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-        except PermissionError:
-            # Some macOS environments deny sysctl-based PID enumeration.
-            # Treat as "unknown but OK" to avoid a restart loop.
-            logger.debug("Health check skipped (no permission to enumerate processes)")
-            return True
-        return False
+            fg = await self._run_blocking(
+                self._bot_actions.is_game_foreground,
+                self._cfg.instance_id,
+            )
+        except Exception:
+            logger.exception(
+                "Health check: is_game_foreground (ADB) failed for %s",
+                self._cfg.instance_id,
+            )
+            return False
+
+        if not fg:
+            logger.warning(
+                "Health check: Whiteout not foreground on %s — scheduling app restart",
+                self._cfg.instance_id,
+            )
+            return False
+        return True
 
     async def _restart_instance(self) -> None:
         logger.warning("Restarting BlueStacks instance %s", self._cfg.instance_id)
@@ -243,7 +285,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         try:
             self._bot_actions.restart_application(self._cfg.instance_id)
             await asyncio.sleep(3.0)
-            await asyncio.to_thread(self._bot_actions.ensure_game_foreground, self._cfg.instance_id)
+            await self._run_blocking(self._bot_actions.ensure_game_foreground, self._cfg.instance_id)
         except Exception:
             logger.exception("Failed to restart application on %s", self._cfg.instance_id)
             await self._set_instance_state(
@@ -252,17 +294,13 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             return
 
         await self._set_instance_state(InstanceState.READY)
-        # Dismiss entry screens that appear after game restart (best-effort).
-        try:
-            await self._ad_skipper.handle_entry_screens()  # type: ignore[union-attr]
-        except Exception:
-            logger.debug("Ad-skip after restart failed", exc_info=True)
+        self._suppress_overlay_after_launch(reason="after restart_application")
 
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
 
     async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
-        """Run ``references/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
+        """Run ``analyze/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
         repo_root = Path(__file__).resolve().parent.parent
         try:
             # Read current_screen written by Navigator after successful navigation.
@@ -304,7 +342,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         )
 
         try:
-            image_bgr = await asyncio.to_thread(self._grab_layout_bgr)
+            image_bgr = await self._run_blocking(self._grab_layout_bgr)
         except Exception:
             logger.exception(
                 "[rolling] %s: screenshot failed (exception during capture)",
@@ -330,7 +368,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 tmp.unlink(missing_ok=True)
                 raise
 
-        if not await asyncio.to_thread(_write_png_atomic, path, image_bgr):
+        if not await self._run_blocking(_write_png_atomic, path, image_bgr):
             logger.warning("[rolling] %s: PNG write failed %s", self._cfg.instance_id, path)
             return
 
@@ -344,6 +382,15 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             h,
             self._rolling_snap_seq,
         )
+
+        now_m = time.monotonic()
+        if now_m < self._overlay_analyze_suppressed_until:
+            logger.debug(
+                "[rolling] %s: overlay skipped (launch grace, %.1fs left)",
+                self._cfg.instance_id,
+                self._overlay_analyze_suppressed_until - now_m,
+            )
+            return
 
         cfg = self._settings.worker
         overlay_skipped_busy = not cfg.overlay_analyze_when_busy and self._task_busy.is_set()
@@ -371,6 +418,12 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 await self._device_reference_snapshot_tick()
             except asyncio.CancelledError:
                 raise
+            except RuntimeError as exc:
+                if not self._blocking_executor_live:
+                    raise asyncio.CancelledError() from exc
+                logger.exception(
+                    "device_reference_snapshot_loop error on %s", self._cfg.instance_id
+                )
             except Exception:
                 logger.exception(
                     "device_reference_snapshot_loop error on %s", self._cfg.instance_id
@@ -398,61 +451,80 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             rolling_path,
         )
         try:
-            await asyncio.to_thread(self._ensure_whiteout_at_worker_start)
-        except Exception:
-            logger.exception(
-                "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
+            try:
+                await self._run_blocking(self._ensure_whiteout_at_worker_start)
+            except Exception:
+                logger.exception(
+                    "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
+                )
+            self._suppress_overlay_after_launch(reason="after worker start / ensure foreground")
+            # Legacy: page detect disabled (YAML-only mode).
+            self._rolling_snapshot_task = asyncio.create_task(
+                self._device_reference_snapshot_loop(),
+                name=f"refsnap-{self._cfg.instance_id}",
             )
-        # Legacy: page detect disabled (YAML-only mode).
-        asyncio.create_task(
-            self._device_reference_snapshot_loop(),
-            name=f"refsnap-{self._cfg.instance_id}",
-        )
-        health_interval = self._settings.worker.health_check_interval_seconds
-        last_health_check = time.monotonic()
-        last_heartbeat = 0.0
+            health_interval = self._settings.worker.health_check_interval_seconds
+            last_health_check = time.monotonic()
+            last_heartbeat = 0.0
 
-        try:
-            while True:
-                # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
-                now_m = time.monotonic()
-                if now_m - last_heartbeat >= 2.0:
-                    try:
-                        await self._redis.hset(  # type: ignore[union-attr]
-                            _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
-                            "last_seen_at",
-                            str(time.time()),
-                        )
-                    except Exception:
-                        logger.debug("Failed to write last_seen_at heartbeat", exc_info=True)
-                    last_heartbeat = now_m
+            try:
+                while True:
+                    # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
+                    now_m = time.monotonic()
+                    if now_m - last_heartbeat >= 2.0:
+                        try:
+                            await self._redis.hset(  # type: ignore[union-attr]
+                                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                                "last_seen_at",
+                                str(time.time()),
+                            )
+                        except Exception:
+                            logger.debug("Failed to write last_seen_at heartbeat", exc_info=True)
+                        last_heartbeat = now_m
 
-                # Periodic health check
-                if time.monotonic() - last_health_check >= health_interval:
-                    if not await self._health_check():
-                        await self._restart_instance()
-                    last_health_check = time.monotonic()
+                    # Periodic health check
+                    if time.monotonic() - last_health_check >= health_interval:
+                        if not await self._health_check():
+                            await self._restart_instance()
+                        last_health_check = time.monotonic()
 
-                await self._drain_ui_commands()
-                while self._ui_paused:
                     await self._drain_ui_commands()
-                    await asyncio.sleep(0.3)
+                    while self._ui_paused:
+                        await self._drain_ui_commands()
+                        await asyncio.sleep(0.3)
 
-                item = await self._pop_next_task()
-                if item is None:
-                    await asyncio.sleep(2.0)
-                    continue
-                item = await self._resolve_queue_item_player(item)
+                    item = await self._pop_next_task()
+                    if item is None:
+                        await asyncio.sleep(2.0)
+                        continue
+                    item = await self._resolve_queue_item_player(item)
 
-                task = self._build_task(item)
-                if task is None:
-                    continue
+                    task = self._build_task(item)
+                    if task is None:
+                        continue
 
-                await self._run_one_queue_item(item, task)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            await self._set_instance_state(InstanceState.CRASHED, error=f"worker crashed: {exc!s}")
-            raise
+                    await self._run_one_queue_item(item, task)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                await self._set_instance_state(InstanceState.CRASHED, error=f"worker crashed: {exc!s}")
+                raise
+        finally:
+            # Stop new thread-pool work before cancelling snapshot (avoids submit-after-shutdown races).
+            self._blocking_executor_live = False
+            snap = self._rolling_snapshot_task
+            self._rolling_snapshot_task = None
+            if snap is not None and not snap.done():
+                snap.cancel()
+                try:
+                    await snap
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.debug("rolling snapshot task shutdown failed", exc_info=True)
+            try:
+                self._blocking_pool.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                logger.debug("blocking thread pool shutdown failed", exc_info=True)
 
     # _run_one_queue_item and _reschedule_if_needed are provided by InstanceWorkerTasksMixin

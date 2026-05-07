@@ -13,9 +13,8 @@ overlay:
   threshold: 0.9
   ttl: 3
   pushScenario:
-    - task:
-        name: ads_rookie_value_pack
-        priority: 90_000
+    - name: ads_rookie_value_pack
+      priority: 90_000
 
 - name: skip_button.visible
   region: skip_button
@@ -29,6 +28,14 @@ overlay:
   priority: 80000
   threshold: 0.92
   min_match_saturation: 48
+
+- name: main_city.visible
+  region: is_main_city
+  action: findIcon
+  threshold: 0.9
+  pushScenario:
+    - name: set_node_main_city
+      priority: 85_000
 
 - name: page.chief_profile.visible
   region: chief_profile_title
@@ -129,6 +136,5 @@ overlay:
   min_match_saturation: 48
   ttl: 5s
   pushScenario:
-    - task:
-        name: tap_confirm_button
-        priority: 88_000
+    - name: tap_confirm_button
+      priority: 88_000

@@ -9,6 +9,8 @@ import streamlit as st
 import yaml
 from streamlit_extras.stoggle import stoggle
 
+from analysis.overlay_manifest import default_analyze_yaml_path
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -106,15 +108,15 @@ def _render_rule(rule: dict[str, Any]) -> None:
                     "views/wiki_scenarios.py",
                     label="Open",
                     query_params={"q": s, "show_all": "1"},
-                    use_container_width=True,
+                    width="stretch",
                 )
 
 
 st.title("Wiki · Analyze")
-st.caption("Browse `references/analyze.yaml` overlay rules as a readable story.")
+st.caption("Browse `analyze/analyze.yaml` overlay rules as a readable story.")
 
 repo_root = _repo_root()
-analyze_path = repo_root / "references" / "analyze.yaml"
+analyze_path = default_analyze_yaml_path(repo_root)
 
 loaded_files, overlay_rules = _load_analyze_manifest(analyze_path)
 if not overlay_rules:

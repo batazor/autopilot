@@ -5,12 +5,6 @@ overlay:
     threshold: 0.99
     set_node: mail
 
-  - name: main_city.visible
-    region: is_main_city
-    action: findIcon
-    threshold: 0.9
-    set_node: main_city
-
   - name: new_chapter.visible
     region: is_new_chapter
     action: findIcon
@@ -23,7 +17,6 @@ overlay:
     threshold: 0.92
     node: main_city
     pushScenario:
-      - task:
-          name: is_new_people
-          priority: 80000
-          ttl: 15m
+      - name: is_new_people
+        priority: 80000
+        ttl: 15m

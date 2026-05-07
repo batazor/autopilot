@@ -219,7 +219,15 @@ def _render_story_steps(*, steps: Any, repo_root: Path, regions_idx: dict[str, R
             st.markdown(f"**{idx}.** (unsupported step: {type(step).__name__})")
             continue
 
-        # Imperative DSL scenario (click/wait)
+        # Imperative DSL scenario (click / set_node / wait / screenshot)
+        if "set_node" in step:
+            sn = str(step.get("set_node") or "").strip()
+            cr = step.get("cond")
+            extra = f" when `{cr}`" if cr not in (None, "") and str(cr).strip() else ""
+            st.markdown(
+                f"**{idx}.** Set node `{sn}`{extra}" if sn else f"**{idx}.** Set node (missing){extra}"
+            )
+            continue
         if "click" in step:
             reg = str(step.get("click") or "").strip()
             st.markdown(f"**{idx}.** Click `{reg}`" if reg else f"**{idx}.** Click (missing region)")
@@ -239,7 +247,7 @@ def _render_story_steps(*, steps: Any, repo_root: Path, regions_idx: dict[str, R
                             with c_btn:
                                 if ref_under:
                                     k = f"wiki_scenarios_to_labeling_{idx}_{reg}_{ref_under}"
-                                    if st.button("Open in Labeling", key=k, use_container_width=True):
+                                    if st.button("Open in Labeling", key=k, width="stretch"):
                                         try:
                                             st.query_params["ref"] = ref_under
                                         except Exception:

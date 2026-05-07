@@ -39,8 +39,7 @@ class InstanceWorkerTasksMixin:
 
         state_key = f"wos:instance:{self._cfg.instance_id}:state"
         await self._set_instance_state(InstanceState.BUSY)
-        # Which YAML is running (queue key == scenario stem for `DslScenarioTask`). Ad-skip taps
-        # happen before `execute()` but are still "under" this job — show it in click approvals.
+        # Which YAML is running (queue key == scenario stem for `DslScenarioTask`).
         scenario_for_job = ""
         if isinstance(task, DslScenarioTask):
             scenario_for_job = str(task.scenario_key or item.task_type or "").strip()

@@ -720,7 +720,7 @@ def _render_regions_expander(
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
                 st.caption(
                     "Optional overlay rectangles — same ``ocr`` frame as this region; "
-                    "updates ``analyze.yaml`` (`search_region`)."
+                    "updates ``analyze/analyze.yaml`` (`search_region`)."
                 )
 
                 def _regions_contains(nm: str) -> bool:
@@ -773,7 +773,7 @@ def _render_regions_expander(
                     if not synced:
                         st.session_state[OVL_YAML_WARN] = (
                             f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
-                            "`references/analyze.yaml` — regions updated; edit YAML by hand."
+                            "`analyze/analyze.yaml` — regions updated; edit YAML by hand."
                         )
                     st.session_state.pop(ks_ov, None)
                     st.session_state.canvas_rev += 1

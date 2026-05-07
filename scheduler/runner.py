@@ -14,7 +14,7 @@ from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scenarios.models import Scenario
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
-from scheduler.ortools_executor import get_ortools_executor
+from scheduler.ortools_executor import get_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
 
 logger = logging.getLogger(__name__)
@@ -292,6 +292,7 @@ class SchedulerRunner:
         finally:
             # Lets the next SchedulerRunner start a fresh filesystem watch (avoids duplicate FSEvents).
             self._scenario_loader.stop_watching()
+            shutdown_ortools_executor(wait=False, cancel_futures=True)
 
 
 def main() -> None:

@@ -32,6 +32,20 @@ _GAME_PACKAGE = "com.gof.global"
 _redis_client: redis.Redis | None = None
 _APPROVAL_WAIT_SECONDS = 60.0
 _APPROVAL_POLL_SECONDS = 0.2
+_CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
+
+
+def click_approval_enabled(instance_id: str) -> bool:
+    """Return whether UI click-approval gating is on for ``instance_id``.
+
+    Default is **enabled** when the Redis key is missing (opt-out via explicit ``0`` /
+    ``false`` / ``no`` / ``off``).
+    """
+    enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
+    raw = str(_redis().get(enabled_key) or "").strip().lower()
+    if not raw:
+        return True
+    return raw not in _CLICK_APPROVAL_DISABLED
 
 
 def _redis() -> redis.Redis:
@@ -49,11 +63,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     Contract (no stack):
     - At most one pending request per instance stored at
       ``wos:ui:click_approval:current:<instance_id>``.
-    - UI writes decision to the request-specific ``response_key`` from the payload.
+    - UI writes decision to the request-specific ``response_key`` from the payload,
+      then may delete ``current`` immediately so the approvals page clears preview;
+      this path must still honor approve (poll ``response_key`` before inferring reject).
     """
-    enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
-    enabled = str(_redis().get(enabled_key) or "").strip().lower() in {"1", "true", "yes", "on"}
-    if not enabled:
+    if not click_approval_enabled(instance_id):
         return True, None
 
     hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
@@ -68,22 +82,51 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
 
     # Attach context for debugging ("who" + "why").
     ctx: dict[str, object] = {}
+    payload_type = ""
+    if isinstance(payload, dict):
+        payload_type = str(payload.get("type") or "").strip().lower()
     try:
         inst_state_key = f"wos:instance:{instance_id}:state"
         raw = _redis().hgetall(inst_state_key)
         if raw:
+            # ``current_task_region`` is the task-level region (set by the worker once
+            # per task item). For ``set_node`` it is irrelevant — that step only
+            # updates the FSM ``current_screen`` and never taps a region. Including
+            # the stale value here would make the approvals UI draw a misleading
+            # region overlay carried over from the previous step.
+            task_region = (raw.get("current_task_region") or "").strip()
+            if payload_type == "set_node":
+                task_region = ""
             ctx = {
                 "current_screen": (raw.get("current_screen") or "").strip(),
                 "current_task_player": (raw.get("current_task_player") or "").strip(),
-                "current_task_region": (raw.get("current_task_region") or "").strip(),
+                "current_task_region": task_region,
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
-                # YAML scenario key while a `DslScenarioTask` is running (incl. ad-skip before steps).
+                # YAML scenario key while a `DslScenarioTask` is running.
                 "scenario": (raw.get("current_scenario") or "").strip(),
             }
     except Exception:
         ctx = {}
 
+    # Fixed-coordinate taps may pass ``region`` on the payload — mirror into ``context``
+    # so the approvals page shows a label even when Redis ``current_task_region`` is still empty.
+    ar_hint = ""
+    if isinstance(payload, dict):
+        ar_hint = str(payload.get("region") or "").strip()
+    if ar_hint:
+        ctx = dict(ctx)
+        ctx["approval_region"] = ar_hint
+
     p = dict(payload)
+    default_source: dict[str, object] = {
+        "component": "actions.tap.AdbController",
+        "note": "ADB input request (approval mode enabled)",
+    }
+    incoming_src = p.pop("source", None)
+    if isinstance(incoming_src, dict):
+        merged = dict(default_source)
+        merged.update(incoming_src)
+        default_source = merged
     p.update(
         {
             "request_id": req_id,
@@ -91,10 +134,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             "created_at": time.time(),
             "status": "waiting",
             "response_key": resp_key,
-            "source": {
-                "component": "actions.tap.AdbController",
-                "note": "ADB input request (approval mode enabled)",
-            },
+            "source": default_source,
             "context": ctx,
         }
     )
@@ -109,19 +149,21 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         logger.info("ADB input blocked: approval slot busy for %s", instance_id)
         return False, None
 
+    # Poll ``response_key`` first so the UI can delete ``current`` immediately after
+    # posting approve/reject (clears preview) without being misread as reject here.
     decision: str | None = None
     while time.time() < deadline:
+        raw_resp = _redis().get(resp_key)
+        if raw_resp:
+            decision = str(raw_resp).strip().lower()
+            break
         try:
             raw_cur = _redis().get(current_key)
-            if not raw_cur or json.loads(raw_cur).get("request_id") != req_id:
+            if raw_cur and json.loads(raw_cur).get("request_id") != req_id:
                 decision = "reject"
                 break
         except Exception:
             logger.debug("Failed to read current approval request", exc_info=True)
-        raw = _redis().get(resp_key)
-        if raw:
-            decision = str(raw).strip().lower()
-            break
         time.sleep(_APPROVAL_POLL_SECONDS)
 
     if decision in {"approve", "reject"}:
@@ -292,14 +334,24 @@ class AdbController:
     # Touch input — all with jitter to simulate natural fingers
     # ------------------------------------------------------------------
 
-    def tap(self, point: Point) -> bool:
-        """Tap center of Point with ±2 px jitter."""
+    def tap(self, point: Point, *, approval_region: str | None = None) -> bool:
+        """Tap center of Point with ±2 px jitter.
+
+        ``approval_region``: logical label for click-approval UI when this tap is not tied to
+        ``area.json`` (e.g. DSL helper taps); shown as ``region`` on the request payload.
+        """
         x = _jitter(point.x, 2)
         y = _jitter(point.y, 2)
-        ok, req_id = _require_approval(
-            self._instance_id,
-            {"type": "tap", "x": int(x), "y": int(y), "serial": self._serial},
-        )
+        ap: dict[str, object] = {
+            "type": "tap",
+            "x": int(x),
+            "y": int(y),
+            "serial": self._serial,
+        }
+        ar = str(approval_region or "").strip()
+        if ar:
+            ap["region"] = ar
+        ok, req_id = _require_approval(self._instance_id, ap)
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
             return False
@@ -499,8 +551,8 @@ class BotActions:
             raise RuntimeError(err)
         return img
 
-    def tap(self, instance_id: str, point: Point) -> bool:
-        return self._controller(instance_id).tap(point)
+    def tap(self, instance_id: str, point: Point, *, approval_region: str | None = None) -> bool:
+        return self._controller(instance_id).tap(point, approval_region=approval_region)
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         """Emulator framebuffer size from ``adb shell wm size`` (tap coordinate space)."""
@@ -539,3 +591,7 @@ class BotActions:
 
     def ensure_game_foreground(self, instance_id: str) -> None:
         self._controller(instance_id).ensure_game_foreground()
+
+    def is_game_foreground(self, instance_id: str) -> bool:
+        """True if ``adb dumpsys activity`` reports Whiteout as resumed top activity."""
+        return self._controller(instance_id).is_game_foreground()

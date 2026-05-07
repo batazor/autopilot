@@ -11,13 +11,19 @@ from analysis.overlay_duration import parse_duration_seconds
 def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
     """Optional task enqueue hints for matched overlays.
 
-    Preferred (nested, readable) form:
+    Preferred flat form:
+
+    pushScenario:
+      - name: is_new_people
+        priority: 80000
+        ttl: 15m
+
+    Nested form (still supported):
 
     pushScenario:
       - task:
           name: is_new_people
           priority: 80000
-          ttl: 15m
 
     Backward compatible form:
     - pushUsecase: [...]
@@ -35,22 +41,26 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
             if not isinstance(item, dict):
                 continue
             task = item.get("task")
-            if not isinstance(task, dict):
+            if isinstance(task, dict):
+                src: dict[str, Any] = task
+            elif item.get("name") is not None or item.get("type") is not None:
+                src = item
+            else:
                 continue
-            t = str(task.get("name") or task.get("type") or "").strip()
+            t = str(src.get("name") or src.get("type") or "").strip()
             if not t:
                 continue
-            pr_raw = task.get("priority")
+            pr_raw = src.get("priority")
             pr: int | None
             try:
                 pr = int(pr_raw) if pr_raw is not None else None
             except (TypeError, ValueError):
                 pr = None
-            ttl_raw = task.get("ttl")
+            ttl_raw = src.get("ttl")
             if ttl_raw is None:
-                ttl_raw = task.get("ttl_seconds")  # backward compat
+                ttl_raw = src.get("ttl_seconds")  # backward compat
             ttl = parse_duration_seconds(ttl_raw)
-            dsl = str(task.get("dsl_scenario") or "").strip() or None
+            dsl = str(src.get("dsl_scenario") or "").strip() or None
             out.append({"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl})
 
     # Flat fallback

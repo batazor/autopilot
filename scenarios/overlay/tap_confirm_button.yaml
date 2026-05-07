@@ -3,3 +3,4 @@ name: Tap confirm dialog
 
 steps:
   - click: confirm_button
+  - set_node: main_city

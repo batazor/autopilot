@@ -360,7 +360,7 @@ def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
                 "views/labeling.py",
                 label="Open in Labeling",
                 query_params={"ref": rel},
-                use_container_width=True,
+                width="stretch",
             )
         st.divider()
 

@@ -1,0 +1,6 @@
+enabled: true
+name: Set node main city
+
+steps:
+  - set_node: main_city
+    cond: currentNode != main_city

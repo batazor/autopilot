@@ -19,6 +19,7 @@ LABELING_SELECTION_BEFORE_CAPTURE = "labeling_selection_before_capture"
 LABELING_REF_TREE_NONCE = "labeling_ref_tree_nonce"
 LABELING_LAST_INSTANCE = "labeling_bn_last_instance"
 LABELING_BN_NONE = "labeling_bn_none"
+LABELING_REFRESH_PENDING = "labeling_refresh_pending"
 
 # ---------------------------------------------------------------------------
 # Area annotator (shared between area_annotator.py, labeling_reference_panel.py,

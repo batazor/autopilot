@@ -89,4 +89,6 @@ worker:
   task_timeout_seconds: 300
   bluestacks_launch_timeout_seconds: 120
   overlay_analyze_when_busy: false
+  # Skip overlay image checks while the client is still loading (splash / black screen).
+  overlay_analyze_after_launch_grace_seconds: 15
   device_reference_snapshot_interval_seconds: 1.0

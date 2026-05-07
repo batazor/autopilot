@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from analysis.overlay_manifest import default_analyze_yaml_path
+
 
 def overlay_search_region_name(primary: str) -> str:
     return f"{str(primary).strip()}_search"
@@ -19,10 +21,10 @@ def _load_yaml_dict(path: Path) -> dict:
 def _iter_analyze_sources(repo_root: Path) -> list[Path]:
     """Return all YAML files that can contain overlay rules.
 
-    - Legacy: only ``references/analyze.yaml`` (no manifest include)
-    - Manifest: ``references/analyze.yaml`` with ``include: [...]`` points to rule files
+    - Single file: ``analyze/analyze.yaml`` with no ``include`` list
+    - Manifest: ``analyze/analyze.yaml`` with ``include: [...]`` (paths relative to manifest dir)
     """
-    manifest = repo_root / "references" / "analyze.yaml"
+    manifest = default_analyze_yaml_path(repo_root)
     if not manifest.is_file():
         return []
 

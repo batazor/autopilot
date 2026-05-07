@@ -13,7 +13,7 @@ from ui.overlay_yaml_sync import (
 
 
 def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
-    ref_dir = tmp_path / "references"
+    ref_dir = tmp_path / "analyze"
     ref_dir.mkdir(parents=True)
     raw = {
         "overlay": [
@@ -40,7 +40,7 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
 
 
 def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: Path) -> None:
-    ref_dir = tmp_path / "references"
+    ref_dir = tmp_path / "analyze"
     ref_dir.mkdir(parents=True)
     raw = {
         "overlay": [

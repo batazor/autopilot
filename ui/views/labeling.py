@@ -24,6 +24,7 @@ from ui.keys import (
     LABELING_LAST_INSTANCE,
     LABELING_PENDING_CAPTURE_REL,
     LABELING_REF_TREE_NONCE,
+    LABELING_REFRESH_PENDING,
     LABELING_RENAME_FLASH,
     LABELING_SELECTION_BEFORE_CAPTURE,
     LABELING_TREE_SELECTION,
@@ -100,7 +101,7 @@ if LABELING_ERROR_FLASH in st.session_state:
         with c_err:
             st.error(err_txt)
         with c_clear:
-            if st.button("Clear", use_container_width=True, key="labeling_error_clear"):
+            if st.button("Clear", width="stretch", key="labeling_error_clear"):
                 st.session_state.pop(LABELING_ERROR_FLASH, None)
                 st.rerun()
 
@@ -150,7 +151,6 @@ if isinstance(ref_param, str):
             st.session_state[LABELING_TREE_SELECTION] = cand
 
 new_screenshot = False
-refresh_screenshot = False
 write_crops = False
 discard_capture = False
 
@@ -163,7 +163,7 @@ with hdr_btn:
         new_screenshot = st.button(
             "New screenshot",
             type="primary",
-            use_container_width=True,
+            width="stretch",
             key="labeling_header_capture",
             help=(
                 "ADB → new ``references/<instance>_shot_<time>_<rand>.png``; "
@@ -171,16 +171,18 @@ with hdr_btn:
             ),
         )
     with r1c2:
-        refresh_screenshot = st.button(
+        if st.button(
             "Refresh selected",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             key="labeling_header_refresh",
             help=(
                 "ADB → overwrite the **currently selected** PNG under `references/` "
-                "(use when the screenshot is stale, but you want to keep the same filename)."
+                "(use when the screenshot is stale, but you want to keep the same filename). "
+                "Asks for confirmation first."
             ),
-        )
+        ):
+            st.session_state[LABELING_REFRESH_PENDING] = True
     pending_rel = st.session_state.get(LABELING_PENDING_CAPTURE_REL)
     can_discard = (
         isinstance(pending_rel, str)
@@ -193,7 +195,7 @@ with hdr_btn:
         discard_capture = st.button(
             "Discard screenshot",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             key="labeling_header_discard",
             disabled=not can_discard,
             help="Delete the last **New screenshot** file and drop its in-memory area.json row "
@@ -203,13 +205,19 @@ with hdr_btn:
         write_crops = st.button(
             "Write crops",
             type="secondary",
-            use_container_width=True,
+            width="stretch",
             key="labeling_header_crops",
             help=(
                 "Save bbox crops under **references/crop/** for **every** ``area.json`` screen "
                 "whose ``ocr`` PNG exists (skips ``overlay_auxiliary`` regions and missing files)."
             ),
         )
+
+if st.session_state.get(LABELING_REFRESH_PENDING):
+    st.info(
+        "**Refresh selected** — confirm overwrite below the labeling workspace "
+        "(after the reference tree)."
+    )
 
 if discard_capture:
     _handle_discard_pending_capture(ref_root=ref_root)
@@ -290,6 +298,54 @@ if sel:
         except Exception:
             pass
 
+if st.session_state.get(LABELING_REFRESH_PENDING):
+    if not sel:
+        st.warning("Nothing selected to refresh.")
+        st.session_state.pop(LABELING_REFRESH_PENDING, None)
+    else:
+        rel_disp = str(sel).replace("\\", "/").strip()
+        st.warning(
+            f"This will **overwrite** `references/{rel_disp}` with a new ADB screenshot "
+            "(same filename; `area.json` regions are unchanged)."
+        )
+        bc1, bc2 = st.columns(2)
+        with bc1:
+            confirm_refresh = st.button(
+                "Confirm overwrite",
+                type="primary",
+                key="labeling_refresh_confirm_yes",
+            )
+        with bc2:
+            if st.button("Cancel", key="labeling_refresh_confirm_no"):
+                st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                st.rerun()
+        if confirm_refresh:
+            target_rel = rel_disp
+            if not target_rel or target_rel.startswith("..") or "/.." in target_rel:
+                st.error("Invalid selected path.")
+                st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                st.stop()
+            target = (ref_root / target_rel).resolve()
+            if not target.is_file():
+                st.error(f"Selected file missing: `{target_rel}`")
+                st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                st.stop()
+            with st.spinner(f"Refreshing selected screenshot via ADB → `{target_rel}` …"):
+                ok, msg = adb_screencap_to_file(
+                    target,
+                    adb_bin=get_ui_adb_bin(),
+                    serial=inst_cfg.bluestacks_window_title,
+                )
+            st.session_state.pop(LABELING_REFRESH_PENDING, None)
+            if not ok:
+                with st.expander("ADB error details", expanded=True):
+                    st.error(msg)
+            else:
+                st.session_state[LABELING_RENAME_FLASH] = (
+                    f"Refreshed **references/{target_rel}**"
+                )
+            st.rerun()
+
 if write_crops:
     doc = st.session_state.get(AREA_DOC)
     if doc is None:
@@ -316,28 +372,3 @@ if write_crops:
             st.error(str(e))
         finally:
             prog.empty()
-
-if refresh_screenshot:
-    if not sel:
-        st.warning("Nothing selected to refresh.")
-        st.stop()
-    target_rel = str(sel).replace("\\", "/").strip()
-    if not target_rel or target_rel.startswith("..") or "/.." in target_rel:
-        st.error("Invalid selected path.")
-        st.stop()
-    target = (ref_root / target_rel).resolve()
-    if not target.is_file():
-        st.error(f"Selected file missing: `{target_rel}`")
-        st.stop()
-    with st.spinner(f"Refreshing selected screenshot via ADB → `{target_rel}` …"):
-        ok, msg = adb_screencap_to_file(
-            target,
-            adb_bin=get_ui_adb_bin(),
-            serial=inst_cfg.bluestacks_window_title,
-        )
-    if not ok:
-        with st.expander("ADB error details", expanded=True):
-            st.error(msg)
-    else:
-        st.session_state[LABELING_RENAME_FLASH] = f"Refreshed **references/{target_rel}**"
-    st.rerun()
