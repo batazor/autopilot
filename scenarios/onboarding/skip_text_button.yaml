@@ -2,5 +2,7 @@ enabled: true
 name: Tap skip (text screen)
 
 steps:
+  - match: skip_text_button
+    threshold: 0.95
   - click: skip_text_button
   - wait: 2s

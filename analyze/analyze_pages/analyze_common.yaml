@@ -153,3 +153,13 @@ overlay:
   pushScenario:
     - name: tap_confirm_button
       priority: 88_000
+
+- name: event.snowstorm.visible
+  region: event.snowstorm
+  action: findIcon
+  priority: 70_000
+  threshold: 0.92
+  ttl: 5s
+  pushScenario:
+    - name: event.snowstorm
+      priority: 70_000

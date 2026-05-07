@@ -31,6 +31,7 @@ from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import validate_unique_region_names
 from ui.overlay_yaml_sync import (
     overlay_search_region_name,
+    overlay_tap_region_name,
     rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
@@ -720,26 +721,46 @@ def _render_regions_expander(
             bbox_ok = isinstance(bbox_src, dict)
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
                 sn_ov = overlay_search_region_name(bn_ov)
+                tn_ov = overlay_tap_region_name(bn_ov)
                 st.caption(
                     f"Optional overlay rectangles — same ``ocr`` frame as this region. "
                     f"Sliding match uses ``{sn_ov}`` from ``area.json`` automatically; "
+                    f"clicks land at ``{tn_ov}`` center (offset from the matched primary) when present. "
                     "YAML cleanup removes obsolete explicit ``search_region`` keys."
                 )
 
                 def _regions_contains(nm: str) -> bool:
                     return any(str(r.get("name", "") or "").strip() == nm for r in regions)
+
                 ks_ov = f"ovl_aux_s_{ei_ov}_{idx}"
                 if ks_ov not in st.session_state:
                     st.session_state[ks_ov] = _regions_contains(sn_ov)
+                kt_ov = f"ovl_aux_t_{ei_ov}_{idx}"
+                if kt_ov not in st.session_state:
+                    st.session_state[kt_ov] = _regions_contains(tn_ov)
+
                 want_s_ov = st.checkbox(
                     f"Search ROI (`{sn_ov}`)",
                     key=ks_ov,
-                    help=f"Larger ROI for sliding template match (saved as `{sn_ov}` in area.json).",
+                    help=(
+                        f"Larger ROI for sliding template match "
+                        f"(saved as `{sn_ov}` in area.json)."
+                    ),
                 )
-                ov_changed = False
+                want_t_ov = st.checkbox(
+                    f"Tap ROI (`{tn_ov}`)",
+                    key=kt_ov,
+                    help=(
+                        f"Separate click target — overlay engine taps at the center of "
+                        f"`{tn_ov}` (offset from the matched primary). "
+                        "Independent of the Search ROI."
+                    ),
+                )
+
+                search_changed = False
                 if bbox_ok and want_s_ov != _regions_contains(sn_ov):
                     if want_s_ov:
-                        aux_r: RegionDict = {
+                        aux_s: RegionDict = {
                             "name": sn_ov,
                             "action": "exist",
                             "type": "string",
@@ -747,15 +768,36 @@ def _render_regions_expander(
                             "bbox": dict(bbox_src),
                             "overlay_auxiliary": True,
                         }
-                        regions.append(aux_r)
+                        regions.append(aux_s)
                     else:
                         regions[:] = [
                             x
                             for x in regions
                             if str(x.get("name", "") or "").strip() != sn_ov
                         ]
-                    ov_changed = True
-                if ov_changed:
+                    search_changed = True
+
+                tap_changed = False
+                if bbox_ok and want_t_ov != _regions_contains(tn_ov):
+                    if want_t_ov:
+                        aux_t: RegionDict = {
+                            "name": tn_ov,
+                            "action": "click",
+                            "type": "string",
+                            "threshold": 0.9,
+                            "bbox": dict(bbox_src),
+                            "overlay_auxiliary": True,
+                        }
+                        regions.append(aux_t)
+                    else:
+                        regions[:] = [
+                            x
+                            for x in regions
+                            if str(x.get("name", "") or "").strip() != tn_ov
+                        ]
+                    tap_changed = True
+
+                if search_changed or tap_changed:
                     try:
                         validate_unique_region_names(st.session_state.area_doc)
                     except ValueError as _e:
@@ -766,17 +808,19 @@ def _render_regions_expander(
                         st.error(f"Region validation failed — changes discarded: {_e}")
                         st.rerun()
                     set_current_regions(regions)
-                    synced = sync_findicon_overlay_aux_keys(
-                        REPO_ROOT,
-                        bn_ov,
-                        use_search=_regions_contains(sn_ov),
-                    )
-                    if not synced:
-                        st.session_state[OVL_YAML_WARN] = (
-                            f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
-                            "`analyze/analyze.yaml` — regions updated; edit YAML by hand."
+                    if search_changed:
+                        synced = sync_findicon_overlay_aux_keys(
+                            REPO_ROOT,
+                            bn_ov,
+                            use_search=_regions_contains(sn_ov),
                         )
+                        if not synced:
+                            st.session_state[OVL_YAML_WARN] = (
+                                f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
+                                "`analyze/analyze.yaml` — regions updated; edit YAML by hand."
+                            )
                     st.session_state.pop(ks_ov, None)
+                    st.session_state.pop(kt_ov, None)
                     st.session_state.canvas_rev += 1
                     st.session_state.last_canvas_sig = ""
                     st.rerun()
@@ -786,7 +830,7 @@ def _render_regions_expander(
                 and not bn_ov.endswith("_search")
                 and not bn_ov.endswith("_tap")
             ):
-                st.caption("Draw a bbox on this region before enabling overlay search ROI.")
+                st.caption("Draw a bbox on this region before enabling overlay Search/Tap ROIs.")
 
         _del_pending_key = f"{AREA_DELETE_REGION_PENDING_PREFIX}_{_rk}"
         _raw_pending = st.session_state.get(_del_pending_key)

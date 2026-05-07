@@ -17,6 +17,11 @@ def overlay_search_region_name(primary: str) -> str:
     return f"{str(primary).strip()}_search"
 
 
+def overlay_tap_region_name(primary: str) -> str:
+    """Auxiliary click ROI for ``primary`` overlay region (offset target for taps)."""
+    return f"{str(primary).strip()}_tap"
+
+
 def _load_yaml_dict(path: Path) -> dict:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else {}

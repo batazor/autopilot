@@ -303,6 +303,14 @@ async def evaluate_overlay_rules_async(
             mx_pct = 100.0 * (tl_x + tw_tpl / 2.0) / wi
             my_pct = 100.0 * (tl_y + th_tpl / 2.0) / hi
 
+            tap_x_pct_1 = mx_pct
+            tap_y_pct_1 = my_pct
+            tap_delta_1 = _tap_region_delta_pct(area_doc, region_name, rule)
+            if tap_delta_1 is not None:
+                _tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
+                tap_x_pct_1 = mx_pct + dx_pct_1
+                tap_y_pct_1 = my_pct + dy_pct_1
+
             matched_1 = score >= threshold
             sat_fail_1: str | None = None
             mean_sat_1: float | None = None
@@ -327,7 +335,16 @@ async def evaluate_overlay_rules_async(
                 "template_h": th_tpl,
                 "action": "findIcon",
                 "region": region_name,
+                "tap_x_pct": tap_x_pct_1,
+                "tap_y_pct": tap_y_pct_1,
             }
+            if tap_delta_1 is not None:
+                tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
+                hit1["tap_region"] = tap_region_1
+                hit1["tap_delta_x_pct"] = dx_pct_1
+                hit1["tap_delta_y_pct"] = dy_pct_1
+                hit1["tap_match_x_pct"] = mx_pct
+                hit1["tap_match_y_pct"] = my_pct
             if push_tasks:
                 hit1["pushScenario"] = push_tasks
             if set_node_s:

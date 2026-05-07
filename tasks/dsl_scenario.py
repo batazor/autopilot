@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
+from analysis.overlay import evaluate_overlay_rules_async
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
 from config.loader import get_settings
 from config.reference_naming import (
@@ -215,6 +216,57 @@ class DslScenarioTask:
                 continue
             if not await _dsl_cond_allows_step(step, instance_id, self.redis_client):
                 logger.debug("dsl_scenario: step skipped by cond (%s)", step.get("cond"))
+                continue
+            if "match" in step:
+                reg = str(step.get("match") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                pair = screen_region_by_name(area_doc, reg) if reg else None
+                if pair is None:
+                    logger.warning("dsl_scenario: match region not found in area.json: %s", reg)
+                    await self._clear_step_context(instance_id)
+                    return TaskResult(
+                        success=True,
+                        next_run_at=None,
+                        metadata={"scenario": key, "reason": "match_region_not_found", "region": reg},
+                    )
+                raw_threshold = step.get("threshold")
+                if raw_threshold is None:
+                    raw_threshold = pair[1].get("threshold", 0.9)
+                try:
+                    threshold = float(raw_threshold)
+                except (TypeError, ValueError):
+                    threshold = 0.9
+                min_sat = step.get("min_match_saturation")
+                rule: dict[str, Any] = {
+                    "name": f"dsl.{key}.{reg}.visible",
+                    "region": reg,
+                    "action": "findIcon",
+                    "threshold": threshold,
+                }
+                if min_sat is not None:
+                    rule["min_match_saturation"] = min_sat
+                image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+                out = await evaluate_overlay_rules_async(image_bgr, area_doc, repo_root, [rule])
+                row = out.get(str(rule["name"]))
+                matched = isinstance(row, dict) and bool(row.get("matched"))
+                if not matched:
+                    logger.info(
+                        "dsl_scenario: match guard failed — skipping scenario %s region=%s row=%s",
+                        key,
+                        reg,
+                        row,
+                    )
+                    await self._clear_step_context(instance_id)
+                    return TaskResult(
+                        success=True,
+                        next_run_at=None,
+                        metadata={
+                            "scenario": key,
+                            "reason": "match_guard_failed",
+                            "region": reg,
+                            "match": row if isinstance(row, dict) else None,
+                        },
+                    )
                 continue
             if "set_node" in step:
                 node = str(step.get("set_node") or "").strip()

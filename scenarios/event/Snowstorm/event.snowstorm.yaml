@@ -1,0 +1,6 @@
+enabled: true
+name: Snowstorm event — tap Go
+
+steps:
+  - click: event.snowstorm
+  - wait: 1500ms
