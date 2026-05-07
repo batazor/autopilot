@@ -1,0 +1,5 @@
+enabled: true
+name: Tap tutorial hand pointer (small reverse)
+
+steps:
+  - click: hand_pointer_small_reverse
