@@ -1,0 +1,6 @@
+enabled: true
+name: Tap skip (text screen)
+
+steps:
+  - click: skip_text_button
+  - wait: 2s

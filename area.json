@@ -161,9 +161,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 0.0,
-            "y": 52.0,
-            "width": 45.0,
-            "height": 42.0,
+            "y": 51.891304347826086,
+            "width": 83.25096525096525,
+            "height": 44.94021739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -812,6 +812,28 @@
             "y": 81.52173913043478,
             "width": 31.7992277992278,
             "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "screen_id": "",
+      "ocr": "references/skip_text.png",
+      "regions": [
+        {
+          "name": "skip_text_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.89382239382239,
+            "y": 93.03152173913044,
+            "width": 10.6003861003861,
+            "height": 5.3,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

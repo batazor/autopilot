@@ -26,6 +26,16 @@ overlay:
     - name: skip_button
       priority: 60000
 
+- name: skip_text_button.visible
+  region: skip_text_button
+  action: findIcon
+  priority: 60000
+  threshold: 0.95
+  ttl: 4
+  pushScenario:
+    - name: skip_text_button
+      priority: 60000
+
 - name: accept_all_button.visible
   region: accept_all_button
   action: findIcon
@@ -51,29 +61,32 @@ overlay:
 - name: hand_pointer.visible
   region: hand_pointer
   action: findIcon
-  priority: 60000
+  priority: 62000
   threshold: 0.98
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer
-      priority: 60000
+      priority: 62000
 
 - name: hand_pointer_small_reverse.visible
   region: hand_pointer_small_reverse
   action: findIcon
-  priority: 60000
+  priority: 62000
   threshold: 0.92
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer_small_reverse
-      priority: 60000
+      priority: 62000
 
 - name: hand_pointer_small.visible
   region: hand_pointer_small
   action: findIcon
-  priority: 60000
-  threshold: 0.92
+  priority: 62000
+  threshold: 0.85
   min_match_saturation: 40
+  pushScenario:
+    - name: hand_pointer_small
+      priority: 62000
 
 - name: claim_button.visible
   region: claim_button

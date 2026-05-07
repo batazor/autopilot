@@ -1,0 +1,5 @@
+enabled: true
+name: Tap tutorial hand pointer (small)
+
+steps:
+  - click: hand_pointer_small
