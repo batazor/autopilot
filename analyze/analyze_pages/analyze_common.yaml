@@ -97,6 +97,28 @@ overlay:
   threshold: 0.98
   min_match_saturation: 48
 
+- name: claim_all.visible
+  region: claim_all
+  action: findIcon
+  priority: 76_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_claim_all
+      priority: 76_000
+
+- name: tapanywhereyoexit.visible
+  region: tapanywhereyoexit
+  action: findIcon
+  priority: 76_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_tapanywhereyoexit
+      priority: 76_000
+
 - name: upgrade_building.visible
   region: upgrade_building
   action: findIcon
@@ -121,12 +143,6 @@ overlay:
 
 - name: go_button.visible
   region: go_button
-  action: findIcon
-  threshold: 0.98
-  min_match_saturation: 48
-
-- name: build_button.visible
-  region: build_button
   action: findIcon
   threshold: 0.98
   min_match_saturation: 48

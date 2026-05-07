@@ -2,4 +2,7 @@ enabled: true
 name: Tap tutorial hand pointer
 
 steps:
+  - match: hand_pointer
+    threshold: 0.98
+    min_match_saturation: 40
   - click: hand_pointer

@@ -407,7 +407,7 @@
             "x": 1.505791505791506,
             "y": 72.0,
             "width": 94.7992277992278,
-            "height": 26.648695652173913,
+            "height": 26.64891304347826,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -532,7 +532,7 @@
     },
     {
       "id": 15,
-      "screen_id": "",
+      "screen_id": "main_city",
       "ocr": "references/main_city.png",
       "regions": [
         {
@@ -575,6 +575,21 @@
             "y": 85.97826086956522,
             "width": 8.3996138996139,
             "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "to_chief_profile",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.5405405405405406,
+            "y": 0.21739130434782608,
+            "width": 11.200772200772201,
+            "height": 6.2,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -876,6 +891,50 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "screen_id": "",
+      "ocr": "references/claim_all.png",
+      "regions": [
+        {
+          "name": "claim_all",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.0926640926641,
+            "y": 77.06521739130434,
+            "width": 15.2007722007722,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "screen_id": "",
+      "ocr": "references/tapanywhereyoexit.png",
+      "regions": [
+        {
+          "name": "tapanywhereyoexit",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.42857142857143,
+            "y": 90.76086956521739,
+            "width": 7.399613899613899,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

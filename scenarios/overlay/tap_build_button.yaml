@@ -1,0 +1,13 @@
+enabled: true
+name: Tap build button
+
+steps:
+  - match: build_button
+    threshold: 0.95
+    min_match_saturation: 48
+  - wait: 300ms
+  - match: build_button
+    threshold: 0.95
+    min_match_saturation: 48
+  - click: build_button
+  - wait: 800ms

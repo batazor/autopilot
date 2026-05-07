@@ -2,4 +2,7 @@ enabled: true
 name: Tap tutorial hand pointer (small reverse)
 
 steps:
+  - match: hand_pointer_small_reverse
+    threshold: 0.92
+    min_match_saturation: 40
   - click: hand_pointer_small_reverse

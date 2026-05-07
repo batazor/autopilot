@@ -1,0 +1,8 @@
+enabled: true
+name: Tap anywhere to exit
+
+steps:
+  - match: tapanywhereyoexit
+    threshold: 0.92
+  - click: tapanywhereyoexit
+  - wait: 5s

@@ -2,3 +2,4 @@ include:
   - analyze_pages/analyze_common.yaml
   - analyze_pages/analyze_main_page.yaml
   - analyze_pages/analyze_mail.yaml
+  - analyze_pages/analyze_building.yaml

@@ -1,0 +1,11 @@
+overlay:
+- name: build_button.visible
+  region: build_button
+  action: findIcon
+  priority: 72_000
+  threshold: 0.98
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_build_button
+      priority: 72_000
