@@ -51,7 +51,9 @@ overlay:
   priority: 60000
   threshold: 0.92
   min_match_saturation: 40
-  tap_offset_from_match: true
+  pushScenario:
+    - name: hand_pointer
+      priority: 60000
 
 - name: hand_pointer_small_reverse.visible
   region: hand_pointer_small_reverse
