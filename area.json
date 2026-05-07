@@ -223,6 +223,21 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        },
+        {
+          "name": "claim_button_close",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.85714285714286,
+            "y": 7.391304347826087,
+            "width": 6.0,
+            "height": 3.9000000000000004,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
@@ -573,7 +588,7 @@
           "bbox": {
             "x": 2.664092664092664,
             "y": 85.97826086956522,
-            "width": 8.3996138996139,
+            "width": 5.795366795366795,
             "height": 3.1,
             "rotation": 0.0,
             "original_width": 720,

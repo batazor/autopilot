@@ -94,8 +94,13 @@ overlay:
 - name: claim_button.visible
   region: claim_button
   action: findIcon
+  priority: 76_000
   threshold: 0.98
   min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_claim_button
+      priority: 76_000
 
 - name: claim_all.visible
   region: claim_all

@@ -1,0 +1,8 @@
+enabled: true
+name: "New chapter"
+
+steps:
+  - match: is_new_chapter
+    threshold: 0.9
+  - click: is_new_chapter
+  - wait: 1s

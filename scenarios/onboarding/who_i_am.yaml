@@ -1,0 +1,15 @@
+enabled: true
+name: Who am I — capture chief profile
+
+# Root `node:` tells the runner to navigate the FSM to `chief_profile`
+# (via screen_graph BFS) before executing `steps`. After steps the bot stays
+# on chief_profile — return to main_city is handled by other rules.
+#
+# Priority is set by the cron seeder (`scenarios/by_cron/seed_who_i_am.yaml`,
+# 40_000) — below onboarding overlays (skip=60_000, hand=62_000) so this never
+# preempts tutorials.
+node: chief_profile
+
+steps:
+  - match: chief_profile_title
+    threshold: 0.92

@@ -6,5 +6,4 @@ priority: 10
 
 node: main_city
 
-steps:
-  - screenshot: true
+steps: []

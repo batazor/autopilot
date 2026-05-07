@@ -37,7 +37,7 @@ EDGE_TAPS: Final[dict[tuple[str, str], list[Tap]]] = {
     ("main_city", "training"): ["training_btn"],
     ("main_city", "alliance"): ["alliance_btn"],
     ("main_city", "gathering"): ["world_map_btn"],
-    ("main_city", "chief_profile"): ["profile_btn"],
+    ("main_city", "chief_profile"): ["to_chief_profile"],
     # * → main_city  (back button)
     ("arena",            "main_city"): ["back_button"],
     ("training",         "main_city"): ["back_button"],

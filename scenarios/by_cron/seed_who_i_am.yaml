@@ -1,0 +1,15 @@
+name: Seed who_i_am
+enabled: true
+
+# Push the `who_i_am` DSL scenario every 15 min while the bot is in main_city.
+# This effectively triggers it shortly after a fresh start — onboarding
+# (skip_button=60_000, hand_pointer=62_000) and overlay confirmations
+# (confirm_button=88_000, reconnect_button=999_000) all outrank this push,
+# so tutorial / forced dialogs are never blocked by an identity check.
+
+cron: "*/15 * * * *"
+priority: 40_000
+
+when_current_screen: main_city
+task: who_i_am
+scope: player

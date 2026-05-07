@@ -11,13 +11,6 @@ import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
-from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
-from config.loader import get_settings
-from config.reference_naming import (
-    reference_file_basename,
-    temporal_png_abs_path,
-    unique_label_capture_basename,
-)
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Point
@@ -118,6 +111,17 @@ def _load_area_json(repo_root: Path) -> dict[str, Any]:
         return {}
 
 
+def _parse_wait_seconds(value: object) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    s = str(value or "").strip().lower()
+    if s.endswith("ms"):
+        return float(s[:-2].strip()) / 1000.0
+    if s.endswith("s"):
+        return float(s[:-1].strip())
+    return 0.0
+
+
 @dataclass
 class DslScenarioTask:
     """Generic runner for imperative DSL scenario YAML.
@@ -161,8 +165,183 @@ class DslScenarioTask:
         except Exception:
             pass
 
+    async def _navigate_to_node(
+        self,
+        instance_id: str,
+        target_node: str,
+        *,
+        actions: Any,
+        scenario_key: str,
+    ) -> bool:
+        """Drive the FSM to ``target_node`` via :class:`Navigator` (BFS over screen_graph).
+
+        No-op when ``current_screen`` already equals the target. Unknown / not-in-graph
+        targets are treated as soft failures (logged, scenario aborts).
+        """
+        from navigation.detector import ScreenName
+        from navigation.navigator import Navigator
+
+        target_node = target_node.strip()
+        if not target_node:
+            return True
+        try:
+            target = ScreenName(target_node)
+        except ValueError:
+            logger.warning(
+                "dsl_scenario: unknown FSM screen %r for scenario %s — skipping navigation",
+                target_node,
+                scenario_key,
+            )
+            return False
+
+        cur = await _read_current_screen(instance_id, self.redis_client)
+        if cur == str(target):
+            return True
+
+        await self._write_step_context(instance_id, scenario=scenario_key)
+        navigator = Navigator(
+            actions.capture_screen_bgr,
+            actions.tap,
+            redis_client=self.redis_client,
+        )
+        ok = await navigator.navigate_to(target, instance_id)
+        if not ok:
+            logger.warning(
+                "dsl_scenario: navigation to %s failed (scenario=%s instance=%s)",
+                target_node,
+                scenario_key,
+                instance_id,
+            )
+            return False
+        if self.redis_client is not None:
+            try:
+                await self.redis_client.hset(
+                    f"wos:instance:{instance_id}:state",
+                    "current_screen",
+                    str(target),
+                )
+            except Exception:
+                logger.debug("dsl_scenario: failed to persist current_screen", exc_info=True)
+        return True
+
     def estimate_duration(self) -> int:
         return 15
+
+    async def _match_region(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        repo_root: Path,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        region: str,
+    ) -> dict[str, Any] | None:
+        pair = screen_region_by_name(area_doc, region) if region else None
+        if pair is None:
+            logger.warning("dsl_scenario: match region not found in area.json: %s", region)
+            return None
+        raw_threshold = step.get("threshold")
+        if raw_threshold is None:
+            raw_threshold = pair[1].get("threshold", 0.9)
+        try:
+            threshold = float(raw_threshold)
+        except (TypeError, ValueError):
+            threshold = 0.9
+        rule: dict[str, Any] = {
+            "name": f"dsl.{scenario_key}.{region}.visible",
+            "region": region,
+            "action": "findIcon",
+            "threshold": threshold,
+        }
+        min_sat = step.get("min_match_saturation")
+        if min_sat is not None:
+            rule["min_match_saturation"] = min_sat
+        image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+        out = await evaluate_overlay_rules_async(image_bgr, area_doc, repo_root, [rule])
+        row = out.get(str(rule["name"]))
+        return row if isinstance(row, dict) else None
+
+    async def _tap_region(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        instance_id: str,
+        dev_w: int,
+        dev_h: int,
+        scenario_key: str,
+        region: str,
+    ) -> TaskResult | None:
+        pair = screen_region_by_name(area_doc, region) if region else None
+        if pair is None or not isinstance(pair[1].get("bbox"), dict):
+            logger.warning("dsl_scenario: region not found in area.json: %s", region)
+            return None
+
+        tap_region = str(self.tap_region or "").strip()
+        if (
+            self.tap_x_pct is not None
+            and self.tap_y_pct is not None
+            and (not tap_region or tap_region == region)
+        ):
+            pt = Point(
+                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
+                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
+            )
+        else:
+            pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
+        tapped = actions.tap(instance_id, pt, approval_region=region)
+        if not tapped:
+            logger.info(
+                "dsl_scenario: tap rejected or blocked — aborting scenario %s",
+                scenario_key,
+            )
+            await self._clear_step_context(instance_id)
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={
+                    "scenario": scenario_key,
+                    "reason": "tap_not_approved",
+                },
+            )
+        return None
+
+    async def _run_inline_step(
+        self,
+        step: dict[str, Any],
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        instance_id: str,
+        dev_w: int,
+        dev_h: int,
+        scenario_key: str,
+    ) -> TaskResult | None:
+        if "click" in step:
+            region = str(step.get("click") or "").strip()
+            if region:
+                result = await self._tap_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    instance_id=instance_id,
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    scenario_key=scenario_key,
+                    region=region,
+                )
+                if result is not None:
+                    return result
+                await asyncio.sleep(0.4)
+            return None
+        if "wait" in step:
+            seconds = _parse_wait_seconds(step.get("wait"))
+            if seconds > 0:
+                await asyncio.sleep(seconds)
+            return None
+        logger.warning("dsl_scenario: unsupported nested while_match step: %s", step)
+        return None
 
     async def execute(self, instance_id: str) -> TaskResult:
         key = str(self.scenario_key or "").strip()
@@ -211,6 +390,29 @@ class DslScenarioTask:
         area_doc = _load_area_json(repo_root)
         dev_w, dev_h = actions.screen_resolution(instance_id)
 
+        # Optional root-level `node: <screen>` — navigate the FSM to the target
+        # screen before running steps. Lets DSL scenarios skip explicit
+        # `click: <btn>` chains when destination is already in screen_graph.
+        target_node = str(doc.get("node") or "").strip()
+        if target_node:
+            nav_ok = await self._navigate_to_node(
+                instance_id,
+                target_node,
+                actions=actions,
+                scenario_key=key,
+            )
+            if not nav_ok:
+                await self._clear_step_context(instance_id)
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={
+                        "scenario": key,
+                        "reason": "navigation_failed",
+                        "target_node": target_node,
+                    },
+                )
+
         for step in steps:
             if not isinstance(step, dict):
                 continue
@@ -220,35 +422,23 @@ class DslScenarioTask:
             if "match" in step:
                 reg = str(step.get("match") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
-                pair = screen_region_by_name(area_doc, reg) if reg else None
-                if pair is None:
-                    logger.warning("dsl_scenario: match region not found in area.json: %s", reg)
+                row = await self._match_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    scenario_key=key,
+                    step=step,
+                    region=reg,
+                )
+                if row is None:
                     await self._clear_step_context(instance_id)
                     return TaskResult(
                         success=True,
                         next_run_at=None,
                         metadata={"scenario": key, "reason": "match_region_not_found", "region": reg},
                     )
-                raw_threshold = step.get("threshold")
-                if raw_threshold is None:
-                    raw_threshold = pair[1].get("threshold", 0.9)
-                try:
-                    threshold = float(raw_threshold)
-                except (TypeError, ValueError):
-                    threshold = 0.9
-                min_sat = step.get("min_match_saturation")
-                rule: dict[str, Any] = {
-                    "name": f"dsl.{key}.{reg}.visible",
-                    "region": reg,
-                    "action": "findIcon",
-                    "threshold": threshold,
-                }
-                if min_sat is not None:
-                    rule["min_match_saturation"] = min_sat
-                image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-                out = await evaluate_overlay_rules_async(image_bgr, area_doc, repo_root, [rule])
-                row = out.get(str(rule["name"]))
-                matched = isinstance(row, dict) and bool(row.get("matched"))
+                matched = bool(row.get("matched"))
                 if not matched:
                     logger.info(
                         "dsl_scenario: match guard failed — skipping scenario %s region=%s row=%s",
@@ -267,6 +457,54 @@ class DslScenarioTask:
                             "match": row if isinstance(row, dict) else None,
                         },
                     )
+                continue
+            if "while_match" in step:
+                reg = str(step.get("while_match") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                try:
+                    max_iters = int(step.get("max", 20))
+                except (TypeError, ValueError):
+                    max_iters = 20
+                max_iters = max(0, max_iters)
+                inner_steps = step.get("steps")
+                if not isinstance(inner_steps, list) or not inner_steps:
+                    inner_steps = [{"click": reg}]
+                iterations = 0
+                for _ in range(max_iters):
+                    row = await self._match_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        scenario_key=key,
+                        step=step,
+                        region=reg,
+                    )
+                    if row is None:
+                        break
+                    if not bool(row.get("matched")):
+                        break
+                    for inner in inner_steps:
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                        )
+                        if result is not None:
+                            return result
+                    iterations += 1
+                logger.info(
+                    "dsl_scenario: while_match done scenario=%s region=%s iterations=%d",
+                    key,
+                    reg,
+                    iterations,
+                )
                 continue
             if "set_node" in step:
                 node = str(step.get("set_node") or "").strip()
@@ -345,97 +583,27 @@ class DslScenarioTask:
                     except Exception:
                         pass
                 if reg:
-                    if pair is None or not isinstance(pair[1].get("bbox"), dict):
-                        logger.warning("dsl_scenario: region not found in area.json: %s", reg)
-                    else:
-                        tap_region = str(self.tap_region or "").strip()
-                        if (
-                            self.tap_x_pct is not None
-                            and self.tap_y_pct is not None
-                            and (not tap_region or tap_region == reg)
-                        ):
-                            pt = Point(
-                                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
-                                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
-                            )
-                        else:
-                            pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
-                        tapped = actions.tap(instance_id, pt, approval_region=reg)
-                        if not tapped:
-                            logger.info(
-                                "dsl_scenario: tap rejected or blocked — aborting scenario %s",
-                                key,
-                            )
-                            await self._clear_step_context(instance_id)
-                            return TaskResult(
-                                success=False,
-                                next_run_at=None,
-                                metadata={
-                                    "scenario": key,
-                                    "reason": "tap_not_approved",
-                                },
-                            )
-                        await asyncio.sleep(0.4)
+                    result = await self._tap_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=key,
+                        region=reg,
+                    )
+                    if result is not None:
+                        return result
+                    await asyncio.sleep(0.4)
                 continue
             if "wait" in step:
                 # Supports "1200ms" (string) or seconds (number).
                 w = step.get("wait")
                 await self._write_step_context(instance_id, scenario=key)
-                seconds = 0.0
-                if isinstance(w, (int, float)):
-                    seconds = float(w)
-                else:
-                    s = str(w or "").strip().lower()
-                    if s.endswith("ms"):
-                        seconds = float(s[:-2].strip()) / 1000.0
-                    elif s.endswith("s"):
-                        seconds = float(s[:-1].strip())
+                seconds = _parse_wait_seconds(w)
                 if seconds > 0:
                     await asyncio.sleep(seconds)
                 continue
-            if "screenshot" in step:
-                raw_ss = step.get("screenshot")
-                stem: str
-                if raw_ss is None or raw_ss is True or raw_ss == {}:
-                    stem = unique_label_capture_basename(instance_id)
-                elif isinstance(raw_ss, str) and raw_ss.strip():
-                    stem = reference_file_basename(
-                        f"{instance_id}_{raw_ss.strip()}",
-                        instance_id,
-                    )
-                elif isinstance(raw_ss, dict):
-                    name = str(raw_ss.get("name") or raw_ss.get("basename") or "").strip()
-                    stem = (
-                        unique_label_capture_basename(instance_id)
-                        if not name
-                        else reference_file_basename(f"{instance_id}_{name}", instance_id)
-                    )
-                else:
-                    stem = unique_label_capture_basename(instance_id)
-                await self._write_step_context(instance_id, scenario=key)
-                dest = temporal_png_abs_path(repo_root, stem)
-                settings = get_settings()
-                adb_bin = (settings.worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
-                serial: str | None = None
-                for inst in settings.instances:
-                    if inst.instance_id == instance_id:
-                        serial = inst.bluestacks_window_title
-                        break
-                if not serial:
-                    logger.warning("dsl_scenario screenshot: unknown instance_id %s", instance_id)
-                else:
-                    ok, msg = await asyncio.to_thread(
-                        adb_screencap_to_file,
-                        dest,
-                        adb_bin=adb_bin,
-                        serial=serial,
-                    )
-                    if ok:
-                        logger.info("dsl_scenario screenshot saved: %s", msg)
-                    else:
-                        logger.warning("dsl_scenario screenshot failed: %s", msg)
-                continue
-
         logger.info("dsl_scenario done: %s (%s)", key, instance_id)
         await self._clear_step_context(instance_id)
         return TaskResult(success=True, next_run_at=None, metadata={"scenario": key})

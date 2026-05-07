@@ -10,6 +10,10 @@ overlay:
     action: findIcon
     threshold: 0.9
     node: main_city
+    pushScenario:
+      - name: new_chapter
+        priority: 80000
+        ttl: 15m
 
   - name: isNewPeople.visible
     region: isNewPeople
