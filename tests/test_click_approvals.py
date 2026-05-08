@@ -120,6 +120,36 @@ def test_require_approval_does_not_reuse_existing_pending_request(monkeypatch: A
     assert current["request_id"] == "adb:bs1:old"
 
 
+def test_require_approval_reaps_stale_pending_request_from_previous_scenario(
+    monkeypatch: Any,
+) -> None:
+    fake = FakeRedis(approve_on_current=True)
+    fake.values["wos:ui:click_approval:enabled:bs1"] = "1"
+    fake.values["wos:ui:click_approval:heartbeat:bs1"] = "1"
+    fake.hashes["wos:instance:bs1:state"] = {
+        "current_task_region": "ads_rookie_value_pack",
+        "current_scenario": "ads_rookie_value_pack",
+    }
+    fake.values["wos:ui:click_approval:current:bs1"] = json.dumps(
+        {
+            "request_id": "adb:bs1:old",
+            "response_key": "wos:ui:click_approval:response:adb:bs1:old",
+            "status": "waiting",
+            "created_at": 1,
+            "context": {"scenario": "who_i_am"},
+        }
+    )
+    _patch_redis(monkeypatch, fake)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 10, "y": 20})
+
+    assert ok is True
+    assert req_id is not None
+    current = json.loads(fake.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == req_id
+    assert current["context"]["scenario"] == "ads_rookie_value_pack"
+
+
 def test_require_approval_set_node_drops_stale_task_region(monkeypatch: Any) -> None:
     """``set_node`` does not tap a region; payload context must NOT carry the
     task-level ``current_task_region`` from the previous step (would render a

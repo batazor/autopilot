@@ -70,6 +70,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._rolling_snapshot_task: asyncio.Task[None] | None = None
         self._overlay_analyze_suppressed_until: float = 0.0
         self._blocking_executor_live: bool = True
+        self._stopping: bool = False
 
     def _suppress_overlay_after_launch(self, *, reason: str) -> None:
         grace = float(self._settings.worker.overlay_analyze_after_launch_grace_seconds)
@@ -84,7 +85,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         )
 
     async def _run_blocking(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
-        if not self._blocking_executor_live:
+        if self._stopping or not self._blocking_executor_live:
             raise asyncio.CancelledError()
         loop = asyncio.get_running_loop()
         if kwargs:
@@ -97,7 +98,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             return await loop.run_in_executor(self._blocking_pool, target)
         except RuntimeError as exc:
             # Pool shut down or interpreter exiting — avoid spamming logs in rolling snapshot loop.
-            if "shutdown" in str(exc).lower():
+            if self._stopping or "shutdown" in str(exc).lower():
                 raise asyncio.CancelledError() from exc
             raise
 
@@ -466,11 +467,20 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
 
         try:
             image_bgr = await self._run_blocking(self._grab_layout_bgr)
+        except asyncio.CancelledError:
+            raise
         except Exception:
-            logger.exception(
-                "[rolling] %s: screenshot failed (exception during capture)",
-                self._cfg.instance_id,
-            )
+            if self._stopping:
+                logger.debug(
+                    "[rolling] %s: screenshot skipped during shutdown",
+                    self._cfg.instance_id,
+                    exc_info=True,
+                )
+            else:
+                logger.exception(
+                    "[rolling] %s: screenshot failed (exception during capture)",
+                    self._cfg.instance_id,
+                )
             return
 
         def _write_png_atomic(p: Path, img: np.ndarray) -> bool:
@@ -524,6 +534,39 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             return
         await self._overlay_analyze_bgr(image_bgr)
 
+    async def _overlay_tick_now(self, *, reason: str) -> None:
+        """Take one screenshot and run overlay analysis immediately."""
+        if self._stopping:
+            return
+        logger.info("[overlay] %s: running overlay tick (%s)", self._cfg.instance_id, reason)
+        try:
+            image_bgr = await self._run_blocking(self._grab_layout_bgr)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if self._stopping:
+                logger.debug(
+                    "[overlay] %s: screenshot skipped during shutdown (%s)",
+                    self._cfg.instance_id,
+                    reason,
+                    exc_info=True,
+                )
+            else:
+                logger.warning(
+                    "[overlay] %s: screenshot failed — skipping overlay tick (%s)",
+                    self._cfg.instance_id,
+                    reason,
+                )
+            return
+        try:
+            await self._overlay_analyze_bgr(image_bgr)
+        except Exception:
+            logger.warning(
+                "[overlay] %s: analysis failed — skipping overlay tick (%s)",
+                self._cfg.instance_id,
+                reason,
+            )
+
     async def _startup_overlay_tick(self) -> None:
         """Take one screenshot and run overlay analysis immediately at startup.
 
@@ -533,22 +576,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         overlay grace-period suppression — the game is already in foreground
         at this point.
         """
-        logger.info("[startup] %s: running initial overlay tick", self._cfg.instance_id)
-        try:
-            image_bgr = await self._run_blocking(self._grab_layout_bgr)
-        except Exception:
-            logger.warning(
-                "[startup] %s: screenshot failed — skipping initial overlay tick",
-                self._cfg.instance_id,
-            )
-            return
-        try:
-            await self._overlay_analyze_bgr(image_bgr)
-        except Exception:
-            logger.warning(
-                "[startup] %s: overlay analysis failed — skipping initial overlay tick",
-                self._cfg.instance_id,
-            )
+        await self._overlay_tick_now(reason="startup")
 
     async def _device_reference_snapshot_loop(self) -> None:
         cfg = self._settings.worker
@@ -562,6 +590,8 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             try:
                 interval = cfg.device_reference_snapshot_interval_seconds
                 await asyncio.sleep(max(0.3, float(interval)))
+                if self._stopping:
+                    return
                 if self._ui_paused:
                     continue
                 await self._device_reference_snapshot_tick()
@@ -655,6 +685,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                         continue
 
                     await self._run_one_queue_item(item, task)
+                    await self._overlay_tick_now(reason=f"after task {item.task_type}")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -662,7 +693,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 raise
         finally:
             # Stop new thread-pool work before cancelling snapshot (avoids submit-after-shutdown races).
-            self._blocking_executor_live = False
+            self._stopping = True
             snap = self._rolling_snapshot_task
             self._rolling_snapshot_task = None
             if snap is not None and not snap.done():
@@ -673,6 +704,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                     pass
                 except Exception:
                     logger.debug("rolling snapshot task shutdown failed", exc_info=True)
+            self._blocking_executor_live = False
             try:
                 self._blocking_pool.shutdown(wait=False, cancel_futures=True)
             except Exception:

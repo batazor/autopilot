@@ -14,12 +14,65 @@ from .preview import render_preview_with_point
 CLICK_APPROVAL_PENDING_SNAP = "click_approvals_pending_snap"
 
 
+def _as_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace").strip()
+    return str(value).strip()
+
+
+def _as_float(value: Any) -> float:
+    try:
+        return float(_as_text(value))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _is_stale_from_previous_worker(payload: dict[str, Any], row: dict[str, Any]) -> bool:
+    status = _as_text(payload.get("status")).lower()
+    if status and status != "waiting":
+        return False
+    created_at = _as_float(payload.get("created_at"))
+    worker_started_at = _as_float(row.get("worker_started_at"))
+    return created_at > 0 and worker_started_at > 0 and created_at < worker_started_at
+
+
+def _clear_stale_pending_after_restart(
+    *, client: Any, inst: str, curr_key: str, raw: Any
+) -> bool:
+    try:
+        payload = json.loads(_as_text(raw))
+    except Exception:
+        return False
+    if not isinstance(payload, dict):
+        return False
+    try:
+        row_raw = client.hgetall(f"wos:instance:{inst}:state") or {}
+    except Exception:
+        return False
+    row = {_as_text(k): _as_text(v) for k, v in row_raw.items()}
+    if not _is_stale_from_previous_worker(payload, row):
+        return False
+
+    response_key = _as_text(payload.get("response_key"))
+    request_id = _as_text(payload.get("request_id")) or "unknown"
+    client.delete(curr_key)
+    if response_key:
+        client.delete(response_key)
+    st.toast(f"Cleared stale approval from previous bot run: `{request_id}`")
+    return True
+
+
 @st.fragment(run_every=timedelta(seconds=1))
 def fragment_sync_pending_presence(*, inst: str, client: Any) -> None:
     """Full rerun when a pending request appears or clears (switch idle ↔ pending layout)."""
     snap_k = f"{CLICK_APPROVAL_PENDING_SNAP}::{inst}"
     ck = f"wos:ui:click_approval:current:{inst}"
-    has_pending = bool(client.get(ck))
+    raw = client.get(ck)
+    if raw and _clear_stale_pending_after_restart(client=client, inst=inst, curr_key=ck, raw=raw):
+        raw = None
+    has_pending = bool(raw)
     prev = st.session_state.get(snap_k)
     if prev is not None and prev != has_pending:
         st.session_state[snap_k] = has_pending
@@ -35,8 +88,11 @@ def fragment_pending_approval_columns(
     if not raw:
         st.rerun()
         return
+    if _clear_stale_pending_after_restart(client=client, inst=inst, curr_key=curr_key, raw=raw):
+        st.rerun()
+        return
     try:
-        payload = json.loads(raw)
+        payload = json.loads(_as_text(raw))
     except Exception:
         st.error("Invalid pending payload JSON. Clearing.")
         client.delete(curr_key)
@@ -128,4 +184,3 @@ def fragment_pending_approval_columns(
                     client.set(response_key, "reject", ex=120)
                     client.delete(curr_key)
                 st.rerun()
-

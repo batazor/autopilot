@@ -1,0 +1,7 @@
+[server]
+# Do not auto-open a browser tab on startup (use the printed URL).
+headless = true
+
+[browser]
+gatherUsageStats = false
+

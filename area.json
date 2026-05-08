@@ -1037,6 +1037,44 @@
           "overlay_auxiliary": true
         }
       ]
+    },
+    {
+      "id": 29,
+      "screen_id": "",
+      "ocr": "references/go_big_button.png",
+      "regions": [
+        {
+          "name": "go_big_button",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.745173745173744,
+            "y": 79.23913043478261,
+            "width": 32.3996138996139,
+            "height": 5.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "go_big_button_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.386100386100386,
+            "y": 21.956521739130434,
+            "width": 82.61969111969113,
+            "height": 69.31896739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
     }
   ]
 }

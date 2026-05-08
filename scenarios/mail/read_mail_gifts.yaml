@@ -31,10 +31,17 @@ steps:
                 - click: claim_button
                 - wait: 0.8s
                 - break: repeat
+            - while_match: go_big_button
+              max: 1
+              steps:
+                - click: go_big_button
+                - wait: 0.8s
+                - break: repeat
             - swipe_direction:
-                direction: down
+                direction: up
                 delta: 450
-                duration_ms: 320
+                duration_ms: 650
+            - wait: 0.35s
 
       # Back to the mail list.
       - while_match: back_button

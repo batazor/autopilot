@@ -74,7 +74,7 @@ def _ensure_fresh_reference_crop(
 
 
 def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
-    """Idle: inspect overlay rule metrics on the rolling PNG."""
+    """Inspect overlay rule metrics on the rolling PNG."""
     instance_id = ctx.instance_id
     st.caption(
         "Uses the same rolling PNG and overlay evaluation as the worker, "
@@ -405,4 +405,3 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                 )
             else:
                 st.caption("—")
-

@@ -61,7 +61,7 @@ enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
 current_key = f"wos:ui:click_approval:current:{instance_id}"
 
 _PREVIEW_MAX_SIDE = 360
-# Idle overlay probe: full-frame debug fit (search ROI / match / tap).
+# Overlay probe: full-frame debug fit (search ROI / match / tap).
 _PROBE_OVERLAY_MAX_SIDE = 900
 # Thumbnails below main shot: keep each column narrower so the pair does not overflow.
 _REGION_CROP_MAX_SIDE = 220
@@ -77,7 +77,7 @@ _CTX = ClickApprovalsCtx(
 )
 
 
-def _render_idle_overlay_threshold_probe(instance_id: str) -> None:
+def _render_overlay_threshold_probe(instance_id: str) -> None:
     return render_idle_overlay_probe(ctx=_CTX, client=client)
 
 
@@ -168,11 +168,14 @@ def _render_idle_approvals_column(inst: str) -> None:
         client.hset(state_key, "current_screen", "")
         st.toast("current_screen cleared.", icon="✓")
         st.rerun()
+
+
+def _render_overlay_probe_section(inst: str) -> None:
     with st.expander(
-        "Idle: overlay threshold check (rolling PNG + labeling region)",
+        "Overlay threshold check (rolling PNG + labeling region)",
         expanded=False,
     ):
-        _render_idle_overlay_threshold_probe(inst)
+        _render_overlay_threshold_probe(inst)
 
 
 def _fragment_pending_approval_columns(inst: str, *, curr_key: str) -> None:
@@ -220,3 +223,5 @@ render_ui_notifications(instance_id, client=client)
 render_heartbeat(ctx=_CTX, client=client)
 st.divider()
 _pending_request()
+st.divider()
+_render_overlay_probe_section(instance_id)

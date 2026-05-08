@@ -14,6 +14,27 @@ from .common import ocr_health_status
 from .ctx import ClickApprovalsCtx
 
 
+def _clear_click_approval_current_keys(*, client: Any) -> None:
+    try:
+        for key in client.scan_iter("wos:ui:click_approval:current:*"):
+            raw = client.get(key)
+            if raw:
+                try:
+                    import json
+
+                    txt = raw.decode() if isinstance(raw, bytes) else str(raw)
+                    payload = json.loads(txt)
+                    response_key = str(payload.get("response_key") or "").strip()
+                    if response_key:
+                        client.delete(response_key)
+                except Exception:
+                    pass
+            client.delete(key)
+    except Exception:
+        st.exception(Exception("Failed to clear click approval current keys"))
+        st.stop()
+
+
 def render_reset_block(*, client: Any) -> None:
     with st.expander("Reset", expanded=False):
         st.caption("Clears the task queue and restarts embedded bot workers/scheduler.")
@@ -33,8 +54,9 @@ def render_reset_block(*, client: Any) -> None:
                 st.rerun()
         with c2:
             if st.button("Restart bot", type="primary", key="click_approvals_restart_bot_btn"):
+                _clear_click_approval_current_keys(client=client)
                 restart_embedded_bot()
-                st.success("Bot restart triggered.")
+                st.success("Pending approval cleared and bot restart triggered.")
                 st.rerun()
 
         if st.button(
@@ -52,8 +74,9 @@ def render_reset_block(*, client: Any) -> None:
             except Exception:
                 st.exception(Exception("Failed to clear Redis queue keys (`wos:queue*`)"))
                 st.stop()
+            _clear_click_approval_current_keys(client=client)
             restart_embedded_bot()
-            st.success("Queue cleared and bot restart triggered.")
+            st.success("Queue and pending approvals cleared; bot restart triggered.")
             st.rerun()
 
 
@@ -132,4 +155,3 @@ def render_heartbeat(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** (ttl≈5s when ON) · "
         f"Pending request: **{'YES' if has_current else 'NO'}**."
     )
-

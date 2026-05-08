@@ -43,7 +43,13 @@ _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
 # Redis TTL for the published ``current`` key. Refreshed every iteration so
 # the request never expires while the worker is still polling for a decision.
 _APPROVAL_CURRENT_TTL_SECONDS = 600
+# A previous worker can die while leaving a pending approval in the shared
+# per-instance slot.  Keep active operator decisions untouched, but reap old
+# waiting requests when the running DSL scenario has clearly moved on.
+_APPROVAL_STALE_CURRENT_SECONDS = 120.0
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
+_SWIPE_MIN_DURATION_MS = 900
+_SWIPE_SETTLE_SECONDS = 0.25
 # Copied from ``tasks.dsl_scenario`` Redis audit fields for Click approvals UI.
 _DSL_APPROVAL_AUDIT_KEYS: tuple[str, ...] = (
     "dsl_last_match_region",
@@ -92,6 +98,47 @@ def _redis() -> redis.Redis:
         settings = get_settings()
         _redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
     return _redis_client
+
+
+def _clear_stale_approval_current(
+    *,
+    instance_id: str,
+    current_key: str,
+    new_context: dict[str, object],
+) -> None:
+    """Clear an old pending approval from a different scenario.
+
+    The approval slot is intentionally single-entry.  If a previous bot run
+    exits while a request is pending, that stale JSON can block the next task
+    from publishing its own request.  We only delete old ``waiting`` requests
+    whose scenario differs from the scenario currently trying to publish.
+    """
+    try:
+        raw = _redis().get(current_key)
+        if not raw:
+            return
+        doc = json.loads(raw)
+        if str(doc.get("status") or "").strip().lower() != "waiting":
+            return
+        created_at = float(doc.get("created_at") or 0.0)
+        if created_at <= 0 or (time.time() - created_at) < _APPROVAL_STALE_CURRENT_SECONDS:
+            return
+        old_ctx = doc.get("context")
+        old_scenario = ""
+        if isinstance(old_ctx, dict):
+            old_scenario = str(old_ctx.get("scenario") or "").strip()
+        new_scenario = str(new_context.get("scenario") or "").strip()
+        if not old_scenario or not new_scenario or old_scenario == new_scenario:
+            return
+        _redis().delete(current_key)
+        logger.info(
+            "Click approval: cleared stale request for %s (old scenario=%s, new scenario=%s)",
+            instance_id,
+            old_scenario,
+            new_scenario,
+        )
+    except Exception:
+        logger.debug("Failed to clear stale approval current", exc_info=True)
 
 
 def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[bool, str | None]:
@@ -198,6 +245,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         }
     )
 
+    _clear_stale_approval_current(
+        instance_id=instance_id,
+        current_key=current_key,
+        new_context=ctx,
+    )
     _redis().delete(resp_key)
     started_at = time.time()
     # Phase 1: try to publish the request into the per-instance "current" slot.
@@ -490,6 +542,8 @@ class AdbController:
         x2 = _jitter(end.x, 2)
         y2 = _jitter(end.y, 2)
         ms = int(duration.total_seconds() * 1000)
+        if x1 != x2 or y1 != y2:
+            ms = max(ms, _SWIPE_MIN_DURATION_MS)
         ok, req_id = _require_approval(
             self._instance_id,
             {
@@ -518,6 +572,7 @@ class AdbController:
                 logger.debug("Failed to mark executed_at", exc_info=True)
         self._shell("input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
         logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
+        time.sleep(_SWIPE_SETTLE_SECONDS)
         if req_id is not None:
             try:
                 _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
