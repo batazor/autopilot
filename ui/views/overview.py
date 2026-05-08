@@ -230,7 +230,7 @@ def _dashboard() -> None:
     db_registry = load_devices()
 
     n_inst = len(settings.instances)
-    n_players = len(db_registry.all_player_ids()) or sum(len(i.player_ids) for i in settings.instances)
+    n_players = len(db_registry.all_player_ids())
     q = count_queue_tasks(client)
     claimed = count_claimed_slots(client)
 

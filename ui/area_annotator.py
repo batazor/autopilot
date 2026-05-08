@@ -18,6 +18,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, TypedDict
 
+import cv2
+import numpy as np
 import streamlit as st
 from PIL import Image
 
@@ -119,6 +121,7 @@ AREA_JSON_PATH = REPO_ROOT / "area.json"
 REFERENCES_DIR = REPO_ROOT / "references"
 ACTIONS = ("text", "exist", "color_check", "click")
 TYPES = ("integer", "string", "boolean")
+COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
 # Drawable canvas display size (longer side cap); zoom multiplier applied on top in labeling mode.
 CANVAS_DISPLAY_MAX_SIDE = 1280
@@ -189,6 +192,57 @@ def crop_region(
     R = max(L + 1, min(R, W))
     B = max(T + 1, min(B, Ht))
     return image.crop((L, T, R, B))
+
+
+def _dominant_color_label_for_pil(tile: Image.Image) -> tuple[str, dict[str, float]]:
+    """Dominant color bucket for a PIL crop.
+
+    Returns (label, shares) where label ∈ {red, blue, green, gray}.
+    """
+    try:
+        rgba = tile.convert("RGBA")
+        arr = np.array(rgba)  # HxWx4 RGBA
+        if arr.size <= 0:
+            return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
+        bgr = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
+        h = hsv[:, :, 0].astype(np.int16, copy=False)  # 0..179
+        s = hsv[:, :, 1].astype(np.int16, copy=False)  # 0..255
+        v = hsv[:, :, 2].astype(np.int16, copy=False)  # 0..255
+
+        gray_mask = (s < 40) | (v < 40)
+        color_mask = ~gray_mask
+        red_mask = color_mask & ((h <= 10) | (h >= 170))
+        green_mask = color_mask & (h >= 35) & (h <= 85)
+        blue_mask = color_mask & (h >= 90) & (h <= 140)
+
+        other_mask = color_mask & ~(red_mask | green_mask | blue_mask)
+        other_red = other_blue = other_green = 0
+        if np.any(other_mask):
+            ho = h[other_mask]
+            d_red = np.minimum(ho, 180 - ho)
+            d_green = np.abs(ho - 60)
+            d_blue = np.abs(ho - 120)
+            idx = np.stack([d_red, d_blue, d_green], axis=0).argmin(axis=0)
+            other_red = int(np.sum(idx == 0))
+            other_blue = int(np.sum(idx == 1))
+            other_green = int(np.sum(idx == 2))
+
+        n = int(h.size) or 1
+        c_red = int(np.count_nonzero(red_mask)) + other_red
+        c_blue = int(np.count_nonzero(blue_mask)) + other_blue
+        c_green = int(np.count_nonzero(green_mask)) + other_green
+        c_gray = int(np.count_nonzero(gray_mask))
+        shares = {
+            "red": c_red / n,
+            "blue": c_blue / n,
+            "green": c_green / n,
+            "gray": c_gray / n,
+        }
+        dominant = max(shares.items(), key=lambda kv: kv[1])[0]
+        return dominant, shares
+    except Exception:
+        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
 
 
 def _canvas_component_key(*, drawing_mode: str) -> str:
@@ -666,14 +720,40 @@ def _render_regions_expander(
                 ACTIONS,
                 index=ACTIONS.index(reg["action"]) if reg.get("action") in ACTIONS else 0,
             )
-            rtype = st.selectbox(
-                "type",
-                TYPES,
-                index=TYPES.index(reg["type"]) if reg.get("type") in TYPES else 1,
-            )
             threshold = st.number_input(
                 "threshold", min_value=0.0, max_value=1.0, value=float(reg.get("threshold", 0.9)), step=0.05
             )
+            if action == "color_check":
+                # Show computed dominant color from the current screenshot so the user
+                # can see what the region "looks like" right now.
+                dom = ""
+                share = ""
+                bbox = reg.get("bbox") if isinstance(reg.get("bbox"), dict) else None
+                if pil_original is not None and bbox is not None:
+                    ow, oh = pil_original.size
+                    try:
+                        left = float(bbox["x"]) / 100.0 * ow
+                        top = float(bbox["y"]) / 100.0 * oh
+                        w2 = float(bbox["width"]) / 100.0 * ow
+                        h2 = float(bbox["height"]) / 100.0 * oh
+                        tile = crop_region(pil_original, left, top, w2, h2)
+                        dom, shares = _dominant_color_label_for_pil(tile)
+                        share = f"{float(shares.get(dom, 0.0)):.3f}"
+                    except Exception:
+                        dom, share = "", ""
+                st.caption(
+                    f"Dominant now: **`{dom or '—'}`**"
+                    + (f" (share `{share}`)" if share else "")
+                    + f" · threshold: **`{float(threshold):.3f}`**"
+                )
+                # Keep expected color in `type` but label it clearly.
+                cur_type = str(reg.get("type") or "").strip().lower()
+                idx_type = COLOR_TYPES.index(cur_type) if cur_type in COLOR_TYPES else 0
+                rtype = st.selectbox("expected color (type)", COLOR_TYPES, index=idx_type)
+            else:
+                cur_type = str(reg.get("type") or "").strip().lower()
+                idx_type = TYPES.index(cur_type) if cur_type in TYPES else 1
+                rtype = st.selectbox("type", TYPES, index=idx_type)
             if st.form_submit_button("Apply edits"):
                 old_name = str(reg.get("name", "") or "").strip()
                 new_name = str(name.strip() or old_name or "region")

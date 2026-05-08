@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import timedelta
 
@@ -40,6 +41,18 @@ def _queue_fragment() -> None:
         st.info("Queue is empty.")
         return
 
+    # Copy helper (Streamlit can't write to OS clipboard without a custom component).
+    copy_slot = st.session_state.get("queue_copy_json", "")
+    if copy_slot:
+        with st.expander("Copied JSON (Cmd/Ctrl+C)", expanded=False):
+            st.code(copy_slot, language="json")
+            st.text_area(
+                "Raw",
+                value=copy_slot,
+                height=140,
+                key="queue_copy_json_area",
+            )
+
     # Filters
     all_players = sorted({r.player_id for r in rows if r.player_id})
     all_instances = sorted({r.instance_id for r in rows if r.instance_id})
@@ -63,52 +76,49 @@ def _queue_fragment() -> None:
         st.info("No tasks match the current filter.")
         return
 
-    data = []
-    for r in rows:
+    st.markdown("**Queue items**")
+    header = st.columns([0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7])
+    header[0].markdown("**Del**")
+    header[1].markdown("**Scheduled**")
+    header[2].markdown("**Player**")
+    header[3].markdown("**Instance**")
+    header[4].markdown("**Task type**")
+    header[5].markdown("**Region**")
+    header[6].markdown("**Pri**")
+    header[7].markdown("**Coop**")
+    header[8].markdown("**Task ID**")
+    header[9].markdown("**Copy**")
+
+    selected_ids: list[str] = []
+    for idx, r in enumerate(rows):
         overdue = r.scheduled_at < now
         scheduled_str = time.strftime("%H:%M:%S", time.localtime(r.scheduled_at))
-        data.append(
-            {
-                "_del": False,
-                "scheduled": f"{scheduled_str} ⚠️" if overdue else scheduled_str,
-                "player_id": r.player_id,
-                "instance_id": r.instance_id,
-                "task_type": r.task_type,
-                "region": r.region or "",
-                "priority": r.priority,
-                "coop": r.cooperative,
-                "task_id": r.task_id,
-            }
+        scheduled_disp = f"{scheduled_str} ⚠️" if overdue else scheduled_str
+        k = f"qrow_{idx}_{r.task_id}"
+
+        cols = st.columns([0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7])
+        if cols[0].checkbox("del", value=False, key=f"{k}_del", label_visibility="collapsed"):
+            selected_ids.append(r.task_id)
+        cols[1].write(scheduled_disp)
+        cols[2].write(r.player_id)
+        cols[3].write(r.instance_id)
+        cols[4].write(r.task_type)
+        cols[5].write(r.region or "")
+        cols[6].write(str(r.priority))
+        cols[7].checkbox(
+            "coop",
+            value=bool(r.cooperative),
+            disabled=True,
+            key=f"{k}_coop",
+            label_visibility="collapsed",
         )
-
-    edited = st.data_editor(
-        data,
-        column_config={
-            "_del": st.column_config.CheckboxColumn("Del", width="small"),
-            "scheduled": st.column_config.TextColumn("Scheduled", width="small"),
-            "player_id": st.column_config.TextColumn("Player", width="small"),
-            "instance_id": st.column_config.TextColumn("Instance", width="small"),
-            "task_type": st.column_config.TextColumn("Task type"),
-            "region": st.column_config.TextColumn("Region", width="small"),
-            "priority": st.column_config.NumberColumn("Pri", width="small", format="%d"),
-            "coop": st.column_config.CheckboxColumn("Coop", width="small"),
-            "task_id": st.column_config.TextColumn("Task ID"),
-        },
-        disabled=("scheduled", "player_id", "instance_id", "task_type", "region", "priority", "coop", "task_id"),
-        hide_index=True,
-        width="stretch",
-        num_rows="fixed",
-        key="queue_data_editor",
-    )
-
-    # Collect selected task IDs from whatever st.data_editor returns.
-    selected_ids: list[str] = []
-    records: list[dict] = (
-        edited.to_dict(orient="records") if hasattr(edited, "to_dict") else list(edited or [])
-    )
-    for row in records:
-        if row.get("_del"):
-            selected_ids.append(str(row["task_id"]))
+        cols[8].write(r.task_id)
+        if cols[9].button("📋", key=f"{k}_copy", help="Copy row JSON"):
+            payload = r.payload or {}
+            txt = json.dumps(payload, ensure_ascii=False, indent=2)
+            st.session_state["queue_copy_json"] = txt
+            st.toast("JSON ready to copy (open expander above).")
+            st.rerun()
 
     n = len(selected_ids)
     btn_label = f"Delete {n} selected" if n else "Delete selected"

@@ -37,7 +37,7 @@ def _queue_item(task_type: str, *, player_id: str = "") -> QueueItem:
 @pytest.mark.asyncio
 async def test_device_level_dsl_item_is_not_resolved_to_first_configured_player() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["111111111"])
+    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
     worker._redis = _FakeRedis()
 
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
@@ -55,7 +55,7 @@ async def test_registered_device_task_still_resolves_to_known_player(monkeypatch
 
     monkeypatch.setitem(instance_worker._TASK_REGISTRY, "registered_task", _RegisteredTask)
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["111111111"])
+    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
     worker._redis = _FakeRedis()
 
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
@@ -63,13 +63,20 @@ async def test_registered_device_task_still_resolves_to_known_player(monkeypatch
         _queue_item("registered_task"),
     )
 
-    assert resolved.player_id == "111111111"
+    assert resolved.player_id == "765502864"
 
 
 @pytest.mark.asyncio
 async def test_startup_identity_probe_is_enqueued_once_as_device_level() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["111111111", "222222222"])
+    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
+    # _seed_startup_tasks reads grace/interval from settings to delay tasks.
+    worker._settings = SimpleNamespace(
+        worker=SimpleNamespace(
+            overlay_analyze_after_launch_grace_seconds=0.0,
+            device_reference_snapshot_interval_seconds=0.0,
+        )
+    )
     worker._queue = _FakeQueue()
 
     await instance_worker.InstanceWorker._seed_startup_tasks(worker)

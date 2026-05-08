@@ -17,6 +17,7 @@ import redis.asyncio as aioredis
 from actions.tap import BotActions
 from analysis.overlay import parse_duration_seconds, run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
+from config.devices import player_ids_for_device
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from fsm.machine import PlayerFSM
@@ -107,7 +108,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._queue = RedisQueue(self._redis)
         self._claims = CooperativeClaims(self._redis)
         loop = asyncio.get_running_loop()
-        for player_id in self._cfg.player_ids:
+        for player_id in player_ids_for_device(self._cfg.bluestacks_window_title):
             fsm = PlayerFSM(player_id, self._redis, loop=loop)
             await fsm.restore_from_redis()
             self._player_fsms[player_id] = fsm
@@ -203,7 +204,14 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             )
             if raw:
                 active = raw.decode() if isinstance(raw, bytes) else str(raw)
-        resolved = (active or (self._cfg.player_ids[0] if self._cfg.player_ids else "")).strip()
+        window_title = str(getattr(self._cfg, "bluestacks_window_title", "") or "").strip()
+        _cfg_pids = player_ids_for_device(window_title)
+        cfg_player_ids = list(getattr(self._cfg, "player_ids", []) or [])
+        resolved = (
+            active
+            or (str(cfg_player_ids[0]) if cfg_player_ids else "")
+            or (_cfg_pids[0] if _cfg_pids else "")
+        ).strip()
         if not resolved:
             return item
         return QueueItem(
@@ -296,11 +304,40 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         Examples: ``who_i_am`` — figure out which account is currently active so the
         scheduler / approval UI can label state correctly. Skips duplicates already
         pending in the queue.
+
+        Tasks are delayed past the overlay grace period so the overlay analyzer gets
+        at least one full cycle to detect and queue ads/banners before identity probes
+        start navigating.
         """
         if self._queue is None:
             return
-        run_at = time.time()
+        grace = float(self._settings.worker.overlay_analyze_after_launch_grace_seconds)
+        # Extra buffer: one snapshot interval so the overlay fires at least once before
+        # identity probes start navigating.
+        snap_interval = float(self._settings.worker.device_reference_snapshot_interval_seconds)
+        delay = grace + snap_interval
+        run_at = time.time() + delay
+        logger.info(
+            "Startup seed tasks delayed %.1fs (grace=%.1fs + snap=%.1fs) to let overlay run first",
+            delay, grace, snap_interval,
+        )
         for scenario_key, priority in _STARTUP_SEED_TASKS:
+            # Remove stale items from previous runs — they carry an old run_at (past
+            # timestamp) and would be immediately runnable, bypassing the delay.
+            try:
+                removed = await self._queue.remove_by_task_type(
+                    scenario_key, self._cfg.instance_id
+                )
+                if removed:
+                    logger.info(
+                        "Startup seed: removed %d stale %r item(s) from queue",
+                        removed, scenario_key,
+                    )
+            except Exception:
+                logger.exception(
+                    "startup seed: failed to remove stale items for %s", scenario_key
+                )
+
             task_id = (
                 f"startup:{self._cfg.instance_id}:{scenario_key}:"
                 f"device:{uuid.uuid4().hex[:8]}"
@@ -313,7 +350,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                     priority=priority,
                     run_at=run_at,
                     instance_id=self._cfg.instance_id,
-                    skip_if_duplicate=True,
                 )
             except Exception:
                 logger.exception(
@@ -325,11 +361,12 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 continue
             if enqueued:
                 logger.info(
-                    "Startup seed enqueued: %s for %s/%s (prio=%d)",
+                    "Startup seed enqueued: %s for %s/%s (prio=%d, run_at=+%.0fs)",
                     scenario_key,
                     self._cfg.instance_id,
                     "(device)",
                     priority,
+                    delay,
                 )
 
     async def _handle_failure(self, item: QueueItem, error: Exception) -> None:
@@ -482,6 +519,32 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             return
         await self._overlay_analyze_bgr(image_bgr)
 
+    async def _startup_overlay_tick(self) -> None:
+        """Take one screenshot and run overlay analysis immediately at startup.
+
+        Called before seeding startup tasks so that any high-priority items
+        (ads, banners, hand pointers) are already in the queue before
+        who_i_am / where_i_am become runnable.  Deliberately bypasses the
+        overlay grace-period suppression — the game is already in foreground
+        at this point.
+        """
+        logger.info("[startup] %s: running initial overlay tick", self._cfg.instance_id)
+        try:
+            image_bgr = await self._run_blocking(self._grab_layout_bgr)
+        except Exception:
+            logger.warning(
+                "[startup] %s: screenshot failed — skipping initial overlay tick",
+                self._cfg.instance_id,
+            )
+            return
+        try:
+            await self._overlay_analyze_bgr(image_bgr)
+        except Exception:
+            logger.warning(
+                "[startup] %s: overlay analysis failed — skipping initial overlay tick",
+                self._cfg.instance_id,
+            )
+
     async def _device_reference_snapshot_loop(self) -> None:
         cfg = self._settings.worker
         await asyncio.sleep(0.5)
@@ -539,6 +602,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                     "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
                 )
             self._suppress_overlay_after_launch(reason="after worker start / ensure foreground")
+            await self._startup_overlay_tick()
             await self._seed_startup_tasks()
             # Legacy: page detect disabled (YAML-only mode).
             self._rolling_snapshot_task = asyncio.create_task(

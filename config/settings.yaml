@@ -17,10 +17,6 @@ instances:
     # Legacy (ignored): kept for older configs
     capture_window_title: "BlueStacks"
     google_account: "account1@gmail.com"
-    player_ids:
-      - "111111111"
-      - "222222222"
-      - "333333333"
 
 players:
   player_01:

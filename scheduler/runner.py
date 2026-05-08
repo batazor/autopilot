@@ -8,6 +8,7 @@ from pathlib import Path
 
 import redis.asyncio as aioredis
 
+from config.devices import player_ids_for_device
 from config.loader import get_settings
 from config.logging_stdout import setup_stdout_logging
 from scenarios.evaluator import ScenarioEvaluator
@@ -144,7 +145,8 @@ class SchedulerRunner:
                     else:
                         if current_screen.lower() != when_current_screen:
                             continue
-                player_ids = inst.player_ids[:1] if scope == "instance" else inst.player_ids
+                _pids = player_ids_for_device(inst.bluestacks_window_title)
+                player_ids = _pids[:1] if scope == "instance" else _pids
                 for player_id in player_ids:
                     # Once-per-minute guard (scheduler ticks faster than cron granularity).
                     guard = f"{spec_slug}:{inst.instance_id}:{player_id}:{int(now // 60)}"
@@ -174,7 +176,7 @@ class SchedulerRunner:
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
-            for player_id in inst.player_ids:
+            for player_id in player_ids_for_device(inst.bluestacks_window_title):
                 key = f"wos:player:{player_id}:state"
                 raw = await self._redis.hgetall(key)  # type: ignore[union-attr]
                 state = {
@@ -190,7 +192,7 @@ class SchedulerRunner:
     async def _build_player_instance_map(self) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for inst in self._settings.instances:
-            for player_id in inst.player_ids:
+            for player_id in player_ids_for_device(inst.bluestacks_window_title):
                 mapping[player_id] = inst.instance_id
         return mapping
 

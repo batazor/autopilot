@@ -22,6 +22,7 @@ class QueueRow:
     instance_id: str
     cooperative: bool
     region: str | None = None
+    payload: dict[str, object] | None = None
 
 
 class InstanceStateRow(TypedDict, total=False):
@@ -94,6 +95,7 @@ def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
                 instance_id=str(data.get("instance_id", "")),
                 cooperative=task_type in _COOPERATIVE_TASKS,
                 region=region,
+                payload=data if isinstance(data, dict) else None,
             )
         )
     return rows

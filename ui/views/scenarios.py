@@ -10,6 +10,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 import streamlit as st
 import yaml
 
+from config.devices import player_ids_for_device
 from config.loader import Settings, load_settings
 from ui.redis_client import get_player_scenario, require_redis_connection, set_player_scenario
 
@@ -35,7 +36,7 @@ def _all_player_ids(settings: Settings) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for inst in settings.instances:
-        for pid in inst.player_ids:
+        for pid in player_ids_for_device(inst.bluestacks_window_title):
             if pid not in seen:
                 seen.add(pid)
                 out.append(pid)
@@ -338,7 +339,7 @@ with tab_cron:
             spec = _slug(name)
             n = 0
             for inst in settings.instances:
-                for pid in inst.player_ids:
+                for pid in player_ids_for_device(inst.bluestacks_window_title):
                     payload = json.dumps(
                         {
                             "task_id": f"ui:cronpush:{spec}:{pid}:{int(now)}",

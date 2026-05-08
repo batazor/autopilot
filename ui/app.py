@@ -37,7 +37,7 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 
 st.navigation(
     {
-        "Operate": [overview, instance_page, queue_page],
+        "Operate": [overview, instance_page],
         "DB": [db_gift_codes_page, db_player_state_page],
         "Wiki": [
             gallery_page,
@@ -45,7 +45,7 @@ st.navigation(
             wiki_scenarios_page,
             wiki_analyze_page,
         ],
-        "Debug": [click_approvals_page, fsm_page],
+        "Debug": [click_approvals_page, queue_page, fsm_page],
         "Config": [scenarios_page, settings_page],
     }
 ).run()

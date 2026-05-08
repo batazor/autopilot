@@ -1,0 +1,253 @@
+from __future__ import annotations
+
+import time
+from typing import Any
+
+import cv2
+import numpy as np
+import streamlit as st
+
+from layout.area_lookup import screen_region_by_name
+from layout.crop_paths import exported_crop_png
+from ui.preview_display import png_bytes_fitted
+from ui.reference_preview import load_rolling_instance_preview
+
+from .common import load_area_doc
+from .ctx import ClickApprovalsCtx
+
+
+def pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, int, int, int]:
+    x = float(bb.get("x") or 0.0)
+    y = float(bb.get("y") or 0.0)
+    bw = float(bb.get("width") or 0.0)
+    bh = float(bb.get("height") or 0.0)
+    left = max(0, min(w - 1, int(x / 100.0 * w)))
+    top = max(0, min(h - 1, int(y / 100.0 * h)))
+    right = max(left + 1, min(w, int((x + bw) / 100.0 * w)))
+    bottom = max(top + 1, min(h, int((y + bh) / 100.0 * h)))
+    return left, top, right, bottom
+
+
+def render_preview_with_point(
+    *,
+    ctx: ClickApprovalsCtx,
+    instance_id: str,
+    x: int | None,
+    y: int | None,
+    payload: dict[str, Any] | None,
+    where: Any,
+) -> None:
+    """Render rolling PNG preview with optional target crosshair and overlays."""
+    ui = where or st
+    png, rel, mtime = load_rolling_instance_preview(instance_id)
+    if png is None:
+        ui.info(f"No rolling preview yet for `{instance_id}`.")
+        return
+
+    arr = np.frombuffer(png, dtype=np.uint8)
+    bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if bgr is None:
+        ui.warning("Could not decode rolling PNG.")
+        return
+
+    h, w = int(bgr.shape[0]), int(bgr.shape[1])
+
+    def _draw_focus_rect(
+        img: np.ndarray,
+        *,
+        x0: int,
+        y0: int,
+        x1: int,
+        y1: int,
+        label: str = "",
+    ) -> None:
+        x0 = int(max(0, min(w - 1, x0)))
+        y0 = int(max(0, min(h - 1, y0)))
+        x1 = int(max(x0 + 1, min(w, x1)))
+        y1 = int(max(y0 + 1, min(h, y1)))
+        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 0, 0), 3, lineType=cv2.LINE_AA)
+        cv2.rectangle(img, (x0, y0), (x1, y1), (0, 220, 255), 2, lineType=cv2.LINE_AA)
+        if not label:
+            return
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        thickness = 1
+        (tw, th), base = cv2.getTextSize(label, font, font_scale, thickness)
+        pad = 5
+        lab_h = th + base + pad * 2
+        gap = 4
+        place_above = y0 >= lab_h + gap
+        if place_above:
+            by1 = y0 - gap
+            by0 = by1 - lab_h
+        else:
+            by0 = y1 + gap
+            by1 = by0 + lab_h
+        bx0 = int(x0)
+        bx1 = bx0 + tw + pad * 2
+        if bx1 > w:
+            bx0 = max(0, w - (tw + pad * 2))
+            bx1 = w
+        by0 = max(0, by0)
+        by1 = min(h, by1)
+        if by1 - by0 < lab_h:
+            by0 = max(0, by1 - lab_h)
+        cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 0, 0), -1, lineType=cv2.LINE_AA)
+        cv2.rectangle(img, (bx0, by0), (bx1, by1), (0, 220, 255), 1, lineType=cv2.LINE_AA)
+        cv2.putText(
+            img,
+            label,
+            (bx0 + pad, by1 - pad - base),
+            font,
+            font_scale,
+            (255, 255, 255),
+            thickness,
+            cv2.LINE_AA,
+        )
+
+    ptype = str(payload.get("type") or "").strip().lower() if isinstance(payload, dict) else ""
+    is_set_node = ptype == "set_node"
+    if isinstance(payload, dict) and not is_set_node:
+        if ptype == "swipe":
+            try:
+                x1 = int(payload.get("x1") or 0)
+                y1 = int(payload.get("y1") or 0)
+                x2 = int(payload.get("x2") or 0)
+                y2 = int(payload.get("y2") or 0)
+                ms = int(payload.get("ms") or 0)
+
+                x1 = int(max(0, min(w - 1, x1)))
+                y1 = int(max(0, min(h - 1, y1)))
+                x2 = int(max(0, min(w - 1, x2)))
+                y2 = int(max(0, min(h - 1, y2)))
+
+                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 0, 0), 6, tipLength=0.25)
+                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 220, 255), 3, tipLength=0.25)
+
+                dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
+                label = f"swipe {dist:.0f}px"
+                if ms > 0:
+                    label += f" · {ms}ms"
+                _draw_focus_rect(bgr, x0=x1, y0=y1, x1=x1 + 2, y1=y1 + 2, label=label)
+            except Exception:
+                pass
+
+        reg = payload.get("region")
+        if isinstance(reg, dict):
+            try:
+                rx = int(float(reg.get("x") or 0))
+                ry = int(float(reg.get("y") or 0))
+                rw = int(float(reg.get("w") or 0))
+                rh = int(float(reg.get("h") or 0))
+                if rw > 0 and rh > 0:
+                    x0 = max(0, min(w - 1, rx))
+                    y0 = max(0, min(h - 1, ry))
+                    x1 = max(x0 + 1, min(w, rx + rw))
+                    y1 = max(y0 + 1, min(h, ry + rh))
+                    _draw_focus_rect(bgr, x0=x0, y0=y0, x1=x1, y1=y1)
+            except Exception:
+                pass
+
+        ctx0 = payload.get("context")
+        if isinstance(ctx0, dict):
+            reg_name = str(ctx0.get("current_task_region") or "").strip()
+            if reg_name:
+                area_doc = load_area_doc(ctx.area_path)
+                pair = screen_region_by_name(area_doc, reg_name)
+                if pair is not None and isinstance(pair[1].get("bbox"), dict):
+                    L, T, R, B = pct_bbox_to_px_rect(pair[1]["bbox"], w, h)
+                    _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=reg_name)
+
+    if x is not None and y is not None:
+        px = int(max(0, min(w - 1, x)))
+        py = int(max(0, min(h - 1, y)))
+        cv2.circle(bgr, (px, py), 10, (0, 0, 255), 2)
+        cv2.circle(bgr, (px, py), 3, (0, 0, 255), -1)
+        cv2.line(bgr, (px - 18, py), (px + 18, py), (0, 0, 255), 1)
+        cv2.line(bgr, (px, py - 18), (px, py + 18), (0, 0, 255), 1)
+
+    ok, enc = cv2.imencode(".png", bgr)
+    if not ok:
+        ui.warning("Could not encode preview image.")
+        return
+    out_png = enc.tobytes()
+    fitted, native, _disp = png_bytes_fitted(out_png, ctx.preview_max_side)
+    cap = f"{rel or instance_id} · {native[0]}×{native[1]}"
+    if mtime is not None:
+        cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
+    if x is not None and y is not None:
+        cap = f"{cap} · target=({x},{y})"
+    ui.image(fitted, caption=cap, width="stretch")
+
+    if not isinstance(payload, dict) or is_set_node:
+        return
+    ctx0 = payload.get("context")
+    if not isinstance(ctx0, dict):
+        return
+    reg_name = str(ctx0.get("current_task_region") or "").strip()
+    if not reg_name:
+        return
+    area_doc = load_area_doc(ctx.area_path)
+    pair = screen_region_by_name(area_doc, reg_name)
+    if pair is None:
+        return
+    entry, reg = pair
+    if not isinstance(reg.get("bbox"), dict):
+        return
+    ref_rel = str(entry.get("ocr") or "").strip()
+    if not ref_rel:
+        return
+
+    L, T, R, B = pct_bbox_to_px_rect(reg["bbox"], w, h)
+    pad = 6
+    L = max(0, min(w - 1, int(L - pad)))
+    T = max(0, min(h - 1, int(T - pad)))
+    R = max(L + 1, min(w, int(R + pad)))
+    B = max(T + 1, min(h, int(B + pad)))
+
+    found_png: bytes | None = None
+    try:
+        frag = bgr[T:B, L:R].copy()
+        ok2, enc2 = cv2.imencode(".png", frag)
+        if ok2:
+            found_png = enc2.tobytes()
+    except Exception:
+        found_png = None
+
+    sought_png: bytes | None = None
+    sought_name: str | None = None
+    try:
+        crop_path = exported_crop_png(ctx.repo_root, ref_rel, reg_name)
+        if crop_path.is_file():
+            tpl = cv2.imread(str(crop_path))
+            if tpl is not None:
+                ok3, enc3 = cv2.imencode(".png", tpl)
+                if ok3:
+                    sought_png = enc3.tobytes()
+                    sought_name = crop_path.name
+    except Exception:
+        sought_png = None
+
+    with ui.container(border=True):
+        ui.markdown(f"**Region** `{reg_name}` · live crop vs template")
+        c_found, c_sought = ui.columns(2, gap="medium", vertical_alignment="top")
+        cap_max = ctx.region_crop_max_side
+        with c_found:
+            ui.caption("Live (from screenshot)")
+            if found_png is not None:
+                fitted2, native2, _ = png_bytes_fitted(found_png, cap_max)
+                ui.image(fitted2, caption=f"{native2[0]}×{native2[1]} px", width="stretch")
+            else:
+                ui.caption("—")
+        with c_sought:
+            ui.caption("Template (reference crop)")
+            if sought_png is not None:
+                fitted3, native3, _ = png_bytes_fitted(sought_png, cap_max)
+                ui.image(
+                    fitted3,
+                    caption=f"{sought_name or reg_name} · {native3[0]}×{native3[1]} px",
+                    width="stretch",
+                )
+            else:
+                ui.caption("—")
+

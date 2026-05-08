@@ -8,6 +8,7 @@ from datetime import timedelta
 
 import streamlit as st
 
+from config.devices import player_ids_for_device
 from config.loader import load_settings
 from ui.adb_reference_shot import capture_rolling_live_preview_adb
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
@@ -126,6 +127,20 @@ def _reference_preview_fragment(instance_id: str) -> None:
 
 st.title("Instance")
 
+# Show persistent navigation errors written by the worker when a route is missing.
+_nav_err_client = require_redis_connection()
+if _nav_err_client:
+    try:
+        _inst_ids = [i.instance_id for i in load_settings().instances]
+        for _iid in _inst_ids:
+            _nav_err = _nav_err_client.hget(f"wos:instance:{_iid}:state", "nav_error")
+            if _nav_err:
+                _nav_err_s = _nav_err.decode() if isinstance(_nav_err, bytes) else str(_nav_err)
+                if _nav_err_s.strip():
+                    st.error(f"**Nav error [{_iid}]:** {_nav_err_s} — add missing region/edge to `screen_graph.py`")
+    except Exception:
+        pass
+
 if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
     restart_embedded_bot()
     st.success("Bot restart triggered")
@@ -156,15 +171,16 @@ col_left, col_right = st.columns([3, 2], gap="medium")
 
 with col_left:
     with st.expander("Manual controls", expanded=True):
-        if not inst_cfg.player_ids:
+        _inst_player_ids = player_ids_for_device(inst_cfg.bluestacks_window_title)
+        if not _inst_player_ids:
             st.warning(
-                "No **player_ids** for this instance in config — "
-                "add at least one for switch/task controls."
+                "No **player_ids** for this instance in `db/devices.yaml` — "
+                "run the bot so `fetch_player` populates it."
             )
         else:
             mc1, mc2 = st.columns(2)
             with mc1:
-                player_pick = st.selectbox("Switch account", inst_cfg.player_ids)
+                player_pick = st.selectbox("Switch account", _inst_player_ids)
                 if st.button("Queue switch"):
                     push_instance_command(
                         client,
@@ -177,7 +193,7 @@ with col_left:
                 task_types = sorted(settings.tasks.keys())
                 task_pick = st.selectbox("Task type", task_types)
                 task_player = st.selectbox(
-                    "Player for task", inst_cfg.player_ids, key=f"tp-{instance_id}"
+                    "Player for task", _inst_player_ids, key=f"tp-{instance_id}"
                 )
                 if st.button("Queue task"):
                     push_instance_command(
@@ -192,9 +208,9 @@ with col_left:
             st.success("restart queued")
 
     with st.expander("FSM history (per player)", expanded=False):
-        if not inst_cfg.player_ids:
-            st.caption("No players configured — nothing to show.")
-        for pid in inst_cfg.player_ids:
+        if not _inst_player_ids:
+            st.caption("No players in db/devices.yaml — nothing to show.")
+        for pid in _inst_player_ids:
             with st.expander(f"Player {pid}"):
                 hist = fetch_fsm_history(client, pid)
                 if not hist:

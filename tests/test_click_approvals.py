@@ -130,7 +130,7 @@ def test_require_approval_set_node_drops_stale_task_region(monkeypatch: Any) -> 
     fake.values["wos:ui:click_approval:heartbeat:bs1"] = "1"
     fake.hashes["wos:instance:bs1:state"] = {
         "current_screen": "",
-        "current_task_player": "111111111",
+        "current_task_player": "765502864",
         "current_task_region": "ads_rookie_value_pack",
         "current_scenario": "ads_rookie_value_pack",
     }
@@ -146,7 +146,7 @@ def test_require_approval_set_node_drops_stale_task_region(monkeypatch: Any) -> 
     current = json.loads(fake.get("wos:ui:click_approval:current:bs1") or "{}")
     assert current["type"] == "set_node"
     assert current["context"]["current_task_region"] == ""
-    assert current["context"]["current_task_player"] == "111111111"
+    assert current["context"]["current_task_player"] == "765502864"
     assert current["context"]["scenario"] == "ads_rookie_value_pack"
 
 

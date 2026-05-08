@@ -75,3 +75,8 @@ def setup_stdout_logging(level: int = logging.INFO) -> None:
         logging.basicConfig(level=level, handlers=[handler], force=True)
     else:
         logging.basicConfig(level=level, format=fmt, stream=stream, force=True)
+
+    # Reduce noise from HTTP client internals (OCR service health checks, etc.).
+    # Keep warnings/errors visible.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)

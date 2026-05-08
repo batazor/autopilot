@@ -76,6 +76,13 @@ class DeviceRegistry:
     def all_player_ids(self) -> list[str]:
         return [pid for d in self.devices for pid in d.all_player_ids()]
 
+    def player_ids_for_device(self, device_name: str) -> list[str]:
+        """Player IDs registered under *device_name* (bluestacks_window_title / ADB serial)."""
+        for d in self.devices:
+            if d.name == device_name:
+                return d.all_player_ids()
+        return []
+
 
 def load_devices(path: Path | None = None) -> DeviceRegistry:
     if path is None:
@@ -177,16 +184,32 @@ def upsert_device_gamer(
             if nickname and nickname != old_nick:
                 g["nickname"] = nickname
                 _save_devices_raw(path, raw)
+                _invalidate()
                 return True
             return False
 
     gamers.append({"id": int(player_id), "nickname": nickname or ""})
     _save_devices_raw(path, raw)
+    _invalidate()
     return True
 
 
+# ---------------------------------------------------------------------------
+# Global registry cache
+# ---------------------------------------------------------------------------
+
 _registry: DeviceRegistry | None = None
 _registry_lock = threading.Lock()
+
+
+def invalidate_device_registry() -> None:
+    _invalidate()
+
+
+def _invalidate() -> None:
+    global _registry  # noqa: PLW0603
+    with _registry_lock:
+        _registry = None
 
 
 def get_device_registry() -> DeviceRegistry:
@@ -196,3 +219,8 @@ def get_device_registry() -> DeviceRegistry:
             if _registry is None:
                 _registry = load_devices()
     return _registry
+
+
+def player_ids_for_device(device_name: str) -> list[str]:
+    """Convenience wrapper: player IDs for *device_name* from the global registry."""
+    return get_device_registry().player_ids_for_device(device_name)

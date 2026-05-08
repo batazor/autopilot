@@ -99,9 +99,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         return True, None
 
     hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
-    # Safety: enabled but page not open => block all inputs.
     if not _redis().get(hb_key):
-        return False, None
+        # Approval always required — wait until the approvals page is opened.
+        logger.info(
+            "Click approval: page not open, waiting for operator to open it (%s)", instance_id
+        )
+        while not _redis().get(hb_key):
+            time.sleep(_APPROVAL_POLL_SECONDS)
+        logger.info("Click approval: page opened — proceeding (%s)", instance_id)
 
     current_key = f"wos:ui:click_approval:current:{instance_id}"
 
@@ -380,13 +385,20 @@ class AdbController:
         logger.info("Application restarted on %s", self._serial)
 
     def is_game_foreground(self) -> bool:
-        """True if dumpsys reports Whiteout as the resumed / top activity on this device."""
-        out = self._shell("dumpsys", "activity", "activities")
+        """True if the game process is alive and is the resumed foreground activity."""
+        # Fast check: is the process even alive?
+        pid = self._shell("pidof", _GAME_PACKAGE, timeout=5.0)
+        if not pid.strip():
+            logger.debug("is_game_foreground: no PID for %s — process dead", _GAME_PACKAGE)
+            return False
+
+        # Foreground check: dumpsys activity stack
+        out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
         markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
         for line in out.splitlines():
-            s = line.strip()
             if _GAME_PACKAGE not in line:
                 continue
+            s = line.strip()
             if any(m in s for m in markers):
                 return True
         return False
@@ -571,12 +583,17 @@ class AdbController:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _shell(self, *args: str) -> str:
-        result = subprocess.run(
-            [self._adb_exe, "-s", self._serial, "shell"] + list(args),
-            capture_output=True,
-            text=True,
-        )
+    def _shell(self, *args: str, timeout: float = 15.0) -> str:
+        try:
+            result = subprocess.run(
+                [self._adb_exe, "-s", self._serial, "shell"] + list(args),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            logger.warning("ADB shell %s timed out after %.1fs", args, timeout)
+            return ""
         if result.returncode != 0:
             logger.warning(
                 "ADB shell %s failed (rc=%d): %s", args, result.returncode, result.stderr.strip()

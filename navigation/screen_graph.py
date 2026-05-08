@@ -9,7 +9,7 @@ Usage pattern
 Adding a new screen
 -------------------
 - Add an edge to ``navigation.fsm_screen_map`` (topology only).
-- Add ``(src, dst): [Point, ...]`` entries to ``EDGE_TAPS`` below for every direction you need.
+- Add ``src → dst: [region, ...]`` entries to ``navigation/edge_taps.yaml`` (regions must exist in area.json).
 - Add detection landmarks to ``navigation.detector._SCREEN_LANDMARKS``.
 - Add coordinate constants to ``layout.screens``.
 """
@@ -19,7 +19,6 @@ from __future__ import annotations
 from collections import deque
 from functools import lru_cache
 from pathlib import Path
-from typing import Final
 
 import yaml
 
@@ -31,36 +30,35 @@ ScreenVerifyEntry = dict[str, object]
 TextSwitchRule = dict[str, object]
 
 # ---------------------------------------------------------------------------
-# Tap registry
+# Tap registry — loaded from navigation/edge_taps.yaml
 # ---------------------------------------------------------------------------
-# Key:   (src_screen_id, dst_screen_id)  — must match ScreenName string values
-# Value: ordered list of Points to tap (Navigator inserts 0.8 s delay between taps)
-#
-# Only directed edges that have a known tap sequence are listed here.
-# Edges present in FSM_SCREEN_EDGES but absent here are valid in the topology
-# graph yet cannot be traversed by the bot until taps are added.
-EDGE_TAPS: Final[dict[tuple[str, str], list[Tap]]] = {
-    # main_city → *
-    ("main_city", "arena"): ["arena_btn"],
-    ("main_city", "training"): ["training_btn"],
-    ("main_city", "alliance"): ["alliance_btn"],
-    ("main_city", "gathering"): ["world_map_btn"],
-    ("main_city", "chief_profile"): ["to_chief_profile"],
-    # * → main_city  (back button)
-    ("arena",            "main_city"): ["back_button"],
-    ("training",         "main_city"): ["back_button"],
-    ("gathering",        "main_city"): ["back_button"],
-    ("alliance",         "main_city"): ["back_button"],
-    ("chief_profile",    "main_city"): ["back_button"],
-}
+
+
+def _load_edge_taps() -> dict[tuple[str, str], list[Tap]]:
+    path = Path(__file__).resolve().with_name("edge_taps.yaml")
+    if not path.is_file():
+        return {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    edges = raw.get("edges", {})
+    result: dict[tuple[str, str], list[Tap]] = {}
+    if not isinstance(edges, dict):
+        return result
+    for src, dsts in edges.items():
+        if not isinstance(dsts, dict):
+            continue
+        for dst, taps in dsts.items():
+            if isinstance(taps, list):
+                result[(str(src), str(dst))] = [str(t) for t in taps]
+            elif isinstance(taps, str):
+                result[(str(src), str(dst))] = [taps]
+    return result
+
+
+EDGE_TAPS: dict[tuple[str, str], list[Tap]] = _load_edge_taps()
 
 # ---------------------------------------------------------------------------
 # Adjacency graph derived from EDGE_TAPS
 # ---------------------------------------------------------------------------
-# BFS uses this graph so that IDs always match ScreenName string values.
-# FSM_SCREEN_EDGES (navigation.fsm_screen_map) mirrors the Go FSM topology but
-# uses Go-style IDs (e.g. "arena_city_view", "main_menu_city") which differ from
-# Python ScreenName values — it is kept for visualization only.
 _TAPS_GRAPH: dict[str, set[str]] = {}
 for _src, _dst in EDGE_TAPS:
     _TAPS_GRAPH.setdefault(_src, set()).add(_dst)

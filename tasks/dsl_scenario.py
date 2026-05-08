@@ -7,9 +7,12 @@ import re
 import time
 from contextlib import suppress
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import cv2
+import numpy as np
 import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
@@ -20,6 +23,74 @@ from layout.types import Point, Region
 from tasks.base import TaskResult
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Color checks (dominant color in a bbox)
+# ---------------------------------------------------------------------------
+
+_COLOR_WORD_ALIASES: dict[str, str] = {
+    "red": "red",
+    "blue": "blue",
+    "gray": "gray",
+    "grey": "gray",
+    "green": "green",
+    "красный": "red",
+    "синий": "blue",
+    "серый": "gray",
+    "зелёный": "green",
+    "зеленый": "green",
+}
+
+
+def _dominant_color_label(patch_bgr: np.ndarray) -> tuple[str, dict[str, float]]:
+    """Return (dominant_label, share_map) for patch (BGR).
+
+    Labels: red/blue/green/gray.
+    """
+    if patch_bgr.size <= 0:
+        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
+    try:
+        hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    except Exception:
+        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
+
+    h = hsv[:, :, 0].astype(np.int16, copy=False)  # 0..179
+    s = hsv[:, :, 1].astype(np.int16, copy=False)  # 0..255
+    v = hsv[:, :, 2].astype(np.int16, copy=False)  # 0..255
+
+    gray_mask = (s < 40) | (v < 40)
+    color_mask = ~gray_mask
+
+    red_mask = color_mask & ((h <= 10) | (h >= 170))
+    green_mask = color_mask & (h >= 35) & (h <= 85)
+    blue_mask = color_mask & (h >= 90) & (h <= 140)
+
+    other_mask = color_mask & ~(red_mask | green_mask | blue_mask)
+    other_red = other_blue = other_green = 0
+    if np.any(other_mask):
+        ho = h[other_mask]
+        d_red = np.minimum(ho, 180 - ho)  # wrap-around
+        d_green = np.abs(ho - 60)
+        d_blue = np.abs(ho - 120)
+        idx = np.stack([d_red, d_blue, d_green], axis=0).argmin(axis=0)
+        other_red = int(np.sum(idx == 0))
+        other_blue = int(np.sum(idx == 1))
+        other_green = int(np.sum(idx == 2))
+
+    n = int(h.size) or 1
+    c_red = int(np.count_nonzero(red_mask)) + other_red
+    c_blue = int(np.count_nonzero(blue_mask)) + other_blue
+    c_green = int(np.count_nonzero(green_mask)) + other_green
+    c_gray = int(np.count_nonzero(gray_mask))
+
+    shares = {
+        "red": c_red / n,
+        "blue": c_blue / n,
+        "green": c_green / n,
+        "gray": c_gray / n,
+    }
+    dominant = max(shares.items(), key=lambda kv: kv[1])[0]
+    return dominant, shares
 
 # Simple guard for DSL steps, e.g. ``cond: currentNode != main_city`` (skip when false).
 _COND_SCREEN_RE = re.compile(
@@ -250,6 +321,17 @@ class DslScenarioTask:
             await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=full)
         except Exception:
             logger.debug("dsl_scenario: persist dsl_last_ocr failed", exc_info=True)
+
+    async def _persist_dsl_last_color(self, instance_id: str, mapping: dict[str, str]) -> None:
+        """Expose last ``color_check:`` step outcome on instance Redis hash for UI/debug."""
+        if self.redis_client is None:
+            return
+        full = dict(mapping)
+        full["dsl_last_color_at"] = str(time.time())
+        try:
+            await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=full)
+        except Exception:
+            logger.debug("dsl_scenario: persist dsl_last_color failed", exc_info=True)
 
     async def _clear_step_context(self, instance_id: str) -> None:
         if self.redis_client is None:
@@ -658,6 +740,145 @@ class DslScenarioTask:
         except Exception:
             logger.exception("dsl_scenario: exec %r failed", name)
 
+    async def _color_check_region(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        region: str,
+    ) -> bool:
+        """Check dominant color inside a named region.
+
+        Step shape::
+
+            - color_check: <region_name>
+              type: red|blue|gray|green   # default = inherits area.json `type`
+              min_share: 0.55             # optional, default=0.50
+        """
+        raw_want = str(step.get("type") or "").strip().lower()
+        want = _COLOR_WORD_ALIASES.get(raw_want, raw_want)
+        min_share_raw = step.get("min_share")
+        try:
+            min_share = float(min_share_raw) if min_share_raw is not None else 0.50
+        except (TypeError, ValueError):
+            min_share = 0.50
+        min_share = max(0.0, min(1.0, min_share))
+
+        pair = screen_region_by_name(area_doc, region) if region else None
+        if pair is None or not isinstance(pair[1].get("bbox"), dict):
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "region_not_found",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                },
+            )
+            return False
+
+        reg_def = pair[1]
+        if not want:
+            want2 = str(reg_def.get("type") or "").strip().lower()
+            want = _COLOR_WORD_ALIASES.get(want2, want2)
+
+        if want not in {"red", "blue", "gray", "green"}:
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "invalid_type",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                },
+            )
+            return False
+
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+        except Exception:
+            logger.exception(
+                "dsl_scenario: capture_screen_bgr failed for color_check (scenario=%s region=%s)",
+                scenario_key,
+                region,
+            )
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "capture_failed",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                },
+            )
+            return False
+
+        h, w = int(image.shape[0]), int(image.shape[1])
+        bbox = reg_def["bbox"]
+        try:
+            x0 = int(round(float(bbox["x"]) / 100.0 * w))
+            y0 = int(round(float(bbox["y"]) / 100.0 * h))
+            bw = int(round(float(bbox["width"]) / 100.0 * w))
+            bh = int(round(float(bbox["height"]) / 100.0 * h))
+        except (KeyError, TypeError, ValueError):
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "invalid_bbox",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                },
+            )
+            return False
+
+        if bw <= 0 or bh <= 0:
+            await self._persist_dsl_last_color(
+                instance_id,
+                {
+                    "dsl_last_color_region": region,
+                    "dsl_last_color_status": "zero_bbox",
+                    "dsl_last_color_want": want,
+                    "dsl_last_color_dominant": "",
+                    "dsl_last_color_share": "",
+                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                },
+            )
+            return False
+
+        x0 = max(0, min(w - 1, x0))
+        y0 = max(0, min(h - 1, y0))
+        x1 = max(x0 + 1, min(w, x0 + bw))
+        y1 = max(y0 + 1, min(h, y0 + bh))
+        patch = image[y0:y1, x0:x1]
+        dominant, shares = _dominant_color_label(patch)
+        share = float(shares.get(dominant, 0.0))
+        ok = dominant == want and share >= min_share
+
+        await self._persist_dsl_last_color(
+            instance_id,
+            {
+                "dsl_last_color_region": region,
+                "dsl_last_color_status": "ok" if ok else "mismatch",
+                "dsl_last_color_want": want,
+                "dsl_last_color_dominant": dominant,
+                "dsl_last_color_share": f"{share:.3f}",
+                "dsl_last_color_min_share": f"{min_share:.3f}",
+            },
+        )
+        return ok
+
     async def _tap_region(
         self,
         *,
@@ -686,6 +907,7 @@ class DslScenarioTask:
             )
         else:
             pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
+
         tapped = actions.tap(instance_id, pt, approval_region=region)
         if not tapped:
             logger.info(
@@ -715,6 +937,31 @@ class DslScenarioTask:
         dev_h: int,
         scenario_key: str,
     ) -> TaskResult | None:
+        if "color_check" in step:
+            reg = str(step.get("color_check") or "").strip()
+            if not reg:
+                return None
+            ok = await self._color_check_region(
+                actions=actions,
+                area_doc=area_doc,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                region=reg,
+            )
+            if not ok:
+                await self._clear_step_context(instance_id)
+                return TaskResult(
+                    success=True,
+                    next_run_at=None,
+                    metadata={
+                        "scenario": scenario_key,
+                        "reason": "color_guard_failed",
+                        "region": reg,
+                        "type": str(step.get("type") or "").strip(),
+                    },
+                )
+            return None
         if "click" in step:
             region = str(step.get("click") or "").strip()
             if region:
@@ -934,7 +1181,6 @@ class DslScenarioTask:
                 next_run_at=None,
                 metadata={"reason": "invalid_steps", "path": str(path)},
             )
-
         actions = BotActions()
         area_doc = _load_area_json(repo_root)
         dev_w, dev_h = actions.screen_resolution(instance_id)
@@ -952,9 +1198,19 @@ class DslScenarioTask:
             )
             if not nav_ok:
                 await self._clear_step_context(instance_id)
+                # Write persistent nav error to Redis so UI can surface it.
+                if self.redis_client is not None:
+                    with suppress(Exception):
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "nav_error",
+                            f"navigation_failed: {key} → {target_node} (no route or verify failed)",
+                        )
+                # 5-minute cooldown: rescheduled item blocks overlay from re-pushing
+                # the same scenario (skip_if_duplicate) until the route is in place.
                 return TaskResult(
                     success=False,
-                    next_run_at=None,
+                    next_run_at=datetime.now() + timedelta(minutes=5),
                     metadata={
                         "scenario": key,
                         "reason": "navigation_failed",
@@ -1008,6 +1264,36 @@ class DslScenarioTask:
                             "reason": "match_guard_failed",
                             "region": reg,
                             "match": row if isinstance(row, dict) else None,
+                        },
+                    )
+                continue
+            if "color_check" in step:
+                reg = str(step.get("color_check") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                ok = await self._color_check_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    instance_id=instance_id,
+                    scenario_key=key,
+                    step=step,
+                    region=reg,
+                )
+                if not ok:
+                    logger.info(
+                        "dsl_scenario: color_check guard failed — skipping scenario %s region=%s want=%s",
+                        key,
+                        reg,
+                        step.get("type"),
+                    )
+                    await self._clear_step_context(instance_id)
+                    return TaskResult(
+                        success=True,
+                        next_run_at=None,
+                        metadata={
+                            "scenario": key,
+                            "reason": "color_guard_failed",
+                            "region": reg,
+                            "type": str(step.get("type") or "").strip(),
                         },
                     )
                 continue

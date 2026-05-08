@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -24,7 +24,8 @@ class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
     google_account: str
-    player_ids: list[str]
+    # Legacy: player_ids are now read from db/devices.yaml via config.devices.
+    player_ids: list[str] = field(default_factory=list)
     # Legacy YAML field; screen capture is ADB-only (ignored).
     capture_window_title: str | None = None
 
@@ -90,7 +91,6 @@ def load_settings(path: Path | None = None) -> Settings:
             instance_id=inst["instance_id"],
             bluestacks_window_title=inst["bluestacks_window_title"],
             google_account=inst["google_account"],
-            player_ids=list(inst["player_ids"]),
             capture_window_title=inst.get("capture_window_title"),
         )
         for inst in raw["instances"]

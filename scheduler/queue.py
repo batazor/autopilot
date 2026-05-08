@@ -8,6 +8,7 @@ from pathlib import Path
 
 import redis.asyncio as aioredis
 
+from config.devices import player_ids_for_device
 from config.loader import get_settings
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,16 @@ class RedisQueue:
         # Also allow device-level items with empty player_id ("") which will be
         # resolved to an active player at execution time.
         instance_players = self._players_for_instance(instance_id)
+        # Include players discovered at runtime (OCR'd in-game id written by who_i_am).
+        try:
+            raw_ap = await self._redis.hget(
+                f"wos:instance:{instance_id}:state", "active_player"
+            )
+            ap = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
+            if ap:
+                instance_players = instance_players | {ap}
+        except Exception:
+            pass
         candidates = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", now)
 
         due: list[tuple[str, dict[str, object]]] = []
@@ -288,8 +299,27 @@ class RedisQueue:
                 await self._redis.zrem(_QUEUE_KEY, raw)
                 return
 
+    async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
+        """Remove all queued items matching task_type + instance_id. Returns count removed."""
+        import json
+
+        all_items = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", "+inf")
+        removed = 0
+        for raw in all_items:
+            try:
+                data = json.loads(raw)
+            except Exception:
+                continue
+            if (
+                str(data.get("task_type") or "") == task_type
+                and str(data.get("instance_id") or "") == instance_id
+            ):
+                await self._redis.zrem(_QUEUE_KEY, raw)
+                removed += 1
+        return removed
+
     def _players_for_instance(self, instance_id: str) -> set[str]:
         for inst in self._settings.instances:
             if inst.instance_id == instance_id:
-                return set(inst.player_ids)
+                return set(player_ids_for_device(inst.bluestacks_window_title))
         return set()

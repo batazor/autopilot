@@ -30,6 +30,55 @@ from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
 
 
+def _dominant_color_label(patch_bgr: np.ndarray) -> tuple[str, dict[str, float]]:
+    """Return (dominant_label, share_map) for patch (BGR).
+
+    Labels: red/blue/green/gray.
+    """
+    if patch_bgr.size <= 0:
+        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
+    try:
+        hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    except Exception:
+        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
+
+    h = hsv[:, :, 0].astype(np.int16, copy=False)  # 0..179
+    s = hsv[:, :, 1].astype(np.int16, copy=False)  # 0..255
+    v = hsv[:, :, 2].astype(np.int16, copy=False)  # 0..255
+
+    gray_mask = (s < 40) | (v < 40)
+    color_mask = ~gray_mask
+    red_mask = color_mask & ((h <= 10) | (h >= 170))
+    green_mask = color_mask & (h >= 35) & (h <= 85)
+    blue_mask = color_mask & (h >= 90) & (h <= 140)
+
+    other_mask = color_mask & ~(red_mask | green_mask | blue_mask)
+    other_red = other_blue = other_green = 0
+    if np.any(other_mask):
+        ho = h[other_mask]
+        d_red = np.minimum(ho, 180 - ho)
+        d_green = np.abs(ho - 60)
+        d_blue = np.abs(ho - 120)
+        idx = np.stack([d_red, d_blue, d_green], axis=0).argmin(axis=0)
+        other_red = int(np.sum(idx == 0))
+        other_blue = int(np.sum(idx == 1))
+        other_green = int(np.sum(idx == 2))
+
+    n = int(h.size) or 1
+    c_red = int(np.count_nonzero(red_mask)) + other_red
+    c_blue = int(np.count_nonzero(blue_mask)) + other_blue
+    c_green = int(np.count_nonzero(green_mask)) + other_green
+    c_gray = int(np.count_nonzero(gray_mask))
+    shares = {
+        "red": c_red / n,
+        "blue": c_blue / n,
+        "green": c_green / n,
+        "gray": c_gray / n,
+    }
+    dominant = max(shares.items(), key=lambda kv: kv[1])[0]
+    return dominant, shares
+
+
 def _apply_min_saturation_gate(
     image_bgr: np.ndarray,
     top_left: tuple[int, int],
@@ -61,6 +110,15 @@ def _bbox_percent_to_region_px(
     width = max(1, min(wi - left, int(round(w / 100.0 * wi))))
     height = max(1, min(hi - top, int(round(h / 100.0 * hi))))
     return Region(left, top, width, height)
+
+
+def _region_to_xyxy(region: Region) -> tuple[int, int, int, int]:
+    """Convert Region(x,y,w,h) to (x1,y1,x2,y2) for numpy slicing."""
+    x1 = int(region.x)
+    y1 = int(region.y)
+    x2 = int(region.x + region.w)
+    y2 = int(region.y + region.h)
+    return x1, y1, x2, y2
 
 
 def _tap_region_delta_pct(
@@ -162,10 +220,7 @@ async def evaluate_overlay_rules_async(
                         if ref_img is not None:
                             hr, wr = int(ref_img.shape[0]), int(ref_img.shape[1])
                             region_px = _bbox_percent_to_region_px(bbox, wr, hr)
-                            x1 = int(region_px.x1)
-                            y1 = int(region_px.y1)
-                            x2 = int(region_px.x2)
-                            y2 = int(region_px.y2)
+                            x1, y1, x2, y2 = _region_to_xyxy(region_px)
                             crop = ref_img[y1:y2, x1:x2]
                             if crop.size > 0:
                                 crop_path.parent.mkdir(parents=True, exist_ok=True)
@@ -358,6 +413,79 @@ async def evaluate_overlay_rules_async(
             if sat_fail_1:
                 hit1["reason"] = sat_fail_1
             out[logical_name] = hit1
+            continue
+
+        if action == "color_check":
+            region_name = str(rule.get("region") or "").strip()
+            pair = screen_region_by_name(area_doc, region_name) if region_name else None
+            if pair is None:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "unknown_region",
+                    "region": region_name,
+                    "action": "color_check",
+                }
+                continue
+            _entry, reg = pair
+            bbox = reg.get("bbox")
+            if not isinstance(bbox, dict):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "missing_bbox",
+                    "region": region_name,
+                    "action": "color_check",
+                }
+                continue
+
+            want = str(rule.get("type") or reg.get("type") or "").strip().lower()
+            if want == "grey":
+                want = "gray"
+            if want not in {"red", "blue", "green", "gray"}:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "invalid_color_type",
+                    "region": region_name,
+                    "action": "color_check",
+                    "want": want,
+                }
+                continue
+
+            min_share_raw = rule.get("min_share")
+            if min_share_raw is None:
+                # Backward compat: use `threshold` as the minimum share.
+                min_share_raw = rule.get("threshold", reg.get("threshold", 0.5))
+            try:
+                min_share = float(min_share_raw) if min_share_raw is not None else 0.5
+            except (TypeError, ValueError):
+                min_share = 0.5
+            min_share = max(0.0, min(1.0, float(min_share)))
+
+            hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+            region_px = _bbox_percent_to_region_px(bbox, wi, hi)
+            x1, y1, x2, y2 = _region_to_xyxy(region_px)
+            patch = image_bgr[y1:y2, x1:x2]
+            dom, shares = _dominant_color_label(patch)
+            share = float(shares.get(dom, 0.0))
+            matched = dom == want and share >= min_share
+
+            hit: dict[str, Any] = {
+                "matched": matched,
+                "action": "color_check",
+                "region": region_name,
+                "want": want,
+                "dominant": dom,
+                "share": share,
+                "threshold": min_share,
+                "shares": shares,
+            }
+            push_tasks = optional_push_scenario_tasks(rule)
+            if push_tasks:
+                hit["pushScenario"] = push_tasks
+            if set_node_s:
+                hit["set_node"] = set_node_s
+            if priority is not None:
+                hit["priority"] = priority
+            out[logical_name] = hit
             continue
 
         if action == "readText":

@@ -59,7 +59,8 @@ class Navigator:
         dev_h: int,
     ) -> bool:
         area_doc = self._load_area_doc()
-        pair = screen_region_by_name(area_doc, region_name)
+        tap_variant = f"{region_name}_tap"
+        pair = screen_region_by_name(area_doc, tap_variant) or screen_region_by_name(area_doc, region_name)
         if pair is None:
             logger.warning("Navigator: unknown region %r in area.json", region_name)
             return False

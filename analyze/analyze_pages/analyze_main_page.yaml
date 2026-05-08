@@ -1,9 +1,9 @@
 overlay:
   - name: is_has_new_mail.visible
     region: is_has_new_mail
-    action: findIcon
-    threshold: 0.85
-    set_node: mail
+    action: color_check
+    # For color checks, `threshold` acts as min_share (share of dominant pixels).
+    threshold: 0.6
     node: main_city
     pushScenario:
       - name: read_mail_gifts
