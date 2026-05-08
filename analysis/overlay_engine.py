@@ -237,7 +237,26 @@ async def evaluate_overlay_rules_async(
                             "search_region": search_region_name,
                         }
                         continue
-                    res = match_template_in_search_roi_bbox_percent(image_bgr, tpl, search_bbox)
+                    excl = rule.get("exclude_top_lefts")
+                    excl_pts: list[tuple[int, int]] = []
+                    if isinstance(excl, list):
+                        for it in excl:
+                            if isinstance(it, (list, tuple)) and len(it) >= 2:
+                                try:
+                                    excl_pts.append((int(float(it[0])), int(float(it[1]))))
+                                except (TypeError, ValueError):
+                                    continue
+                    try:
+                        excl_r = int(rule.get("exclude_radius_px") or 0)
+                    except (TypeError, ValueError):
+                        excl_r = 0
+                    res = match_template_in_search_roi_bbox_percent(
+                        image_bgr,
+                        tpl,
+                        search_bbox,
+                        exclude_top_lefts=excl_pts or None,
+                        exclude_radius_px=excl_r,
+                    )
                     cx_px = res["top_left"][0] + tw_tpl / 2.0
                     cy_px = res["top_left"][1] + th_tpl / 2.0
                     mx_pct = 100.0 * cx_px / wi

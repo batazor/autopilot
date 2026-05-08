@@ -8,6 +8,7 @@ node: mail
 steps:
   # While there are gift icons in the mail list: open each, claim, go back.
   - while_match: mail_gift
+    min_match_saturation: 48
     max: 30
     steps:
       - click: mail_gift

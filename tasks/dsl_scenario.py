@@ -246,6 +246,9 @@ class DslScenarioTask:
     _last_match_region: str = field(default="", init=False, repr=False)
     _last_match_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _last_tap_region_clicked: str = field(default="", init=False, repr=False)
+    _exclude_match_top_lefts: dict[str, list[tuple[int, int]]] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
@@ -450,6 +453,11 @@ class DslScenarioTask:
             "action": "findIcon",
             "threshold": threshold,
         }
+        # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
+        excl = self._exclude_match_top_lefts.get(region)
+        if excl:
+            rule["exclude_top_lefts"] = [[x, y] for (x, y) in excl[-6:]]
+            rule["exclude_radius_px"] = 24
         min_sat = step.get("min_match_saturation")
         if min_sat is not None:
             rule["min_match_saturation"] = min_sat
@@ -958,6 +966,21 @@ class DslScenarioTask:
                 },
             )
         self._last_tap_region_clicked = region
+        # After a click on a matched region, remember the last match top-left so the next
+        # `while_match` can pick a different occurrence if multiple are present.
+        if (
+            self._last_match_row is not None
+            and self._last_match_region == region
+            and isinstance(self._last_match_row.get("top_left"), (list, tuple))
+            and len(self._last_match_row.get("top_left")) >= 2  # type: ignore[arg-type]
+        ):
+            try:
+                tl = self._last_match_row.get("top_left")
+                x0 = int(float(tl[0]))  # type: ignore[index]
+                y0 = int(float(tl[1]))  # type: ignore[index]
+                self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
+            except Exception:
+                pass
         return None
 
     async def _run_inline_step(

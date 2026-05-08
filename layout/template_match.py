@@ -133,6 +133,9 @@ def match_template_in_search_roi_bbox_percent(
     image_bgr: np.ndarray,
     template_bgr: np.ndarray,
     search_bbox_percent: dict[str, float],
+    *,
+    exclude_top_lefts: list[tuple[int, int]] | None = None,
+    exclude_radius_px: int = 0,
 ) -> TemplateMatchResult:
     """Slide ``template_bgr`` inside ROI from ``search_bbox_percent``.
 
@@ -152,7 +155,40 @@ def match_template_in_search_roi_bbox_percent(
     rg = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
     heat = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
-    _mn, max_val, _mn_loc, max_loc = cv2.minMaxLoc(heat)
+
+    def _is_excluded(gx0: int, gy0: int) -> bool:
+        if not exclude_top_lefts or exclude_radius_px <= 0:
+            return False
+        r2 = float(exclude_radius_px * exclude_radius_px)
+        for ex, ey in exclude_top_lefts:
+            dx = float(gx0 - int(ex))
+            dy = float(gy0 - int(ey))
+            if (dx * dx + dy * dy) <= r2:
+                return True
+        return False
+
+    max_loc: tuple[int, int] | None = None
+    max_val: float = -1.0
+    # Try a few best NCC peaks, skipping excluded neighborhoods.
+    for _ in range(25):
+        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat)
+        if cur_val <= -0.5:
+            break
+        x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
+        gx0 = int(L + x_off_i)
+        gy0 = int(T + y_off_i)
+        if not _is_excluded(gx0, gy0):
+            max_loc = (x_off_i, y_off_i)
+            max_val = float(cur_val)
+            break
+        # Mask this peak and retry.
+        heat[y_off_i, x_off_i] = -1.0
+
+    if max_loc is None:
+        # Everything excluded or no valid peak; fall back to raw argmax.
+        _mn, max_val, _mn_loc, max_loc0 = cv2.minMaxLoc(heat)
+        max_loc = (int(max_loc0[0]), int(max_loc0[1]))
+
     x_off, y_off = max_loc
     gx = int(L + x_off)
     gy = int(T + y_off)
