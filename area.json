@@ -526,22 +526,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "confirm_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 60.0,
-            "width": 94.7992277992278,
-            "height": 35.0,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
         }
       ]
     },

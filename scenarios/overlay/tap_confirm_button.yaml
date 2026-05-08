@@ -1,6 +1,13 @@
 enabled: true
 name: Tap confirm dialog
 
+# Triggered by overlay rule `confirm_button.visible` (priority 88_000).
+# FSM transitions are picked up by overlay rules afterwards
+# (e.g. `main_city.visible` → `set_node_main_city`).
+
 steps:
+  - match: confirm_button
+    threshold: 0.98
+    min_match_saturation: 48
   - click: confirm_button
-  - set_node: main_city
+  - wait: 1500ms
