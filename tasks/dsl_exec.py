@@ -6,16 +6,26 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from actions.tap import BotActions
 from century.api import CenturyAPIError, CenturyClient, PlayerData
+from config.devices import upsert_device_gamer
+from config.state_store import get_state_store
+from gift.redeemer import run_gift_code_redeemer
+from gift.scraper import poll_once
 from navigation.navigator import Navigator
 from ui.notifications import push_ui_notification
+
+_CODES_PATH = Path("db/giftCodes.yaml")
+_DEVICES_PATH = Path("db/devices.yaml")
 
 logger = logging.getLogger(__name__)
 
 DslExecHandler = Callable[["DslExecContext"], Awaitable[None]]
+
+_FETCH_PLAYER_TTL_SECONDS = 15 * 60
 
 
 @dataclass(frozen=True)
@@ -65,6 +75,22 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
         logger.warning("dsl exec fetch_player: invalid fid %r on %s", fid_s, state_key)
         return
 
+    # TTL guard: skip Century API if we synced recently (UI button is never disabled,
+    # but we avoid excessive calls from repeated runs / cron).
+    try:
+        raw_ts = await ctx.redis_client.hget(state_key, "century_player_sync_at")
+        ts_s = _decode_redis_raw(raw_ts)
+        ts = float(ts_s) if ts_s else 0.0
+    except Exception:
+        ts = 0.0
+    if ts and (time.time() - ts) < _FETCH_PLAYER_TTL_SECONDS:
+        logger.info(
+            "dsl exec fetch_player: skip by TTL fid=%s age=%.1fs",
+            fid,
+            time.time() - ts,
+        )
+        return
+
     try:
         data: PlayerData = await CenturyClient().fetch_player(fid)
     except CenturyAPIError as exc:
@@ -87,6 +113,33 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
     except Exception:
         logger.exception("dsl exec fetch_player: redis hset failed key=%s", state_key)
         return
+
+    # Persist to db/state.yaml
+    try:
+        store = get_state_store().get_or_create(ctx.player_id, nickname=data.nickname)
+        store.update_from_flat(
+            {
+                "nickname": data.nickname,
+                "kid": data.kid,
+                "avatar": data.avatar_image or "",
+                "buildings.furnace.level": data.stove_level,
+                "buildings.furnace.power": data.stove_lv_content,
+                "century_player_sync_at": float(time.time()),
+            }
+        )
+    except Exception:
+        logger.exception("dsl exec fetch_player: state.yaml persist failed fid=%s", fid)
+
+    # Persist to db/devices.yaml under current instance_id
+    try:
+        upsert_device_gamer(
+            path=_DEVICES_PATH,
+            device_name=ctx.instance_id,
+            player_id=ctx.player_id,
+            nickname=data.nickname,
+        )
+    except Exception:
+        logger.exception("dsl exec fetch_player: devices.yaml upsert failed fid=%s", fid)
 
     logger.info(
         "dsl exec fetch_player: synced fid=%s nickname=%r stove_level=%s",
@@ -130,7 +183,46 @@ async def _exec_detect_screen(ctx: DslExecContext) -> None:
     )
 
 
+async def _exec_gift_code_scrape(ctx: DslExecContext) -> None:
+    """Scrape wosrewards.com for new gift codes and append them to giftCodes.yaml."""
+    try:
+        new = await poll_once(_CODES_PATH)
+    except Exception:
+        logger.exception("dsl exec gift_code_scrape: scraper failed")
+        return
+    if new:
+        logger.info("dsl exec gift_code_scrape: found %d new code(s): %s", len(new), ", ".join(new))
+        await push_ui_notification(
+            ctx.redis_client,
+            ctx.instance_id,
+            kind="exec.gift_code_scrape",
+            message=f"New gift codes found: {', '.join(new)}",
+            level="info",
+            payload={"codes": new},
+        )
+    else:
+        logger.info("dsl exec gift_code_scrape: no new codes")
+
+
+async def _exec_gift_code_redeem(ctx: DslExecContext) -> None:
+    """Redeem all pending gift codes for all players listed in devices.yaml."""
+    if not _CODES_PATH.exists():
+        logger.warning("dsl exec gift_code_redeem: %s not found — skipping", _CODES_PATH)
+        return
+    if not _DEVICES_PATH.exists():
+        logger.warning("dsl exec gift_code_redeem: %s not found — skipping", _DEVICES_PATH)
+        return
+    try:
+        await run_gift_code_redeemer(_CODES_PATH, _DEVICES_PATH)
+    except Exception:
+        logger.exception("dsl exec gift_code_redeem: redeemer failed")
+        return
+    logger.info("dsl exec gift_code_redeem: done")
+
+
 DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "detect_screen": _exec_detect_screen,
     "fetch_player": _exec_fetch_player,
+    "gift_code_scrape": _exec_gift_code_scrape,
+    "gift_code_redeem": _exec_gift_code_redeem,
 }

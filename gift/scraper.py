@@ -7,10 +7,10 @@ import logging
 from pathlib import Path
 
 import httpx
+import yaml
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 
-from gift.models import GiftCode, GiftCodeDB, RedeemStatus
-import yaml
+from gift.models import GiftCode, GiftCodeDB, gift_db_to_yaml_dict
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +41,7 @@ def _load_codes(path: Path) -> GiftCodeDB:
 
 
 def _save_codes(path: Path, db: GiftCodeDB) -> None:
-    data: dict[str, object] = {
-        "codes": [
-            {
-                "name": c.name,
-                **({"expires": c.expires.isoformat()} if c.expires else {}),
-                "userFor": {k: v.value for k, v in c.user_for.items()},
-            }
-            for c in db.codes
-        ]
-    }
-    path.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False))
+    path.write_text(yaml.dump(gift_db_to_yaml_dict(db), allow_unicode=True, sort_keys=False))
 
 
 def add_new_codes(path: Path, found: list[str]) -> list[str]:

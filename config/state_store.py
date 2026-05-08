@@ -16,7 +16,8 @@ from config.state_schema import GamerState, StateDB
 logger = logging.getLogger(__name__)
 
 _STATE_PATH = Path(__file__).parent.parent / "db" / "state.yaml"
-_MISSING = object()  # sentinel for getattr default — distinguishes "attr is None" from "attr missing"
+# sentinel for getattr default — distinguishes "attr is None" from "attr missing"
+_MISSING = object()
 
 
 def _flatten(obj: Any, prefix: str, out: dict[str, Any]) -> None:

@@ -26,6 +26,8 @@ scenarios_page = st.Page(str(_ui_dir / "views" / "scenarios.py"), title="Scenari
 wiki_scenarios_page = st.Page(str(_ui_dir / "views" / "wiki_scenarios.py"), title="Scenarios")
 wiki_analyze_page = st.Page(str(_ui_dir / "views" / "wiki_analyze.py"), title="Analyze")
 labeling_page = st.Page(str(_ui_dir / "views" / "labeling.py"), title="Labeling")
+db_gift_codes_page = st.Page(str(_ui_dir / "views" / "db_gift_codes.py"), title="Gift codes")
+db_player_state_page = st.Page(str(_ui_dir / "views" / "db_player_state.py"), title="Player state")
 fsm_page = st.Page(
     str(_ui_dir / "views" / "fsm.py"),
     title="Routes",
@@ -36,7 +38,13 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 st.navigation(
     {
         "Operate": [overview, instance_page, queue_page],
-        "Wiki": [gallery_page, labeling_page, wiki_scenarios_page, wiki_analyze_page],
+        "DB": [db_gift_codes_page, db_player_state_page],
+        "Wiki": [
+            gallery_page,
+            labeling_page,
+            wiki_scenarios_page,
+            wiki_analyze_page,
+        ],
         "Debug": [click_approvals_page, fsm_page],
         "Config": [scenarios_page, settings_page],
     }

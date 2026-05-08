@@ -3,7 +3,7 @@
 Endpoints:
   POST /api/player      — player info (login step)
   POST /api/captcha     — get CAPTCHA image
-  POST /api/gift_code   — redeem gift code
+  POST /api/gift_code   — redeem gift code (returns err_code + msg)
 
 All requests are signed with MD5:
   sign = md5(sorted_params_string + SALT)
@@ -25,9 +25,14 @@ logger = logging.getLogger(__name__)
 _API_BASE = "https://wos-giftcode-api.centurygame.com/api"
 _SALT = "tB87#kPtkxqOS2"
 _HEADERS = {
-    "Content-Type": "application/x-www-form-urlencoded",
-    "Accept": "application/json",
-    "User-Agent": "Mozilla/5.0",
+    "accept": "application/json, text/plain, */*",
+    "content-type": "application/x-www-form-urlencoded",
+    "origin": "https://wos-giftcode.centurygame.com",
+    "referer": "https://wos-giftcode.centurygame.com/",
+    "user-agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ),
 }
 
 
@@ -45,8 +50,8 @@ def _md5(s: str) -> str:
     return hashlib.md5(s.encode()).hexdigest()
 
 
-def _timestamp_ns() -> str:
-    return str(time.time_ns())
+def _timestamp() -> str:
+    return str(int(time.time()))
 
 
 def _sign(*pairs: tuple[str, str]) -> str:
@@ -110,7 +115,7 @@ class CenturyClient:
 
     @_CENTURY_RETRY
     async def fetch_player(self, fid: int) -> PlayerData:
-        ts = _timestamp_ns()
+        ts = _timestamp()
         sign = _sign(("fid", str(fid)), ("time", ts))
         data = {"fid": str(fid), "time": ts, "sign": sign}
 
@@ -140,7 +145,7 @@ class CenturyClient:
 
     @_CENTURY_RETRY
     async def fetch_captcha(self, fid: int) -> CaptchaData:
-        ts = _timestamp_ns()
+        ts = _timestamp()
         sign = _sign(("fid", str(fid)), ("init", "0"), ("time", ts))
         data = {"fid": str(fid), "init": "0", "time": ts, "sign": sign}
 
@@ -158,8 +163,8 @@ class CenturyClient:
     # Gift code redemption
     # ------------------------------------------------------------------
 
-    async def redeem(self, fid: int, code: str, captcha_code: str) -> ErrCode:
-        ts = _timestamp_ns()
+    async def redeem(self, fid: int, code: str, captcha_code: str) -> tuple[ErrCode, str]:
+        ts = _timestamp()
         sign = _sign(
             ("captcha_code", captcha_code),
             ("cdk", code),
@@ -179,11 +184,13 @@ class CenturyClient:
             _raise_for_status(resp, endpoint="gift_code")
             body = resp.json()
 
-        ec = body.get("err_code", -1)
-        logger.debug("redeem fid=%d code=%s ec=%s msg=%s", fid, code, ec, body.get("msg"))
+        ec_raw = body.get("err_code", -1)
+        msg = str(body.get("msg") or "")
+        logger.debug("redeem fid=%d code=%s ec=%s msg=%s", fid, code, ec_raw, msg)
         try:
-            return ErrCode(int(ec))
+            ec = ErrCode(int(ec_raw))
         except ValueError as exc:
             raise CenturyAPIError(
-                f"unexpected err_code={ec} msg={body.get('msg')!r}"
+                f"unexpected err_code={ec_raw} msg={body.get('msg')!r}"
             ) from exc
+        return ec, msg

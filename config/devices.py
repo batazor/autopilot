@@ -13,11 +13,16 @@ Format mirrors db/devices.yaml:
 
 from __future__ import annotations
 
+import logging
+import os
+import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,94 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
             profiles.append(DeviceProfile(email=p["email"], gamers=gamers))
         devices.append(DeviceEntry(name=d["name"], profiles=tuple(profiles)))
     return DeviceRegistry(devices=devices)
+
+
+def _load_devices_raw(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {"devices": []}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return raw if isinstance(raw, dict) else {"devices": []}
+
+
+def _save_devices_raw(path: Path, raw: dict[str, object]) -> None:
+    try:
+        content = yaml.dump(raw, allow_unicode=True, sort_keys=False)
+        with tempfile.NamedTemporaryFile(
+            "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
+        ) as f:
+            f.write(content)
+            tmp = f.name
+        os.replace(tmp, path)
+    except Exception:
+        logger.exception("Failed to persist devices to %s", path)
+
+
+def upsert_device_gamer(
+    *,
+    path: Path,
+    device_name: str,
+    player_id: str,
+    nickname: str,
+    email: str = "",
+) -> bool:
+    """Ensure player exists under device profiles.
+
+    - Creates device if missing.
+    - Uses first profile, or creates one with provided email (may be empty).
+    - Returns True when YAML was modified.
+    """
+    device_name = (device_name or "").strip()
+    player_id = (player_id or "").strip()
+    if not device_name or not player_id:
+        return False
+
+    raw = _load_devices_raw(path)
+    devices = raw.get("devices")
+    if not isinstance(devices, list):
+        devices = []
+        raw["devices"] = devices
+
+    # Find or create device entry
+    device: dict[str, object] | None = None
+    for d in devices:
+        if isinstance(d, dict) and str(d.get("name") or "").strip() == device_name:
+            device = d
+            break
+    if device is None:
+        device = {"name": device_name, "profiles": []}
+        devices.append(device)
+
+    profiles = device.get("profiles")
+    if not isinstance(profiles, list):
+        profiles = []
+        device["profiles"] = profiles
+
+    if not profiles:
+        profiles.append({"email": email, "gamer": []})
+
+    profile0 = profiles[0]
+    if not isinstance(profile0, dict):
+        profile0 = {"email": email, "gamer": []}
+        profiles[0] = profile0
+
+    gamers = profile0.get("gamer")
+    if not isinstance(gamers, list):
+        gamers = []
+        profile0["gamer"] = gamers
+
+    # Update existing gamer or append new
+    for g in gamers:
+        if isinstance(g, dict) and str(g.get("id") or "").strip() == player_id:
+            old_nick = str(g.get("nickname") or "")
+            if nickname and nickname != old_nick:
+                g["nickname"] = nickname
+                _save_devices_raw(path, raw)
+                return True
+            return False
+
+    gamers.append({"id": int(player_id), "nickname": nickname or ""})
+    _save_devices_raw(path, raw)
+    return True
 
 
 _registry: DeviceRegistry | None = None

@@ -256,10 +256,13 @@ class HealInjured(BaseModel):
 class GamerState(BaseModel):
     id: int
     nickname: str = ""
+    kid: int = 0
     state: int = 0
     avatar: str = ""
     gems: int = 0
     power: int = 0
+
+    century_player_sync_at: float = 0.0
 
     screenState: ScreenState = Field(default_factory=ScreenState)
     vip: VIP = Field(default_factory=VIP)

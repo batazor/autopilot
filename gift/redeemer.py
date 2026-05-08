@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from pathlib import Path
 
 import yaml
@@ -20,7 +19,7 @@ import yaml
 from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
 from config.devices import load_devices
-from gift.models import GiftCode, GiftCodeDB, RedeemStatus
+from gift.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +57,8 @@ class GiftCodeRedeemer:
         all_player_ids = registry.all_player_ids()
 
         for code in db.codes:
-            if code.is_expired():
-                logger.info("Skipping expired code: %s", code.name)
+            if code.is_effectively_expired():
+                logger.info("Skipping expired or API-dead code: %s", code.name)
                 continue
 
             logger.info("=== Code: %s ===", code.name)
@@ -69,8 +68,16 @@ class GiftCodeRedeemer:
                 if not code.needs_redemption(player_id):
                     continue
 
-                status = await self._redeem_one(int(player_id), code.name)
-                code.user_for[player_id] = status
+                status, api_ec, api_msg = await self._redeem_one(int(player_id), code.name)
+                if api_ec is not None:
+                    code.last_api_err_code = api_ec
+                    code.last_api_msg = api_msg if api_msg else None
+
+                if status in (RedeemStatus.CDK_EXPIRED, RedeemStatus.CDK_NOT_FOUND):
+                    for pid in all_player_ids:
+                        code.user_for[pid] = status
+                else:
+                    code.user_for[player_id] = status
                 self._save_codes(db)  # persist after every player
 
                 gamer = registry.get_gamer(player_id)
@@ -91,13 +98,13 @@ class GiftCodeRedeemer:
     # Single player + code
     # ------------------------------------------------------------------
 
-    async def _redeem_one(self, fid: int, code: str) -> RedeemStatus:
+    async def _redeem_one(self, fid: int, code: str) -> tuple[RedeemStatus, int | None, str | None]:
         # Step 1: login
         try:
             await self._client.fetch_player(fid)
         except (CenturyAPIError, Exception):
             logger.exception("Login failed for fid=%d", fid)
-            return RedeemStatus.FAILED
+            return RedeemStatus.FAILED, None, None
 
         # Steps 2-3-4: captcha + redeem, up to 3 attempts
         for attempt in range(1, _MAX_CAPTCHA_RETRIES + 1):
@@ -105,30 +112,35 @@ class GiftCodeRedeemer:
                 captcha_data = await self._client.fetch_captcha(fid)
             except (CenturyAPIError, Exception):
                 logger.exception("Captcha request failed fid=%d attempt=%d", fid, attempt)
-                return RedeemStatus.FAILED
+                return RedeemStatus.FAILED, None, None
 
             try:
                 captcha_text = solve_captcha(captcha_data.img_b64)
             except Exception:
                 logger.exception("Captcha solve failed fid=%d", fid)
-                return RedeemStatus.FAILED
+                return RedeemStatus.FAILED, None, None
 
             try:
-                ec = await self._client.redeem(fid, code, captcha_text)
+                ec, api_msg = await self._client.redeem(fid, code, captcha_text)
             except (CenturyAPIError, Exception):
                 logger.exception("Redeem call failed fid=%d", fid)
-                return RedeemStatus.FAILED
+                return RedeemStatus.FAILED, None, None
 
             if ec in (ErrCode.CAPTCHA_TOO_FREQUENT, ErrCode.CAPTCHA_ERROR):
                 if attempt < _MAX_CAPTCHA_RETRIES:
-                    logger.debug("Captcha error ec=%s, retry %d/%d", ec, attempt, _MAX_CAPTCHA_RETRIES)
+                    logger.debug(
+                        "Captcha error ec=%s, retry %d/%d",
+                        ec,
+                        attempt,
+                        _MAX_CAPTCHA_RETRIES,
+                    )
                     await asyncio.sleep(1.0)
                     continue
-                return RedeemStatus.FAILED
+                return RedeemStatus.FAILED, None, None
 
-            return _ec_to_status(ec)
+            return _ec_to_status(ec), ec.value, api_msg
 
-        return RedeemStatus.FAILED
+        return RedeemStatus.FAILED, None, None
 
     # ------------------------------------------------------------------
     # YAML I/O
@@ -149,17 +161,9 @@ class GiftCodeRedeemer:
         return db
 
     def _save_codes(self, db: GiftCodeDB) -> None:
-        data: dict[str, object] = {
-            "codes": [
-                {
-                    "name": c.name,
-                    **({"expires": c.expires.isoformat()} if c.expires else {}),
-                    "userFor": {k: v.value for k, v in c.user_for.items()},
-                }
-                for c in db.codes
-            ]
-        }
-        self._codes_path.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False))
+        self._codes_path.write_text(
+            yaml.dump(gift_db_to_yaml_dict(db), allow_unicode=True, sort_keys=False)
+        )
 
 
 # ------------------------------------------------------------------
