@@ -1,2 +1,2 @@
-"""Helpers for the Screenshot pipeline debug page."""
+"""Pipeline overlay helpers for UI debug views (e.g. Click approvals)."""
 

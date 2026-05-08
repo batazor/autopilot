@@ -58,6 +58,6 @@ OVERVIEW_FEEDBACK = "overview_feedback"
 INSTANCE_PREVIEW_CACHE = "_instance_preview_cache"
 
 # ---------------------------------------------------------------------------
-# Screenshot pipeline page
+# Pipeline overlay cache (Click approvals idle probe, etc.)
 # ---------------------------------------------------------------------------
 PIPELINE_OVERLAY_CACHE = "_pipeline_overlay_cache"

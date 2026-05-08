@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
 from io import BytesIO
+from pathlib import Path
 
 import streamlit as st
 from PIL import Image, ImageDraw
@@ -128,7 +128,6 @@ def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, in
     y1 = int(round((y / 100.0) * h))
     x2 = int(round(((x + bw) / 100.0) * w))
     y2 = int(round(((y + bh) / 100.0) * h))
-    # Clamp
     x1 = max(0, min(w - 1, x1))
     y1 = max(0, min(h - 1, y1))
     x2 = max(0, min(w, x2))
@@ -139,6 +138,7 @@ def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, in
 
 
 def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes:
+    """Red outlines from ``area.json`` bboxes (native resolution, then same downscale as plain thumb)."""
     im = Image.open(BytesIO(png)).convert("RGBA")
     draw = ImageDraw.Draw(im)
     w, h = im.size
@@ -152,7 +152,7 @@ def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes
         if rect is None:
             continue
         x1, y1, x2, y2 = rect
-        draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0, 255), width=3)
+        draw.rectangle([x1, y1, x2, y2], outline=(255, 0, 0, 255), width=2)
     out = BytesIO()
     im.save(out, format="PNG")
     return out.getvalue()
@@ -336,7 +336,7 @@ def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
                 "Highlight regions",
                 value=False,
                 key=f"hl::{key_prefix}::{i}::{rel}",
-                help="Draw outlines for all regions from `area.json`.",
+                help="Draw region rectangles from `area.json` on the full-size image, then scale to the thumb.",
             )
         try:
             if highlight and bbox_regs:
@@ -345,9 +345,11 @@ def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
             else:
                 fitted, native, _disp = png_bytes_fitted(native_png, thumb_max)
         except Exception as exc:
-            st.error(f"`{rel}`: annotate failed: {exc}")
+            st.error(f"`{rel}`: load failed: {exc}")
             fitted, native, _disp = png_bytes_fitted(native_png, thumb_max)
         with left:
+            if highlight and not bbox_regs:
+                st.caption("No region boxes in `area.json` for this file.")
             st.image(
                 fitted,
                 caption=f"`{rel}` · {native[0]}×{native[1]}{extra_txt}",

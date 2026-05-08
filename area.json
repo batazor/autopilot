@@ -650,7 +650,7 @@
     },
     {
       "id": 17,
-      "screen_id": "",
+      "screen_id": "mail",
       "ocr": "references/big_claim_button.png",
       "regions": [
         {
@@ -700,6 +700,21 @@
             "y": 0.43478260869565216,
             "width": 9.0,
             "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "player_id",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.818532818532816,
+            "y": 73.3695652173913,
+            "width": 21.2007722007722,
+            "height": 3.5000000000000004,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -791,7 +806,7 @@
     },
     {
       "id": 22,
-      "screen_id": "",
+      "screen_id": "main_city",
       "ocr": "references/isNewPeople.png",
       "regions": [
         {

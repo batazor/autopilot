@@ -95,3 +95,6 @@ ignore = ["ANN401"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "integration: requires external services (OCR backend, ADB, etc.); auto-skipped when unreachable",
+]

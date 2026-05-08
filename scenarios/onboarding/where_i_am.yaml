@@ -1,0 +1,5 @@
+enabled: true
+name: Where am I — detect current page
+
+steps:
+  - exec: detect_screen

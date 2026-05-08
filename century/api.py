@@ -11,7 +11,6 @@ All requests are signed with MD5:
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import logging
 import time
@@ -19,7 +18,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +74,30 @@ class CenturyAPIError(Exception):
     pass
 
 
+def _retry_century_error(exc: BaseException) -> bool:
+    return not isinstance(exc, CenturyAPIError)
+
+
+_CENTURY_RETRY = retry(
+    retry=retry_if_exception(_retry_century_error),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=4),
+)
+
+
+def _raise_for_status(resp: httpx.Response, *, endpoint: str) -> None:
+    try:
+        resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        text = exc.response.text.strip()
+        if len(text) > 200:
+            text = f"{text[:197]}..."
+        raise CenturyAPIError(
+            f"{endpoint} HTTP {status}: {text or exc.response.reason_phrase}"
+        ) from exc
+
+
 class CenturyClient:
     """Async HTTP client for the Century Game gift code API."""
 
@@ -85,7 +108,7 @@ class CenturyClient:
     # Player info
     # ------------------------------------------------------------------
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
+    @_CENTURY_RETRY
     async def fetch_player(self, fid: int) -> PlayerData:
         ts = _timestamp_ns()
         sign = _sign(("fid", str(fid)), ("time", ts))
@@ -93,11 +116,13 @@ class CenturyClient:
 
         async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
             resp = await client.post(f"{_API_BASE}/player", data=data)
-            resp.raise_for_status()
+            _raise_for_status(resp, endpoint="player")
             body = resp.json()
 
         if body.get("msg", "").lower() != "success":
-            raise CenturyAPIError(f"player fetch failed: {body.get('msg')} err_code={body.get('err_code')}")
+            raise CenturyAPIError(
+                f"player fetch failed: {body.get('msg')} err_code={body.get('err_code')}"
+            )
 
         d = body["data"]
         return PlayerData(
@@ -113,7 +138,7 @@ class CenturyClient:
     # Captcha
     # ------------------------------------------------------------------
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=4))
+    @_CENTURY_RETRY
     async def fetch_captcha(self, fid: int) -> CaptchaData:
         ts = _timestamp_ns()
         sign = _sign(("fid", str(fid)), ("init", "0"), ("time", ts))
@@ -121,7 +146,7 @@ class CenturyClient:
 
         async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
             resp = await client.post(f"{_API_BASE}/captcha", data=data)
-            resp.raise_for_status()
+            _raise_for_status(resp, endpoint="captcha")
             body = resp.json()
 
         if body.get("msg", "").upper() != "SUCCESS":
@@ -151,12 +176,14 @@ class CenturyClient:
 
         async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
             resp = await client.post(f"{_API_BASE}/gift_code", data=data)
-            resp.raise_for_status()
+            _raise_for_status(resp, endpoint="gift_code")
             body = resp.json()
 
         ec = body.get("err_code", -1)
         logger.debug("redeem fid=%d code=%s ec=%s msg=%s", fid, code, ec, body.get("msg"))
         try:
             return ErrCode(int(ec))
-        except ValueError:
-            raise CenturyAPIError(f"unexpected err_code={ec} msg={body.get('msg')!r}")
+        except ValueError as exc:
+            raise CenturyAPIError(
+                f"unexpected err_code={ec} msg={body.get('msg')!r}"
+            ) from exc

@@ -17,10 +17,18 @@ Adding a new screen
 from __future__ import annotations
 
 from collections import deque
+from functools import lru_cache
+from pathlib import Path
 from typing import Final
+
+import yaml
 
 # Tap steps are region names from `area.json` (no hardcoded coordinates).
 Tap = str
+VerifyRule = dict[str, object]
+VerifyConfig = dict[str, object]
+ScreenVerifyEntry = dict[str, object]
+TextSwitchRule = dict[str, object]
 
 # ---------------------------------------------------------------------------
 # Tap registry
@@ -56,6 +64,205 @@ EDGE_TAPS: Final[dict[tuple[str, str], list[Tap]]] = {
 _TAPS_GRAPH: dict[str, set[str]] = {}
 for _src, _dst in EDGE_TAPS:
     _TAPS_GRAPH.setdefault(_src, set()).add(_dst)
+
+
+# ---------------------------------------------------------------------------
+# Destination verification config
+# ---------------------------------------------------------------------------
+
+def _screen_verify_yaml_path() -> Path:
+    return Path(__file__).resolve().with_name("screen_verify.yaml")
+
+
+def _normalize_verify_rule(raw: object) -> VerifyRule | None:
+    if not isinstance(raw, dict):
+        return None
+    rule: VerifyRule = {}
+    for key in ("match", "ocr"):
+        value = raw.get(key)
+        if value is not None and str(value).strip():
+            rule[key] = str(value).strip()
+    if not rule:
+        return None
+    if "contains" in raw:
+        contains = raw.get("contains")
+        if isinstance(contains, list):
+            rule["contains"] = [str(x).strip() for x in contains if str(x).strip()]
+        elif contains is not None and str(contains).strip():
+            rule["contains"] = str(contains).strip()
+    for key in ("threshold", "confidence", "min_match_saturation"):
+        if key in raw:
+            rule[key] = raw[key]
+    return rule
+
+
+def _normalize_text_switch_rule(raw: object) -> TextSwitchRule | None:
+    if not isinstance(raw, dict):
+        return None
+    region = str(raw.get("ocr") or "").strip()
+    cases_raw = raw.get("cases")
+    if not region or not isinstance(cases_raw, dict):
+        return None
+    cases: dict[str, list[str]] = {}
+    for screen, candidates_raw in cases_raw.items():
+        screen_s = str(screen).strip()
+        if not screen_s:
+            continue
+        if isinstance(candidates_raw, str):
+            candidates = [candidates_raw]
+        elif isinstance(candidates_raw, list):
+            candidates = [str(x).strip() for x in candidates_raw if str(x).strip()]
+        else:
+            candidates = []
+        if candidates:
+            cases[screen_s] = candidates
+    if not cases:
+        return None
+    rule: TextSwitchRule = {"ocr": region, "cases": cases}
+    if "threshold" in raw:
+        rule["threshold"] = raw["threshold"]
+    if "confidence" in raw:
+        rule["confidence"] = raw["confidence"]
+    return rule
+
+
+@lru_cache(maxsize=1)
+def load_screen_verify_config() -> VerifyConfig:
+    """Load route destination verification rules from ``navigation/screen_verify.yaml``."""
+    path = _screen_verify_yaml_path()
+    if not path.is_file():
+        return {"retry": {}, "screens": {}}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        return {"retry": {}, "screens": {}}
+
+    retry = raw.get("retry")
+    switch_raw = raw.get("text_switch")
+    text_switch = []
+    if isinstance(switch_raw, list):
+        text_switch = [
+            rule
+            for rule in (_normalize_text_switch_rule(item) for item in switch_raw)
+            if rule is not None
+        ]
+    screens = raw.get("screens")
+    out_screens: dict[str, ScreenVerifyEntry] = {}
+    if isinstance(screens, dict):
+        for screen, entry_raw in screens.items():
+            if isinstance(entry_raw, list):
+                rules_raw = entry_raw
+                retry_raw = {}
+                landmarks_raw = []
+            elif isinstance(entry_raw, dict):
+                rules_raw = entry_raw.get("rules")
+                retry_raw = entry_raw.get("retry")
+                landmarks_raw = entry_raw.get("landmarks")
+            else:
+                continue
+            if not isinstance(rules_raw, list):
+                rules_raw = []
+            if not isinstance(landmarks_raw, list):
+                landmarks_raw = []
+            rules = [
+                rule
+                for rule in (_normalize_verify_rule(item) for item in rules_raw)
+                if rule is not None
+            ]
+            landmarks = [
+                rule
+                for rule in (_normalize_verify_rule(item) for item in landmarks_raw)
+                if rule is not None
+            ]
+            entry: ScreenVerifyEntry = {"rules": rules, "landmarks": landmarks}
+            if isinstance(retry_raw, dict):
+                entry["retry"] = retry_raw
+            if rules or landmarks or "retry" in entry:
+                out_screens[str(screen).strip()] = entry
+
+    return {
+        "retry": retry if isinstance(retry, dict) else {},
+        "text_switch": text_switch,
+        "screens": out_screens,
+    }
+
+
+def screen_verify_rules(screen: str) -> list[VerifyRule]:
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return []
+    entry = screens.get(screen)
+    if isinstance(entry, list):
+        return list(entry)
+    if not isinstance(entry, dict):
+        return []
+    rules = entry.get("rules")
+    return list(rules) if isinstance(rules, list) else []
+
+
+def screen_landmark_rules(screen: str) -> list[VerifyRule]:
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return []
+    entry = screens.get(screen)
+    if isinstance(entry, list):
+        return list(entry)
+    if not isinstance(entry, dict):
+        return []
+    rules = entry.get("landmarks")
+    return list(rules) if isinstance(rules, list) else []
+
+
+def screen_text_switch_rules() -> list[TextSwitchRule]:
+    rules = load_screen_verify_config().get("text_switch")
+    return list(rules) if isinstance(rules, list) else []
+
+
+def screen_verify_screen_names() -> list[str]:
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return []
+    return [str(screen).strip() for screen in screens if str(screen).strip()]
+
+
+def _parse_retry(
+    raw: object,
+    *,
+    default_attempts: int,
+    default_interval: float,
+) -> tuple[int, float]:
+    if not isinstance(raw, dict):
+        return default_attempts, default_interval
+    try:
+        attempts = int(raw.get("attempts", default_attempts))
+    except (TypeError, ValueError):
+        attempts = default_attempts
+    try:
+        interval = float(raw.get("interval_seconds", default_interval))
+    except (TypeError, ValueError):
+        interval = default_interval
+    return max(1, attempts), max(0.0, interval)
+
+
+def screen_verify_retry(screen: str | None = None) -> tuple[int, float]:
+    cfg = load_screen_verify_config()
+    attempts, interval = _parse_retry(
+        cfg.get("retry"),
+        default_attempts=6,
+        default_interval=0.8,
+    )
+    if not screen:
+        return attempts, interval
+    screens = cfg.get("screens")
+    if not isinstance(screens, dict):
+        return attempts, interval
+    entry = screens.get(screen)
+    if not isinstance(entry, dict):
+        return attempts, interval
+    return _parse_retry(
+        entry.get("retry"),
+        default_attempts=attempts,
+        default_interval=interval,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -101,6 +308,20 @@ def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
         if taps is None:
             return None
         result.append(list(taps))
+    return result
+
+
+def route_hops(src: str, dst: str) -> list[tuple[str, list[Tap]]] | None:
+    """BFS path resolved to ``(destination_screen, tap_sequence)`` per hop."""
+    path = bfs_route(src, dst)
+    if path is None:
+        return None
+    result: list[tuple[str, list[Tap]]] = []
+    for a, b in zip(path, path[1:], strict=False):
+        taps = EDGE_TAPS.get((a, b))
+        if taps is None:
+            return None
+        result.append((b, list(taps)))
     return result
 
 

@@ -44,6 +44,23 @@ _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
 # the request never expires while the worker is still polling for a decision.
 _APPROVAL_CURRENT_TTL_SECONDS = 600
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
+# Copied from ``tasks.dsl_scenario`` Redis audit fields for Click approvals UI.
+_DSL_APPROVAL_AUDIT_KEYS: tuple[str, ...] = (
+    "dsl_last_match_region",
+    "dsl_last_match_threshold",
+    "dsl_last_match_score",
+    "dsl_last_match_matched",
+    "dsl_last_match_detail",
+    "dsl_last_match_at",
+    "dsl_last_ocr_region",
+    "dsl_last_ocr_store",
+    "dsl_last_ocr_status",
+    "dsl_last_ocr_threshold",
+    "dsl_last_ocr_confidence",
+    "dsl_last_ocr_raw_text",
+    "dsl_last_ocr_value",
+    "dsl_last_ocr_at",
+)
 
 
 def click_approval_enabled(instance_id: str) -> bool:
@@ -117,6 +134,8 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 # YAML scenario key while a `DslScenarioTask` is running.
                 "scenario": (raw.get("current_scenario") or "").strip(),
             }
+            for audit_k in _DSL_APPROVAL_AUDIT_KEYS:
+                ctx[audit_k] = (raw.get(audit_k) or "").strip()
             if not ctx["current_task_threshold"]:
                 fb = (raw.get("last_overlay_match_threshold") or "").strip()
                 if fb:

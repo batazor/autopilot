@@ -60,6 +60,110 @@ def _is_recent(ts_str: str, *, max_age_s: float) -> bool:
     return (time.time() - ts) <= max_age_s
 
 
+def _format_age(unix_ts: object) -> str:
+    """Compact, human-friendly delta for ``*_at`` Redis fields. ``"—"`` on garbage input."""
+    try:
+        ts = float(unix_ts)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    if ts <= 0:
+        return "—"
+    delta = max(0.0, time.time() - ts)
+    if delta < 1.0:
+        return "just now"
+    if delta < 60.0:
+        return f"{int(delta)}s ago"
+    if delta < 3600.0:
+        return f"{int(delta // 60)}m ago"
+    if delta < 86400.0:
+        return f"{int(delta // 3600)}h ago"
+    return f"{int(delta // 86400)}d ago"
+
+
+def _read_player_state_decoded(redis_client: object, pid: str) -> dict[str, str]:
+    """Decoded ``wos:player:<pid>:state`` hash; ``{}`` on Redis errors."""
+    try:
+        raw = redis_client.hgetall(f"wos:player:{pid}:state") or {}  # type: ignore[attr-defined]
+    except Exception:
+        return {}
+    return {
+        (k.decode() if isinstance(k, bytes) else str(k)): (
+            v.decode() if isinstance(v, bytes) else str(v)
+        )
+        for k, v in raw.items()
+    }
+
+
+def _render_player_identity(
+    redis_client: object,
+    pid: str,
+    *,
+    fsm_state: str,
+    is_active: bool,
+) -> None:
+    """Per-player identity block: avatar + OCR ``player_id`` + Century profile.
+
+    Sources:
+
+    - ``ocr: player_id`` (from ``who_i_am`` scenario) → ``player_id``,
+      ``player_id_confidence``, ``player_id_at``.
+    - ``exec: fetch_player`` (Century API) → ``nickname``, ``stove_level``,
+      ``kid``, ``stove_lv_content``, ``avatar_image``, ``century_player_sync_at``.
+    """
+    state = _read_player_state_decoded(redis_client, pid)
+
+    ig_id = (state.get("player_id") or "").strip()
+    conf_s = (state.get("player_id_confidence") or "").strip()
+    ocr_age = _format_age(state.get("player_id_at") or 0.0)
+
+    nickname = (state.get("nickname") or "").strip()
+    stove_level = (state.get("stove_level") or "").strip()
+    kid = (state.get("kid") or "").strip()
+    stove_content = (state.get("stove_lv_content") or "").strip()
+    avatar = (state.get("avatar_image") or "").strip()
+    century_age = _format_age(state.get("century_player_sync_at") or 0.0)
+
+    badge = " · _active_" if is_active else ""
+    header = f"**`{pid}`**{badge} · FSM `{fsm_state or 'unknown'}`"
+
+    col_av, col_txt = st.columns([1, 6], vertical_alignment="center")
+    with col_av:
+        if avatar:
+            try:
+                st.image(avatar, width=56)
+            except Exception:
+                st.caption("🛡️")
+        else:
+            st.caption("—")
+    with col_txt:
+        lines: list[str] = [header]
+        if ig_id:
+            try:
+                conf_disp = f"{float(conf_s):.2f}" if conf_s else "—"
+            except ValueError:
+                conf_disp = conf_s or "—"
+            lines.append(
+                f"`player_id` → `{ig_id}` · conf `{conf_disp}` · {ocr_age}"
+            )
+        else:
+            lines.append(
+                "`player_id` → `—` _(not yet identified — runs `who_i_am`)_"
+            )
+        if nickname:
+            parts = [f"**{nickname}**"]
+            if stove_level:
+                parts.append(f"stove `{stove_level}`")
+            if kid:
+                parts.append(f"KID `{kid}`")
+            if stove_content:
+                parts.append(f"stove_lv_content `{stove_content}`")
+            parts.append(f"synced {century_age}")
+            lines.append(" · ".join(parts))
+        else:
+            lines.append("_Century profile_ → `—` _(runs `exec: fetch_player`)_")
+        st.markdown("  \n".join(lines))
+
+
 def _device_status_cell(row: dict[str, str]) -> str:
     """Compact status cell with an explicit reason."""
     if not row:
@@ -206,12 +310,27 @@ def _dashboard() -> None:
 
         st.divider()
         for inst in settings.instances:
-            with st.expander(f"Players & FSM · {inst.instance_id}", expanded=False):
-                pcols = st.columns(min(4, max(1, len(inst.player_ids))))
-                for idx, pid in enumerate(inst.player_ids):
-                    with pcols[idx % len(pcols)]:
-                        fsm = get_player_fsm(client, pid) or "unknown"
-                        st.text(f"{pid}\n{fsm}")
+            inst_state = get_instance_state(client, inst.instance_id) or {}
+            active_pid = (inst_state.get("active_player") or "").strip()
+            with st.expander(f"Players & identity · {inst.instance_id}", expanded=False):
+                st.caption(
+                    "Player identity comes from the `who_i_am` scenario "
+                    "(`ocr: player_id`) and Century profile sync (`exec: fetch_player`). "
+                    "Fields below mirror `wos:player:<player_id>:state`."
+                )
+                if not inst.player_ids:
+                    st.info("No players configured for this instance.")
+                else:
+                    for idx, pid in enumerate(inst.player_ids):
+                        if idx > 0:
+                            st.divider()
+                        fsm_state = get_player_fsm(client, pid) or "unknown"
+                        _render_player_identity(
+                            client,
+                            pid,
+                            fsm_state=fsm_state,
+                            is_active=bool(active_pid) and active_pid == pid,
+                        )
             st.divider()
     else:
         st.info("No instances in **config/settings.yaml**.")

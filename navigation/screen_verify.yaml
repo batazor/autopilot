@@ -1,0 +1,63 @@
+retry:
+  attempts: 6
+  interval_seconds: 0.8
+
+text_switch:
+  - ocr: page_title
+    threshold: 0.8
+    cases:
+      arena: [arena, battle, fight]
+      training: [training, troop, recruit]
+      gathering: [gather, resource, march]
+      alliance: [alliance, guild, member]
+      mail: [mail]
+      chief_profile: [chief profile, chief, profile]
+
+screens:
+  main_city:
+    landmarks:
+      - match: is_main_city
+        threshold: 0.9
+      - match: isNewPeople
+        threshold: 0.98
+      - ocr: is_main_city
+        contains: [city, town, base]
+
+  arena:
+    rules:
+      - ocr: page_title
+        contains: [arena, battle, fight]
+        threshold: 0.8
+
+  training:
+    rules:
+      - ocr: page_title
+        contains: [training, troop, recruit]
+        threshold: 0.8
+
+  gathering:
+    rules:
+      - ocr: page_title
+        contains: [gather, resource, march]
+        threshold: 0.8
+
+  alliance:
+    rules:
+      - ocr: page_title
+        contains: [alliance, guild, member]
+        threshold: 0.8
+
+  mail:
+    rules:
+      - ocr: page_title
+        contains: [mail]
+        threshold: 0.8
+
+  chief_profile:
+    retry:
+      attempts: 8
+      interval_seconds: 1.0
+    rules:
+    - ocr: page_title
+      contains: [chief profile, chief, profile]
+      threshold: 0.8

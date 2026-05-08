@@ -33,6 +33,7 @@ from ui.pipeline.data import (
     get_or_build_pipeline_cache,
 )
 from ui.pipeline.overlay_viz import annotate_overlay_debug, maybe_downscale_for_ui
+from ui.notifications import pop_new_notifications
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import get_instance_state, require_redis_connection
 from ui.reference_preview import load_rolling_instance_preview
@@ -113,8 +114,8 @@ def _labeling_query_ref_from_area_ocr(ocr_rel: str) -> str | None:
 def _render_idle_overlay_threshold_probe(instance_id: str) -> None:
     """When no tap approval is pending: inspect findIcon score vs threshold on the rolling frame."""
     st.caption(
-        "Uses the same rolling PNG and overlay evaluation as the worker "
-        "(**Screenshot pipeline**), including Redis **`current_screen`** for YAML **`node`** rules."
+        "Uses the same rolling PNG and overlay evaluation as the worker, "
+        "including Redis **`current_screen`** for YAML **`node`** rules."
     )
     if st.button(
         "Reload overlay scores",
@@ -125,11 +126,6 @@ def _render_idle_overlay_threshold_probe(instance_id: str) -> None:
         clear_pipeline_overlay_cache_entries(instance_id)
         st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
         st.rerun()
-    st.page_link(
-        "views/screenshot_pipeline.py",
-        label="Open Screenshot pipeline (full table + debug draw)",
-        width="stretch",
-    )
 
     row = get_instance_state(client, instance_id)
     current_screen = str(row.get("current_screen") or "").strip()
@@ -324,7 +320,7 @@ def _render_idle_overlay_threshold_probe(instance_id: str) -> None:
             "Draw search ROI / match box / tap on rolling PNG",
             value=True,
             key=f"idle_overlay_probe_draw_regions::{instance_id}",
-            help="Same colors as **Screenshot pipeline** debug overlay.",
+            help="Same overlay debug colors (search ROI, match box, tap).",
         )
         if draw_dbg:
             try:
@@ -385,11 +381,33 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
     return left, top, right, bottom
 
 
+def _active_player_in_game_id(inst: str) -> str:
+    """OCR'd in-game ``player_id`` of the active bot account on ``inst``.
+
+    Falls back to ``—`` when ``active_player`` is unset, points at a missing
+    hash, or :ref:`who_i_am <scenarios/onboarding/who_i_am>` has not run yet.
+    """
+    row = get_instance_state(client, inst) or {}
+    active = (row.get("active_player") or "").strip()
+    if not active:
+        return "—"
+    try:
+        raw = client.hget(f"wos:player:{active}:state", "player_id")
+    except Exception:
+        return "—"
+    if raw is None:
+        return "—"
+    val = raw.decode() if isinstance(raw, bytes) else str(raw)
+    return val.strip() or "—"
+
+
 @st.fragment(run_every=timedelta(seconds=1))
 def _header() -> None:
     row = get_instance_state(client, instance_id)
     node = (row.get("current_screen") or "").strip() or "—"
-    st.title(f"Click approvals · {instance_id} · node: {node}")
+    pid_in_game = _active_player_in_game_id(instance_id)
+    st.title(f"Click approvals · {instance_id}")
+    st.caption(f"node: `{node}` · player_id: `{pid_in_game}`")
     ok, detail = _ocr_health_status()
     if not ok:
         ocr_url = str(settings.ocr.url).strip()
@@ -651,6 +669,47 @@ def _render_preview_with_point(
                 ui.caption("—")
 
 
+_NOTIFICATION_LEVEL_ICON: dict[str, str] = {
+    "success": "✅",
+    "info": "ℹ️",
+    "warning": "⚠️",
+    "error": "❌",
+}
+
+
+@st.fragment(run_every=timedelta(seconds=1))
+def _render_ui_notifications(inst: str) -> None:
+    """Drain ``wos:ui:notifications:<inst>`` into ``st.toast`` once per tab.
+
+    Producers (e.g. DSL ``exec`` handlers via :func:`ui.notifications.push_ui_notification`)
+    push transient events; this fragment surfaces each event id at most once
+    per Streamlit session via a ``session_state`` seen-set, so refreshes do not
+    re-fire toasts and multiple tabs each get notified.
+    """
+    seen_key = f"wos_ui_notifications_seen::{inst}"
+    seen: set[str] = st.session_state.setdefault(seen_key, set())
+    events = pop_new_notifications(client, inst, seen=seen)
+    if not events:
+        return
+    for ev in events:
+        eid = str(ev.get("id") or "").strip()
+        if not eid:
+            continue
+        seen.add(eid)
+        msg = str(ev.get("message") or "").strip()
+        if not msg:
+            continue
+        icon = _NOTIFICATION_LEVEL_ICON.get(
+            str(ev.get("level") or "info").strip().lower(), "ℹ️"
+        )
+        try:
+            st.toast(msg, icon=icon)
+        except Exception:
+            # Streamlit rejects emoji-incompatible icons on some builds — fall
+            # back to a plain toast so the message still surfaces.
+            st.toast(msg)
+
+
 @st.fragment(run_every=timedelta(seconds=1))
 def _heartbeat() -> None:
     enabled = str(client.get(enabled_key) or "").strip().lower() in {"1", "true", "yes", "on"}
@@ -688,6 +747,73 @@ def _fragment_idle_screenshot_column(inst: str) -> None:
     """Rolling preview only — does not rerun the Approvals / overlay-probe column."""
     st.subheader("Screenshot")
     _render_preview_with_point(instance_id=inst, x=None, y=None, payload=None, where=st)
+
+
+def _render_dsl_step_audit(ctx: dict[str, object]) -> None:
+    """Last DSL ``match`` / ``ocr`` snapshot (from Redis), copied into approval ``context``."""
+    mr = str(ctx.get("dsl_last_match_region") or "").strip()
+    ms = str(ctx.get("dsl_last_match_score") or "").strip()
+    mt = str(ctx.get("dsl_last_match_threshold") or "").strip()
+    mm = str(ctx.get("dsl_last_match_matched") or "").strip()
+    md = str(ctx.get("dsl_last_match_detail") or "").strip()
+    ma = str(ctx.get("dsl_last_match_at") or "").strip()
+
+    ox_r = str(ctx.get("dsl_last_ocr_region") or "").strip()
+    ox_store = str(ctx.get("dsl_last_ocr_store") or "").strip()
+    ox_status = str(ctx.get("dsl_last_ocr_status") or "").strip()
+    ox_thr = str(ctx.get("dsl_last_ocr_threshold") or "").strip()
+    ox_conf = str(ctx.get("dsl_last_ocr_confidence") or "").strip()
+    ox_raw = str(ctx.get("dsl_last_ocr_raw_text") or "").strip()
+    ox_val = str(ctx.get("dsl_last_ocr_value") or "").strip()
+    ox_at = str(ctx.get("dsl_last_ocr_at") or "").strip()
+
+    if not mr and not ox_r and not ox_status:
+        return
+
+    def _age_line(ts: str) -> str:
+        if not ts:
+            return ""
+        try:
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(ts)))
+        except (TypeError, ValueError, OSError):
+            return ts
+
+    with st.expander("DSL · last `match` / `ocr` (before this step)", expanded=True):
+        st.caption(
+            "Redis audit from `DslScenarioTask` (fields `dsl_last_*` on the instance state hash)."
+        )
+        if mr:
+            st.markdown("**Last YAML `match:`**")
+            passed = "yes" if mm == "1" else ("no" if mm == "0" else "—")
+            lines = [
+                f"- Region: `{mr}`",
+                f"- Score / threshold: `{ms or '—'}` / `{mt or '—'}` · passed: **{passed}**",
+            ]
+            if md:
+                lines.append(f"- Detail: `{md}`")
+            if ma:
+                lines.append(f"- At: `{_age_line(ma)}`")
+            st.markdown("\n".join(lines))
+        else:
+            st.caption("No `dsl_last_match_*` yet (no `match:` step ran on this instance).")
+
+        if ox_r or ox_status:
+            st.markdown("**Last YAML `ocr:`**")
+            raw_disp = ox_raw.replace("\n", " ").strip()
+            if len(raw_disp) > 180:
+                raw_disp = raw_disp[:177] + "…"
+            olines = [
+                f"- Region → Redis field: `{ox_r or '—'}` → `{ox_store or '—'}`",
+                f"- Status: **`{ox_status or '—'}`**",
+                f"- Confidence / threshold: `{ox_conf or '—'}` / `{ox_thr or '—'}`",
+                f"- Stored decoded value: `{ox_val or '—'}`",
+                f"- Raw OCR text: `{raw_disp or '—'}`",
+            ]
+            if ox_at:
+                olines.append(f"- At: `{_age_line(ox_at)}`")
+            st.markdown("\n".join(olines))
+        else:
+            st.caption("No `dsl_last_ocr_*` yet (no `ocr:` step ran on this instance).")
 
 
 def _render_idle_approvals_column(inst: str) -> None:
@@ -782,6 +908,8 @@ def _fragment_pending_approval_columns(inst: str, *, curr_key: str) -> None:
                         line.append(f"match score `{scr_c}`")
                     st.caption("Overlay · " + " · ".join(line))
             _scenario_block()
+        if isinstance(ctx0, dict):
+            _render_dsl_step_audit(ctx0)
         with st.expander("Payload", expanded=True):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
@@ -842,6 +970,7 @@ if enabled_ui != enabled_now:
     st.rerun()
 
 _header()
+_render_ui_notifications(instance_id)
 _heartbeat()
 st.divider()
 _pending_request()

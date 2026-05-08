@@ -41,6 +41,29 @@ def _load_yaml(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _scenario_param_path(repo_root: Path, raw: object | None) -> tuple[Path | None, str]:
+    """Parse ``?scenario=…`` (repo-relative path under ``scenarios/``). Returns ``(path, err)``."""
+    if raw is None:
+        return None, ""
+    s = raw[0] if isinstance(raw, list) and raw else raw
+    s = str(s).strip().replace("\\", "/")
+    if not s:
+        return None, ""
+    if not s.startswith("scenarios/"):
+        s = "scenarios/" + s.lstrip("/")
+    scenarios_root = (repo_root / "scenarios").resolve()
+    candidate = (repo_root / s).resolve()
+    try:
+        candidate.relative_to(scenarios_root)
+    except ValueError:
+        return None, f"`{s}` must be inside `scenarios/`."
+    if candidate.suffix.lower() != ".yaml":
+        return None, f"`{s}` must be a `.yaml` file."
+    if not candidate.is_file():
+        return None, f"File not found: `{s}`"
+    return candidate, ""
+
+
 def _abs_image_path(repo_root: Path, rel: str) -> Path | None:
     rel = (rel or "").strip()
     if not rel:
@@ -331,11 +354,23 @@ q_default = q_param if isinstance(q_param, str) else ""
 show_all = params.get("show_all")
 show_all_flag = (str(show_all).strip() == "1") if show_all is not None else False
 
+scenario_target, scenario_err = _scenario_param_path(repo_root, params.get("scenario"))
+if params.get("scenario") is not None and scenario_err:
+    st.warning(scenario_err)
+
 q = st.text_input("Filter (name/path/key contains)", value=q_default, key="wiki_scenarios_filter").strip().lower()
 show_enabled_only = st.checkbox("Only enabled=true", value=not show_all_flag)
 
+if scenario_target is not None:
+    st.caption(
+        f"Opened from Config · `{scenario_target.relative_to(repo_root).as_posix()}` "
+        "(clear `scenario` from the URL to show all)."
+    )
+
 items: list[tuple[Path, dict[str, Any]]] = []
 for p in files:
+    if scenario_target is not None and p.resolve() != scenario_target.resolve():
+        continue
     doc = _load_yaml(p)
     if not doc:
         continue
@@ -344,10 +379,11 @@ for p in files:
     name = str(doc.get("name") or "")
     enabled = doc.get("enabled")
     hay = f"{skey}\n{skey_snake}\n{name}\n{p.relative_to(repo_root).as_posix()}".lower()
-    if q and q not in hay:
-        continue
-    if show_enabled_only and bool(enabled) is not True:
-        continue
+    if scenario_target is None:
+        if q and q not in hay:
+            continue
+        if show_enabled_only and bool(enabled) is not True:
+            continue
     items.append((p, doc))
 
 indexed: list[dict[str, Any]] = []
@@ -366,6 +402,8 @@ for p, doc in items:
 
 st.subheader(f"Found {len(indexed)} scenario file(s)")
 
+deep_link_single = scenario_target is not None and len(indexed) == 1
+
 for it in indexed:
     p: Path = it["path"]
     doc: dict[str, Any] = it["doc"]
@@ -379,7 +417,7 @@ for it in indexed:
     steps = doc.get("steps")
 
     label = f"{name}  ·  `{skey}`"
-    with st.expander(label, expanded=False):
+    with st.expander(label, expanded=deep_link_single):
         rel = p.relative_to(repo_root).as_posix()
         meta_cols = st.columns([2.2, 1.2, 1.2, 3.4])
         meta_cols[0].markdown(f"**File**: `{rel}`")

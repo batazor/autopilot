@@ -244,11 +244,11 @@ def _render_flow(
     )
 
 
-st.title("Screen FSM")
+st.title("Screen routes")
 
 _screen_regions = _screen_to_regions(_REGIONS)
 
-tab_regions, tab_merged, tab_edges = st.tabs(["By region", "Merged graph", "All edges"])
+tab_regions, tab_merged, tab_edges = st.tabs(["By region", "Merged", "All edges"])
 
 with tab_regions:
     for title, edges in _REGIONS:
@@ -268,15 +268,15 @@ with tab_regions:
             st.dataframe(df, width="stretch", hide_index=True)
 
 with tab_merged:
-    st.markdown(
-        "Merged graph (`merge_fsm_edges`): node color by region; screens that appear in more than one "
-        "region use the **multi** tint."
+    st.caption(
+        "Full FSM edge list is the union of the three regional tables — `FSM_SCREEN_EDGES` in "
+        "`navigation/fsm_screen_map.py` (see **All edges**). Below: plan a **tap** route using only edges "
+        "the bot can execute (`EDGE_TAPS`)."
     )
 
     st.subheader("Bot route planner (tap graph)")
     st.caption(
-        "This uses the bot's **tap-action** navigation graph (`navigation/screen_graph.py`, `EDGE_TAPS`). "
-        "It can differ from the broader FSM topology visualized above."
+        "Uses `navigation/screen_graph.py` · `EDGE_TAPS`. Can differ from the full Go FSM topology."
     )
 
     def _tap_graph_nodes() -> list[str]:
@@ -353,14 +353,6 @@ with tab_merged:
                         }
                     )
                 st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
-
-    with st.expander("Interactive graph", expanded=True):
-        _render_flow(
-            "fsm_merged",
-            FSM_SCREEN_EDGES,
-            screen_regions=_screen_regions,
-            key="flow-merged",
-        )
 
 with tab_edges:
     rows: list[dict[str, str]] = []

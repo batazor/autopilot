@@ -36,6 +36,15 @@ _TASK_REGISTRY: dict[str, type] = {}
 # Redis hash for UI/monitoring.
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
+# DSL scenarios pushed once per instance start. Each entry must be a key resolvable
+# by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`). Priority
+# stays below onboarding overlays (skip=60_000, hand=62_000) so tutorials always
+# preempt these identity / boot-time probes.
+_STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
+    ("where_i_am", 41_000),
+    ("who_i_am", 40_000),
+)
+
 
 class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, InstanceWorkerTasksMixin):
     def __init__(self, instance_config: InstanceConfig) -> None:
@@ -182,6 +191,11 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         """Resolve device-level queue items (player_id="") to an actual player id."""
         if item.player_id:
             return item
+        if _TASK_REGISTRY.get(item.task_type) is None:
+            # Unknown task types are DSL scenarios. Those are commonly
+            # device-level probes/overlays (notably `who_i_am`), so assigning
+            # `player_ids[0]` here would show a fake active account before OCR.
+            return item
         active = None
         if self._redis is not None:
             raw = await self._redis.hget(
@@ -275,6 +289,48 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
 
     def _ensure_whiteout_at_worker_start(self) -> None:
         BotActions().ensure_game_foreground(self._cfg.instance_id)
+
+    async def _seed_startup_tasks(self) -> None:
+        """Enqueue boot-time DSL scenarios (one per fresh worker run, per device).
+
+        Examples: ``who_i_am`` — figure out which account is currently active so the
+        scheduler / approval UI can label state correctly. Skips duplicates already
+        pending in the queue.
+        """
+        if self._queue is None:
+            return
+        run_at = time.time()
+        for scenario_key, priority in _STARTUP_SEED_TASKS:
+            task_id = (
+                f"startup:{self._cfg.instance_id}:{scenario_key}:"
+                f"device:{uuid.uuid4().hex[:8]}"
+            )
+            try:
+                enqueued = await self._queue.schedule(
+                    task_id=task_id,
+                    player_id="",
+                    task_type=scenario_key,
+                    priority=priority,
+                    run_at=run_at,
+                    instance_id=self._cfg.instance_id,
+                    skip_if_duplicate=True,
+                )
+            except Exception:
+                logger.exception(
+                    "startup seed enqueue failed: instance=%s scenario=%s player=%s",
+                    self._cfg.instance_id,
+                    scenario_key,
+                    "(device)",
+                )
+                continue
+            if enqueued:
+                logger.info(
+                    "Startup seed enqueued: %s for %s/%s (prio=%d)",
+                    scenario_key,
+                    self._cfg.instance_id,
+                    "(device)",
+                    priority,
+                )
 
     async def _handle_failure(self, item: QueueItem, error: Exception) -> None:
         logger.error("Unhandled failure for task %s: %s", item.task_id, error)
@@ -483,6 +539,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                     "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
                 )
             self._suppress_overlay_after_launch(reason="after worker start / ensure foreground")
+            await self._seed_startup_tasks()
             # Legacy: page detect disabled (YAML-only mode).
             self._rolling_snapshot_task = asyncio.create_task(
                 self._device_reference_snapshot_loop(),
