@@ -14,6 +14,7 @@ class RedeemStatus(StrEnum):
     ALREADY_RECEIVED = "ALREADY_RECEIVED"
     CDK_EXPIRED = "CDK_EXPIRED"
     CDK_NOT_FOUND = "CDK_NOT_FOUND"
+    STOVE_LEVEL_TOO_LOW = "STOVE_LEVEL_TOO_LOW"
     FAILED = "FAILED"
 
 
@@ -56,6 +57,7 @@ class GiftCode(BaseModel):
             RedeemStatus.ALREADY_RECEIVED,
             RedeemStatus.CDK_EXPIRED,
             RedeemStatus.CDK_NOT_FOUND,
+            RedeemStatus.STOVE_LEVEL_TOO_LOW,
         )
 
 

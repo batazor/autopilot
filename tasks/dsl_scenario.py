@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -27,7 +29,7 @@ _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
 
 
 def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
-    """Evaluate ``lhs == rhs`` / ``lhs != rhs`` where *lhs* is the Redis ``current_screen`` field."""
+    """Evaluate ``lhs == rhs`` / ``lhs != rhs`` where *lhs* is Redis ``current_screen``."""
     m = _COND_SCREEN_RE.match(expr.strip())
     if not m:
         logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", expr)
@@ -82,7 +84,9 @@ async def _read_current_screen(instance_id: str, redis_async: Any | None) -> str
         return ""
 
 
-async def _dsl_cond_allows_step(step: dict[str, Any], instance_id: str, redis_async: Any | None) -> bool:
+async def _dsl_cond_allows_step(
+    step: dict[str, Any], instance_id: str, redis_async: Any | None
+) -> bool:
     raw = step.get("cond")
     if raw is None or isinstance(raw, bool):
         return True
@@ -95,6 +99,56 @@ async def _dsl_cond_allows_step(step: dict[str, Any], instance_id: str, redis_as
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+async def _enqueue_scenario(
+    *,
+    redis_async: Any | None,
+    instance_id: str,
+    player_id: str,
+    scenario: str,
+    priority: int,
+    run_at: float,
+    skip_if_duplicate: bool,
+) -> bool:
+    """Enqueue a DSL scenario as a queue item (task_type = scenario key)."""
+    if redis_async is None:
+        return False
+    scenario = str(scenario or "").strip()
+    player_id = str(player_id or "").strip()
+    instance_id = str(instance_id or "").strip()
+    if not scenario or not player_id or not instance_id:
+        return False
+
+    # Optional duplicate guard: same (player, task_type) already queued.
+    if skip_if_duplicate:
+        try:
+            items = await redis_async.zrangebyscore("wos:queue", "-inf", "+inf")
+            for raw in items:
+                try:
+                    payload = raw.decode() if isinstance(raw, bytes) else str(raw)
+                    doc = json.loads(payload)
+                    if (
+                        str(doc.get("player_id") or "") == player_id
+                        and str(doc.get("task_type") or "") == scenario
+                    ):
+                        return False
+                except Exception:
+                    continue
+        except Exception:
+            # If we can't check, still allow enqueue.
+            pass
+
+    body: dict[str, object] = {
+        "task_id": f"dsl:push:{scenario}:{player_id}:{int(run_at)}",
+        "player_id": player_id,
+        "task_type": scenario,
+        "priority": int(priority),
+        "run_at": float(run_at),
+        "instance_id": instance_id,
+    }
+    await redis_async.zadd("wos:queue", {json.dumps(body): float(run_at)})
+    return True
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
@@ -148,13 +202,11 @@ class DslScenarioTask:
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
             return
-        try:
+        with suppress(Exception):
             await self.redis_client.hset(
                 f"wos:instance:{instance_id}:state",
                 mapping={"current_scenario": scenario},
             )
-        except Exception:
-            pass
 
     async def _persist_dsl_last_match(
         self,
@@ -202,13 +254,11 @@ class DslScenarioTask:
     async def _clear_step_context(self, instance_id: str) -> None:
         if self.redis_client is None:
             return
-        try:
+        with suppress(Exception):
             await self.redis_client.hset(
                 f"wos:instance:{instance_id}:state",
                 mapping={"current_scenario": ""},
             )
-        except Exception:
-            pass
 
     async def _navigate_to_node(
         self,
@@ -349,7 +399,8 @@ class DslScenarioTask:
 
             - ocr: <region_name>
               store: <field>          # default = region name
-              scope: player|instance  # default = "player" (falls back to instance when no player_id)
+              scope: player|instance  # default = "player"
+                                     # falls back to instance when no player_id
               type: integer|string    # default = inherits area.json `type`
               threshold: 0.7          # confidence floor; default = inherits area.json `threshold`
 
@@ -658,6 +709,7 @@ class DslScenarioTask:
         *,
         actions: BotActions,
         area_doc: dict[str, Any],
+        repo_root: Path,
         instance_id: str,
         dev_w: int,
         dev_h: int,
@@ -679,6 +731,155 @@ class DslScenarioTask:
                     return result
                 await asyncio.sleep(0.4)
             return None
+        if "repeat" in step:
+            spec = step.get("repeat")
+            if isinstance(spec, dict):
+                try:
+                    max_iters = int(spec.get("max", 1))
+                except (TypeError, ValueError):
+                    max_iters = 1
+                inner_steps = spec.get("steps")
+                until_match = str(spec.get("until_match") or "").strip()
+                until_any = spec.get("until_any_match")
+            else:
+                try:
+                    max_iters = int(spec or 1)
+                except (TypeError, ValueError):
+                    max_iters = 1
+                inner_steps = step.get("steps")
+                until_match = ""
+                until_any = None
+
+            max_iters = max(0, max_iters)
+            if not isinstance(inner_steps, list) or not inner_steps:
+                return None
+
+            until_any_list: list[str] = []
+            if isinstance(until_any, list):
+                until_any_list = [str(x or "").strip() for x in until_any if str(x or "").strip()]
+
+            for _ in range(max_iters):
+                if until_match:
+                    row = await self._match_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        scenario_key=scenario_key,
+                        step=step,
+                        region=until_match,
+                    )
+                    if row is not None and bool(row.get("matched")):
+                        break
+                if until_any_list:
+                    for reg in until_any_list:
+                        row2 = await self._match_region(
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            scenario_key=scenario_key,
+                            step=step,
+                            region=reg,
+                        )
+                        if row2 is not None and bool(row2.get("matched")):
+                            return None
+                for inner in inner_steps:
+                    if not isinstance(inner, dict):
+                        continue
+                    result = await self._run_inline_step(
+                        inner,
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                    )
+                    if result is not None:
+                        return result
+            return None
+        if "while_match" in step:
+            reg = str(step.get("while_match") or "").strip()
+            try:
+                max_iters = int(step.get("max", 20))
+            except (TypeError, ValueError):
+                max_iters = 20
+            max_iters = max(0, max_iters)
+            inner_steps = step.get("steps")
+            if not isinstance(inner_steps, list) or not inner_steps:
+                inner_steps = [{"click": reg}]
+
+            iterations = 0
+            for _ in range(max_iters):
+                row = await self._match_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    scenario_key=scenario_key,
+                    step=step,
+                    region=reg,
+                )
+                if row is None or not bool(row.get("matched")):
+                    break
+                for inner in inner_steps:
+                    if not isinstance(inner, dict):
+                        continue
+                    result = await self._run_inline_step(
+                        inner,
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                    )
+                    if result is not None:
+                        return result
+                iterations += 1
+
+            logger.info(
+                "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
+                scenario_key,
+                reg,
+                iterations,
+            )
+            return None
+        if "swipe_direction" in step:
+            spec = step.get("swipe_direction")
+            if isinstance(spec, dict):
+                direction = str(spec.get("direction") or "").strip().lower()
+                try:
+                    delta = int(spec.get("delta") or 0)
+                except (TypeError, ValueError):
+                    delta = 0
+                try:
+                    duration_ms = int(spec.get("duration_ms") or 300)
+                except (TypeError, ValueError):
+                    duration_ms = 300
+            else:
+                direction = str(spec or "").strip().lower()
+                delta = 350
+                duration_ms = 300
+            if direction and delta > 0:
+                ok = actions.swipe_direction(
+                    instance_id, direction=direction, delta=delta, duration_ms=duration_ms
+                )
+                if not ok:
+                    logger.info(
+                        "dsl_scenario: swipe blocked — aborting scenario %s", scenario_key
+                    )
+                    await self._clear_step_context(instance_id)
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
+                    )
+                await asyncio.sleep(0.4)
+            return None
         if "wait" in step:
             seconds = _parse_wait_seconds(step.get("wait"))
             if seconds > 0:
@@ -690,7 +891,11 @@ class DslScenarioTask:
     async def execute(self, instance_id: str) -> TaskResult:
         key = str(self.scenario_key or "").strip()
         if not key:
-            return TaskResult(success=False, next_run_at=None, metadata={"reason": "missing_scenario_key"})
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={"reason": "missing_scenario_key"},
+            )
 
         repo_root = _repo_root()
 
@@ -780,7 +985,11 @@ class DslScenarioTask:
                     return TaskResult(
                         success=True,
                         next_run_at=None,
-                        metadata={"scenario": key, "reason": "match_region_not_found", "region": reg},
+                        metadata={
+                            "scenario": key,
+                            "reason": "match_region_not_found",
+                            "region": reg,
+                        },
                     )
                 matched = bool(row.get("matched"))
                 if not matched:
@@ -835,6 +1044,7 @@ class DslScenarioTask:
                             inner,
                             actions=actions,
                             area_doc=area_doc,
+                            repo_root=repo_root,
                             instance_id=instance_id,
                             dev_w=dev_w,
                             dev_h=dev_h,
@@ -849,6 +1059,150 @@ class DslScenarioTask:
                     reg,
                     iterations,
                 )
+                continue
+            if "repeat" in step:
+                await self._write_step_context(instance_id, scenario=key)
+                spec = step.get("repeat")
+                if isinstance(spec, dict):
+                    try:
+                        max_iters = int(spec.get("max", 1))
+                    except (TypeError, ValueError):
+                        max_iters = 1
+                    inner_steps = spec.get("steps")
+                    until_match = str(spec.get("until_match") or "").strip()
+                    until_any = spec.get("until_any_match")
+                else:
+                    try:
+                        max_iters = int(spec or 1)
+                    except (TypeError, ValueError):
+                        max_iters = 1
+                    inner_steps = step.get("steps")
+                    until_match = ""
+                    until_any = None
+
+                max_iters = max(0, max_iters)
+                if not isinstance(inner_steps, list) or not inner_steps:
+                    continue
+
+                until_any_list: list[str] = []
+                if isinstance(until_any, list):
+                    until_any_list = [
+                        str(x or "").strip()
+                        for x in until_any
+                        if str(x or "").strip()
+                    ]
+
+                for _ in range(max_iters):
+                    if until_match:
+                        row = await self._match_region(
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            scenario_key=key,
+                            step=step,
+                            region=until_match,
+                        )
+                        if row is not None and bool(row.get("matched")):
+                            break
+                    if until_any_list:
+                        any_hit = False
+                        for reg in until_any_list:
+                            row2 = await self._match_region(
+                                actions=actions,
+                                area_doc=area_doc,
+                                repo_root=repo_root,
+                                instance_id=instance_id,
+                                scenario_key=key,
+                                step=step,
+                                region=reg,
+                            )
+                            if row2 is not None and bool(row2.get("matched")):
+                                any_hit = True
+                                break
+                        if any_hit:
+                            break
+                    for inner in inner_steps:
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                        )
+                        if result is not None:
+                            return result
+                continue
+            if "push_scenario" in step:
+                await self._write_step_context(instance_id, scenario=key)
+                spec = step.get("push_scenario")
+                if isinstance(spec, dict):
+                    name = str(spec.get("name") or "").strip()
+                    try:
+                        pr = int(spec.get("priority") or self.priority)
+                    except (TypeError, ValueError):
+                        pr = self.priority
+                    try:
+                        delay_s = float(spec.get("delay_seconds") or 0.0)
+                    except (TypeError, ValueError):
+                        delay_s = 0.0
+                    skip_dup = bool(spec.get("skip_if_duplicate", True))
+                else:
+                    name = str(spec or "").strip()
+                    pr = self.priority
+                    delay_s = 0.0
+                    skip_dup = True
+                if name:
+                    await _enqueue_scenario(
+                        redis_async=self.redis_client,
+                        instance_id=instance_id,
+                        player_id=self.player_id,
+                        scenario=name,
+                        priority=pr,
+                        run_at=time.time() + max(0.0, delay_s),
+                        skip_if_duplicate=skip_dup,
+                    )
+                continue
+            if "swipe_direction" in step:
+                await self._write_step_context(instance_id, scenario=key)
+                spec = step.get("swipe_direction")
+                if isinstance(spec, dict):
+                    direction = str(spec.get("direction") or "").strip().lower()
+                    try:
+                        delta = int(spec.get("delta") or 0)
+                    except (TypeError, ValueError):
+                        delta = 0
+                    try:
+                        duration_ms = int(spec.get("duration_ms") or 300)
+                    except (TypeError, ValueError):
+                        duration_ms = 300
+                else:
+                    direction = str(spec or "").strip().lower()
+                    delta = 350
+                    duration_ms = 300
+                if direction and delta > 0:
+                    ok = actions.swipe_direction(
+                        instance_id,
+                        direction=direction,
+                        delta=delta,
+                        duration_ms=duration_ms,
+                    )
+                    if not ok:
+                        logger.info(
+                            "dsl_scenario: swipe blocked — aborting scenario %s", key
+                        )
+                        await self._clear_step_context(instance_id)
+                        return TaskResult(
+                            success=False,
+                            next_run_at=None,
+                            metadata={"scenario": key, "reason": "swipe_not_approved"},
+                        )
+                    await asyncio.sleep(0.4)
                 continue
             if "ocr" in step:
                 reg = str(step.get("ocr") or "").strip()
@@ -903,14 +1257,12 @@ class DslScenarioTask:
                         },
                     )
                 if self.redis_client is not None:
-                    try:
+                    with suppress(Exception):
                         await self.redis_client.hset(
                             f"wos:instance:{instance_id}:state",
                             "current_screen",
                             node,
                         )
-                    except Exception:
-                        pass
                 if req_id is not None:
                     try:
                         _redis().delete(f"wos:ui:click_approval:current:{instance_id}")
@@ -925,7 +1277,7 @@ class DslScenarioTask:
                 # For click approvals: expose region + optional threshold (overlay queue may
                 # already set ``current_task_threshold``; do not overwrite).
                 if reg and self.redis_client is not None:
-                    try:
+                    with suppress(Exception):
                         st_key = f"wos:instance:{instance_id}:state"
                         mapping: dict[str, str] = {"current_task_region": reg}
                         if pair is not None:
@@ -936,7 +1288,9 @@ class DslScenarioTask:
                             elif isinstance(raw_thr, str) and str(raw_thr).strip():
                                 thr_txt = str(raw_thr).strip()
                             if thr_txt:
-                                prev = await self.redis_client.hget(st_key, "current_task_threshold")
+                                prev = await self.redis_client.hget(
+                                    st_key, "current_task_threshold"
+                                )
                                 prev_s = (
                                     prev.decode()
                                     if isinstance(prev, bytes)
@@ -945,8 +1299,6 @@ class DslScenarioTask:
                                 if not prev_s:
                                     mapping["current_task_threshold"] = thr_txt
                         await self.redis_client.hset(st_key, mapping=mapping)
-                    except Exception:
-                        pass
                 if reg:
                     result = await self._tap_region(
                         actions=actions,

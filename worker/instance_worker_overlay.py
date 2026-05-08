@@ -131,6 +131,24 @@ class InstanceWorkerOverlayMixin:
                 t = str(item.get("name") or item.get("type") or "").strip()
                 if not t:
                     continue
+
+                # Special-case: avoid churning `set_node_main_city` when already on main_city.
+                # Scenario has `cond`, but repeated enqueue/execute can starve the queue.
+                if (
+                    t == "set_node_main_city"
+                    and self._redis is not None
+                ):
+                    with suppress(Exception):
+                        cur = await self._redis.hget(
+                            f"wos:instance:{self._cfg.instance_id}:state",
+                            "current_screen",
+                        )
+                        cur_s = (
+                            cur.decode() if isinstance(cur, bytes) else str(cur or "")
+                        ).strip()
+                        if cur_s == "main_city":
+                            continue
+
                 pr_raw = item.get("priority")
                 pr = int(pr_raw) if pr_raw is not None else 80_000
 

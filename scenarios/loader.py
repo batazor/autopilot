@@ -78,9 +78,11 @@ class ScenarioLoader:
                                 "ocr",
                                 "assert",
                                 "match",
+                                "while_match",
                                 "goto",
                                 "screenshot",
                                 "set_node",
+                                "exec",
                             }
                             if any(k in first for k in dsl_keys):
                                 continue

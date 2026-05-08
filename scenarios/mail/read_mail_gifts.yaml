@@ -1,0 +1,41 @@
+enabled: true
+name: "Read mail · claim gifts"
+priority: 120
+
+# Navigate to Mail screen via FSM graph, then work only inside mail UI.
+node: mail
+
+steps:
+  # While there are gift icons in the mail list: open each, claim, go back.
+  - while_match: mail_gift
+    max: 30
+    steps:
+      - click: mail_gift
+      - wait: 0.8s
+
+      # Inside the mail item: try to find a claim button; if it's not in view,
+      # scroll down and try again a few times.
+      - repeat:
+          max: 4
+          steps:
+            - while_match: big_claim_button
+              max: 1
+              steps:
+                - click: big_claim_button
+                - wait: 0.8s
+            - while_match: claim_button
+              max: 1
+              steps:
+                - click: claim_button
+                - wait: 0.8s
+            - swipe_direction:
+                direction: down
+                delta: 450
+                duration_ms: 320
+
+      # Back to the mail list.
+      - while_match: back_button
+        max: 1
+        steps:
+          - click: back_button
+          - wait: 0.8s

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +11,8 @@ import yaml
 
 from config.devices import load_devices
 from gift.models import GiftCodeDB, RedeemStatus
+from gift.redeemer import run_gift_code_redeemer
+from gift.scraper import poll_once
 
 
 def _repo_root() -> Path:
@@ -68,16 +71,34 @@ with c1:
 with c2:
     st.markdown(f"**Devices:** `{devices_path.relative_to(repo).as_posix()}`")
 
-with st.expander("CLI", expanded=False):
-    st.code(
-        "uv run cmd/gift_code.py\n"
-        "uv run cmd/gift_code.py --scrape\n"
-        "uv run cmd/gift_code.py --scrape-only",
-        language="bash",
-    )
+btn_cols = st.columns([1, 1, 1, 4])
+with btn_cols[0]:
+    run_scrape = st.button("Scrape now", help="Scrape wosrewards.com and append new codes to YAML")
+with btn_cols[1]:
+    run_redeem = st.button("Redeem now", help="Redeem all PENDING codes for all players in devices.yaml")
+with btn_cols[2]:
+    if st.button("Reload"):
+        st.rerun()
 
-if st.button("Reload from disk"):
+if run_scrape:
+    with st.spinner("Scraping wosrewards.com…"):
+        new = asyncio.run(poll_once(codes_path))
+    if new:
+        st.success(f"Found {len(new)} new code(s): {', '.join(new)}")
+    else:
+        st.info("No new codes found.")
     st.rerun()
+
+if run_redeem:
+    if not codes_path.is_file():
+        st.error(f"Missing `{codes_path.relative_to(repo)}`")
+    elif not devices_path.is_file():
+        st.error(f"Missing `{devices_path.relative_to(repo)}`")
+    else:
+        with st.spinner("Redeeming codes… (may take a while)"):
+            asyncio.run(run_gift_code_redeemer(codes_path, devices_path))
+        st.success("Done.")
+        st.rerun()
 
 db = _load_codes(codes_path)
 registry = load_devices(devices_path)
@@ -93,17 +114,7 @@ if not codes_path.is_file():
 elif not db.codes:
     st.info("No codes in YAML yet.")
 
-rows: list[dict[str, object]] = []
-if db.codes:
-    q = st.text_input(
-        "Filter (code name / player id / status)",
-        value="",
-        key="db_gift_codes_filter",
-    ).strip().lower()
-else:
-    q = ""
-
-for code in db.codes:
+def _build_row(code, player_ids, registry) -> dict[str, object]:
     row: dict[str, object] = {
         "code": code.name,
         "expires": code.expires.isoformat() if code.expires else "—",
@@ -119,19 +130,42 @@ for code in db.codes:
     }
     for pid in player_ids:
         status = code.user_for.get(pid, RedeemStatus.PENDING)
-        label = status.value
         nick = registry.get_gamer(pid)
-        row[f"p:{pid}"] = f"{label} ({nick.nickname})" if nick else label
+        row[f"p:{pid}"] = f"{status.value} ({nick.nickname})" if nick else status.value
+    return row
 
+
+active_rows: list[dict[str, object]] = []
+expired_rows: list[dict[str, object]] = []
+
+if db.codes:
+    q = st.text_input(
+        "Filter (code name / player id / status)",
+        value="",
+        key="db_gift_codes_filter",
+    ).strip().lower()
+else:
+    q = ""
+
+for code in db.codes:
+    row = _build_row(code, player_ids, registry)
     hay = " ".join(str(v) for v in row.values()).lower()
     if q and q not in hay:
         continue
-    rows.append(row)
+    if code.is_effectively_expired():
+        expired_rows.append(row)
+    else:
+        active_rows.append(row)
 
-if rows:
-    df = pd.DataFrame(rows)
-    st.subheader(f"Codes: {len(rows)}")
+if active_rows:
+    df = pd.DataFrame(active_rows)
+    st.subheader(f"Active codes: {len(active_rows)}")
     st.dataframe(_style_gift_codes_table(df), width="stretch", hide_index=True)
+
+if expired_rows:
+    with st.expander(f"Expired / dead codes: {len(expired_rows)}", expanded=False):
+        df_exp = pd.DataFrame(expired_rows)
+        st.dataframe(_style_gift_codes_table(df_exp), width="stretch", hide_index=True)
 
 st.divider()
 st.markdown("**Status legend**")

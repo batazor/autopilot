@@ -24,19 +24,23 @@ from gift.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
 logger = logging.getLogger(__name__)
 
 _MAX_CAPTCHA_RETRIES = 3
-_INTER_PLAYER_DELAY = 1.0  # seconds between players (rate-limit courtesy)
+_INTER_PLAYER_DELAY = 1.0   # seconds between players
+_INTER_CODE_DELAY = 5.0     # seconds between codes (avoids captcha frequency errors)
+_CAPTCHA_RETRY_DELAY = 8.0  # seconds to wait before re-requesting captcha after error
 
 
 def _ec_to_status(ec: ErrCode) -> RedeemStatus:
     match ec:
         case ErrCode.SUCCESS:
             return RedeemStatus.SUCCESS
-        case ErrCode.ALREADY_RECEIVED_1 | ErrCode.ALREADY_RECEIVED_2:
+        case ErrCode.ALREADY_RECEIVED_1 | ErrCode.ALREADY_RECEIVED_2 | ErrCode.ALREADY_RECEIVED_3:
             return RedeemStatus.ALREADY_RECEIVED
         case ErrCode.CDK_EXPIRED:
             return RedeemStatus.CDK_EXPIRED
         case ErrCode.CDK_NOT_FOUND:
             return RedeemStatus.CDK_NOT_FOUND
+        case ErrCode.STOVE_LEVEL_TOO_LOW:
+            return RedeemStatus.STOVE_LEVEL_TOO_LOW
         case _:
             return RedeemStatus.FAILED
 
@@ -61,6 +65,10 @@ class GiftCodeRedeemer:
                 logger.info("Skipping expired or API-dead code: %s", code.name)
                 continue
 
+            needs_any = any(code.needs_redemption(pid) for pid in all_player_ids)
+            if not needs_any:
+                continue
+
             logger.info("=== Code: %s ===", code.name)
             stop = False
 
@@ -78,7 +86,7 @@ class GiftCodeRedeemer:
                         code.user_for[pid] = status
                 else:
                     code.user_for[player_id] = status
-                self._save_codes(db)  # persist after every player
+                self._save_codes(db)
 
                 gamer = registry.get_gamer(player_id)
                 nick = gamer.nickname if gamer else player_id
@@ -93,6 +101,7 @@ class GiftCodeRedeemer:
 
             if stop:
                 break
+            await asyncio.sleep(_INTER_CODE_DELAY)
 
     # ------------------------------------------------------------------
     # Single player + code
@@ -134,7 +143,7 @@ class GiftCodeRedeemer:
                         attempt,
                         _MAX_CAPTCHA_RETRIES,
                     )
-                    await asyncio.sleep(1.0)
+                    await asyncio.sleep(_CAPTCHA_RETRY_DELAY)
                     continue
                 return RedeemStatus.FAILED, None, None
 

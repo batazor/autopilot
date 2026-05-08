@@ -40,8 +40,10 @@ class ErrCode(IntEnum):
     SUCCESS = 20000
     ALREADY_RECEIVED_1 = 40008
     ALREADY_RECEIVED_2 = 40011
+    ALREADY_RECEIVED_3 = 40005  # "USED" — player already claimed this code
     CDK_EXPIRED = 40007
     CDK_NOT_FOUND = 40014
+    STOVE_LEVEL_TOO_LOW = 40006  # furnace level requirement not met
     CAPTCHA_TOO_FREQUENT = 40101
     CAPTCHA_ERROR = 40103
 

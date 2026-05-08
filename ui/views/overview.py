@@ -7,6 +7,7 @@ from datetime import timedelta
 
 import streamlit as st
 
+from config.devices import load_devices
 from config.loader import load_settings
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.keys import OVERVIEW_FEEDBACK
@@ -226,9 +227,10 @@ def _dashboard() -> None:
 
     settings = load_settings()
     client = require_redis_connection()
+    db_registry = load_devices()
 
     n_inst = len(settings.instances)
-    n_players = sum(len(i.player_ids) for i in settings.instances)
+    n_players = len(db_registry.all_player_ids()) or sum(len(i.player_ids) for i in settings.instances)
     q = count_queue_tasks(client)
     claimed = count_claimed_slots(client)
 
@@ -308,30 +310,43 @@ def _dashboard() -> None:
                     width="stretch",
                 )
 
-        st.divider()
+        # Collect all active players across instances for the "active" badge
+        active_players: set[str] = set()
         for inst in settings.instances:
             inst_state = get_instance_state(client, inst.instance_id) or {}
-            active_pid = (inst_state.get("active_player") or "").strip()
-            with st.expander(f"Players & identity · {inst.instance_id}", expanded=False):
-                st.caption(
-                    "Player identity comes from the `who_i_am` scenario "
-                    "(`ocr: player_id`) and Century profile sync (`exec: fetch_player`). "
-                    "Fields below mirror `wos:player:<player_id>:state`."
-                )
-                if not inst.player_ids:
-                    st.info("No players configured for this instance.")
-                else:
-                    for idx, pid in enumerate(inst.player_ids):
-                        if idx > 0:
-                            st.divider()
-                        fsm_state = get_player_fsm(client, pid) or "unknown"
-                        _render_player_identity(
-                            client,
-                            pid,
-                            fsm_state=fsm_state,
-                            is_active=bool(active_pid) and active_pid == pid,
-                        )
-            st.divider()
+            ap = (inst_state.get("active_player") or "").strip()
+            if ap:
+                active_players.add(ap)
+
+        st.divider()
+
+        if db_registry.devices:
+            st.caption(
+                "Player identity comes from the `who_i_am` scenario "
+                "(`ocr: player_id`) and Century profile sync (`exec: fetch_player`). "
+                "Source: **db/devices.yaml**."
+            )
+            for device in db_registry.devices:
+                gamers = device.all_gamers()
+                label = f"Players · {device.name} ({len(gamers)} account{'s' if len(gamers) != 1 else ''})"
+                with st.expander(label, expanded=True):
+                    if not gamers:
+                        st.info("No players in this device entry.")
+                    else:
+                        for idx, gamer in enumerate(gamers):
+                            if idx > 0:
+                                st.divider()
+                            pid = str(gamer.id)
+                            fsm_state = get_player_fsm(client, pid) or "unknown"
+                            _render_player_identity(
+                                client,
+                                pid,
+                                fsm_state=fsm_state,
+                                is_active=pid in active_players,
+                            )
+                st.divider()
+        else:
+            st.info("No players in **db/devices.yaml** — add devices and gamers there.")
     else:
         st.info("No instances in **config/settings.yaml**.")
 

@@ -21,3 +21,5 @@ steps:
   - ocr: player_id
   # Century POST /api/player — nickname, stove_level, kid, etc. (requires OCR player_id).
   - exec: fetch_player
+  # Immediately queue a main_city check (don't wait for cron).
+  - push_scenario: check_main_city
