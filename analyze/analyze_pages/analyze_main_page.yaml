@@ -39,3 +39,14 @@ overlay:
       - name: assign_worker
         priority: 80000
         ttl: 1m
+
+  - name: chapter.task.present
+    region: chapter.task
+    action: text
+    # Any non-empty OCR text counts as "present" (overlay engine semantics for action=text).
+    node: main_city
+    ttl: 30s
+    pushScenario:
+      - name: chapter_task_router
+        priority: 70000
+        ttl: 20s

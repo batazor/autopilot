@@ -609,6 +609,21 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        },
+        {
+          "name": "chapter.task",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.617760617760618,
+            "y": 86.41304347826087,
+            "width": 74.0,
+            "height": 2.5391304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },

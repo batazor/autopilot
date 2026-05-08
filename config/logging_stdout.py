@@ -62,6 +62,11 @@ def _should_colorize(stream: TextIO) -> bool:
     return False
 
 
+def stdout_supports_ansi_color() -> bool:
+    """True when interactive logs use ANSI (same rule as :func:`setup_stdout_logging`)."""
+    return _should_colorize(_stdout_for_logs())
+
+
 def setup_stdout_logging(level: int = logging.INFO) -> None:
     stream = _stdout_for_logs()
     for s in (stream, sys.stdout, getattr(sys, "__stdout__", None)):

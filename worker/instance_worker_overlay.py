@@ -110,6 +110,14 @@ class InstanceWorkerOverlayMixin:
         if self._redis is not None:
             try:
                 snap: dict[str, str] = {}
+                action = str(payload.get("action") or "").strip()
+                if action == "text":
+                    txt = str(payload.get("text") or "").strip()
+                    conf = payload.get("confidence")
+                    snap["last_overlay_text"] = txt
+                    if conf is not None and str(conf).strip() != "":
+                        with suppress(TypeError, ValueError):
+                            snap["last_overlay_confidence"] = f"{float(conf):.4f}"
                 if reg_snap:
                     snap["last_overlay_match_region"] = reg_snap
                 if threshold_snap is not None:

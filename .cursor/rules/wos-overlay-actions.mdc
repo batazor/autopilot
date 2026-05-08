@@ -30,3 +30,20 @@ alwaysApply: false
 - Optional search window: `foo_search` (usually `exist`/`text`/`color_check`, often `overlay_auxiliary: true`)
 - Optional tap target: `foo_tap` (`click`, usually `overlay_auxiliary: true`)
 
+## DSL `cond` syntax (scenarios)
+
+`tasks/dsl_scenario.py` supports a small, intentionally-simple `cond:` language.
+
+- **Screen guards** (based on instance Redis `current_screen`):
+  - `cond: currentNode == main_city`
+  - `cond: currentNode != main_city`
+
+- **Instance-state text guards** (based on Redis hash `wos:instance:<id>:state.<field>`):
+  - `cond: <field> ~= "text"` — **case-insensitive substring** (contains)
+  - `cond: <field> == "text"` — **case-insensitive full-string** equality
+  - `cond: <field> != "text"` — **case-insensitive full-string** inequality
+
+Notes:
+- `<field>` is a Redis field name; it may include dots (e.g. `chapter.task`).
+- Use quotes for the RHS when it contains spaces (recommended always).
+

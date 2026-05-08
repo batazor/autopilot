@@ -1,0 +1,17 @@
+enabled: true
+name: Chapter task router
+
+node: main_city
+
+steps:
+  - ocr: chapter.task
+    store: chapter.task
+    scope: instance
+    type: string
+    threshold: 0.6
+
+  # OCR noise fallback (current rolling screenshot sometimes drops "Upgrade" but keeps "2 Bunk")
+  - cond: chapter.task ~= "Shelter"
+    push_scenario:
+      name: upgrade
+      priority: 80000

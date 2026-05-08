@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from typing import ClassVar
 
 import cv2  # type: ignore[import-untyped]
 import httpx
@@ -25,10 +27,28 @@ class OCRResult:
 
 
 class OcrClient:
+    _clients: ClassVar[dict[tuple[str, float, int], httpx.AsyncClient]] = {}
+
     def __init__(self) -> None:
         settings = get_settings()
         self._base_url = settings.ocr.url
-        self._timeout = settings.ocr.timeout_seconds
+        self._timeout = float(settings.ocr.timeout_seconds)
+
+    def _client_key(self) -> tuple[str, float, int]:
+        return (self._base_url, self._timeout, id(asyncio.get_running_loop()))
+
+    async def _http_client(self) -> httpx.AsyncClient:
+        key = self._client_key()
+        client = self._clients.get(key)
+        if client is None or client.is_closed:
+            client = httpx.AsyncClient(timeout=self._timeout)
+            self._clients[key] = client
+        return client
+
+    async def aclose(self) -> None:
+        client = self._clients.pop(self._client_key(), None)
+        if client is not None and not client.is_closed:
+            await client.aclose()
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=4))
     async def ocr_regions(
@@ -48,14 +68,14 @@ class OcrClient:
             for i, r in enumerate(regions)
         ]
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            t0 = time.perf_counter()
-            resp = await client.post(
-                f"{self._base_url}/ocr",
-                json={"image_b64": image_b64, "regions": region_payloads},
-            )
-            elapsed_ms = 1000.0 * (time.perf_counter() - t0)
-            resp.raise_for_status()
+        client = await self._http_client()
+        t0 = time.perf_counter()
+        resp = await client.post(
+            f"{self._base_url}/ocr",
+            json={"image_b64": image_b64, "regions": region_payloads},
+        )
+        elapsed_ms = 1000.0 * (time.perf_counter() - t0)
+        resp.raise_for_status()
 
         raw_results = resp.json()
         # Log short OCR summary at INFO (useful when tuning regions).

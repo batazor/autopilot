@@ -166,15 +166,19 @@ def _render_idle_approvals_column(inst: str) -> None:
     ):
         state_key = f"wos:instance:{inst}:state"
         client.hset(state_key, "current_screen", "")
-        st.toast("current_screen cleared.", icon="✓")
+        try:
+            st.toast("current_screen cleared.", icon="✅")
+        except Exception:
+            st.toast("current_screen cleared.")
         st.rerun()
 
 
 def _render_overlay_probe_section(inst: str) -> None:
     with st.expander(
-        "Overlay threshold check (rolling PNG + labeling region)",
+        "Overlay threshold check",
         expanded=False,
     ):
+        st.caption("Rolling PNG + labeling region.")
         _render_overlay_threshold_probe(inst)
 
 

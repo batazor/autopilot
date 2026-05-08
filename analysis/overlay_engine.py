@@ -516,6 +516,7 @@ async def evaluate_overlay_rules_async(
             else:
                 matched = bool(txt)
 
+            push_tasks = optional_push_scenario_tasks(rule)
             out[logical_name] = {
                 "matched": matched,
                 "action": "text",
@@ -527,6 +528,8 @@ async def evaluate_overlay_rules_async(
                 "fuzzy_threshold": fuzzy_thr,
                 "match": best,
             }
+            if push_tasks:
+                out[logical_name]["pushScenario"] = push_tasks
             if set_node_s:
                 out[logical_name]["set_node"] = set_node_s
             if priority is not None:

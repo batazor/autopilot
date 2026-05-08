@@ -228,6 +228,22 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             st.metric("Want", want or "—")
         with m4:
             st.metric("Share / threshold", f"{share_f:.3f} / {thr_f:.3f}" if ok_eval else "—")
+    elif act == "text":
+        txt = str(pay.get("text") or "").strip()
+        conf_raw = pay.get("confidence")
+        conf_f: float | None = None
+        try:
+            if conf_raw is not None and str(conf_raw).strip() != "":
+                conf_f = float(conf_raw)
+        except (TypeError, ValueError):
+            conf_f = None
+        m1, m2, m3 = st.columns([1, 1, 2])
+        with m1:
+            st.metric("Matched", "yes" if matched else "no")
+        with m2:
+            st.metric("Confidence", f"{conf_f:.4f}" if conf_f is not None else "—")
+        with m3:
+            st.text_input("OCR text", value=txt, disabled=True, key=f"ovl_text::{instance_id}::{sel}")
     else:
         score_raw = pay.get("score")
         thr_raw = pay.get("threshold")

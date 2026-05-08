@@ -74,6 +74,7 @@ class _FakeActions:
     def __init__(self, frame: np.ndarray) -> None:
         self.frame = frame
         self.tapped: list[tuple[str, int, int, str | None]] = []
+        self.captures = 0
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         assert instance_id == "bs1"
@@ -81,6 +82,7 @@ class _FakeActions:
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
         assert instance_id == "bs1"
+        self.captures += 1
         return self.frame
 
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
@@ -245,6 +247,96 @@ async def test_ocr_step_skips_persist_below_threshold(
     assert result.success is True
     player_writes = [m for k, m in redis_client.hsets if k == "wos:player:player_42:state"]
     assert player_writes == [], "low-confidence OCR must not persist player_id"
+
+
+@pytest.mark.asyncio
+async def test_consecutive_ocr_steps_share_one_capture_and_request(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
+    (tmp_path / "scenarios" / "onboarding" / "read_two.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "steps": [
+                    {"ocr": "player_id", "store": "player_id", "type": "integer"},
+                    {"ocr": "chapter.task", "store": "chapter_task", "scope": "instance"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 1,
+                        "screen_id": "main",
+                        "ocr": "references/main.png",
+                        "regions": [
+                            {
+                                "name": "player_id",
+                                "action": "text",
+                                "type": "integer",
+                                "bbox": {"x": 10, "y": 10, "width": 20, "height": 10},
+                            },
+                            {
+                                "name": "chapter.task",
+                                "action": "text",
+                                "bbox": {"x": 40, "y": 50, "width": 30, "height": 20},
+                            },
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    redis_client = _FakeRedisKV()
+    captured: dict[str, Any] = {"calls": 0}
+
+    class _BulkOcrClient:
+        async def ocr_regions(
+            self, image: np.ndarray, regions: list[LayoutRegion]
+        ) -> list[OCRResult]:
+            captured["calls"] += 1
+            captured["image_shape"] = image.shape
+            captured["regions"] = regions
+            return [
+                OCRResult(region_id="r0", text="ID: 765 502 864", confidence=0.99),
+                OCRResult(region_id="r1", text="Upgrade Furnace to Lv. 8", confidence=0.88),
+            ]
+
+    import ocr.client as ocr_client_module
+
+    monkeypatch.setattr(ocr_client_module, "OcrClient", _BulkOcrClient)
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-ocr-bulk",
+        player_id="player_42",
+        scenario_key="read_two",
+        redis_client=redis_client,
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert actions.captures == 1
+    assert captured["calls"] == 1
+    assert captured["regions"] == [
+        LayoutRegion(20, 10, 40, 10),
+        LayoutRegion(80, 50, 60, 20),
+    ]
+    player_state = redis_client.hashes["wos:player:player_42:state"]
+    assert player_state["player_id"] == "765502864"
+    assert (
+        redis_client.hashes["wos:instance:bs1:state"]["chapter_task"]
+        == "Upgrade Furnace to Lv. 8"
+    )
 
 
 @pytest.mark.asyncio

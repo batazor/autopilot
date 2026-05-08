@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+from config.log_ansi import scenario_log_label
 from fsm.states import InstanceState
 from scheduler.queue import QueueItem
 from tasks.base import BaseTask, TaskResult
@@ -120,7 +121,7 @@ class InstanceWorkerTasksMixin:
             "Task start %s: id=%s type=%s player=%s prio=%s",
             self._cfg.instance_id,
             item.task_id,
-            item.task_type,
+            scenario_log_label(item.task_type),
             item.player_id,
             item.priority,
         )

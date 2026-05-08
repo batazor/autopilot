@@ -19,15 +19,20 @@ services:
       dockerfile: ocr/Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      # PaddleX checks model host connectivity before loading. The models are cached
+      # in the volume below, so skipping this avoids slow/flaky cold starts.
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
     volumes:
       - paddle_model_cache:/root/.paddleocr
+      - paddlex_model_cache:/root/.paddlex
     restart: always
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 10
+      start_period: 180s
 
   ui:
     build:
@@ -44,3 +49,4 @@ services:
 volumes:
   redis_data:
   paddle_model_cache:
+  paddlex_model_cache:

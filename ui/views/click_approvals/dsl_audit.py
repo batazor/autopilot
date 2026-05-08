@@ -130,7 +130,7 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
 
 
 def render_payload_json(payload: dict[str, Any]) -> None:
-    with st.expander("Payload", expanded=True):
+    with st.expander("Payload", expanded=False):
         import json
 
         st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")

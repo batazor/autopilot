@@ -14,10 +14,3 @@ overlay:
     region: big_claim_button
     action: findIcon
     threshold: 0.9
-
-  - name: page.mail.visible
-    region: page_title
-    action: text
-    expected: ["Mail"]
-    fuzzy_threshold: 0.75
-    set_node: mail

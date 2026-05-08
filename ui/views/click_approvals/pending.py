@@ -149,7 +149,14 @@ def fragment_pending_approval_columns(
             if isinstance(ctx0, dict):
                 thr_c = str(ctx0.get("current_task_threshold") or "").strip()
                 scr_c = str(ctx0.get("current_task_score") or "").strip()
-                if thr_c or scr_c:
+                txt_c = str(ctx0.get("current_task_text") or "").strip()
+                conf_c = str(ctx0.get("current_task_confidence") or "").strip()
+                if txt_c:
+                    line = [f"text `{txt_c}`"]
+                    if conf_c:
+                        line.append(f"conf `{conf_c}`")
+                    st.caption("Overlay(text) · " + " · ".join(line))
+                elif thr_c or scr_c:
                     line = []
                     if thr_c:
                         line.append(f"threshold `{thr_c}`")
@@ -161,7 +168,7 @@ def fragment_pending_approval_columns(
         if isinstance(ctx0, dict):
             render_dsl_step_audit(ctx0)
 
-        with st.expander("Payload", expanded=True):
+        with st.expander("Payload", expanded=False):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
         c1, c2 = st.columns([1, 1], vertical_alignment="center")

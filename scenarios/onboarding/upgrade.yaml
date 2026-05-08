@@ -1,0 +1,11 @@
+enabled: true
+name: Onboarding upgrade (chapter task)
+
+steps:
+  - click: chapter.task
+  - wait: 2s
+  - while_match: upgrade_button
+    max: 10
+    steps:
+      - wait: 2s
+      - click: upgrade_button

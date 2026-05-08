@@ -45,6 +45,17 @@ class _FakeAsyncRedis:
         return self._screen
 
 
+class _FakeHashRedis:
+    """Async redis stub: ``hget`` reads from a field → value map."""
+
+    def __init__(self, fields: dict[str, bytes | str | None]) -> None:
+        self._fields = fields
+
+    async def hget(self, key: str, field: str) -> bytes | str | None:
+        del key
+        return self._fields.get(field)
+
+
 def test_cond_skips_when_async_redis_returns_bytes_main_city() -> None:
     """Regression: ``redis.asyncio.from_url`` returns bytes by default; the cond
     check used to wrap them with ``str()`` and compare ``"b'main_city'"`` against
@@ -60,5 +71,33 @@ def test_cond_skips_when_async_redis_returns_bytes_main_city() -> None:
 def test_cond_proceeds_when_async_redis_screen_differs() -> None:
     fake = _FakeAsyncRedis(b"chief_profile")
     step = {"set_node": "main_city", "cond": "currentNode != main_city"}
+    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    assert allowed is True
+
+
+def test_cond_instance_text_substring_shelter_matches_ocr_noise() -> None:
+    fake = _FakeHashRedis(
+        {
+            "chapter.task": b"ade2Bunk Beds in Shelter 2 to Lv. 4 1D ) 2)",
+        }
+    )
+    step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Shelter"'}
+    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    assert allowed is True
+
+
+def test_cond_instance_text_substring_false_is_valid_syntax() -> None:
+    fake = _FakeHashRedis({"chapter.task": b"Build something else"})
+    step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Shelter"'}
+    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    assert allowed is False
+
+
+def test_cond_instance_text_rhs_strips_unicode_smart_quotes() -> None:
+    fake = _FakeHashRedis({"chapter.task": b"Bunk Beds in Shelter 2"})
+    step = {
+        "push_scenario": {"name": "upgrade"},
+        "cond": "chapter.task ~= \u201cShelter\u201d",
+    }
     allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
     assert allowed is True

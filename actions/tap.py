@@ -192,6 +192,8 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 "current_task_region": task_region,
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
                 "current_task_score": (raw.get("current_task_score") or "").strip(),
+                "current_task_text": (raw.get("current_task_text") or "").strip(),
+                "current_task_confidence": (raw.get("current_task_confidence") or "").strip(),
                 "current_task_match_top_left_x": (raw.get("current_task_match_top_left_x") or "").strip(),
                 "current_task_match_top_left_y": (raw.get("current_task_match_top_left_y") or "").strip(),
                 "current_task_template_w": (raw.get("current_task_template_w") or "").strip(),
@@ -211,6 +213,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 fb = (raw.get("last_overlay_match_score") or "").strip()
                 if fb:
                     ctx["current_task_score"] = fb
+            if not ctx["current_task_text"]:
+                fb = (raw.get("last_overlay_text") or "").strip()
+                if fb:
+                    ctx["current_task_text"] = fb
+            if not ctx["current_task_confidence"]:
+                fb = (raw.get("last_overlay_confidence") or "").strip()
+                if fb:
+                    ctx["current_task_confidence"] = fb
     except Exception:
         ctx = {}
 

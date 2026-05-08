@@ -21,6 +21,7 @@ from layout.color_bucket import dominant_color_label_bgr
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Point, Region
+from config.log_ansi import scenario_log_label as _scen
 from tasks.base import TaskResult
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,15 @@ _COND_SCREEN_RE = re.compile(
     r"^\s*(?P<lhs>[\w]+)\s*(?P<op>==|!=)\s*(?P<rhs>[\w.-]+)\s*$",
 )
 _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
+
+# Instance-state text guards, e.g. ``cond: chapter.task ~= "Upgrade 2"``.
+# - lhs is a Redis hash field in `wos:instance:<id>:state`
+# - op:
+#   - `~=`: case-insensitive substring contains
+#   - `==` / `!=`: case-insensitive full-string match
+_COND_TEXT_RE = re.compile(
+    r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
+)
 
 
 def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
@@ -108,6 +118,57 @@ async def _read_current_screen(instance_id: str, redis_async: Any | None) -> str
         return ""
 
 
+async def _read_instance_state_field(
+    instance_id: str, field: str, redis_async: Any | None
+) -> str:
+    key = f"wos:instance:{instance_id}:state"
+    field = str(field or "").strip()
+    if not field:
+        return ""
+    if redis_async is not None:
+        try:
+            raw = await redis_async.hget(key, field)
+            return _decode_redis_value(raw)
+        except Exception:
+            logger.debug("redis async hget state field failed", exc_info=True)
+    try:
+        return _decode_redis_value(_redis().hget(key, field))
+    except Exception:
+        logger.debug("redis sync hget state field failed", exc_info=True)
+        return ""
+
+
+def _strip_quotes(s: str) -> str:
+    s2 = (s or "").strip()
+    if len(s2) >= 2 and ((s2[0] == '"' and s2[-1] == '"') or (s2[0] == "'" and s2[-1] == "'")):
+        return s2[1:-1]
+    # Unicode “smart” quotes (copy-paste / some editors).
+    if len(s2) >= 2 and (s2[0] in "\u201c\u2018" and s2[-1] in "\u201d\u2019"):
+        return s2[1:-1]
+    return s2
+
+
+async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any | None) -> bool:
+    m = _COND_TEXT_RE.match(expr.strip())
+    if not m:
+        return False
+    lhs = str(m.group("lhs") or "").strip()
+    op = str(m.group("op") or "").strip()
+    rhs = _strip_quotes(str(m.group("rhs") or ""))
+    if not lhs:
+        return False
+    cur = await _read_instance_state_field(instance_id, lhs, redis_async)
+    cur_lc = cur.strip().lower()
+    rhs_lc = rhs.strip().lower()
+    if op == "~=":
+        return bool(rhs_lc) and (rhs_lc in cur_lc)
+    if op == "==":
+        return cur_lc == rhs_lc
+    if op == "!=":
+        return cur_lc != rhs_lc
+    return False
+
+
 async def _dsl_cond_allows_step(
     step: dict[str, Any], instance_id: str, redis_async: Any | None
 ) -> bool:
@@ -117,8 +178,13 @@ async def _dsl_cond_allows_step(
     s = str(raw).strip()
     if not s:
         return True
-    cur = await _read_current_screen(instance_id, redis_async)
-    return _eval_simple_screen_cond(s, cur)
+    if _COND_SCREEN_RE.match(s):
+        cur = await _read_current_screen(instance_id, redis_async)
+        return _eval_simple_screen_cond(s, cur)
+    if _COND_TEXT_RE.match(s):
+        return await _eval_instance_text_cond(s, instance_id, redis_async)
+    logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", s)
+    return False
 
 
 def _repo_root() -> Path:
@@ -246,6 +312,7 @@ class DslScenarioTask:
     _last_match_region: str = field(default="", init=False, repr=False)
     _last_match_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _last_tap_region_clicked: str = field(default="", init=False, repr=False)
+    _ocr_client: Any | None = field(default=None, init=False, repr=False)
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -381,7 +448,7 @@ class DslScenarioTask:
             logger.warning(
                 "dsl_scenario: unknown FSM screen %r for scenario %s — skipping navigation",
                 target_node,
-                scenario_key,
+                _scen(scenario_key),
             )
             return False
 
@@ -400,7 +467,7 @@ class DslScenarioTask:
             logger.warning(
                 "dsl_scenario: navigation to %s failed (scenario=%s instance=%s)",
                 target_node,
-                scenario_key,
+                _scen(scenario_key),
                 instance_id,
             )
             return False
@@ -527,39 +594,16 @@ class DslScenarioTask:
         ``<store>_text`` (raw OCR text), ``<store>_confidence`` and ``<store>_at`` for
         debugging. Low-confidence reads are logged and skipped, never persisted.
         """
-        from ocr.client import OcrClient
-
-        planned_store = str(step.get("store") or region).strip()
-
-        async def _ocr_audit(
-            status: str,
-            *,
-            threshold_s: str = "",
-            confidence_s: str = "",
-            raw_text: str = "",
-            value_s: str = "",
-        ) -> None:
-            await self._persist_dsl_last_ocr(
-                instance_id,
-                {
-                    "dsl_last_ocr_region": region,
-                    "dsl_last_ocr_store": planned_store,
-                    "dsl_last_ocr_status": status,
-                    "dsl_last_ocr_threshold": threshold_s,
-                    "dsl_last_ocr_confidence": confidence_s,
-                    "dsl_last_ocr_raw_text": raw_text,
-                    "dsl_last_ocr_value": value_s,
-                },
-            )
-
         pair = screen_region_by_name(area_doc, region) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning(
                 "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
                 region,
-                scenario_key,
+                _scen(scenario_key),
             )
-            await _ocr_audit("region_not_found")
+            await self._ocr_audit_step(
+                instance_id, region=region, step=step, status="region_not_found"
+            )
             return
 
         region_def = pair[1]
@@ -573,17 +617,21 @@ class DslScenarioTask:
             logger.warning(
                 "dsl_scenario: invalid ocr bbox for region %s (scenario=%s)",
                 region,
-                scenario_key,
+                _scen(scenario_key),
             )
-            await _ocr_audit("invalid_bbox")
+            await self._ocr_audit_step(
+                instance_id, region=region, step=step, status="invalid_bbox"
+            )
             return
         if pw <= 0 or ph <= 0:
             logger.warning(
                 "dsl_scenario: ocr region has zero size: %s (scenario=%s)",
                 region,
-                scenario_key,
+                _scen(scenario_key),
             )
-            await _ocr_audit("zero_bbox")
+            await self._ocr_audit_step(
+                instance_id, region=region, step=step, status="zero_bbox"
+            )
             return
 
         try:
@@ -591,23 +639,191 @@ class DslScenarioTask:
         except Exception:
             logger.exception(
                 "dsl_scenario: capture_screen_bgr failed for ocr (scenario=%s region=%s)",
-                scenario_key,
+                _scen(scenario_key),
                 region,
             )
-            await _ocr_audit("capture_failed")
+            await self._ocr_audit_step(
+                instance_id, region=region, step=step, status="capture_failed"
+            )
             return
 
         try:
-            result = await OcrClient().ocr_region(image, Region(px, py, pw, ph))
+            result = await self._get_ocr_client().ocr_region(
+                image, Region(px, py, pw, ph)
+            )
         except Exception:
             logger.exception(
                 "dsl_scenario: OCR call failed (scenario=%s region=%s)",
-                scenario_key,
+                _scen(scenario_key),
                 region,
             )
-            await _ocr_audit("ocr_call_failed")
+            await self._ocr_audit_step(
+                instance_id, region=region, step=step, status="ocr_call_failed"
+            )
             return
 
+        await self._persist_ocr_result(
+            instance_id=instance_id,
+            scenario_key=scenario_key,
+            step=step,
+            region=region,
+            region_def=region_def,
+            result=result,
+        )
+
+    async def _ocr_region_bulk(
+        self,
+        *,
+        actions: BotActions,
+        area_doc: dict[str, Any],
+        instance_id: str,
+        dev_w: int,
+        dev_h: int,
+        scenario_key: str,
+        steps: list[dict[str, Any]],
+    ) -> None:
+        requests: list[tuple[dict[str, Any], str, dict[str, Any], Region]] = []
+
+        for step in steps:
+            region = str(step.get("ocr") or "").strip()
+            if not region:
+                continue
+            pair = screen_region_by_name(area_doc, region)
+            if pair is None or not isinstance(pair[1].get("bbox"), dict):
+                logger.warning(
+                    "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
+                    region,
+                    _scen(scenario_key),
+                )
+                await self._ocr_audit_step(
+                    instance_id, region=region, step=step, status="region_not_found"
+                )
+                continue
+
+            region_def = pair[1]
+            bbox = region_def["bbox"]
+            try:
+                px = int(round(float(bbox["x"]) / 100.0 * dev_w))
+                py = int(round(float(bbox["y"]) / 100.0 * dev_h))
+                pw = int(round(float(bbox["width"]) / 100.0 * dev_w))
+                ph = int(round(float(bbox["height"]) / 100.0 * dev_h))
+            except (KeyError, TypeError, ValueError):
+                logger.warning(
+                    "dsl_scenario: invalid ocr bbox for region %s (scenario=%s)",
+                    region,
+                    _scen(scenario_key),
+                )
+                await self._ocr_audit_step(
+                    instance_id, region=region, step=step, status="invalid_bbox"
+                )
+                continue
+            if pw <= 0 or ph <= 0:
+                logger.warning(
+                    "dsl_scenario: ocr region has zero size: %s (scenario=%s)",
+                    region,
+                    _scen(scenario_key),
+                )
+                await self._ocr_audit_step(
+                    instance_id, region=region, step=step, status="zero_bbox"
+                )
+                continue
+            requests.append((step, region, region_def, Region(px, py, pw, ph)))
+
+        if not requests:
+            return
+
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+        except Exception:
+            logger.exception(
+                "dsl_scenario: capture_screen_bgr failed for bulk ocr "
+                "(scenario=%s regions=%s)",
+                _scen(scenario_key),
+                [region for _step, region, _def, _px in requests],
+            )
+            for step, region, _region_def, _region_px in requests:
+                await self._ocr_audit_step(
+                    instance_id, region=region, step=step, status="capture_failed"
+                )
+            return
+
+        try:
+            results = await self._get_ocr_client().ocr_regions(
+                image,
+                [region_px for _step, _region, _region_def, region_px in requests],
+            )
+        except Exception:
+            logger.exception(
+                "dsl_scenario: bulk OCR call failed (scenario=%s regions=%s)",
+                _scen(scenario_key),
+                [region for _step, region, _def, _px in requests],
+            )
+            for step, region, _region_def, _region_px in requests:
+                await self._ocr_audit_step(
+                    instance_id, region=region, step=step, status="ocr_call_failed"
+                )
+            return
+
+        logger.info(
+            "dsl_scenario: bulk OCR scenario=%s regions=%s",
+            _scen(scenario_key),
+            [region for _step, region, _def, _px in requests],
+        )
+        for (step, region, region_def, _region_px), result in zip(
+            requests, results, strict=False
+        ):
+            await self._persist_ocr_result(
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                region=region,
+                region_def=region_def,
+                result=result,
+            )
+
+    def _get_ocr_client(self) -> Any:
+        if self._ocr_client is None:
+            from ocr.client import OcrClient
+
+            self._ocr_client = OcrClient()
+        return self._ocr_client
+
+    async def _ocr_audit_step(
+        self,
+        instance_id: str,
+        *,
+        region: str,
+        step: dict[str, Any],
+        status: str,
+        threshold_s: str = "",
+        confidence_s: str = "",
+        raw_text: str = "",
+        value_s: str = "",
+    ) -> None:
+        planned_store = str(step.get("store") or region).strip()
+        await self._persist_dsl_last_ocr(
+            instance_id,
+            {
+                "dsl_last_ocr_region": region,
+                "dsl_last_ocr_store": planned_store,
+                "dsl_last_ocr_status": status,
+                "dsl_last_ocr_threshold": threshold_s,
+                "dsl_last_ocr_confidence": confidence_s,
+                "dsl_last_ocr_raw_text": raw_text,
+                "dsl_last_ocr_value": value_s,
+            },
+        )
+
+    async def _persist_ocr_result(
+        self,
+        *,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        region: str,
+        region_def: dict[str, Any],
+        result: Any,
+    ) -> None:
         raw_threshold = step.get("threshold")
         if raw_threshold is None:
             raw_threshold = region_def.get("threshold")
@@ -624,14 +840,17 @@ class DslScenarioTask:
             logger.warning(
                 "dsl_scenario: OCR low confidence — skipping store. scenario=%s region=%s "
                 "text=%r confidence=%.3f threshold=%.3f",
-                scenario_key,
+                _scen(scenario_key),
                 region,
                 text,
                 confidence,
                 threshold,
             )
-            await _ocr_audit(
-                "low_confidence",
+            await self._ocr_audit_step(
+                instance_id,
+                region=region,
+                step=step,
+                status="low_confidence",
                 threshold_s=thr_s,
                 confidence_s=conf_s,
                 raw_text=text,
@@ -646,12 +865,15 @@ class DslScenarioTask:
                 logger.warning(
                     "dsl_scenario: OCR integer cast failed — empty digits. "
                     "scenario=%s region=%s text=%r",
-                    scenario_key,
+                    _scen(scenario_key),
                     region,
                     text,
                 )
-                await _ocr_audit(
-                    "integer_cast_failed",
+                await self._ocr_audit_step(
+                    instance_id,
+                    region=region,
+                    step=step,
+                    status="integer_cast_failed",
                     threshold_s=thr_s,
                     confidence_s=conf_s,
                     raw_text=text,
@@ -661,8 +883,11 @@ class DslScenarioTask:
 
         store_field = str(step.get("store") or region).strip()
         if not store_field:
-            await _ocr_audit(
-                "empty_store_field",
+            await self._ocr_audit_step(
+                instance_id,
+                region=region,
+                step=step,
+                status="empty_store_field",
                 threshold_s=thr_s,
                 confidence_s=conf_s,
                 raw_text=text,
@@ -674,7 +899,7 @@ class DslScenarioTask:
             logger.warning(
                 "dsl_scenario: unknown ocr scope %r — defaulting to 'player' (scenario=%s)",
                 scope,
-                scenario_key,
+                _scen(scenario_key),
             )
             scope = "player"
 
@@ -682,14 +907,17 @@ class DslScenarioTask:
             logger.info(
                 "dsl_scenario: OCR result not persisted (no redis client). "
                 "scenario=%s region=%s field=%s value=%s confidence=%.3f",
-                scenario_key,
+                _scen(scenario_key),
                 region,
                 store_field,
                 value,
                 confidence,
             )
-            await _ocr_audit(
-                "no_redis_client",
+            await self._ocr_audit_step(
+                instance_id,
+                region=region,
+                step=step,
+                status="no_redis_client",
                 threshold_s=thr_s,
                 confidence_s=conf_s,
                 raw_text=text,
@@ -727,12 +955,15 @@ class DslScenarioTask:
         except Exception:
             logger.exception(
                 "dsl_scenario: failed to persist OCR result (scenario=%s region=%s key=%s)",
-                scenario_key,
+                _scen(scenario_key),
                 region,
                 redis_key,
             )
-            await _ocr_audit(
-                "redis_write_failed",
+            await self._ocr_audit_step(
+                instance_id,
+                region=region,
+                step=step,
+                status="redis_write_failed",
                 threshold_s=thr_s,
                 confidence_s=conf_s,
                 raw_text=text,
@@ -740,8 +971,11 @@ class DslScenarioTask:
             )
             return
 
-        await _ocr_audit(
-            "stored",
+        await self._ocr_audit_step(
+            instance_id,
+            region=region,
+            step=step,
+            status="stored",
             threshold_s=thr_s,
             confidence_s=conf_s,
             raw_text=text,
@@ -750,7 +984,7 @@ class DslScenarioTask:
         logger.info(
             "dsl_scenario: OCR stored scenario=%s region=%s key=%s field=%s value=%s "
             "confidence=%.3f",
-            scenario_key,
+            _scen(scenario_key),
             region,
             redis_key,
             store_field,
@@ -839,7 +1073,7 @@ class DslScenarioTask:
         except Exception:
             logger.exception(
                 "dsl_scenario: capture_screen_bgr failed for color_check (scenario=%s region=%s)",
-                scenario_key,
+                _scen(scenario_key),
                 region,
             )
             await self._persist_dsl_last_color(
@@ -962,7 +1196,7 @@ class DslScenarioTask:
         if not tapped:
             logger.info(
                 "dsl_scenario: tap rejected or blocked — aborting scenario %s",
-                scenario_key,
+                _scen(scenario_key),
             )
             await self._clear_step_context(instance_id)
             return TaskResult(
@@ -1162,7 +1396,7 @@ class DslScenarioTask:
 
             logger.info(
                 "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
-                scenario_key,
+                _scen(scenario_key),
                 reg,
                 iterations,
             )
@@ -1189,7 +1423,8 @@ class DslScenarioTask:
                 )
                 if not ok:
                     logger.info(
-                        "dsl_scenario: swipe blocked — aborting scenario %s", scenario_key
+                        "dsl_scenario: swipe blocked — aborting scenario %s",
+                        _scen(scenario_key),
                     )
                     await self._clear_step_context(instance_id)
                     return TaskResult(
@@ -1306,7 +1541,10 @@ class DslScenarioTask:
                     },
                 )
 
-        for step in steps:
+        step_index = 0
+        while step_index < len(steps):
+            step = steps[step_index]
+            step_index += 1
             if not isinstance(step, dict):
                 continue
             if not await _dsl_cond_allows_step(step, instance_id, self.redis_client):
@@ -1339,7 +1577,7 @@ class DslScenarioTask:
                 if not matched:
                     logger.info(
                         "dsl_scenario: match guard failed — skipping scenario %s region=%s row=%s",
-                        key,
+                        _scen(key),
                         reg,
                         row,
                     )
@@ -1399,7 +1637,7 @@ class DslScenarioTask:
                     iterations += 1
                 logger.info(
                     "dsl_scenario: while_match done scenario=%s region=%s iterations=%d",
-                    key,
+                    _scen(key),
                     reg,
                     iterations,
                 )
@@ -1542,7 +1780,7 @@ class DslScenarioTask:
                     )
                     if not ok:
                         logger.info(
-                            "dsl_scenario: swipe blocked — aborting scenario %s", key
+                            "dsl_scenario: swipe blocked — aborting scenario %s", _scen(key)
                         )
                         await self._clear_step_context(instance_id)
                         return TaskResult(
@@ -1556,16 +1794,43 @@ class DslScenarioTask:
                 reg = str(step.get("ocr") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
                 if reg:
-                    await self._ocr_region(
-                        actions=actions,
-                        area_doc=area_doc,
-                        instance_id=instance_id,
-                        dev_w=dev_w,
-                        dev_h=dev_h,
-                        scenario_key=key,
-                        step=step,
-                        region=reg,
-                    )
+                    ocr_steps = [step]
+                    while step_index < len(steps):
+                        next_step = steps[step_index]
+                        if not isinstance(next_step, dict) or "ocr" not in next_step:
+                            break
+                        step_index += 1
+                        if not await _dsl_cond_allows_step(
+                            next_step, instance_id, self.redis_client
+                        ):
+                            logger.debug(
+                                "dsl_scenario: step skipped by cond (%s)",
+                                next_step.get("cond"),
+                            )
+                            continue
+                        if str(next_step.get("ocr") or "").strip():
+                            ocr_steps.append(next_step)
+                    if len(ocr_steps) > 1:
+                        await self._ocr_region_bulk(
+                            actions=actions,
+                            area_doc=area_doc,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                            steps=ocr_steps,
+                        )
+                    else:
+                        await self._ocr_region(
+                            actions=actions,
+                            area_doc=area_doc,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                            step=step,
+                            region=reg,
+                        )
                 continue
             if "exec" in step:
                 cmd = str(step.get("exec") or "").strip()
@@ -1593,7 +1858,7 @@ class DslScenarioTask:
                 if not ok:
                     logger.info(
                         "dsl_scenario: set_node rejected or blocked — aborting scenario %s",
-                        key,
+                        _scen(key),
                     )
                     await self._clear_step_context(instance_id)
                     return TaskResult(
@@ -1669,6 +1934,6 @@ class DslScenarioTask:
                 if seconds > 0:
                     await asyncio.sleep(seconds)
                 continue
-        logger.info("dsl_scenario done: %s (%s)", key, instance_id)
+        logger.info("dsl_scenario done: %s (%s)", _scen(key), instance_id)
         await self._clear_step_context(instance_id)
         return TaskResult(success=True, next_run_at=None, metadata={"scenario": key})

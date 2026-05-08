@@ -131,6 +131,8 @@ CANVAS_DISPLAY_MAX_SIDE = 1280
 LABELING_CANVAS_DISPLAY_MAX_SIDE = 920
 # Region preview thumbnail in the Regions expander (longer side cap).
 REGION_PREVIEW_MAX_SIDE = 400
+CANVAS_IGNORE_STALE_BBOX_SIG = "_canvas_ignore_stale_bbox_sig"
+CANVAS_IGNORE_STALE_UNTIL = "_canvas_ignore_stale_until"
 
 
 # -----------------------------------------------------------------------------
@@ -366,6 +368,27 @@ def export_all_region_crops_for_area_doc(
         progress(1.0)
 
     return written, warnings
+
+
+def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
+    prog = st.progress(0)
+    try:
+        written, warns = export_all_region_crops_for_area_doc(
+            doc,
+            repo_root=REPO_ROOT,
+            progress=lambda x: prog.progress(x),
+        )
+        if written:
+            st.success(f"Wrote {len(written)} crop(s) to `references/crop/`.")
+        else:
+            st.warning("No crops written - check reference PNG paths and non-auxiliary regions.")
+        if warns:
+            with st.expander("Crop export warnings", expanded=False):
+                st.markdown("\n".join(f"- {w}" for w in warns))
+    except (OSError, ValueError) as e:
+        st.error(f"Crop export failed: {e}")
+    finally:
+        prog.empty()
 
 
 def default_area_doc(screens: list[AreaEntryDict] | None = None) -> AreaDocDict:
@@ -661,7 +684,9 @@ def _render_regions_expander(
 
         regions = current_regions()
         if not regions:
-            if not labeling_mode:
+            if labeling_mode:
+                st.caption("No regions yet - click **Add region**.")
+            else:
                 st.caption("No regions yet — draw on the canvas or click **Add region**.")
             return
 
@@ -1228,6 +1253,47 @@ def sync_regions_from_canvas(
     return new_regions
 
 
+def _regions_bbox_semantic_sig(regions: list[RegionDict]) -> str:
+    """Stable signature for region bbox state, independent of Fabric's raw JSON shape."""
+    payload: list[list[Any]] = []
+    for r in regions:
+        bbox = r.get("bbox")
+        if not bbox:
+            payload.append([str(r.get("name") or "").strip(), None])
+            continue
+        payload.append(
+            [
+                str(r.get("name") or "").strip(),
+                round(float(bbox.get("x", 0.0) or 0.0), 4),
+                round(float(bbox.get("y", 0.0) or 0.0), 4),
+                round(float(bbox.get("width", 0.0) or 0.0), 4),
+                round(float(bbox.get("height", 0.0) or 0.0), 4),
+                round(float(bbox.get("rotation", 0.0) or 0.0), 4),
+            ]
+        )
+    return json.dumps(payload, sort_keys=False, separators=(",", ":"))
+
+
+def _remember_stale_canvas_sig(sig: str) -> None:
+    """Temporarily ignore immediately-returned stale canvas frames after a bbox edit."""
+    st.session_state[CANVAS_IGNORE_STALE_BBOX_SIG] = sig
+    st.session_state[CANVAS_IGNORE_STALE_UNTIL] = time.time() + 3.0
+
+
+def _should_ignore_stale_canvas_sig(incoming_sig: str, current_sig: str) -> bool:
+    stale_sig = str(st.session_state.get(CANVAS_IGNORE_STALE_BBOX_SIG) or "")
+    until = float(st.session_state.get(CANVAS_IGNORE_STALE_UNTIL, 0.0) or 0.0)
+    if not stale_sig:
+        return False
+    if time.time() > until:
+        st.session_state.pop(CANVAS_IGNORE_STALE_BBOX_SIG, None)
+        st.session_state.pop(CANVAS_IGNORE_STALE_UNTIL, None)
+        return False
+    if incoming_sig == stale_sig and incoming_sig != current_sig:
+        return True
+    return False
+
+
 def cap_preview_image_max_side(im: Image.Image, max_side: int) -> Image.Image:
     """Return a copy scaled so the longer side is at most ``max_side``."""
     w, h = im.size
@@ -1678,12 +1744,20 @@ def render_area_annotator_ui(
         st.error(st.session_state.image_error)
         del st.session_state.image_error
 
-    drawing_mode_labeling = "rect"
+    drawing_mode_labeling = "transform"
 
     # ----- Labeling: canvas left; right column = reference tree + tools + regions + FSM + save -----
     if labeling_mode:
         with right_col:
-            with st.expander("Screen entry", expanded=True):
+            if pil_original is not None:
+                regions_ct = current_regions()
+                sel_ct = st.session_state.selected_region_idx
+                if regions_ct and sel_ct >= len(regions_ct):
+                    st.session_state.selected_region_idx = sel_ct = len(regions_ct) - 1
+
+            _render_regions_expander(pil_original, canvas_max_side, labeling_mode=True)
+
+            with st.expander("Screen entry", expanded=False):
                 if not effective_forced_ref:
                     st.caption("Choose a PNG in the reference tree above to edit regions.")
                 elif effective_forced_ref and entries:
@@ -1697,30 +1771,6 @@ def render_area_annotator_ui(
                 if entries and 0 <= entry_idx < len(entries):
                     _render_screen_id_and_ocr_fields(doc, entries, entry_idx, labeling_mode=True)
 
-            if pil_original is not None:
-                regions_ct = current_regions()
-                sel_ct = st.session_state.selected_region_idx
-                if regions_ct and sel_ct >= len(regions_ct):
-                    st.session_state.selected_region_idx = sel_ct = len(regions_ct) - 1
-                if regions_ct:
-                    tool_l = st.radio(
-                        "Canvas tool",
-                        ("Move / resize", "Draw new rectangle"),
-                        horizontal=True,
-                        index=0,
-                        key=f"canvas_tool_nonempty_{st.session_state.entry_idx}",
-                    )
-                else:
-                    tool_l = st.radio(
-                        "Canvas tool",
-                        ("Move / resize", "Draw new rectangle"),
-                        horizontal=True,
-                        index=1,
-                        key=f"canvas_tool_empty_{st.session_state.entry_idx}",
-                    )
-                drawing_mode_labeling = "transform" if tool_l.startswith("Move") else "rect"
-
-            _render_regions_expander(pil_original, canvas_max_side, labeling_mode=True)
             _render_fsm_expander(doc)
 
             st.divider()
@@ -1728,6 +1778,7 @@ def render_area_annotator_ui(
                 try:
                     save_json(AREA_JSON_PATH, st.session_state.area_doc)
                     st.success(f"Wrote {AREA_JSON_PATH}")
+                    _write_all_region_crops_with_feedback(st.session_state.area_doc)
                     st.session_state.pop(LABELING_PENDING_CAPTURE_REL, None)
                     st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
                 except (OSError, ValueError) as e:
@@ -1799,6 +1850,7 @@ def render_area_annotator_ui(
                     if sig != st.session_state.last_canvas_sig:
                         st.session_state.last_canvas_sig = sig
                         prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
+                        current_bbox_sig = _regions_bbox_semantic_sig(display_regions)
                         synced = sync_regions_from_canvas(
                             display_regions,
                             canvas_result.json_data,
@@ -1807,23 +1859,28 @@ def render_area_annotator_ui(
                             orig_w,
                             orig_h,
                         )
-                        updated = (
-                            _regions_from_viewport(
-                                synced,
-                                x_off=x_off,
-                                y_off=y_off,
-                                vp_w=vp_w,
-                                vp_h=vp_h,
-                                orig_w=orig_w,
-                                orig_h=orig_h,
+                        incoming_bbox_sig = _regions_bbox_semantic_sig(synced)
+                        if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
+                            if incoming_bbox_sig != current_bbox_sig:
+                                _remember_stale_canvas_sig(current_bbox_sig)
+                            updated = (
+                                _regions_from_viewport(
+                                    synced,
+                                    x_off=x_off,
+                                    y_off=y_off,
+                                    vp_w=vp_w,
+                                    vp_h=vp_h,
+                                    orig_w=orig_w,
+                                    orig_h=orig_h,
+                                )
+                                if zoom > 1.0
+                                else synced
                             )
-                            if zoom > 1.0
-                            else synced
-                        )
-                        set_current_regions(updated)
-                        if prev_sel_name:
-                            st.session_state.selected_region_name = prev_sel_name
-                        _resolve_selected_region_idx(updated)
+                            if incoming_bbox_sig != current_bbox_sig:
+                                set_current_regions(updated)
+                            if prev_sel_name:
+                                st.session_state.selected_region_name = prev_sel_name
+                            _resolve_selected_region_idx(updated)
 
                 # --- zoom + pan sliders ---
                 def _on_zoom_change() -> None:
@@ -1926,6 +1983,7 @@ def render_area_annotator_ui(
                     if sig != st.session_state.last_canvas_sig:
                         st.session_state.last_canvas_sig = sig
                         prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
+                        current_bbox_sig = _regions_bbox_semantic_sig(regions)
                         updated = sync_regions_from_canvas(
                             regions,
                             canvas_result.json_data,
@@ -1934,10 +1992,14 @@ def render_area_annotator_ui(
                             orig_w,
                             orig_h,
                         )
-                        set_current_regions(updated)
-                        if prev_sel_name:
-                            st.session_state.selected_region_name = prev_sel_name
-                        _resolve_selected_region_idx(updated)
+                        incoming_bbox_sig = _regions_bbox_semantic_sig(updated)
+                        if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
+                            if incoming_bbox_sig != current_bbox_sig:
+                                _remember_stale_canvas_sig(current_bbox_sig)
+                                set_current_regions(updated)
+                            if prev_sel_name:
+                                st.session_state.selected_region_name = prev_sel_name
+                            _resolve_selected_region_idx(updated)
 
                 st.caption(
                     "Editing borders: switch to **Move / resize**, click the box, then drag edges or corners. "
@@ -1952,6 +2014,7 @@ def render_area_annotator_ui(
                 try:
                     save_json(AREA_JSON_PATH, st.session_state.area_doc)
                     st.success(f"Wrote {AREA_JSON_PATH}")
+                    _write_all_region_crops_with_feedback(st.session_state.area_doc)
                 except (OSError, ValueError) as e:
                     st.error(str(e))
 
