@@ -17,7 +17,7 @@ overlay:
 
   - name: page.mail.visible
     region: page_title
-    action: readText
+    action: text
     expected: ["Mail"]
     fuzzy_threshold: 0.75
     set_node: mail

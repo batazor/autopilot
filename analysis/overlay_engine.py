@@ -142,6 +142,13 @@ async def evaluate_overlay_rules_async(
                 continue
             rule_eval_state[logical_name] = now_mono
 
+        # `area.json` (labeling editor) uses action names:
+        # - exist -> template match (`findIcon`)
+        # - text  -> OCR (`text`)
+        if action == "exist":
+            action = "findIcon"
+        # Only `text` is supported for OCR.
+
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
@@ -458,7 +465,7 @@ async def evaluate_overlay_rules_async(
             out[logical_name] = hit
             continue
 
-        if action == "readText":
+        if action == "text":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
             expected = optional_expected_texts(rule)
@@ -511,7 +518,7 @@ async def evaluate_overlay_rules_async(
 
             out[logical_name] = {
                 "matched": matched,
-                "action": "readText",
+                "action": "text",
                 "region": region_name,
                 "text": txt,
                 "confidence": conf,

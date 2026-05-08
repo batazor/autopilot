@@ -447,12 +447,23 @@ class DslScenarioTask:
             threshold = float(raw_threshold)
         except (TypeError, ValueError):
             threshold = 0.9
+
+        # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
+        # Historically it always used `findIcon`, which breaks color-only regions (e.g. `isWorkers`).
+        area_action = str(pair[1].get("action") or "").strip()
+        if area_action not in {"exist", "text", "color_check", "findIcon"}:
+            # `click` (and other non-detection actions) cannot be matched; default to `exist`.
+            area_action = "exist"
+
         rule: dict[str, Any] = {
             "name": f"dsl.{scenario_key}.{region}.visible",
             "region": region,
-            "action": "findIcon",
+            "action": area_action,
             "threshold": threshold,
         }
+        if area_action == "color_check":
+            # Color label: prefer step override, else inherit from area.json.
+            rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
         # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
         excl = self._exclude_match_top_lefts.get(region)
         if excl:
@@ -777,11 +788,8 @@ class DslScenarioTask:
     ) -> bool:
         """Check dominant color inside a named region.
 
-        Step shape::
-
-            - color_check: <region_name>
-              type: red|blue|gray|green   # default = inherits area.json `type`
-              threshold: 0.55             # optional, default=0.50 (share of dominant pixels)
+        Note: the DSL no longer has a dedicated `color_check:` step. Color checks are evaluated
+        via `match: <region>` when the region in `area.json` uses `action: color_check`.
         """
         raw_want = str(step.get("type") or "").strip().lower()
         want = _COLOR_WORD_ALIASES.get(raw_want, raw_want)
@@ -999,31 +1007,6 @@ class DslScenarioTask:
             tgt = str(step.get("break") or "").strip().lower()
             if tgt == "repeat":
                 raise _BreakRepeat()
-            return None
-        if "color_check" in step:
-            reg = str(step.get("color_check") or "").strip()
-            if not reg:
-                return None
-            ok = await self._color_check_region(
-                actions=actions,
-                area_doc=area_doc,
-                instance_id=instance_id,
-                scenario_key=scenario_key,
-                step=step,
-                region=reg,
-            )
-            if not ok:
-                await self._clear_step_context(instance_id)
-                return TaskResult(
-                    success=True,
-                    next_run_at=None,
-                    metadata={
-                        "scenario": scenario_key,
-                        "reason": "color_guard_failed",
-                        "region": reg,
-                        "type": str(step.get("type") or "").strip(),
-                    },
-                )
             return None
         if "click" in step:
             region = str(step.get("click") or "").strip()
@@ -1369,36 +1352,6 @@ class DslScenarioTask:
                             "reason": "match_guard_failed",
                             "region": reg,
                             "match": row if isinstance(row, dict) else None,
-                        },
-                    )
-                continue
-            if "color_check" in step:
-                reg = str(step.get("color_check") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                ok = await self._color_check_region(
-                    actions=actions,
-                    area_doc=area_doc,
-                    instance_id=instance_id,
-                    scenario_key=key,
-                    step=step,
-                    region=reg,
-                )
-                if not ok:
-                    logger.info(
-                        "dsl_scenario: color_check guard failed — skipping scenario %s region=%s want=%s",
-                        key,
-                        reg,
-                        step.get("type"),
-                    )
-                    await self._clear_step_context(instance_id)
-                    return TaskResult(
-                        success=True,
-                        next_run_at=None,
-                        metadata={
-                            "scenario": key,
-                            "reason": "color_guard_failed",
-                            "region": reg,
-                            "type": str(step.get("type") or "").strip(),
                         },
                     )
                 continue

@@ -1,0 +1,14 @@
+enabled: true
+name: Assign worker (open workers)
+
+steps:
+  - match: isWorkers
+  - click: isWorkers
+  - wait: 1200ms
+
+  - while_match: page.worker.add
+    max: 6
+    steps:
+      - click: page.worker.add
+      - wait: 1s
+

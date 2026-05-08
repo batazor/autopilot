@@ -102,7 +102,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             "Filter rule / region / search",
             value="",
             key=f"idle_overlay_probe_name_filter::{instance_id}",
-            placeholder="e.g. hand_pointer, claim_button",
+            placeholder="e.g. hand_pointer, button.claim",
         )
     with fc2:
         only_current_node = st.checkbox(

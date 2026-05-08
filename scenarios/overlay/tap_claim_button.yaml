@@ -2,12 +2,12 @@ enabled: true
 name: Tap claim button
 
 steps:
-  - while_match: claim_button
+  - while_match: button.claim
     threshold: 0.98
     min_match_saturation: 48
     max: 20
     steps:
-      - click: claim_button
+      - click: button.claim
       - wait: 3s
   - click: claim_button_close
   - wait: 2s

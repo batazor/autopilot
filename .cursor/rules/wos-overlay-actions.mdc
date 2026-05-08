@@ -1,0 +1,32 @@
+---
+description: Overlay actions conventions (analyze YAML vs area.json)
+globs: "{area.json,analyze/**/*.yaml,scenarios/**/*.yaml,analysis/overlay_engine.py,tasks/dsl_scenario.py}"
+alwaysApply: false
+---
+
+# Overlay actions: analyze YAML vs `area.json`
+
+## Rule of thumb
+
+- **Overlay analyzers** (`analyze/analyze_pages/*.yaml`) use **overlay-engine actions**:
+  - `findIcon` — template match using cropped reference
+  - `text` — OCR match
+  - `color_check` — dominant color check
+
+- **`area.json`** (labeling editor output) uses **editor actions**:
+  - `exist` — this is the *editor* name for template match (maps to overlay `findIcon`)
+  - `text` — OCR region
+  - `color_check` — color region (uses `type` like `red|blue|gray|green`)
+  - `click` — tap target region (not a detector)
+
+## Do not mix
+
+- **Do NOT put** `findIcon` in `area.json` (use `exist` there).
+- **Do NOT put** `exist` in analyzer YAML (use `findIcon` there).
+
+## `_search` / `_tap` naming
+
+- Detector region: `foo`
+- Optional search window: `foo_search` (usually `exist`/`text`/`color_check`, often `overlay_auxiliary: true`)
+- Optional tap target: `foo_tap` (`click`, usually `overlay_auxiliary: true`)
+

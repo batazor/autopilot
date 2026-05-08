@@ -25,10 +25,10 @@ steps:
                 - click: big_claim_button
                 - wait: 0.8s
                 - break: repeat
-            - while_match: claim_button
+            - while_match: button.claim
               max: 1
               steps:
-                - click: claim_button
+                - click: button.claim
                 - wait: 0.8s
                 - break: repeat
             - while_match: go_big_button

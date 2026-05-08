@@ -1,0 +1,12 @@
+enabled: true
+name: Tap Done button
+
+steps:
+  - match: button.done
+    threshold: 0.9
+  - click: button.done
+  - wait: 1s
+  - match: button.claim
+    threshold: 0.9
+  - click: button.claim
+

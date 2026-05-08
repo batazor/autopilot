@@ -58,11 +58,11 @@ def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
                 "name": "Claim",
                 "steps": [
                     {
-                        "while_match": "claim_button",
+                        "while_match": "button.claim",
                         "threshold": 0.98,
                         "max": 5,
                         "steps": [
-                            {"click": "claim_button"},
+                            {"click": "button.claim"},
                             {"wait": 0},
                         ],
                     },
@@ -72,7 +72,7 @@ def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
         ),
         encoding="utf-8",
     )
-    cv2.imwrite(str(tmp_path / "references/crop/claim_claim_button.png"), frame[20:30, 20:30])
+    cv2.imwrite(str(tmp_path / "references/crop/claim_button.claim.png"), frame[20:30, 20:30])
     (tmp_path / "area.json").write_text(
         yaml.dump(
             {
@@ -82,7 +82,7 @@ def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
                         "ocr": "references/claim.png",
                         "regions": [
                             {
-                                "name": "claim_button",
+                                "name": "button.claim",
                                 "bbox": {"x": 20, "y": 20, "width": 10, "height": 10},
                             },
                             {
@@ -122,8 +122,8 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
 
     assert result.success is True
     assert actions.tapped == [
-        ("bs1", 25, 25, "claim_button"),
-        ("bs1", 25, 25, "claim_button"),
+        ("bs1", 25, 25, "button.claim"),
+        ("bs1", 25, 25, "button.claim"),
         ("bs1", 85, 15, "claim_button_close"),
     ]
 
@@ -133,6 +133,6 @@ def test_tap_claim_button_while_match_has_nested_steps() -> None:
     doc = yaml.safe_load((repo / "scenarios/overlay/tap_claim_button.yaml").read_text())
     loop = doc["steps"][0]
 
-    assert loop["while_match"] == "claim_button"
-    assert loop["steps"] == [{"click": "claim_button"}, {"wait": "3s"}]
+    assert loop["while_match"] == "button.claim"
+    assert loop["steps"] == [{"click": "button.claim"}, {"wait": "3s"}]
     assert doc["steps"][1:] == [{"click": "claim_button_close"}, {"wait": "2s"}]

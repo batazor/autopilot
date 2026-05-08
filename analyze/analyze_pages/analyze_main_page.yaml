@@ -29,3 +29,13 @@ overlay:
       - name: is_new_people
         priority: 80000
         ttl: 15m
+
+  - name: isWorkers.visible
+    region: isWorkers
+    action: color_check
+    threshold: 0.9
+    node: main_city
+    pushScenario:
+      - name: assign_worker
+        priority: 80000
+        ttl: 1m

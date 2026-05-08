@@ -1,0 +1,9 @@
+enabled: true
+name: "Dismiss ads info"
+
+steps:
+  - while_match: ads.info
+    max: 10
+    steps:
+      - click: ads.info
+      - wait: 1s
