@@ -21,9 +21,13 @@ def render_reset_block(*, client: Any) -> None:
         with c1:
             if st.button("Clear queue", type="primary", key="click_approvals_clear_queue_btn"):
                 try:
-                    client.delete("wos:queue")
+                    for key in client.scan_iter("wos:queue:*"):
+                        k = str(key)
+                        if ":running" in k:
+                            continue
+                        client.delete(k)
                 except Exception:
-                    st.exception(Exception("Failed to clear Redis queue key `wos:queue`"))
+                    st.exception(Exception("Failed to clear Redis queue keys (`wos:queue*`)"))
                     st.stop()
                 st.success("Queue cleared.")
                 st.rerun()
@@ -40,9 +44,13 @@ def render_reset_block(*, client: Any) -> None:
             help="Does both actions above.",
         ):
             try:
-                client.delete("wos:queue")
+                for key in client.scan_iter("wos:queue:*"):
+                    k = str(key)
+                    if ":running" in k:
+                        continue
+                    client.delete(k)
             except Exception:
-                st.exception(Exception("Failed to clear Redis queue key `wos:queue`"))
+                st.exception(Exception("Failed to clear Redis queue keys (`wos:queue*`)"))
                 st.stop()
             restart_embedded_bot()
             st.success("Queue cleared and bot restart triggered.")

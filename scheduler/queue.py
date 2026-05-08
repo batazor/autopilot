@@ -13,7 +13,20 @@ from config.loader import get_settings
 
 logger = logging.getLogger(__name__)
 
-_QUEUE_KEY = "wos:queue"
+def _queue_key(instance_id: str) -> str:
+    iid = str(instance_id or "").strip()
+    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
+
+
+def _dup_region_key(region: str | None) -> str:
+    return str(region).strip() if region else ""
+
+
+def _dup_index_key(*, instance_id: str, player_id: str, task_type: str, region: str | None) -> str:
+    iid = str(instance_id or "").strip() or "unknown"
+    reg = _dup_region_key(region)
+    pid = str(player_id or "").strip()
+    return f"wos:queue:idx:{iid}:{task_type}:{reg}:{pid}"
 
 
 @dataclass(frozen=True)
@@ -69,7 +82,7 @@ class RedisQueue:
         import json
 
         if skip_if_duplicate and await self.has_pending_duplicate(
-            player_id=player_id, task_type=task_type, region=region
+            player_id=player_id, task_type=task_type, region=region, instance_id=instance_id
         ):
             logger.debug(
                 "Skip duplicate queue item: player=%s type=%s region=%r",
@@ -106,7 +119,21 @@ class RedisQueue:
             body["dsl_scenario"] = str(dsl_scenario).strip()
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
-        await self._redis.zadd(_QUEUE_KEY, {payload: run_at})
+        qk = _queue_key(instance_id)
+        await self._redis.zadd(qk, {payload: run_at})
+        # Duplicate index (fast skip_if_duplicate): track payloads per signature.
+        try:
+            await self._redis.sadd(
+                _dup_index_key(
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    task_type=task_type,
+                    region=region,
+                ),
+                payload,
+            )
+        except Exception:
+            logger.debug("queue idx: sadd failed", exc_info=True)
         return True
 
     async def has_pending_duplicate(
@@ -115,20 +142,55 @@ class RedisQueue:
         player_id: str,
         task_type: str,
         region: str | None,
+        instance_id: str | None = None,
     ) -> bool:
-        """True if the queue already has an item with the same player, task_type, and region."""
+        """True if the queue already has a matching item.
+
+        Matching rules:
+        - Always filters by ``task_type`` and ``region``.
+        - Filters by ``instance_id`` when provided.
+        - Device-level pushes (``player_id=""``) match any player on the same
+          instance, so one queued item blocks re-pushing for all players.
+        - Player-specific pushes match only the same ``player_id``.
+        """
+        # Fast path via index.
+        if instance_id:
+            try:
+                # Device-level items (player_id="") block all players on instance.
+                key_dev = _dup_index_key(
+                    instance_id=instance_id, player_id="", task_type=task_type, region=region
+                )
+                if int(await self._redis.scard(key_dev)) > 0:
+                    return True
+                if player_id:
+                    key_p = _dup_index_key(
+                        instance_id=instance_id,
+                        player_id=player_id,
+                        task_type=task_type,
+                        region=region,
+                    )
+                    return int(await self._redis.scard(key_p)) > 0
+                # caller is device-level; checked key_dev above
+                return False
+            except Exception:
+                logger.debug("queue idx: scard failed; falling back to scan", exc_info=True)
+
+        # Fallback: scan the queue ZSET.
         import json
 
         want_region = str(region).strip() if region else ""
-        all_items = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", "+inf")
+        device_level = not player_id
+        all_items = await self._redis.zrangebyscore(_queue_key(instance_id or ""), "-inf", "+inf")
         for raw in all_items:
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if str(data.get("player_id", "")) != player_id:
+            if instance_id and str(data.get("instance_id", "")) != instance_id:
                 continue
             if str(data.get("task_type", "")) != task_type:
+                continue
+            if not device_level and str(data.get("player_id", "")) != player_id:
                 continue
             got = data.get("region")
             got_s = str(got).strip() if got is not None else ""
@@ -137,7 +199,6 @@ class RedisQueue:
         return False
 
     @staticmethod
-    @lru_cache(maxsize=1)
     def _task_types_requiring_node() -> set[str]:
         """Task types from `scenarios/by_cron/*.yaml` that declare `node`.
 
@@ -147,6 +208,27 @@ class RedisQueue:
         cron_dir = repo_root / "scenarios" / "by_cron"
         if not cron_dir.is_dir():
             return set()
+        fp = RedisQueue._cron_dir_fingerprint(cron_dir)
+        return RedisQueue._task_types_requiring_node_cached(fp)
+
+    @staticmethod
+    def _cron_dir_fingerprint(cron_dir: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+        """Stable fingerprint for by_cron YAMLs for cache invalidation."""
+        items: list[tuple[str, int, int]] = []
+        for p in sorted(cron_dir.glob("*.yaml")):
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            items.append((p.name, int(st.st_mtime_ns), int(st.st_size)))
+        return (str(cron_dir), tuple(items))
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _task_types_requiring_node_cached(
+        fp: tuple[str, tuple[tuple[str, int, int], ...]]
+    ) -> set[str]:
+        cron_dir = Path(fp[0])
         try:
             import yaml
         except Exception:
@@ -187,13 +269,14 @@ class RedisQueue:
                 instance_players = instance_players | {ap}
         except Exception:
             pass
-        candidates = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", now)
+        key = _queue_key(instance_id)
+        candidates = await self._redis.zrangebyscore(key, "-inf", now)
 
         due: list[tuple[str, dict[str, object]]] = []
         for raw in candidates:
             data = json.loads(raw)
             pid = str(data.get("player_id", ""))
-            if data["instance_id"] == instance_id and (pid == "" or pid in instance_players):
+            if str(data.get("instance_id", "")) == instance_id and (pid == "" or pid in instance_players):
                 due.append((raw, data))
 
         if not due:
@@ -214,7 +297,24 @@ class RedisQueue:
             )
         )
         raw, data = due[0]
-        await self._redis.zrem(_QUEUE_KEY, raw)
+        await self._redis.zrem(key, raw)
+        # Keep duplicate index in sync (best-effort).
+        try:
+            pid = str(data.get("player_id", ""))
+            ttype = str(data.get("task_type", ""))
+            reg_raw = data.get("region")
+            reg_s = str(reg_raw).strip() if reg_raw is not None and str(reg_raw).strip() != "" else None
+            await self._redis.srem(
+                _dup_index_key(
+                    instance_id=instance_id,
+                    player_id=pid,
+                    task_type=ttype,
+                    region=reg_s,
+                ),
+                raw,
+            )
+        except Exception:
+            logger.debug("queue idx: srem failed", exc_info=True)
         reg = data.get("region")
         region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
         tap_x = data.get("tap_x_pct")
@@ -250,60 +350,76 @@ class RedisQueue:
     async def peek_all(self) -> list[QueueItem]:
         import json
 
-        items = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", "+inf", withscores=True)
         results: list[QueueItem] = []
-        for raw, score in items:
-            data = json.loads(raw)
-            reg = data.get("region")
-            region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
-            tap_x = data.get("tap_x_pct")
-            tap_y = data.get("tap_y_pct")
-            tap_x_pct = float(tap_x) if tap_x is not None else None
-            tap_y_pct = float(tap_y) if tap_y is not None else None
-            thr = data.get("threshold")
-            threshold = float(thr) if thr is not None else None
-            sc = data.get("overlay_match_score")
-            if sc is None:
-                sc = data.get("score")
-            score = float(sc) if sc is not None else None
-            sn = data.get("set_node")
-            set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
-            ds = data.get("dsl_scenario")
-            dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
-            results.append(
-                QueueItem(
-                    task_id=data["task_id"],
-                    player_id=data["player_id"],
-                    task_type=data["task_type"],
-                    priority=data.get("priority", 0),
-                    run_at=float(data.get("run_at", score)),
-                    instance_id=data["instance_id"],
-                    region=region,
-                    tap_x_pct=tap_x_pct,
-                    tap_y_pct=tap_y_pct,
-                    threshold=threshold,
-                    score=score,
-                    set_node=set_node,
-                    dsl_scenario=dsl_scenario,
+        keys: list[str] = []
+        async for k in self._redis.scan_iter(match="wos:queue:*"):
+            ks = k.decode() if isinstance(k, bytes) else str(k)
+            if ":running" in ks:
+                continue
+            keys.append(ks)
+        for key in keys:
+            try:
+                items = await self._redis.zrangebyscore(key, "-inf", "+inf", withscores=True)
+            except Exception:
+                continue
+            for raw, score in items:
+                data = json.loads(raw)
+                reg = data.get("region")
+                region = (
+                    str(reg).strip() if reg is not None and str(reg).strip() != "" else None
                 )
-            )
+                tap_x = data.get("tap_x_pct")
+                tap_y = data.get("tap_y_pct")
+                tap_x_pct = float(tap_x) if tap_x is not None else None
+                tap_y_pct = float(tap_y) if tap_y is not None else None
+                thr = data.get("threshold")
+                threshold = float(thr) if thr is not None else None
+                sc = data.get("overlay_match_score")
+                if sc is None:
+                    sc = data.get("score")
+                score_val = float(sc) if sc is not None else None
+                sn = data.get("set_node")
+                set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
+                ds = data.get("dsl_scenario")
+                dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
+                results.append(
+                    QueueItem(
+                        task_id=data["task_id"],
+                        player_id=data["player_id"],
+                        task_type=data["task_type"],
+                        priority=data.get("priority", 0),
+                        run_at=float(data.get("run_at", score)),
+                        instance_id=str(data.get("instance_id") or ""),
+                        region=region,
+                        tap_x_pct=tap_x_pct,
+                        tap_y_pct=tap_y_pct,
+                        threshold=threshold,
+                        score=score_val,
+                        set_node=set_node,
+                        dsl_scenario=dsl_scenario,
+                    )
+                )
         return results
 
     async def remove(self, task_id: str) -> None:
         import json
 
-        all_items = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", "+inf")
-        for raw in all_items:
-            data = json.loads(raw)
-            if data["task_id"] == task_id:
-                await self._redis.zrem(_QUEUE_KEY, raw)
-                return
+        async for key in self._redis.scan_iter(match="wos:queue:*"):
+            ks = key.decode() if isinstance(key, bytes) else str(key)
+            if ":running" in ks:
+                continue
+            all_items = await self._redis.zrangebyscore(ks, "-inf", "+inf")
+            for raw in all_items:
+                data = json.loads(raw)
+                if data["task_id"] == task_id:
+                    await self._redis.zrem(ks, raw)
+                    return
 
     async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
         """Remove all queued items matching task_type + instance_id. Returns count removed."""
         import json
 
-        all_items = await self._redis.zrangebyscore(_QUEUE_KEY, "-inf", "+inf")
+        all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
         removed = 0
         for raw in all_items:
             try:
@@ -314,7 +430,7 @@ class RedisQueue:
                 str(data.get("task_type") or "") == task_type
                 and str(data.get("instance_id") or "") == instance_id
             ):
-                await self._redis.zrem(_QUEUE_KEY, raw)
+                await self._redis.zrem(_queue_key(instance_id), raw)
                 removed += 1
         return removed
 

@@ -4,7 +4,7 @@ from typing import Any
 
 import cv2
 
-from tasks.dsl_scenario import _dominant_color_label
+from layout.color_bucket import dominant_color_label_bgr
 
 
 def _region_bbox_pct(area_doc: dict[str, Any], name: str) -> dict[str, Any]:
@@ -47,6 +47,6 @@ def test_color_check_is_has_new_mail_is_red() -> None:
     y1 = max(y0 + 1, min(h, y0 + max(1, bh) + 2 * pad))
 
     patch = img[y0:y1, x0:x1]
-    dominant, shares = _dominant_color_label(patch)
+    dominant, shares = dominant_color_label_bgr(patch)
     assert dominant == "red", f"dominant={dominant} shares={shares}"
 

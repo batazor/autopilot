@@ -8,15 +8,16 @@ import time
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import cv2
 import numpy as np
 import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
+from layout.color_bucket import dominant_color_label_bgr
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Point, Region
@@ -40,57 +41,6 @@ _COLOR_WORD_ALIASES: dict[str, str] = {
     "зелёный": "green",
     "зеленый": "green",
 }
-
-
-def _dominant_color_label(patch_bgr: np.ndarray) -> tuple[str, dict[str, float]]:
-    """Return (dominant_label, share_map) for patch (BGR).
-
-    Labels: red/blue/green/gray.
-    """
-    if patch_bgr.size <= 0:
-        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
-    try:
-        hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
-    except Exception:
-        return "gray", {"red": 0.0, "blue": 0.0, "green": 0.0, "gray": 1.0}
-
-    h = hsv[:, :, 0].astype(np.int16, copy=False)  # 0..179
-    s = hsv[:, :, 1].astype(np.int16, copy=False)  # 0..255
-    v = hsv[:, :, 2].astype(np.int16, copy=False)  # 0..255
-
-    gray_mask = (s < 40) | (v < 40)
-    color_mask = ~gray_mask
-
-    red_mask = color_mask & ((h <= 10) | (h >= 170))
-    green_mask = color_mask & (h >= 35) & (h <= 85)
-    blue_mask = color_mask & (h >= 90) & (h <= 140)
-
-    other_mask = color_mask & ~(red_mask | green_mask | blue_mask)
-    other_red = other_blue = other_green = 0
-    if np.any(other_mask):
-        ho = h[other_mask]
-        d_red = np.minimum(ho, 180 - ho)  # wrap-around
-        d_green = np.abs(ho - 60)
-        d_blue = np.abs(ho - 120)
-        idx = np.stack([d_red, d_blue, d_green], axis=0).argmin(axis=0)
-        other_red = int(np.sum(idx == 0))
-        other_blue = int(np.sum(idx == 1))
-        other_green = int(np.sum(idx == 2))
-
-    n = int(h.size) or 1
-    c_red = int(np.count_nonzero(red_mask)) + other_red
-    c_blue = int(np.count_nonzero(blue_mask)) + other_blue
-    c_green = int(np.count_nonzero(green_mask)) + other_green
-    c_gray = int(np.count_nonzero(gray_mask))
-
-    shares = {
-        "red": c_red / n,
-        "blue": c_blue / n,
-        "green": c_green / n,
-        "gray": c_gray / n,
-    }
-    dominant = max(shares.items(), key=lambda kv: kv[1])[0]
-    return dominant, shares
 
 # Simple guard for DSL steps, e.g. ``cond: currentNode != main_city`` (skip when false).
 _COND_SCREEN_RE = re.compile(
@@ -194,7 +144,11 @@ async def _enqueue_scenario(
     # Optional duplicate guard: same (player, task_type) already queued.
     if skip_if_duplicate:
         try:
-            items = await redis_async.zrangebyscore("wos:queue", "-inf", "+inf")
+            items = await redis_async.zrangebyscore(
+                f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown",
+                "-inf",
+                "+inf",
+            )
             for raw in items:
                 try:
                     payload = raw.decode() if isinstance(raw, bytes) else str(raw)
@@ -218,12 +172,27 @@ async def _enqueue_scenario(
         "run_at": float(run_at),
         "instance_id": instance_id,
     }
-    await redis_async.zadd("wos:queue", {json.dumps(body): float(run_at)})
+    qkey = f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown"
+    await redis_async.zadd(qkey, {json.dumps(body): float(run_at)})
     return True
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    try:
+        st = path.stat()
+    except OSError:
+        return {}
+    return _load_yaml_cached(str(path), st.st_mtime_ns, st.st_size)
+
+
+@lru_cache(maxsize=512)
+def _load_yaml_cached(path_s: str, mtime_ns: int, size: int) -> dict[str, Any]:
+    # mtime_ns/size are part of the cache key; they auto-invalidate on file change.
+    _ = (mtime_ns, size)
+    try:
+        raw = yaml.safe_load(Path(path_s).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
     return raw if isinstance(raw, dict) else {}
 
 
@@ -756,16 +725,16 @@ class DslScenarioTask:
 
             - color_check: <region_name>
               type: red|blue|gray|green   # default = inherits area.json `type`
-              min_share: 0.55             # optional, default=0.50
+              threshold: 0.55             # optional, default=0.50 (share of dominant pixels)
         """
         raw_want = str(step.get("type") or "").strip().lower()
         want = _COLOR_WORD_ALIASES.get(raw_want, raw_want)
-        min_share_raw = step.get("min_share")
+        threshold_raw = step.get("threshold")
         try:
-            min_share = float(min_share_raw) if min_share_raw is not None else 0.50
+            threshold = float(threshold_raw) if threshold_raw is not None else 0.50
         except (TypeError, ValueError):
-            min_share = 0.50
-        min_share = max(0.0, min(1.0, min_share))
+            threshold = 0.50
+        threshold = max(0.0, min(1.0, threshold))
 
         pair = screen_region_by_name(area_doc, region) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
@@ -777,7 +746,7 @@ class DslScenarioTask:
                     "dsl_last_color_want": want,
                     "dsl_last_color_dominant": "",
                     "dsl_last_color_share": "",
-                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
                 },
             )
             return False
@@ -796,7 +765,7 @@ class DslScenarioTask:
                     "dsl_last_color_want": want,
                     "dsl_last_color_dominant": "",
                     "dsl_last_color_share": "",
-                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
                 },
             )
             return False
@@ -817,7 +786,7 @@ class DslScenarioTask:
                     "dsl_last_color_want": want,
                     "dsl_last_color_dominant": "",
                     "dsl_last_color_share": "",
-                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
                 },
             )
             return False
@@ -838,7 +807,7 @@ class DslScenarioTask:
                     "dsl_last_color_want": want,
                     "dsl_last_color_dominant": "",
                     "dsl_last_color_share": "",
-                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
                 },
             )
             return False
@@ -852,7 +821,7 @@ class DslScenarioTask:
                     "dsl_last_color_want": want,
                     "dsl_last_color_dominant": "",
                     "dsl_last_color_share": "",
-                    "dsl_last_color_min_share": f"{min_share:.3f}",
+                    "dsl_last_color_threshold": f"{threshold:.3f}",
                 },
             )
             return False
@@ -862,9 +831,9 @@ class DslScenarioTask:
         x1 = max(x0 + 1, min(w, x0 + bw))
         y1 = max(y0 + 1, min(h, y0 + bh))
         patch = image[y0:y1, x0:x1]
-        dominant, shares = _dominant_color_label(patch)
+        dominant, shares = dominant_color_label_bgr(patch)
         share = float(shares.get(dominant, 0.0))
-        ok = dominant == want and share >= min_share
+        ok = dominant == want and share >= threshold
 
         await self._persist_dsl_last_color(
             instance_id,
@@ -874,7 +843,7 @@ class DslScenarioTask:
                 "dsl_last_color_want": want,
                 "dsl_last_color_dominant": dominant,
                 "dsl_last_color_share": f"{share:.3f}",
-                "dsl_last_color_min_share": f"{min_share:.3f}",
+                "dsl_last_color_threshold": f"{threshold:.3f}",
             },
         )
         return ok
@@ -1196,18 +1165,34 @@ class DslScenarioTask:
                 actions=actions,
                 scenario_key=key,
             )
+            if nav_ok and self.redis_client is not None:
+                with suppress(Exception):
+                    await self.redis_client.hset(
+                        f"wos:instance:{instance_id}:state", "nav_error", ""
+                    )
             if not nav_ok:
                 await self._clear_step_context(instance_id)
-                # Write persistent nav error to Redis so UI can surface it.
                 if self.redis_client is not None:
                     with suppress(Exception):
                         await self.redis_client.hset(
                             f"wos:instance:{instance_id}:state",
-                            "nav_error",
-                            f"navigation_failed: {key} → {target_node} (no route or verify failed)",
+                            mapping={
+                                "nav_error": f"navigation_failed: {key} → {target_node} (no route or verify failed)",
+                                "current_screen": "",
+                            },
                         )
-                # 5-minute cooldown: rescheduled item blocks overlay from re-pushing
-                # the same scenario (skip_if_duplicate) until the route is in place.
+                    with suppress(Exception):
+                        from scheduler.queue import RedisQueue
+                        q = RedisQueue(self.redis_client)
+                        await q.schedule(
+                            task_id=f"nav_fail:where_i_am:{instance_id}:{int(time.time())}",
+                            player_id="",
+                            task_type="where_i_am",
+                            priority=90_000,
+                            run_at=time.time(),
+                            instance_id=instance_id,
+                            skip_if_duplicate=True,
+                        )
                 return TaskResult(
                     success=False,
                     next_run_at=datetime.now() + timedelta(minutes=5),

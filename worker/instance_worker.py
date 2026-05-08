@@ -123,6 +123,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 "worker_started_at": str(time.time()),
                 "last_seen_at": str(time.time()),
                 "last_error": "",
+                "nav_error": "",
                 "current_task_player": "",
                 "current_task_started_at": "",
                 "current_task_region": "",
@@ -192,28 +193,26 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         """Resolve device-level queue items (player_id="") to an actual player id."""
         if item.player_id:
             return item
-        if _TASK_REGISTRY.get(item.task_type) is None:
-            # Unknown task types are DSL scenarios. Those are commonly
-            # device-level probes/overlays (notably `who_i_am`), so assigning
-            # `player_ids[0]` here would show a fake active account before OCR.
-            return item
+
         active = None
         if self._redis is not None:
             raw = await self._redis.hget(
                 f"wos:instance:{self._cfg.instance_id}:state", "active_player"
             )
             if raw:
-                active = raw.decode() if isinstance(raw, bytes) else str(raw)
-        window_title = str(getattr(self._cfg, "bluestacks_window_title", "") or "").strip()
-        _cfg_pids = player_ids_for_device(window_title)
-        cfg_player_ids = list(getattr(self._cfg, "player_ids", []) or [])
-        resolved = (
-            active
-            or (str(cfg_player_ids[0]) if cfg_player_ids else "")
-            or (_cfg_pids[0] if _cfg_pids else "")
-        ).strip()
-        if not resolved:
-            return item
+                active = (raw.decode() if isinstance(raw, bytes) else str(raw)).strip()
+
+        if _TASK_REGISTRY.get(item.task_type) is None:
+            # DSL scenario: use active_player if already known; otherwise stay
+            # device-level (e.g. who_i_am runs before any player is identified).
+            if not active:
+                return item
+            resolved = active
+        else:
+            _cfg_pids = player_ids_for_device(self._cfg.bluestacks_window_title)
+            resolved = (active or (_cfg_pids[0] if _cfg_pids else "")).strip()
+            if not resolved:
+                return item
         return QueueItem(
             task_id=item.task_id,
             player_id=resolved,

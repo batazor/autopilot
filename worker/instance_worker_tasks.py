@@ -11,6 +11,12 @@ from tasks.dsl_scenario import DslScenarioTask
 
 logger = logging.getLogger(__name__)
 
+_RUNNING_KEY_GLOBAL = "wos:queue:running"
+
+
+def _running_key_for_instance(instance_id: str) -> str:
+    return f"wos:queue:running:{instance_id}"
+
 
 def _redis_float_str(value: float | None) -> str:
     if value is None:
@@ -46,6 +52,30 @@ class InstanceWorkerTasksMixin:
 
         state_key = f"wos:instance:{self._cfg.instance_id}:state"
         await self._set_instance_state(InstanceState.BUSY)
+        # Publish currently-running job for UI. TTL avoids stale state on crashes.
+        if self._redis is not None:
+            try:
+                import json
+                inst_running_key = _running_key_for_instance(self._cfg.instance_id)
+
+                payload = json.dumps(
+                    {
+                        "task_id": item.task_id,
+                        "task_type": item.task_type,
+                        "player_id": item.player_id,
+                        "priority": item.priority,
+                        "instance_id": self._cfg.instance_id,
+                        "region": item.region or "",
+                        "started_at": float(time.time()),
+                    },
+                    ensure_ascii=False,
+                )
+                # Per-instance key (preferred).
+                await self._redis.set(inst_running_key, payload, ex=180)  # type: ignore[union-attr]
+                # Backward-compat: global "last running" snapshot.
+                await self._redis.set(_RUNNING_KEY_GLOBAL, payload, ex=180)  # type: ignore[union-attr]
+            except Exception:
+                logger.debug("queue running key update failed", exc_info=True)
         # Which YAML is running (queue key == scenario stem for `DslScenarioTask`).
         scenario_for_job = ""
         if isinstance(task, DslScenarioTask):
@@ -110,6 +140,19 @@ class InstanceWorkerTasksMixin:
         finally:
             self._task_busy.clear()
             await self._set_instance_state(InstanceState.READY)
+            if self._redis is not None:
+                try:
+                    inst_running_key = _running_key_for_instance(self._cfg.instance_id)
+                    raw = await self._redis.get(inst_running_key)  # type: ignore[union-attr]
+                    if raw:
+                        import json
+
+                        txt = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+                        data = json.loads(txt)
+                        if str(data.get("task_id") or "") == item.task_id:
+                            await self._redis.delete(inst_running_key)  # type: ignore[union-attr]
+                except Exception:
+                    logger.debug("queue running key cleanup failed", exc_info=True)
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
                 mapping={

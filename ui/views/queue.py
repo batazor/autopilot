@@ -8,8 +8,12 @@ from datetime import timedelta
 
 import streamlit as st
 
+from config.loader import load_settings
 from ui.redis_client import (
+    count_queue_tasks_for_instance,
+    fetch_next_queue_row_for_instance,
     fetch_queue_rows,
+    fetch_running_queue_row,
     push_scheduler_command,
     remove_queue_task,
     require_redis_connection,
@@ -24,9 +28,27 @@ client = require_redis_connection()
 def _queue_fragment() -> None:
     now = time.time()
     rows = fetch_queue_rows(client)
+    settings = load_settings()
 
     hdr, refresh_btn = st.columns([5, 1])
     with hdr:
+        inst_ids = [i.instance_id for i in settings.instances]
+        running_rows = [
+            (iid, fetch_running_queue_row(client, instance_id=iid)) for iid in inst_ids
+        ]
+        running_rows = [(iid, r) for iid, r in running_rows if r is not None and r.task_id]
+        if running_rows:
+            with st.expander("Running now (all instances)", expanded=True):
+                for iid, r in running_rows:
+                    ago_s = ""
+                    if r.started_at > 0:
+                        ago_s = f" · {int(max(0, now - r.started_at))}s ago"
+                    st.info(
+                        f"**{iid}** · **{r.task_type}** · task_id `{r.task_id}` · "
+                        f"player `{r.player_id or '—'}`"
+                        + (f" · region `{r.region}`" if r.region else "")
+                        + ago_s
+                    )
         if rows:
             overdue_n = sum(1 for r in rows if r.scheduled_at < now)
             parts = [f"**{len(rows)}** task(s)"]
@@ -36,6 +58,19 @@ def _queue_fragment() -> None:
     with refresh_btn:
         if st.button("🔄", help="Refresh now", key="queue_refresh_btn", width="stretch"):
             st.rerun()
+
+    # Per-instance glance: size + next due.
+    inst_ids = [i.instance_id for i in settings.instances]
+    if inst_ids:
+        with st.expander("Queue per instance", expanded=False):
+            for iid in inst_ids:
+                size = count_queue_tasks_for_instance(client, instance_id=iid)
+                next_row = fetch_next_queue_row_for_instance(client, instance_id=iid)
+                next_txt = "—"
+                if next_row is not None and next_row.scheduled_at:
+                    ts = time.strftime("%H:%M:%S", time.localtime(next_row.scheduled_at))
+                    next_txt = f"{ts} · {next_row.task_type} · `{next_row.task_id}`"
+                st.caption(f"**{iid}** · queue **{size}** · next: {next_txt}")
 
     if not rows:
         st.info("Queue is empty.")

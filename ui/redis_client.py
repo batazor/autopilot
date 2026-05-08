@@ -25,6 +25,18 @@ class QueueRow:
     payload: dict[str, object] | None = None
 
 
+@dataclass(frozen=True)
+class RunningQueueRow:
+    task_id: str
+    player_id: str
+    task_type: str
+    priority: int
+    instance_id: str
+    started_at: float
+    region: str | None = None
+    payload: dict[str, object] | None = None
+
+
 class InstanceStateRow(TypedDict, total=False):
     state: str
     active_player: str
@@ -42,6 +54,34 @@ class FsmHistoryEntry(TypedDict):
 
 
 _COOPERATIVE_TASKS = frozenset({"defend_ally", "beast"})
+
+
+def _queue_key(instance_id: str) -> str:
+    iid = str(instance_id or "").strip()
+    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
+
+
+def _parse_queue_row(payload: str, score: float) -> QueueRow | None:
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    task_type = str(data.get("task_type", ""))
+    reg = data.get("region")
+    region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
+    return QueueRow(
+        task_id=str(data.get("task_id", "")),
+        player_id=str(data.get("player_id", "")),
+        task_type=task_type,
+        priority=int(data.get("priority", 0)),
+        scheduled_at=float(data.get("run_at", score)),
+        instance_id=str(data.get("instance_id", "")),
+        cooperative=task_type in _COOPERATIVE_TASKS,
+        region=region,
+        payload=data,
+    )
 
 
 @st.cache_resource
@@ -64,7 +104,26 @@ def require_redis_connection() -> redis.Redis:
 
 
 def count_queue_tasks(client: redis.Redis) -> int:
-    return int(client.zcard("wos:queue"))
+    def _is_queue_zset_key(k: str) -> bool:
+        if not k:
+            return False
+        if ":running" in k or ":idx:" in k:
+            return False
+        try:
+            return str(client.type(k) or "").lower() == "zset"
+        except redis.RedisError:
+            return False
+
+    total = 0
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if not _is_queue_zset_key(k):
+            continue
+        try:
+            total += int(client.zcard(k))
+        except redis.RedisError:
+            continue
+    return total
 
 
 def count_claimed_slots(client: redis.Redis) -> int:
@@ -75,43 +134,117 @@ def count_claimed_slots(client: redis.Redis) -> int:
 
 
 def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
-    raw_items = client.zrangebyscore("wos:queue", "-inf", "+inf", withscores=True)
-    rows: list[QueueRow] = []
-    for payload, score in raw_items:
+    def _is_queue_zset_key(k: str) -> bool:
+        if not k:
+            return False
+        if ":running" in k or ":idx:" in k:
+            return False
         try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
+            return str(client.type(k) or "").lower() == "zset"
+        except redis.RedisError:
+            return False
+
+    keys: list[str] = []
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if _is_queue_zset_key(k):
+            keys.append(k)
+
+    rows: list[QueueRow] = []
+    for key in keys:
+        try:
+            raw_items = client.zrangebyscore(key, "-inf", "+inf", withscores=True)
+        except redis.RedisError:
             continue
-        task_type = str(data.get("task_type", ""))
-        reg = data.get("region")
-        region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
-        rows.append(
-            QueueRow(
-                task_id=str(data.get("task_id", "")),
-                player_id=str(data.get("player_id", "")),
-                task_type=task_type,
-                priority=int(data.get("priority", 0)),
-                scheduled_at=float(data.get("run_at", score)),
-                instance_id=str(data.get("instance_id", "")),
-                cooperative=task_type in _COOPERATIVE_TASKS,
-                region=region,
-                payload=data if isinstance(data, dict) else None,
-            )
-        )
+        for payload, score in raw_items:
+            row = _parse_queue_row(payload, float(score))
+            if row is not None:
+                rows.append(row)
     return rows
 
 
+def fetch_running_queue_row(client: redis.Redis, *, instance_id: str | None = None) -> RunningQueueRow | None:
+    key = f"wos:queue:running:{instance_id}" if instance_id else "wos:queue:running"
+    raw = client.get(key)
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    reg = data.get("region")
+    region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
+    try:
+        started_at = float(data.get("started_at", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        started_at = 0.0
+    return RunningQueueRow(
+        task_id=str(data.get("task_id", "")),
+        player_id=str(data.get("player_id", "")),
+        task_type=str(data.get("task_type", "")),
+        priority=int(data.get("priority", 0)),
+        instance_id=str(data.get("instance_id", "")),
+        started_at=started_at,
+        region=region,
+        payload=data,
+    )
+
+
 def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
-    payloads = client.zrangebyscore("wos:queue", "-inf", "+inf")
-    for payload in payloads:
+    def _is_queue_zset_key(k: str) -> bool:
+        if not k:
+            return False
+        if ":running" in k or ":idx:" in k:
+            return False
         try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            continue
-        if str(data.get("task_id", "")) == task_id:
-            client.zrem("wos:queue", payload)
-            return True
+            return str(client.type(k) or "").lower() == "zset"
+        except redis.RedisError:
+            return False
+
+    keys: list[str] = []
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if _is_queue_zset_key(k):
+            keys.append(k)
+    for key in keys:
+        payloads = client.zrangebyscore(key, "-inf", "+inf")
+        for payload in payloads:
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if str(data.get("task_id", "")) == task_id:
+                client.zrem(key, payload)
+                # Best-effort cleanup of duplicate index (if enabled).
+                try:
+                    iid = str(data.get("instance_id", "") or "").strip() or "unknown"
+                    pid = str(data.get("player_id", "") or "").strip()
+                    ttype = str(data.get("task_type", "") or "").strip()
+                    reg = str(data.get("region", "") or "").strip()
+                    idx_key = f"wos:queue:idx:{iid}:{ttype}:{reg}:{pid}"
+                    client.srem(idx_key, payload)
+                except Exception:
+                    pass
+                return True
     return False
+
+
+def count_queue_tasks_for_instance(client: redis.Redis, *, instance_id: str) -> int:
+    """Count queued items for a single instance."""
+    return int(client.zcard(_queue_key(instance_id)))
+
+
+def fetch_next_queue_row_for_instance(
+    client: redis.Redis, *, instance_id: str
+) -> QueueRow | None:
+    """Fetch the earliest scheduled row (by ZSET score) for an instance."""
+    items = client.zrange(_queue_key(instance_id), 0, 0, withscores=True)
+    if not items:
+        return None
+    payload, score = items[0]
+    return _parse_queue_row(payload, float(score))
 
 
 def get_instance_state(client: redis.Redis, instance_id: str) -> dict[str, str]:

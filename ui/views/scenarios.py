@@ -351,7 +351,7 @@ with tab_cron:
                         }
                     )
                     # Same structure as scheduler.queue.RedisQueue.schedule (ZADD score = run_at)
-                    client.zadd("wos:queue", {payload: float(now)})
+                    client.zadd(f"wos:queue:{inst.instance_id}", {payload: float(now)})
                     n += 1
             return n
 

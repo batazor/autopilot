@@ -124,12 +124,27 @@ def _normalize_text_switch_rule(raw: object) -> TextSwitchRule | None:
     return rule
 
 
-@lru_cache(maxsize=1)
-def load_screen_verify_config() -> VerifyConfig:
-    """Load route destination verification rules from ``navigation/screen_verify.yaml``."""
+def _file_fingerprint(path: Path) -> tuple[str, int, int]:
+    try:
+        st = path.stat()
+    except OSError:
+        return (str(path), 0, 0)
+    return (str(path), int(st.st_mtime_ns), int(st.st_size))
+
+
+@lru_cache(maxsize=8)
+def load_screen_verify_config(fp: tuple[str, int, int] | None = None) -> VerifyConfig:
+    """Load route destination verification rules from ``navigation/screen_verify.yaml``.
+
+    Cache key includes file mtime/size so edits are picked up automatically.
+    """
     path = _screen_verify_yaml_path()
     if not path.is_file():
         return {"retry": {}, "screens": {}}
+    if fp is None:
+        return load_screen_verify_config(_file_fingerprint(path))
+    path = Path(fp[0])
+
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
         return {"retry": {}, "screens": {}}

@@ -1,6 +1,6 @@
 import numpy as np
 
-from tasks.dsl_scenario import _dominant_color_label
+from layout.color_bucket import dominant_color_label_bgr
 
 
 def test_dominant_color_label_primary_colors() -> None:
@@ -9,8 +9,8 @@ def test_dominant_color_label_primary_colors() -> None:
     green = np.full((40, 60, 3), (0, 255, 0), dtype=np.uint8)
     gray = np.full((40, 60, 3), (128, 128, 128), dtype=np.uint8)
 
-    assert _dominant_color_label(red)[0] == "red"
-    assert _dominant_color_label(blue)[0] == "blue"
-    assert _dominant_color_label(green)[0] == "green"
-    assert _dominant_color_label(gray)[0] == "gray"
+    assert dominant_color_label_bgr(red)[0] == "red"
+    assert dominant_color_label_bgr(blue)[0] == "blue"
+    assert dominant_color_label_bgr(green)[0] == "green"
+    assert dominant_color_label_bgr(gray)[0] == "gray"
 

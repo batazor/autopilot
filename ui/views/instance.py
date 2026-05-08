@@ -14,6 +14,9 @@ from ui.adb_reference_shot import capture_rolling_live_preview_adb
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
+    count_queue_tasks_for_instance,
+    fetch_next_queue_row_for_instance,
+    fetch_running_queue_row,
     fetch_fsm_history,
     get_instance_state,
     get_redis,
@@ -166,6 +169,30 @@ if instance_id not in choices:
 instance_id = st.selectbox("Instance", choices, index=choices.index(instance_id))
 
 inst_cfg = next(i for i in settings.instances if i.instance_id == instance_id)
+
+# Operator glance: running / queue size / next due.
+running = fetch_running_queue_row(client, instance_id=instance_id)
+queue_n = count_queue_tasks_for_instance(client, instance_id=instance_id)
+next_row = fetch_next_queue_row_for_instance(client, instance_id=instance_id)
+g1, g2, g3 = st.columns(3)
+with g1:
+    if running is not None and running.task_id:
+        ago_s = ""
+        if running.started_at > 0:
+            ago_s = f" ({int(max(0, time.time() - running.started_at))}s ago)"
+        st.metric("Running now", f"{running.task_type}{ago_s}")
+        st.caption(f"task_id `{running.task_id}` · player `{running.player_id or '—'}`")
+    else:
+        st.metric("Running now", "—")
+with g2:
+    st.metric("Queue size", str(queue_n))
+with g3:
+    if next_row is not None and next_row.scheduled_at:
+        ts = time.strftime("%H:%M:%S", time.localtime(next_row.scheduled_at))
+        st.metric("Next due", ts)
+        st.caption(f"{next_row.task_type} · `{next_row.task_id}`")
+    else:
+        st.metric("Next due", "—")
 
 col_left, col_right = st.columns([3, 2], gap="medium")
 

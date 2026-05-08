@@ -54,8 +54,9 @@ async def test_registered_device_task_still_resolves_to_known_player(monkeypatch
         pass
 
     monkeypatch.setitem(instance_worker._TASK_REGISTRY, "registered_task", _RegisteredTask)
+    monkeypatch.setattr(instance_worker, "player_ids_for_device", lambda _: ["765502864"])
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
+    worker._cfg = SimpleNamespace(instance_id="bs1", bluestacks_window_title="emulator-5554")
     worker._redis = _FakeRedis()
 
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(

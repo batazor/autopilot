@@ -29,7 +29,7 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
     cl_want = str(ctx.get("dsl_last_color_want") or "").strip().lower()
     cl_dom = str(ctx.get("dsl_last_color_dominant") or "").strip().lower()
     cl_share = str(ctx.get("dsl_last_color_share") or "").strip()
-    cl_min = str(ctx.get("dsl_last_color_min_share") or "").strip()
+    cl_min = str(ctx.get("dsl_last_color_threshold") or "").strip()
     cl_at = str(ctx.get("dsl_last_color_at") or "").strip()
 
     if not mr and not ox_r and not ox_status and not cl_r and not cl_status:
@@ -100,7 +100,7 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
                     [
                         f"- Region: `{cl_r or '—'}`",
                         f"- Want: `{want_disp}` · dominant: `{dom_disp}`",
-                        f"- Share / min_share: `{share_disp}` / `{min_disp}` · passed: {passed_html}",
+                        f"- Share / threshold: `{share_disp}` / `{min_disp}` · passed: {passed_html}",
                         f"- Status: **`{cl_status or '—'}`**",
                     ]
                 ),

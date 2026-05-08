@@ -32,6 +32,47 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
     return left, top, right, bottom
 
 
+def _ensure_fresh_reference_crop(
+    *,
+    repo_root: Any,
+    ref_rel: str,
+    region_name: str,
+    bbox_pct: dict[str, object],
+    crop_path: Any,
+    area_mtime: float,
+) -> None:
+    """Ensure `references/crop/...` exists and matches latest bbox.
+
+    Re-exports when crop is missing or older than area.json / reference PNG.
+    """
+    try:
+        ref_path = repo_root / ref_rel
+        ref_mtime = float(ref_path.stat().st_mtime) if ref_path.is_file() else 0.0
+        crop_mtime = float(crop_path.stat().st_mtime) if crop_path.is_file() else 0.0
+        need = (not crop_path.is_file()) or (crop_mtime < max(area_mtime, ref_mtime))
+        if not need:
+            return
+        img = cv2.imread(str(ref_path))
+        if img is None:
+            return
+        hr, wr = int(img.shape[0]), int(img.shape[1])
+        x = float(bbox_pct.get("x") or 0.0)
+        y = float(bbox_pct.get("y") or 0.0)
+        bw = float(bbox_pct.get("width") or 0.0)
+        bh = float(bbox_pct.get("height") or 0.0)
+        L = max(0, min(wr - 1, int(round(x / 100.0 * wr))))
+        T = max(0, min(hr - 1, int(round(y / 100.0 * hr))))
+        R = max(L + 1, min(wr, int(round((x + bw) / 100.0 * wr))))
+        B = max(T + 1, min(hr, int(round((y + bh) / 100.0 * hr))))
+        crop = img[T:B, L:R]
+        if crop.size <= 0:
+            return
+        crop_path.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(crop_path), crop)
+    except Exception:
+        return
+
+
 def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     """Idle: inspect overlay rule metrics on the rolling PNG."""
     instance_id = ctx.instance_id
@@ -175,7 +216,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             st.markdown(
                 f"""
                 <div>
-                  <div style="font-size: 0.85rem; opacity: 0.75;">dominant == want &amp; share ≥ min</div>
+                  <div style="font-size: 0.85rem; opacity: 0.75;">dominant == want &amp; share ≥ threshold</div>
                   <div style="font-size: 1.75rem; font-weight: 650; line-height: 1.2; color: {color};">{txt}</div>
                 </div>
                 """,
@@ -186,7 +227,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         with m3:
             st.metric("Want", want or "—")
         with m4:
-            st.metric("Share / min", f"{share_f:.3f} / {thr_f:.3f}" if ok_eval else "—")
+            st.metric("Share / threshold", f"{share_f:.3f} / {thr_f:.3f}" if ok_eval else "—")
     else:
         score_raw = pay.get("score")
         thr_raw = pay.get("threshold")
@@ -278,7 +319,16 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     sought_png: bytes | None = None
     sought_name: str | None = None
     try:
+        area_mtime = float(ctx.area_path.stat().st_mtime) if ctx.area_path.is_file() else 0.0
         crop_path = exported_crop_png(ctx.repo_root, ref_rel, reg_name)
+        _ensure_fresh_reference_crop(
+            repo_root=ctx.repo_root,
+            ref_rel=ref_rel,
+            region_name=reg_name,
+            bbox_pct=reg["bbox"],
+            crop_path=crop_path,
+            area_mtime=area_mtime,
+        )
         if crop_path.is_file():
             tpl = cv2.imread(str(crop_path))
             if tpl is not None:
