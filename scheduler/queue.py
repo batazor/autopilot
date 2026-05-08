@@ -50,6 +50,13 @@ class QueueItem:
     set_node: str | None = None
     # Optional DSL scenario key (imperative_drafts runner).
     dsl_scenario: str | None = None
+    # Optional template match box for UI/debug (overlay-derived tasks).
+    match_top_left_x: int | None = None
+    match_top_left_y: int | None = None
+    template_w: int | None = None
+    template_h: int | None = None
+    tap_match_x_pct: float | None = None
+    tap_match_y_pct: float | None = None
 
 
 class RedisQueue:
@@ -73,6 +80,12 @@ class RedisQueue:
         score: float | None = None,
         set_node: str | None = None,
         dsl_scenario: str | None = None,
+        match_top_left_x: int | None = None,
+        match_top_left_y: int | None = None,
+        template_w: int | None = None,
+        template_h: int | None = None,
+        tap_match_x_pct: float | None = None,
+        tap_match_y_pct: float | None = None,
         skip_if_duplicate: bool = False,
     ) -> bool:
         """Enqueue a task.
@@ -117,6 +130,18 @@ class RedisQueue:
             body["set_node"] = str(set_node).strip()
         if dsl_scenario is not None and str(dsl_scenario).strip() != "":
             body["dsl_scenario"] = str(dsl_scenario).strip()
+        if match_top_left_x is not None:
+            body["match_top_left_x"] = int(match_top_left_x)
+        if match_top_left_y is not None:
+            body["match_top_left_y"] = int(match_top_left_y)
+        if template_w is not None:
+            body["template_w"] = int(template_w)
+        if template_h is not None:
+            body["template_h"] = int(template_h)
+        if tap_match_x_pct is not None:
+            body["tap_match_x_pct"] = float(tap_match_x_pct)
+        if tap_match_y_pct is not None:
+            body["tap_match_y_pct"] = float(tap_match_y_pct)
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
@@ -331,6 +356,18 @@ class RedisQueue:
         set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
         ds = data.get("dsl_scenario")
         dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
+        mtlx = data.get("match_top_left_x")
+        mtly = data.get("match_top_left_y")
+        tw = data.get("template_w")
+        th = data.get("template_h")
+        tmx = data.get("tap_match_x_pct")
+        tmy = data.get("tap_match_y_pct")
+        match_top_left_x = int(mtlx) if mtlx is not None else None
+        match_top_left_y = int(mtly) if mtly is not None else None
+        template_w = int(tw) if tw is not None else None
+        template_h = int(th) if th is not None else None
+        tap_match_x_pct = float(tmx) if tmx is not None else None
+        tap_match_y_pct = float(tmy) if tmy is not None else None
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
@@ -345,6 +382,12 @@ class RedisQueue:
             score=score,
             set_node=set_node,
             dsl_scenario=dsl_scenario,
+            match_top_left_x=match_top_left_x,
+            match_top_left_y=match_top_left_y,
+            template_w=template_w,
+            template_h=template_h,
+            tap_match_x_pct=tap_match_x_pct,
+            tap_match_y_pct=tap_match_y_pct,
         )
 
     async def peek_all(self) -> list[QueueItem]:

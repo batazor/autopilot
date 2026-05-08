@@ -6,6 +6,9 @@ overlay:
     min_match_saturation: 48
     node: mail
     priority: 70_000
+    pushScenario:
+      - name: read_mail_gifts
+        priority: 80_000
 
   - name: big_claim_button.visible
     region: big_claim_button

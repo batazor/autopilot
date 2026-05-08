@@ -227,6 +227,12 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             score=item.score,
             set_node=item.set_node,
             dsl_scenario=item.dsl_scenario,
+            match_top_left_x=item.match_top_left_x,
+            match_top_left_y=item.match_top_left_y,
+            template_w=item.template_w,
+            template_h=item.template_h,
+            tap_match_x_pct=item.tap_match_x_pct,
+            tap_match_y_pct=item.tap_match_y_pct,
         )
 
     async def _ensure_account(self, player_id: str) -> None:

@@ -274,13 +274,14 @@ async def evaluate_overlay_rules_async(
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
                     }
+                    # Always expose match center (before tap offset) for UI/debug.
+                    hit["tap_match_x_pct"] = mx_pct
+                    hit["tap_match_y_pct"] = my_pct
                     if tap_delta is not None:
                         tap_region, dx_pct, dy_pct = tap_delta
                         hit["tap_region"] = tap_region
                         hit["tap_delta_x_pct"] = dx_pct
                         hit["tap_delta_y_pct"] = dy_pct
-                        hit["tap_match_x_pct"] = mx_pct
-                        hit["tap_match_y_pct"] = my_pct
                     if push_tasks:
                         hit["pushScenario"] = push_tasks
                     if set_node_s:
@@ -346,13 +347,13 @@ async def evaluate_overlay_rules_async(
                 "tap_x_pct": tap_x_pct_1,
                 "tap_y_pct": tap_y_pct_1,
             }
+            hit1["tap_match_x_pct"] = mx_pct
+            hit1["tap_match_y_pct"] = my_pct
             if tap_delta_1 is not None:
                 tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
                 hit1["tap_region"] = tap_region_1
                 hit1["tap_delta_x_pct"] = dx_pct_1
                 hit1["tap_delta_y_pct"] = dy_pct_1
-                hit1["tap_match_x_pct"] = mx_pct
-                hit1["tap_match_y_pct"] = my_pct
             if push_tasks:
                 hit1["pushScenario"] = push_tasks
             if set_node_s:

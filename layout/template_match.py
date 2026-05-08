@@ -22,6 +22,8 @@ class TemplateMatchResult(TypedDict):
     score_ncc: float
     # Mean absolute BGR similarity: 1.0 is identical, 0.0 is maximally different.
     score_color: float
+    # Edge-map similarity (Canny on grayscale) as a strict content check.
+    score_edge: float
 
 
 def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> float:
@@ -40,15 +42,35 @@ def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> 
     return max(0.0, min(1.0, 1.0 - mae / 255.0))
 
 
+def _edge_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> float:
+    """Return a strict edge-map similarity score in ``[0, 1]``.
+
+    UI gradients (green bars, panels) can correlate well in grayscale and even in mean color.
+    Edges from glyphs ("Claim") and borders are far more discriminative than flat fills.
+    """
+    if patch_bgr.shape != template_bgr.shape:
+        raise ValueError(
+            f"Edge score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
+        )
+    pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+    pe = cv2.Canny(pg, 50, 150)
+    te = cv2.Canny(tg, 50, 150)
+    diff = np.abs(pe.astype(np.float32) - te.astype(np.float32))
+    mae = float(np.mean(diff))
+    return max(0.0, min(1.0, 1.0 - mae / 255.0))
+
+
 def _combined_match_score(
     patch_bgr: np.ndarray,
     template_bgr: np.ndarray,
-) -> tuple[float, float, float]:
+) -> tuple[float, float, float, float]:
     pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
     tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
     score_ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
     score_color = _color_similarity_score(patch_bgr, template_bgr)
-    return min(score_ncc, score_color), score_ncc, score_color
+    score_edge = _edge_similarity_score(patch_bgr, template_bgr)
+    return min(score_ncc, score_color, score_edge), score_ncc, score_color, score_edge
 
 
 def patch_bgr_from_bbox_percent(
@@ -97,12 +119,13 @@ def match_crop_1to1_at_bbox_percent(
             "Use the same frame size as when exporting references/crop."
         )
 
-    score, score_ncc, score_color = _combined_match_score(patch, template_bgr)
+    score, score_ncc, score_color, score_edge = _combined_match_score(patch, template_bgr)
     return TemplateMatchResult(
         score=score,
         top_left=(L, T),
         score_ncc=score_ncc,
         score_color=score_color,
+        score_edge=score_edge,
     )
 
 
@@ -135,12 +158,14 @@ def match_template_in_search_roi_bbox_percent(
     gy = int(T + y_off)
     patch = roi[y_off : y_off + th, x_off : x_off + tw]
     score_color = _color_similarity_score(patch, template_bgr)
+    score_edge = _edge_similarity_score(patch, template_bgr)
     score_ncc = float(max_val)
     return TemplateMatchResult(
-        score=min(score_ncc, score_color),
+        score=min(score_ncc, score_color, score_edge),
         top_left=(gx, gy),
         score_ncc=score_ncc,
         score_color=score_color,
+        score_edge=score_edge,
     )
 
 

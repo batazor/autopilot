@@ -100,6 +100,11 @@ class InstanceWorkerOverlayMixin:
         reg_snap = str(payload.get("region") or "").strip() or None
         tap_x_pct = _overlay_metric_float(payload.get("tap_x_pct"))
         tap_y_pct = _overlay_metric_float(payload.get("tap_y_pct"))
+        tap_match_x_pct = _overlay_metric_float(payload.get("tap_match_x_pct"))
+        tap_match_y_pct = _overlay_metric_float(payload.get("tap_match_y_pct"))
+        top_left = payload.get("top_left")
+        template_w = payload.get("template_w")
+        template_h = payload.get("template_h")
         threshold_snap = _overlay_metric_float(payload.get("threshold"))
         score_snap = _overlay_metric_float(payload.get("score"))
         if self._redis is not None:
@@ -111,6 +116,19 @@ class InstanceWorkerOverlayMixin:
                     snap["last_overlay_match_threshold"] = f"{threshold_snap:.6g}"
                 if score_snap is not None:
                     snap["last_overlay_match_score"] = f"{score_snap:.6g}"
+                if tap_match_x_pct is not None:
+                    snap["last_overlay_match_x_pct"] = f"{tap_match_x_pct:.6g}"
+                if tap_match_y_pct is not None:
+                    snap["last_overlay_match_y_pct"] = f"{tap_match_y_pct:.6g}"
+                if isinstance(top_left, (list, tuple)) and len(top_left) >= 2:
+                    snap["last_overlay_match_top_left_x"] = str(int(float(top_left[0])))
+                    snap["last_overlay_match_top_left_y"] = str(int(float(top_left[1])))
+                if template_w is not None:
+                    with suppress(TypeError, ValueError):
+                        snap["last_overlay_template_w"] = str(int(template_w))
+                if template_h is not None:
+                    with suppress(TypeError, ValueError):
+                        snap["last_overlay_template_h"] = str(int(template_h))
                 if snap:
                     await self._redis.hset(
                         f"wos:instance:{self._cfg.instance_id}:state",
@@ -156,6 +174,21 @@ class InstanceWorkerOverlayMixin:
                 threshold = threshold_snap
                 score = score_snap
 
+                # Pass match box data through the queue for UI/debug (best-effort).
+                mtlx_i = None
+                mtly_i = None
+                tw_i = None
+                th_i = None
+                if isinstance(top_left, (list, tuple)) and len(top_left) >= 2:
+                    with suppress(TypeError, ValueError):
+                        mtlx_i = int(float(top_left[0]))
+                    with suppress(TypeError, ValueError):
+                        mtly_i = int(float(top_left[1]))
+                with suppress(TypeError, ValueError):
+                    tw_i = int(template_w) if template_w is not None else None
+                with suppress(TypeError, ValueError):
+                    th_i = int(template_h) if template_h is not None else None
+
                 await self._queue.schedule(
                     task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",
                     player_id=player_id,
@@ -166,6 +199,12 @@ class InstanceWorkerOverlayMixin:
                     region=reg_nm,
                     tap_x_pct=tap_x_pct,
                     tap_y_pct=tap_y_pct,
+                    match_top_left_x=mtlx_i,
+                    match_top_left_y=mtly_i,
+                    template_w=tw_i,
+                    template_h=th_i,
+                    tap_match_x_pct=tap_match_x_pct,
+                    tap_match_y_pct=tap_match_y_pct,
                     threshold=threshold,
                     score=score,
                     skip_if_duplicate=True,

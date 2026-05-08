@@ -51,10 +51,27 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
         if mr:
             st.markdown("**Last YAML `match:`**")
             passed = "yes" if mm == "1" else ("no" if mm == "0" else "—")
+            sr = str(ctx.get("dsl_last_match_search_region") or "").strip()
+            tlx = str(ctx.get("dsl_last_match_top_left_x") or "").strip()
+            tly = str(ctx.get("dsl_last_match_top_left_y") or "").strip()
+            tw = str(ctx.get("dsl_last_match_template_w") or "").strip()
+            th = str(ctx.get("dsl_last_match_template_h") or "").strip()
+            txp = str(ctx.get("dsl_last_match_tap_x_pct") or "").strip()
+            typ = str(ctx.get("dsl_last_match_tap_y_pct") or "").strip()
+            tmx = str(ctx.get("dsl_last_match_tap_match_x_pct") or "").strip()
+            tmy = str(ctx.get("dsl_last_match_tap_match_y_pct") or "").strip()
             lines = [
                 f"- Region: `{mr}`",
                 f"- Score / threshold: `{ms or '—'}` / `{mt or '—'}` · passed: **{passed}**",
             ]
+            if sr:
+                lines.append(f"- Search region: `{sr}`")
+            if tlx and tly and tw and th:
+                lines.append(f"- Match box: top_left=({tlx},{tly}) · tpl={tw}×{th} px")
+            if tmx and tmy:
+                lines.append(f"- Match center pct: ({tmx},{tmy})")
+            if txp and typ:
+                lines.append(f"- Tap pct: ({txp},{typ})")
             if md:
                 lines.append(f"- Detail: `{md}`")
             if ma:

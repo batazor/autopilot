@@ -661,6 +661,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "mail_gift_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.56756756756756,
+            "y": 14.673913043478262,
+            "width": 15.183397683397684,
+            "height": 72.59239130434783,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -981,6 +997,44 @@
             "original_width": 720,
             "original_height": 1280
           }
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "screen_id": "",
+      "ocr": "references/big_claim.png",
+      "regions": [
+        {
+          "name": "big_claim_button_disabled",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.69498069498069,
+            "y": 60.43478260869565,
+            "width": 20.0,
+            "height": 4.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "big_claim_button_disabled_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 20.038610038610038,
+            "y": 52.93478260869565,
+            "width": 63.7992277992278,
+            "height": 34.98586956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     }

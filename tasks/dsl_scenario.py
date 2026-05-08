@@ -25,6 +25,9 @@ from tasks.base import TaskResult
 
 logger = logging.getLogger(__name__)
 
+class _BreakRepeat(Exception):
+    """Internal control-flow: break the nearest `repeat:` block."""
+
 # ---------------------------------------------------------------------------
 # Color checks (dominant color in a bbox)
 # ---------------------------------------------------------------------------
@@ -238,6 +241,11 @@ class DslScenarioTask:
     tap_region: str = ""
     tap_x_pct: float | None = None
     tap_y_pct: float | None = None
+    # Last `match:` result (best-effort), used to tap at the actual matched location
+    # instead of the static region center when `*_search` is involved.
+    _last_match_region: str = field(default="", init=False, repr=False)
+    _last_match_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    _last_tap_region_clicked: str = field(default="", init=False, repr=False)
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
@@ -275,6 +283,40 @@ class DslScenarioTask:
             "dsl_last_match_detail": (detail or "").strip(),
             "dsl_last_match_at": str(time.time()),
         }
+        if isinstance(row, dict):
+            tl = row.get("top_left")
+            tw = row.get("template_w")
+            th = row.get("template_h")
+            sr = row.get("search_region")
+            txp = row.get("tap_x_pct")
+            typ = row.get("tap_y_pct")
+            tmx = row.get("tap_match_x_pct")
+            tmy = row.get("tap_match_y_pct")
+            if isinstance(tl, (list, tuple)) and len(tl) >= 2:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_top_left_x"] = str(int(float(tl[0])))
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_top_left_y"] = str(int(float(tl[1])))
+            if tw is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_template_w"] = str(int(tw))
+            if th is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_template_h"] = str(int(th))
+            if sr is not None and str(sr).strip():
+                mapping["dsl_last_match_search_region"] = str(sr).strip()
+            if txp is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_tap_x_pct"] = f"{float(txp):.6g}"
+            if typ is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_tap_y_pct"] = f"{float(typ):.6g}"
+            if tmx is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_tap_match_x_pct"] = f"{float(tmx):.6g}"
+            if tmy is not None:
+                with suppress(TypeError, ValueError):
+                    mapping["dsl_last_match_tap_match_y_pct"] = f"{float(tmy):.6g}"
         try:
             await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=mapping)
         except Exception:
@@ -415,6 +457,9 @@ class DslScenarioTask:
         out = await evaluate_overlay_rules_async(image_bgr, area_doc, repo_root, [rule])
         row = out.get(str(rule["name"]))
         if isinstance(row, dict):
+            # Keep last match for subsequent `click:` on the same region.
+            self._last_match_region = region
+            self._last_match_row = row
             await self._persist_dsl_last_match(
                 instance_id,
                 region=region,
@@ -430,6 +475,9 @@ class DslScenarioTask:
             row=None,
             detail="no_overlay_row",
         )
+        if self._last_match_region == region:
+            self._last_match_region = ""
+            self._last_match_row = None
         return None
 
     async def _ocr_region(
@@ -874,6 +922,23 @@ class DslScenarioTask:
                 int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
                 int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
             )
+        elif (
+            self._last_match_row is not None
+            and self._last_match_region == region
+            and bool(self._last_match_row.get("matched"))
+            and self._last_match_row.get("tap_x_pct") is not None
+            and self._last_match_row.get("tap_y_pct") is not None
+        ):
+            # Tap at the match center (or match+tap_region delta) computed by overlay engine.
+            try:
+                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
+                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                pt = Point(
+                    int(round(txp / 100.0 * dev_w)),
+                    int(round(typ / 100.0 * dev_h)),
+                )
+            except Exception:
+                pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
         else:
             pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
 
@@ -892,6 +957,7 @@ class DslScenarioTask:
                     "reason": "tap_not_approved",
                 },
             )
+        self._last_tap_region_clicked = region
         return None
 
     async def _run_inline_step(
@@ -906,6 +972,11 @@ class DslScenarioTask:
         dev_h: int,
         scenario_key: str,
     ) -> TaskResult | None:
+        if "break" in step:
+            tgt = str(step.get("break") or "").strip().lower()
+            if tgt == "repeat":
+                raise _BreakRepeat()
+            return None
         if "color_check" in step:
             reg = str(step.get("color_check") or "").strip()
             if not reg:
@@ -957,6 +1028,8 @@ class DslScenarioTask:
                 inner_steps = spec.get("steps")
                 until_match = str(spec.get("until_match") or "").strip()
                 until_any = spec.get("until_any_match")
+                stop_click_any = bool(spec.get("stop_after_click"))
+                stop_click_regs_raw = spec.get("stop_after_click_regions")
             else:
                 try:
                     max_iters = int(spec or 1)
@@ -965,6 +1038,8 @@ class DslScenarioTask:
                 inner_steps = step.get("steps")
                 until_match = ""
                 until_any = None
+                stop_click_any = False
+                stop_click_regs_raw = None
 
             max_iters = max(0, max_iters)
             if not isinstance(inner_steps, list) or not inner_steps:
@@ -974,7 +1049,16 @@ class DslScenarioTask:
             if isinstance(until_any, list):
                 until_any_list = [str(x or "").strip() for x in until_any if str(x or "").strip()]
 
+            stop_click_regs: set[str] = set()
+            if isinstance(stop_click_regs_raw, list):
+                stop_click_regs = {
+                    str(x or "").strip()
+                    for x in stop_click_regs_raw
+                    if str(x or "").strip()
+                }
+
             for _ in range(max_iters):
+                self._last_tap_region_clicked = ""
                 if until_match:
                     row = await self._match_region(
                         actions=actions,
@@ -1000,21 +1084,30 @@ class DslScenarioTask:
                         )
                         if row2 is not None and bool(row2.get("matched")):
                             return None
-                for inner in inner_steps:
-                    if not isinstance(inner, dict):
-                        continue
-                    result = await self._run_inline_step(
-                        inner,
-                        actions=actions,
-                        area_doc=area_doc,
-                        repo_root=repo_root,
-                        instance_id=instance_id,
-                        dev_w=dev_w,
-                        dev_h=dev_h,
-                        scenario_key=scenario_key,
-                    )
-                    if result is not None:
-                        return result
+                try:
+                    for inner in inner_steps:
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                        )
+                        if result is not None:
+                            return result
+                        if self._last_tap_region_clicked:
+                            if stop_click_any or (
+                                stop_click_regs
+                                and self._last_tap_region_clicked in stop_click_regs
+                            ):
+                                return None
+                except _BreakRepeat:
+                    return None
             return None
         if "while_match" in step:
             reg = str(step.get("while_match") or "").strip()
@@ -1040,21 +1133,25 @@ class DslScenarioTask:
                 )
                 if row is None or not bool(row.get("matched")):
                     break
-                for inner in inner_steps:
-                    if not isinstance(inner, dict):
-                        continue
-                    result = await self._run_inline_step(
-                        inner,
-                        actions=actions,
-                        area_doc=area_doc,
-                        repo_root=repo_root,
-                        instance_id=instance_id,
-                        dev_w=dev_w,
-                        dev_h=dev_h,
-                        scenario_key=scenario_key,
-                    )
-                    if result is not None:
-                        return result
+                try:
+                    for inner in inner_steps:
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                        )
+                        if result is not None:
+                            return result
+                except _BreakRepeat:
+                    # Propagate to the nearest `repeat:` handler.
+                    raise
                 iterations += 1
 
             logger.info(
@@ -1393,21 +1490,25 @@ class DslScenarioTask:
                                 break
                         if any_hit:
                             break
-                    for inner in inner_steps:
-                        if not isinstance(inner, dict):
-                            continue
-                        result = await self._run_inline_step(
-                            inner,
-                            actions=actions,
-                            area_doc=area_doc,
-                            repo_root=repo_root,
-                            instance_id=instance_id,
-                            dev_w=dev_w,
-                            dev_h=dev_h,
-                            scenario_key=key,
-                        )
-                        if result is not None:
-                            return result
+                    try:
+                        for inner in inner_steps:
+                            if not isinstance(inner, dict):
+                                continue
+                            result = await self._run_inline_step(
+                                inner,
+                                actions=actions,
+                                area_doc=area_doc,
+                                repo_root=repo_root,
+                                instance_id=instance_id,
+                                dev_w=dev_w,
+                                dev_h=dev_h,
+                                scenario_key=key,
+                            )
+                            if result is not None:
+                                return result
+                    except _BreakRepeat:
+                        # Stop the nearest repeat and continue with the next outer step.
+                        break
                 continue
             if "push_scenario" in step:
                 await self._write_step_context(instance_id, scenario=key)

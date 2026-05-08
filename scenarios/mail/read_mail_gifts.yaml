@@ -23,11 +23,13 @@ steps:
               steps:
                 - click: big_claim_button
                 - wait: 0.8s
+                - break: repeat
             - while_match: claim_button
               max: 1
               steps:
                 - click: claim_button
                 - wait: 0.8s
+                - break: repeat
             - swipe_direction:
                 direction: down
                 delta: 450

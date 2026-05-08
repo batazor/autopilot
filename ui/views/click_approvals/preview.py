@@ -188,11 +188,39 @@ def render_preview_with_point(
         if isinstance(ctx0, dict):
             reg_name = str(ctx0.get("current_task_region") or "").strip()
             if reg_name:
-                area_doc = load_area_doc(ctx.area_path)
-                pair = screen_region_by_name(area_doc, reg_name)
-                if pair is not None and isinstance(pair[1].get("bbox"), dict):
-                    L, T, R, B = pct_bbox_to_px_rect(pair[1]["bbox"], w, h)
-                    _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=reg_name)
+                # If overlay provided an actual match box (e.g. found within *_search),
+                # prefer it over the static area.json bbox to avoid misleading overlays.
+                try:
+                    mtlx = int(float(ctx0.get("current_task_match_top_left_x") or 0))
+                    mtly = int(float(ctx0.get("current_task_match_top_left_y") or 0))
+                    tw = int(float(ctx0.get("current_task_template_w") or 0))
+                    th = int(float(ctx0.get("current_task_template_h") or 0))
+                except Exception:
+                    mtlx = mtly = tw = th = 0
+
+                if tw <= 0 or th <= 0:
+                    # Fallback for DSL taps: use `dsl_last_match_*` if it matches the region we are tapping.
+                    try:
+                        if str(ctx0.get("dsl_last_match_region") or "").strip() == reg_name:
+                            mtlx = int(float(ctx0.get("dsl_last_match_top_left_x") or 0))
+                            mtly = int(float(ctx0.get("dsl_last_match_top_left_y") or 0))
+                            tw = int(float(ctx0.get("dsl_last_match_template_w") or 0))
+                            th = int(float(ctx0.get("dsl_last_match_template_h") or 0))
+                    except Exception:
+                        pass
+
+                if tw > 0 and th > 0:
+                    x0 = max(0, min(w - 1, mtlx))
+                    y0 = max(0, min(h - 1, mtly))
+                    x1 = max(x0 + 1, min(w, mtlx + tw))
+                    y1 = max(y0 + 1, min(h, mtly + th))
+                    _draw_focus_rect(bgr, x0=x0, y0=y0, x1=x1, y1=y1, label=f"{reg_name} (match)")
+                else:
+                    area_doc = load_area_doc(ctx.area_path)
+                    pair = screen_region_by_name(area_doc, reg_name)
+                    if pair is not None and isinstance(pair[1].get("bbox"), dict):
+                        L, T, R, B = pct_bbox_to_px_rect(pair[1]["bbox"], w, h)
+                        _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=reg_name)
 
     if x is not None and y is not None:
         px = int(max(0, min(w - 1, x)))
@@ -220,7 +248,17 @@ def render_preview_with_point(
     ctx0 = payload.get("context")
     if not isinstance(ctx0, dict):
         return
-    reg_name = str(ctx0.get("current_task_region") or "").strip()
+    # Prefer the request's explicit region label (what we are about to click),
+    # then the approval context hint; fall back to the task-level overlay region.
+    reg_name = ""
+    try:
+        reg_name = str(payload.get("region") or "").strip()
+    except Exception:
+        reg_name = ""
+    if not reg_name:
+        reg_name = str(ctx0.get("approval_region") or "").strip()
+    if not reg_name:
+        reg_name = str(ctx0.get("current_task_region") or "").strip()
     if not reg_name:
         return
     area_doc = load_area_doc(ctx.area_path)
@@ -234,7 +272,32 @@ def render_preview_with_point(
     if not ref_rel:
         return
 
-    L, T, R, B = pct_bbox_to_px_rect(reg["bbox"], w, h)
+    # Prefer dynamic match box (from overlay) over static area bbox for "live crop".
+    try:
+        mtlx = int(float(ctx0.get("current_task_match_top_left_x") or 0))
+        mtly = int(float(ctx0.get("current_task_match_top_left_y") or 0))
+        tw = int(float(ctx0.get("current_task_template_w") or 0))
+        th = int(float(ctx0.get("current_task_template_h") or 0))
+    except Exception:
+        mtlx = mtly = tw = th = 0
+
+    if tw <= 0 or th <= 0:
+        try:
+            if str(ctx0.get("dsl_last_match_region") or "").strip() == reg_name:
+                mtlx = int(float(ctx0.get("dsl_last_match_top_left_x") or 0))
+                mtly = int(float(ctx0.get("dsl_last_match_top_left_y") or 0))
+                tw = int(float(ctx0.get("dsl_last_match_template_w") or 0))
+                th = int(float(ctx0.get("dsl_last_match_template_h") or 0))
+        except Exception:
+            pass
+
+    if tw > 0 and th > 0:
+        L = max(0, min(w - 1, mtlx))
+        T = max(0, min(h - 1, mtly))
+        R = max(L + 1, min(w, mtlx + tw))
+        B = max(T + 1, min(h, mtly + th))
+    else:
+        L, T, R, B = pct_bbox_to_px_rect(reg["bbox"], w, h)
     pad = 6
     L = max(0, min(w - 1, int(L - pad)))
     T = max(0, min(h - 1, int(T - pad)))
