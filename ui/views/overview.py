@@ -25,9 +25,9 @@ ensure_embedded_bot()
 st.title("Overview")
 
 st.page_link(
-    "views/live_player.py",
-    label="Live player",
-    help="Redis snapshot per player — buildings, avatar, …",
+    "views/player_state.py",
+    label="Player state",
+    help="Redis live hash and persisted db/state.yaml per account.",
 )
 
 if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
@@ -136,10 +136,10 @@ def _render_player_identity(
     col_av, col_txt, col_live = st.columns([1, 5, 0.85], vertical_alignment="center")
     with col_live:
         st.page_link(
-            "views/live_player.py",
-            label="Live",
+            "views/player_state.py",
+            label="Player",
             query_params={"player_id": pid},
-            help="Live player — Redis snapshot for this account.",
+            help="Player state — Redis and db/state.yaml for this account.",
             width="stretch",
         )
     with col_av:

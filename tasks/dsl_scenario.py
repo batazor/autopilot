@@ -18,6 +18,7 @@ import yaml
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
 from config.log_ansi import scenario_log_label as _scen
+from config.state_store import get_state_store
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
@@ -390,6 +391,23 @@ class DslScenarioTask:
                 mapping={"current_scenario": scenario},
             )
 
+    def _state_flat(self) -> dict[str, Any] | None:
+        """Flat per-player state for version-aware region lookup.
+
+        Returns ``None`` (default-version semantics) when no player is bound or
+        the state store is unreachable, so a missing/broken state never breaks
+        region resolution — it just falls back to default regions.
+        """
+        pid = str(self.player_id or "").strip()
+        if not pid:
+            return None
+        try:
+            store = get_state_store().get_or_create(pid)
+            return store.to_flat_dict()
+        except Exception as exc:  # noqa: BLE001 — diagnostic, fallback to default
+            logger.debug("dsl: _state_flat fallback for player=%s: %s", pid, exc)
+            return None
+
     async def _persist_dsl_last_match(
         self,
         instance_id: str,
@@ -566,7 +584,7 @@ class DslScenarioTask:
         step: dict[str, Any],
         region: str,
     ) -> dict[str, Any] | None:
-        pair = screen_region_by_name(area_doc, region) if region else None
+        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None:
             logger.warning("dsl_scenario: match region not found in area.json: %s", region)
             await self._persist_dsl_last_match(
@@ -664,7 +682,7 @@ class DslScenarioTask:
         ``<store>_text`` (raw OCR text), ``<store>_confidence`` and ``<store>_at`` for
         debugging. Low-confidence reads are logged and skipped, never persisted.
         """
-        pair = screen_region_by_name(area_doc, region) if region else None
+        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning(
                 "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
@@ -758,7 +776,7 @@ class DslScenarioTask:
             region = str(step.get("ocr") or "").strip()
             if not region:
                 continue
-            pair = screen_region_by_name(area_doc, region)
+            pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat())
             if pair is None or not isinstance(pair[1].get("bbox"), dict):
                 logger.warning(
                     "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
@@ -1104,7 +1122,7 @@ class DslScenarioTask:
             threshold = 0.50
         threshold = max(0.0, min(1.0, threshold))
 
-        pair = screen_region_by_name(area_doc, region) if region else None
+        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             await self._persist_dsl_last_color(
                 instance_id,
@@ -1231,7 +1249,7 @@ class DslScenarioTask:
         scenario_key: str,
         region: str,
     ) -> TaskResult | None:
-        pair = screen_region_by_name(area_doc, region) if region else None
+        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning("dsl_scenario: region not found in area.json: %s", region)
             return None
@@ -1340,7 +1358,7 @@ class DslScenarioTask:
             except Exception:
                 duration_ms = 800
 
-            pair = screen_region_by_name(area_doc, region) if region else None
+            pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
             if pair is None:
                 logger.warning("dsl_scenario: unknown region %r for long_click", region)
                 return None
@@ -2298,7 +2316,7 @@ class DslScenarioTask:
             if "click" in step:
                 reg = str(step.get("click") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
-                pair = screen_region_by_name(area_doc, reg) if reg else None
+                pair = screen_region_by_name(area_doc, reg, state_flat=self._state_flat()) if reg else None
                 # For click approvals: expose region + optional threshold (overlay queue may
                 # already set ``current_task_threshold``; do not overwrite).
                 if reg and self.redis_client is not None:
@@ -2356,7 +2374,7 @@ class DslScenarioTask:
                 if not reg:
                     _trace_row(_resumable_step, step, "ok")
                     continue
-                pair = screen_region_by_name(area_doc, reg)
+                pair = screen_region_by_name(area_doc, reg, state_flat=self._state_flat())
                 if pair is None:
                     _trace_row(_resumable_step, step, "stopped", reason="unknown_region")
                     return TaskResult(

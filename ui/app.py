@@ -16,10 +16,10 @@ _ui_dir = Path(__file__).parent
 
 overview = st.Page(str(_ui_dir / "views" / "overview.py"), title="Overview", default=True)
 instance_page = st.Page(str(_ui_dir / "views" / "instance.py"), title="Instance")
-live_player_page = st.Page(
-    str(_ui_dir / "views" / "live_player.py"),
-    title="Live player",
-    url_path="live_player",
+player_state_page = st.Page(
+    str(_ui_dir / "views" / "player_state.py"),
+    title="Player state",
+    url_path="player_state",
 )
 gallery_page = st.Page(str(_ui_dir / "views" / "gallery.py"), title="Gallery")
 click_approvals_page = st.Page(
@@ -32,7 +32,6 @@ wiki_scenarios_page = st.Page(str(_ui_dir / "views" / "wiki_scenarios.py"), titl
 wiki_analyze_page = st.Page(str(_ui_dir / "views" / "wiki_analyze.py"), title="Analyze")
 labeling_page = st.Page(str(_ui_dir / "views" / "labeling.py"), title="Labeling")
 db_gift_codes_page = st.Page(str(_ui_dir / "views" / "db_gift_codes.py"), title="Gift codes")
-db_player_state_page = st.Page(str(_ui_dir / "views" / "db_player_state.py"), title="Player state")
 wiki_db_page = st.Page(str(_ui_dir / "views" / "wiki_db.py"), title="Wiki reference")
 fsm_page = st.Page(
     str(_ui_dir / "views" / "fsm.py"),
@@ -43,8 +42,8 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 
 st.navigation(
     {
-        "Operate": [overview, instance_page, live_player_page],
-        "DB": [db_gift_codes_page, db_player_state_page, wiki_db_page],
+        "Operate": [overview, instance_page, player_state_page],
+        "DB": [db_gift_codes_page, wiki_db_page],
         "Wiki": [
             gallery_page,
             labeling_page,

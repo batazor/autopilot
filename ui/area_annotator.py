@@ -31,7 +31,12 @@ ensure_drawable_canvas_compat()
 from streamlit_drawable_canvas import st_canvas
 
 from capture.adb_screencap import DEFAULT_ADB_BIN
-from layout.area_regions import validate_unique_region_names
+from layout.area_regions import (
+    is_auxiliary_overlay_region,
+    validate_unique_region_names,
+    validate_versions,
+)
+from layout.area_versions import VERSION_ID_RE, compile_cond, next_version_id, normalize_version_id
 from ui.keys import (
     ACTIVE_IMAGE_PATH,
     ANNOT_LABELING_REF,
@@ -92,12 +97,31 @@ class RegionDict(TypedDict, total=False):
     """When True, region is optional overlay helper (search/tap ROI) — skip template crop export."""
 
 
+class VersionDict(TypedDict, total=False):
+    """Visual variant of a screen (e.g. ``v2`` for a high-level hero card layout).
+
+    Region overrides for this version live in the same ``regions[]`` list with
+    a ``_<id>`` suffix; partial-override semantics — only the moved regions
+    need a versioned copy.
+    """
+
+    id: str
+    """Version id, must match ``^v\\d+$`` (e.g. ``v2``, ``v3``)."""
+    cond: str
+    """Python expression evaluated against the player's flat state dict; first truthy version wins."""
+    ocr: str
+    """Optional per-version reference PNG (relative to repo root). When set and active in
+    annotator, the canvas loads this image instead of the entry's default ``ocr`` — so
+    overrides can be drawn against the actually-shifted layout."""
+
+
 class AreaEntryDict(TypedDict, total=False):
     id: int
     ocr: str
     """Game / world screen id in the FSM (same logical screen → many PNGs across worlds). Empty if unset."""
     screen_id: str
     regions: list[RegionDict]
+    versions: list[VersionDict]
 
 
 class FSMDict(TypedDict, total=False):
@@ -295,7 +319,13 @@ def export_all_region_crops_for_area_doc(
 ) -> tuple[list[Path], list[str]]:
     """Write template crops for every screen whose ``ocr`` PNG exists on disk.
 
-    Uses the same rules as :func:`export_region_crops` (skips ``overlay_auxiliary`` regions).
+    Each declared version is exported as its own task group: ``_<vid>``-suffixed regions
+    are cropped from that version's ``versions[].ocr`` (falling back to the entry's default
+    ``ocr`` if the version has no own image), and the crop filename's stem comes from the
+    version's image — so v2 crops naturally end up like ``<entry>_v2_<region>_v2.png``,
+    keeping them physically separate from v1 crops.
+
+    Skips ``overlay_auxiliary`` regions (same rules as :func:`export_region_crops`).
 
     Returns ``(written_paths, warnings)`` — warnings list missing reference files or load errors.
     """
@@ -308,21 +338,65 @@ def export_all_region_crops_for_area_doc(
     for entry in screens:
         if not isinstance(entry, dict):
             continue
-        ocr_raw = str(entry.get("ocr") or "").strip()
-        if not ocr_raw:
-            continue
-        rel = Path(ocr_raw)
-        abs_path = rel if rel.is_absolute() else (root / rel)
-        if not abs_path.is_file():
-            warnings.append(f"Skip (missing file): `{ocr_raw}`")
-            continue
+        default_ocr = str(entry.get("ocr") or "").strip()
         regions_raw = entry.get("regions")
         if not isinstance(regions_raw, list):
             continue
-        regions = [r for r in regions_raw if isinstance(r, dict)]
-        if _count_exportable_crop_regions(regions) == 0:
-            continue
-        tasks.append((ocr_raw, regions, abs_path))
+        all_regions = [r for r in regions_raw if isinstance(r, dict)]
+
+        versions = entry.get("versions") or []
+        declared_ids = {
+            str(v.get("id", "") or "").strip()
+            for v in versions
+            if isinstance(v, dict)
+        }
+        declared_ids = {v for v in declared_ids if v}
+
+        # Default group: regions without any declared version suffix.
+        default_regions = [
+            r
+            for r in all_regions
+            if all(
+                not str(r.get("name", "") or "").endswith(f"_{vid}")
+                for vid in declared_ids
+            )
+        ]
+        if default_ocr:
+            rel = Path(default_ocr)
+            abs_path = rel if rel.is_absolute() else (root / rel)
+            if not abs_path.is_file():
+                warnings.append(f"Skip (missing file): `{default_ocr}`")
+            elif _count_exportable_crop_regions(default_regions) > 0:
+                tasks.append((default_ocr, default_regions, abs_path))
+
+        # Per-version groups: regions ending with ``_<vid>`` cropped from that version's image.
+        for ver in versions:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id", "") or "").strip()
+            if not vid:
+                continue
+            suffix = f"_{vid}"
+            ver_regions = [
+                r
+                for r in all_regions
+                if str(r.get("name", "") or "").endswith(suffix)
+                and len(str(r.get("name", "") or "")) > len(suffix)
+            ]
+            if not ver_regions or _count_exportable_crop_regions(ver_regions) == 0:
+                continue
+            ver_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
+            if not ver_ocr:
+                warnings.append(
+                    f"Skip version `{vid}`: no reference image (neither version `ocr` nor entry `ocr`)"
+                )
+                continue
+            rel = Path(ver_ocr)
+            abs_path = rel if rel.is_absolute() else (root / rel)
+            if not abs_path.is_file():
+                warnings.append(f"Skip (missing file): `{ver_ocr}`")
+                continue
+            tasks.append((ver_ocr, ver_regions, abs_path))
 
     total_files = sum(_count_exportable_crop_regions(regs) for _, regs, _ in tasks)
     done_files = 0
@@ -440,6 +514,7 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
 def save_json(path: Path, doc: AreaDocDict) -> None:
     """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``)."""
     validate_unique_region_names(doc)
+    validate_versions(doc)
     content = json.dumps(doc, indent=2)
     with tempfile.NamedTemporaryFile(
         "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
@@ -551,7 +626,7 @@ def _render_screen_id_and_ocr_fields(
     *,
     labeling_mode: bool,
 ) -> None:
-    """Screen ID + OCR path + transition hints (shared by left panel or Labeling right panel)."""
+    """Screen ID + optional OCR path + transition hints (OCR path UI only outside Labeling)."""
     if not entries or entry_idx < 0 or entry_idx >= len(entries):
         return
     cur = entries[entry_idx]
@@ -575,14 +650,12 @@ def _render_screen_id_and_ocr_fields(
         ),
     )
     cur["screen_id"] = str(screen_id).strip()
-    ocr_path = st.text_input(
-        "OCR image path (JSON)",
-        value=str(cur.get("ocr", "")),
-        key=f"ocr_{entry_idx}_{_sk}",
-        disabled=labeling_mode,
-        help="Set by the Labeling file tree when editing from the dashboard." if labeling_mode else None,
-    )
     if not labeling_mode:
+        ocr_path = st.text_input(
+            "OCR image path (JSON)",
+            value=str(cur.get("ocr", "")),
+            key=f"ocr_{entry_idx}_{_sk}",
+        )
         cur["ocr"] = ocr_path.strip()
     sid = str(cur.get("screen_id", "") or "").strip()
     if sid:
@@ -591,6 +664,378 @@ def _render_screen_id_and_ocr_fields(
             st.caption("Transitions from this screen: **" + "**, **".join(nxt) + "**")
         else:
             st.caption("No outgoing edges for this `screen_id` — add them in the FSM section below.")
+
+
+ACTIVE_VERSION_DEFAULT = "default"
+
+
+def _active_version_state_key(entry_id: Any) -> str:
+    return f"active_version_entry_{entry_id}"
+
+
+def get_active_version(entry: AreaEntryDict) -> str | None:
+    """Active editing version for ``entry`` (``None`` for default).
+
+    Reads from ``st.session_state`` keyed by entry id so switching screen-entries
+    in the sidebar restores the previously chosen version for each.
+    """
+    eid = entry.get("id", "")
+    key = _active_version_state_key(eid)
+    sel = str(st.session_state.get(key, ACTIVE_VERSION_DEFAULT) or ACTIVE_VERSION_DEFAULT)
+    if sel == ACTIVE_VERSION_DEFAULT:
+        return None
+    declared = {str(v.get("id", "") or "").strip() for v in (entry.get("versions") or []) if isinstance(v, dict)}
+    return sel if sel in declared else None
+
+
+def _version_obj(entry: AreaEntryDict, version_id: str) -> VersionDict | None:
+    for v in entry.get("versions") or []:
+        if isinstance(v, dict) and str(v.get("id", "") or "").strip() == version_id:
+            return v  # type: ignore[return-value]
+    return None
+
+
+def get_active_version_ocr_override(entry: AreaEntryDict) -> str | None:
+    """Repo-relative PNG path for the entry's active version, or ``None`` to inherit default.
+
+    Used by the labeling canvas to load a per-version reference image when one is bound.
+    Returns ``None`` when no version is active or its ``ocr`` field is empty.
+    """
+    av = get_active_version(entry)
+    if not av:
+        return None
+    v = _version_obj(entry, av)
+    if v is None:
+        return None
+    rel = str(v.get("ocr", "") or "").strip()
+    return rel or None
+
+
+def _copy_live_preview_to_version_reference(
+    entry: AreaEntryDict,
+    version_id: str,
+) -> str:
+    """Copy the worker's rolling live preview into ``references/<entry_stem>_<vid>.png``.
+
+    Returns the new repo-relative path. Raises ``RuntimeError`` if anything is off — caller is
+    expected to fail the whole "Add version" operation rather than create a half-bound version.
+    """
+    base_ocr = str(entry.get("ocr", "") or "").strip()
+    stem = Path(base_ocr).stem if base_ocr else (
+        str(entry.get("screen_id", "") or "screen").strip() or "screen"
+    )
+    target_rel = f"references/{stem}_{version_id}.png"
+    dest = (REPO_ROOT / target_rel).resolve()
+    if dest.is_file():
+        raise RuntimeError(f"target already exists: {target_rel}")
+
+    iid = str(st.session_state.get("labeling_active_instance_id", "") or "").strip()
+    if not iid:
+        raise RuntimeError("no active labeling instance — cannot locate the live preview")
+
+    from ui.reference_preview import rolling_live_preview_path
+
+    rolling = rolling_live_preview_path(iid)
+    if not rolling.is_file():
+        raise RuntimeError(f"live preview not found at `{rolling}`")
+
+    import shutil
+
+    shutil.copyfile(rolling, dest)
+    return target_rel
+
+
+def render_active_version_picker(
+    entries: list[AreaEntryDict] | None = None,
+    entry_idx: int | None = None,
+) -> None:
+    """Compact selectbox for the active editing version.
+
+    Renders nothing when the entry has no declared versions — the default is
+    implicit and a one-option selector adds noise. Reads entry / index from
+    session state if not provided so it can be embedded in panels that don't
+    have direct access (e.g. the labeling Reference image column).
+    """
+    if entries is None:
+        entries = st.session_state.get(AREA_DOC, {}).get("screens") or []
+    if entry_idx is None:
+        entry_idx = int(st.session_state.get("entry_idx", -1))
+    if not entries or entry_idx < 0 or entry_idx >= len(entries):
+        return
+    cur = entries[entry_idx]
+    versions = cur.get("versions") or []
+    declared_ids = [
+        str(v.get("id", "") or "").strip()
+        for v in versions
+        if isinstance(v, dict)
+    ]
+    declared_ids = [v for v in declared_ids if v]
+    if not declared_ids:
+        return  # show only when there are alternates to switch to.
+
+    eid = cur.get("id", "")
+    state_key = _active_version_state_key(eid)
+    options = [ACTIVE_VERSION_DEFAULT, *declared_ids]
+    current_sel = str(st.session_state.get(state_key, ACTIVE_VERSION_DEFAULT) or ACTIVE_VERSION_DEFAULT)
+    if current_sel not in options:
+        current_sel = ACTIVE_VERSION_DEFAULT
+        st.session_state[state_key] = current_sel
+    sel = st.selectbox(
+        "Active editing version",
+        options=options,
+        index=options.index(current_sel),
+        key=f"version_select_compact_{eid}",
+        help="Switch to a non-default version to edit its overrides. Default is implicit (unsuffixed regions).",
+    )
+    st.session_state[state_key] = sel
+
+
+def _render_versions_block(
+    entries: list[AreaEntryDict],
+    entry_idx: int,
+    *,
+    show_active_picker: bool = True,
+) -> None:
+    """Edit ``versions`` metadata + (optionally) pick the active editing version.
+
+    The active version drives:
+      - region-list filtering (only show overrides for the active version + default base regions),
+      - auto-suffix of newly-added region names with ``_<version_id>``,
+      - which override the worker selects at runtime via ``cond`` evaluation.
+
+    Pass ``show_active_picker=False`` when the picker is rendered elsewhere
+    (e.g. in the labeling Reference image panel) to avoid duplicate widgets.
+    """
+    if not entries or entry_idx < 0 or entry_idx >= len(entries):
+        return
+    cur = entries[entry_idx]
+    versions: list[VersionDict] = list(cur.get("versions") or [])
+    eid = cur.get("id", "")
+    state_key = _active_version_state_key(eid)
+
+    declared_ids = [str(v.get("id", "") or "").strip() for v in versions if isinstance(v, dict)]
+    declared_ids = [v for v in declared_ids if v]
+    options = [ACTIVE_VERSION_DEFAULT, *declared_ids]
+    current_sel = str(st.session_state.get(state_key, ACTIVE_VERSION_DEFAULT) or ACTIVE_VERSION_DEFAULT)
+    if current_sel not in options:
+        current_sel = ACTIVE_VERSION_DEFAULT
+        st.session_state[state_key] = current_sel
+
+    with st.expander(
+        f"Versions ({len(declared_ids)} declared) — active: {current_sel}",
+        expanded=(len(declared_ids) == 0 or current_sel != ACTIVE_VERSION_DEFAULT),
+    ):
+        # Style any button inside a container whose key starts with `version-danger-` red —
+        # Streamlit has no destructive button variant, so we lean on the auto-generated
+        # `st-key-<container_key>` class that container(key=...) emits.
+        st.markdown(
+            """
+            <style>
+            div[class*="st-key-version-danger-"] button {
+                background-color: #c62828 !important;
+                color: #ffffff !important;
+                border: 1px solid #b71c1c !important;
+            }
+            div[class*="st-key-version-danger-"] button:hover {
+                background-color: #b71c1c !important;
+                border-color: #8e0000 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Multiple visual variants of the same screen. Region overrides live in the same "
+            "regions list with `_<version_id>` suffix; partial-override — only moved regions need a copy."
+        )
+        if show_active_picker:
+            sel = st.selectbox(
+                "Active editing version",
+                options=options,
+                index=options.index(current_sel),
+                key=f"version_select_{eid}",
+                help="Switch to a non-default version to edit its overrides. Default is implicit (unsuffixed regions).",
+            )
+            st.session_state[state_key] = sel
+        else:
+            sel = current_sel
+
+        st.markdown("**Add new version**")
+        # Bumping `nonce` after a successful add changes the widget keys for the next render —
+        # this is the only safe way to reset Streamlit text_input values, since assigning
+        # `st.session_state[key] = ...` is forbidden once a widget with that key has rendered.
+        nonce_key = f"version_form_nonce_{eid}"
+        nonce = int(st.session_state.get(nonce_key, 0))
+        suggested_id = next_version_id(declared_ids)
+        id_key = f"version_new_id_{eid}_{nonce}"
+        cond_key = f"version_new_cond_{eid}_{nonce}"
+        cnew_id, cnew_cond = st.columns([1, 3])
+        with cnew_id:
+            new_id = st.text_input(
+                "id",
+                value=suggested_id,
+                key=id_key,
+                help="`v2`, `v3`, … (case-insensitive; bare digits like `2` are accepted).",
+            )
+        with cnew_cond:
+            new_cond = st.text_input(
+                "cond",
+                key=cond_key,
+                placeholder="heroes.norah.level >= 6",
+                help="Python expression against the player's flat state dict. First truthy version wins at runtime.",
+            )
+        if st.button("Add version", key=f"version_add_btn_{eid}_{nonce}"):
+            new_id_norm = normalize_version_id(new_id or "")
+            new_cond_clean = (new_cond or "").strip()
+            err: str | None = None
+            if new_id_norm is None or not VERSION_ID_RE.match(new_id_norm):
+                err = (
+                    f"Version id {new_id!r} must be `vN` where N is a positive integer "
+                    "(e.g. `v2`, `v3`). Bare digits and capital `V` are also accepted."
+                )
+            elif new_id_norm in declared_ids:
+                err = f"Version {new_id_norm!r} already exists."
+            elif not new_cond_clean:
+                err = "cond expression is required."
+            else:
+                try:
+                    compile_cond(new_cond_clean)
+                except SyntaxError as exc:
+                    err = f"cond syntax error: {exc}"
+            if err:
+                st.error(err)
+            else:
+                # Atomic: bind the live preview FIRST. If anything is wrong (worker not running,
+                # target file collision), abort the whole add — no half-created version.
+                try:
+                    new_ocr_rel = _copy_live_preview_to_version_reference(cur, new_id_norm)
+                except RuntimeError as exc:
+                    st.error(f"Cannot add version {new_id_norm!r}: {exc}")
+                    st.stop()
+                versions.append({"id": new_id_norm, "cond": new_cond_clean, "ocr": new_ocr_rel})
+                cur["versions"] = versions
+                st.session_state[state_key] = new_id_norm
+                st.session_state[nonce_key] = nonce + 1
+                st.success(f"Added version {new_id_norm!r} · bound `{new_ocr_rel}`.")
+                st.rerun()
+
+        if sel != ACTIVE_VERSION_DEFAULT:
+            st.markdown(f"**Edit version `{sel}`**")
+            ver_obj = next((v for v in versions if str(v.get("id", "") or "").strip() == sel), None)
+            if ver_obj is not None:
+                ver_ocr_cur = str(ver_obj.get("ocr", "") or "").strip()
+                st.caption(
+                    f"Reference image: `{ver_ocr_cur}`"
+                    if ver_ocr_cur
+                    else "Reference image: *inherits from default* — pick a PNG in the tree (or take a screenshot), then bind it here."
+                )
+                cb1, cb2 = st.columns([2, 1])
+                with cb1:
+                    if st.button(
+                        "Use current canvas image as reference",
+                        key=f"version_bind_ocr_btn_{eid}_{sel}",
+                        help="Bind the PNG currently shown on the canvas as this version's reference image.",
+                    ):
+                        active_path = str(st.session_state.get("active_image_path", "") or "")
+                        if not active_path:
+                            st.error("No image is currently loaded on the canvas.")
+                        else:
+                            try:
+                                rel = Path(active_path).resolve().relative_to(REPO_ROOT).as_posix()
+                            except ValueError:
+                                st.error(
+                                    "Active image is outside the repository — only files under "
+                                    "`references/` can be bound as version references."
+                                )
+                            else:
+                                ver_obj["ocr"] = rel
+                                st.success(f"Bound `{rel}` as reference for version `{sel}`.")
+                                st.rerun()
+                with cb2:
+                    if ver_ocr_cur and st.button(
+                        "Clear",
+                        key=f"version_clear_ocr_btn_{eid}_{sel}",
+                        help="Unbind — version falls back to the entry's default reference image.",
+                    ):
+                        ver_obj.pop("ocr", None)
+                        st.rerun()
+                if st.button(
+                    "Sync regions from default",
+                    key=f"version_sync_btn_{eid}_{sel}",
+                    icon=":material/content_copy:",
+                    help=(
+                        "Copy every default-version region into this version with the "
+                        f"`_{sel}` suffix (skipping ones that already exist and overlay helpers). "
+                        "Drag the copies to their new positions on the version's reference image."
+                    ),
+                ):
+                    added, skipped = _sync_default_regions_into_version(cur, sel)
+                    if added:
+                        st.success(
+                            f"Synced {added} region(s) into `{sel}` "
+                            f"(skipped {skipped} already-present / aux)."
+                        )
+                        st.rerun()
+                    else:
+                        st.info(f"Nothing to sync — every default region already has a `_{sel}` override.")
+                edited_cond = st.text_input(
+                    "cond",
+                    value=str(ver_obj.get("cond", "") or ""),
+                    key=f"version_edit_cond_{eid}_{sel}",
+                )
+                cs1, cs2 = st.columns(2)
+                with cs1:
+                    if st.button("Save cond", key=f"version_save_btn_{eid}_{sel}"):
+                        edited = (edited_cond or "").strip()
+                        if not edited:
+                            st.error("cond cannot be empty.")
+                        else:
+                            try:
+                                compile_cond(edited)
+                            except SyntaxError as exc:
+                                st.error(f"cond syntax error: {exc}")
+                            else:
+                                ver_obj["cond"] = edited
+                                st.success("Saved.")
+                with cs2:
+                    confirm_key = f"version_delete_confirm_{eid}_{sel}"
+                    # `st-key-version-danger` is targeted by CSS injected at the top of this block
+                    # so buttons inside become red — Streamlit has no native destructive variant.
+                    with st.container(key=f"version-danger-trigger-{eid}-{sel}"):
+                        if st.button(
+                            "Delete version (and its overrides)",
+                            key=f"version_delete_btn_{eid}_{sel}",
+                            icon=":material/delete:",
+                        ):
+                            st.session_state[confirm_key] = True
+                    if st.session_state.get(confirm_key):
+                        st.warning(
+                            f"Delete version `{sel}` and all `_{sel}`-suffixed regions for this entry?"
+                        )
+                        c_yes, c_no = st.columns(2)
+                        with c_yes:
+                            with st.container(key=f"version-danger-confirm-{eid}-{sel}"):
+                                if st.button(
+                                    "Yes, delete",
+                                    key=f"version_delete_yes_{eid}_{sel}",
+                                    icon=":material/delete_forever:",
+                                ):
+                                    cur["versions"] = [
+                                        v for v in versions if str(v.get("id", "") or "").strip() != sel
+                                    ]
+                                    suffix = f"_{sel}"
+                                    cur["regions"] = [
+                                        r
+                                        for r in (cur.get("regions") or [])
+                                        if not str(r.get("name", "") or "").endswith(suffix)
+                                    ]
+                                    st.session_state[state_key] = ACTIVE_VERSION_DEFAULT
+                                    st.session_state[confirm_key] = False
+                                    st.rerun()
+                        with c_no:
+                            if st.button("Cancel", key=f"version_delete_no_{eid}_{sel}"):
+                                st.session_state[confirm_key] = False
+                                st.rerun()
 
 
 def _render_fsm_expander(doc: AreaDocDict) -> None:
@@ -665,14 +1110,30 @@ def _render_regions_expander(
 ) -> None:
     """Regions list, metadata, crop preview; **Add region** at top."""
     _rk = "lbl" if labeling_mode else "std"
+    entries_for_ver: list[AreaEntryDict] = st.session_state.area_doc["screens"]
+    ei_for_ver: int = st.session_state.entry_idx
+    cur_entry = entries_for_ver[ei_for_ver] if 0 <= ei_for_ver < len(entries_for_ver) else None
+    active_version: str | None = get_active_version(cur_entry) if cur_entry else None
+    declared_version_ids = (
+        {str(v.get("id", "") or "").strip() for v in (cur_entry.get("versions") or [])}
+        if cur_entry
+        else set()
+    )
+    declared_version_ids = {v for v in declared_version_ids if v}
     with st.expander("Regions", expanded=True):
+        if active_version:
+            st.caption(
+                f"Editing version `{active_version}` — only `_{active_version}`-suffixed regions are shown. "
+                "New regions auto-named with that suffix."
+            )
         if st.button("Add region", key=f"area_add_region_{_rk}", width="stretch"):
             regs = current_regions()
             ow, oh = 720, 1280
             pil_i: Image.Image | None = st.session_state.get(PIL_ORIGINAL)
             if pil_i is not None:
                 ow, oh = pil_i.size
-            regs.append(_default_region(ow, oh))
+            new_name = _name_for_active_version("region", active_version)
+            regs.append(_default_region(ow, oh, name=new_name))
             set_current_regions(regs)
             st.session_state.canvas_rev += 1
             st.session_state.selected_region_idx = len(regs) - 1
@@ -689,15 +1150,36 @@ def _render_regions_expander(
                 st.caption("No regions yet — draw on the canvas or click **Add region**.")
             return
 
-        names = [f"{i}: {r.get('name', '')}" for i, r in enumerate(regions)]
-        idx_init = _resolve_selected_region_idx(regions)
-        r_sel = st.radio(
+        visible_indices = [
+            i
+            for i, r in enumerate(regions)
+            if _region_matches_active_version(
+                str(r.get("name", "") or ""), active_version, declared_version_ids
+            )
+        ]
+        if not visible_indices:
+            if active_version:
+                st.caption(
+                    f"No `_{active_version}`-suffixed regions yet. Click **Add region** to create one — "
+                    "the new region will be auto-named with the suffix."
+                )
+            else:
+                st.caption("No default regions in this entry.")
+            return
+        names = [f"{i}: {regions[i].get('name', '')}" for i in visible_indices]
+        cur_full_idx = int(st.session_state.get("selected_region_idx", -1))
+        try:
+            idx_init = visible_indices.index(cur_full_idx)
+        except ValueError:
+            idx_init = 0
+        r_sel_pos = st.radio(
             "Select region",
             range(len(names)),
             format_func=lambda i: names[i],
             index=idx_init,
             horizontal=False,
         )
+        r_sel = visible_indices[int(r_sel_pos)]
         st.session_state.selected_region_idx = int(r_sel)
         st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))
 
@@ -1041,7 +1523,7 @@ def _next_entry_id(entries: list[AreaEntryDict]) -> int:
     return max(int(e.get("id", 0)) for e in entries) + 1
 
 
-def _default_region(orig_w: int, orig_h: int) -> RegionDict:
+def _default_region(orig_w: int, orig_h: int, *, name: str = "region") -> RegionDict:
     bbox = BBoxDict(
         x=10.0,
         y=10.0,
@@ -1052,12 +1534,151 @@ def _default_region(orig_w: int, orig_h: int) -> RegionDict:
         original_height=orig_h,
     )
     return RegionDict(
-        name="region",
+        name=name,
         action="text",
         type="string",
         threshold=0.9,
         bbox=bbox,
     )
+
+
+def _name_for_active_version(base: str, active_version: str | None) -> str:
+    """Append ``_<active_version>`` to ``base`` unless already suffixed."""
+    if not active_version:
+        return base
+    suffix = f"_{active_version}"
+    return base if base.endswith(suffix) else f"{base}{suffix}"
+
+
+def _sync_default_regions_into_version(
+    entry: AreaEntryDict,
+    version_id: str,
+) -> tuple[int, int]:
+    """Copy default-version regions into ``version_id`` with the ``_<vid>`` suffix.
+
+    For each region whose name has no declared version suffix and is not an overlay
+    auxiliary helper (``_search`` / ``_tap``), check if its ``_<vid>``-suffixed counterpart
+    already exists in the entry. If not, append a deep copy with the new name — the user
+    can then drag it to its new position on the v2 image.
+
+    Returns ``(added, skipped_existing)``. Skipped covers both pre-existing v2 overrides
+    and regions filtered out (auxiliary, version-suffixed).
+    """
+    import copy as _copy
+
+    declared = {
+        str(v.get("id", "") or "").strip()
+        for v in (entry.get("versions") or [])
+        if isinstance(v, dict)
+    }
+    declared = {v for v in declared if v}
+    suffix = f"_{version_id}"
+    regions = entry.get("regions") or []
+    existing_names = {str(r.get("name", "") or "").strip() for r in regions if isinstance(r, dict)}
+
+    added = 0
+    skipped = 0
+    new_items: list[RegionDict] = []
+    for r in regions:
+        if not isinstance(r, dict):
+            continue
+        name = str(r.get("name", "") or "").strip()
+        if not name:
+            continue
+        # Only copy "default-version" regions — those without any declared suffix.
+        is_default = all(not name.endswith(f"_{vid}") for vid in declared)
+        if not is_default:
+            skipped += 1
+            continue
+        if is_auxiliary_overlay_region(r):
+            skipped += 1
+            continue
+        target_name = f"{name}{suffix}"
+        if target_name in existing_names:
+            skipped += 1
+            continue
+        clone = _copy.deepcopy(r)
+        clone["name"] = target_name
+        new_items.append(clone)
+        existing_names.add(target_name)
+        added += 1
+
+    if new_items:
+        entry["regions"] = list(regions) + new_items
+    return added, skipped
+
+
+def _filter_regions_by_active_version(
+    entry: AreaEntryDict,
+    regions: list[RegionDict],
+) -> tuple[list[RegionDict], list[int]]:
+    """Split ``regions`` into the canvas-visible subset for the entry's active version.
+
+    Returns ``(visible_regions, original_indices)``: only regions belonging to the
+    active version's view. The full list stays untouched — a separate ``_merge_synced_regions``
+    call writes canvas changes back without disturbing hidden (other-version) regions.
+    """
+    av = get_active_version(entry)
+    declared = {
+        str(v.get("id", "") or "").strip()
+        for v in (entry.get("versions") or [])
+        if isinstance(v, dict)
+    }
+    declared = {v for v in declared if v}
+    visible: list[RegionDict] = []
+    indices: list[int] = []
+    for i, r in enumerate(regions):
+        if _region_matches_active_version(
+            str(r.get("name", "") or ""), av, declared
+        ):
+            visible.append(r)
+            indices.append(i)
+    return visible, indices
+
+
+def _merge_synced_regions(
+    full_regions: list[RegionDict],
+    synced_visible: list[RegionDict],
+    visible_indices: list[int],
+) -> list[RegionDict]:
+    """Re-assemble the entry's regions list after canvas sync.
+
+    Hidden regions (not in the active-version view) stay exactly as they were — that's the
+    whole point: the user shouldn't be able to mutate v1 regions while editing v2. If the
+    canvas added or removed boxes, the visible subset's length differs from ``visible_indices``;
+    we keep hidden regions in their original positions and then append the synced visible set.
+    """
+    if len(synced_visible) == len(visible_indices):
+        out = list(full_regions)
+        for src_idx, sub in zip(visible_indices, synced_visible, strict=True):
+            out[src_idx] = sub
+        return out
+    visible_set = set(visible_indices)
+    hidden = [r for i, r in enumerate(full_regions) if i not in visible_set]
+    return hidden + list(synced_visible)
+
+
+def _region_matches_active_version(
+    region_name: str,
+    active_version: str | None,
+    declared_version_ids: set[str],
+) -> bool:
+    """Filter rule: which regions belong to the active editing version's view.
+
+    - Default (``active_version`` is ``None``): include only regions whose name
+      does NOT end with any declared ``_vN`` suffix — these are the base set.
+    - Non-default (``vN`` active): include only regions whose name ends with
+      ``_vN`` — the override set for that version.
+    """
+    name = (region_name or "").strip()
+    if active_version:
+        suffix = f"_{active_version}"
+        return name.endswith(suffix) and len(name) > len(suffix)
+    for vid in declared_version_ids:
+        suffix = f"_{vid}"
+        if name.endswith(suffix) and len(name) > len(suffix):
+            return False
+    return True
 
 
 def _bbox_to_canvas_rect(
@@ -1516,6 +2137,11 @@ def render_area_annotator_ui(
     """Full annotator layout (no ``set_page_config`` — caller / host app sets that)."""
     init_session()
 
+    # Stash the active labeling instance so deeply-nested helpers (like the version-block
+    # auto-bind) can locate the rolling live screenshot at `references/temporal/{iid}_current_state.png`.
+    if labeling_instance_id:
+        st.session_state["labeling_active_instance_id"] = labeling_instance_id
+
     canvas_max_side = (
         int(labeling_canvas_max_side)
         if labeling_mode and labeling_canvas_max_side is not None
@@ -1637,6 +2263,7 @@ def render_area_annotator_ui(
 
             if entries and 0 <= entry_idx < len(entries):
                 _render_screen_id_and_ocr_fields(doc, entries, entry_idx, labeling_mode=False)
+                _render_versions_block(entries, entry_idx)
 
             _render_fsm_expander(doc)
 
@@ -1645,6 +2272,9 @@ def render_area_annotator_ui(
     image_rel = None
     if entries and 0 <= entry_idx < len(entries):
         image_rel = entries[entry_idx].get("ocr")
+        ver_ocr = get_active_version_ocr_override(entries[entry_idx])
+        if ver_ocr:
+            image_rel = ver_ocr
 
     load_path: Path | None = None
     loaded_from_labeling = False
@@ -1685,11 +2315,27 @@ def render_area_annotator_ui(
         entry_idx = int(st.session_state.entry_idx)
 
         image_rel = None
+        ver_ocr_override: str | None = None
         if entries and 0 <= entry_idx < len(entries):
             image_rel = entries[entry_idx].get("ocr")
+            ver_ocr_override = get_active_version_ocr_override(entries[entry_idx])
+            if ver_ocr_override:
+                image_rel = ver_ocr_override
+
+        # Detect active-version switch and force a canvas redraw — otherwise streamlit-drawable-canvas
+        # keeps the stale background from the previous version's image.
+        _prev_ver_path = st.session_state.get("_active_version_image_path")
+        if _prev_ver_path != image_rel:
+            st.session_state["_active_version_image_path"] = image_rel
+            st.session_state.canvas_rev = int(st.session_state.get(CANVAS_REV, 0)) + 1
+            st.session_state.last_canvas_sig = ""
 
         pending = st.session_state.pop(PENDING_IMAGE_PATH, None)
-        if labeling_png_bytes and effective_forced_ref:
+        # Version override always wins over pending/forced refs — pending was set from the
+        # URL-driven default file and would otherwise mask the version-specific image.
+        if ver_ocr_override:
+            pending = None
+        if labeling_png_bytes and effective_forced_ref and not ver_ocr_override:
             try:
                 pil_original = Image.open(io.BytesIO(labeling_png_bytes)).convert("RGBA")
                 st.session_state.pil_original = pil_original
@@ -1715,7 +2361,12 @@ def render_area_annotator_ui(
 
     else:
         pending = st.session_state.pop(PENDING_IMAGE_PATH, None)
-        if labeling_mode and forced_reference_rel and labeling_png_bytes:
+        ver_ocr_override = None
+        if entries and 0 <= entry_idx < len(entries):
+            ver_ocr_override = get_active_version_ocr_override(entries[entry_idx])
+        if ver_ocr_override:
+            pending = None
+        if labeling_mode and forced_reference_rel and labeling_png_bytes and not ver_ocr_override:
             try:
                 pil_original = Image.open(io.BytesIO(labeling_png_bytes)).convert("RGBA")
                 st.session_state.pil_original = pil_original
@@ -1755,6 +2406,9 @@ def render_area_annotator_ui(
                     st.session_state.selected_region_idx = sel_ct = len(regions_ct) - 1
 
             _render_regions_expander(pil_original, canvas_max_side, labeling_mode=True)
+
+            if entries and 0 <= entry_idx < len(entries):
+                _render_versions_block(entries, entry_idx, show_active_picker=False)
 
             with st.expander("Screen entry", expanded=False):
                 if not effective_forced_ref:
@@ -1811,7 +2465,14 @@ def render_area_annotator_ui(
                 canvas_img, _ = resize_for_canvas(viewport_pil, max_side=canvas_max_side)
                 canvas_w, canvas_h = canvas_img.size
 
-                regions = current_regions()
+                full_regions = current_regions()
+                # Restrict canvas to the active version's regions so v1 boxes can't be grabbed
+                # while editing v2 (and vice versa). Hidden regions are merged back unchanged.
+                cur_entry = entries[entry_idx] if 0 <= entry_idx < len(entries) else None
+                if cur_entry is not None:
+                    regions, visible_indices = _filter_regions_by_active_version(cur_entry, full_regions)
+                else:
+                    regions, visible_indices = full_regions, list(range(len(full_regions)))
                 sel = _resolve_selected_region_idx(regions)
 
                 # Remap bbox percentages to viewport coordinate space for display
@@ -1862,7 +2523,7 @@ def render_area_annotator_ui(
                         if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
                             if incoming_bbox_sig != current_bbox_sig:
                                 _remember_stale_canvas_sig(current_bbox_sig)
-                            updated = (
+                            updated_visible = (
                                 _regions_from_viewport(
                                     synced,
                                     x_off=x_off,
@@ -1874,6 +2535,9 @@ def render_area_annotator_ui(
                                 )
                                 if zoom > 1.0
                                 else synced
+                            )
+                            updated = _merge_synced_regions(
+                                full_regions, updated_visible, visible_indices
                             )
                             if incoming_bbox_sig != current_bbox_sig:
                                 set_current_regions(updated)
@@ -1936,7 +2600,12 @@ def render_area_annotator_ui(
                 canvas_img, _ = resize_for_canvas(pil_original, max_side=canvas_max_side)
                 canvas_w, canvas_h = canvas_img.size
 
-                regions = current_regions()
+                full_regions = current_regions()
+                cur_entry = entries[entry_idx] if 0 <= entry_idx < len(entries) else None
+                if cur_entry is not None:
+                    regions, visible_indices = _filter_regions_by_active_version(cur_entry, full_regions)
+                else:
+                    regions, visible_indices = full_regions, list(range(len(full_regions)))
                 sel = _resolve_selected_region_idx(regions)
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
 
@@ -1983,7 +2652,7 @@ def render_area_annotator_ui(
                         st.session_state.last_canvas_sig = sig
                         prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
                         current_bbox_sig = _regions_bbox_semantic_sig(regions)
-                        updated = sync_regions_from_canvas(
+                        synced_visible = sync_regions_from_canvas(
                             regions,
                             canvas_result.json_data,
                             canvas_w,
@@ -1991,8 +2660,11 @@ def render_area_annotator_ui(
                             orig_w,
                             orig_h,
                         )
-                        incoming_bbox_sig = _regions_bbox_semantic_sig(updated)
+                        incoming_bbox_sig = _regions_bbox_semantic_sig(synced_visible)
                         if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
+                            updated = _merge_synced_regions(
+                                full_regions, synced_visible, visible_indices
+                            )
                             if incoming_bbox_sig != current_bbox_sig:
                                 _remember_stale_canvas_sig(current_bbox_sig)
                                 set_current_regions(updated)

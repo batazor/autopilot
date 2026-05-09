@@ -624,6 +624,43 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "is_new_chapter_v2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.241312741312741,
+            "y": 81.41304347826087,
+            "width": 5.795366795366795,
+            "height": 2.3869565217391306,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chapter.task_v2",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.81081081081081,
+            "y": 80.97826086956522,
+            "width": 73.26061776061776,
+            "height": 2.5391304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "versions": [
+        {
+          "id": "v2",
+          "cond": "buildings.furnace.level >= 4",
+          "ocr": "references/main_city_v2.png"
         }
       ]
     },
@@ -1396,7 +1433,7 @@
     },
     {
       "id": 36,
-      "screen_id": "main_city",
+      "screen_id": "suggestion_box",
       "ocr": "references/postman.png",
       "regions": [
         {

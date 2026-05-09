@@ -292,6 +292,11 @@ def render_labeling_reference_column(
                     else:
                         st.error(msg)
 
+        # Lazy import to avoid circular dep with ui.area_annotator.
+        from ui.area_annotator import render_active_version_picker
+
+        render_active_version_picker()
+
         if not existing:
             st.info("No PNGs yet — use **New screenshot**.")
 

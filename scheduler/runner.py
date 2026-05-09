@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -95,6 +96,104 @@ class SchedulerRunner:
 
         return False
 
+    @staticmethod
+    def _cron_interval_seconds(expr: str) -> int | None:
+        """Return the interval for cron shapes supported by this scheduler.
+
+        The scheduler intentionally supports only the two shapes used by our
+        maintenance specs. For those, we can keep a concrete future queue item
+        instead of relying on hitting the exact cron minute.
+        """
+        expr = (expr or "").strip().strip('"').strip("'")
+        parts = expr.split()
+        if len(parts) != 5:
+            return None
+        minute, hour, _dom, _mon, _dow = parts
+
+        if minute.startswith("*/") and hour == "*":
+            try:
+                n = int(minute[2:])
+            except ValueError:
+                return None
+            return n * 60 if n > 0 else None
+
+        if hour.startswith("*/"):
+            try:
+                hh = int(hour[2:])
+                int(minute)
+            except ValueError:
+                return None
+            return hh * 60 * 60 if hh > 0 else None
+
+        return None
+
+    async def _cron_task_running(self, *, instance_id: str, player_id: str, task_type: str) -> bool:
+        assert self._redis is not None
+        raw = await self._redis.get(f"wos:queue:running:{instance_id}")
+        if raw is None:
+            return False
+        text = raw.decode() if isinstance(raw, bytes) else str(raw)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return False
+        if str(data.get("task_type") or "") != task_type:
+            return False
+        running_player = str(data.get("player_id") or "")
+        return not player_id or running_player == player_id
+
+    async def _ensure_interval_cron_item(
+        self,
+        *,
+        name: str,
+        spec_slug: str,
+        expr: str,
+        task_type: str,
+        priority: int,
+        instance_id: str,
+        player_id: str,
+        interval_s: int,
+        now: float,
+    ) -> None:
+        """Keep exactly one future queue item for an interval cron spec."""
+        assert self._queue is not None
+        if await self._cron_task_running(
+            instance_id=instance_id,
+            player_id=player_id,
+            task_type=task_type,
+        ):
+            return
+        if await self._queue.has_pending_duplicate(
+            player_id=player_id,
+            task_type=task_type,
+            region=None,
+            instance_id=instance_id,
+            ignore_region=True,
+        ):
+            return
+
+        run_at = now + interval_s
+        enqueued = await self._queue.schedule(
+            task_id=f"cron:{spec_slug}:{player_id}:{int(run_at)}",
+            player_id=player_id,
+            task_type=task_type,
+            priority=priority,
+            run_at=run_at,
+            instance_id=instance_id,
+            skip_if_duplicate=True,
+            dedup_ignore_region=True,
+        )
+        if enqueued:
+            logger.info(
+                "Cron scheduled: %s (%s) %s for %s/%s at %s",
+                name,
+                expr,
+                task_type,
+                instance_id,
+                player_id,
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(run_at)),
+            )
+
     async def _run_cron_specs(self) -> None:
         """Enqueue cron-based jobs (no extra checks beyond cron)."""
         assert self._redis is not None and self._queue is not None
@@ -128,13 +227,10 @@ class SchedulerRunner:
                 task_type = yml.stem
             if not expr or not task_type:
                 continue
-            if not self._cron_due(expr, now):
-                continue
 
             # Use `name` as the human identifier; normalize to a slug for keys.
-            import re
-
             spec_slug = re.sub(r"[^a-zA-Z0-9._-]+", "_", name).strip("._-") or yml.stem
+            interval_s = self._cron_interval_seconds(expr)
             for inst in self._settings.instances:
                 if when_current_screen:
                     current_screen = await self._instance_current_screen(inst.instance_id)
@@ -147,6 +243,22 @@ class SchedulerRunner:
                 _pids = player_ids_for_device(inst.bluestacks_window_title)
                 player_ids = _pids[:1] if scope == "instance" else _pids
                 for player_id in player_ids:
+                    if interval_s is not None:
+                        await self._ensure_interval_cron_item(
+                            name=name,
+                            spec_slug=spec_slug,
+                            expr=expr,
+                            task_type=task_type,
+                            priority=prio,
+                            instance_id=inst.instance_id,
+                            player_id=player_id,
+                            interval_s=interval_s,
+                            now=now,
+                        )
+                        continue
+
+                    if not self._cron_due(expr, now):
+                        continue
                     # Once-per-minute guard (scheduler ticks faster than cron granularity).
                     guard = f"{spec_slug}:{inst.instance_id}:{player_id}:{int(now // 60)}"
                     if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]

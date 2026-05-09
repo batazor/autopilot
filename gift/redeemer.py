@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import Counter
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -27,6 +29,50 @@ _MAX_CAPTCHA_RETRIES = 3
 _INTER_PLAYER_DELAY = 1.0   # seconds between players
 _INTER_CODE_DELAY = 5.0     # seconds between codes (avoids captcha frequency errors)
 _CAPTCHA_RETRY_DELAY = 8.0  # seconds to wait before re-requesting captcha after error
+
+
+@dataclass(frozen=True)
+class GiftRedeemResult:
+    code: str
+    player_id: str
+    nickname: str
+    status: RedeemStatus
+    attempted: bool = True
+    api_err_code: int | None = None
+    api_msg: str | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        row: dict[str, object] = {
+            "code": self.code,
+            "player_id": self.player_id,
+            "nickname": self.nickname,
+            "status": self.status.value,
+            "attempted": self.attempted,
+        }
+        if self.api_err_code is not None:
+            row["api_err_code"] = self.api_err_code
+        if self.api_msg:
+            row["api_msg"] = self.api_msg
+        return row
+
+
+@dataclass
+class GiftRedeemSummary:
+    results: list[GiftRedeemResult] = field(default_factory=list)
+
+    def add(self, result: GiftRedeemResult) -> None:
+        self.results.append(result)
+
+    def counts_by_status(self) -> dict[str, int]:
+        counts = Counter(r.status.value for r in self.results)
+        return dict(sorted(counts.items()))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "total": len(self.results),
+            "counts": self.counts_by_status(),
+            "results": [r.to_dict() for r in self.results],
+        }
 
 
 def _ec_to_status(ec: ErrCode) -> RedeemStatus:
@@ -55,7 +101,8 @@ class GiftCodeRedeemer:
     # Public entry point
     # ------------------------------------------------------------------
 
-    async def redeem_all(self) -> None:
+    async def redeem_all(self) -> GiftRedeemSummary:
+        summary = GiftRedeemSummary()
         db = self._load_codes()
         registry = load_devices(self._devices_path)
         all_player_ids = registry.all_player_ids()
@@ -84,8 +131,32 @@ class GiftCodeRedeemer:
                 if status in (RedeemStatus.CDK_EXPIRED, RedeemStatus.CDK_NOT_FOUND):
                     for pid in all_player_ids:
                         code.user_for[pid] = status
+                        gamer = registry.get_gamer(pid)
+                        summary.add(
+                            GiftRedeemResult(
+                                code=code.name,
+                                player_id=pid,
+                                nickname=gamer.nickname if gamer else pid,
+                                status=status,
+                                attempted=(pid == player_id),
+                                api_err_code=api_ec,
+                                api_msg=api_msg,
+                            )
+                        )
                 else:
                     code.user_for[player_id] = status
+                    gamer = registry.get_gamer(player_id)
+                    summary.add(
+                        GiftRedeemResult(
+                            code=code.name,
+                            player_id=player_id,
+                            nickname=gamer.nickname if gamer else player_id,
+                            status=status,
+                            attempted=True,
+                            api_err_code=api_ec,
+                            api_msg=api_msg,
+                        )
+                    )
                 self._save_codes(db)
 
                 gamer = registry.get_gamer(player_id)
@@ -102,6 +173,7 @@ class GiftCodeRedeemer:
             if stop:
                 break
             await asyncio.sleep(_INTER_CODE_DELAY)
+        return summary
 
     # ------------------------------------------------------------------
     # Single player + code
@@ -183,6 +255,6 @@ async def run_gift_code_redeemer(
     codes_path: Path,
     devices_path: Path,
     bot_instance_map: dict[str, str] | None = None,  # unused, kept for compat
-) -> None:
+) -> GiftRedeemSummary:
     redeemer = GiftCodeRedeemer(codes_path, devices_path)
-    await redeemer.redeem_all()
+    return await redeemer.redeem_all()
