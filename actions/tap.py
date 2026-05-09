@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import random
 import subprocess
+import tempfile
 import time
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 import numpy as np
 import redis
@@ -23,7 +26,8 @@ from capture.adb_screencap import (
     resolve_adb_executable,
 )
 from config.loader import get_settings
-from layout.types import Point, Region
+from config.reference_naming import TEMPORAL_SUBDIR
+from layout.types import Point
 
 logger = logging.getLogger(__name__)
 
@@ -194,12 +198,20 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 "current_task_score": (raw.get("current_task_score") or "").strip(),
                 "current_task_text": (raw.get("current_task_text") or "").strip(),
                 "current_task_confidence": (raw.get("current_task_confidence") or "").strip(),
-                "current_task_match_top_left_x": (raw.get("current_task_match_top_left_x") or "").strip(),
-                "current_task_match_top_left_y": (raw.get("current_task_match_top_left_y") or "").strip(),
+                "current_task_match_top_left_x": (
+                    raw.get("current_task_match_top_left_x") or ""
+                ).strip(),
+                "current_task_match_top_left_y": (
+                    raw.get("current_task_match_top_left_y") or ""
+                ).strip(),
                 "current_task_template_w": (raw.get("current_task_template_w") or "").strip(),
                 "current_task_template_h": (raw.get("current_task_template_h") or "").strip(),
-                "current_task_tap_match_x_pct": (raw.get("current_task_tap_match_x_pct") or "").strip(),
-                "current_task_tap_match_y_pct": (raw.get("current_task_tap_match_y_pct") or "").strip(),
+                "current_task_tap_match_x_pct": (
+                    raw.get("current_task_tap_match_x_pct") or ""
+                ).strip(),
+                "current_task_tap_match_y_pct": (
+                    raw.get("current_task_tap_match_y_pct") or ""
+                ).strip(),
                 # YAML scenario key while a `DslScenarioTask` is running.
                 "scenario": (raw.get("current_scenario") or "").strip(),
             }
@@ -292,7 +304,6 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # preview clears; we therefore check ``response_key`` BEFORE inferring
     # "reject" from a foreign / missing ``current`` payload.
     decision: str | None = None
-    abort_reason: str = ""
     while True:
         raw_resp = _redis().get(resp_key)
         if raw_resp:
@@ -302,7 +313,6 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             raw_cur = _redis().get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") != req_id:
                 decision = "reject"
-                abort_reason = "foreign_request"
                 break
         except Exception:
             logger.debug("Failed to read current approval request", exc_info=True)
@@ -512,6 +522,8 @@ class AdbController:
         ar = str(approval_region or "").strip()
         if ar:
             ap["region"] = ar
+        if click_approval_enabled(self._instance_id):
+            self._attach_approval_preview(ap)
         ok, req_id = _require_approval(self._instance_id, ap)
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
@@ -556,15 +568,17 @@ class AdbController:
             ms = max(ms, _SWIPE_MIN_DURATION_MS)
         ok, req_id = _require_approval(
             self._instance_id,
-            {
-                "type": "swipe",
-                "x1": int(x1),
-                "y1": int(y1),
-                "x2": int(x2),
-                "y2": int(y2),
-                "ms": int(ms),
-                "serial": self._serial,
-            },
+            self._approval_payload_with_preview(
+                {
+                    "type": "swipe",
+                    "x1": int(x1),
+                    "y1": int(y1),
+                    "x2": int(x2),
+                    "y2": int(y2),
+                    "ms": int(ms),
+                    "serial": self._serial,
+                }
+            ),
         )
         if not ok:
             logger.info("ADB swipe blocked (no approval): %s", self._instance_id)
@@ -621,7 +635,9 @@ class AdbController:
         escaped = text.replace(" ", "%s").replace("'", "\\'")
         ok, req_id = _require_approval(
             self._instance_id,
-            {"type": "type_text", "text": text, "serial": self._serial},
+            self._approval_payload_with_preview(
+                {"type": "type_text", "text": text, "serial": self._serial}
+            ),
         )
         if not ok:
             logger.info("ADB type_text blocked (no approval): %s", self._instance_id)
@@ -658,6 +674,46 @@ class AdbController:
         if data is None:
             raise RuntimeError(err)
         return data
+
+    def _approval_payload_with_preview(self, payload: dict[str, object]) -> dict[str, object]:
+        p = dict(payload)
+        if click_approval_enabled(self._instance_id):
+            self._attach_approval_preview(p)
+        return p
+
+    def attach_approval_preview(self, payload: dict[str, object]) -> None:
+        if click_approval_enabled(self._instance_id):
+            self._attach_approval_preview(payload)
+
+    def _attach_approval_preview(self, payload: dict[str, object]) -> None:
+        """Capture a fresh frame for the approval UI.
+
+        The click approvals page otherwise reads the rolling preview PNG, which is updated by a
+        timer and can lag one DSL step behind fast click sequences.
+        """
+        try:
+            png = self.screenshot_bytes()
+            repo_root = Path(__file__).resolve().parent.parent
+            rel = Path(TEMPORAL_SUBDIR) / f"{self._instance_id}_approval_current.png"
+            path = repo_root / "references" / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=".approval-", suffix=".png", dir=path.parent
+            )
+            os.close(fd)
+            tmp = Path(tmp_name)
+            try:
+                tmp.write_bytes(png)
+                os.replace(tmp, path)
+            except Exception:
+                tmp.unlink(missing_ok=True)
+                raise
+            payload["preview_png_rel"] = rel.as_posix()
+            payload["preview_captured_at"] = time.time()
+        except Exception:
+            logger.debug(
+                "Failed to capture approval preview for %s", self._instance_id, exc_info=True
+            )
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -722,6 +778,9 @@ class BotActions:
 
     def tap(self, instance_id: str, point: Point, *, approval_region: str | None = None) -> bool:
         return self._controller(instance_id).tap(point, approval_region=approval_region)
+
+    def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
+        self._controller(instance_id).attach_approval_preview(payload)
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         """Emulator framebuffer size from ``adb shell wm size`` (tap coordinate space)."""

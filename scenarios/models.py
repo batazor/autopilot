@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 from datetime import timedelta
-from typing import Annotated
 
 from pydantic import BaseModel, field_validator
 

@@ -10,7 +10,7 @@ import streamlit as st
 import yaml
 
 from analysis.overlay import load_analyze_yaml, run_overlay_analysis_sync
-from analysis.overlay_rules import resolved_search_region_for_findicon
+from analysis.overlay_rules import overlay_rule_screen_allowlist, resolved_search_region_for_findicon
 from layout.area_lookup import screen_region_by_name
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.reference_preview import rolling_live_preview_path
@@ -87,7 +87,7 @@ def get_or_build_pipeline_cache(
 
     Caches in st.session_state[PIPELINE_OVERLAY_CACHE] keyed by ``(instance_id, current_screen)``.
     Invalidated when the rolling PNG, area.json, analyze.yaml mtime, **or** ``current_screen``
-    changes — rules with YAML ``node`` / ``screens`` depend on Redis ``current_screen``
+    changes — rules with YAML ``screens`` depend on Redis ``current_screen``
     (same as ``worker/instance_worker.py``).
     """
     preview_mtime, area_mtime, analyze_mtime = mtimes(
@@ -158,8 +158,9 @@ def get_or_build_pipeline_cache(
                 )
                 if sr_eff:
                     rule_search[nm] = sr_eff
-                if nd := r.get("node"):
-                    rule_node[nm] = str(nd).strip()
+                gate = overlay_rule_screen_allowlist(r)
+                if gate:
+                    rule_node[nm] = gate[0]
         except (OSError, yaml.YAMLError):
             pass
 

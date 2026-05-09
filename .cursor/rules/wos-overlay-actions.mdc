@@ -24,6 +24,13 @@ alwaysApply: false
 - **Do NOT put** `findIcon` in `area.json` (use `exist` there).
 - **Do NOT put** `exist` in analyzer YAML (use `findIcon` there).
 
+## Overlay screen gate (`screens`)
+
+- Restrict when a rule runs using **`screens`**: a string or list of FSM screen ids (e.g. `screens: [main_city]`, `screens: [mail]`).
+- Omit **`screens`** entirely for rules that should run on **every** tick (global).
+- Use **`screens: [none]`** when the rule should run only while Redis **`current_screen`** is empty / unknown (same semantics as the old `node: none`).
+- Matching against Redis is **case-insensitive**. The legacy **`node:`** field is **not** read by the overlay engine anymore — migrate to **`screens`**.
+
 ## `_search` / `_tap` naming
 
 - Detector region: `foo`

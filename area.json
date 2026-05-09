@@ -1265,12 +1265,72 @@
             "x": 3.2432432432432434,
             "y": 10.326086956521738,
             "width": 92.0019305019305,
-            "height": 84.59961956521738,
+            "height": 84.6,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "screen_id": "",
+      "ocr": "references/button.next.png",
+      "regions": [
+        {
+          "name": "button.next",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.67181467181467,
+            "y": 49.56521739130435,
+            "width": 20.0,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.next_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 49.640926640926644,
+            "y": 44.891304347826086,
+            "width": 48.2007722007722,
+            "height": 22.789902173913042,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "screen_id": "",
+      "ocr": "references/page.building.furniture.png",
+      "regions": [
+        {
+          "name": "page.building.furniture",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.756756756756758,
+            "y": 92.17391304347827,
+            "width": 20.0,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

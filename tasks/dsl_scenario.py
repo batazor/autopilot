@@ -12,7 +12,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
@@ -60,6 +59,20 @@ _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
 _COND_TEXT_RE = re.compile(
     r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
 )
+
+# ``repeat`` / ``while_match`` also nest ``steps``; composite blocks use only ``cond`` + ``steps``.
+_DSL_STEP_ACTION_KEYS = frozenset({
+    "match",
+    "while_match",
+    "repeat",
+    "push_scenario",
+    "swipe_direction",
+    "ocr",
+    "exec",
+    "set_node",
+    "click",
+    "wait",
+})
 
 
 def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
@@ -307,6 +320,7 @@ class DslScenarioTask:
     tap_region: str = ""
     tap_x_pct: float | None = None
     tap_y_pct: float | None = None
+    start_step_index: int = 0
     # Last `match:` result (best-effort), used to tap at the actual matched location
     # instead of the static region center when `*_search` is involved.
     _last_match_region: str = field(default="", init=False, repr=False)
@@ -1394,12 +1408,20 @@ class DslScenarioTask:
                     raise
                 iterations += 1
 
-            logger.info(
-                "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
-                _scen(scenario_key),
-                reg,
-                iterations,
-            )
+            if iterations:
+                logger.info(
+                    "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
+                    _scen(scenario_key),
+                    reg,
+                    iterations,
+                )
+            else:
+                logger.debug(
+                    "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
+                    _scen(scenario_key),
+                    reg,
+                    iterations,
+                )
             return None
         if "swipe_direction" in step:
             spec = step.get("swipe_direction")
@@ -1438,6 +1460,36 @@ class DslScenarioTask:
             seconds = _parse_wait_seconds(step.get("wait"))
             if seconds > 0:
                 await asyncio.sleep(seconds)
+            return None
+        if "push_scenario" in step:
+            spec = step.get("push_scenario")
+            await self._write_step_context(instance_id, scenario=scenario_key)
+            if isinstance(spec, dict):
+                name = str(spec.get("name") or "").strip()
+                try:
+                    pr = int(spec.get("priority") or self.priority)
+                except (TypeError, ValueError):
+                    pr = self.priority
+                try:
+                    delay_s = float(spec.get("delay_seconds") or 0.0)
+                except (TypeError, ValueError):
+                    delay_s = 0.0
+                skip_dup = bool(spec.get("skip_if_duplicate", True))
+            else:
+                name = str(spec or "").strip()
+                pr = self.priority
+                delay_s = 0.0
+                skip_dup = True
+            if name:
+                await _enqueue_scenario(
+                    redis_async=self.redis_client,
+                    instance_id=instance_id,
+                    player_id=self.player_id,
+                    scenario=name,
+                    priority=pr,
+                    run_at=time.time() + max(0.0, delay_s),
+                    skip_if_duplicate=skip_dup,
+                )
             return None
         logger.warning("dsl_scenario: unsupported nested while_match step: %s", step)
         return None
@@ -1541,14 +1593,52 @@ class DslScenarioTask:
                     },
                 )
 
-        step_index = 0
+        step_index = self.start_step_index
         while step_index < len(steps):
             step = steps[step_index]
+            _resumable_step = step_index  # capture before increment for resume tracking
             step_index += 1
+            # Persist current step so hand-pointer resume knows where to continue.
+            if self.redis_client is not None:
+                with suppress(Exception):
+                    await self.redis_client.hset(
+                        f"wos:instance:{instance_id}:state",
+                        "last_active_scenario_step",
+                        str(_resumable_step),
+                    )
             if not isinstance(step, dict):
                 continue
             if not await _dsl_cond_allows_step(step, instance_id, self.redis_client):
                 logger.debug("dsl_scenario: step skipped by cond (%s)", step.get("cond"))
+                continue
+            grouped = step.get("steps")
+            if (
+                isinstance(grouped, list)
+                and grouped
+                and not _DSL_STEP_ACTION_KEYS.intersection(step.keys())
+            ):
+                await self._write_step_context(instance_id, scenario=key)
+                for inner in grouped:
+                    if not isinstance(inner, dict):
+                        continue
+                    if not await _dsl_cond_allows_step(inner, instance_id, self.redis_client):
+                        logger.debug(
+                            "dsl_scenario: grouped step skipped by cond (%s)",
+                            inner.get("cond"),
+                        )
+                        continue
+                    result = await self._run_inline_step(
+                        inner,
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=key,
+                    )
+                    if result is not None:
+                        return result
                 continue
             if "match" in step:
                 reg = str(step.get("match") or "").strip()
@@ -1843,17 +1933,22 @@ class DslScenarioTask:
                 await self._write_step_context(instance_id, scenario=key)
                 if not node:
                     continue
+                approval_payload: dict[str, object] = {
+                    "type": "set_node",
+                    "set_node": node,
+                    "source": {
+                        "component": "tasks.dsl_scenario.DslScenarioTask",
+                        "note": "DSL set_node step (approval mode)",
+                    },
+                }
+                attach_preview = getattr(actions, "attach_approval_preview", None)
+                if callable(attach_preview):
+                    with suppress(Exception):
+                        await asyncio.to_thread(attach_preview, instance_id, approval_payload)
                 ok, req_id = await asyncio.to_thread(
                     _require_approval,
                     instance_id,
-                    {
-                        "type": "set_node",
-                        "set_node": node,
-                        "source": {
-                            "component": "tasks.dsl_scenario.DslScenarioTask",
-                            "note": "DSL set_node step (approval mode)",
-                        },
-                    },
+                    approval_payload,
                 )
                 if not ok:
                     logger.info(

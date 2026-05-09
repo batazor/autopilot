@@ -3,6 +3,6 @@ name: Tap tutorial hand pointer (small)
 
 steps:
   - match: hand_pointer_small
-    threshold: 0.85
+    threshold: 0.80
     min_match_saturation: 40
   - click: hand_pointer_small

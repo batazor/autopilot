@@ -4,7 +4,8 @@ overlay:
     action: findIcon
     threshold: 0.9
     min_match_saturation: 48
-    node: mail
+    screens:
+      - mail
     priority: 70_000
     pushScenario:
       - name: read_mail_gifts

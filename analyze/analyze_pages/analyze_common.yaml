@@ -77,14 +77,15 @@ overlay:
   region: chief_profile_title
   action: findIcon
   threshold: 0.9
-  node: none
+  screens:
+    - none
   set_node: chief_profile
 
 - name: hand_pointer.visible
   region: hand_pointer
   action: findIcon
   priority: 62000
-  threshold: 0.9
+  threshold: 0.80
   min_match_saturation: 30
   pushScenario:
     - name: hand_pointer
@@ -94,7 +95,7 @@ overlay:
   region: hand_pointer_small_reverse
   action: findIcon
   priority: 62000
-  threshold: 0.92
+  threshold: 0.80
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer_small_reverse
@@ -104,7 +105,7 @@ overlay:
   region: hand_pointer_small
   action: findIcon
   priority: 62000
-  threshold: 0.85
+  threshold: 0.80
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer_small
@@ -152,7 +153,7 @@ overlay:
 - name: upgrade_button.visible
   region: upgrade_button
   action: findIcon
-  threshold: 0.91
+  threshold: 0.87
   min_match_saturation: 48
 
 - name: upgrade_big_button.visible

@@ -10,7 +10,7 @@ import streamlit as st
 from layout.area_lookup import screen_region_by_name
 from layout.crop_paths import exported_crop_png
 from ui.preview_display import png_bytes_fitted
-from ui.reference_preview import load_rolling_instance_preview
+from ui.reference_preview import load_rolling_instance_preview, references_root
 
 from .common import load_area_doc
 from .ctx import ClickApprovalsCtx
@@ -64,6 +64,41 @@ def _ensure_fresh_reference_crop(
         return
 
 
+def _load_payload_preview(
+    payload: dict[str, Any] | None,
+) -> tuple[bytes | None, str, float | None]:
+    if not isinstance(payload, dict):
+        return None, "", None
+    rel_raw = str(payload.get("preview_png_rel") or "").replace("\\", "/").strip().lstrip("/")
+    if not rel_raw:
+        return None, "", None
+    root = references_root()
+    path = (root / rel_raw).resolve()
+    try:
+        path.relative_to(root.resolve())
+    except ValueError:
+        return None, "", None
+    if not path.is_file():
+        return None, "", None
+    try:
+        return path.read_bytes(), path.relative_to(root).as_posix(), path.stat().st_mtime
+    except OSError:
+        return None, "", None
+
+
+def _approval_region_name(payload: dict[str, Any], ctx0: dict[str, Any]) -> str:
+    """Region label for the pending input; prefer explicit request data over task context."""
+    try:
+        reg_name = str(payload.get("region") or "").strip()
+    except Exception:
+        reg_name = ""
+    if not reg_name:
+        reg_name = str(ctx0.get("approval_region") or "").strip()
+    if not reg_name:
+        reg_name = str(ctx0.get("current_task_region") or "").strip()
+    return reg_name
+
+
 def render_preview_with_point(
     *,
     ctx: ClickApprovalsCtx,
@@ -73,9 +108,11 @@ def render_preview_with_point(
     payload: dict[str, Any] | None,
     where: Any,
 ) -> None:
-    """Render rolling PNG preview with optional target crosshair and overlays."""
+    """Render approval snapshot/rolling PNG preview with optional target crosshair."""
     ui = where or st
-    png, rel, mtime = load_rolling_instance_preview(instance_id)
+    png, rel, mtime = _load_payload_preview(payload)
+    if png is None:
+        png, rel, mtime = load_rolling_instance_preview(instance_id)
     if png is None:
         ui.info(f"No rolling preview yet for `{instance_id}`.")
         return
@@ -186,7 +223,7 @@ def render_preview_with_point(
 
         ctx0 = payload.get("context")
         if isinstance(ctx0, dict):
-            reg_name = str(ctx0.get("current_task_region") or "").strip()
+            reg_name = _approval_region_name(payload, ctx0)
             if reg_name:
                 # If overlay provided an actual match box (e.g. found within *_search),
                 # prefer it over the static area.json bbox to avoid misleading overlays.
@@ -199,7 +236,7 @@ def render_preview_with_point(
                     mtlx = mtly = tw = th = 0
 
                 if tw <= 0 or th <= 0:
-                    # Fallback for DSL taps: use `dsl_last_match_*` if it matches the region we are tapping.
+                    # Fallback for DSL taps: use `dsl_last_match_*` when it matches this tap.
                     try:
                         if str(ctx0.get("dsl_last_match_region") or "").strip() == reg_name:
                             mtlx = int(float(ctx0.get("dsl_last_match_top_left_x") or 0))
@@ -248,17 +285,7 @@ def render_preview_with_point(
     ctx0 = payload.get("context")
     if not isinstance(ctx0, dict):
         return
-    # Prefer the request's explicit region label (what we are about to click),
-    # then the approval context hint; fall back to the task-level overlay region.
-    reg_name = ""
-    try:
-        reg_name = str(payload.get("region") or "").strip()
-    except Exception:
-        reg_name = ""
-    if not reg_name:
-        reg_name = str(ctx0.get("approval_region") or "").strip()
-    if not reg_name:
-        reg_name = str(ctx0.get("current_task_region") or "").strip()
+    reg_name = _approval_region_name(payload, ctx0)
     if not reg_name:
         return
     area_doc = load_area_doc(ctx.area_path)
@@ -356,4 +383,3 @@ def render_preview_with_point(
                 )
             else:
                 ui.caption("—")
-

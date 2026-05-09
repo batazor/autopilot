@@ -57,6 +57,8 @@ class QueueItem:
     template_h: int | None = None
     tap_match_x_pct: float | None = None
     tap_match_y_pct: float | None = None
+    # Step index to resume from when re-enqueuing after a hand-pointer interruption.
+    start_step_index: int = 0
 
 
 class RedisQueue:
@@ -86,6 +88,7 @@ class RedisQueue:
         template_h: int | None = None,
         tap_match_x_pct: float | None = None,
         tap_match_y_pct: float | None = None,
+        start_step_index: int = 0,
         skip_if_duplicate: bool = False,
     ) -> bool:
         """Enqueue a task.
@@ -142,6 +145,8 @@ class RedisQueue:
             body["tap_match_x_pct"] = float(tap_match_x_pct)
         if tap_match_y_pct is not None:
             body["tap_match_y_pct"] = float(tap_match_y_pct)
+        if start_step_index:
+            body["start_step_index"] = int(start_step_index)
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
@@ -368,6 +373,8 @@ class RedisQueue:
         template_h = int(th) if th is not None else None
         tap_match_x_pct = float(tmx) if tmx is not None else None
         tap_match_y_pct = float(tmy) if tmy is not None else None
+        ssi = data.get("start_step_index")
+        start_step_index = int(ssi) if ssi is not None else 0
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
@@ -388,6 +395,7 @@ class RedisQueue:
             template_h=template_h,
             tap_match_x_pct=tap_match_x_pct,
             tap_match_y_pct=tap_match_y_pct,
+            start_step_index=start_step_index,
         )
 
     async def peek_all(self) -> list[QueueItem]:

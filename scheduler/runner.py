@@ -15,7 +15,7 @@ from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scenarios.models import Scenario
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
-from scheduler.ortools_executor import get_ortools_executor, shutdown_ortools_executor
+from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
 
 logger = logging.getLogger(__name__)
@@ -117,7 +117,6 @@ class SchedulerRunner:
             if not enabled:
                 continue
             expr = str(raw.get("cron") or "").strip()
-            node = str(raw.get("node") or "").strip()
             task_type = str(raw.get("task") or raw.get("task_type") or "").strip()
             prio = int(raw.get("priority") or 1)
             name = str(raw.get("name") or "").strip() or yml.stem
@@ -246,8 +245,8 @@ class SchedulerRunner:
         # OR-Tools solve is synchronous. Use a dedicated single-worker pool (not the default
         # asyncio thread pool) so solves are serialized and the rest of the app stays responsive.
         loop = asyncio.get_running_loop()
-        assigned = await loop.run_in_executor(
-            get_ortools_executor(),
+        assigned = await run_in_ortools_executor(
+            loop,
             self._optimizer.optimize,
             inp,
         )

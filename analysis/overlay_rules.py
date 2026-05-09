@@ -109,6 +109,29 @@ def optional_priority(rule: dict[str, Any]) -> int | None:
         return None
 
 
+def overlay_rule_screen_allowlist(rule: dict[str, Any]) -> list[str]:
+    """Which FSM screens may run this overlay rule.
+
+    Set ``screens`` to a string or list of strings (e.g. ``[main_city]``, ``[none]``).
+    Empty / missing ``screens`` means **no gate** (rule evaluated on every tick).
+
+    ``screens: [none]`` keeps the legacy meaning: allow evaluation when Redis
+    ``current_screen`` is empty / unknown.
+    """
+    raw = rule.get("screens")
+    out: list[str] = []
+    if isinstance(raw, str):
+        s = raw.strip()
+        if s:
+            out.append(s)
+    elif isinstance(raw, list):
+        for item in raw:
+            s = str(item or "").strip()
+            if s:
+                out.append(s)
+    return out
+
+
 def optional_ttl_seconds(rule: dict[str, Any]) -> float | None:
     """YAML ``ttl``: minimum gap between successive evaluations (``5``, ``5s``, ``1m``, …)."""
     v = rule.get("ttl")

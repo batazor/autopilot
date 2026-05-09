@@ -10,7 +10,6 @@ import streamlit as st
 
 from config.devices import player_ids_for_device
 from config.loader import load_settings
-from ui.adb_reference_shot import capture_rolling_live_preview_adb
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
@@ -24,7 +23,7 @@ from ui.redis_client import (
     require_redis_connection,
 )
 from ui.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
-from ui.settings_state import ensure_ui_settings_session_defaults, get_ui_adb_bin
+from ui.settings_state import ensure_ui_settings_session_defaults
 
 ensure_embedded_bot()
 

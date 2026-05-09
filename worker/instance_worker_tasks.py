@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 
 _RUNNING_KEY_GLOBAL = "wos:queue:running"
 
+# Scenarios that are allowed to interrupt ongoing work.  After any of these
+# finishes we re-enqueue whatever scenario was running before it.
+_HAND_POINTER_TASK_TYPES: frozenset[str] = frozenset({
+    "hand_pointer",
+    "hand_pointer_small",
+    "hand_pointer_small_reverse",
+})
+
 
 def _running_key_for_instance(instance_id: str) -> str:
     return f"wos:queue:running:{instance_id}"
@@ -81,6 +89,58 @@ class InstanceWorkerTasksMixin:
         scenario_for_job = ""
         if isinstance(task, DslScenarioTask):
             scenario_for_job = str(task.scenario_key or item.task_type or "").strip()
+
+        # --- Hand-pointer interruption resume ---
+        # If this is a hand-pointer task, capture whatever DSL scenario ran just
+        # before it so we can re-enqueue it after the pointer is dismissed.
+        _resume_scenario = ""
+        _resume_priority = 80_000
+        _resume_player = ""
+        _resume_step = 0
+        if self._redis is not None and item.task_type in _HAND_POINTER_TASK_TYPES:
+            try:
+                def _rd(raw: object) -> str:
+                    return (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()  # type: ignore[union-attr]
+                fields = await self._redis.hmget(
+                    state_key,
+                    "last_active_scenario",
+                    "last_active_scenario_priority",
+                    "last_active_scenario_player",
+                    "last_active_scenario_step",
+                )
+                _last, _pr_s, _pid_s, _step_s = [_rd(f) for f in fields]
+                if _last and _last not in _HAND_POINTER_TASK_TYPES:
+                    _resume_scenario = _last
+                    try:
+                        _resume_priority = int(_pr_s) if _pr_s else 80_000
+                    except (ValueError, TypeError):
+                        _resume_priority = 80_000
+                    _resume_player = _pid_s
+                    try:
+                        _resume_step = int(_step_s) if _step_s else 0
+                    except (ValueError, TypeError):
+                        _resume_step = 0
+                    # `upgrade` steps 0–1 open the chapter task + settle UI; resuming at the repeat
+                    # block (step >= 2) skips them and template matches fail with the panel closed.
+                    if _resume_scenario == "upgrade" and _resume_step >= 2:
+                        _resume_step = 0
+            except Exception:
+                logger.debug("hand pointer resume: failed to read interrupted scenario", exc_info=True)
+        # Track the current scenario so the next hand-pointer task can detect it.
+        if self._redis is not None and scenario_for_job:
+            try:
+                await self._redis.hset(
+                    state_key,
+                    mapping={
+                        "last_active_scenario": scenario_for_job,
+                        "last_active_scenario_priority": str(item.priority),
+                        "last_active_scenario_player": item.player_id,
+                        "last_active_scenario_step": "0",
+                    },
+                )
+            except Exception:
+                logger.debug("hand pointer resume: failed to write last_active_scenario", exc_info=True)
+
         th_s = _redis_float_str(item.threshold)
         sc_s = _redis_float_str(item.score)
         # Queue JSON may omit floats on older items; overlay enqueue writes ``last_overlay_*`` hints.
@@ -125,19 +185,20 @@ class InstanceWorkerTasksMixin:
             item.player_id,
             item.priority,
         )
+        _task_result: TaskResult | None = None
         try:
             if not skip_account:
                 await self._ensure_account(item.player_id)
-            result = await self._execute_task(item, task)
+            _task_result = await self._execute_task(item, task)
             await self._drain_ui_commands()
-            await self._reschedule_if_needed(item, result)
-            if result is not None:
+            await self._reschedule_if_needed(item, _task_result)
+            if _task_result is not None:
                 logger.info(
                     "Task done %s: id=%s success=%s next_run_at=%s",
                     self._cfg.instance_id,
                     item.task_id,
-                    getattr(result, "success", None),
-                    getattr(result, "next_run_at", None),
+                    getattr(_task_result, "success", None),
+                    getattr(_task_result, "next_run_at", None),
                 )
             else:
                 logger.info("Task done %s: id=%s (no result)", self._cfg.instance_id, item.task_id)
@@ -147,6 +208,37 @@ class InstanceWorkerTasksMixin:
         finally:
             self._task_busy.clear()
             await self._set_instance_state(InstanceState.READY)
+            # Re-enqueue only if the hand-pointer task actually matched and clicked
+            # (not a false-positive overlay detection that failed the match guard).
+            _hand_pointer_hit = _task_result is not None and str(
+                (_task_result.metadata or {}).get("reason") or ""
+            ) not in ("match_guard_failed", "match_region_not_found")
+            if _resume_scenario and item.task_type in _HAND_POINTER_TASK_TYPES and _hand_pointer_hit and self._queue is not None:
+                try:
+                    await self._queue.schedule(
+                        task_id=f"resume:{self._cfg.instance_id}:{_resume_scenario}:{int(time.time())}",
+                        player_id=_resume_player,
+                        task_type=_resume_scenario,
+                        priority=_resume_priority,
+                        run_at=time.time(),
+                        instance_id=self._cfg.instance_id,
+                        start_step_index=_resume_step,
+                        skip_if_duplicate=True,
+                    )
+                    logger.info(
+                        "hand pointer: resuming scenario %s step=%s (prio=%s) after %s on %s",
+                        scenario_log_label(_resume_scenario),
+                        _resume_step,
+                        _resume_priority,
+                        item.task_type,
+                        self._cfg.instance_id,
+                    )
+                except Exception:
+                    logger.warning(
+                        "hand pointer: failed to re-enqueue interrupted scenario %s",
+                        _resume_scenario,
+                        exc_info=True,
+                    )
             if self._redis is not None:
                 try:
                     inst_running_key = _running_key_for_instance(self._cfg.instance_id)

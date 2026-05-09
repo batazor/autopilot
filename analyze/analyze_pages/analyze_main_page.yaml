@@ -4,7 +4,8 @@ overlay:
     action: color_check
     # For color checks, `threshold` is the minimum share (share of dominant pixels).
     threshold: 0.6
-    node: main_city
+    screens:
+      - main_city
     pushScenario:
       - name: read_mail_gifts
         priority: 80000
@@ -14,7 +15,8 @@ overlay:
     region: is_new_chapter
     action: findIcon
     threshold: 0.9
-    node: main_city
+    screens:
+      - main_city
     pushScenario:
       - name: new_chapter
         priority: 80000
@@ -24,7 +26,8 @@ overlay:
     region: isNewPeople
     action: findIcon
     threshold: 0.92
-    node: main_city
+    screens:
+      - main_city
     pushScenario:
       - name: is_new_people
         priority: 80000
@@ -34,7 +37,8 @@ overlay:
     region: isWorkers
     action: color_check
     threshold: 0.9
-    node: main_city
+    screens:
+      - main_city
     pushScenario:
       - name: assign_worker
         priority: 80000
@@ -44,9 +48,22 @@ overlay:
     region: chapter.task
     action: text
     # Any non-empty OCR text counts as "present" (overlay engine semantics for action=text).
-    node: main_city
+    # Restrict to main_city: Redis current_screen must match (case-insensitive in overlay_engine).
+    screens:
+      - main_city
     ttl: 30s
     pushScenario:
       - name: chapter_task_router
         priority: 70000
+        ttl: 20s
+
+  - name: page.building.furniture.present
+    region: page.building.furniture
+    action: text
+    screens:
+      - main_city
+    ttl: 30s
+    pushScenario:
+      - name: upgrade
+        priority: 80000
         ttl: 20s

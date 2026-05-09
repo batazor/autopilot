@@ -12,6 +12,9 @@ steps:
 
   # OCR noise fallback (current rolling screenshot sometimes drops "Upgrade" but keeps "2 Bunk")
   - cond: chapter.task ~= "Shelter"
-    push_scenario:
-      name: upgrade
-      priority: 80000
+    steps:
+      - click: chapter.task
+      - wait: 2s
+      - push_scenario:
+          name: upgrade
+          priority: 80000

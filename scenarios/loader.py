@@ -17,6 +17,42 @@ _WATCH_LOCK = threading.RLock()
 # Guard against multiple Observer instances watching the same directory in one process.
 # This can happen when Streamlit reloads or when async services are started twice.
 _WATCHING_PATHS: set[str] = set()
+_DSL_STEP_KEYS = frozenset(
+    {
+        "break",
+        "click",
+        "exec",
+        "goto",
+        "match",
+        "ocr",
+        "push_scenario",
+        "repeat",
+        "screenshot",
+        "set_node",
+        "sleep",
+        "swipe",
+        "swipe_direction",
+        "tap",
+        "wait",
+        "while_match",
+    }
+)
+
+
+def _is_dsl_scenario_doc(raw: object) -> bool:
+    """Return True for imperative DSL YAML handled by ``DslScenarioTask``."""
+    if not isinstance(raw, dict):
+        return False
+    steps = raw.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return False
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        if any(k in step for k in _DSL_STEP_KEYS):
+            return True
+    return False
 
 
 def _observer_for_platform() -> Observer:
@@ -64,28 +100,8 @@ class ScenarioLoader:
                 raw = yaml.safe_load(yaml_file.read_text())
                 # DSL scenarios (imperative click/wait/etc) are executed via `DslScenarioTask`
                 # and must not be validated/loaded as `Scenario`.
-                if isinstance(raw, dict):
-                    steps = raw.get("steps")
-                    if isinstance(steps, list) and steps:
-                        first = steps[0]
-                        if isinstance(first, dict) and "task" not in first:
-                            dsl_keys = {
-                                "click",
-                                "tap",
-                                "wait",
-                                "swipe",
-                                "sleep",
-                                "ocr",
-                                "assert",
-                                "match",
-                                "while_match",
-                                "goto",
-                                "screenshot",
-                                "set_node",
-                                "exec",
-                            }
-                            if any(k in first for k in dsl_keys):
-                                continue
+                if _is_dsl_scenario_doc(raw):
+                    continue
                 if isinstance(raw, dict) and "name" not in raw:
                     raw["name"] = yaml_file.stem
                 scenario = Scenario.model_validate(raw)

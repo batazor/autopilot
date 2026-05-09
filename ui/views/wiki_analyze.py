@@ -10,6 +10,7 @@ import yaml
 from streamlit_extras.stoggle import stoggle
 
 from analysis.overlay_manifest import default_analyze_yaml_path
+from analysis.overlay_rules import overlay_rule_screen_allowlist
 
 
 def _repo_root() -> Path:
@@ -147,15 +148,19 @@ for r in overlay_rules:
 
 groups: dict[str, list[dict[str, Any]]] = {}
 for r in filtered:
-    node = str(r.get("node") or "").strip()
-    # YAML uses `node: none` as a conventional "no specific node" marker.
-    key = node if (node and node.lower() != "none") else "none"
+    allow = overlay_rule_screen_allowlist(r)
+    if not allow:
+        key = "global"
+    elif len(allow) == 1:
+        key = allow[0].lower() if allow[0].lower() == "none" else allow[0]
+    else:
+        key = ", ".join(allow)
     groups.setdefault(key, []).append(r)
 
-st.subheader(f"Rules: {len(filtered)} · Nodes: {len(groups)}")
+st.subheader(f"Rules: {len(filtered)} · Screen groups: {len(groups)}")
 
-for node in sorted(groups.keys(), key=lambda s: (s == "none", s)):
-    with st.expander(f"`{node}` · {len(groups[node])}", expanded=(node != "none")):
+for node in sorted(groups.keys(), key=lambda s: (s == "global", s == "none", s.lower())):
+    with st.expander(f"`{node}` · {len(groups[node])}", expanded=(node not in {"global", "none"})):
         for idx, rule in enumerate(groups[node], start=1):
             nm = str(rule.get("name") or "").strip() or f"rule_{idx}"
             act = str(rule.get("action") or "").strip() or "action"

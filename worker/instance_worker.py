@@ -15,8 +15,8 @@ from typing import Any
 import numpy as np
 import redis.asyncio as aioredis
 from actions.tap import BotActions
-from analysis.overlay import parse_duration_seconds, run_overlay_analysis
-from capture.adb_screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
+from analysis.overlay import run_overlay_analysis
+from capture.adb_screencap import DEFAULT_ADB_BIN
 from config.devices import player_ids_for_device
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
@@ -259,6 +259,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 tap_region=item.region or "",
                 tap_x_pct=item.tap_x_pct,
                 tap_y_pct=item.tap_y_pct,
+                start_step_index=item.start_step_index,
                 redis_client=self._redis,
             )
         return factory(  # type: ignore[return-value]
@@ -269,10 +270,6 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         )
 
     async def _execute_task(self, item: QueueItem, task: BaseTask) -> TaskResult | None:
-        skip_fsm = getattr(task, "skip_fsm", False)
-
-        fsm = self._player_fsms.get(item.player_id)
-
         try:
             if task.is_cooperative:
                 claimed = await self._claims.claim(  # type: ignore[union-attr]

@@ -12,29 +12,24 @@ Contract:
 
 from __future__ import annotations
 
-import json
-import time
 from datetime import timedelta
 from pathlib import Path
 
-import cv2
-import numpy as np
 import streamlit as st
 
 from actions.tap import click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
 from ui.redis_client import require_redis_connection
-from ui.reference_preview import load_rolling_instance_preview
 
 from ui.views.click_approvals.ctx import ClickApprovalsCtx
-from ui.views.click_approvals.idle_overlay_probe import render_idle_overlay_probe
 from ui.views.click_approvals.chrome import (
     render_heartbeat,
     render_header,
     render_reset_block,
     render_ui_notifications,
 )
+from ui.views.click_approvals.idle_overlay_probe import render_idle_overlay_probe
 from ui.views.click_approvals.pending import (
     fragment_pending_approval_columns,
     fragment_sync_pending_presence,
@@ -78,45 +73,8 @@ _CTX = ClickApprovalsCtx(
 
 
 def _render_overlay_threshold_probe(instance_id: str) -> None:
+    del instance_id
     return render_idle_overlay_probe(ctx=_CTX, client=client)
-
-
-def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, int, int, int]:
-    x = float(bb.get("x") or 0.0)
-    y = float(bb.get("y") or 0.0)
-    bw = float(bb.get("width") or 0.0)
-    bh = float(bb.get("height") or 0.0)
-    left = max(0, min(w - 1, int(x / 100.0 * w)))
-    top = max(0, min(h - 1, int(y / 100.0 * h)))
-    right = max(left + 1, min(w, int((x + bw) / 100.0 * w)))
-    bottom = max(top + 1, min(h, int((y + bh) / 100.0 * h)))
-    return left, top, right, bottom
-
-
-def _active_player_in_game_id(inst: str) -> str:
-    """OCR'd in-game ``player_id`` of the active bot account on ``inst``.
-
-    Falls back to ``—`` when ``active_player`` is unset, points at a missing
-    hash, or :ref:`who_i_am <scenarios/onboarding/who_i_am>` has not run yet.
-    """
-    row = get_instance_state(client, inst) or {}
-    active = (row.get("active_player") or "").strip()
-    if not active:
-        return "—"
-    try:
-        raw = client.hget(f"wos:player:{active}:state", "player_id")
-    except Exception:
-        return "—"
-    if raw is None:
-        return "—"
-    val = raw.decode() if isinstance(raw, bytes) else str(raw)
-    return val.strip() or "—"
-
-
-@st.fragment(run_every=timedelta(seconds=1))
-def _header() -> None:
-    # Kept for backward-compat with old wiring; page now uses `render_header()`.
-    render_header()
 
 
 def _render_preview_with_point(
@@ -138,9 +96,6 @@ def _render_preview_with_point(
     )
 
 
- 
-
-
 @st.fragment(run_every=timedelta(seconds=1))
 def _fragment_idle_screenshot_column(inst: str) -> None:
     """Rolling preview only — does not rerun the Approvals / overlay-probe column."""
@@ -152,7 +107,7 @@ def _render_idle_approvals_column(inst: str) -> None:
     st.subheader("Approvals")
     st.success("No pending click requests.")
     st.caption(
-        "Clears **current_screen** in Redis (same as unknown / overlay `node: none`). "
+        "Clears **current_screen** in Redis (same as unknown / overlay `screens: [none]`). "
         "Useful when the worker stuck on the wrong FSM screen."
     )
     st.caption(
@@ -222,7 +177,9 @@ if enabled_ui != enabled_now:
         client.delete(hb_key)
     st.rerun()
 
-render_header(ctx=_CTX, client=client, ocr_url=str(getattr(settings, "ocr", None).url or ""))
+ocr_cfg = getattr(settings, "ocr", None)
+ocr_url = str(getattr(ocr_cfg, "url", "") or "")
+render_header(ctx=_CTX, client=client, ocr_url=ocr_url)
 render_ui_notifications(instance_id, client=client)
 render_heartbeat(ctx=_CTX, client=client)
 st.divider()

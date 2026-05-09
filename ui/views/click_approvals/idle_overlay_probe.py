@@ -78,7 +78,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     instance_id = ctx.instance_id
     st.caption(
         "Uses the same rolling PNG and overlay evaluation as the worker, "
-        "including Redis **`current_screen`** for YAML **`node`** rules."
+        "including Redis **`current_screen`** for YAML **`screens`** rules."
     )
     if st.button(
         "Reload overlay scores",
@@ -110,8 +110,8 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             value=True,
             key=f"idle_overlay_probe_only_node::{instance_id}",
             help=(
-                "Hide overlay rows whose YAML `node` differs from Redis `current_screen`. "
-                "Rows without `node` always stay visible."
+                "Hide overlay rows whose YAML `screens` gate does not match Redis `current_screen` "
+                "(first listed screen only). Rows without `screens` stay visible."
             ),
         )
         st.caption(f"`current_screen`: `{current_screen or '—'}`")
@@ -150,8 +150,9 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         if not isinstance(payload, dict):
             continue
         node = str(rule_node.get(logical, "") or "").strip()
-        if only_current_node and current_screen and node and node != current_screen:
-            continue
+        if only_current_node and current_screen and node:
+            if node.lower() != current_screen.lower():
+                continue
         region_name = str(payload.get("region") or "").strip()
         sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
         if q:
@@ -292,7 +293,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     st.markdown(
         f"**Region:** `{str(pay.get('region') or '').strip() or '—'}` · "
         f"**action:** `{act or '—'}` · "
-        f"**YAML node:** `{nd or '(global)'}` · "
+        f"**YAML screens:** `{nd or '(global)'}` · "
         f"**search_region:** `{sr_line or '—'}`"
     )
     reason = str(pay.get("reason") or "").strip()

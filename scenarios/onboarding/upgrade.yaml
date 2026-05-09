@@ -2,10 +2,17 @@ enabled: true
 name: Onboarding upgrade (chapter task)
 
 steps:
-  - click: chapter.task
-  - wait: 2s
-  - while_match: upgrade_button
-    max: 10
-    steps:
-      - wait: 2s
-      - click: upgrade_button
+  # Chapter flow may show upgrade taps or a Next button instead — handle both per iteration.
+  - repeat:
+      max: 10
+      steps:
+        - while_match: upgrade_button
+          max: 5
+          steps:
+            - wait: 2s
+            - click: upgrade_button
+        - while_match: button.next
+          max: 1
+          steps:
+            - wait: 2s
+            - click: button.next

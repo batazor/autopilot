@@ -4,6 +4,6 @@ name: Tap tutorial hand pointer
 steps:
   - match: hand_pointer
     # Keep in sync with overlay rule `hand_pointer.visible` (analyze_common.yaml).
-    threshold: 0.90
+    threshold: 0.80
     min_match_saturation: 30
   - click: hand_pointer

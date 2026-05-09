@@ -15,6 +15,7 @@ from analysis.overlay_rules import (
     optional_priority,
     optional_push_scenario_tasks,
     optional_ttl_seconds,
+    overlay_rule_screen_allowlist,
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
@@ -108,17 +109,14 @@ async def evaluate_overlay_rules_async(
         set_node_s = str(set_node).strip() if isinstance(set_node, str) else ""
         priority = optional_priority(rule)
         # Screen filter: skip screen-specific rules when current screen doesn't match.
-        rule_screens = rule.get("screens")
-        if not rule_screens:
-            node = rule.get("node")
-            if isinstance(node, str) and node.strip():
-                rule_screens = [node.strip()]
-        if rule_screens:
-            allowed = {str(s).strip() for s in rule_screens if str(s).strip()}
-            allowed_lc = {s.lower() for s in allowed}
+        # Compare case-insensitively (Redis / FSM may differ in casing from YAML).
+        allowlist = overlay_rule_screen_allowlist(rule)
+        if allowlist:
+            allowed_lc = {s.lower() for s in allowlist}
             wants_unknown = "none" in allowed_lc
+            cur_lc = cur_screen_norm.lower()
             if cur_screen_norm:
-                if cur_screen_norm not in allowed:
+                if cur_lc not in allowed_lc:
                     continue
             else:
                 if not wants_unknown:
