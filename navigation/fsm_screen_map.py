@@ -86,9 +86,16 @@ _TROOPS_RAW: Final[dict[str, set[str]]] = {
     "marksman_city_view": {"main_city", "main_menu_city", "arena_city_view", "fishing_main"},
 }
 
+# Hub screen ↔ survivor/worker list (Python tap graph; see navigation/edge_taps.yaml).
+_MAIN_CITY_HUB_RAW: Final[dict[str, set[str]]] = {
+    "main_city": {"survivor_status"},
+    "survivor_status": {"main_city"},
+}
+
 TUNDRA_ADVENTURE_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TUNDRA_RAW)
 MAIN_MENU_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_MAIN_MENU_RAW)
 TROOPS_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TROOPS_RAW)
+MAIN_CITY_HUB_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_MAIN_CITY_HUB_RAW)
 
 
 def merge_fsm_edges(
@@ -106,4 +113,5 @@ FSM_SCREEN_EDGES: Final[dict[str, frozenset[str]]] = merge_fsm_edges(
     TUNDRA_ADVENTURE_EDGES,
     MAIN_MENU_EDGES,
     TROOPS_EDGES,
+    MAIN_CITY_HUB_EDGES,
 )

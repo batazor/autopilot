@@ -31,6 +31,7 @@ class ScreenName(StrEnum):
     ALLIANCE = "alliance"
     MAIL = "mail"
     CHIEF_PROFILE = "chief_profile"
+    SURVIVOR_STATUS = "survivor_status"
     UNKNOWN = "unknown"
 
 

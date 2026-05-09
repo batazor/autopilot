@@ -1,0 +1,12 @@
+overlay:
+  - name: page.worker.add.visible
+    region: page.worker.add
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - survivor_status
+    ttl: 30s
+    pushScenario:
+      - name: assign_worker
+        priority: 80000
+        ttl: 1m

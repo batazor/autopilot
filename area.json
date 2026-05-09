@@ -82,7 +82,7 @@
     },
     {
       "id": 4,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/hand_pointer_small_reverse.png",
       "regions": [
         {
@@ -136,7 +136,7 @@
     },
     {
       "id": 5,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/hand_pointer_small.png",
       "regions": [
         {
@@ -243,7 +243,7 @@
     },
     {
       "id": 7,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/upgrade_building.png",
       "regions": [
         {
@@ -281,7 +281,7 @@
     },
     {
       "id": 8,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/build_building_item.png",
       "regions": [
         {
@@ -319,7 +319,7 @@
     },
     {
       "id": 9,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/upgrade_button.png",
       "regions": [
         {
@@ -357,7 +357,7 @@
     },
     {
       "id": 10,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/go_button.png",
       "regions": [
         {
@@ -384,7 +384,7 @@
             "x": 64.82625482625483,
             "y": 48.58695652173913,
             "width": 33.02123552123552,
-            "height": 41.24400000000001,
+            "height": 41.243478260869566,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -395,7 +395,7 @@
     },
     {
       "id": 11,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/build_button.png",
       "regions": [
         {
@@ -433,7 +433,7 @@
     },
     {
       "id": 12,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/upgrade_big_button.png",
       "regions": [
         {
@@ -471,7 +471,7 @@
     },
     {
       "id": 13,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/add_worker_button.png",
       "regions": [
         {
@@ -1131,7 +1131,7 @@
     },
     {
       "id": 31,
-      "screen_id": "",
+      "screen_id": "survivor_status",
       "ocr": "references/ads.info.png",
       "regions": [
         {
@@ -1200,7 +1200,7 @@
     },
     {
       "id": 32,
-      "screen_id": "",
+      "screen_id": "survivor_status",
       "ocr": "references/page.worker.png",
       "regions": [
         {
@@ -1233,6 +1233,36 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        },
+        {
+          "name": "from.survivor_status.to.main_city",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.54633204633204,
+            "y": 25.869565217391305,
+            "width": 6.2007722007721995,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.survivor_status",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.0849420849420848,
+            "y": 26.08695652173913,
+            "width": 31.2007722007722,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
@@ -1276,7 +1306,7 @@
     },
     {
       "id": 34,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/button.next.png",
       "regions": [
         {
@@ -1303,7 +1333,7 @@
             "x": 49.640926640926644,
             "y": 44.891304347826086,
             "width": 48.2007722007722,
-            "height": 22.789902173913042,
+            "height": 22.79021739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1314,7 +1344,7 @@
     },
     {
       "id": 35,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/page.building.furniture.png",
       "regions": [
         {

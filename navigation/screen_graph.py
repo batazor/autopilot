@@ -189,6 +189,11 @@ def load_screen_verify_config(fp: tuple[str, int, int] | None = None) -> VerifyC
             entry: ScreenVerifyEntry = {"rules": rules, "landmarks": landmarks}
             if isinstance(retry_raw, dict):
                 entry["retry"] = retry_raw
+            priority_raw = entry_raw.get("priority") if isinstance(entry_raw, dict) else None
+            try:
+                entry["priority"] = int(priority_raw) if priority_raw is not None else 100
+            except (TypeError, ValueError):
+                entry["priority"] = 100
             if rules or landmarks or "retry" in entry:
                 out_screens[str(screen).strip()] = entry
 
@@ -234,7 +239,8 @@ def screen_verify_screen_names() -> list[str]:
     screens = load_screen_verify_config().get("screens")
     if not isinstance(screens, dict):
         return []
-    return [str(screen).strip() for screen in screens if str(screen).strip()]
+    names = [str(screen).strip() for screen in screens if str(screen).strip()]
+    return sorted(names, key=lambda s: int((screens.get(s) or {}).get("priority") or 100))
 
 
 def _parse_retry(

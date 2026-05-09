@@ -13,3 +13,10 @@ def test_route_taps_type_hints_are_resolvable() -> None:
 
 def test_building_routes_back_to_main_city() -> None:
     assert route_taps("building", "main_city") == [["from.building.to.main_city"]]
+
+
+def test_survivor_status_routes_main_city() -> None:
+    assert route_taps("main_city", "survivor_status") == [["isWorkers"]]
+    assert route_taps("survivor_status", "main_city") == [
+        ["from.survivor_status.to.main_city"]
+    ]

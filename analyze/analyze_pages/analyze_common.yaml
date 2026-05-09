@@ -65,14 +65,6 @@ overlay:
   threshold: 0.92
   min_match_saturation: 48
 
-- name: main_city.visible
-  region: is_main_city
-  action: findIcon
-  threshold: 0.9
-  pushScenario:
-    - name: set_node_main_city
-      priority: 85_000
-
 - name: page.chief_profile.visible
   region: chief_profile_title
   action: findIcon

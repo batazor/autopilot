@@ -21,17 +21,8 @@ text_switch:
       chief_profile: [chief profile, chief, profile]
 
 screens:
-  main_city:
-    # Current-screen detection landmarks: "we are on main_city" signals.
-    landmarks:
-      - match: is_main_city
-        threshold: 0.9
-      - match: isNewPeople
-        threshold: 0.98
-      - ocr: is_main_city
-        contains: [city, town, base]
-
   building:
+    priority: 10
     # Current-screen detection landmark: recognize the building/upgrade screen.
     landmarks:
       - match: page.building.furniture
@@ -40,6 +31,17 @@ screens:
     rules:
       - match: page.building.furniture
         threshold: 0.85
+
+  main_city:
+    priority: 50
+    # Current-screen detection landmarks: "we are on main_city" signals.
+    landmarks:
+      - match: is_main_city
+        threshold: 0.9
+      - match: isNewPeople
+        threshold: 0.98
+      - ocr: is_main_city
+        contains: [city, town, base]
 
   arena:
     # Route verification rules for screens that are usually detected by title OCR.
@@ -80,3 +82,12 @@ screens:
     - ocr: page_title
       contains: [chief profile, chief, profile]
       threshold: 0.8
+
+  survivor_status:
+    priority: 45
+    landmarks:
+      - match: page.survivor_status
+        threshold: 0.85
+    rules:
+      - match: page.survivor_status
+        threshold: 0.85
