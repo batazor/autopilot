@@ -15,6 +15,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.reference_preview import rolling_live_preview_path
 
@@ -83,6 +84,7 @@ def get_or_build_pipeline_cache(
     area_path: Path,
     analyze_path: Path,
     current_screen: str | None = None,
+    state_flat: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any] | None, bool]:
     """Return analysis data for *instance_id*, rebuilding only when a source file changes.
 
@@ -90,6 +92,11 @@ def get_or_build_pipeline_cache(
     Invalidated when the rolling PNG, area.json, analyze.yaml mtime, **or** ``current_screen``
     changes — rules with YAML ``screens`` depend on Redis ``current_screen``
     (same as ``worker/instance_worker.py``).
+
+    ``state_flat`` (when provided) is forwarded to overlay analysis so screen-version ``cond``
+    selection picks the right ``_vN`` region per player. Cache key includes nothing about state
+    yet — this works because the active player rarely changes per instance during a session;
+    if it does, callers should bump ``force_nonce`` to invalidate.
     """
     preview_mtime, area_mtime, analyze_mtime = mtimes(
         instance_id, repo_root=repo_root, area_path=area_path, analyze_path=analyze_path
@@ -122,6 +129,7 @@ def get_or_build_pipeline_cache(
         image_bgr,
         repo_root=repo_root,
         current_screen=screen_key or None,
+        state_flat=state_flat,
     )
 
     area_doc: dict = {}
@@ -146,14 +154,20 @@ def get_or_build_pipeline_cache(
                     continue
                 rule_order.append(nm)
                 reg_nm = str(r.get("region") or "").strip()
-                pair_rr = screen_region_by_name(area_doc, reg_nm) if reg_nm else None
+                pair_rr = (
+                    screen_region_by_name(area_doc, reg_nm, state_flat=state_flat)
+                    if reg_nm
+                    else None
+                )
                 ref_rr = (
-                    str(pair_rr[0].get("ocr") or "").strip()
+                    effective_ocr_for_region(pair_rr[0], pair_rr[1])
                     if pair_rr is not None
                     else ""
                 )
                 sr_eff = (
-                    resolved_search_region_for_findicon(area_doc, reg_nm, ref_rr, r)
+                    resolved_search_region_for_findicon(
+                        area_doc, reg_nm, ref_rr, r, state_flat=state_flat
+                    )
                     if pair_rr is not None
                     else ""
                 )
@@ -180,4 +194,3 @@ def get_or_build_pipeline_cache(
     }
     cache[overlay_ck] = entry
     return entry, True
-

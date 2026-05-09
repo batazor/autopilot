@@ -167,6 +167,31 @@ def resolve_region_with_version(
     return None
 
 
+def effective_ocr_for_region(screen_entry: dict[str, Any], region: dict[str, Any]) -> str:
+    """Reference image to use for ``region``.
+
+    Version-specific regions (``name_v2``) are cropped from ``versions[].ocr`` when
+    that image is declared; default or fallback regions use the screen entry's
+    ordinary ``ocr``.
+    """
+    default_ocr = str(screen_entry.get("ocr") or "").strip()
+    reg_name = str(region.get("name") or "").strip()
+    versions = screen_entry.get("versions") or []
+    if not reg_name or not isinstance(versions, list):
+        return default_ocr
+
+    for ver in versions:
+        if not isinstance(ver, dict):
+            continue
+        vid = str(ver.get("id", "") or "").strip()
+        if not vid:
+            continue
+        suffix = f"_{vid}"
+        if reg_name.endswith(suffix) and len(reg_name) > len(suffix):
+            return str(ver.get("ocr") or "").strip() or default_ocr
+    return default_ocr
+
+
 def split_versioned_name(name: str, known_version_ids: set[str]) -> tuple[str, str | None]:
     """Split a region name into ``(base_name, version_id_or_None)``.
 

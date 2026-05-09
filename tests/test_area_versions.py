@@ -10,6 +10,7 @@ import pytest
 from layout.area_lookup import screen_region_by_name
 from layout.area_regions import region_bbox_for_name, validate_versions
 from layout.area_versions import (
+    effective_ocr_for_region,
     eval_cond,
     pick_active_version,
     resolve_region_with_version,
@@ -127,6 +128,28 @@ def test_resolve_v2_falls_back_to_default_when_override_missing() -> None:
 def test_resolve_unknown_name_returns_none() -> None:
     entry = _entry_with_regions("a", "b")
     assert resolve_region_with_version(entry, "missing", "v2") is None
+
+
+def test_effective_ocr_for_versioned_region() -> None:
+    entry = {
+        "ocr": "references/main_city.png",
+        "versions": [{"id": "v2", "cond": "True", "ocr": "references/main_city_v2.png"}],
+    }
+    assert (
+        effective_ocr_for_region(entry, {"name": "is_new_chapter_v2"})
+        == "references/main_city_v2.png"
+    )
+
+
+def test_effective_ocr_for_default_region() -> None:
+    entry = {
+        "ocr": "references/main_city.png",
+        "versions": [{"id": "v2", "cond": "True", "ocr": "references/main_city_v2.png"}],
+    }
+    assert (
+        effective_ocr_for_region(entry, {"name": "is_new_chapter"})
+        == "references/main_city.png"
+    )
 
 
 # ---- split_versioned_name -------------------------------------------------

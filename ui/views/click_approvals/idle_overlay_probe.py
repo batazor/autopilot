@@ -6,6 +6,7 @@ import cv2
 import streamlit as st
 
 from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png
 from ui.pipeline.data import (
     clear_pipeline_overlay_cache_entries,
@@ -369,8 +370,12 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             st.metric("Score − thr", gap_s if gap_s is not None else "—")
 
     sr_line = str(pay.get("search_region") or rule_search.get(sel_logical, "") or "").strip()
+    resolved_line = str(pay.get("resolved_region") or "").strip()
+    region_line = str(pay.get("region") or "").strip()
+    if resolved_line and resolved_line != region_line:
+        region_line = f"{region_line or '—'} → {resolved_line}"
     st.markdown(
-        f"**Region:** `{str(pay.get('region') or '').strip() or '—'}` · "
+        f"**Region:** `{region_line or '—'}` · "
         f"**action:** `{act or '—'}` · "
         f"**YAML screens:** `{nd or '(global)'}` · "
         f"**search_region:** `{sr_line or '—'}`"
@@ -403,7 +408,8 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         st.caption(f"No `{reg_name}` bbox in area.json — skipping live vs template crops.")
         return
     entry, reg = pair
-    ref_rel = str(entry.get("ocr") or "").strip()
+    resolved_region = str(reg.get("name") or "").strip() or reg_name
+    ref_rel = effective_ocr_for_region(entry, reg)
     if not ref_rel:
         return
 
@@ -427,11 +433,11 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     sought_name: str | None = None
     try:
         area_mtime = float(ctx.area_path.stat().st_mtime) if ctx.area_path.is_file() else 0.0
-        crop_path = exported_crop_png(ctx.repo_root, ref_rel, reg_name)
+        crop_path = exported_crop_png(ctx.repo_root, ref_rel, resolved_region)
         _ensure_fresh_reference_crop(
             repo_root=ctx.repo_root,
             ref_rel=ref_rel,
-            region_name=reg_name,
+            region_name=resolved_region,
             bbox_pct=reg["bbox"],
             crop_path=crop_path,
             area_mtime=area_mtime,

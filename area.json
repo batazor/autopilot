@@ -226,11 +226,11 @@
         },
         {
           "name": "claim_button_close",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 92.85714285714286,
+            "x": 92.66409266409266,
             "y": 7.391304347826087,
             "width": 6.0,
             "height": 3.9000000000000004,
@@ -238,6 +238,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "claim_button_close_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.06563706563706,
+            "y": 4.782608695652174,
+            "width": 12.23938223938224,
+            "height": 7.956521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },

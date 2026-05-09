@@ -11,5 +11,9 @@ steps:
     steps:
       - click: button.claim
       - wait: 3s
-  - click: claim_button_close
-  - wait: 2s
+  # Close control is not always shown — only tap when the region matches.
+  - while_match: claim_button_close
+    max: 1
+    steps:
+      - click: claim_button_close
+      - wait: 1s

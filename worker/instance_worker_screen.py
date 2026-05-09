@@ -44,21 +44,49 @@ class InstanceWorkerScreenMixin:
         repo_root = Path(__file__).resolve().parent.parent
         try:
             current_screen: str | None = current_screen_override
-            if current_screen is None and self._redis is not None:
-                raw = await self._redis.hget(
-                    f"wos:instance:{self._cfg.instance_id}:state", "current_screen"
+            active_player: str | None = None
+            if self._redis is not None:
+                row = await self._redis.hgetall(
+                    f"wos:instance:{self._cfg.instance_id}:state"
                 )
-                if raw:
-                    current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
-                    current_screen = current_screen.strip() or None
+                if row:
+                    decoded = {
+                        (k.decode() if isinstance(k, bytes) else str(k)):
+                            (v.decode() if isinstance(v, bytes) else str(v))
+                        for k, v in row.items()
+                    }
+                    if current_screen is None:
+                        cur = decoded.get("current_screen", "").strip()
+                        current_screen = cur or None
+                    ap = decoded.get("active_player", "").strip()
+                    active_player = ap or None
 
             self._last_current_screen = current_screen
+
+            # Resolve regions against the active player's state so screen-version `cond`
+            # picks the right `_vN` override per account (otherwise the worker would always
+            # match v1 boxes regardless of player progression).
+            state_flat: dict[str, Any] | None = None
+            if active_player:
+                try:
+                    from config.state_store import get_state_store
+
+                    state_flat = (
+                        get_state_store().get_or_create(active_player).to_flat_dict()
+                    )
+                except Exception:
+                    logger.debug(
+                        "overlay analyze: state_flat lookup failed for player=%s",
+                        active_player,
+                        exc_info=True,
+                    )
 
             results = await run_overlay_analysis(
                 image_bgr,
                 repo_root=repo_root,
                 current_screen=current_screen,
                 rule_eval_state=self._overlay_rule_eval_state,
+                state_flat=state_flat,
             )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)

@@ -5,7 +5,7 @@ node: main_city
 
 steps:
   # `chapter.task` is populated by the overlay text rule before this router is enqueued.
-  - cond: chapter.task ~= "Upgrade"
+  - cond: chapter.task ~= "Upgrade|Build"
     steps:
       - click: chapter.task
       - wait: 2s

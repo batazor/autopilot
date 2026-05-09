@@ -19,6 +19,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.template_match import (
@@ -118,11 +119,15 @@ def _tap_region_delta_pct(
     area_doc: dict[str, Any],
     region_name: str,
     rule: dict[str, Any],
+    *,
+    state_flat: dict[str, Any] | None = None,
 ) -> tuple[str, float, float] | None:
     tap_region = str(rule.get("tap_region") or f"{region_name}_tap").strip()
     if not tap_region:
         return None
-    delta = centers_delta_pct_between_regions(area_doc, region_name, tap_region)
+    delta = centers_delta_pct_between_regions(
+        area_doc, region_name, tap_region, state_flat=state_flat
+    )
     if delta is None:
         return None
     return tap_region, delta[0], delta[1]
@@ -136,6 +141,7 @@ async def evaluate_overlay_rules_async(
     *,
     current_screen: str | None = None,
     rule_eval_state: dict[str, float] | None = None,
+    state_flat: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run ordered overlay rules; returns a dict keyed by rule ``name``."""
     out: dict[str, Any] = {}
@@ -189,7 +195,7 @@ async def evaluate_overlay_rules_async(
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
-            pair = screen_region_by_name(area_doc, region_name)
+            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
@@ -199,7 +205,8 @@ async def evaluate_overlay_rules_async(
                 continue
             entry, reg = pair
             bbox = reg.get("bbox")
-            ref_rel = str(entry.get("ocr") or "").strip()
+            resolved_region_name = str(reg.get("name") or "").strip() or region_name
+            ref_rel = effective_ocr_for_region(entry, reg)
             if not isinstance(bbox, dict) or not ref_rel:
                 out[logical_name] = {
                     "matched": False,
@@ -207,7 +214,7 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
-            crop_path = exported_crop_png(repo_root, ref_rel, region_name)
+            crop_path = exported_crop_png(repo_root, ref_rel, resolved_region_name)
             if not crop_path.is_file():
                 # Auto-export crop from the reference screenshot on demand.
                 try:
@@ -248,12 +255,12 @@ async def evaluate_overlay_rules_async(
             tw_tpl = int(tpl.shape[1])
             th_tpl = int(tpl.shape[0])
             search_region_name = resolved_search_region_for_findicon(
-                area_doc, region_name, ref_rel, rule
+                area_doc, region_name, ref_rel, rule, state_flat=state_flat
             )
 
             try:
                 if search_region_name:
-                    pair_s = screen_region_by_name(area_doc, search_region_name)
+                    pair_s = screen_region_by_name(area_doc, search_region_name, state_flat=state_flat)
                     if pair_s is None:
                         out[logical_name] = {
                             "matched": False,
@@ -308,7 +315,7 @@ async def evaluate_overlay_rules_async(
                     my_pct = 100.0 * cy_px / hi
                     tap_x_pct = mx_pct
                     tap_y_pct = my_pct
-                    tap_delta = _tap_region_delta_pct(area_doc, region_name, rule)
+                    tap_delta = _tap_region_delta_pct(area_doc, region_name, rule, state_flat=state_flat)
                     if tap_delta is not None:
                         _tap_region, dx_pct, dy_pct = tap_delta
                         tap_x_pct = mx_pct + dx_pct
@@ -342,6 +349,7 @@ async def evaluate_overlay_rules_async(
                         "template_h": th_tpl,
                         "action": "findIcon",
                         "region": region_name,
+                        "resolved_region": resolved_region_name,
                         "search_region": search_region_name,
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
@@ -389,7 +397,7 @@ async def evaluate_overlay_rules_async(
 
             tap_x_pct_1 = mx_pct
             tap_y_pct_1 = my_pct
-            tap_delta_1 = _tap_region_delta_pct(area_doc, region_name, rule)
+            tap_delta_1 = _tap_region_delta_pct(area_doc, region_name, rule, state_flat=state_flat)
             if tap_delta_1 is not None:
                 _tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
                 tap_x_pct_1 = mx_pct + dx_pct_1
@@ -428,6 +436,7 @@ async def evaluate_overlay_rules_async(
                 "template_h": th_tpl,
                 "action": "findIcon",
                 "region": region_name,
+                "resolved_region": resolved_region_name,
                 "tap_x_pct": tap_x_pct_1,
                 "tap_y_pct": tap_y_pct_1,
             }
@@ -458,7 +467,7 @@ async def evaluate_overlay_rules_async(
 
         if action == "color_check":
             region_name = str(rule.get("region") or "").strip()
-            pair = screen_region_by_name(area_doc, region_name) if region_name else None
+            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat) if region_name else None
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
@@ -500,9 +509,10 @@ async def evaluate_overlay_rules_async(
 
             patch, _patch_tl = patch_bgr_from_bbox_percent(image_bgr, bbox)
             ph, pw = int(patch.shape[0]), int(patch.shape[1])
-            ref_rel = str(entry.get("ocr") or "").strip()
+            resolved_region_name = str(reg.get("name") or "").strip() or region_name
+            ref_rel = effective_ocr_for_region(entry, reg)
             if ref_rel:
-                crop_path = exported_crop_png(repo_root, ref_rel, region_name)
+                crop_path = exported_crop_png(repo_root, ref_rel, resolved_region_name)
                 if crop_path.is_file():
                     ref_img = cv2.imread(str(crop_path))
                     if ref_img is not None and ref_img.size > 0:
@@ -555,7 +565,7 @@ async def evaluate_overlay_rules_async(
             expected = optional_expected_texts(rule)
             fuzzy_thr = optional_fuzzy_threshold(rule)
 
-            pair = screen_region_by_name(area_doc, region_name)
+            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
             if pair is None:
                 out[logical_name] = {
                     "matched": False,

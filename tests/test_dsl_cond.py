@@ -80,6 +80,25 @@ async def test_cond_instance_text_substring_false_is_valid_syntax(redis_async: o
 
 
 @pytest.mark.asyncio
+async def test_cond_instance_text_substring_pipe_matches_any_alternative(redis_async: object) -> None:
+    r = redis_async
+    for text in ("Upgrade Wall", "Build Barracks", "ade2Upgrade x"):
+        await r.hset("wos:instance:bs1:state", mapping={"chapter.task": text})  # type: ignore[attr-defined]
+        step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Upgrade|Build"'}
+        allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
+        assert allowed is True, text
+
+
+@pytest.mark.asyncio
+async def test_cond_instance_text_substring_pipe_all_miss(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Train troops"})  # type: ignore[attr-defined]
+    step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Upgrade|Build"'}
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
+    assert allowed is False
+
+
+@pytest.mark.asyncio
 async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: object) -> None:
     r = redis_async
     await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Bunk Beds in Shelter 2"})  # type: ignore[attr-defined]

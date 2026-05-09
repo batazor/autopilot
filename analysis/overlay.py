@@ -26,6 +26,7 @@ async def run_overlay_analysis(
     area_doc: dict[str, Any] | None = None,
     current_screen: str | None = None,
     rule_eval_state: dict[str, float] | None = None,
+    state_flat: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Load ``analyze/analyze.yaml`` (unless overridden) and evaluate ``overlay`` rules."""
     cfg_path = (
@@ -48,6 +49,7 @@ async def run_overlay_analysis(
         rules,
         current_screen=current_screen,
         rule_eval_state=rule_eval_state,
+        state_flat=state_flat,
     )
 
 
@@ -59,6 +61,7 @@ def run_overlay_analysis_sync(
     area_doc: dict[str, Any] | None = None,
     current_screen: str | None = None,
     rule_eval_state: dict[str, float] | None = None,
+    state_flat: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Sync wrapper for contexts that cannot await (e.g. some Streamlit pages)."""
     return asyncio.run(
@@ -69,6 +72,7 @@ def run_overlay_analysis_sync(
             area_doc=area_doc,
             current_screen=current_screen,
             rule_eval_state=rule_eval_state,
+            state_flat=state_flat,
         )
     )
 
@@ -81,6 +85,7 @@ def evaluate_overlay_rules(
     *,
     current_screen: str | None = None,
     rule_eval_state: dict[str, float] | None = None,
+    state_flat: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Sync wrapper kept for tests and non-async callers."""
     try:
@@ -103,6 +108,7 @@ def evaluate_overlay_rules(
             overlay_rules,
             current_screen=current_screen,
             rule_eval_state=rule_eval_state,
+            state_flat=state_flat,
         )
     )
 

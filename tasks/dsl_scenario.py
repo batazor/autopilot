@@ -20,6 +20,7 @@ from analysis.overlay import evaluate_overlay_rules_async
 from config.log_ansi import scenario_log_label as _scen
 from config.state_store import get_state_store
 from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
@@ -62,7 +63,8 @@ _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
 # Instance-state text guards, e.g. ``cond: chapter.task ~= "Upgrade 2"``.
 # - lhs is a Redis hash field in `wos:instance:<id>:state`
 # - op:
-#   - `~=`: case-insensitive substring contains
+#   - `~=`: case-insensitive substring contains; RHS may use ``|`` for alternatives
+#     (e.g. ``"Upgrade|Build"`` matches if any alternative is a substring)
 #   - `==` / `!=`: case-insensitive full-string match
 _COND_TEXT_RE = re.compile(
     r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
@@ -224,7 +226,9 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
     cur_lc = cur.strip().lower()
     rhs_lc = rhs.strip().lower()
     if op == "~=":
-        return bool(rhs_lc) and (rhs_lc in cur_lc)
+        parts = [p.strip() for p in rhs_lc.split("|")]
+        alts = [p for p in parts if p]
+        return bool(alts) and any(a in cur_lc for a in alts)
     if op == "==":
         return cur_lc == rhs_lc
     if op == "!=":
@@ -628,7 +632,9 @@ class DslScenarioTask:
         if min_sat is not None:
             rule["min_match_saturation"] = min_sat
         image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-        out = await evaluate_overlay_rules_async(image_bgr, area_doc, repo_root, [rule])
+        out = await evaluate_overlay_rules_async(
+            image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
+        )
         row = out.get(str(rule["name"]))
         if isinstance(row, dict):
             # Keep last match for subsequent `click:` on the same region.
@@ -1195,9 +1201,10 @@ class DslScenarioTask:
         repo_root = Path(__file__).resolve().parent.parent
         patch, _tl = patch_bgr_from_bbox_percent(image, bbox)
         ph, pw = int(patch.shape[0]), int(patch.shape[1])
-        ref_rel = str(pair[0].get("ocr") or "").strip()
+        resolved_region = str(reg_def.get("name") or "").strip() or region
+        ref_rel = effective_ocr_for_region(pair[0], reg_def)
         if ref_rel:
-            crop_path = exported_crop_png(repo_root, ref_rel, region)
+            crop_path = exported_crop_png(repo_root, ref_rel, resolved_region)
             if crop_path.is_file():
                 ref_img = cv2.imread(str(crop_path))
                 if ref_img is not None and ref_img.size > 0:

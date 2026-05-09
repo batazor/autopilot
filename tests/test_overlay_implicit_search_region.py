@@ -60,3 +60,66 @@ def test_findicon_implicit_search_region_matches_without_yaml_key(tmp_path: Path
     assert hit["tap_region"] == "hand_pointer_tap"
     assert hit["tap_x_pct"] == 50
     assert hit["tap_y_pct"] == 70
+
+
+def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> None:
+    repo = tmp_path
+    ref_rel = "references/main_city.png"
+    ref_rel_v2 = "references/main_city_v2.png"
+    (repo / "references" / "crop").mkdir(parents=True)
+
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    template_v2 = np.zeros((10, 10, 3), dtype=np.uint8)
+    template_v2[:, :5] = (0, 220, 255)
+    template_v2[:, 5:] = (0, 0, 255)
+    frame[40:50, 30:40] = template_v2
+
+    template_v1 = np.zeros((10, 10, 3), dtype=np.uint8)
+    template_v1[:, :5] = (255, 0, 0)
+    template_v1[:, 5:] = (0, 255, 0)
+    cv2.imwrite(str(exported_crop_png(repo, ref_rel, "is_new_chapter")), template_v1)
+    cv2.imwrite(str(exported_crop_png(repo, ref_rel_v2, "is_new_chapter_v2")), template_v2)
+
+    area_doc = {
+        "screens": [
+            {
+                "id": 1,
+                "ocr": ref_rel,
+                "versions": [
+                    {
+                        "id": "v2",
+                        "cond": "buildings.furnace.level >= 4",
+                        "ocr": ref_rel_v2,
+                    }
+                ],
+                "regions": [
+                    {"name": "is_new_chapter", "bbox": {"x": 1, "y": 1, "width": 10, "height": 10}},
+                    {
+                        "name": "is_new_chapter_v2",
+                        "bbox": {"x": 30, "y": 40, "width": 10, "height": 10},
+                    },
+                ],
+            }
+        ]
+    }
+    rules = [
+        {
+            "name": "new_chapter.visible",
+            "region": "is_new_chapter",
+            "action": "findIcon",
+            "threshold": 0.98,
+        }
+    ]
+
+    out = evaluate_overlay_rules(
+        frame,
+        area_doc,
+        repo,
+        rules,
+        state_flat={"buildings.furnace.level": 4},
+    )
+    hit = out["new_chapter.visible"]
+
+    assert hit["matched"] is True
+    assert hit["region"] == "is_new_chapter"
+    assert hit["resolved_region"] == "is_new_chapter_v2"

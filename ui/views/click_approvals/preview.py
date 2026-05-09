@@ -8,6 +8,7 @@ import numpy as np
 import streamlit as st
 
 from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import load_rolling_instance_preview, references_root
@@ -301,13 +302,14 @@ def render_preview_with_point(
     if not reg_name:
         return
     area_doc = load_area_doc(ctx.area_path)
-    pair = screen_region_by_name(area_doc, reg_name)
+    pair = screen_region_by_name(area_doc, reg_name, state_flat=state_flat)
     if pair is None:
         return
     entry, reg = pair
     if not isinstance(reg.get("bbox"), dict):
         return
-    ref_rel = str(entry.get("ocr") or "").strip()
+    resolved_region = str(reg.get("name") or "").strip() or reg_name
+    ref_rel = effective_ocr_for_region(entry, reg)
     if not ref_rel:
         return
 
@@ -336,11 +338,11 @@ def render_preview_with_point(
     sought_png: bytes | None = None
     sought_name: str | None = None
     try:
-        crop_path = exported_crop_png(ctx.repo_root, ref_rel, reg_name)
+        crop_path = exported_crop_png(ctx.repo_root, ref_rel, resolved_region)
         _ensure_fresh_reference_crop(
             ctx=ctx,
             ref_rel=ref_rel,
-            region_name=reg_name,
+            region_name=resolved_region,
             bbox_pct=reg["bbox"],
             crop_path=crop_path,
         )

@@ -1,0 +1,17 @@
+---
+description: Python tooling — use uv for deps and commands
+alwaysApply: true
+---
+
+# Python tooling: use `uv`
+
+This project uses **[uv](https://docs.astral.sh/uv/)** for Python workflows. Prefer uv over ad-hoc `pip` / manual `venv` / Poetry as the default path.
+
+## Do this
+
+- Sync/install deps: `uv sync` (with project flags as needed).
+- Run commands and scripts: `uv run …` from the repo root (or the appropriate project root).
+- Add dependencies: `uv add …` (dev groups per `pyproject.toml` / repo conventions).
+- When suggesting setup steps, prefer uv commands instead of “activate venv then pip install” unless the repo explicitly documents otherwise.
+
+Follow CI/Makefile/scripts when they encode a required sequence; for local dev and new instructions, default to **uv**.
