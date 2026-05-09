@@ -9,7 +9,7 @@ yellow CTA, etc.). A corner triangle / “next” cue can also satisfy ``skip_te
 the **same** PNG.
 
 On that single file we assert **both** overlays match. Queue ordering still prefers the pointer
-scenario (62000 vs skip 60000); see ``scheduler/queue.pop_due``.
+scenario (86_000 vs skip 85_000); see ``scheduler/queue.pop_due``.
 
 Separate tests cover ``references/hand_pointer_small.png`` (labeling reference) and half‑resolution mismatch.
 """

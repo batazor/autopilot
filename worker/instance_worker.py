@@ -41,12 +41,16 @@ _TASK_REGISTRY: dict[str, type] = {}
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
-# by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`). Priority
-# stays below onboarding overlays (skip=60_000, hand=62_000) so tutorials always
-# preempt these identity / boot-time probes.
+# by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
+#
+# Priority band: above routine state-aware overlays (assign_worker, read_mail_gifts,
+# chapter_task_router et al. at 70_000–80_000) so identity is established before any
+# action is attributed to a player. Stays below tutorial overlays (skip=85_000,
+# hand=86_000) — those must preempt seeds because navigating to chief_profile while
+# a tutorial is active would tap the tutorial UI instead.
 _STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
-    ("where_i_am", 41_000),
-    ("who_i_am", 40_000),
+    ("where_i_am", 83_000),
+    ("who_i_am", 82_000),
 )
 
 

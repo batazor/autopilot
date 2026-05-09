@@ -41,12 +41,12 @@ async def test_overlay_enqueue_orders_matched_payloads_by_priority() -> None:
             "skip_text_button.visible": {
                 "matched": True,
                 "region": "skip_text_button",
-                "pushScenario": [{"name": "skip_text_button", "priority": 60000}],
+                "pushScenario": [{"name": "skip_text_button", "priority": 85_000}],
             },
             "hand_pointer_small.visible": {
                 "matched": True,
                 "region": "hand_pointer_small",
-                "pushScenario": [{"name": "hand_pointer_small", "priority": 62000}],
+                "pushScenario": [{"name": "hand_pointer_small", "priority": 86_000}],
             },
         }
     )
@@ -66,12 +66,12 @@ async def test_overlay_enqueue_skips_unmatched_payloads() -> None:
             "hand_pointer.visible": {
                 "matched": False,
                 "region": "hand_pointer",
-                "pushScenario": [{"name": "hand_pointer", "priority": 62000}],
+                "pushScenario": [{"name": "hand_pointer", "priority": 86_000}],
             },
             "skip_text_button.visible": {
                 "matched": True,
                 "region": "skip_text_button",
-                "pushScenario": [{"name": "skip_text_button", "priority": 60000}],
+                "pushScenario": [{"name": "skip_text_button", "priority": 85_000}],
             },
         }
     )

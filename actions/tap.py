@@ -13,6 +13,8 @@ import subprocess
 import tempfile
 import time
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
 
@@ -26,7 +28,7 @@ from capture.adb_screencap import (
     resolve_adb_executable,
 )
 from config.loader import get_settings
-from config.reference_naming import TEMPORAL_SUBDIR
+from config.reference_naming import reference_png_abs_path, rolling_preview_basename
 from layout.types import Point
 
 logger = logging.getLogger(__name__)
@@ -542,28 +544,10 @@ class AdbController:
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
             return False
-        if req_id is not None:
-            try:
-                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
-                raw = _redis().get(current_key)
-                if raw:
-                    doc = json.loads(raw)
-                    doc["executed_at"] = time.time()
-                    doc["status"] = "executing"
-                    _redis().set(current_key, json.dumps(doc), ex=120)
-            except Exception:
-                logger.debug("Failed to mark executed_at", exc_info=True)
-        self._shell("input", "tap", str(x), str(y))
-        logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
-        if req_id is not None:
-            try:
-                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
-                # Response key is per request; cleanup if present.
-                # (UI also expires it; this is best-effort.)
-                # We don't have it here reliably, so clear any response for this request id.
-                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-            except Exception:
-                logger.debug("Failed to cleanup approval keys after tap", exc_info=True)
+        with self._approval_execution(req_id):
+            self._shell("input", "tap", str(x), str(y))
+            logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
+            self._refresh_rolling_preview()
         return True
 
     def swipe(
@@ -597,26 +581,13 @@ class AdbController:
         if not ok:
             logger.info("ADB swipe blocked (no approval): %s", self._instance_id)
             return False
-        if req_id is not None:
-            try:
-                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
-                raw = _redis().get(current_key)
-                if raw:
-                    doc = json.loads(raw)
-                    doc["executed_at"] = time.time()
-                    doc["status"] = "executing"
-                    _redis().set(current_key, json.dumps(doc), ex=120)
-            except Exception:
-                logger.debug("Failed to mark executed_at", exc_info=True)
-        self._shell("input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
-        logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
-        time.sleep(_SWIPE_SETTLE_SECONDS)
-        if req_id is not None:
-            try:
-                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
-                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-            except Exception:
-                logger.debug("Failed to cleanup approval keys after swipe", exc_info=True)
+        with self._approval_execution(req_id):
+            self._shell(
+                "input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)
+            )
+            logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
+            time.sleep(_SWIPE_SETTLE_SECONDS)
+            self._refresh_rolling_preview()
         return True
 
     def swipe_direction(
@@ -656,25 +627,10 @@ class AdbController:
         if not ok:
             logger.info("ADB type_text blocked (no approval): %s", self._instance_id)
             return False
-        if req_id is not None:
-            try:
-                current_key = f"wos:ui:click_approval:current:{self._instance_id}"
-                raw = _redis().get(current_key)
-                if raw:
-                    doc = json.loads(raw)
-                    doc["executed_at"] = time.time()
-                    doc["status"] = "executing"
-                    _redis().set(current_key, json.dumps(doc), ex=120)
-            except Exception:
-                logger.debug("Failed to mark executed_at", exc_info=True)
-        self._shell("input", "text", escaped)
-        logger.debug("Type '%s' on %s", text, self._serial)
-        if req_id is not None:
-            try:
-                _redis().delete(f"wos:ui:click_approval:current:{self._instance_id}")
-                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-            except Exception:
-                logger.debug("Failed to cleanup approval keys after type_text", exc_info=True)
+        with self._approval_execution(req_id):
+            self._shell("input", "text", escaped)
+            logger.debug("Type '%s' on %s", text, self._serial)
+            self._refresh_rolling_preview()
         return True
 
     # ------------------------------------------------------------------
@@ -699,20 +655,24 @@ class AdbController:
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(payload)
 
-    def _attach_approval_preview(self, payload: dict[str, object]) -> None:
-        """Capture a fresh frame for the approval UI.
+    def _capture_to_rolling_preview(self, *, tmp_prefix: str) -> tuple[Path, Path] | None:
+        """Capture a fresh frame and atomically overwrite ``current_state.png``.
 
-        The click approvals page otherwise reads the rolling preview PNG, which is updated by a
-        timer and can lag one DSL step behind fast click sequences.
+        Returns ``(absolute_path, repo_root)`` on success, ``None`` on failure.
+        Used by both pre-approval (`_attach_approval_preview`) and post-action
+        (`_refresh_rolling_preview`) writers.
         """
         try:
             png = self.screenshot_bytes()
             repo_root = Path(__file__).resolve().parent.parent
-            rel = Path(TEMPORAL_SUBDIR) / f"{self._instance_id}_approval_current.png"
-            path = repo_root / "references" / rel
+            path = reference_png_abs_path(
+                repo_root,
+                rolling_preview_basename(self._instance_id),
+                self._instance_id,
+            )
             path.parent.mkdir(parents=True, exist_ok=True)
             fd, tmp_name = tempfile.mkstemp(
-                prefix=".approval-", suffix=".png", dir=path.parent
+                prefix=tmp_prefix, suffix=".png", dir=path.parent
             )
             os.close(fd)
             tmp = Path(tmp_name)
@@ -722,12 +682,67 @@ class AdbController:
             except Exception:
                 tmp.unlink(missing_ok=True)
                 raise
-            payload["preview_png_rel"] = rel.as_posix()
-            payload["preview_captured_at"] = time.time()
+            return path, repo_root
         except Exception:
+            return None
+
+    def _attach_approval_preview(self, payload: dict[str, object]) -> None:
+        """Capture pre-approval frame, write to current_state.png, attach to payload."""
+        result = self._capture_to_rolling_preview(tmp_prefix=".approval-")
+        if result is None:
             logger.debug(
                 "Failed to capture approval preview for %s", self._instance_id, exc_info=True
             )
+            return
+        path, repo_root = result
+        rel = path.relative_to(repo_root / "references")
+        payload["preview_png_rel"] = rel.as_posix()
+        payload["preview_captured_at"] = time.time()
+
+    def _refresh_rolling_preview(self) -> None:
+        """Capture post-action frame so the rolling preview reflects the new state.
+
+        Only runs when approval mode is enabled — outside approval mode the
+        rolling timer loop in instance_worker is the only writer.
+        """
+        if not click_approval_enabled(self._instance_id):
+            return
+        if self._capture_to_rolling_preview(tmp_prefix=".post-action-") is None:
+            logger.debug(
+                "Failed to refresh rolling preview for %s", self._instance_id, exc_info=True
+            )
+
+    @contextmanager
+    def _approval_execution(self, req_id: str | None) -> Iterator[None]:
+        """Mark the approval slot as ``executing`` for the duration of the action.
+
+        Wraps the actual ADB ``input`` shell call so the approvals UI can
+        distinguish "waiting for action to complete" from "still waiting for
+        operator decision".  Cleans up the slot and per-request response key
+        after the action returns (or raises).  No-op when approval is disabled
+        (``req_id is None``).
+        """
+        if req_id is None:
+            yield
+            return
+        current_key = f"wos:ui:click_approval:current:{self._instance_id}"
+        try:
+            raw = _redis().get(current_key)
+            if raw:
+                doc = json.loads(raw)
+                doc["executed_at"] = time.time()
+                doc["status"] = "executing"
+                _redis().set(current_key, json.dumps(doc), ex=120)
+        except Exception:
+            logger.debug("Failed to mark executed_at", exc_info=True)
+        try:
+            yield
+        finally:
+            try:
+                _redis().delete(current_key)
+                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
+            except Exception:
+                logger.debug("Failed to cleanup approval keys", exc_info=True)
 
     # ------------------------------------------------------------------
     # Internal helpers
