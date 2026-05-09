@@ -1,4 +1,16 @@
 overlay:
+- name: page.building.furniture.present
+  region: page.building.furniture
+  action: findIcon
+  threshold: 0.9
+  screens:
+    - building
+  ttl: 30s
+  pushScenario:
+    - name: upgrade
+      priority: 80000
+      ttl: 20s
+
 - name: build_button.visible
   region: build_button
   action: findIcon

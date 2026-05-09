@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class ScreenName(StrEnum):
     MAIN_CITY = "main_city"
+    BUILDING = "building"
     ARENA = "arena"
     TRAINING = "training"
     GATHERING = "gathering"

@@ -81,3 +81,24 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
     assert "search_region" not in rule
 
     assert rename_findicon_overlay_primary(tmp_path, "nope", "x") is False
+
+
+def test_building_furniture_overlay_uses_image_match() -> None:
+    repo = Path(__file__).resolve().parents[1]
+    doc = yaml.safe_load(
+        (repo / "analyze/analyze_pages/analyze_building.yaml").read_text(encoding="utf-8")
+    )
+    rules = doc.get("overlay") or []
+    assert not any(
+        isinstance(r, dict) and r.get("name") == "building.visible" for r in rules
+    )
+    rule = next(
+        r for r in rules
+        if isinstance(r, dict) and r.get("name") == "page.building.furniture.present"
+    )
+
+    assert rule["region"] == "page.building.furniture"
+    assert rule["action"] == "findIcon"
+    assert rule["threshold"] == 0.9
+    assert rule["screens"] == ["building"]
+    assert "set_node" not in rule

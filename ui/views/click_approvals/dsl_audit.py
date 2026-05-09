@@ -43,7 +43,7 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
         except (TypeError, ValueError, OSError):
             return ts
 
-    with st.expander("DSL · last guards (`match` / `ocr` / `color_check`)", expanded=True):
+    with st.expander("DSL · last guards (`match` / `ocr` / `color_check`)", expanded=False):
         st.caption(
             "Redis audit from `DslScenarioTask` (fields `dsl_last_*` on the instance state hash)."
         )
@@ -117,7 +117,10 @@ def render_dsl_step_audit(ctx: dict[str, object]) -> None:
                     [
                         f"- Region: `{cl_r or '—'}`",
                         f"- Want: `{want_disp}` · dominant: `{dom_disp}`",
-                        f"- Share / threshold: `{share_disp}` / `{min_disp}` · passed: {passed_html}",
+                        (
+                            f"- Share / threshold: `{share_disp}` / `{min_disp}` "
+                            f"· passed: {passed_html}"
+                        ),
                         f"- Status: **`{cl_status or '—'}`**",
                     ]
                 ),
@@ -134,4 +137,3 @@ def render_payload_json(payload: dict[str, Any]) -> None:
         import json
 
         st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
-

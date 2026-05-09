@@ -16,6 +16,13 @@ from .common import load_area_doc
 from .ctx import ClickApprovalsCtx
 
 
+def _fmt_ratio(value: object) -> str:
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
 def pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, int, int, int]:
     x = float(bb.get("x") or 0.0)
     y = float(bb.get("y") or 0.0)
@@ -363,6 +370,13 @@ def render_preview_with_point(
 
     with ui.container(border=True):
         ui.markdown(f"**Region** `{reg_name}` · live crop vs template")
+        tpl_bright = str(ctx0.get("current_task_template_bright_ratio") or "").strip()
+        patch_bright = str(ctx0.get("current_task_patch_bright_ratio") or "").strip()
+        if tpl_bright or patch_bright:
+            ui.caption(
+                "Bright detail ratio · "
+                f"template `{_fmt_ratio(tpl_bright)}` · live `{_fmt_ratio(patch_bright)}`"
+            )
         c_found, c_sought = ui.columns(2, gap="medium", vertical_alignment="top")
         cap_max = ctx.region_crop_max_side
         with c_found:

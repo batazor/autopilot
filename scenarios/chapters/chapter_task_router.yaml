@@ -4,13 +4,7 @@ name: Chapter task router
 node: main_city
 
 steps:
-  - ocr: chapter.task
-    store: chapter.task
-    scope: instance
-    type: string
-    threshold: 0.6
-
-  # OCR noise fallback (current rolling screenshot sometimes drops "Upgrade" but keeps "2 Bunk")
+  # `chapter.task` is populated by the overlay text rule before this router is enqueued.
   - cond: chapter.task ~= "Shelter"
     steps:
       - click: chapter.task

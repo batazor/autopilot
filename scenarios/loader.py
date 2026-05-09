@@ -17,30 +17,15 @@ _WATCH_LOCK = threading.RLock()
 # Guard against multiple Observer instances watching the same directory in one process.
 # This can happen when Streamlit reloads or when async services are started twice.
 _WATCHING_PATHS: set[str] = set()
-_DSL_STEP_KEYS = frozenset(
-    {
-        "break",
-        "click",
-        "exec",
-        "goto",
-        "match",
-        "ocr",
-        "push_scenario",
-        "repeat",
-        "screenshot",
-        "set_node",
-        "sleep",
-        "swipe",
-        "swipe_direction",
-        "tap",
-        "wait",
-        "while_match",
-    }
-)
 
 
-def _is_dsl_scenario_doc(raw: object) -> bool:
-    """Return True for imperative DSL YAML handled by ``DslScenarioTask``."""
+def _is_declarative_scenario_doc(raw: object) -> bool:
+    """Return True for legacy scheduler scenarios handled by ``ScenarioEvaluator``.
+
+    This is a whitelist for the declarative schema, not a DSL command skip-list.
+    Imperative DSL YAMLs are owned by ``DslScenarioTask`` and do not have
+    ``task``/``cooldown`` on every step.
+    """
     if not isinstance(raw, dict):
         return False
     steps = raw.get("steps")
@@ -49,10 +34,10 @@ def _is_dsl_scenario_doc(raw: object) -> bool:
 
     for step in steps:
         if not isinstance(step, dict):
-            continue
-        if any(k in step for k in _DSL_STEP_KEYS):
-            return True
-    return False
+            return False
+        if "task" not in step or "cooldown" not in step:
+            return False
+    return True
 
 
 def _observer_for_platform() -> Observer:
@@ -98,9 +83,13 @@ class ScenarioLoader:
                 continue
             try:
                 raw = yaml.safe_load(yaml_file.read_text())
-                # DSL scenarios (imperative click/wait/etc) are executed via `DslScenarioTask`
-                # and must not be validated/loaded as `Scenario`.
-                if _is_dsl_scenario_doc(raw):
+                if not _is_declarative_scenario_doc(raw):
+                    if isinstance(raw, dict) and str(raw.get("kind") or "").strip() == "scenario":
+                        logger.error(
+                            "Declarative scenario has invalid schema: %s "
+                            "(each step must define `task` and `cooldown`)",
+                            yaml_file,
+                        )
                     continue
                 if isinstance(raw, dict) and "name" not in raw:
                     raw["name"] = yaml_file.stem

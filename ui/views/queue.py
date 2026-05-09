@@ -6,6 +6,7 @@ import json
 import time
 from datetime import timedelta
 
+import pandas as pd
 import streamlit as st
 
 from config.loader import load_settings
@@ -19,6 +20,21 @@ from ui.redis_client import (
     remove_queue_task,
     require_redis_connection,
 )
+
+
+def _rel_time(ts: float, now: float) -> str:
+    """Return a human-readable relative time string."""
+    delta = ts - now
+    abs_s = abs(delta)
+    if abs_s < 60:
+        label = f"{int(abs_s)}s"
+    elif abs_s < 3600:
+        m, s = divmod(int(abs_s), 60)
+        label = f"{m}m {s}s" if s else f"{m}m"
+    else:
+        h, rem = divmod(int(abs_s), 3600)
+        label = f"{h}h {rem // 60}m" if rem else f"{h}h"
+    return f"in {label}" if delta >= 0 else f"{label} ago"
 
 st.title("Task queue")
 
@@ -41,14 +57,14 @@ def _queue_fragment() -> None:
         if running_rows:
             with st.expander("Running now (all instances)", expanded=True):
                 for iid, r in running_rows:
-                    ago_s = ""
+                    dur = ""
                     if r.started_at > 0:
-                        ago_s = f" · {int(max(0, now - r.started_at))}s ago"
+                        dur = f" · {_rel_time(r.started_at, now)}"
                     st.info(
                         f"**{iid}** · **{r.task_type}** · task_id `{r.task_id}` · "
                         f"player `{r.player_id or '—'}`"
                         + (f" · region `{r.region}`" if r.region else "")
-                        + ago_s
+                        + dur
                     )
         if rows:
             overdue_n = sum(1 for r in rows if r.scheduled_at < now)
@@ -60,63 +76,29 @@ def _queue_fragment() -> None:
         if st.button("🔄", help="Refresh now", key="queue_refresh_btn", width="stretch"):
             st.rerun()
 
-    # Per-instance glance: size + next due.
+    # Per-instance glance: metric cards.
     inst_ids = [i.instance_id for i in settings.instances]
     if inst_ids:
-        with st.expander("Queue per instance", expanded=False):
-            for iid in inst_ids:
-                size = count_queue_tasks_for_instance(client, instance_id=iid)
-                next_row = fetch_next_queue_row_for_instance(client, instance_id=iid)
-                next_txt = "—"
-                if next_row is not None and next_row.scheduled_at:
-                    ts = time.strftime("%H:%M:%S", time.localtime(next_row.scheduled_at))
-                    next_txt = f"{ts} · {next_row.task_type} · `{next_row.task_id}`"
-                st.caption(f"**{iid}** · queue **{size}** · next: {next_txt}")
+        overdue_by_inst = {iid: 0 for iid in inst_ids}
+        for r in rows:
+            if r.instance_id in overdue_by_inst and r.scheduled_at < now:
+                overdue_by_inst[r.instance_id] += 1
 
-        with st.expander("Recent executions (last 20 per instance)", expanded=False):
-            tabs = st.tabs(inst_ids) if len(inst_ids) > 1 else None
-            containers = tabs if tabs is not None else [st.container()]
-            for tab, iid in zip(containers, inst_ids, strict=False):
-                with tab:
-                    hist = fetch_queue_history_rows(client, instance_id=iid, limit=20)
-                    if not hist:
-                        st.caption("No completed tasks yet.")
-                        continue
-                    header = st.columns([1.05, 1.35, 1.25, 1.0, 0.8, 0.9, 1.8])
-                    header[0].markdown("**Finished**")
-                    header[1].markdown("**Scenario**")
-                    header[2].markdown("**Player**")
-                    header[3].markdown("**Region**")
-                    header[4].markdown("**Dur**")
-                    header[5].markdown("**Status**")
-                    header[6].markdown("**Reason / task**")
-                    for hidx, h in enumerate(hist):
-                        finished = (
-                            time.strftime("%H:%M:%S", time.localtime(h.finished_at))
-                            if h.finished_at
-                            else "—"
+        metric_cols = st.columns(len(inst_ids))
+        for col, iid in zip(metric_cols, inst_ids):
+            size = count_queue_tasks_for_instance(client, instance_id=iid)
+            next_row = fetch_next_queue_row_for_instance(client, instance_id=iid)
+            overdue_n = overdue_by_inst.get(iid, 0)
+            with col:
+                with st.container(border=True):
+                    st.markdown(f"**{iid}**")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Queued", size)
+                    c2.metric("Overdue", overdue_n)
+                    if next_row is not None and next_row.scheduled_at:
+                        st.caption(
+                            f"Next: {_rel_time(next_row.scheduled_at, now)} · {next_row.task_type}"
                         )
-                        status = "ok" if h.success else "failed"
-                        detail = h.reason or h.error or h.task_id
-                        if len(detail) > 64:
-                            detail = f"{detail[:61]}..."
-                        cols = st.columns([1.05, 1.35, 1.25, 1.0, 0.8, 0.9, 1.8])
-                        cols[0].write(finished)
-                        cols[1].write(h.scenario or h.task_type)
-                        cols[2].write(h.player_id or "—")
-                        cols[3].write(h.region or "")
-                        cols[4].write(f"{h.duration_s:.1f}s")
-                        if h.success:
-                            cols[5].success(status)
-                        else:
-                            cols[5].error(status)
-                        cols[6].write(detail)
-                        if h.payload and hidx < 3:
-                            with st.expander(f"Payload · {h.task_id}", expanded=False):
-                                st.code(
-                                    json.dumps(h.payload, ensure_ascii=False, indent=2),
-                                    language="json",
-                                )
 
     if not rows:
         st.info("Queue is empty.")
@@ -135,7 +117,10 @@ def _queue_fragment() -> None:
             )
 
     # Filters
-    all_players = sorted({r.player_id for r in rows if r.player_id})
+    _DEVICE_LABEL = "(device)"
+    all_players = sorted(
+        {(r.player_id if r.player_id else _DEVICE_LABEL) for r in rows}
+    )
     all_instances = sorted({r.instance_id for r in rows if r.instance_id})
 
     fc1, fc2 = st.columns(2)
@@ -149,7 +134,10 @@ def _queue_fragment() -> None:
         )
 
     if sel_players:
-        rows = [r for r in rows if r.player_id in sel_players]
+        rows = [
+            r for r in rows
+            if (r.player_id if r.player_id else _DEVICE_LABEL) in sel_players
+        ]
     if sel_instances:
         rows = [r for r in rows if r.instance_id in sel_instances]
 
@@ -173,8 +161,8 @@ def _queue_fragment() -> None:
     selected_ids: list[str] = []
     for idx, r in enumerate(rows):
         overdue = r.scheduled_at < now
-        scheduled_str = time.strftime("%H:%M:%S", time.localtime(r.scheduled_at))
-        scheduled_disp = f"{scheduled_str} ⚠️" if overdue else scheduled_str
+        rel = _rel_time(r.scheduled_at, now)
+        scheduled_disp = f"⚠️ {rel}" if overdue else rel
         k = f"qrow_{idx}_{r.task_id}"
 
         cols = st.columns([0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7])
@@ -215,6 +203,92 @@ def _queue_fragment() -> None:
         else:
             st.warning("None found — tasks may have already been processed.")
         st.rerun()
+
+    # History — shown at the bottom so current queue stays at top.
+    if inst_ids:
+        st.divider()
+        with st.expander("Recent executions (last 20 per instance)", expanded=False):
+            history_by_instance = {
+                iid: fetch_queue_history_rows(client, instance_id=iid, limit=20)
+                for iid in inst_ids
+            }
+            all_hist_scenarios = sorted({
+                h.scenario or h.task_type
+                for hist in history_by_instance.values()
+                for h in hist
+                if h.scenario or h.task_type
+            })
+            hc1, hc2 = st.columns([1, 3], vertical_alignment="bottom")
+            with hc1:
+                hist_only_failed = st.checkbox(
+                    "Only failed",
+                    value=False,
+                    key="queue_history_only_failed",
+                )
+            with hc2:
+                hist_scenarios = st.multiselect(
+                    "Scenario",
+                    all_hist_scenarios,
+                    placeholder="All scenarios",
+                    key="queue_history_scenarios",
+                )
+            tabs = st.tabs(inst_ids) if len(inst_ids) > 1 else None
+            containers = tabs if tabs is not None else [st.container()]
+            for tab, iid in zip(containers, inst_ids, strict=False):
+                with tab:
+                    hist = history_by_instance.get(iid, [])
+                    if hist_only_failed:
+                        hist = [h for h in hist if not h.success]
+                    if hist_scenarios:
+                        hist = [
+                            h for h in hist
+                            if (h.scenario or h.task_type) in hist_scenarios
+                        ]
+                    if not hist:
+                        st.caption("No completed tasks match the current filter.")
+                        continue
+                    hist_data = []
+                    for h in hist:
+                        finished_str = (
+                            time.strftime("%H:%M:%S", time.localtime(h.finished_at))
+                            if h.finished_at
+                            else "—"
+                        )
+                        detail = h.reason or h.error or h.task_id
+                        if len(detail) > 64:
+                            detail = f"{detail[:61]}..."
+                        hist_data.append({
+                            "Finished": finished_str,
+                            "Scenario": h.scenario or h.task_type,
+                            "Player": h.player_id or "—",
+                            "Region": h.region or "",
+                            "Dur": f"{h.duration_s:.1f}s",
+                            "Status": "✅ ok" if h.success else "❌ failed",
+                            "Reason / task": detail,
+                        })
+                    df_hist = pd.DataFrame(hist_data)
+                    event = st.dataframe(
+                        df_hist,
+                        use_container_width=True,
+                        hide_index=True,
+                        selection_mode="single-row",
+                        on_select="rerun",
+                        column_config={
+                            "Status": st.column_config.TextColumn(width="small"),
+                            "Dur": st.column_config.TextColumn(width="small"),
+                            "Finished": st.column_config.TextColumn(width="small"),
+                        },
+                    )
+                    sel = event.selection.get("rows", [])
+                    if sel:
+                        h_sel = hist[sel[0]]
+                        if h_sel.payload:
+                            st.code(
+                                json.dumps(h_sel.payload, ensure_ascii=False, indent=2),
+                                language="json",
+                            )
+                        else:
+                            st.caption("No payload.")
 
 
 _queue_fragment()

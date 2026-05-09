@@ -107,9 +107,14 @@ class InstanceWorkerOverlayMixin:
         template_h = payload.get("template_h")
         threshold_snap = _overlay_metric_float(payload.get("threshold"))
         score_snap = _overlay_metric_float(payload.get("score"))
+        tpl_bright_snap = _overlay_metric_float(payload.get("template_bright_ratio"))
+        patch_bright_snap = _overlay_metric_float(payload.get("patch_bright_ratio"))
+        set_node_snap = str(payload.get("set_node") or "").strip()
         if self._redis is not None:
             try:
                 snap: dict[str, str] = {}
+                if set_node_snap:
+                    snap["current_screen"] = set_node_snap
                 action = str(payload.get("action") or "").strip()
                 if action == "text":
                     txt = str(payload.get("text") or "").strip()
@@ -118,12 +123,23 @@ class InstanceWorkerOverlayMixin:
                     if conf is not None and str(conf).strip() != "":
                         with suppress(TypeError, ValueError):
                             snap["last_overlay_confidence"] = f"{float(conf):.4f}"
+                    if reg_snap:
+                        snap[reg_snap] = txt
+                        snap[f"{reg_snap}_text"] = txt
+                        if conf is not None and str(conf).strip() != "":
+                            with suppress(TypeError, ValueError):
+                                snap[f"{reg_snap}_confidence"] = f"{float(conf):.4f}"
+                        snap[f"{reg_snap}_at"] = str(time.time())
                 if reg_snap:
                     snap["last_overlay_match_region"] = reg_snap
                 if threshold_snap is not None:
                     snap["last_overlay_match_threshold"] = f"{threshold_snap:.6g}"
                 if score_snap is not None:
                     snap["last_overlay_match_score"] = f"{score_snap:.6g}"
+                if tpl_bright_snap is not None:
+                    snap["last_overlay_template_bright_ratio"] = f"{tpl_bright_snap:.6g}"
+                if patch_bright_snap is not None:
+                    snap["last_overlay_patch_bright_ratio"] = f"{patch_bright_snap:.6g}"
                 if tap_match_x_pct is not None:
                     snap["last_overlay_match_x_pct"] = f"{tap_match_x_pct:.6g}"
                 if tap_match_y_pct is not None:

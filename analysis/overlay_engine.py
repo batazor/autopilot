@@ -25,7 +25,9 @@ from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
     match_template_in_search_roi_bbox_percent,
+    patch_bgr_from_bbox_percent,
     patch_mean_hsv_saturation,
+    validate_live_bbox_patch_vs_reference_dims,
 )
 from layout.types import Region
 from ocr.client import OcrClient
@@ -47,6 +49,44 @@ def _apply_min_saturation_gate(
     if mean_s < float(min_s):
         return False, mean_s, "low_saturation"
     return True, mean_s, None
+
+
+def _bright_low_saturation_ratio(patch_bgr: np.ndarray) -> float:
+    """Share of bright low-saturation pixels (white/cream UI details)."""
+    if patch_bgr.ndim != 3 or patch_bgr.size == 0:
+        return 0.0
+    hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    mask = (hsv[:, :, 1] <= 45) & (hsv[:, :, 2] >= 150)
+    return float(np.mean(mask))
+
+
+def _apply_bright_detail_gate(
+    image_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    top_left: tuple[int, int],
+) -> tuple[bool, float, float, str | None]:
+    """Reject matches that lose distinctive bright low-saturation template details.
+
+    This is intentionally automatic rather than YAML-driven: when a template contains a large
+    white/cream component (for example a sleeve, text, or border), a candidate patch with almost
+    none of that component is usually a geometric false positive.
+    """
+    template_ratio = _bright_low_saturation_ratio(template_bgr)
+    if template_ratio < 0.25:
+        return True, template_ratio, 0.0, None
+    patch = match_patch_bgr_at_top_left(
+        image_bgr,
+        top_left,
+        int(template_bgr.shape[1]),
+        int(template_bgr.shape[0]),
+    )
+    if patch is None:
+        return False, template_ratio, 0.0, "match_patch_out_of_bounds"
+    patch_ratio = _bright_low_saturation_ratio(patch)
+    min_ratio = max(0.12, template_ratio * 0.35)
+    if patch_ratio < min_ratio:
+        return False, template_ratio, patch_ratio, "low_bright_detail_ratio"
+    return True, template_ratio, patch_ratio, None
 
 
 def _bbox_percent_to_region_px(
@@ -260,6 +300,7 @@ async def evaluate_overlay_rules_async(
                         search_bbox,
                         exclude_top_lefts=excl_pts or None,
                         exclude_radius_px=excl_r,
+                        primary_bbox_percent=bbox,
                     )
                     cx_px = res["top_left"][0] + tw_tpl / 2.0
                     cy_px = res["top_left"][1] + th_tpl / 2.0
@@ -277,6 +318,14 @@ async def evaluate_overlay_rules_async(
                     tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
                     sat_fail: str | None = None
                     mean_sat: float | None = None
+                    bright_fail: str | None = None
+                    tpl_bright: float | None = None
+                    patch_bright: float | None = None
+                    if matched:
+                        ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
+                            image_bgr, tpl, tl_tuple
+                        )
+                        matched = ok
                     if matched and min_sat is not None:
                         ok, mean_sat, sat_fail = _apply_min_saturation_gate(
                             image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
@@ -313,10 +362,13 @@ async def evaluate_overlay_rules_async(
                         hit["priority"] = priority
                     if min_sat is not None:
                         hit["min_match_saturation"] = min_sat
+                    if tpl_bright is not None:
+                        hit["template_bright_ratio"] = tpl_bright
+                        hit["patch_bright_ratio"] = patch_bright
                     if mean_sat is not None:
                         hit["mean_saturation"] = mean_sat
-                    if sat_fail:
-                        hit["reason"] = sat_fail
+                    if bright_fail or sat_fail:
+                        hit["reason"] = bright_fail or sat_fail
                     out[logical_name] = hit
                     continue
 
@@ -346,10 +398,19 @@ async def evaluate_overlay_rules_async(
             matched_1 = score >= threshold
             sat_fail_1: str | None = None
             mean_sat_1: float | None = None
+            bright_fail_1: str | None = None
+            tpl_bright_1: float | None = None
+            patch_bright_1: float | None = None
+            tl_tuple_1 = (int(res["top_left"][0]), int(res["top_left"][1]))
+            if matched_1:
+                ok, tpl_bright_1, patch_bright_1, bright_fail_1 = _apply_bright_detail_gate(
+                    image_bgr, tpl, tl_tuple_1
+                )
+                matched_1 = ok
             if matched_1 and min_sat is not None:
                 ok, mean_sat_1, sat_fail_1 = _apply_min_saturation_gate(
                     image_bgr,
-                    (int(res["top_left"][0]), int(res["top_left"][1])),
+                    tl_tuple_1,
                     tw_tpl,
                     th_tpl,
                     min_sat,
@@ -385,10 +446,13 @@ async def evaluate_overlay_rules_async(
                 hit1["priority"] = priority
             if min_sat is not None:
                 hit1["min_match_saturation"] = min_sat
+            if tpl_bright_1 is not None:
+                hit1["template_bright_ratio"] = tpl_bright_1
+                hit1["patch_bright_ratio"] = patch_bright_1
             if mean_sat_1 is not None:
                 hit1["mean_saturation"] = mean_sat_1
-            if sat_fail_1:
-                hit1["reason"] = sat_fail_1
+            if bright_fail_1 or sat_fail_1:
+                hit1["reason"] = bright_fail_1 or sat_fail_1
             out[logical_name] = hit1
             continue
 
@@ -403,7 +467,7 @@ async def evaluate_overlay_rules_async(
                     "action": "color_check",
                 }
                 continue
-            _entry, reg = pair
+            entry, reg = pair
             bbox = reg.get("bbox")
             if not isinstance(bbox, dict):
                 out[logical_name] = {
@@ -434,10 +498,33 @@ async def evaluate_overlay_rules_async(
                 threshold = 0.5
             threshold = max(0.0, min(1.0, float(threshold)))
 
-            hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
-            region_px = _bbox_percent_to_region_px(bbox, wi, hi)
-            x1, y1, x2, y2 = _region_to_xyxy(region_px)
-            patch = image_bgr[y1:y2, x1:x2]
+            patch, _patch_tl = patch_bgr_from_bbox_percent(image_bgr, bbox)
+            ph, pw = int(patch.shape[0]), int(patch.shape[1])
+            ref_rel = str(entry.get("ocr") or "").strip()
+            if ref_rel:
+                crop_path = exported_crop_png(repo_root, ref_rel, region_name)
+                if crop_path.is_file():
+                    ref_img = cv2.imread(str(crop_path))
+                    if ref_img is not None and ref_img.size > 0:
+                        ref_ph, ref_pw = int(ref_img.shape[0]), int(ref_img.shape[1])
+                        try:
+                            validate_live_bbox_patch_vs_reference_dims(
+                                pw, ph, ref_pw, ref_ph, reference_label="exported crop"
+                            )
+                        except ValueError as exc:
+                            out[logical_name] = {
+                                "matched": False,
+                                "reason": "color_check_crop_size_mismatch",
+                                "detail": str(exc),
+                                "region": region_name,
+                                "action": "color_check",
+                                "live_patch_w": pw,
+                                "live_patch_h": ph,
+                                "ref_crop_w": ref_pw,
+                                "ref_crop_h": ref_ph,
+                            }
+                            continue
+
             dom, shares = dominant_color_label_bgr(patch)
             share = float(shares.get(dom, 0.0))
             matched = dom == want and share >= threshold

@@ -4,27 +4,35 @@ from pathlib import Path
 
 import yaml
 
-from scenarios.loader import ScenarioLoader, _is_dsl_scenario_doc
+from scenarios.loader import ScenarioLoader, _is_declarative_scenario_doc
 
 
-def test_dsl_scenario_doc_detects_repeat_first_step() -> None:
+def test_declarative_scenario_doc_requires_task_and_cooldown_steps() -> None:
     raw = {
         "enabled": True,
-        "name": "Upgrade",
+        "name": "Regular",
+        "steps": [{"task": "daily_checkin", "cooldown": "1m"}],
+    }
+
+    assert _is_declarative_scenario_doc(raw) is True
+
+
+def test_imperative_dsl_doc_is_not_declarative_scenario() -> None:
+    raw = {
+        "enabled": True,
+        "name": "Chapter task router",
         "steps": [
             {
-                "repeat": {
-                    "max": 10,
-                    "steps": [{"while_match": "upgrade_button"}],
-                }
+                "cond": 'chapter.task ~= "Shelter"',
+                "steps": [{"click": "chapter.task"}],
             }
         ],
     }
 
-    assert _is_dsl_scenario_doc(raw) is True
+    assert _is_declarative_scenario_doc(raw) is False
 
 
-def test_scenario_loader_skips_repeat_dsl_yaml(tmp_path: Path) -> None:
+def test_scenario_loader_loads_only_declarative_yaml(tmp_path: Path) -> None:
     scenarios_dir = tmp_path / "scenarios"
     scenarios_dir.mkdir()
     (scenarios_dir / "upgrade.yaml").write_text(

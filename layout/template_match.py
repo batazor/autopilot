@@ -2,6 +2,11 @@
 
 Uses the same pixel rounding as :func:`ui.area_annotator.crop_region` / crop export.
 The live frame must be the **same resolution** as when the crop was produced.
+
+Sliding-window search (:func:`match_template_in_search_roi_bbox_percent`) can optionally require the
+template pixel size to agree with the **primary** labeled bbox on the live frame (see
+``primary_bbox_percent``). That blocks misleading TM peaks when a tiny template slides inside a
+large ROI (e.g. ``10×8`` template vs ``157×74`` expected landmark).
 """
 
 from __future__ import annotations
@@ -11,6 +16,11 @@ from typing import TypedDict
 
 import cv2
 import numpy as np
+
+# Live bbox patch vs exported template (sliding search): reject gross size mismatch.
+_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX = 10
+# If either side is under this (max of W/H), require exact pixel dimensions (strict 1:1).
+_SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX = 20
 
 
 class TemplateMatchResult(TypedDict):
@@ -100,6 +110,62 @@ def patch_bgr_from_bbox_percent(
     return image_bgr[T:B, L:R].copy(), (L, T)
 
 
+def validate_live_bbox_patch_vs_reference_dims(
+    live_pw: int,
+    live_ph: int,
+    ref_pw: int,
+    ref_ph: int,
+    *,
+    reference_label: str,
+) -> None:
+    """Reject gross mismatch between a live bbox cutout and a labeled reference tile (PNG).
+
+    Same thresholds as sliding ``findIcon`` vs primary bbox: small regions (max side
+    ``< _SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX``) require pixel-identical width/height; otherwise at
+    most ``_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX`` difference per axis.
+
+    Used for ``color_check`` vs ``references/crop/…`` and internally for template validation.
+    """
+    small_region = (
+        max(live_pw, live_ph) < _SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX
+        or max(ref_pw, ref_ph) < _SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX
+    )
+    if small_region:
+        if live_pw != ref_pw or live_ph != ref_ph:
+            raise ValueError(
+                f"Small-region: live bbox patch {live_pw}×{live_ph} must match {reference_label} "
+                f"{ref_pw}×{ref_ph} exactly (1:1)."
+            )
+        return
+    if (
+        abs(live_pw - ref_pw) > _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX
+        or abs(live_ph - ref_ph) > _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX
+    ):
+        raise ValueError(
+            f"Live bbox patch vs {reference_label} size mismatch (max Δ "
+            f"{_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX}px per axis): "
+            f"live {live_pw}×{live_ph} vs {reference_label} {ref_pw}×{ref_ph}."
+        )
+
+
+def _validate_template_vs_primary_bbox_patch_sizes(
+    image_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    primary_bbox_percent: dict[str, float],
+) -> None:
+    """Ensure template H×W is plausible for the primary region on this frame.
+
+    Raises ``ValueError`` when the labeled bbox resolves to a very different patch size than the
+    crop PNG (e.g. stale asset vs current DPI). Small icons must match exactly pixel-for-pixel.
+    """
+    patch, _ = patch_bgr_from_bbox_percent(image_bgr, primary_bbox_percent)
+    ph, pw = int(patch.shape[0]), int(patch.shape[1])
+    th, tw = int(template_bgr.shape[0]), int(template_bgr.shape[1])
+    validate_live_bbox_patch_vs_reference_dims(
+        pw, ph, tw, th, reference_label="template PNG"
+    )
+
+
 def match_crop_1to1_at_bbox_percent(
     image_bgr: np.ndarray,
     template_bgr: np.ndarray,
@@ -136,13 +202,23 @@ def match_template_in_search_roi_bbox_percent(
     *,
     exclude_top_lefts: list[tuple[int, int]] | None = None,
     exclude_radius_px: int = 0,
+    primary_bbox_percent: dict[str, float] | None = None,
 ) -> TemplateMatchResult:
     """Slide ``template_bgr`` inside ROI from ``search_bbox_percent``.
 
     Returns best TM_CCOEFF_NORMED and global top-left on ``image_bgr``.
+
+    When ``primary_bbox_percent`` is set (the labeled **detector** region), template dimensions must
+    agree with that bbox cut out on ``image_bgr`` within :data:`_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX`
+    per axis; regions whose max side is under :data:`_SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX` require
+    exact width/height equality (see module docstring).
     """
     if template_bgr.ndim != 3:
         raise ValueError("Expected HxWx3 BGR template.")
+    if primary_bbox_percent is not None:
+        _validate_template_vs_primary_bbox_patch_sizes(
+            image_bgr, template_bgr, primary_bbox_percent
+        )
     roi, (L, T) = patch_bgr_from_bbox_percent(image_bgr, search_bbox_percent)
     rh, rw = roi.shape[:2]
     th, tw = template_bgr.shape[:2]

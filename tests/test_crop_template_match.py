@@ -8,7 +8,10 @@ from pathlib import Path
 import cv2
 import pytest
 
-from layout.template_match import match_crop_1to1_at_bbox_percent
+from layout.template_match import (
+    match_crop_1to1_at_bbox_percent,
+    validate_live_bbox_patch_vs_reference_dims,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,3 +52,16 @@ def test_skip_button_crop_1to1_matches_bbox_patch() -> None:
 
     assert result["score"] >= 0.99
     assert result["top_left"] == (exp_x, exp_y)
+
+
+def test_validate_live_vs_reference_small_requires_exact_dims() -> None:
+    with pytest.raises(ValueError, match="exactly \\(1:1\\)"):
+        validate_live_bbox_patch_vs_reference_dims(
+            10, 8, 157, 74, reference_label="exported crop"
+        )
+
+
+def test_validate_live_vs_reference_large_within_tolerance_ok() -> None:
+    validate_live_bbox_patch_vs_reference_dims(
+        100, 50, 105, 52, reference_label="exported crop"
+    )

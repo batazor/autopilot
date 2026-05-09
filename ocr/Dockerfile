@@ -9,8 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Pin max version installable on linux + cp313 from PyPI wheels (newer majors may lag per ABI).
 RUN pip install --no-cache-dir \
-    "paddlepaddle>=3.0" \
+    "paddlepaddle==3.2.2" \
     "paddleocr>=2.7" \
     "fastapi>=0.111" \
     "uvicorn[standard]>=0.29" \
@@ -18,7 +19,8 @@ RUN pip install --no-cache-dir \
     "numpy>=1.26" \
     "opencv-python-headless>=4.9"
 
-COPY ocr/service.py /app/ocr/service.py
+# Full OCR package (service imports ``paddle_extract``, etc.).
+COPY ocr/*.py /app/ocr/
 COPY layout/ /app/layout/
 
 ENV PYTHONPATH=/app

@@ -167,3 +167,51 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()
 
     assert detected == ScreenName.MAIN_CITY
+
+
+@pytest.mark.asyncio
+async def test_screen_detector_can_return_building_from_match_landmark(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "screen_verify.yaml"
+    cfg.write_text(
+        """
+screens:
+  building:
+    landmarks:
+      - match: page.building.furniture
+        threshold: 0.85
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()
+
+    async def evaluate_overlay_rules_async(
+        _image: np.ndarray,
+        _area_doc: dict[str, Any],
+        _repo_root: Path,
+        rules: list[dict[str, Any]],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        name = str(rules[0]["name"])
+        assert rules[0]["region"] == "page.building.furniture"
+        return {name: {"matched": True}}
+
+    import navigation.detector as detector_module
+
+    monkeypatch.setattr(
+        detector_module,
+        "evaluate_overlay_rules_async",
+        evaluate_overlay_rules_async,
+    )
+    detector = ScreenDetector()
+    detector._area_doc = {"screens": []}
+
+    try:
+        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    assert detected == ScreenName.BUILDING

@@ -85,3 +85,99 @@ def test_match_template_caps_high_ncc_with_color_difference() -> None:
 
     assert res["score"] < 0.98
     assert res["score"] <= res["score_color"]
+
+
+def test_match_template_rejects_gross_template_vs_primary_bbox_size() -> None:
+    """Tiny template vs large labeled bbox must not slide-match inside a big ROI."""
+    hi, wi = 100, 100
+    frame = np.zeros((hi, wi, 3), dtype=np.uint8)
+    primary_bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 100.0,
+        "height": 100.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+    tpl = np.zeros((8, 10, 3), dtype=np.uint8)
+    search_bbox = primary_bbox.copy()
+    with pytest.raises(ValueError, match="template PNG 10×8"):
+        match_template_in_search_roi_bbox_percent(
+            frame,
+            tpl,
+            search_bbox,
+            primary_bbox_percent=primary_bbox,
+        )
+
+
+def test_match_template_small_primary_requires_exact_template_size() -> None:
+    """Regions under ~20px max side require pixel-exact template dimensions."""
+    hi, wi = 200, 200
+    frame = np.zeros((hi, wi, 3), dtype=np.uint8)
+    primary_bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 10.0,
+        "height": 10.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+    tpl = np.zeros((19, 19, 3), dtype=np.uint8)
+    search_bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 100.0,
+        "height": 100.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+    with pytest.raises(ValueError, match="Small-region:.*template PNG"):
+        match_template_in_search_roi_bbox_percent(
+            frame,
+            tpl,
+            search_bbox,
+            primary_bbox_percent=primary_bbox,
+        )
+
+
+def test_match_template_accepts_primary_within_10px_per_axis() -> None:
+    hi, wi = 240, 320
+    frame = np.zeros((hi, wi, 3), dtype=np.uint8)
+    frame[:] = (40, 40, 40)
+    th, tw = 48, 52
+    tpl = np.zeros((th, tw, 3), dtype=np.uint8)
+    tpl[:] = (200, 100, 50)
+    x0, y0 = 120, 88
+    frame[y0 : y0 + th, x0 : x0 + tw] = tpl
+
+    pw, ph = 55, 50
+    primary_bbox = {
+        "x": 100.0 * x0 / wi,
+        "y": 100.0 * y0 / hi,
+        "width": 100.0 * pw / wi,
+        "height": 100.0 * ph / hi,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+    margin = 40
+    search_bbox = {
+        "x": 100.0 * x0 / wi,
+        "y": 100.0 * y0 / hi,
+        "width": 100.0 * (tw + margin) / wi,
+        "height": 100.0 * (th + margin) / hi,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+    res = match_template_in_search_roi_bbox_percent(
+        frame,
+        tpl,
+        search_bbox,
+        primary_bbox_percent=primary_bbox,
+    )
+    assert res["top_left"] == (x0, y0)
+    assert res["score"] >= 0.99

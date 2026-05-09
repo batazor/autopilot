@@ -14,12 +14,19 @@ from typing import Any
 
 import yaml
 
+import cv2
+
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
+from layout.crop_paths import exported_crop_png
+from layout.template_match import (
+    patch_bgr_from_bbox_percent,
+    validate_live_bbox_patch_vs_reference_dims,
+)
 from layout.types import Point, Region
 from tasks.base import TaskResult
 
@@ -1103,14 +1110,8 @@ class DslScenarioTask:
             )
             return False
 
-        h, w = int(image.shape[0]), int(image.shape[1])
         bbox = reg_def["bbox"]
-        try:
-            x0 = int(round(float(bbox["x"]) / 100.0 * w))
-            y0 = int(round(float(bbox["y"]) / 100.0 * h))
-            bw = int(round(float(bbox["width"]) / 100.0 * w))
-            bh = int(round(float(bbox["height"]) / 100.0 * h))
-        except (KeyError, TypeError, ValueError):
+        if not isinstance(bbox, dict):
             await self._persist_dsl_last_color(
                 instance_id,
                 {
@@ -1124,25 +1125,35 @@ class DslScenarioTask:
             )
             return False
 
-        if bw <= 0 or bh <= 0:
-            await self._persist_dsl_last_color(
-                instance_id,
-                {
-                    "dsl_last_color_region": region,
-                    "dsl_last_color_status": "zero_bbox",
-                    "dsl_last_color_want": want,
-                    "dsl_last_color_dominant": "",
-                    "dsl_last_color_share": "",
-                    "dsl_last_color_threshold": f"{threshold:.3f}",
-                },
-            )
-            return False
+        repo_root = Path(__file__).resolve().parent.parent
+        patch, _tl = patch_bgr_from_bbox_percent(image, bbox)
+        ph, pw = int(patch.shape[0]), int(patch.shape[1])
+        ref_rel = str(pair[0].get("ocr") or "").strip()
+        if ref_rel:
+            crop_path = exported_crop_png(repo_root, ref_rel, region)
+            if crop_path.is_file():
+                ref_img = cv2.imread(str(crop_path))
+                if ref_img is not None and ref_img.size > 0:
+                    ref_ph, ref_pw = int(ref_img.shape[0]), int(ref_img.shape[1])
+                    try:
+                        validate_live_bbox_patch_vs_reference_dims(
+                            pw, ph, ref_pw, ref_ph, reference_label="exported crop"
+                        )
+                    except ValueError as exc:
+                        await self._persist_dsl_last_color(
+                            instance_id,
+                            {
+                                "dsl_last_color_region": region,
+                                "dsl_last_color_status": "crop_size_mismatch",
+                                "dsl_last_color_want": want,
+                                "dsl_last_color_dominant": "",
+                                "dsl_last_color_share": "",
+                                "dsl_last_color_threshold": f"{threshold:.3f}",
+                                "dsl_last_color_detail": str(exc),
+                            },
+                        )
+                        return False
 
-        x0 = max(0, min(w - 1, x0))
-        y0 = max(0, min(h - 1, y0))
-        x1 = max(x0 + 1, min(w, x0 + bw))
-        y1 = max(y0 + 1, min(h, y0 + bh))
-        patch = image[y0:y1, x0:x1]
         dominant, shares = dominant_color_label_bgr(patch)
         share = float(shares.get(dominant, 0.0))
         ok = dominant == want and share >= threshold

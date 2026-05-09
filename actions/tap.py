@@ -198,6 +198,12 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 "current_task_score": (raw.get("current_task_score") or "").strip(),
                 "current_task_text": (raw.get("current_task_text") or "").strip(),
                 "current_task_confidence": (raw.get("current_task_confidence") or "").strip(),
+                "current_task_template_bright_ratio": (
+                    raw.get("current_task_template_bright_ratio") or ""
+                ).strip(),
+                "current_task_patch_bright_ratio": (
+                    raw.get("current_task_patch_bright_ratio") or ""
+                ).strip(),
                 "current_task_match_top_left_x": (
                     raw.get("current_task_match_top_left_x") or ""
                 ).strip(),
@@ -233,6 +239,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 fb = (raw.get("last_overlay_confidence") or "").strip()
                 if fb:
                     ctx["current_task_confidence"] = fb
+            if not ctx["current_task_template_bright_ratio"]:
+                fb = (raw.get("last_overlay_template_bright_ratio") or "").strip()
+                if fb:
+                    ctx["current_task_template_bright_ratio"] = fb
+            if not ctx["current_task_patch_bright_ratio"]:
+                fb = (raw.get("last_overlay_patch_bright_ratio") or "").strip()
+                if fb:
+                    ctx["current_task_patch_bright_ratio"] = fb
     except Exception:
         ctx = {}
 

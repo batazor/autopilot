@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextlib
 import functools
 import logging
 import os
@@ -23,6 +24,7 @@ from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from fsm.machine import PlayerFSM
 from fsm.states import InstanceState
+from navigation.detector import ScreenDetector, ScreenName
 from scheduler.claims import CooperativeClaims
 from scheduler.queue import QueueItem, RedisQueue
 from tasks.base import BaseTask, TaskResult
@@ -62,8 +64,9 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         self._task_busy = asyncio.Event()
         self._rolling_snap_seq = 0
         self._last_current_screen: str | None = None
+        self._screen_detector = ScreenDetector()
         self._overlay_rule_eval_state: dict[str, float] = {}
-        # Avoid asyncio default executor shutdown races during app stop/reload (rolling loop uses threads).
+        # Avoid asyncio default executor shutdown races during app stop/reload.
         self._blocking_pool = concurrent.futures.ThreadPoolExecutor(
             max_workers=4,
             thread_name_prefix=f"wos-{self._cfg.instance_id}-",
@@ -182,7 +185,10 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
     async def _pop_next_task(self) -> QueueItem | None:
         current_screen = ""
         if self._redis is not None:
-            raw = await self._redis.hget(f"wos:instance:{self._cfg.instance_id}:state", "current_screen")
+            raw = await self._redis.hget(
+                f"wos:instance:{self._cfg.instance_id}:state",
+                "current_screen",
+            )
             if raw is not None:
                 current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
                 current_screen = current_screen.strip()
@@ -246,7 +252,7 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 "active_player",
                 player_id,
             )
-        # Popups / ads: use overlay ``pushScenario`` + DSL under ``scenarios/`` (no built-in OCR skip).
+        # Popups / ads: use overlay ``pushScenario`` + DSL under ``scenarios/``.
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
@@ -407,7 +413,10 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
         try:
             self._bot_actions.restart_application(self._cfg.instance_id)
             await asyncio.sleep(3.0)
-            await self._run_blocking(self._bot_actions.ensure_game_foreground, self._cfg.instance_id)
+            await self._run_blocking(
+                self._bot_actions.ensure_game_foreground,
+                self._cfg.instance_id,
+            )
         except Exception:
             logger.exception("Failed to restart application on %s", self._cfg.instance_id)
             await self._set_instance_state(
@@ -420,6 +429,38 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
 
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr(self._cfg.instance_id)
+
+    @staticmethod
+    def _is_unknown_screen(screen: str | None) -> bool:
+        return (screen or "").strip().lower() in {"", "-", "none", "unknown"}
+
+    async def _detect_current_screen_if_unknown(
+        self,
+        image_bgr: np.ndarray,
+        current_screen: str | None,
+    ) -> str | None:
+        if not self._is_unknown_screen(current_screen):
+            return current_screen
+        try:
+            detected = await self._screen_detector.detect_screen(image_bgr)
+        except Exception:
+            logger.debug(
+                "Screen detect on unknown node failed for %s",
+                self._cfg.instance_id,
+                exc_info=True,
+            )
+            return current_screen
+        if detected == ScreenName.UNKNOWN:
+            return current_screen
+        detected_s = str(detected)
+        if self._redis is not None:
+            with contextlib.suppress(Exception):
+                await self._redis.hset(
+                    f"wos:instance:{self._cfg.instance_id}:state",
+                    "current_screen",
+                    detected_s,
+                )
+        return detected_s
 
     async def _overlay_analyze_bgr(self, image_bgr: np.ndarray) -> None:
         """Run ``analyze/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
@@ -434,6 +475,10 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
                 if raw:
                     current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
                     current_screen = current_screen.strip() or None
+            current_screen = await self._detect_current_screen_if_unknown(
+                image_bgr,
+                current_screen,
+            )
 
             # One-shot hooks on screen transitions (currently none).
             self._last_current_screen = current_screen
@@ -687,10 +732,13 @@ class InstanceWorker(InstanceWorkerUiMixin, InstanceWorkerOverlayMixin, Instance
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                await self._set_instance_state(InstanceState.CRASHED, error=f"worker crashed: {exc!s}")
+                await self._set_instance_state(
+                    InstanceState.CRASHED,
+                    error=f"worker crashed: {exc!s}",
+                )
                 raise
         finally:
-            # Stop new thread-pool work before cancelling snapshot (avoids submit-after-shutdown races).
+            # Stop new thread-pool work before cancelling snapshot.
             self._stopping = True
             snap = self._rolling_snapshot_task
             self._rolling_snapshot_task = None

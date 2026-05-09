@@ -20,6 +20,13 @@ from .common import labeling_query_ref_from_area_ocr
 from .ctx import ClickApprovalsCtx
 
 
+def _fmt_ratio(value: object) -> str:
+    try:
+        return f"{float(value):.3f}"
+    except (TypeError, ValueError):
+        return "—"
+
+
 def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, int, int, int]:
     x = float(bb.get("x") or 0.0)
     y = float(bb.get("y") or 0.0)
@@ -217,8 +224,13 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             st.markdown(
                 f"""
                 <div>
-                  <div style="font-size: 0.85rem; opacity: 0.75;">dominant == want &amp; share ≥ threshold</div>
-                  <div style="font-size: 1.75rem; font-weight: 650; line-height: 1.2; color: {color};">{txt}</div>
+                  <div style="font-size: 0.85rem; opacity: 0.75;">
+                    dominant == want &amp; share ≥ threshold
+                  </div>
+                  <div style="font-size: 1.75rem; font-weight: 650;
+                              line-height: 1.2; color: {color};">
+                    {txt}
+                  </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -244,7 +256,12 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         with m2:
             st.metric("Confidence", f"{conf_f:.4f}" if conf_f is not None else "—")
         with m3:
-            st.text_input("OCR text", value=txt, disabled=True, key=f"ovl_text::{instance_id}::{sel}")
+            st.text_input(
+                "OCR text",
+                value=txt,
+                disabled=True,
+                key=f"ovl_text::{instance_id}::{sel}",
+            )
     else:
         score_raw = pay.get("score")
         thr_raw = pay.get("threshold")
@@ -277,7 +294,10 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                 f"""
                 <div>
                   <div style="font-size: 0.85rem; opacity: 0.75;">≥ threshold</div>
-                  <div style="font-size: 1.75rem; font-weight: 650; line-height: 1.2; color: {color};">{txt}</div>
+                  <div style="font-size: 1.75rem; font-weight: 650;
+                              line-height: 1.2; color: {color};">
+                    {txt}
+                  </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -303,6 +323,12 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         bits.append(detail)
     if bits:
         st.caption(" · ".join(bits))
+    if "template_bright_ratio" in pay or "patch_bright_ratio" in pay:
+        st.caption(
+            "Bright detail ratio · "
+            f"template `{_fmt_ratio(pay.get('template_bright_ratio'))}` · "
+            f"live `{_fmt_ratio(pay.get('patch_bright_ratio'))}`"
+        )
 
     reg_name = str(pay.get("region") or "").strip()
     if not reg_name:

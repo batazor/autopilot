@@ -56,14 +56,3 @@ overlay:
       - name: chapter_task_router
         priority: 70000
         ttl: 20s
-
-  - name: page.building.furniture.present
-    region: page.building.furniture
-    action: text
-    screens:
-      - main_city
-    ttl: 30s
-    pushScenario:
-      - name: upgrade
-        priority: 80000
-        ttl: 20s

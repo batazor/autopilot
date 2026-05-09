@@ -32,7 +32,7 @@ dependencies = [
 ocr = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.29",
-    "paddlepaddle>=2.6",
+    "paddlepaddle>=3.2.2",
     "paddleocr>=2.7",
 ]
 dev = [

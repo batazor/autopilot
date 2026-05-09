@@ -1,5 +1,6 @@
 enabled: true
 name: Onboarding upgrade (chapter task)
+node: building
 
 steps:
   # Chapter flow may show upgrade taps or a Next button instead — handle both per iteration.

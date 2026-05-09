@@ -55,7 +55,7 @@
           "bbox": {
             "x": 2.1235521235521237,
             "y": 9.453260869565218,
-            "width": 94.75308880308881,
+            "width": 94.75289575289575,
             "height": 88.64565217391305,
             "rotation": 0.0,
             "original_width": 720,
@@ -616,9 +616,9 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 10.617760617760618,
+            "x": 11.196911196911197,
             "y": 86.41304347826087,
-            "width": 74.0,
+            "width": 73.26061776061776,
             "height": 2.5391304347826087,
             "rotation": 0.0,
             "original_width": 720,
@@ -1319,7 +1319,7 @@
       "regions": [
         {
           "name": "page.building.furniture",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1327,6 +1327,21 @@
             "y": 92.17391304347827,
             "width": 20.0,
             "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "from.building.to.main_city",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.702702702702704,
+            "y": 15.652173913043478,
+            "width": 73.3996138996139,
+            "height": 10.0,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

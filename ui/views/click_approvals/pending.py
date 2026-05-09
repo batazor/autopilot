@@ -37,6 +37,20 @@ def _is_stale_from_previous_worker(payload: dict[str, Any], row: dict[str, Any])
     return created_at > 0 and worker_started_at > 0 and created_at < worker_started_at
 
 
+def _payload_action_label(payload: dict[str, Any]) -> str:
+    kind = str(payload.get("type") or "").strip().lower()
+    if kind == "set_node":
+        node = str(payload.get("set_node") or "").strip()
+        return f"set node -> {node}" if node else "set node"
+    if kind == "swipe":
+        return "swipe"
+    if kind == "type_text":
+        return "type text"
+    if kind == "tap":
+        return "click"
+    return kind or "действие"
+
+
 def _clear_stale_pending_after_restart(
     *, client: Any, inst: str, curr_key: str, raw: Any
 ) -> bool:
@@ -167,7 +181,7 @@ def fragment_pending_approval_columns(
         if isinstance(ctx0, dict):
             render_dsl_step_audit(ctx0)
 
-        with st.expander("Payload", expanded=False):
+        with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
         c1, c2 = st.columns([1, 1], vertical_alignment="center")

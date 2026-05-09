@@ -89,3 +89,16 @@ def test_production_screen_verify_yaml_contains_mail_title_switch() -> None:
     assert mail_rules == [
         {"ocr": "page_title", "contains": ["mail"], "threshold": 0.8}
     ]
+
+
+def test_production_screen_verify_yaml_contains_building_landmark() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("building")
+        rules = screen_graph.screen_verify_rules("building")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "page.building.furniture", "threshold": 0.85}]
+    assert landmarks == expected
+    assert rules == expected

@@ -1,7 +1,14 @@
+# Screen verification config used by navigation.detector + navigation.navigator.
+#
+# - text_switch: cheap OCR switch by common page title/text regions.
+# - screens.<name>.landmarks: used by ScreenDetector to recognize the current screen.
+# - screens.<name>.rules: used by Navigator to verify that a route/tap reached target screen.
+# A check can be image-based (`match`) or OCR-based (`ocr` + optional `contains`).
 retry:
   attempts: 6
   interval_seconds: 0.8
 
+# Fast OCR-based screen switch for screens that expose a shared title region.
 text_switch:
   - ocr: page_title
     threshold: 0.8
@@ -15,6 +22,7 @@ text_switch:
 
 screens:
   main_city:
+    # Current-screen detection landmarks: "we are on main_city" signals.
     landmarks:
       - match: is_main_city
         threshold: 0.9
@@ -23,7 +31,18 @@ screens:
       - ocr: is_main_city
         contains: [city, town, base]
 
+  building:
+    # Current-screen detection landmark: recognize the building/upgrade screen.
+    landmarks:
+      - match: page.building.furniture
+        threshold: 0.85
+    # Route verification rule: confirms Navigator reached `building`.
+    rules:
+      - match: page.building.furniture
+        threshold: 0.85
+
   arena:
+    # Route verification rules for screens that are usually detected by title OCR.
     rules:
       - ocr: page_title
         contains: [arena, battle, fight]

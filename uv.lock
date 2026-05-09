@@ -2223,7 +2223,7 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.9" },
     { name = "ortools", specifier = ">=9.10" },
     { name = "paddleocr", marker = "extra == 'ocr'", specifier = ">=2.7" },
-    { name = "paddlepaddle", marker = "extra == 'ocr'", specifier = ">=2.6" },
+    { name = "paddlepaddle", marker = "extra == 'ocr'", specifier = ">=3.2.2" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "pillow", marker = "extra == 'annotator'", specifier = ">=10.0" },
     { name = "pillow", marker = "extra == 'ui'", specifier = ">=10.0" },
