@@ -19,6 +19,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
+from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
@@ -29,8 +30,6 @@ from layout.template_match import (
 from layout.types import Region
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
-
-from layout.color_bucket import dominant_color_label_bgr
 
 
 def _apply_min_saturation_gate(

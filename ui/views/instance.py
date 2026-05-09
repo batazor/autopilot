@@ -14,9 +14,9 @@ from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
     count_queue_tasks_for_instance,
+    fetch_fsm_history,
     fetch_next_queue_row_for_instance,
     fetch_running_queue_row,
-    fetch_fsm_history,
     get_instance_state,
     get_redis,
     push_instance_command,

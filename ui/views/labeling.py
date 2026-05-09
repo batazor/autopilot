@@ -8,7 +8,11 @@ import streamlit as st
 
 from capture.adb_screencap import adb_screencap_to_file
 from config.loader import load_settings
-from config.reference_naming import TEMPORAL_SUBDIR, temporal_png_abs_path, unique_label_capture_basename
+from config.reference_naming import (
+    TEMPORAL_SUBDIR,
+    temporal_png_abs_path,
+    unique_label_capture_basename,
+)
 from ui.area_annotator import (
     REPO_ROOT,
     ensure_entry_for_reference_path,

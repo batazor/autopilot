@@ -488,6 +488,7 @@ async def test_ocr_chief_profile_player_id_against_real_service() -> None:
     are required for the production `who_i_am` flow to work.
     """
     import cv2  # local import — heavy module, not needed by the unit tests above
+
     from layout.area_lookup import screen_region_by_name
     from ocr.client import OcrClient
 

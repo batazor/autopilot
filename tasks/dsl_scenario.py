@@ -16,11 +16,11 @@ import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
-from layout.color_bucket import dominant_color_label_bgr
+from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
+from layout.color_bucket import dominant_color_label_bgr
 from layout.types import Point, Region
-from config.log_ansi import scenario_log_label as _scen
 from tasks.base import TaskResult
 
 logger = logging.getLogger(__name__)

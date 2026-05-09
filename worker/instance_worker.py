@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 import redis.asyncio as aioredis
+
 from actions.tap import BotActions
 from analysis.overlay import run_overlay_analysis
 from capture.adb_screencap import DEFAULT_ADB_BIN

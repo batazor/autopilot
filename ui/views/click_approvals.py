@@ -21,14 +21,13 @@ from actions.tap import click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
 from ui.redis_client import require_redis_connection
-
-from ui.views.click_approvals.ctx import ClickApprovalsCtx
 from ui.views.click_approvals.chrome import (
-    render_heartbeat,
     render_header,
+    render_heartbeat,
     render_reset_block,
     render_ui_notifications,
 )
+from ui.views.click_approvals.ctx import ClickApprovalsCtx
 from ui.views.click_approvals.idle_overlay_probe import render_idle_overlay_probe
 from ui.views.click_approvals.pending import (
     fragment_pending_approval_columns,

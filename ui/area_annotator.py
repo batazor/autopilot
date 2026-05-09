@@ -24,7 +24,6 @@ import streamlit as st
 from PIL import Image
 
 from layout.color_bucket import dominant_color_label_bgr
-
 from ui.streamlit_canvas_compat import ensure_drawable_canvas_compat
 
 ensure_drawable_canvas_compat()
@@ -33,12 +32,6 @@ from streamlit_drawable_canvas import st_canvas
 
 from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import validate_unique_region_names
-from ui.overlay_yaml_sync import (
-    overlay_search_region_name,
-    overlay_tap_region_name,
-    rename_findicon_overlay_primary,
-    sync_findicon_overlay_aux_keys,
-)
 from ui.keys import (
     ACTIVE_IMAGE_PATH,
     ANNOT_LABELING_REF,
@@ -48,9 +41,9 @@ from ui.keys import (
     CANVAS_REV,
     ENTRY_IDX,
     IMAGE_ERROR,
-    LABELING_TEMPORAL_REGIONS,
     LABELING_PENDING_CAPTURE_REL,
     LABELING_SELECTION_BEFORE_CAPTURE,
+    LABELING_TEMPORAL_REGIONS,
     LABELING_ZOOM,
     LABELING_ZOOM_X,
     LABELING_ZOOM_Y,
@@ -61,12 +54,18 @@ from ui.keys import (
     SELECTED_REGION_IDX,
     SELECTED_REGION_NAME,
 )
-from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 from ui.labeling_reference_panel import (
     labeling_forced_reference_rel,
     labeling_resolve_sel,
     render_labeling_reference_column,
 )
+from ui.overlay_yaml_sync import (
+    overlay_search_region_name,
+    overlay_tap_region_name,
+    rename_findicon_overlay_primary,
+    sync_findicon_overlay_aux_keys,
+)
+from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 
 # -----------------------------------------------------------------------------
 # Types

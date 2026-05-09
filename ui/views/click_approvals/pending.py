@@ -10,7 +10,6 @@ from .ctx import ClickApprovalsCtx
 from .dsl_audit import render_dsl_step_audit
 from .preview import render_preview_with_point
 
-
 CLICK_APPROVAL_PENDING_SNAP = "click_approvals_pending_snap"
 
 

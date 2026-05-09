@@ -6,7 +6,6 @@ from pathlib import Path
 import httpx
 import pytest
 
-
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _MAIN_CITY_REF = _REPO_ROOT / "references" / "main_city.png"
 _AREA_JSON = _REPO_ROOT / "area.json"

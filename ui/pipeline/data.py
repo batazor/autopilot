@@ -10,7 +10,10 @@ import streamlit as st
 import yaml
 
 from analysis.overlay import load_analyze_yaml, run_overlay_analysis_sync
-from analysis.overlay_rules import overlay_rule_screen_allowlist, resolved_search_region_for_findicon
+from analysis.overlay_rules import (
+    overlay_rule_screen_allowlist,
+    resolved_search_region_for_findicon,
+)
 from layout.area_lookup import screen_region_by_name
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.reference_preview import rolling_live_preview_path
@@ -69,9 +72,7 @@ def clear_pipeline_overlay_cache_entries(instance_id: str) -> None:
     if not isinstance(cache, dict):
         return
     for k in list(cache.keys()):
-        if k == instance_id:
-            cache.pop(k, None)
-        elif isinstance(k, tuple) and len(k) >= 1 and k[0] == instance_id:
+        if k == instance_id or isinstance(k, tuple) and len(k) >= 1 and k[0] == instance_id:
             cache.pop(k, None)
 
 

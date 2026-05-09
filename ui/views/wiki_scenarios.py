@@ -412,8 +412,8 @@ for it in indexed:
 
     skey = p.stem
     name = str(doc.get("name") or skey)
-    enabled = doc.get("enabled", None)
-    priority = doc.get("priority", None)
+    enabled = doc.get("enabled")
+    priority = doc.get("priority")
     steps = doc.get("steps")
 
     label = f"{name}  ·  `{skey}`"

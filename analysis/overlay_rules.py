@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from analysis.overlay_duration import parse_duration_seconds
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_xy_pct
-
-from analysis.overlay_duration import parse_duration_seconds
 
 
 def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
