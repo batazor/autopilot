@@ -287,7 +287,7 @@ class Navigator:
                     if await self._execute_hops(instance_id, from_hub):
                         return True
                 else:
-                    logger.error(
+                    logger.info(
                         "No navigation path from %s to %s (and no route via main_city)",
                         current,
                         target,

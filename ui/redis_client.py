@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from contextlib import suppress
 from typing import Any, TypedDict
 
 import redis
 import streamlit as st
 
 from config.loader import load_settings
+from scheduler.queue import _dup_index_key
 
 
 @dataclass(frozen=True)
@@ -320,16 +322,38 @@ def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
                 continue
             if str(data.get("task_id", "")) == task_id:
                 client.zrem(key, payload)
-                # Best-effort cleanup of duplicate index (if enabled).
-                try:
-                    iid = str(data.get("instance_id", "") or "").strip() or "unknown"
-                    pid = str(data.get("player_id", "") or "").strip()
-                    ttype = str(data.get("task_type", "") or "").strip()
-                    reg = str(data.get("region", "") or "").strip()
-                    idx_key = f"wos:queue:idx:{iid}:{ttype}:{reg}:{pid}"
-                    client.srem(idx_key, payload)
-                except Exception:
-                    pass
+                # Match ``RedisQueue.remove`` / ``pop_due``: overlay tasks use
+                # ``dedup_ignore_region=True`` → index under ``region=None``; UI must
+                # remove both region-specific and ignore-region idx entries.
+                iid = str(data.get("instance_id", "") or "").strip() or "unknown"
+                pid = str(data.get("player_id", "") or "")
+                ttype = str(data.get("task_type", "") or "")
+                reg_raw = data.get("region")
+                reg_s = (
+                    str(reg_raw).strip()
+                    if reg_raw is not None and str(reg_raw).strip() != ""
+                    else None
+                )
+                with suppress(Exception):
+                    client.srem(
+                        _dup_index_key(
+                            instance_id=iid,
+                            player_id=pid,
+                            task_type=ttype,
+                            region=reg_s,
+                        ),
+                        payload,
+                    )
+                with suppress(Exception):
+                    client.srem(
+                        _dup_index_key(
+                            instance_id=iid,
+                            player_id=pid,
+                            task_type=ttype,
+                            region=None,
+                        ),
+                        payload,
+                    )
                 return True
     return False
 
@@ -357,6 +381,23 @@ def get_instance_state(client: redis.Redis, instance_id: str) -> dict[str, str]:
     if not raw:
         return {}
     return {str(k): str(v) if v is not None else "" for k, v in raw.items()}
+
+
+def get_player_state_hash(client: redis.Redis, player_id: str) -> dict[str, str]:
+    """All hash fields at ``wos:player:<id>:state`` (nickname, ``buildings.levels.*``, OCR, …)."""
+    pid = str(player_id or "").strip()
+    if not pid:
+        return {}
+    try:
+        raw = client.hgetall(f"wos:player:{pid}:state") or {}
+    except redis.RedisError:
+        return {}
+    return {
+        (k.decode() if isinstance(k, bytes) else str(k)): (
+            v.decode() if isinstance(v, bytes) else (str(v) if v is not None else "")
+        )
+        for k, v in raw.items()
+    }
 
 
 def get_player_fsm(client: redis.Redis, player_id: str) -> str:

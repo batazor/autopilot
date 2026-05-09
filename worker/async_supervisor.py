@@ -8,6 +8,7 @@ import threading
 
 from config.loader import InstanceConfig, get_settings
 from config.logging_stdout import setup_stdout_logging
+from config.startup_validation import assert_startup_configs_valid
 from scheduler.ortools_executor import shutdown_ortools_executor
 from worker.instance_worker import InstanceWorker
 
@@ -49,6 +50,7 @@ async def run_forever_async(*, stop_event: threading.Event | None = None) -> Non
         "wos: async supervisor running — worker/ADB/rolling logs follow on stdout "
         "(terminal where `uv run wos` is running)"
     )
+    assert_startup_configs_valid()
     settings = get_settings()
     tasks = [
         asyncio.create_task(_guarded_worker(inst), name=f"worker-{inst.instance_id}")

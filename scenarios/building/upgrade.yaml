@@ -24,7 +24,7 @@ steps:
             - wait: 2s
             - long_click: upgrade_button
               wait: 5s
-            - wait: 2s
+            - wait: 1s
         - while_match: button.next
           max: 1
           steps:

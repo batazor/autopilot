@@ -142,16 +142,6 @@ overlay:
   threshold: 0.87
   min_match_saturation: 48
 
-- name: upgrade_big_button.visible
-  region: upgrade_big_button
-  action: findIcon
-  priority: 60000
-  threshold: 0.92
-  min_match_saturation: 48
-  pushScenario:
-    - name: tap_upgrade_big_button
-      priority: 60000
-
 - name: go_button.visible
   region: go_button
   action: findIcon
@@ -191,6 +181,17 @@ overlay:
   pushScenario:
     - name: tap_confirm_blue_button
       priority: 88_000
+
+- name: dontshowthisagaintoday.visible
+  region: dontshowthisagaintoday
+  action: findIcon
+  priority: 78_000
+  threshold: 0.9
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_dontshowthisagaintoday
+      priority: 78_000
 
 - name: event.snowstorm.visible
   region: event.snowstorm

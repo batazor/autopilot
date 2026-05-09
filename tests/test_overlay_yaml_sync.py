@@ -101,4 +101,4 @@ def test_building_furniture_overlay_uses_image_match() -> None:
     assert rule["action"] == "findIcon"
     assert rule["threshold"] == 0.9
     assert rule["screens"] == ["building"]
-    assert "set_node" not in rule
+    assert rule["set_node"] == "building"

@@ -8,6 +8,7 @@ import time
 
 from config.loader import InstanceConfig, get_settings
 from config.logging_stdout import setup_stdout_logging
+from config.startup_validation import assert_startup_configs_valid
 from scheduler.runner import main as scheduler_main
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ class Supervisor:
 
 def main() -> None:
     setup_stdout_logging()
+    assert_startup_configs_valid()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     supervisor.run()

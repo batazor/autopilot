@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,11 @@ class _FakeActions:
 
 
 @pytest.mark.asyncio
-async def test_dsl_long_click_uses_wait_as_duration(tmp_path: Path, monkeypatch: Any, redis_async: object) -> None:
+async def test_dsl_long_click_uses_wait_as_duration(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
     (tmp_path / "scenarios" / "building").mkdir(parents=True)
     (tmp_path / "scenarios" / "building" / "long_click_demo.yaml").write_text(
         yaml.dump(
@@ -76,3 +81,54 @@ async def test_dsl_long_click_uses_wait_as_duration(tmp_path: Path, monkeypatch:
     assert res.success is True
     assert actions.long_taps == [("bs1", 150, 150, 5000)]
 
+
+def test_dsl_long_click_point_reuses_last_match_tap_percent(redis_async: object) -> None:
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="long_click_demo",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    task._last_match_region = "upgrade_button"
+    task._last_match_row = {
+        "matched": True,
+        "tap_x_pct": 84.375,
+        "tap_y_pct": 50.6641,
+    }
+
+    pt = task._point_for_region_action(
+        "upgrade_button",
+        {"x": 74.0, "y": 40.0, "width": 20.0, "height": 3.0},
+        720,
+        1280,
+    )
+
+    assert (pt.x, pt.y) == (608, 649)
+
+
+@pytest.mark.asyncio
+async def test_dsl_missing_scenario_pushes_ui_notification(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    (tmp_path / "scenarios").mkdir()
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="missing_upgrade",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    res = await task.execute("bs1")
+
+    assert res.success is False
+    assert res.metadata == {"reason": "scenario_not_found", "key": "missing_upgrade"}
+    raw = await redis_async.lrange("wos:ui:notifications:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert len(raw) == 1
+    body = json.loads(raw[0])
+    assert body["kind"] == "dsl.scenario_not_found"
+    assert body["level"] == "error"
+    assert body["message"] == "Scenario not found: missing_upgrade"

@@ -16,6 +16,11 @@ _ui_dir = Path(__file__).parent
 
 overview = st.Page(str(_ui_dir / "views" / "overview.py"), title="Overview", default=True)
 instance_page = st.Page(str(_ui_dir / "views" / "instance.py"), title="Instance")
+live_player_page = st.Page(
+    str(_ui_dir / "views" / "live_player.py"),
+    title="Live player",
+    url_path="live_player",
+)
 gallery_page = st.Page(str(_ui_dir / "views" / "gallery.py"), title="Gallery")
 click_approvals_page = st.Page(
     str(_ui_dir / "views" / "click_approvals.py"),
@@ -38,7 +43,7 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 
 st.navigation(
     {
-        "Operate": [overview, instance_page],
+        "Operate": [overview, instance_page, live_player_page],
         "DB": [db_gift_codes_page, db_player_state_page, wiki_db_page],
         "Wiki": [
             gallery_page,

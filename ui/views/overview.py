@@ -24,6 +24,12 @@ ensure_embedded_bot()
 
 st.title("Overview")
 
+st.page_link(
+    "views/live_player.py",
+    label="Live player",
+    help="Redis snapshot per player — buildings, avatar, …",
+)
+
 if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
     restart_embedded_bot()
     st.success("Bot restart triggered")
@@ -127,7 +133,15 @@ def _render_player_identity(
     badge = " · _active_" if is_active else ""
     header = f"**`{pid}`**{badge} · FSM `{fsm_state or 'unknown'}`"
 
-    col_av, col_txt = st.columns([1, 6], vertical_alignment="center")
+    col_av, col_txt, col_live = st.columns([1, 5, 0.85], vertical_alignment="center")
+    with col_live:
+        st.page_link(
+            "views/live_player.py",
+            label="Live",
+            query_params={"player_id": pid},
+            help="Live player — Redis snapshot for this account.",
+            width="stretch",
+        )
     with col_av:
         if avatar:
             try:

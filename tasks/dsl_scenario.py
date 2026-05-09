@@ -12,9 +12,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 import cv2
+import yaml
 
 from actions.tap import BotActions, _redis, _require_approval
 from analysis.overlay import evaluate_overlay_rules_async
@@ -29,6 +28,7 @@ from layout.template_match import (
 )
 from layout.types import Point, Region
 from tasks.base import TaskResult
+from ui.notifications import push_ui_notification
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +194,10 @@ async def _read_instance_state_field(
     except Exception:
         logger.debug("redis sync hget state field failed", exc_info=True)
         return ""
+
+
+async def _read_active_player(instance_id: str, redis_async: Any | None) -> str:
+    return await _read_instance_state_field(instance_id, "active_player", redis_async)
 
 
 def _strip_quotes(s: str) -> str:
@@ -480,7 +484,13 @@ class DslScenarioTask:
         with suppress(Exception):
             await self.redis_client.hset(
                 f"wos:instance:{instance_id}:state",
-                mapping={"current_scenario": ""},
+                mapping={
+                    "current_scenario": "",
+                    "last_active_scenario": "",
+                    "last_active_scenario_priority": "",
+                    "last_active_scenario_player": "",
+                    "last_active_scenario_step": "",
+                },
             )
 
     async def _navigate_to_node(
@@ -1226,35 +1236,7 @@ class DslScenarioTask:
             logger.warning("dsl_scenario: region not found in area.json: %s", region)
             return None
 
-        tap_region = str(self.tap_region or "").strip()
-        if (
-            self.tap_x_pct is not None
-            and self.tap_y_pct is not None
-            and (not tap_region or tap_region == region)
-        ):
-            pt = Point(
-                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
-                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
-            )
-        elif (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and bool(self._last_match_row.get("matched"))
-            and self._last_match_row.get("tap_x_pct") is not None
-            and self._last_match_row.get("tap_y_pct") is not None
-        ):
-            # Tap at the match center (or match+tap_region delta) computed by overlay engine.
-            try:
-                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
-                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
-                pt = Point(
-                    int(round(txp / 100.0 * dev_w)),
-                    int(round(typ / 100.0 * dev_h)),
-                )
-            except Exception:
-                pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
-        else:
-            pt = bbox_percent_center_to_device_point(pair[1]["bbox"], dev_w, dev_h)
+        pt = self._point_for_region_action(region, pair[1]["bbox"], dev_w, dev_h)
 
         tapped = actions.tap(instance_id, pt, approval_region=region)
         if not tapped:
@@ -1288,6 +1270,42 @@ class DslScenarioTask:
             except Exception:
                 pass
         return None
+
+    def _point_for_region_action(
+        self,
+        region: str,
+        bbox: dict[str, Any],
+        dev_w: int,
+        dev_h: int,
+    ) -> Point:
+        tap_region = str(self.tap_region or "").strip()
+        if (
+            self.tap_x_pct is not None
+            and self.tap_y_pct is not None
+            and (not tap_region or tap_region == region)
+        ):
+            return Point(
+                int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
+                int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
+            )
+        if (
+            self._last_match_row is not None
+            and self._last_match_region == region
+            and bool(self._last_match_row.get("matched"))
+            and self._last_match_row.get("tap_x_pct") is not None
+            and self._last_match_row.get("tap_y_pct") is not None
+        ):
+            # Use the concrete match location computed by the overlay engine.
+            try:
+                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
+                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                return Point(
+                    int(round(txp / 100.0 * dev_w)),
+                    int(round(typ / 100.0 * dev_h)),
+                )
+            except Exception:
+                pass
+        return bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
 
     async def _run_inline_step(
         self,
@@ -1331,7 +1349,7 @@ class DslScenarioTask:
             if not isinstance(bbox, dict):
                 logger.warning("dsl_scenario: missing bbox for long_click region %r", region)
                 return None
-            pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+            pt = self._point_for_region_action(region, bbox, dev_w, dev_h)
             ok = False
             try:
                 ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))
@@ -1618,6 +1636,15 @@ class DslScenarioTask:
             hits.append(p)
 
         if not hits:
+            await push_ui_notification(
+                self.redis_client,
+                instance_id,
+                kind="dsl.scenario_not_found",
+                message=f"Scenario not found: {key}",
+                level="error",
+                event_id=f"dsl:scenario_not_found:{instance_id}:{key}",
+                payload={"scenario": key},
+            )
             return TaskResult(
                 success=False,
                 next_run_at=None,
@@ -1671,7 +1698,7 @@ class DslScenarioTask:
         # initial-probe retries + strict zero-iteration failure so the work
         # actually happens (or is properly retried).
         is_device_level = doc.get("device_level") is True
-        if target_node:
+        if target_node and self.start_step_index <= 0:
             nav_ok = await self._navigate_to_node(
                 instance_id,
                 target_node,
@@ -1720,6 +1747,7 @@ class DslScenarioTask:
                 )
 
         step_index = self.start_step_index
+        require_identity_resolution = key == "who_i_am" and not str(self.player_id or "").strip()
         while step_index < len(steps):
             step = steps[step_index]
             _resumable_step = step_index  # capture before increment for resume tracking
@@ -2178,6 +2206,33 @@ class DslScenarioTask:
                             step=step,
                             region=reg,
                         )
+                    active_player = await _read_active_player(instance_id, self.redis_client)
+                    if require_identity_resolution and reg == "player_id" and not active_player:
+                        logger.info(
+                            "dsl_scenario: identity OCR did not set active_player "
+                            "scenario=%s region=%s — retry",
+                            _scen(key),
+                            reg,
+                        )
+                        await self._clear_step_context(instance_id)
+                        _trace_row(
+                            _resumable_step,
+                            step,
+                            "early_exit",
+                            reason="identity_not_resolved",
+                        )
+                        return TaskResult(
+                            success=False,
+                            next_run_at=datetime.now() + timedelta(seconds=30),
+                            metadata=_fin(
+                                {
+                                    "scenario": key,
+                                    "reason": "identity_not_resolved",
+                                    "region": reg,
+                                },
+                                completed=False,
+                            ),
+                        )
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "exec" in step:
@@ -2326,7 +2381,7 @@ class DslScenarioTask:
                     dur_s = _parse_wait_seconds(raw_dur)
                     if dur_s > 0:
                         duration_ms = int(round(dur_s * 1000.0))
-                pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+                pt = self._point_for_region_action(reg, bbox, dev_w, dev_h)
                 ok = False
                 with suppress(Exception):
                     ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))

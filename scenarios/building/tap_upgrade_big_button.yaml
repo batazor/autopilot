@@ -1,0 +1,11 @@
+enabled: true
+name: Tap upgrade big button
+# Overlay fires when the icon is visible; double template pass reduces false taps.
+device_level: true
+
+steps:
+  - match: upgrade_big_button
+    threshold: 0.92
+    min_match_saturation: 48
+  - click: upgrade_big_button
+  - wait: 800ms

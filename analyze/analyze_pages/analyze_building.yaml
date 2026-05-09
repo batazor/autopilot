@@ -5,6 +5,7 @@ overlay:
   threshold: 0.9
   screens:
     - building
+  set_node: building
   ttl: 30s
   pushScenario:
     - name: upgrade
@@ -30,6 +31,19 @@ overlay:
   pushScenario:
     - name: upgrade
       priority: 80_000
+
+- name: upgrade_big_button.visible
+  region: upgrade_big_button
+  action: findIcon
+  priority: 60_000
+  threshold: 0.92
+  min_match_saturation: 48
+  screens:
+    - building
+    - main_city
+  pushScenario:
+    - name: tap_upgrade_big_button
+      priority: 60_000
 
 - name: build_button.visible
   region: build_button

@@ -233,12 +233,14 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
     state_key = f"wos:player:{player_id}:state"
     raw_text = await ctx.redis_client.hget(state_key, "building.name")
     text = _decode_redis_raw(raw_text)
+    text_source = "player"
     if not text:
         raw_text = await ctx.redis_client.hget(
             f"wos:instance:{ctx.instance_id}:state",
             "building.name",
         )
         text = _decode_redis_raw(raw_text)
+        text_source = "instance"
     if not text:
         logger.warning("dsl exec sync_building_name: missing building.name OCR text")
         return
@@ -280,15 +282,18 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
             player_id,
         )
 
-    if prev_level != str(level):
-        logger.info(
-            "building level updated: player=%s building=%s old=%s new=%s text=%r",
-            player_id,
-            building.id,
-            prev_level or "?",
-            level,
-            text,
-        )
+    changed = prev_level != str(level)
+    logger.info(
+        "dsl exec sync_building_name: %s player=%s instance=%s building=%s old=%s new=%s text=%r source=%s",
+        "updated" if changed else "unchanged",
+        player_id,
+        ctx.instance_id,
+        building.id,
+        prev_level or "?",
+        level,
+        text,
+        text_source,
+    )
 
 
 async def _exec_detect_screen(ctx: DslExecContext) -> None:

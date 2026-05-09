@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
+from contextlib import suppress
 from typing import Any
 
 import redis.asyncio as aioredis
+
 from config.loader import get_settings
 from fsm.machine import PlayerFSM
 from fsm.states import InstanceState
@@ -103,18 +106,64 @@ class InstanceWorkerRedisMixin:
     async def _pop_next_task(self) -> QueueItem | None:
         assert self._queue is not None
         current_screen = ""
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
         if self._redis is not None:
             raw = await self._redis.hget(
-                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                inst_key,
                 "current_screen",
             )
             if raw is not None:
                 current_screen = raw.decode() if isinstance(raw, bytes) else str(raw)
                 current_screen = current_screen.strip()
-        return await self._queue.pop_due(
+        item = await self._queue.pop_due(
             self._cfg.instance_id,
             current_screen=current_screen,
         )
+        if item is not None or self._redis is None:
+            if item is not None:
+                with suppress(Exception):
+                    await self._redis.hset(inst_key, "queue_blocked_reason", "")
+            return item
+
+        reason = await self._queue_blocked_reason(current_screen=current_screen)
+        with suppress(Exception):
+            await self._redis.hset(inst_key, "queue_blocked_reason", reason)
+        return None
+
+    async def _queue_blocked_reason(self, *, current_screen: str) -> str:
+        if self._redis is None:
+            return ""
+        inst = self._cfg.instance_id
+        qkey = f"wos:queue:{inst}"
+        try:
+            rows = await self._redis.zrangebyscore(qkey, "-inf", time.time())
+        except Exception:
+            logger.debug("queue blocked reason: zrange failed", exc_info=True)
+            return ""
+        if not rows:
+            return ""
+        active_raw = await self._redis.hget(
+            _INST_STATE_KEY_FMT.format(instance_id=inst),
+            "active_player",
+        )
+        active = (
+            active_raw.decode() if isinstance(active_raw, bytes) else str(active_raw or "")
+        ).strip()
+        if not active:
+            return f"{len(rows)} due item(s) blocked: active_player is empty"
+        if not str(current_screen or "").strip():
+            return f"{len(rows)} due item(s) blocked: current_screen is empty"
+        sample: list[str] = []
+        for raw in rows[:3]:
+            try:
+                data = json.loads(raw)
+            except Exception:
+                continue
+            sample.append(
+                f"{str(data.get('task_type') or '?')}[{str(data.get('player_id') or 'device')}]"
+            )
+        detail = ", ".join(sample)
+        return f"{len(rows)} due item(s) not runnable for this instance/player: {detail}"
 
     async def _resolve_queue_item_player(self, item: QueueItem) -> QueueItem:
         """Resolve device-level queue items (player_id="") to an actual player id."""
@@ -181,4 +230,3 @@ class InstanceWorkerRedisMixin:
                 "active_player",
                 player_id,
             )
-

@@ -1,0 +1,11 @@
+enabled: true
+name: Tap don't show this again today
+# Checkbox / label tap — overlay fires when the strip is visible.
+device_level: true
+
+steps:
+  - match: dontshowthisagaintoday
+    threshold: 0.9
+    min_match_saturation: 48
+  - click: dontshowthisagaintoday
+  - wait: 500ms

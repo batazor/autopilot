@@ -39,6 +39,20 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
     return left, top, right, bottom
 
 
+def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
+    out: list[str] = []
+    for screen in area_doc.get("screens") or []:
+        if not isinstance(screen, dict):
+            continue
+        for reg in screen.get("regions") or []:
+            if not isinstance(reg, dict):
+                continue
+            name = str(reg.get("name") or "").strip()
+            if name:
+                out.append(name)
+    return sorted(set(out), key=str.lower)
+
+
 def _ensure_fresh_reference_crop(
     *,
     repo_root: Any,
@@ -151,48 +165,80 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
     q = (name_filter or "").strip().lower()
+    overlay_regions: set[str] = set()
     visible: list[str] = []
     for logical in rule_order:
         payload = results.get(logical)
         if not isinstance(payload, dict):
             continue
         node = str(rule_node.get(logical, "") or "").strip()
-        if only_current_node and current_screen and node:
-            if node.lower() != current_screen.lower():
-                continue
+        if only_current_node and current_screen and node and node.lower() != current_screen.lower():
+            continue
         region_name = str(payload.get("region") or "").strip()
         sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
+        if region_name:
+            overlay_regions.add(region_name)
         if q:
             hay = " ".join([logical, region_name, sr_disp]).lower()
             if q not in hay:
                 continue
-        visible.append(logical)
+        visible.append(f"overlay::{logical}")
+
+    if q:
+        for region_name in _area_region_names(area_doc):
+            if region_name in overlay_regions:
+                continue
+            if q not in region_name.lower():
+                continue
+            visible.append(f"area::{region_name}")
 
     if not visible:
-        st.warning("No overlay rules match the filters.")
+        st.warning("No overlay rules or area regions match the filters.")
         return
 
     def _fmt_rule(ln: str) -> str:
-        pl = results.get(ln)
+        if ln.startswith("area::"):
+            reg_name = ln.removeprefix("area::")
+            return f"area.json region · `{reg_name}`"
+        logical = ln.removeprefix("overlay::")
+        pl = results.get(logical)
         reg = str(pl.get("region") or "") if isinstance(pl, dict) else ""
         suf = f" · `{reg}`" if reg else ""
-        return f"{ln}{suf}"
+        return f"{logical}{suf}"
 
     sel = st.selectbox(
-        "Overlay rule (reference / labeling region)",
+        "Overlay rule / area region",
         visible,
         key=f"idle_overlay_probe_rule::{instance_id}",
         format_func=_fmt_rule,
     )
 
-    pay = results.get(sel)
+    is_area_region = sel.startswith("area::")
+    sel_logical = sel.removeprefix("overlay::")
+    if is_area_region:
+        area_region = sel.removeprefix("area::")
+        pair0 = screen_region_by_name(area_doc, area_region)
+        if pair0 is None:
+            st.error("Missing area region payload.")
+            return
+        entry0, reg0 = pair0
+        pay = {
+            "region": area_region,
+            "action": str(reg0.get("action") or "").strip(),
+            "matched": False,
+            "threshold": reg0.get("threshold"),
+            "_area_ref": str(entry0.get("ocr") or "").strip(),
+            "_area_type": str(reg0.get("type") or "").strip(),
+        }
+    else:
+        pay = results.get(sel_logical)
     if not isinstance(pay, dict):
         st.error("Missing overlay payload for this rule.")
         return
 
     act = str(pay.get("action") or "").strip()
     matched = bool(pay.get("matched"))
-    nd = str(rule_node.get(sel, "") or "").strip()
+    nd = "" if is_area_region else str(rule_node.get(sel_logical, "") or "").strip()
 
     if act == "color_check":
         want = str(pay.get("want") or "").strip().lower()
@@ -309,13 +355,18 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         with m4:
             st.metric("Score − thr", gap_s if gap_s is not None else "—")
 
-    sr_line = str(pay.get("search_region") or rule_search.get(sel, "") or "").strip()
+    sr_line = str(pay.get("search_region") or rule_search.get(sel_logical, "") or "").strip()
     st.markdown(
         f"**Region:** `{str(pay.get('region') or '').strip() or '—'}` · "
         f"**action:** `{act or '—'}` · "
         f"**YAML screens:** `{nd or '(global)'}` · "
         f"**search_region:** `{sr_line or '—'}`"
     )
+    if is_area_region:
+        st.info(
+            "This is an `area.json` region, not an overlay rule. "
+            "It can still be used by DSL steps such as `ocr`, `match`, or `click`."
+        )
     reason = str(pay.get("reason") or "").strip()
     detail = str(pay.get("detail") or "").strip()
     bits = [reason] if reason else []
@@ -401,13 +452,17 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         )
         if draw_dbg:
             try:
-                vis = annotate_overlay_debug(
-                    image_bgr,
-                    results,
-                    [sel],
-                    area_doc,
-                    rule_search,
-                )
+                if is_area_region:
+                    vis = image_bgr.copy()
+                    cv2.rectangle(vis, (L + pad, T + pad), (R - pad, B - pad), (0, 165, 255), 3)
+                else:
+                    vis = annotate_overlay_debug(
+                        image_bgr,
+                        results,
+                        [sel_logical],
+                        area_doc,
+                        rule_search,
+                    )
                 vis_ui = maybe_downscale_for_ui(vis, max_side=ctx.probe_overlay_max_side)
                 ok_vis, enc_vis = cv2.imencode(".png", vis_ui)
                 if ok_vis:

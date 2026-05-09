@@ -200,6 +200,38 @@ async def test_ocr_step_skips_persist_below_threshold(
 
 
 @pytest.mark.asyncio
+async def test_device_level_who_i_am_retries_when_identity_not_resolved(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    _write_who_i_am_repo(tmp_path)
+    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+
+    class _LowConfStub:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+            return OCRResult(region_id="r0", text="42", confidence=0.10)
+
+    import ocr.client as ocr_client_module
+
+    monkeypatch.setattr(ocr_client_module, "OcrClient", _LowConfStub)
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-ocr-low-device",
+        player_id="",
+        scenario_key="who_i_am",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert result.metadata["reason"] == "identity_not_resolved"
+    assert result.next_run_at is not None
+
+
+@pytest.mark.asyncio
 async def test_consecutive_ocr_steps_share_one_capture_and_request(
     tmp_path: Path,
     monkeypatch: Any,
@@ -339,14 +371,15 @@ async def test_exec_sync_building_name_persists_detected_level(
         "buildings.levels.cookhouse": 1,
         "buildings.state.text": "Cookhouse Lv. 1",
     }
-    assert "building level updated" in caplog.text
+    assert "dsl exec sync_building_name: updated" in caplog.text
     assert "building=cookhouse" in caplog.text
     assert "old=?" in caplog.text
     assert "new=1" in caplog.text
+    assert "source=player" in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_exec_sync_building_name_does_not_log_unchanged_level(
+async def test_exec_sync_building_name_logs_unchanged_level(
     monkeypatch: Any,
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
@@ -385,7 +418,10 @@ async def test_exec_sync_building_name_does_not_log_unchanged_level(
             )
         )
 
-    assert "building level updated" not in caplog.text
+    assert "dsl exec sync_building_name: unchanged" in caplog.text
+    assert "building=coal_mine" in caplog.text
+    assert "old=1" in caplog.text
+    assert "new=1" in caplog.text
 
 
 @pytest.mark.asyncio

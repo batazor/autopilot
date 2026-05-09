@@ -445,7 +445,7 @@
             "x": 39.729729729729726,
             "y": 91.6304347826087,
             "width": 20.0,
-            "height": 3.2,
+            "height": 2.847826086956522,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -457,8 +457,8 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 1.505791505791506,
-            "y": 72.0,
+            "x": 3.2432432432432434,
+            "y": 72.43478260869566,
             "width": 94.7992277992278,
             "height": 26.64891304347826,
             "rotation": 0.0,
@@ -1451,6 +1451,60 @@
             "original_width": 720,
             "original_height": 1280
           }
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "screen_id": "",
+      "ocr": "references/dontshowthisagaintoday.png",
+      "regions": [
+        {
+          "name": "dontshowthisagaintoday",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.21621621621622,
+            "y": 51.19565217391305,
+            "width": 47.6003861003861,
+            "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dontshowthisagaintoday_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.2432432432432434,
+            "y": 38.15217391304348,
+            "width": 93.77220077220078,
+            "height": 50.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        },
+        {
+          "name": "dontshowthisagaintoday_tap",
+          "action": "click",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.21621621621622,
+            "y": 51.19565217391305,
+            "width": 6.664054054054055,
+            "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     }

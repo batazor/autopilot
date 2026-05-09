@@ -17,13 +17,6 @@ def _repo_root() -> Path:
 
 
 def main() -> None:
-    try:
-        from streamlit.web import bootstrap
-    except ImportError as exc:
-        raise SystemExit(
-            "Streamlit is required: run `uv sync` (see README), then `uv run wos`."
-        ) from exc
-
     repo = _repo_root()
     port = os.environ.get("WOS_STREAMLIT_PORT", _DEFAULT_UI_PORT)
     root = str(repo)
@@ -40,6 +33,18 @@ def main() -> None:
     os.environ.update(env)
     if root not in sys.path:
         sys.path.insert(0, root)
+
+    from config.logging_stdout import setup_stdout_logging
+    from config.startup_validation import assert_startup_configs_valid
+
+    setup_stdout_logging()
+    assert_startup_configs_valid()
+    try:
+        from streamlit.web import bootstrap
+    except ImportError as exc:
+        raise SystemExit(
+            "Streamlit is required: run `uv sync` (see README), then `uv run wos`."
+        ) from exc
 
     def _set_up_signal_handler(server: Any) -> None:
         def signal_handler(signal_number: int, stack_frame: Any) -> None:
