@@ -1,0 +1,139 @@
+id: mia
+name: Mia
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/mia/
+rarity: Legendary
+class: Lancer
+sub_class: Combat
+stats:
+  exploration:
+    attack: '3330'
+    def: '3330'
+    health: '33300'
+  expedition:
+    attack: 290.23%
+    defense: 290.23%
+story: 'One of the most exciting times in any City''s week must be the arrival of
+  Mia''s famous caravan, always greeted by eager children excited to see what new
+  shows Mia''s performers have in store. There may also be goods of extraordinary
+  value for the discerning buyer.
+
+
+  Mia''s shows are legendary—featuring strongmen, illusionists, and vanishing ninjas
+  from far-away lands. But it is their leader, Mia, in the role of a soothsayer, who
+  usually captures the public''s imagination. It is said that her magic grants clairvoyant
+  vision of a person''s past, present, and future. It is a skill Mia uses to great
+  effect and profit.
+
+
+  As everyone knows, there is no such thing as a "real" soothsayer. Yet no matter
+  how many times sceptics have tried to disprove Mia''s abilities, her naysayers have
+  yet to explain the source of her unnerving accuracy.
+
+
+  Mia''s convoy is the source of not only interesting trinkets, but also intel on
+  other Cities, the Dawn Alliance, Phaethon, and other important factions, individuals,
+  and old Imperial remnants.\nTraveling widely may be one factor, but Mia''s buyers
+  are still not quite sure exactly how she obtains so much valuable intel. Its accuracy,
+  however, is never in doubt. But Mia also has a conscience. She will not trade such
+  secrets except with those she believes deserve her trust.
+
+
+  Bahiti is one of many intrepid explorers often drawn to Mia''s soothsayer hut, wondering
+  aloud on each occasion whether the Mia''s levitating crystal ball is really a result
+  of "witchcraft". Mia always responds that it is merely a trick that careful observation
+  will quickly unravel. Bahiti is one of the keenest minds in the Dawn Alliance, and
+  yet somehow has never been able to locate the mechanism behind Mia''s "parlor tricks".
+
+
+  Mia''s background, as well as the identities of many of her mysterious followers,
+  are also shrouded in mystery. No one quite knows the story behind her ragtag—and
+  often scary—cabal. According to one legend, bandits were about to raid Mia''s convoy
+  when they accidentally observed the unmasked face of one of the caravan''s frightening
+  guards. Whatever the bandits saw, it made such an impression they fled the scene
+  without further ado. It''s difficult to unravel the mystery surrounding Mia, her
+  abilities, and her followers. Their presence on the tundra may be a riddle, but
+  what is not a riddle is that aggravating this mysterious group or its leader would
+  be very, very foolish.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Daily Deals
+skills:
+- name: Fate’s Finale
+  description: Mia throws a tarot card at enemies, dealing Attack * 270%/297%/324%/351%/378%
+    damage, and can either reduce the target's Attack by 20% for 2s or stun the target
+    for 1.5s.
+- name: Bad Omen
+  description: Mia curses an enemy target, dealing fluctuating damage based on a "base
+    value" of Mia's Attack * 50%/55%/60%/65%/70% . The final damage dealt will be
+    a random figure ranging from 5% to 600% of the "base value."
+- name: Guardian of Destiny
+  description: Mia protects the hero with the lowest remaining Health and restores
+    Health for the hero based on a "base value" of Mia's Attack * 100%/110%/120%/130%/140%
+    . The final Health restored will be a random figure ranging from 5% to 400% of
+    the "base value."
+- name: Bad Luck Streak
+  description: Grants all troops' attack a 50% chance of cursing the target, increasing
+    their damage taken by 10%/20%/30%/40%/50% .
+- name: Lucky Charm
+  description: Mia brings good luck to our troops, granting all troops' attack a 50%
+    chance of dealing 10%/20%/30%/40%/50% . more damage.
+- name: Ritual Deciphering
+  description: Mia foresees potential dangers before battle, granting a 40% chance
+    of reducing damage taken by 10%/20%/30%/40%/50% for all troops.
+- name: Vision of Truth (Lv. 5)
+  description: Figures out the secret of fate through the crystal ball, increasing
+    the upper limit and lower limit of all “fluctuating” skills of Mia by 150%.
+- name: Rally of Fate (Lv. 5)
+  description: Mia divines the most advantageous moments for an assault, increasing
+    Rally Troop Attack by 15%.

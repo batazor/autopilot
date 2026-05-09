@@ -1,0 +1,7 @@
+enabled: true
+name: "Postman"
+device_level: true
+
+steps:
+  - click: isPostman
+  - wait: 1s

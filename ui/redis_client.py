@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import redis
 import streamlit as st
@@ -53,6 +53,10 @@ class QueueHistoryRow:
     reason: str = ""
     error: str = ""
     payload: dict[str, object] | None = None
+    # DSL scenario execution trace (from ``metadata``); None for non-DSL tasks.
+    scenario_completed: bool | None = None
+    steps_total: int | None = None
+    steps_trace: list[dict[str, Any]] | None = None
 
 
 class InstanceStateRow(TypedDict, total=False):
@@ -127,6 +131,24 @@ def _parse_history_row(payload: str) -> QueueHistoryRow | None:
         duration_s = float(data.get("duration_s", 0.0) or 0.0)
     except (TypeError, ValueError):
         duration_s = max(0.0, finished_at - started_at)
+    meta_raw = data.get("metadata")
+    meta_d: dict[str, Any] = meta_raw if isinstance(meta_raw, dict) else {}
+    sc_done = meta_d.get("scenario_completed")
+    scenario_completed: bool | None
+    if isinstance(sc_done, bool):
+        scenario_completed = sc_done
+    else:
+        scenario_completed = None
+    steps_total: int | None
+    try:
+        st_raw = meta_d.get("steps_total")
+        steps_total = int(st_raw) if st_raw is not None else None
+    except (TypeError, ValueError):
+        steps_total = None
+    tr_raw = meta_d.get("steps_trace")
+    steps_trace: list[dict[str, Any]] | None = None
+    if isinstance(tr_raw, list):
+        steps_trace = [x for x in tr_raw if isinstance(x, dict)]
     return QueueHistoryRow(
         task_id=str(data.get("task_id", "")),
         task_type=str(data.get("task_type", "")),
@@ -142,6 +164,9 @@ def _parse_history_row(payload: str) -> QueueHistoryRow | None:
         reason=str(data.get("reason", "") or ""),
         error=str(data.get("error", "") or ""),
         payload=data,
+        scenario_completed=scenario_completed,
+        steps_total=steps_total,
+        steps_trace=steps_trace,
     )
 
 

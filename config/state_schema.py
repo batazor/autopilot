@@ -115,6 +115,9 @@ class Buildings(BaseModel):
     queue2: str = ""
     state: BuildingState = Field(default_factory=BuildingState)
     furnace: FurnaceInfo = Field(default_factory=FurnaceInfo)
+    # Generic building levels keyed by canonical building id (e.g. "furnace").
+    # This is intentionally a plain dict to support incremental enrichment.
+    levels: dict[str, int] = Field(default_factory=dict)
 
 
 class ResearchLevel(BaseModel):

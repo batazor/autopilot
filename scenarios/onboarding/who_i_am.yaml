@@ -17,8 +17,6 @@ device_level: true
 node: chief_profile
 
 steps:
-  - match: chief_profile_title
-    threshold: 0.92
   # Read the in-game player_id displayed on the chief_profile screen and persist
   # it under `wos:player:<player_id>:state` (field `player_id`). Type/threshold
   # default to the values declared on the region in `area.json`

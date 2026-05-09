@@ -90,15 +90,24 @@ class RedisQueue:
         tap_match_y_pct: float | None = None,
         start_step_index: int = 0,
         skip_if_duplicate: bool = False,
+        dedup_ignore_region: bool = False,
     ) -> bool:
         """Enqueue a task.
 
-        Returns False if ``skip_if_duplicate`` and the same player/type/region is queued.
+        Returns False if ``skip_if_duplicate`` and a matching item is already queued.
+
+        By default, the duplicate signature includes ``region``.
+        Set ``dedup_ignore_region=True`` to deduplicate by (instance_id, player_id, task_type)
+        while still preserving ``region`` in the payload for UI/debugging.
         """
         import json
 
         if skip_if_duplicate and await self.has_pending_duplicate(
-            player_id=player_id, task_type=task_type, region=region, instance_id=instance_id
+            player_id=player_id,
+            task_type=task_type,
+            region=region,
+            instance_id=instance_id,
+            ignore_region=dedup_ignore_region,
         ):
             logger.debug(
                 "Skip duplicate queue item: player=%s type=%s region=%r",
@@ -153,12 +162,13 @@ class RedisQueue:
         await self._redis.zadd(qk, {payload: run_at})
         # Duplicate index (fast skip_if_duplicate): track payloads per signature.
         try:
+            idx_region = None if dedup_ignore_region else region
             await self._redis.sadd(
                 _dup_index_key(
                     instance_id=instance_id,
                     player_id=player_id,
                     task_type=task_type,
-                    region=region,
+                    region=idx_region,
                 ),
                 payload,
             )
@@ -173,55 +183,103 @@ class RedisQueue:
         task_type: str,
         region: str | None,
         instance_id: str | None = None,
+        ignore_region: bool = False,
     ) -> bool:
         """True if the queue already has a matching item.
 
         Matching rules:
-        - Always filters by ``task_type`` and ``region``.
+        - Always filters by ``task_type``.
+        - Filters by ``region`` unless ``ignore_region=True``.
         - Filters by ``instance_id`` when provided.
         - Device-level pushes (``player_id=""``) match any player on the same
           instance, so one queued item blocks re-pushing for all players.
         - Player-specific pushes match only the same ``player_id``.
         """
+        idx_region = None if ignore_region else region
         # Fast path via index.
         if instance_id:
             try:
                 # Device-level items (player_id="") block all players on instance.
                 key_dev = _dup_index_key(
-                    instance_id=instance_id, player_id="", task_type=task_type, region=region
+                    instance_id=instance_id,
+                    player_id="",
+                    task_type=task_type,
+                    region=idx_region,
                 )
                 if int(await self._redis.scard(key_dev)) > 0:
-                    return True
+                    # Self-heal: index may be stale (e.g. queue item removed but idx not cleaned).
+                    if await self._scan_queue_for_duplicate(
+                        player_id="",
+                        task_type=task_type,
+                        region=region,
+                        instance_id=instance_id,
+                        ignore_region=ignore_region,
+                    ):
+                        return True
+                    with suppress(Exception):
+                        await self._redis.delete(key_dev)
                 if player_id:
                     key_p = _dup_index_key(
                         instance_id=instance_id,
                         player_id=player_id,
                         task_type=task_type,
-                        region=region,
+                        region=idx_region,
                     )
-                    return int(await self._redis.scard(key_p)) > 0
+                    if int(await self._redis.scard(key_p)) > 0:
+                        if await self._scan_queue_for_duplicate(
+                            player_id=player_id,
+                            task_type=task_type,
+                            region=region,
+                            instance_id=instance_id,
+                            ignore_region=ignore_region,
+                        ):
+                            return True
+                        with suppress(Exception):
+                            await self._redis.delete(key_p)
+                        return False
+                    return False
                 # caller is device-level; checked key_dev above
                 return False
             except Exception:
                 logger.debug("queue idx: scard failed; falling back to scan", exc_info=True)
 
         # Fallback: scan the queue ZSET.
+        return await self._scan_queue_for_duplicate(
+            player_id=player_id,
+            task_type=task_type,
+            region=region,
+            instance_id=instance_id or "",
+            ignore_region=ignore_region,
+        )
+
+    async def _scan_queue_for_duplicate(
+        self,
+        *,
+        player_id: str,
+        task_type: str,
+        region: str | None,
+        instance_id: str,
+        ignore_region: bool,
+    ) -> bool:
+        """Slow path: scan queue ZSET for a matching pending item."""
         import json
 
-        want_region = str(region).strip() if region else ""
+        want_region = "" if ignore_region else (str(region).strip() if region else "")
         device_level = not player_id
-        all_items = await self._redis.zrangebyscore(_queue_key(instance_id or ""), "-inf", "+inf")
+        all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
         for raw in all_items:
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if instance_id and str(data.get("instance_id", "")) != instance_id:
+            if str(data.get("instance_id", "")) != instance_id:
                 continue
             if str(data.get("task_type", "")) != task_type:
                 continue
             if not device_level and str(data.get("player_id", "")) != player_id:
                 continue
+            if ignore_region:
+                return True
             got = data.get("region")
             got_s = str(got).strip() if got is not None else ""
             if got_s == want_region:
@@ -345,6 +403,7 @@ class RedisQueue:
 
     async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
         import json
+        from contextlib import suppress
 
         now = time.time()
         # Fetch earliest due tasks (score <= now) for players on this instance.
@@ -406,15 +465,27 @@ class RedisQueue:
             ttype = str(data.get("task_type", ""))
             reg_raw = data.get("region")
             reg_s = str(reg_raw).strip() if reg_raw is not None and str(reg_raw).strip() != "" else None
-            await self._redis.srem(
-                _dup_index_key(
-                    instance_id=instance_id,
-                    player_id=pid,
-                    task_type=ttype,
-                    region=reg_s,
-                ),
-                raw,
-            )
+            # Remove from both: region-sensitive key and ignore-region key.
+            with suppress(Exception):
+                await self._redis.srem(
+                    _dup_index_key(
+                        instance_id=instance_id,
+                        player_id=pid,
+                        task_type=ttype,
+                        region=reg_s,
+                    ),
+                    raw,
+                )
+            with suppress(Exception):
+                await self._redis.srem(
+                    _dup_index_key(
+                        instance_id=instance_id,
+                        player_id=pid,
+                        task_type=ttype,
+                        region=None,
+                    ),
+                    raw,
+                )
         except Exception:
             logger.debug("queue idx: srem failed", exc_info=True)
         reg = data.get("region")
@@ -526,6 +597,7 @@ class RedisQueue:
 
     async def remove(self, task_id: str) -> None:
         import json
+        from contextlib import suppress
 
         async for key in self._redis.scan_iter(match="wos:queue:*"):
             ks = key.decode() if isinstance(key, bytes) else str(key)
@@ -536,11 +608,36 @@ class RedisQueue:
                 data = json.loads(raw)
                 if data["task_id"] == task_id:
                     await self._redis.zrem(ks, raw)
+                    # Best-effort idx cleanup (both keys).
+                    iid = str(data.get("instance_id") or "").strip() or "unknown"
+                    pid = str(data.get("player_id") or "")
+                    ttype = str(data.get("task_type") or "")
+                    reg_raw = data.get("region")
+                    reg_s = (
+                        str(reg_raw).strip()
+                        if reg_raw is not None and str(reg_raw).strip() != ""
+                        else None
+                    )
+                    with suppress(Exception):
+                        await self._redis.srem(
+                            _dup_index_key(
+                                instance_id=iid, player_id=pid, task_type=ttype, region=reg_s
+                            ),
+                            raw,
+                        )
+                    with suppress(Exception):
+                        await self._redis.srem(
+                            _dup_index_key(
+                                instance_id=iid, player_id=pid, task_type=ttype, region=None
+                            ),
+                            raw,
+                        )
                     return
 
     async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
         """Remove all queued items matching task_type + instance_id. Returns count removed."""
         import json
+        from contextlib import suppress
 
         all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
         removed = 0
@@ -554,6 +651,33 @@ class RedisQueue:
                 and str(data.get("instance_id") or "") == instance_id
             ):
                 await self._redis.zrem(_queue_key(instance_id), raw)
+                pid = str(data.get("player_id") or "")
+                reg_raw = data.get("region")
+                reg_s = (
+                    str(reg_raw).strip()
+                    if reg_raw is not None and str(reg_raw).strip() != ""
+                    else None
+                )
+                with suppress(Exception):
+                    await self._redis.srem(
+                        _dup_index_key(
+                            instance_id=instance_id,
+                            player_id=pid,
+                            task_type=task_type,
+                            region=reg_s,
+                        ),
+                        raw,
+                    )
+                with suppress(Exception):
+                    await self._redis.srem(
+                        _dup_index_key(
+                            instance_id=instance_id,
+                            player_id=pid,
+                            task_type=task_type,
+                            region=None,
+                        ),
+                        raw,
+                    )
                 removed += 1
         return removed
 

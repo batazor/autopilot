@@ -19,14 +19,14 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def _load_codes(path: Path) -> GiftCodeDB:
+def _load_codes(path: Path) -> tuple[GiftCodeDB, str | None]:
     if not path.is_file():
-        return GiftCodeDB()
+        return GiftCodeDB(), None
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     try:
-        return GiftCodeDB.model_validate(raw)
-    except Exception:
-        return GiftCodeDB()
+        return GiftCodeDB.model_validate(raw), None
+    except Exception as exc:
+        return GiftCodeDB(), str(exc)
 
 
 _YES_NO_COLS = ("slot expired", "needs run")
@@ -52,6 +52,11 @@ def _style_gift_codes_table(df: pd.DataFrame) -> pd.io.formats.style.Styler:
         return out
 
     return df.style.apply(row_styles, axis=1)
+
+
+def _display_dataframe(rows: list[dict[str, object]]) -> pd.DataFrame:
+    """Build an Arrow-friendly display dataframe for Streamlit."""
+    return pd.DataFrame(rows).fillna("—").astype(str)
 
 
 st.title("DB · Gift codes")
@@ -100,7 +105,7 @@ if run_redeem:
         st.success("Done.")
         st.rerun()
 
-db = _load_codes(codes_path)
+db, db_error = _load_codes(codes_path)
 registry = load_devices(devices_path)
 player_ids = list(dict.fromkeys(registry.all_player_ids()))
 for c in db.codes:
@@ -111,10 +116,14 @@ for c in db.codes:
 if not codes_path.is_file():
     rel = codes_path.relative_to(repo).as_posix()
     st.warning(f"Missing `{rel}` — create it or run the scraper once.")
+elif db_error:
+    rel = codes_path.relative_to(repo).as_posix()
+    st.error(f"Could not parse `{rel}`: {db_error}")
 elif not db.codes:
     st.info("No codes in YAML yet.")
 
 def _build_row(code, player_ids, registry) -> dict[str, object]:
+    api_err = str(code.last_api_err_code) if code.last_api_err_code is not None else "—"
     row: dict[str, object] = {
         "code": code.name,
         "expires": code.expires.isoformat() if code.expires else "—",
@@ -125,7 +134,7 @@ def _build_row(code, player_ids, registry) -> dict[str, object]:
             and any(code.needs_redemption(pid) for pid in player_ids)
         )
         else "no",
-        "API err": code.last_api_err_code if code.last_api_err_code is not None else "—",
+        "API err": api_err,
         "API msg": code.last_api_msg or "—",
     }
     for pid in player_ids:
@@ -158,13 +167,13 @@ for code in db.codes:
         active_rows.append(row)
 
 if active_rows:
-    df = pd.DataFrame(active_rows)
+    df = _display_dataframe(active_rows)
     st.subheader(f"Active codes: {len(active_rows)}")
     st.dataframe(_style_gift_codes_table(df), width="stretch", hide_index=True)
 
 if expired_rows:
     with st.expander(f"Expired / dead codes: {len(expired_rows)}", expanded=False):
-        df_exp = pd.DataFrame(expired_rows)
+        df_exp = _display_dataframe(expired_rows)
         st.dataframe(_style_gift_codes_table(df_exp), width="stretch", hide_index=True)
 
 st.divider()

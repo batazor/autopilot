@@ -1,0 +1,33 @@
+enabled: true
+name: Onboarding upgrade (chapter task)
+# Onboarding-only flow that taps tutorial-driven upgrade buttons.  Safe before
+# player identity is known.
+device_level: true
+node: building
+
+steps:
+  # Read the building title (e.g. "Cookhouse Lv. 1") and persist the detected
+  # building level for the active player.
+  - ocr: building.name
+  - exec: sync_building_name
+
+  # Chapter flow may show upgrade taps or a Next button instead — handle both per iteration.
+  - repeat:
+      max: 10
+      steps:
+        - while_match: upgrade_button
+          # Template match for this button is slightly noisy; override `area.json`
+          # threshold to avoid false "no-iteration" runs of this scenario.
+          threshold: 0.87
+          max: 5
+          steps:
+            - wait: 2s
+            - long_click: upgrade_button
+              wait: 5s
+            - wait: 2s
+        - while_match: button.next
+          max: 1
+          steps:
+            - wait: 2s
+            - click: button.next
+            - wait: 2s

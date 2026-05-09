@@ -53,8 +53,6 @@ class WorkerConfig:
     """If False, skip ``analyze.yaml`` overlay matching while a queue task is executing."""
     device_reference_snapshot_interval_seconds: float = 2.0
     """How often to overwrite the rolling preview PNG and run overlay rules on that frame."""
-    overlay_analyze_after_launch_grace_seconds: float = 15.0
-    """Skip overlay template matching for this long after worker start or app restart (game still loading)."""
     adb_executable: str = ""
     """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
 

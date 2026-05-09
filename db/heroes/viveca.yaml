@@ -1,0 +1,156 @@
+id: viveca
+name: Viveca
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/viveca-2/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: 37,433
+    def: 30,812
+    health: 231,102
+  expedition:
+    attack: 1961.56%
+    defense: 1961.56%
+story: 'Commander of the Night''s Guard, Viveca is a cold and stern leader who just
+  so happens to also be a marksman with perfect accuracy. Her lifelong mission is
+  to contain the disaster triggered by the Blood Moon plague, to confine it within
+  the mist-shrouded domain of the Abandoned City—a place she once called home—and
+  she will stop at nothing to achieve her mission.
+
+
+  Facing the mutated beings that emerge from the mist, most would be petrified, as
+  those enemies defy all understanding. Viveca, on the other hand, faces them without
+  the slightest flinch, as she knows their weaknesses. Under her fearless leadership,
+  members of the Night''s Guard have also found the courage to face the darkness head-on.
+
+
+  Viveca is usually cold, quiet, and aloof. She keeps most people at arm''s length,
+  and her only companion besides Freya, Dr. Philly, and a few Night''s Guard officers
+  is her pet raven, Veilwing. Her personality seems innate, as if she were simply
+  born without emotions, but Freya knows the truth: Viveca has experienced too much
+  trauma to let her heart remain open and vulnerable. "After all, you can''t lose
+  something you never show."
+
+
+  If Viveca is usually cold, then on the battlefield, she''s utterly frigid and ruthless.
+
+
+  When the Blood Moon Plague broke out in the Abandoned City, she had to slaughter
+  her very own friends because they''d mutated into inhuman horrors. Even today, she
+  does not hesitate to pull the trigger when faced with allies who''ve been infected.
+
+
+  Yet still, no one in the Night''s Guard holds a grudge against her, as every time
+  she presents the tactical plan for an operation, she always reserves the most dangerous
+  role for herself. Moreover, she issued a command long ago—if she were ever to be
+  infected, the Night''s Guard must eliminate her without hesitation.
+
+
+  The survivors of the Abandoned City established a new settlement right outside the
+  mist: New Metiya. The town produced supplies for the Night''s Guard and served as
+  a hub for traders and travelers from distant lands. Not long ago, a mysterious stranger
+  arrived, speaking of disturbing theories.
+
+
+  The stranger claimed that the Blood Moon Plague was not a curse at all, but an "opportunity
+  for transformation". The infected did not fall into chaos, but rather forged a new
+  order. These mutated ones acted according to certain rules and had developed intelligence.
+  Perhaps, with enough time, they might even be able to reclaim their former selves.
+
+
+  The visitor''s theories provoked deep reflection in Viveca, since she''d witnessed
+  in recent battles that some of the infected were capable of mimicking normal humans.
+  Once, she''d even heard a voice calling out her name from the depths of the mist—a
+  voice long forgotten, but still buried deep in her memories. And she''d never mentioned
+  this to anyone...'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Chiefs
+- King of Icefield
+- State of Power
+- Daily Deals
+- Hero Rally
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Evernight Finale
+  description: Deliver the final strike with ruthless bullets! Deals Attack* 200%/220%/240%/260%/280%
+    damage to a single target and inflicts Bleed, causing them to take Attack* 7%/9%/11%/13%/15%
+    damage every 0.5s for 2s.
+- name: Dark Scion
+  description: As the hunt's final moment approaches, the black-winged dark scion
+    takes action! Summons a raven to mark a single target for 6/7/8/9/10 s, during
+    which the target takes 5%/10%/15%/20%/25% more damage and becomes the locked target
+    for Viveca's Normal Attacks and her Evernight Finale skill.
+- name: Frigid Dirge
+  description: Successful hunts strengthen the leader of the Night's Guard. For each
+    enemy hero defeated, Viveca's Attack is increased by 3%/6%/9%/12%/15% for the
+    rest of the battle.
+- name: Nightfall Legion
+  description: Applies the Night Guard's tactics on the battlefield, increasing the
+    Attack of all allied troops by 5%/10%/15%/20%/25% .
+- name: Shadow World
+  description: Viveca's Marksmen gain tremendous insight from their battles against
+    darkness, allowing them to pinpoint enemy weaknesses. Attacks have a 20% chance
+    to deal 20%/40%/60%/80%/100% extra damage to all enemy troops.
+- name: Children of the Mist
+  description: The formations and tactics of the Night's Guard provide balanced offense
+    and defense, reducing damage taken by allied Infantry by 2%/4%/6%/8%/10% . and
+    increasing damage dealt by allied Marksmen by 2%/4%/6%/8%/10% .
+- name: Blood Hunt
+  description: Viveca refines her weapon based on the experience gained from countless
+    battles, increasing her damage dealt by 25%.
+- name: Song of Dawn
+  description: The dawn-heralding horn dispels the mist to bolster morale, increasing
+    the Lethality of rallied troops by 15%.

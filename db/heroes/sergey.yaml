@@ -1,0 +1,137 @@
+id: sergey
+name: Sergey
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/sergey/
+rarity: Epic
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '1361'
+    def: '2220'
+    health: '26640'
+  expedition:
+    attack: 140.11%
+    defense: 140.11%
+story: 'Sergey is a true veteran of the battlefield and a distinguished victor of
+  numerous engagements. The unflappable veteran''s reputation for courage is also
+  matched by his steely demeanor off the field. He and his military expertise are
+  invaluable assets to the Dawn Alliance. Sergey and his band are often the only force
+  standing between a City and the deadly threats of this frozen land.
+
+
+  It is public knowledge that Sergey was at one point, sentenced to death for "unforgivable
+  crimes" as a senior captain in the Royal Solaris Guard. Exactly what crime could
+  have merited death for the distinguished serviceman, and how he escaped the sentence,
+  are much lesser known.
+
+
+  Sergey spent much of his youth in the Sunfire Military Academy located near the
+  castle. There, he studied the best of military strategy, history, and tactics. He
+  also learned the importance of rigid discipline, a standard that he has maintained
+  with his own elite soldiers.
+
+
+  After joining the Dawn Alliance, Sergey often serves as a City Constable. He certainly
+  excels in the role of maintaining public order. However, outside of work, Sergey''s
+  strictness and lack of humor did not win him many personal friends.
+
+
+  Sergey''s lack of personal engagement with the people around him may be a result
+  of the scars of battle he received. Some scars are mental, others physical. This
+  is particularly true of his last mission in the Royal Solaris Guard: to evacuate
+  a City and save its people from enemy assault. Unfortunately, the pillagers came
+  earlier than expected, and Sergey''s forces were too small in comparison.
+
+
+  The royal guardsmen fought with everything they had and held on for three full days.
+  Sergey''s commanding officer saw the defense as a lost cause and ordered a tactical
+  retreat to contain the military losses. Sergey was trained to follow the orders
+  of a superior, but he knew retreating meant giving up on the lives of the civilians.
+  Sergey was stuck.
+
+
+  Racked with guilt over the fate of the survivors, Sergey ultimately decided to disobey
+  a direct order for the first time in his life.He and his men organized the best
+  possible defense the City could muster. They held out against all odds until the
+  bandits retreated. The City was saved, and a grateful child handed him a bottle
+  cap as the “medal” for his brave exploit. Little did the townsfolk know, the man
+  that saved them would soon be standing before a military tribunal on the charge
+  of insubordination.
+
+
+  The tribunal judged that discipline shall be upheld whatever the cost. Sergey the
+  hero was to be executed by firing squad at dawn. It was the bottle cap “medal” in
+  his breast pocket that miraculously saved his life. Sergey would often reflect on
+  his decision, but never once did he regret remaining behind and saving the City.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Exploration
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Shielded Strike
+  description: Sergey gives an enemy a solid whack with his heavy shield, knocking
+    the target back while dealing Attack* 200%/220%/240%/260%/280% Area of Effect
+    damage.
+- name: Joint Defense
+  description: Sergey can organize strong perimeters, increasing all friendly hero
+    Defense by 5%/7.5%/10%/12.5%/15%
+- name: Shield Block
+  description: Sergey trades in his shield for an upgraded model, reducing damage
+    taken by 10%/15%/20%/25%/30% .
+- name: Defenders' Edge
+  description: Sergey's guards our troops with his shield, reducing damage taken by
+    4%/8%/12%/16%/20% for all troops.
+- name: Weaken
+  description: Sergey's intimidating presence reduces Attack by 4%/8%/12%/16%/20%
+    for all enemy troops.

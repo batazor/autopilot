@@ -11,14 +11,6 @@ import yaml
 import tasks.dsl_scenario as dsl
 
 
-class _FakeRedis:
-    async def hset(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
 class _FakeActions:
     def __init__(self, frame: np.ndarray) -> None:
         self.frame = frame
@@ -89,6 +81,7 @@ def _skip_pattern() -> np.ndarray:
 async def test_dsl_match_guard_clicks_when_region_still_visible(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     frame[80:90, 80:90] = _skip_pattern()
@@ -101,7 +94,7 @@ async def test_dsl_match_guard_clicks_when_region_still_visible(
         task_id="t1",
         player_id="p1",
         scenario_key="skip_text_button",
-        redis_client=_FakeRedis(),
+        redis_client=redis_async,  # type: ignore[arg-type]
     )
 
     result = await task.execute("bs1")
@@ -114,6 +107,7 @@ async def test_dsl_match_guard_clicks_when_region_still_visible(
 async def test_dsl_match_guard_skips_click_when_region_is_stale(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     reference_frame = np.zeros((100, 100, 3), dtype=np.uint8)
     reference_frame[80:90, 80:90] = _skip_pattern()
@@ -127,7 +121,7 @@ async def test_dsl_match_guard_skips_click_when_region_is_stale(
         task_id="t1",
         player_id="p1",
         scenario_key="skip_text_button",
-        redis_client=_FakeRedis(),
+        redis_client=redis_async,  # type: ignore[arg-type]
     )
 
     result = await task.execute("bs1")

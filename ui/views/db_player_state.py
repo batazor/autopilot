@@ -178,6 +178,7 @@ def _sync_selected_player_from_century(g: GamerState) -> None:
                 "avatar": data.avatar_image or "",
                 "buildings.furnace.level": data.stove_level,
                 "buildings.furnace.power": data.stove_lv_content,
+                "buildings.levels.furnace": int(data.stove_level),
                 "century_player_sync_at": float(now),
             }
         )

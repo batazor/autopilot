@@ -1,0 +1,173 @@
+id: seigel
+name: Seigel
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/seigel/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: 28,371
+    def: 36,984
+    health: 554,778
+  expedition:
+    attack: 2131.70%
+    defense: 2131.70%
+story: 'Seigel is the strongest of the Night''s Guard by far. The roaming "Shield
+  of Hell" is also far more tenacious than any other member of the Guard, able to
+  endure battle for days in Hell''s dark mist. Seigel is a shield both literally and
+  physically. He stands between fellow soldiers and the horrors beyond.
+
+
+  Seigel can do all these things because he is the man who returned from the land
+  of crystal death. No signs of insanity or the rage of the Blood Moon show themselves
+  in him even if his body is slightly deformed. If Seigel still suffers anything from
+  his time behind the veil of Hell it is only the loss of his memories. If memories
+  "make the man", then Seigel is both lucky and cursed. Whatever pain there was has
+  been left behind. For he is a blank sheet now, free to engage in what gives him
+  meaning: fighting alongside his brothers-in-arms!
+
+
+  Viveca stumbled across Seigel on a patrol into the heartland of Hell, still infested
+  by Blood Moon Plague sufferers. Overconfident in their arms, Viveca allowed her
+  men to be cornered by a sudden ambush. Empty city streets were suddenly filled by
+  violent, twisted beings. It is hard to say if Viveca would have survived without
+  help. Seigel suddenly burst through the encirclement, cutting a path with a viciousness
+  Viveca used to escape.
+
+
+  "It was like watching a golem lay in to a whirlwind of red claws as Seigel threw
+  twisted limbs onto the scrapheap!" Seigel''s exploits became more than a rescue
+  by a mortal man in their retelling. Once Viveca and her men reached a safe distance
+  they turned to help Seigel, who was covered with scars that should have laid him
+  six feet under. Not only did Seigel recover quickly but showed no signs himself
+  of being infected. When a shocked Viveca asked how he had traveled so far into infected
+  territory, he said he had been living there for months... perhaps years.
+
+
+  Seigel was given a guard of honor back to the Night''s Guard headquarters where
+  Philly conducted a thorough physical examination—from a safe distance. She found
+  Seigel had miraculously escaped unscathed from Blood Moon infection. Or at least
+  that was the report Philly revealed to the Night''s Guard...
+
+
+  The Guard were happy to induct a survivor of inhuman strength into their ranks and
+  crowned him with an honorific previously given to one of their fallen comrades.
+  Seigel''s great fighting strength was then enhanced by a long spear and coat of
+  spike armor with which he could stand at the vanguard. The reservations of Seigel''s
+  brothers-in-arms were quickly dispelled by his protective valor. With each fellow
+  Guardsman''s life saved, Seigel built trust among the troops. He would surely be
+  a captain now were it not for his apparent lack of humor and inability to understand
+  the finer cues of human interaction.
+
+
+  Philly and Viveca have not been entirely forthcoming about Seigel''s true nature.
+
+
+  Philly''s examination did not reveal Seigel escaped the Blood Moon Plague, but the
+  opposite: he showed every sign of infection in his blood serum. In fact, Seigel
+  was much closer to an infected than an ordinary human being at a microscopic level.
+  Yet somehow he had managed to retain his own humanity, now boosted by inhuman strength.
+  Philly has conjectured that in many ways Seigel could be described as another life
+  form, not fully human, nor infected. Only time will tell if it can be called "superior".
+
+
+  Far more interesting to Viveca are his recollections of Hell. "I always knew there
+  was a presence out there in the mist... calling to me. Trying to establish contact,"
+  Seigel remarked in interviews kept confidential from others. "It was a person and
+  not a person—perhaps many people. It was trying to show me how it saw the world.
+  I knew if I let myself see the world through its eyes, it would be more wonderful
+  and stranger than I could imagine..."
+
+
+  Seigel described feeling hate for the Entity by instinct. His heart rose up to bite
+  its welcoming hand. Then the Entity''s voice grew more distant, especially after
+  joining the Night''s Guard. Only time can tell whether Viveca can use Seigel''s
+  experiences to gain a better understanding of their enemy.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- King of Icefield
+- State of Power
+- Hero Rally
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Spike Guard
+  description: Seigel extends the metal spikes on his armor for 5 seconds, increasing
+    Defense by 5%/10%/15%/20%/25% and reflecting 5%/10%/15%/20%/25% of damage back
+    to attackers.
+- name: Spear of the Moon
+  description: Seigel lunges forward with his mighty spear, dealing Attack* 40%/45%/50%/55%/60%
+    area of effect damage to enemies in a straight line before swinging in a fan-shaped
+    arc for Attack* 40%/45%/50%/55%/60% area damage to enemies in its path.
+- name: Cursed Protection
+  description: Life in Hell has endowed Seigel with dark determination, reducing damage
+    taken by 4%/8%/12%/16%/20% and granting immunity from negative effects for the
+    first 6/7/8/9/10 seconds of battle.
+- name: Armor of Night
+  description: Seigel will always seek to bring the most advanced weapons and armor
+    of the Night's Guard to his outfit, increasing Health by 5%/10%/15%/20%/25% for
+    all troops.
+- name: Night's Defense
+  description: Seigel would rather blunt an enemy's spear than sharpen his own. His
+    Infantry suffer 4%/8%/12%/16%/20% reduced Attack, but the additional protection
+    reduces enemy Marksman and Lancer Attack by 7%/14%/21%/28%/35% .
+- name: Vanguard of Eternity
+  description: Seigel's inhuman defenses and iron will are transferred to Infantry
+    under his command, reducing damage from normal attacks by 5%/10%/15%/20%/25% or
+    6%/12%/18%/24%/30% from enemy skills.
+- name: Inhuman Cast
+  description: The Blood Moon plague still living inside Seigel finds a foothold in
+    battle, extending Spike Guard and restoring his Health by 25% of damage dealt.
+- name: Hell's Vow
+  description: Seigel drives himself onward with an iron determination that cannot
+    help but increase Defender Troops Lethality by 15%.

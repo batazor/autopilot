@@ -11,6 +11,7 @@ import streamlit as st
 
 from config.loader import load_settings
 from ui.redis_client import (
+    QueueHistoryRow,
     fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
@@ -18,6 +19,22 @@ from ui.redis_client import (
     remove_queue_task,
     require_redis_connection,
 )
+
+
+def _history_steps_summary(h: QueueHistoryRow) -> str:
+    """Compact DSL step progress for the history table."""
+    total = h.steps_total
+    trace = h.steps_trace
+    done_full = h.scenario_completed
+    if total is None and not trace:
+        return "—"
+    n = len(trace) if trace else 0
+    mid = f"{n}/{total}" if total is not None else str(n)
+    if done_full is True:
+        return f"{mid} · complete"
+    if done_full is False:
+        return f"{mid} · partial"
+    return mid
 
 
 def _rel_time(ts: float, now: float) -> str:
@@ -247,12 +264,13 @@ def _queue_fragment() -> None:
                         "Region": h.region or "",
                         "Dur": f"{h.duration_s:.1f}s",
                         "Status": "✅" if h.success else "❌",
+                        "Steps": _history_steps_summary(h),
                         "Reason / task": detail,
                     })
                 df_hist = pd.DataFrame(hist_data)
                 event = st.dataframe(
                     df_hist,
-                    use_container_width=True,
+                    width="stretch",
                     hide_index=True,
                     selection_mode="single-row",
                     on_select="rerun",
@@ -262,11 +280,19 @@ def _queue_fragment() -> None:
                         "Dur": st.column_config.TextColumn(width="small"),
                         "Started": st.column_config.TextColumn(width="small"),
                         "Finished": st.column_config.TextColumn(width="small"),
+                        "Steps": st.column_config.TextColumn(width="medium"),
                     },
                 )
                 sel = event.selection.get("rows", [])
                 if sel:
                     h_sel = hist[sel[0]]
+                    if h_sel.steps_trace:
+                        with st.expander("DSL step trace", expanded=False):
+                            st.dataframe(
+                                pd.DataFrame(h_sel.steps_trace),
+                                hide_index=True,
+                                width="stretch",
+                            )
                     if h_sel.payload:
                         st.code(
                             json.dumps(h_sel.payload, ensure_ascii=False, indent=2),

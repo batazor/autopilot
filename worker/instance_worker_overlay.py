@@ -232,6 +232,7 @@ class InstanceWorkerOverlayMixin:
                     threshold=threshold,
                     score=score,
                     skip_if_duplicate=True,
+                    dedup_ignore_region=True,
                 )
             return
 
@@ -257,4 +258,5 @@ class InstanceWorkerOverlayMixin:
             threshold=threshold,
             score=score,
             skip_if_duplicate=True,
+            dedup_ignore_region=True,
         )

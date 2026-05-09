@@ -1,0 +1,129 @@
+id: natalia
+name: Natalia
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/natalia/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '1873'
+    def: '2220'
+    health: '36630'
+  expedition:
+    attack: 200.16%
+    defense: 200.16%
+story: '"Natalia knows the scientific and common names of every species of flora or
+  fauna".Above is Bahiti’s impression of Natalia, the young prodigy. Natalia possesses
+  knowledge far beyond her years, having studied ecology, geology, and astronomy.
+
+
+  Yet Natalia''s most extraordinary ability is to communicate with and befriend wild
+  animals. She is a good companion for fellow survivors as well, although she tends
+  to talk non-stop on topics of of her own interest.
+
+
+  Natalia was little more than a baby when she met the grizzly cub Kasia. The cub
+  was separated from its family, and wouldn’t have survived in the wilderness alone.
+  Natalia and her father took Kasia in and raised it into a strong beast. The two
+  were inseparable, and the cross-species bond is strong. After the passing of Natalia’s
+  father, they depended on each other and survived together in the long winter...
+
+
+  Natalia''s father Tyle is a "planetary ecologist". By comparing soil samples throughout
+  the years, Tyle concluded that the global cooling process might be slowing, and
+  could even reverse at some point in the near future. This observation filled him
+  with optimism. Tyle had also begun work on self-sustaining heat sources with experimental
+  fire crystals. Even Phaethon took great interest in Tyle''s work and began to sponsor
+  his research...
+
+
+  Tyle''s fire crystal technology was the greatest accomplishment of his scientific
+  career. It had the potential to help all humankind, but can also cause disasters
+  in the wrong hands. Tyle soon realized his sponsor was much more interested in personal
+  gains than the greater good. Tyle passed his most crucial research notes to Natalia
+  before his death at Phaethon''s hands. He hoped that Natalia might finish his designs.
+  Tyle’s noble sacrifice continues to inspire Natalia.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- 1st Purchase
+- VIP Packs
+skills:
+- name: Beast Charge
+  description: Natalia's bear violently smashes the ground, knocking back enemies
+    in range and stunning them for 1s, while dealing Attack* 160%/176%/192%/208%/224%
+    Area of Effect Damage.
+- name: Whip
+  description: Natalia wields her whip against a target for Attack* 150%/165%/180%/195%/210%
+    damage.
+- name: Rage Response
+  description: Only fools would dare anger Natalia or her furry companion. Natalia
+    has a 10% chance of gaining a + 4%/6%/8%/10%/12% Attack boost for 3s upon taking
+    damage (max 5 stacks).
+- name: Feral Protection
+  description: Natalia Commands the beasts to cover your troops, granting a 40% chance
+    of reducing all troops' Damage Taken by 10%/20%/30%/40%/50%
+- name: Queen of the Wild
+  description: Natalia is a natural leader, increasing Attack by 5%/10%/15%/20%/25%
+    for all troops.
+- name: Call of the Wild
+  description: Natalia's unexplained connection with nature allows her to rally wild
+    beast, increasing damage dealt by 5%/10%/15%/20%/25% for all troops.
+- name: Ursus Strength
+  description: Natalia exhibits the ferocity of a polar bear on the field, inspiring
+    friendlies even in her absence, increasing all troops' Attack and Defense by 2%/4%/6%/8%/10%
+- name: Unity (Lv. 5)
+  description: Natalia and the Polar Bear are in perfect synchrony, increasing damage
+    dealt by 30%. (maxed)
+- name: Invincibles (Lv. 5)
+  description: Natalia summons a herd of beasts to join the rally, raising the rallying
+    Troops' Lethality by 15%. (maxed)

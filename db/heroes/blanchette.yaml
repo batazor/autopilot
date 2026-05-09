@@ -1,0 +1,154 @@
+id: blanchette
+name: Blanchette
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/blanchette/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '15021'
+    def: '12364'
+    health: '92740'
+  expedition:
+    attack: 1110.88%
+    defense: 1110.88%
+story: 'Blanchette seems like a sweet and innocent girl until you come face to face
+  with her triple-barreled rifle muzzle or see the efficiency with which she picks
+  off men and beasts at a distance.
+
+
+  As a marksman or tactician Blanchette is probably the second or third most dangerous
+  enemy you could possibly face in the wilderness. She is a master of firearms and
+  not afraid to strike first.
+
+
+  There is only one reason to think otherwise: Blanchette takes care of a large group
+  of orphaned children taken in by her late father, the orphanage''s founder. Only
+  in their presence will her cold exterior give way to warmth and laughter.
+
+
+  Blanchette did not feel she was much more than a child herself when she became the
+  leader of the orphanage, and has always tried to provide a safe space for her younger
+  "brothers and sisters" since—with toys, treats, or even funny costumes, decorations,
+  and plays.
+
+
+  One moment Blanchette may find herself acting out the role of "Red Riding Hood"
+  or the "Big Bad Wolf" on a makeshift stage. But the terror will be far more real
+  for anyone who might threaten her orphanage than ever experienced by any of those
+  characters. Indeed, with the passing of time, there are moments Blanchette finds
+  it hard to separate herself from the roles she plays on stage and the warrior she
+  has to be out on the Tundra.
+
+
+  Blanchette''s father founded the orphanage in a fort purchased after a long career
+  as an explorer. It is from him Blanchette inherited not only clarity of judgement
+  but also excellent combat instincts.
+
+
+  Her father''s dreams of creating a safe space for abandoned children was quickly
+  dashed after his passing, when her father''s successor filled his pockets with the
+  orphanage''s riches before fleeing into the night. All alone, the children turned
+  to young Blanchette. She would have to grow up very quickly.
+
+
+  Their first big test came soon after. A dangerous group of bandits had heard a false
+  rumor the castle was filled with riches and broke in with knives and guns. Blanchette
+  escorted the children to a safe space and then began picking off the intruders one-by-one.
+
+
+  It was a kind of baptism of fire into adulthood. When Blanchette finally opened
+  the door to where the children had been hiding, she was nearly covered head to foot
+  in bandit blood.
+
+
+  Crisis averted, finding money to buy food became the orphanage''s main worry. The
+  older kids had to start work immediately in the nearby city with Blanchette taking
+  on more lucrative, but highly dangerous bounty hunter contracts.
+
+
+  So great were Blanchette''s worries then she could hardly sleep at night, and yet
+  always put on a brave face for the children. The orphanage did not find itself on
+  stable ground until the Dawn Alliance arrived with funding in exchange for Blanchette''s
+  assistance. Now she had the confidence to step out onto the field as one of the
+  Dawn Alliance''s newest and most dangerous assets.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+skills:
+- name: Triple Blunderbuss
+  description: Blanchette's modified musket instantaneously hits 3 targets, dealing
+    Attack* 200%/220%/240%/260%/280% damage, also blocking their healing for 5s.
+- name: Scattershot
+  description: Blanchette fires a blunderbuss shot of crystal shards, dealing Attack*
+    100%/110%/120%/130%/140% Area of Effect Damage to targets in the area.
+- name: Red Pursuit
+  description: Blanchette the hunter always secures her kill, increasing her Damage
+    Dealt by 10%/20%/30%/40%/50% at most as the target’s health decreases.
+- name: Armed to the Teeth
+  description: Blanchette works to ensure her forces are at least as well armed as
+    she is, increasing all Troops' Lethality by 5%/10%/15%/20%/25% .
+- name: Blood Hunter
+  description: Blanchette's Marksmen fire a crystal blade every 3 rounds, dealing
+    15%/30%/45%/60%/75% extra damage to the targets.
+- name: Crimson Sniper
+  description: Thanks to Blanchette's expertise in the art of sniping and her leadership,
+    her Marksmen deal 8%/16%/24%/32%/40% extra damage to enemy Lancers and 4%/8%/12%/16%/20%
+    extra damage to enemy Marksmen every 2 strikes.
+- name: Hunter's Rage (Lv. 5)
+  description: Blanchette is nothing if not a passionate hunter, increasing her Attack
+    Speed by 30% and extending the healing block of Triple Blunderbuss by 5s.
+- name: Lightning Strike (Lv. 5)
+  description: Enemy formations have no chance against Blanchette's lightning fast
+    Rally, increasing Rally Troops’ Lethality by 15%.

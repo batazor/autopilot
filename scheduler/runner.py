@@ -162,6 +162,7 @@ class SchedulerRunner:
                         run_at=now,
                         instance_id=inst.instance_id,
                         skip_if_duplicate=True,
+                        dedup_ignore_region=True,
                     )
                     logger.info(
                         "Cron enqueued: %s (%s) %s for %s/%s",

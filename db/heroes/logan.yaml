@@ -1,0 +1,141 @@
+id: logan
+name: Logan
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/logan/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '2554'
+    def: '3330'
+    health: '49950'
+  expedition:
+    attack: 290.23%
+    defense: 290.23%
+story: 'The lion-headed, steel-bodied Logan is one of the fiercest defenders of the
+  Dawn Alliance.
+
+
+  One of the original Dawn Alliance founders, Logan could not be more different from
+  his mostly academic colleagues. But what Logan lacks in refinement he makes up for
+  in decisiveness; and what he lacks in gracefulness he makes up for with a fiery
+  temperament that, as he puts it, gets results. But that is not to say he is a stranger
+  to the ways of the scholar. Logan is one of the best engineers on the planet.
+
+
+  The steam-powered suit of armor that powers Logan across the tundra is also one
+  of his own inventions—his gateway to a new life after a disabling injury. The mech
+  is not exactly the most subtle of diplomatic instruments, but no one can deny the
+  effectiveness of a metal fist when negotiations between the Dawn Alliance and less
+  civil powers break down.
+
+
+  Logan plays the role of a kind of a "semi-vigilante" and "all-purpose guard" for
+  the Dawn Alliance.\nLogan is the brute force solution: a walking tank in place of
+  careful schemes. Whatever one might say of Logan''s "often crazy" battle plans,
+  consistent victory on the battlefield speaks for itself. The power suit grants Logan
+  capabilities ordinary warriors can scarcely imagine.
+
+
+  Logan is no stranger to Phaethon, one of the Dawn Alliance''s most implacable enemies.
+  In fact, he was at one point made Lead Designer of Phaethon''s daring Planetary
+  Realignment Drive, which attempted to correct the Earth''s course closer to the
+  sun. It was Logan''s good friend Bill who first opened his eyes to extraordinarily
+  tragic human cost of the project. For the first time, Logan began to experience
+  doubts about the end justifying the means. It was during this period of hesitation
+  when Phaethon turned on Logan, removing his arm and almost his life. The Dawn Alliance
+  rescued the grateful engineer. He quickly joined and swore himself to fixing the
+  mistakes of his past.
+
+
+  Logan is not a man who spends much time in regret. "Talk is cheap" and "only action
+  creates real change" from Logan''s point of view. Logan''s contributions to mankind
+  are already immense. Even his worst enemies, those persuaded by Phaethon that his
+  abandonment of the Planetary Alignment Project was unforgivable, are probably benefiting
+  from the warmth of one of Logan''s Furnaces. Logan''s masterful Furnace design has
+  saved countless lives in the Great Chill, its design inspired by a Planetary Realignment
+  Drive prototype. But no matter how many people Logan has helped, close friends often
+  hear the same sad refrains from the bottom of another empty drink: "It doesn''t
+  matter how much you do. You can''t bring back the dead."'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Daily Deals
+skills:
+- name: Fists of Destruction
+  description: Smashes Fists of Steel on the ground, releasing a powerful blast that
+    deals Attack* 120%/132%/144%/156%/168% damage to the target and reduces the Attack
+    Speed of the target by 50% for 4s.
+- name: Power Suit
+  description: Logan’s Power Suit provides extraordinary protection and has a 8%/10%/12%/14%/16%
+    chance of increasing Defense by 8%/11%/13%/17%/20% when attacked for 2s up to
+    5 stacks.
+- name: Blustery Strike
+  description: Performs a powerful punch that comes with a freezing and blustery wind,
+    dealing Attack* 80%/88%/96%/104%/112% damage to the targets in a cone-shaped area
+    with a 30% chance of stunning the targets for 1s.
+- name: Lion's Might
+  description: Logan overwhelms his enemies with a fierce presence, reducing all enemy's
+    Troops' Attack by 4%/8%/12%/16%/20% .
+- name: Lion Intimidation
+  description: Logan intimidates his opponent with the ferocity of a lion, reducing
+    damage taken by 4%/8%/12%/16%/20% for all troops.
+- name: Leader Inspiration
+  description: Logan inspires everyone with his inherent leadership qualities, increasing
+    the Health by 5%/10%/15%/20%/25% for all troops.
+- name: Enhanced Fists of Steel (Lv. 5)
+  description: Modifies and upgrades Fists of Steel to make them more powerful and
+    deal 30% more damage.
+- name: Strong Protection (Lv. 5)
+  description: Logan defendsthe city with his migthy fists, increasing Defender Troop
+    Defense by 15%.

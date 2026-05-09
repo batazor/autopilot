@@ -82,6 +82,44 @@ _DSL_STEP_ACTION_KEYS = frozenset({
 })
 
 
+def _dsl_step_summary(step: Any) -> str:
+    """Short human-readable label for queue/history step traces."""
+    if not isinstance(step, dict):
+        return "(invalid)"
+    for key in (
+        "click",
+        "match",
+        "while_match",
+        "ocr",
+        "set_node",
+        "swipe_direction",
+        "push_scenario",
+        "exec",
+        "wait",
+        "repeat",
+    ):
+        if key not in step:
+            continue
+        val = step[key]
+        if key in ("click", "match", "while_match", "ocr", "set_node"):
+            s = str(val).strip()
+            return f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
+        if key == "repeat":
+            return "repeat"
+        if key == "swipe_direction":
+            return f"swipe:{str(val)[:40]}"
+        if key == "push_scenario":
+            return f"push:{str(val)[:40]}"
+        if key == "exec":
+            return f"exec:{str(val)[:40]}"
+        if key == "wait":
+            return f"wait:{str(val)[:24]}"
+    if "steps" in step and isinstance(step.get("steps"), list):
+        return f"group({len(step['steps'])})"
+    extra = [k for k in step if k != "cond"]
+    return ",".join(extra[:5]) or "(empty)"
+
+
 def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
     """Evaluate ``lhs == rhs`` / ``lhs != rhs`` where *lhs* is Redis ``current_screen``."""
     m = _COND_SCREEN_RE.match(expr.strip())
@@ -290,9 +328,10 @@ def _load_area_json(repo_root: Path) -> dict[str, Any]:
     if not p.is_file():
         return {}
     try:
-        return yaml.safe_load(p.read_text(encoding="utf-8"))  # JSON is valid YAML
+        raw = yaml.safe_load(p.read_text(encoding="utf-8"))  # JSON is valid YAML
     except Exception:
         return {}
+    return raw if isinstance(raw, dict) else {}
 
 
 def _parse_wait_seconds(value: object) -> float:
@@ -1267,6 +1306,51 @@ class DslScenarioTask:
             if tgt == "repeat":
                 raise _BreakRepeat()
             return None
+        if "long_click" in step:
+            region = str(step.get("long_click") or "").strip()
+            if not region:
+                return None
+            # `wait` (or `duration`) is interpreted as long-press duration.
+            duration_ms = 800
+            raw_dur = step.get("duration")
+            if raw_dur is None:
+                raw_dur = step.get("wait")
+            try:
+                dur_s = _parse_wait_seconds(raw_dur)
+                if dur_s > 0:
+                    duration_ms = int(round(dur_s * 1000.0))
+            except Exception:
+                duration_ms = 800
+
+            pair = screen_region_by_name(area_doc, region) if region else None
+            if pair is None:
+                logger.warning("dsl_scenario: unknown region %r for long_click", region)
+                return None
+            _entry, reg = pair
+            bbox = reg.get("bbox")
+            if not isinstance(bbox, dict):
+                logger.warning("dsl_scenario: missing bbox for long_click region %r", region)
+                return None
+            pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+            ok = False
+            try:
+                ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))
+            except Exception:
+                ok = False
+            if not ok:
+                logger.info(
+                    "dsl_scenario: long_click blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "long_click_not_approved"},
+                )
+            self._last_tap_region_clicked = region
+            await asyncio.sleep(0.4)
+            return None
         if "click" in step:
             region = str(step.get("click") or "").strip()
             if region:
@@ -1551,6 +1635,26 @@ class DslScenarioTask:
                 next_run_at=None,
                 metadata={"reason": "invalid_steps", "path": str(path)},
             )
+        steps_total_n = len(steps)
+        steps_trace: list[dict[str, Any]] = []
+
+        def _trace_row(i: int, step_obj: Any, status: str, **kw: Any) -> None:
+            summ = _dsl_step_summary(step_obj) if isinstance(step_obj, dict) else "(non-dict)"
+            row: dict[str, Any] = {"i": i, "summary": summ, "status": status}
+            for k, v in kw.items():
+                if v is not None:
+                    row[k] = v
+            steps_trace.append(row)
+
+        def _fin(meta: dict[str, Any], *, completed: bool) -> dict[str, Any]:
+            m = dict(meta)
+            m["steps_trace"] = list(steps_trace)
+            m["steps_total"] = steps_total_n
+            m["scenario_completed"] = completed
+            if self.start_step_index:
+                m["resume_from_step_index"] = int(self.start_step_index)
+            return m
+
         actions = BotActions()
         area_doc = _load_area_json(repo_root)
         dev_w, dev_h = actions.screen_resolution(instance_id)
@@ -1559,6 +1663,14 @@ class DslScenarioTask:
         # screen before running steps. Lets DSL scenarios skip explicit
         # `click: <btn>` chains when destination is already in screen_graph.
         target_node = str(doc.get("node") or "").strip()
+        # `device_level: true` opts a scenario out of identity gating (see
+        # `RedisQueue.pop_due`).  Reused here as the default mode for `while_match`:
+        # device-level scenarios (popup dismissals, identity probes) keep the
+        # legacy "0 iterations = success" semantics, since their triggers may
+        # legitimately have already been resolved.  Player-bound scenarios get
+        # initial-probe retries + strict zero-iteration failure so the work
+        # actually happens (or is properly retried).
+        is_device_level = doc.get("device_level") is True
         if target_node:
             nav_ok = await self._navigate_to_node(
                 instance_id,
@@ -1597,11 +1709,14 @@ class DslScenarioTask:
                 return TaskResult(
                     success=False,
                     next_run_at=datetime.now() + timedelta(minutes=5),
-                    metadata={
-                        "scenario": key,
-                        "reason": "navigation_failed",
-                        "target_node": target_node,
-                    },
+                    metadata=_fin(
+                        {
+                            "scenario": key,
+                            "reason": "navigation_failed",
+                            "target_node": target_node,
+                        },
+                        completed=False,
+                    ),
                 )
 
         step_index = self.start_step_index
@@ -1618,9 +1733,11 @@ class DslScenarioTask:
                         str(_resumable_step),
                     )
             if not isinstance(step, dict):
+                _trace_row(_resumable_step, step, "skipped_invalid")
                 continue
             if not await _dsl_cond_allows_step(step, instance_id, self.redis_client):
                 logger.debug("dsl_scenario: step skipped by cond (%s)", step.get("cond"))
+                _trace_row(_resumable_step, step, "skipped_cond")
                 continue
             grouped = step.get("steps")
             if (
@@ -1649,7 +1766,19 @@ class DslScenarioTask:
                         scenario_key=key,
                     )
                     if result is not None:
-                        return result
+                        md = dict(result.metadata or {})
+                        _trace_row(
+                            _resumable_step,
+                            step,
+                            "stopped",
+                            reason=str(md.get("reason") or ""),
+                        )
+                        return TaskResult(
+                            success=result.success,
+                            next_run_at=result.next_run_at,
+                            metadata=_fin(md, completed=False),
+                        )
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "match" in step:
                 reg = str(step.get("match") or "").strip()
@@ -1665,14 +1794,18 @@ class DslScenarioTask:
                 )
                 if row is None:
                     await self._clear_step_context(instance_id)
+                    _trace_row(_resumable_step, step, "early_exit", reason="match_region_not_found")
                     return TaskResult(
                         success=True,
                         next_run_at=None,
-                        metadata={
-                            "scenario": key,
-                            "reason": "match_region_not_found",
-                            "region": reg,
-                        },
+                        metadata=_fin(
+                            {
+                                "scenario": key,
+                                "reason": "match_region_not_found",
+                                "region": reg,
+                            },
+                            completed=False,
+                        ),
                     )
                 matched = bool(row.get("matched"))
                 if not matched:
@@ -1683,16 +1816,21 @@ class DslScenarioTask:
                         row,
                     )
                     await self._clear_step_context(instance_id)
+                    _trace_row(_resumable_step, step, "early_exit", reason="match_guard_failed")
                     return TaskResult(
                         success=True,
                         next_run_at=None,
-                        metadata={
-                            "scenario": key,
-                            "reason": "match_guard_failed",
-                            "region": reg,
-                            "match": row if isinstance(row, dict) else None,
-                        },
+                        metadata=_fin(
+                            {
+                                "scenario": key,
+                                "reason": "match_guard_failed",
+                                "region": reg,
+                                "match": row if isinstance(row, dict) else None,
+                            },
+                            completed=False,
+                        ),
                     )
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "while_match" in step:
                 reg = str(step.get("while_match") or "").strip()
@@ -1705,20 +1843,56 @@ class DslScenarioTask:
                 inner_steps = step.get("steps")
                 if not isinstance(inner_steps, list) or not inner_steps:
                     inner_steps = [{"click": reg}]
+
+                # Player-bound scenarios retry the *initial* probe to absorb
+                # screen-settling lag after navigation.  Subsequent probes are
+                # single-shot — once we've matched once, lack of a match means
+                # the work is done.  Device-level scenarios keep legacy 1-shot
+                # semantics so popup dismissals don't pause for nothing.
+                #
+                # YAML form:
+                #   retry:
+                #     attempts: 5
+                #     interval: 500ms     # also accepts "0.5s" or raw seconds
+                default_attempts = 1 if is_device_level else 5
+                default_interval_s = 0.5
+                default_strict = not is_device_level
+                retry_cfg = step.get("retry")
+                if not isinstance(retry_cfg, dict):
+                    retry_cfg = {}
+                try:
+                    initial_attempts = int(retry_cfg.get("attempts", default_attempts))
+                except (TypeError, ValueError):
+                    initial_attempts = default_attempts
+                initial_attempts = max(1, initial_attempts)
+                if "interval" in retry_cfg:
+                    attempt_interval_s = _parse_wait_seconds(retry_cfg.get("interval"))
+                else:
+                    attempt_interval_s = default_interval_s
+                attempt_interval_s = max(0.0, attempt_interval_s)
+                strict = bool(step.get("strict", default_strict))
+
                 iterations = 0
+                inner_result: TaskResult | None = None
                 for _ in range(max_iters):
-                    row = await self._match_region(
-                        actions=actions,
-                        area_doc=area_doc,
-                        repo_root=repo_root,
-                        instance_id=instance_id,
-                        scenario_key=key,
-                        step=step,
-                        region=reg,
-                    )
-                    if row is None:
-                        break
-                    if not bool(row.get("matched")):
+                    probe_attempts = initial_attempts if iterations == 0 else 1
+                    matched = False
+                    for attempt in range(probe_attempts):
+                        row = await self._match_region(
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            scenario_key=key,
+                            step=step,
+                            region=reg,
+                        )
+                        if row is not None and bool(row.get("matched")):
+                            matched = True
+                            break
+                        if attempt < probe_attempts - 1:
+                            await asyncio.sleep(attempt_interval_s)
+                    if not matched:
                         break
                     for inner in inner_steps:
                         if not isinstance(inner, dict):
@@ -1734,14 +1908,67 @@ class DslScenarioTask:
                             scenario_key=key,
                         )
                         if result is not None:
-                            return result
+                            inner_result = result
+                            break
+                    if inner_result is not None:
+                        break
                     iterations += 1
+
+                if inner_result is not None:
+                    md = dict(inner_result.metadata or {})
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                    )
+                    return TaskResult(
+                        success=inner_result.success,
+                        next_run_at=inner_result.next_run_at,
+                        metadata=_fin(md, completed=False),
+                    )
+
+                if iterations == 0 and strict:
+                    # Strict mode: zero iterations after initial-probe retries
+                    # means the work didn't happen.  Reschedule so the next
+                    # `pop_due` cycle gets another shot instead of yielding to
+                    # whatever lower-priority task is in the queue.
+                    logger.info(
+                        "dsl_scenario: while_match no_iterations scenario=%s region=%s "
+                        "attempts=%d → soft-fail with retry",
+                        _scen(key),
+                        reg,
+                        initial_attempts,
+                    )
+                    await self._clear_step_context(instance_id)
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "early_exit",
+                        reason="while_match_no_iterations",
+                    )
+                    return TaskResult(
+                        success=False,
+                        next_run_at=datetime.now() + timedelta(seconds=30),
+                        metadata=_fin(
+                            {
+                                "scenario": key,
+                                "reason": "while_match_no_iterations",
+                                "region": reg,
+                                "attempts": initial_attempts,
+                                "interval": attempt_interval_s,
+                            },
+                            completed=False,
+                        ),
+                    )
+
                 logger.info(
                     "dsl_scenario: while_match done scenario=%s region=%s iterations=%d",
                     _scen(key),
                     reg,
                     iterations,
                 )
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "repeat" in step:
                 await self._write_step_context(instance_id, scenario=key)
@@ -1765,6 +1992,7 @@ class DslScenarioTask:
 
                 max_iters = max(0, max_iters)
                 if not isinstance(inner_steps, list) or not inner_steps:
+                    _trace_row(_resumable_step, step, "skipped_empty")
                     continue
 
                 until_any_list: list[str] = []
@@ -1820,10 +2048,22 @@ class DslScenarioTask:
                                 scenario_key=key,
                             )
                             if result is not None:
-                                return result
+                                md = dict(result.metadata or {})
+                                _trace_row(
+                                    _resumable_step,
+                                    step,
+                                    "stopped",
+                                    reason=str(md.get("reason") or ""),
+                                )
+                                return TaskResult(
+                                    success=result.success,
+                                    next_run_at=result.next_run_at,
+                                    metadata=_fin(md, completed=False),
+                                )
                     except _BreakRepeat:
                         # Stop the nearest repeat and continue with the next outer step.
                         break
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "push_scenario" in step:
                 await self._write_step_context(instance_id, scenario=key)
@@ -1854,6 +2094,7 @@ class DslScenarioTask:
                         run_at=time.time() + max(0.0, delay_s),
                         skip_if_duplicate=skip_dup,
                     )
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "swipe_direction" in step:
                 await self._write_step_context(instance_id, scenario=key)
@@ -1884,12 +2125,17 @@ class DslScenarioTask:
                             "dsl_scenario: swipe blocked — aborting scenario %s", _scen(key)
                         )
                         await self._clear_step_context(instance_id)
+                        _trace_row(_resumable_step, step, "stopped", reason="swipe_not_approved")
                         return TaskResult(
                             success=False,
                             next_run_at=None,
-                            metadata={"scenario": key, "reason": "swipe_not_approved"},
+                            metadata=_fin(
+                                {"scenario": key, "reason": "swipe_not_approved"},
+                                completed=False,
+                            ),
                         )
                     await asyncio.sleep(0.4)
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "ocr" in step:
                 reg = str(step.get("ocr") or "").strip()
@@ -1932,17 +2178,20 @@ class DslScenarioTask:
                             step=step,
                             region=reg,
                         )
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "exec" in step:
                 cmd = str(step.get("exec") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
                 if cmd:
                     await self._run_exec_step(cmd, instance_id)
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "set_node" in step:
                 node = str(step.get("set_node") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
                 if not node:
+                    _trace_row(_resumable_step, step, "skipped_empty")
                     continue
                 approval_payload: dict[str, object] = {
                     "type": "set_node",
@@ -1967,13 +2216,14 @@ class DslScenarioTask:
                         _scen(key),
                     )
                     await self._clear_step_context(instance_id)
+                    _trace_row(_resumable_step, step, "stopped", reason="set_node_not_approved")
                     return TaskResult(
                         success=False,
                         next_run_at=None,
-                        metadata={
-                            "scenario": key,
-                            "reason": "set_node_not_approved",
-                        },
+                        metadata=_fin(
+                            {"scenario": key, "reason": "set_node_not_approved"},
+                            completed=False,
+                        ),
                     )
                 if self.redis_client is not None:
                     with suppress(Exception):
@@ -1988,6 +2238,7 @@ class DslScenarioTask:
                         _redis().delete(f"wos:ui:click_approval:response:{req_id}")
                     except Exception:
                         logger.debug("approval cleanup after set_node failed", exc_info=True)
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "click" in step:
                 reg = str(step.get("click") or "").strip()
@@ -2029,8 +2280,68 @@ class DslScenarioTask:
                         region=reg,
                     )
                     if result is not None:
-                        return result
+                        md = dict(result.metadata or {})
+                        _trace_row(
+                            _resumable_step,
+                            step,
+                            "stopped",
+                            reason=str(md.get("reason") or ""),
+                        )
+                        return TaskResult(
+                            success=result.success,
+                            next_run_at=result.next_run_at,
+                            metadata=_fin(md, completed=False),
+                        )
                     await asyncio.sleep(0.4)
+                _trace_row(_resumable_step, step, "ok")
+                continue
+            if "long_click" in step:
+                reg = str(step.get("long_click") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                if not reg:
+                    _trace_row(_resumable_step, step, "ok")
+                    continue
+                pair = screen_region_by_name(area_doc, reg)
+                if pair is None:
+                    _trace_row(_resumable_step, step, "stopped", reason="unknown_region")
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata=_fin({"scenario": key, "reason": "unknown_region"}, completed=False),
+                    )
+                _entry, reg_doc = pair
+                bbox = reg_doc.get("bbox")
+                if not isinstance(bbox, dict):
+                    _trace_row(_resumable_step, step, "stopped", reason="missing_bbox")
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata=_fin({"scenario": key, "reason": "missing_bbox"}, completed=False),
+                    )
+                raw_dur = step.get("duration")
+                if raw_dur is None:
+                    raw_dur = step.get("wait")
+                duration_ms = 800
+                with suppress(Exception):
+                    dur_s = _parse_wait_seconds(raw_dur)
+                    if dur_s > 0:
+                        duration_ms = int(round(dur_s * 1000.0))
+                pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+                ok = False
+                with suppress(Exception):
+                    ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))
+                if not ok:
+                    _trace_row(_resumable_step, step, "stopped", reason="long_click_not_approved")
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata=_fin(
+                            {"scenario": key, "reason": "long_click_not_approved"},
+                            completed=False,
+                        ),
+                    )
+                await asyncio.sleep(0.4)
+                _trace_row(_resumable_step, step, "ok")
                 continue
             if "wait" in step:
                 # Supports "1200ms" (string) or seconds (number).
@@ -2039,7 +2350,12 @@ class DslScenarioTask:
                 seconds = _parse_wait_seconds(w)
                 if seconds > 0:
                     await asyncio.sleep(seconds)
+                _trace_row(_resumable_step, step, "ok")
                 continue
         logger.info("dsl_scenario done: %s (%s)", _scen(key), instance_id)
         await self._clear_step_context(instance_id)
-        return TaskResult(success=True, next_run_at=None, metadata={"scenario": key})
+        return TaskResult(
+            success=True,
+            next_run_at=None,
+            metadata=_fin({"scenario": key}, completed=True),
+        )

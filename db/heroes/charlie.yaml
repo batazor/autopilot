@@ -1,0 +1,119 @@
+id: charlie
+name: Charlie
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/charlie/
+rarity: Rare
+class: Lancer
+sub_class: Growth
+stats:
+  exploration:
+    attack: '1442'
+    def: '2220'
+    health: '14430'
+  expedition:
+    attack: 90.07%
+    defense: 90.07%
+story: '"What did you say? Speak up!" The townsfolk have gotten used to the gruff
+  male voice of Charlie.
+
+
+  The loud and rough Charlie has had a long career as an explosives demolitionist.
+  A lot of people associate Charlie with his dangerous job and keep a distance from
+  him.
+
+
+  However, just talk to Charlie and you will know this man has a heart of gold. Moreover,
+  his constant yelling has nothing to do with an angry attitude. It''s a side effect
+  of years of explosives on Charlie''s ear drums.
+
+
+  Charlie''s explosives knowledge is invaluable for the difficult coal mining process.
+  Despite his scruffy appearance, he is extremely attentive to detail. This helped
+  him to stay safe in a risky line of work.
+
+
+  Charlie prefers to stay behind the battlefield wherever possible but is certainly
+  not scared of a fight. Enemies will quickly discover the power of chemistry over
+  swords. Not only is Charlie an expert on a wide variety of explosives and grenades,
+  but his strong arms provide decent throw range. Charlie has not won the battlefield
+  nickname "the grenadier" for nothing.
+
+
+  There are two guaranteed ways to provoke Charlie: the first is to violate safety
+  procedures during the coal mining process. The second is to attempt to plunder fellow
+  workers'' hard-won resources. Crazy Joe and his bandits have learned that lesson
+  the hard way. Nothing has ever sent Joe''s bandits into a full retreat as quickly
+  as Charlie''s explosions.
+
+
+  Joe has not taken Charlie''s explosive retaliation to heart. In fact, Joe has become
+  quite interested in Charlie''s potential as a fellow outlaw. He often dreams about
+  what he could do with someone like Charlie in his group. Fortunately, Charlie does
+  not know, nor does he care about Joe''s interest in him.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Exploration
+- Lighthouse Intel
+- Hero Recruitment
+skills:
+- name: Shrapnel Load
+  description: Charlie throws out a homemade explosive, dealing Attack 140%/154%/168%/182%/196%
+    Area of Effect Damage to the target and its nearby enemies.
+- name: Grenadier
+  description: Charlie's grenades have a 10%/15%/15%/20%/20% chance of stunning targets
+    for 0.5/0.5/1/1/1.5s .
+- name: Demolitions Expert
+  description: Charlie's precise demolition experience has raised City Coal Mine Output
+    by 5%/10%/15%/20%/25% .
+- name: Coal Extraction
+  description: Charlie is an old hand at coal mining. + 5%/10%/15%/20%/25% Coal Gathering
+    Speed on the map.

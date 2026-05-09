@@ -1,0 +1,147 @@
+id: gwen
+name: Gwen
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/gwen-2/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '5987'
+    def: '4928'
+    health: '36962'
+  expedition:
+    attack: 444.35%
+    defense: 444.35%
+story: 'Gwen and Norah often elicit diverse first impressions although both may be
+  equally respected commanders of the Dawn Alliance.
+
+
+  The commander of a mechanized brigade, Norah excels at lightning-fast charges, disrupting
+  enemy formations, ambushes, and daring raids. By contrast, Gwen exudes a scholarly,
+  bookish aura.Her high standing in the Dawn Alliance has come only from her revolutionary
+  flying machines which can mark enemy movements from high above the battlefield.
+  An exceptional pilot, Gwen has pioneered a myriad of intricate inventions instrumental
+  to many difficult Dawn Alliance missions.
+
+
+  As the machinist Jessie once said of Gwen: "An engineering prodigy, one of only
+  a few in the world, Gwen''s trinkets have done the Alliance enormous good. But I
+  think what Gwen really wants is to create aircraft that will conquer the skies."
+
+
+  Gwen is not fond of combat, but her father''s tragedy has also left her with the
+  realization that sometimes fighting and its brutal consequences cannot be avoided.
+  Gwen is a remarkably strong fighter thanks to her older sister Norah''s guidance
+  and training.Gwen''s prudence still shines through as she tends to disengage when
+  the outcome is uncertain. Ironically,Gwen finds herself most at risk when testing
+  out new machine prototypes. Invention can often be arisky endeavor.
+
+
+  The love Norah holds for her younger sister Gwen is undeniable, yet their journey
+  together has not been without its fair share of conflict.  Despite Norah''s many
+  attempts to make Gwen wise to the ways of battle, she still harbors profound fears
+  for Gwen''s safety in a real firefight. Norah does not want to go through the loss
+  of another family member. Similarly. Norah is anxious about her sister''s obsession
+  with flying machines. She worries for Gwen''s sister''s safety during the invention
+  process and that all these trinket may well prove fruitless. There is also Norah''s
+  perspective on Gwen''s scientific efforts, highly reminiscent of their father. Just
+  like their father''s tragic tale, Norah believes that all the knowledge in the world
+  is futile when faced with the threat of violence and need for self-preservation.
+
+
+  Norah and Gwen''s sisterly relationship has improved.For example, Norah has recently
+  embraced Gwen''s active involvement in combat and focus on research.A considerable
+  part of this positive transformation has come from Gwen''s exceptional contribution
+  during a particularly nasty engagement with Phaethon. One fateful morning, Phaethon
+  launched a vicious invasion led by mechanized infantry backed by heavily-armored
+  guards in what can only be described as a ring of steel around the city. It was
+  a daunting, hopeless sight. Gwen, who had earlier been evacuated, returned in an
+  airship which dropped barrage after barrage of explosives on confused enemy forces.
+  Phaethon''s panicked response provided Norah the perfect moment for an effective
+  counterattack. Norah had witnessed her younger sister''s extraordinary courage,
+  skill, determination, and resourcefulness with a dawning realization: her sister
+  was no longer a child in need of protective guidance. Gwen was fully capable of
+  protecting herself.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Daily Deals
+- Mythic General Hero Shard
+skills:
+- name: Salvo
+  description: Gwen unleashes a devastating salvo against ennemies at the rear (heroes
+    first), dealing Attack 180%/198%/216%/234%/252% Area of Effect damage. Shockwaves
+    will also decrease target's Attack Speed by 50% for 2 seconds.
+- name: Sky Sniper
+  description: Gwen unleashes a devastating air-assisted precision strike against
+    the target -heroes first), dealing Attack 100%/110%/120%/130%/140% damage with
+    a 50% chance of dealing double damage.
+- name: Hellfire
+  description: Gwen launches an incendiary grenade to burn all ennemy targets in the
+    area, dealing Attack 35%/38.5%/42%/45.5%/49% damage per second, for 3s.
+- name: Eagle Vision
+  description: Gwen provides unfettered vision of ennemy weakpoint during fligths,
+    increasing target's Damage Taken by 5%/10%/15%/20%/25% .
+- name: Air Dominance
+  description: Gwen dominates the skies, dealing 20%/40%/60%/80%/100% extra damage
+    once every five attacks and grants 5%/7.5%/10%/12.5%/15% extra damage to the next
+    attack from any source.
+- name: Blastmaster
+  description: Gwen equips her troops with grenades, dealing 10%/20%/30%/40%/50% extra
+    damage to all ennemies once every 4 attacks.
+- name: Fire Support Unit (Lv. 5)
+  description: Gwen's automated secondary weapon attacks random target on skill cast
+    (heroes forst), dealing Attack 70% damage.
+- name: Marauder (Lv. 5)
+  description: Gwen use her expertise in offensive tactics, boosting Rally Troops
+    Lethality by 15%.

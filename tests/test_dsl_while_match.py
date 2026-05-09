@@ -11,14 +11,6 @@ import yaml
 import tasks.dsl_scenario as dsl
 
 
-class _FakeRedis:
-    async def hset(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
 class _FakeActions:
     def __init__(self, frames: list[np.ndarray]) -> None:
         self.frames = frames
@@ -102,6 +94,7 @@ def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
 async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     visible = np.zeros((100, 100, 3), dtype=np.uint8)
     visible[20:30, 20:30] = _claim_pattern()
@@ -115,7 +108,7 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
         task_id="t1",
         player_id="p1",
         scenario_key="tap_claim_button",
-        redis_client=_FakeRedis(),
+        redis_client=redis_async,  # type: ignore[arg-type]
     )
 
     result = await task.execute("bs1")

@@ -98,3 +98,8 @@ asyncio_mode = "auto"
 markers = [
     "integration: requires external services (OCR backend, ADB, etc.); auto-skipped when unreachable",
 ]
+
+[dependency-groups]
+dev = [
+    "testcontainers>=4.14.2",
+]

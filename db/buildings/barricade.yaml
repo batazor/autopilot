@@ -1,0 +1,81 @@
+id: barricade
+name: Barricade
+category: unknown
+requirements_by_level:
+  '1':
+    prerequisites: '-'
+    build_cost: []
+    construction_time: '-'
+    building_power: 400
+  '2':
+    prerequisites: Furnace 7
+    build_cost:
+    - item: item_icon_103
+      amount: 5.3K
+    - item: item_icon_104
+      amount: 1K
+    construction_time: 00:00:10
+    building_power: null
+  '3':
+    prerequisites: Furnace 10
+    build_cost:
+    - item: item_icon_103
+      amount: 88K
+    - item: item_icon_104
+      amount: 17K
+    - item: item_icon_105
+      amount: 4.4K
+    construction_time: 00:21:30
+    building_power: null
+  '4':
+    prerequisites: Furnace 13
+    build_cost:
+    - item: item_icon_100011
+      amount: 420K
+    - item: item_icon_103
+      amount: 420K
+    - item: item_icon_104
+      amount: 84K
+    - item: item_icon_105
+      amount: 21K
+    construction_time: 01:04:30
+    building_power: null
+  '5':
+    prerequisites: Furnace 16
+    build_cost:
+    - item: item_icon_104
+      amount: 290K
+    - item: item_icon_105
+      amount: 74K
+    construction_time: 03:39:00
+    building_power: null
+  '6':
+    prerequisites: Furnace 20
+    build_cost:
+    - item: item_icon_105
+      amount: 260K
+    construction_time: 09:52:30
+    building_power: null
+  '7':
+    prerequisites: Furnace 24
+    build_cost:
+    - item: item_icon_105
+      amount: 750K
+    construction_time: 1d 13:44:00
+    building_power: null
+  '8':
+    prerequisites: Furnace 27
+    build_cost: []
+    construction_time: 3d 00:55:00
+    building_power: null
+  '9':
+    prerequisites: Furnace 29
+    build_cost: []
+    construction_time: 4d 00:26:00
+    building_power: null
+  '10':
+    prerequisites: Furnace 30
+    build_cost: []
+    construction_time: 4d 19:44:00
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/barricade/

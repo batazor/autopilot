@@ -11,17 +11,12 @@ from navigation.navigator import Navigator
 from ocr.client import OCRResult
 
 
-class _FakeRedis:
-    def __init__(self) -> None:
-        self.writes: list[tuple[str, str, str]] = []
-
-    async def hset(self, key: str, field: str, value: str) -> None:
-        self.writes.append((key, field, value))
-
-
 @pytest.mark.asyncio
-async def test_navigator_writes_destination_node_after_route_hop(monkeypatch: Any) -> None:
-    redis = _FakeRedis()
+async def test_navigator_writes_destination_node_after_route_hop(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    redis = redis_async
     taps: list[str] = []
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -60,14 +55,17 @@ async def test_navigator_writes_destination_node_after_route_hop(monkeypatch: An
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    assert redis.writes
-    assert ("wos:instance:bs1:state", "current_screen", "chief_profile") in redis.writes
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    assert cur == "chief_profile"
     assert taps
 
 
 @pytest.mark.asyncio
-async def test_navigator_verifies_destination_with_match_rule(monkeypatch: Any) -> None:
-    redis = _FakeRedis()
+async def test_navigator_verifies_destination_with_match_rule(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
         return np.zeros((100, 100, 3), dtype=np.uint8)
@@ -128,12 +126,16 @@ async def test_navigator_verifies_destination_with_match_rule(monkeypatch: Any) 
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    assert ("wos:instance:bs1:state", "current_screen", "chief_profile") in redis.writes
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    assert cur == "chief_profile"
 
 
 @pytest.mark.asyncio
-async def test_navigator_verifies_destination_with_ocr_contains(monkeypatch: Any) -> None:
-    redis = _FakeRedis()
+async def test_navigator_verifies_destination_with_ocr_contains(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
         return np.zeros((100, 100, 3), dtype=np.uint8)
@@ -197,4 +199,5 @@ async def test_navigator_verifies_destination_with_ocr_contains(monkeypatch: Any
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    assert ("wos:instance:bs1:state", "current_screen", "chief_profile") in redis.writes
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    assert cur == "chief_profile"

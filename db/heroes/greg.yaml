@@ -1,0 +1,131 @@
+id: greg
+name: Greg
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/greg/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '4045'
+    def: '3330'
+    health: '24974'
+  expedition:
+    attack: 290.23%
+    defense: 290.23%
+story: 'From Greg’s perspective, the frozen world is like a forest full of perils.
+  Only the harshest environment can dehumanize one and bring out one’s evil side the
+  best. “That’s why we need order,” he said.
+
+
+  Greg tries to restore the order of the world with rationality and regulations, and
+  he is devoted to maintaining the dignity of the law. As a judge, he is impartial
+  and dedicated to his job, but he is often sabotaged by others because of that. More
+  than once his life has been put on the line, but he never wavers. On the contrary,
+  he became more determined than ever after going through many life-and-death situations.
+
+
+  This is his warning for the lawless: One day, you will all be sanctioned by the
+  Edict. Although the Solaris has fallen, Grey still defends the old law as usual.
+
+
+  He understands that some of the old regulations are outdated, considering that the
+  Edict protects the rights of the long-gone aristocrats. Nevertheless, there are
+  no better options at the moment. Perhaps, Greg will accept the suggestion of the
+  Dawn Alliance one day and help them put together a new Edict.
+
+
+  Greg''s ideology is very different from the vigilante Flint. Greg believes the desire
+  for vengeance is no reason to bypass trials and proper judicial proceedings. Flint,
+  on the other hand, would rather just burn Phaethon and all the despicable marauders
+  to the ground. Although Flint is on Greg’s list of wanted suspects, Greg has never
+  laid a hand on Flint even when coming face-to-face with him.
+
+
+  Sergey''s story is the only thing that made Greg question his own commitment to
+  strict jurisprudence. Did Sergey really deserve a death sentence for disobeying
+  his superiors in an attempt to protect a City? Greg admitted, "If I was the judge
+  that day, I do not know whether I should pass the sentence."'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- King of Icefield
+- State of Power
+- Daily Deals
+skills:
+- name: Righteous Wind
+  description: Summons a cage from the sky, dealing Attack* 160%/176%/192%/208%/224%
+    damage to enemies within range and stunning them for 2s.
+- name: Poetic Justice
+  description: Puts an enemy target on trial and imposes punishment or gives commendation.
+    Punishment will deal damage equal to Greg's Attack* 220%/240%/260%/280%/300% to
+    the target whereas commendation will restore Health equal to Greg's Attack*50%
+    for the target.
+- name: Fair Judgment
+  description: Let the enemies be severely punished for the crimes they have committed,
+    increasing their damage taken by 10%/15%/20%/25%/30% for 3s.
+- name: Sword of Justice
+  description: Greg transforms our troops into a relentless sword of justice, granting
+    a 20% chance of increasing damage dealt by 8%/16%/24%/32%/40% for all troops for
+    3 turns.
+- name: Deterrence of Law
+  description: Greg uses the authority of the law to intimidate enemies, granting
+    all troops' attack a 20% chance of reducing damage dealt by 10%/20%/30%/40%/50%
+    for all enemy troops for 2 turns.
+- name: Law and Order
+  description: Greg's faith in law and order uplifts everyone, increasing Health by
+    5%/10%/15%/20%/25% for all troops.
+- name: Courtroom Order (Lv. 5)
+  description: Greg silences and prevents the from using skills for 5s (skills already
+    cast are not affected), and dealing Attack*300% damage to them.
+- name: Trumpet of Justice (Lv. 5)
+  description: Greg mobilizes the army under the banner of justice and belief, increasing
+    Rally Troop Health by 15%.

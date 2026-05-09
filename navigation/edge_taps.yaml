@@ -9,6 +9,7 @@ edges:
     chief_profile: [to_chief_profile]
     mail: [is_has_new_mail]
     survivor_status: [isWorkers]
+    suggestion_box: [isPostman]
   # arena:
   #   main_city: [back_button]
   # training:
@@ -25,3 +26,5 @@ edges:
     main_city: [from.building.to.main_city]
   survivor_status:
     main_city: [from.survivor_status.to.main_city]
+  suggestion_box:
+    main_city: [back_button]

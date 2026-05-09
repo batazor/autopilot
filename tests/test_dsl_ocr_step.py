@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -14,60 +15,6 @@ import tasks.dsl_scenario as dsl
 from century.api import CenturyAPIError, PlayerData
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
-
-
-class _FakeRedis:
-    def __init__(self) -> None:
-        self.hsets: list[tuple[str, dict[str, str]]] = []
-
-    async def hset(self, key: str, *args: Any, **kwargs: Any) -> None:
-        mapping = kwargs.get("mapping")
-        if mapping is None and args:
-            first = args[0]
-            if isinstance(first, dict):
-                mapping = first
-            elif len(args) >= 2:
-                mapping = {str(args[0]): str(args[1])}
-        if mapping is None:
-            mapping = {}
-        self.hsets.append((key, dict(mapping)))
-
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
-class _FakeRedisKV(_FakeRedis):
-    """Redis fake with in-memory hashes for ``hget`` / merge ``hset``."""
-
-    def __init__(self, initial: dict[str, dict[str, str]] | None = None) -> None:
-        super().__init__()
-        self.hashes: dict[str, dict[str, str]] = dict(initial) if initial else {}
-
-    async def hset(self, key: str, *args: Any, **kwargs: Any) -> None:
-        await super().hset(key, *args, **kwargs)
-        mapping = kwargs.get("mapping")
-        if mapping is None and args:
-            first = args[0]
-            if isinstance(first, dict):
-                mapping = first
-            elif len(args) >= 2:
-                mapping = {str(args[0]): str(args[1])}
-        if mapping:
-            base = self.hashes.setdefault(key, {})
-            for k, v in dict(mapping).items():
-                ks = k.decode() if isinstance(k, bytes) else str(k)
-                vs = v.decode() if isinstance(v, bytes) else str(v)
-                base[ks] = vs
-
-    async def hget(self, key: str, field: str) -> bytes | None:
-        row = self.hashes.get(key)
-        if not row:
-            return None
-        fs = field.decode() if isinstance(field, bytes) else str(field)
-        v = row.get(fs)
-        if v is None:
-            return None
-        return str(v).encode("utf-8")
 
 
 class _FakeActions:
@@ -138,10 +85,11 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
 async def test_ocr_step_persists_integer_to_player_state(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
     actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
-    redis_client = _FakeRedis()
+    redis_client = redis_async
 
     captured: dict[str, Any] = {}
 
@@ -168,16 +116,14 @@ async def test_ocr_step_persists_integer_to_player_state(
         task_id="t-ocr",
         player_id="player_42",
         scenario_key="who_i_am",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
     assert result.success is True
     # 200×100 frame, bbox x=25 y=50 w=50 h=10 (% of frame).
     assert captured["region"] == LayoutRegion(50, 50, 100, 10)
-    persisted = [m for k, m in redis_client.hsets if k == "wos:player:player_42:state"]
-    assert persisted, f"no player-state writes; observed={redis_client.hsets!r}"
-    final = persisted[-1]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
     assert final["player_id"] == EXPECTED_PLAYER_ID
     assert final["player_id_text"] == REAL_OCR_TEXT
     assert float(final["player_id_confidence"]) == pytest.approx(0.97, abs=1e-3)
@@ -188,10 +134,11 @@ async def test_ocr_step_persists_integer_to_player_state(
 async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
     actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
-    redis_client = _FakeRedisKV()
+    redis_client = redis_async
 
     class _StubOcrClient:
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
@@ -207,24 +154,27 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
         task_id="t-ocr-device",
         player_id="",
         scenario_key="who_i_am",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
     assert result.success is True
     assert task.player_id == "765502864"
-    assert redis_client.hashes["wos:player:765502864:state"]["player_id"] == "765502864"
-    assert redis_client.hashes["wos:instance:bs1:state"]["active_player"] == "765502864"
+    p = await redis_async.hget("wos:player:765502864:state", "player_id")  # type: ignore[attr-defined]
+    assert p == "765502864"
+    ap = await redis_async.hget("wos:instance:bs1:state", "active_player")  # type: ignore[attr-defined]
+    assert ap == "765502864"
 
 
 @pytest.mark.asyncio
 async def test_ocr_step_skips_persist_below_threshold(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
     actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
-    redis_client = _FakeRedis()
+    redis_client = redis_async
 
     class _LowConfStub:
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
@@ -240,19 +190,20 @@ async def test_ocr_step_skips_persist_below_threshold(
         task_id="t-ocr-low",
         player_id="player_42",
         scenario_key="who_i_am",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
     assert result.success is True
-    player_writes = [m for k, m in redis_client.hsets if k == "wos:player:player_42:state"]
-    assert player_writes == [], "low-confidence OCR must not persist player_id"
+    v = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
+    assert v in {None, ""}, "low-confidence OCR must not persist player_id"
 
 
 @pytest.mark.asyncio
 async def test_consecutive_ocr_steps_share_one_capture_and_request(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
     (tmp_path / "scenarios" / "onboarding" / "read_two.yaml").write_text(
@@ -295,7 +246,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         encoding="utf-8",
     )
     actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
-    redis_client = _FakeRedisKV()
+    redis_client = redis_async
     captured: dict[str, Any] = {"calls": 0}
 
     class _BulkOcrClient:
@@ -320,7 +271,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         task_id="t-ocr-bulk",
         player_id="player_42",
         scenario_key="read_two",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
@@ -331,18 +282,162 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         LayoutRegion(20, 10, 40, 10),
         LayoutRegion(80, 50, 60, 20),
     ]
-    player_state = redis_client.hashes["wos:player:player_42:state"]
-    assert player_state["player_id"] == "765502864"
-    assert (
-        redis_client.hashes["wos:instance:bs1:state"]["chapter_task"]
-        == "Upgrade Furnace to Lv. 8"
+    pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
+    assert pid == "765502864"
+    task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]
+    assert task_txt == "Upgrade Furnace to Lv. 8"
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_building_name_persists_detected_level(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+    redis_async: object,
+) -> None:
+    import tasks.dsl_exec as dsl_exec
+    from config.buildings import BuildingDef, BuildingRegistry
+
+    captured: dict[str, Any] = {}
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            captured["player_id"] = player_id
+            captured["nickname"] = nickname
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            captured["flat"] = flat
+
+    monkeypatch.setattr(
+        dsl_exec,
+        "get_building_registry",
+        lambda: BuildingRegistry(buildings=(BuildingDef(id="cookhouse", name="Cookhouse"),)),
     )
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        mapping={"building.name": "Cookhouse Lv. 1"},
+    )
+
+    with caplog.at_level(logging.INFO):
+        await dsl_exec.DSL_EXEC_REGISTRY["sync_building_name"](
+            dsl_exec.DslExecContext(
+                redis_client=redis_async,
+                player_id="player_42",
+                instance_id="bs1",
+            )
+        )
+
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    assert final["buildings.levels.cookhouse"] == "1"
+    assert final["building.name.parsed_id"] == "cookhouse"
+    assert final["building.name.parsed_name"] == "Cookhouse"
+    assert final["building.name.parsed_level"] == "1"
+    assert captured["player_id"] == "player_42"
+    assert captured["flat"] == {
+        "buildings.levels.cookhouse": 1,
+        "buildings.state.text": "Cookhouse Lv. 1",
+    }
+    assert "building level updated" in caplog.text
+    assert "building=cookhouse" in caplog.text
+    assert "old=?" in caplog.text
+    assert "new=1" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_building_name_does_not_log_unchanged_level(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+    redis_async: object,
+) -> None:
+    import tasks.dsl_exec as dsl_exec
+    from config.buildings import BuildingDef, BuildingRegistry
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            pass
+
+    monkeypatch.setattr(
+        dsl_exec,
+        "get_building_registry",
+        lambda: BuildingRegistry(buildings=(BuildingDef(id="coal_mine", name="Coal Mine"),)),
+    )
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        mapping={
+            "building.name": "Coal Mine Lv.1",
+            "buildings.levels.coal_mine": "1",
+        },
+    )
+
+    with caplog.at_level(logging.INFO):
+        await dsl_exec.DSL_EXEC_REGISTRY["sync_building_name"](
+            dsl_exec.DslExecContext(
+                redis_client=redis_async,
+                player_id="player_42",
+                instance_id="bs1",
+            )
+        )
+
+    assert "building level updated" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_building_name_uses_active_player_instance_fallback(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    import tasks.dsl_exec as dsl_exec
+    from config.buildings import BuildingDef, BuildingRegistry
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            pass
+
+    monkeypatch.setattr(
+        dsl_exec,
+        "get_building_registry",
+        lambda: BuildingRegistry(buildings=(BuildingDef(id="lancer_camp", name="Lancer Camp"),)),
+    )
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={
+            "active_player": "player_42",
+            "building.name": "Lancer Camp Lv. 12",
+        },
+    )
+
+    await dsl_exec.DSL_EXEC_REGISTRY["sync_building_name"](
+        dsl_exec.DslExecContext(
+            redis_client=redis_async,
+            player_id="",
+            instance_id="bs1",
+        )
+    )
+
+    level = await redis_async.hget(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        "buildings.levels.lancer_camp",
+    )
+    assert level == "12"
 
 
 @pytest.mark.asyncio
 async def test_exec_fetch_player_syncs_century_fields(
     tmp_path: Path,
     monkeypatch: Any,
+    redis_async: object,
 ) -> None:
     (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
     (tmp_path / "scenarios" / "onboarding" / "sync_century.yaml").write_text(
@@ -356,9 +451,8 @@ async def test_exec_fetch_player_syncs_century_fields(
     )
     (tmp_path / "area.json").write_text("{}", encoding="utf-8")
 
-    redis_client = _FakeRedisKV(
-        {"wos:player:player_42:state": {"player_id": "765502864"}},
-    )
+    redis_client = redis_async
+    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]
     captured: dict[str, Any] = {}
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
@@ -373,7 +467,11 @@ async def test_exec_fetch_player_syncs_century_fields(
         )
 
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)))
+    monkeypatch.setattr(
+        dsl,
+        "BotActions",
+        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
+    )
 
     from century.api import CenturyClient
 
@@ -383,13 +481,13 @@ async def test_exec_fetch_player_syncs_century_fields(
         task_id="t-exec",
         player_id="player_42",
         scenario_key="sync_century",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
     assert result.success is True
     assert captured.get("fid") == 765502864
-    final = redis_client.hashes["wos:player:player_42:state"]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
     assert final["nickname"] == "TestNick"
     assert final["stove_level"] == "30"
     assert final["kid"] == "55"
@@ -403,6 +501,7 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     tmp_path: Path,
     monkeypatch: Any,
     caplog: pytest.LogCaptureFixture,
+    redis_async: object,
 ) -> None:
     (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
     (tmp_path / "scenarios" / "onboarding" / "sync_century.yaml").write_text(
@@ -411,15 +510,18 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     )
     (tmp_path / "area.json").write_text("{}", encoding="utf-8")
 
-    redis_client = _FakeRedisKV(
-        {"wos:player:player_42:state": {"player_id": "765502864"}},
-    )
+    redis_client = redis_async
+    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
         raise CenturyAPIError("player HTTP 403: Forbidden")
 
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)))
+    monkeypatch.setattr(
+        dsl,
+        "BotActions",
+        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
+    )
 
     from century.api import CenturyClient
 
@@ -429,13 +531,13 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
         task_id="t-exec-soft",
         player_id="player_42",
         scenario_key="sync_century",
-        redis_client=redis_client,
+        redis_client=redis_client,  # type: ignore[arg-type]
     )
     with caplog.at_level("WARNING"):
         result = await task.execute("bs1")
 
     assert result.success is True
-    final = redis_client.hashes["wos:player:player_42:state"]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
     assert final["player_id"] == "765502864"
     assert "nickname" not in final
     assert "player HTTP 403" in caplog.text

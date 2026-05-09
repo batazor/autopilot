@@ -1,0 +1,146 @@
+id: wu_ming
+name: Wu Ming
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/wu-ming/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '4.546'
+    def: '5.926'
+    health: '88.910'
+  expedition:
+    attack: 540.43%
+    defense: 540.43%
+story: 'No one knows his real name, but every town has hard of his legend-
+
+
+  As a warrior who wanders the land, Wu Ming has made a name for himself as a martial
+  artist. He reached a high level of perfection in his skills, and is not adraid to
+  use his strength to help the weak. His chivalry has earned him an excellent reputation,
+  and with his Dragonslayer in hand, he is a terror to the opportunistic bandits who
+  roam the Tundra.
+
+
+  Though he has become accustomed to the life of a wanderer, he still stays temporily
+  in poorer towns to teach Survivor how to protec themselves. After all, like an old
+  saying from his distant hometown, "Teach a man to fish, and you feed him for a lifetime."
+
+
+  Wu Ming is skilled not just in martial arts, but in music and the arts. However,
+  what people praise more about him is his humbleness and amiable personality. He
+  would even play the role of a schoolteacher in the town sometimes and teach children
+  how to read, write, and count. He also tells them fantastical myths from foreign
+  lands. Few know that Wu Ming was once a person who was completely different than
+  his current self.
+
+
+  His past self''s only pursuit in life was to go down in history as the "World''s
+  Number One Master." For this purpose, he studied hard, visited many renowned masters,
+  and learned from all schools of thought. He was already gifted in martial arts,
+  and his obsession with it made him a formidable opponent even in his youth, remaining
+  undefeated until he met that older person.
+
+
+  This older person once traveled the world but now lived in an ordinary town. Hearing
+  talk of this person''s unparalleled martial art skills, the fighting spirit was
+  rekindled in Wu Ming''s empty heart and he stepped forth to challenge this person.
+  His challenge ended not in victory, and he tasted defeat with the sword, spear,
+  and halberd against that person''s stick. After his consecutive losses, Wu Ming
+  became obsessed with surpassing this mighty opponent.
+
+
+  For several years after that first challenge, Wu Ming challenged that older person
+  annually, and was defeated every time. He could not figure out how victory still
+  eluded him though he had surpassed his opponent in strength, agility, and skill.
+
+
+  During his last challenge, a group of bandits called Reapers invaded the town where
+  the older person lived. Wu Ming tried to flee-human flesh is no shield against heavy
+  mech after all-but the older person, with his strength, struck the invaders with
+  his stick and subdued three Reapers, ensuring the town''s safety. However, he had
+  also exhausted his strength in this last battle and death came swiftly upon him.
+  Wu Ming, witnessing this event, realized the true meaning of being a warrior: True
+  righteous ideals and belief are the key to transcendence. And so, he took on the
+  mantle of his late opponent and embarked on his journey of chivalry under the alias
+  "Wu Ming", or "The Nameless One".'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+skills:
+- name: Cyclone Barrier
+  description: Wu Ming twirls his staff at blinding speed and forms an unyielding
+    barrier, dealing Attack 100%/110%/120%/130%/140% Area of Effect damage, gaining
+    invulnerability for 2s.
+- name: Inner Clarity
+  description: Wu Ming finds unparalleled clarity by cilencing the chaos within, increasing
+    Attack by 8%/12%/16%/20%/24% and Defense by 16%/24%/32%/40%/48% for 4s.
+- name: Remote Impact
+  description: Wu Ming hones his martial arts to perfection, dealing Attack 20%/22%/24%/26%/28%
+    damage to a random ennemy with every normal attack.
+- name: Shadow's Evasion
+  description: Wu Ming moves like a shadow, dodging and coutering ennemies, reducing
+    his troops' damage taken from normal attacks by 5%/10%/15%/20%/25% and from skills
+    by 6%/12%/18%/34%/30% .
+- name: Crescent Uplift
+  description: Wu Ming spreads his wisdom and techniques, increasing friendly troops'
+    damage dealt by 4%/8%/12%/16%/20% .
+- name: Elemental Resonance
+  description: Wu Ming leads everyone to a heightened affinity with their combat techniques,
+    incresaing troops' skill damage dealt by 5%/10%/15%/20%/25% .
+- name: Martial Zenith (Lv. 5)
+  description: Wu Ming stands transcendent in the realm of martial arts, increasing
+    damage dealt by 30%.
+- name: Steel Discipline (Lv. 5)
+  description: Wu Ming puts defender troops under stern tutelage, incresaing Defender
+    Troops' Defense by 15% maximum.

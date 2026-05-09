@@ -1,0 +1,132 @@
+id: jeronimo
+name: Jeronimo
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/jeronimo/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '2128'
+    def: '2220'
+    health: '41624'
+  expedition:
+    attack: 260.2%
+    defense: 260.2%
+story: 'Jeronimo was born with a silver spoon in his mouth. He was the heir of a local
+  Duke in the old empire. Even after the old world''s collapse, he maintained the
+  noble style of dress, decorum, and speech. Many people dislike his demeanor, but
+  none can deny that Jeronimo is an invaluable asset to the Dawn Alliance.
+
+
+  He is an extremely capable swordfighter. Jeronimo''s techniques are the embodiment
+  of sword-fighting science and art. Unfortunately, the intricacy of his techniques
+  made it almost impossible for other soldiers to learn.
+
+
+  Jeronimo is also one of Dawn Alliance’s finest commanders, thanks to his education
+  at the Imperial Military Academy. Jeronimo''s early life in the upper class has
+  raised him with expensive tastes. Such tastes are impossible to maintain even for
+  an accomplished fighter like him. As a result, he accumulated a huge amount of debt.
+  The debt drove him to work as a "contract commander" under Phaethon Mercenaries.
+  He also became their duel master and trainer.
+
+
+  His years in the Phaethon had seen various engagements against the Dawn Alliance.
+  Some members of the Alliance, Bahiti for one, can’t come to terms with that so easily.
+  Jeronimo''s upbringing and education made him a model of chivalry. He hated the
+  underhanded techniques of Phaethon leaders, and his departure was an inevitability.
+
+
+  Phaethon''s revenge came quicker than Jeronimo''s resignation. In a fight against
+  bandits, Jeronimo was outmanned and Phaethon''s promised reinforcements were nowhere
+  to be seen. He sent an urgent request to the Dawn Alliance for help instead. From
+  there, it was easy enough for the Alliance to persuade Jeronimo to join them.
+
+
+  Off the battlefield, Jeronimo fancies himself as a poet, and most of his creations
+  are love poetry. When they were on the same assignments, Cloris'' fighting prowess
+  and supposed royal bloodline stirred something in Jeronimo''s heart. However, below
+  is Cloris’ response to Jeronimo''s many advances: "Of all the awkward, stupid, and
+  moronic things you do and say, Jeronimo, your love poems are surely the worst."'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '30'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- VIP Packs
+skills:
+- name: Combo Slash
+  description: Jeronimo launches enemies in the target area into the air, following
+    up with three slashes, each dealing Attack* 160%/176%/192%/208%/224% damage.
+- name: Sword Art
+  description: Each of Jeronimo's attacks releases sword energy, dealing Attack* 15%/17%/19%/21%/23%
+    damage to enemies in a rectangular area straight ahead.
+- name: Lone Wolf
+  description: Jeronimo is a master at pressing advantages, gaining a + 16%/24%/32%/40%/48%
+    Attack boost over 50% Health.
+- name: Battle Manifesto
+  description: Jeronimo delivers a rousing rally speech ahead of the battle, increasing
+    damage dealt by + 5%/10%/15%/20%/25% for all troops.
+- name: Swordmentor
+  description: Jeronimo imparts the secrets of swordsmanship, increasing attack by
+    + 5%/10%/15%/20%/25% for all troops.
+- name: Expert Swordsmanship
+  description: Jeronimo's sword arts empower soldiers to seize battle opportunities,
+    increasing Damage Dealt by 6%/12%/18%/24%/30% for all troops for 2 turns every
+    4 turns.
+- name: Natural Leader
+  description: Jeronimo easily inspires others even from afar, boosting all troops'
+    Lethality and Health by 3%/6%/9%/12%/15%
+- name: Shield of Swords (Lv. 5)
+  description: When attacking, Jeronimo's sword energy forms a shield, reducing his
+    damage received by 30%.
+- name: Discernment (Lv. 5)
+  description: Jeronimo attacks with a sword formation, increasing Rally Troops' attack
+    by 15%.

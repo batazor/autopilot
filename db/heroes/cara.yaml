@@ -1,0 +1,169 @@
+id: cara
+name: Cara
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/cara/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: 31,203
+    def: 25,684
+    health: 192,640
+  expedition:
+    attack: 1791.43%
+    defense: 1791.43%
+story: 'With Cara of the Oestermore Postal Service, the mail always gets through.
+
+
+  The red-headed wonder girl can be seen flying over and between the towns of Ostermore
+  at different times of the day or night courtesy of her steam-powered air-broom,
+  delivering letters and much-needed smiles to survivors anxiously awaiting the mail.
+  Children may chase her down the street and ask her to perform a magic trick, but
+  the only real witchery here is the magic of great charm and talent.
+
+
+  In these strange times, the best postal workers come with considerable firepower.
+  Life for even the privileged City-dweller isn''t easy. Bandits and wild predators
+  are always on the prowl, and many a time has Cara had to intervene directly or with
+  a broom-based diversion while reinforcements arrive.
+
+
+  Cara always finds time in her busy delivery schedule to pursue the twin interests
+  of baking (in which she has become a deft creator of macaroons and Mont Blancs)
+  and sleuth of Oestermore''s urban legends. In the former she is joined frequently
+  by friends Edith and Gisela, fellow notable members of the Tundra, but the latter
+  is only a source of anxiety for everyone else.
+
+
+  The Tundra is still full of wild unknowns. If only Cara could make a name for herself
+  by identifying a new species like the legendary "Jumping Jack", sighted in Ostermore
+  a few times! There is still surprisingly a lot of raw feeling around this strange
+  phenomenon. Gisela has urged Cara to drop her investigation many times-for what
+  sinister figures may be trying to keep the mystery under wraps?!
+
+
+  But for Cara bravery is a kind of code of conduct.
+
+
+  The more her friends urge Cara to drop an issue, the more she insists on pursuing
+  it.
+
+
+  And Cara has plenty of reasons to want to be brave.
+
+
+  Most Oestermorians could tell you what they were doing on the day the City was nearly
+  lost to bandits. For Cara, she had just finished delivering a toy to a child at
+  a local orphanage when the unmistakable tremors of cannonballs started shaking the
+  city walls. Everywhere all at once there was a great uproar. Not knowing what they
+  faced and fearing for the child''s safety, Cara immediately brought the child with
+  her as far from the fighting as possible. Cara only learned later what had happened:
+  the City fell to the invaders, but only for one night.
+
+
+  The wounds have already healed but the scars remain from Oestermore''s brief occupation,
+  in which many senior leaders were badly injured or worse. As one of the City''s
+  most skilled technologists, Cara finds it hard to forgive herself for being absent
+  during the fall of the City no matter the reason why.
+
+
+  By way of consolation, Gisela went to the effort of crafting Cara a personalized
+  weapons suite in case the situation ever arose again. As often happens with prototypes,
+  the new air-broom ended up slightly miss-calibrated, resulting in a much more powerful
+  cannon than intended. A surprising accident, but a happy one as Cara would discover.
+
+
+  Cara was returning from a routine delivery when she spotted a menacing airship outfitted
+  with an enormous cannon, piloted by the same bandits who had occupied Ostermore
+  years ago! Cara quickly realized two things: the bandits must be planning to bombard
+  the city gates in preparation for a larger attack and her flying air-broom had not
+  yet been detected. Cara lined up the perfect shot and let loose: bullseye! Smoke
+  began to emerge from the airship as a general alarm was sounded over the city. There
+  was no way the bandits could press their attack now.
+
+
+  Cara was hailed as a hero upon her return, which went some way to relieving her
+  self-imposed feelings of inadequacy.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Arcane Blast
+  description: Cara launches a powerful cannon at enemies, dealing Attack* 200%/220%/240%/260%/280%
+    Area damage.
+- name: Gloomy Mist
+  description: Cara fires a Steamy Whammy, releasing a mist-like gas that obscures
+    the enemy's vision and reduces their accuracy by 7%/9%/11%/13%/15% . The gas burns
+    the targets continuously, dealing Attack* 7%/9%/11%/13%/15% damage per 0.5s for
+    2s.
+- name: Heartfelt Friendship
+  description: Each time an ally Hero is knocked down. Cara's rage and power are fueled,
+    increasing her Attack by 3%/6%/9%/12%/15% until the end of the battle.
+- name: Smoky Encounter
+  description: Cara drops smoke grenades from the air, hindering enemy attacks and
+    reducing their Lethality by 4%/8%/12%/16%/20%
+- name: Mech Pet
+  description: The Mech Pets crafted by Oestermore crafters join forces with the warriors,
+    increasing normal attack damage by 10%/15%/20%/25%/30% for all troops
+- name: Witch's Wrath
+  description: Thanks to Cara's flying broom, she effortlessly bypasses the enemy
+    infantry on the frontline. Her Marksmen deal 8%/16%/24%/32%/40% extra damage to
+    enemy Lancers and 4%/8%/12%/16%/20% extra damage to enemy Marksmen every two attacks
+- name: Techno Power
+  description: The crafters from Oestermore modify Cara's gear, increasing the duration
+    of Gloomy Mist by 1s and increasing her normal attack damage by 25%
+- name: Shrouded Haven
+  description: Cara defends the city like her hometown, inspiring the Defender Troops
+    and increasing their Lethality by 15%

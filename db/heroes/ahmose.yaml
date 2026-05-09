@@ -1,0 +1,135 @@
+id: ahmose
+name: Ahmose
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/ahmose/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '3150'
+    def: '4106'
+    health: '61604'
+  expedition:
+    attack: 370.29%
+    defense: 370.29%
+story: 'Ahmose hailed from an ancient clan of guardians whose sacred duty was to safeguard
+  the Cthugha''s Heart - an active Fire Crystal - and regulate its use. With the assistance
+  of these guardians, the Solaris Dynasty came to possess control over the energy
+  of the Fire Crystal.
+
+
+  However, when the kingdom attained great power, the king betrayed his protectors
+  and banished them. The Fire Crystal subsequently entered a dormant state, and the
+  fate of the guardians remained shrouded in mystery.
+
+
+  Recently, Ahmose''s weapon alerted him to the reawakening of the Fire Crystal. As
+  one of the last surviving descendants of the guardians, he left his clan behind
+  and embarked on a mission of vengeance. After arriving at his destination, Ahmose
+  was confronted with the reality that the former empire had collapsed. This left
+  him in a dilemma as to whether he should support or oppose the new ruler of Sunfire
+  Castle.
+
+
+  Ahmose’s spear and shield were once the sources of pride for his ancestors. The
+  two weapons were infused with the energy of Fire Crystal and thus became alive.
+  Once lost, the weapons were found when Ahmose heard their call. He restored them
+  through forgery like he was rebuilding the former glory of his ancestors.
+
+
+  After spending some time in the Sunfire Castle, Ahmose was certain that the new
+  president was not a tyrant like the ruler of the old empire. By talking to the Cthugha’s
+  Heart using his gift of resonating with it, he was sure that the president was the
+  ruler acknowledged by many.
+
+
+  Cthugha’s Heart released Ahmose from his destiny as a guardian and gave him and
+  his clansmen their freedom. Without the mission as a guardian, Ahmose suddenly lost
+  his direction in life. Fortunately, his courage and outstanding combat skills won
+  him the admiration of the chiefs. Now, he protects newly built cities and helps
+  the survivors struggling in the extremely cold with his shield.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- King of Icefield
+- State of Power
+- Daily Deals
+skills:
+- name: Cthugha's Protection
+  description: Ahmose wields his robust shield, entering an invulnerable state (unable
+    to move or cast skills, immune to control effects) and reducing damage taken by
+    30%/40%/50%/60%/70% for nearby friendly troops for 2s.
+- name: Daybreak Knife
+  description: Ahmose pierces the enemies at the front with a sharp spear, dealing
+    Attack* 70%/77%/84%/91%/98% damage, tearing apart the enemy’s defense, and making
+    enemies take 20% more damage for the next 2s.
+- name: Ancestral Blessing
+  description: The energy of Fire Crystal, which is akin to the blessing of ancestors,
+    heals Ahmose’s wounds. After casting "Cthugha’s Protection", Ahmose will recover
+    Attack* 30%/33%/36%/39%/42% Health for 5s.
+- name: Viper Formation
+  description: Ahmose revives the lost art of ancient guardians. His Infantry pauses
+    the attack once every four times, reducing damage taken by Lancers and Marksmen
+    by 10%/15%/20%/25%/30% and Infantry by 10%/25%/40%/55%/70% for 2 turn.
+- name: Prayer of Flame
+  description: Ahmose amplifies the combat spirit of friendly Infantry with the power
+    of the Fire Crystal, increasing their damage dealt by 20%/40%/60%/80%/100% .
+- name: Blade of Light
+  description: Ahmose infuses friendly Infantry's weapons with the essence of Fire
+    Crystals, increasing his infantries' damage per attack by 12%/24%/36%/48%/60%
+    and the target's damage taken by 5%/10%/15%/20%/25% for 1 turn.
+- name: Unyielding Determination (Lv. 5)
+  description: Ahmose imbues allies with steadfast conviction, increasing Attack by
+    42% for friendly troops under Cthugha’s Protection for 2.5s.
+- name: Oath of Guardian (Lv. 5)
+  description: Ahmose fortifies the city with the resolve of a guardian, increasing
+    Defender Troops' Health by 15%.

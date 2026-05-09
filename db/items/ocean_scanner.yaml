@@ -1,0 +1,9 @@
+id: ocean_scanner
+name: Ocean Scanner
+wiki_url: https://www.whiteoutsurvival.wiki/items/ocean-scanner/
+category: ''
+description: Monitors nearby fish and tells you the direction and distance to the
+  rare species around.
+sources:
+- Fishing Event
+- Fishing Packs

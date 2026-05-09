@@ -1,0 +1,99 @@
+id: shelter
+name: Shelter
+category: unknown
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 1
+    build_cost:
+    - item: item_icon_103
+      amount: '20'
+    construction_time: 00:00:02
+    building_power: 100
+  '2':
+    prerequisites: Furnace Lv. 2
+    build_cost:
+    - item: item_icon_103
+      amount: '35'
+    construction_time: 00:00:06
+    building_power: 114
+  '3':
+    prerequisites: Furnace Lv. 3
+    build_cost:
+    - item: item_icon_103
+      amount: '160'
+    construction_time: 00:00:30
+    building_power: 195
+  '4':
+    prerequisites: Furnace Lv. 4
+    build_cost:
+    - item: item_icon_103
+      amount: '360'
+    - item: item_icon_104
+      amount: '70'
+    construction_time: 00:01:30
+    building_power: 303
+  '5':
+    prerequisites: Furnace Lv. 5
+    build_cost:
+    - item: item_icon_103
+      amount: 1.5k
+    - item: item_icon_104
+      amount: '300'
+    construction_time: 00:03:00
+    building_power: 465
+  '6':
+    prerequisites: Furnace Lv. 6
+    build_cost:
+    - item: item_icon_103
+      amount: 3.8k
+    - item: item_icon_104
+      amount: '765'
+    - item: item_icon_105
+      amount: '190'
+    construction_time: 00:06:00
+    building_power: 708
+  '7':
+    prerequisites: Furnace Lv. 7
+    build_cost:
+    - item: item_icon_103
+      amount: 13k
+    - item: item_icon_104
+      amount: 2.7k
+    - item: item_icon_105
+      amount: '690'
+    construction_time: 00:12:00
+    building_power: null
+  '8':
+    prerequisites: Furnace Lv. 8
+    build_cost:
+    - item: item_icon_103
+      amount: 25k
+    - item: item_icon_104
+      amount: 5k
+    - item: item_icon_105
+      amount: 1.2k
+    construction_time: 00:18:00
+    building_power: null
+  '9':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 52k
+    - item: item_icon_104
+      amount: 10k
+    - item: item_icon_105
+      amount: 2.6k
+    construction_time: 00:27:00
+    building_power: 1761
+  '10':
+    prerequisites: Furnace Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 92k
+    - item: item_icon_104
+      amount: 18k
+    - item: item_icon_105
+      amount: 4.6k
+    construction_time: 00:36:00
+    building_power: 2271
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/shelter/

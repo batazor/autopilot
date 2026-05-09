@@ -201,14 +201,24 @@ def render_preview_with_point(
                 x2 = int(max(0, min(w - 1, x2)))
                 y2 = int(max(0, min(h - 1, y2)))
 
-                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 0, 0), 6, tipLength=0.25)
-                cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 220, 255), 3, tipLength=0.25)
-
                 dist = ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
-                label = f"swipe {dist:.0f}px"
-                if ms > 0:
-                    label += f" · {ms}ms"
-                _draw_focus_rect(bgr, x0=x1, y0=y1, x1=x1 + 2, y1=y1 + 2, label=label)
+                is_long_press = bool(
+                    str(payload.get("gesture") or "").strip().lower() == "long_press"
+                    or dist < 1.0
+                )
+                if is_long_press:
+                    label = f"long press · {ms}ms" if ms > 0 else "long press"
+                    cv2.circle(bgr, (x1, y1), 14, (0, 0, 0), 3, lineType=cv2.LINE_AA)
+                    cv2.circle(bgr, (x1, y1), 14, (0, 220, 255), 2, lineType=cv2.LINE_AA)
+                    _draw_focus_rect(bgr, x0=x1, y0=y1, x1=x1 + 2, y1=y1 + 2, label=label)
+                else:
+                    cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 0, 0), 6, tipLength=0.25)
+                    cv2.arrowedLine(bgr, (x1, y1), (x2, y2), (0, 220, 255), 3, tipLength=0.25)
+
+                    label = f"swipe {dist:.0f}px"
+                    if ms > 0:
+                        label += f" · {ms}ms"
+                    _draw_focus_rect(bgr, x0=x1, y0=y1, x1=x1 + 2, y1=y1 + 2, label=label)
             except Exception:
                 pass
 

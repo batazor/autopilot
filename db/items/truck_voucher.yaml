@@ -1,0 +1,9 @@
+id: truck_voucher
+name: Truck Voucher
+wiki_url: https://www.whiteoutsurvival.wiki/items/truck-voucher/
+category: ''
+description: Used to refresh the trucks to be escorted in the [Tundra Trade Route]
+  event.
+sources:
+- Used to refresh the trucks to be escorted in the [Tundra Trade Route] event.
+- Tundra Trade Route

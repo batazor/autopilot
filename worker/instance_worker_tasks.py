@@ -45,19 +45,20 @@ class InstanceWorkerTasksMixin:
     _task_busy: Any
 
     async def _set_instance_state(self, state: InstanceState, *, error: str = "") -> None:
-        raise NotImplementedError
+        # This mixin is used in multiple inheritance; implementations live in other mixins.
+        return await super()._set_instance_state(state, error=error)  # type: ignore[misc]
 
     async def _ensure_account(self, player_id: str) -> None:
-        raise NotImplementedError
+        return await super()._ensure_account(player_id)  # type: ignore[misc]
 
     async def _execute_task(self, item: QueueItem, task: BaseTask) -> TaskResult | None:
-        raise NotImplementedError
+        return await super()._execute_task(item, task)  # type: ignore[misc]
 
     async def _drain_ui_commands(self) -> None:
-        raise NotImplementedError
+        return await super()._drain_ui_commands()  # type: ignore[misc]
 
     async def _handle_failure(self, item: QueueItem, error: Exception) -> None:
-        raise NotImplementedError
+        return await super()._handle_failure(item, error)  # type: ignore[misc]
 
     async def _run_one_queue_item(self, item: QueueItem, task: BaseTask) -> None:
         skip_account = getattr(task, "skip_account_check", False)
@@ -323,7 +324,7 @@ class InstanceWorkerTasksMixin:
             }
             key = _history_key_for_instance(self._cfg.instance_id)
             await self._redis.lpush(key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]
-            await self._redis.ltrim(key, 0, 19)  # type: ignore[union-attr]
+            await self._redis.ltrim(key, 0, 49)  # type: ignore[union-attr]
             await self._redis.expire(key, 60 * 60 * 24 * 7)  # type: ignore[union-attr]
         except Exception:
             logger.debug("queue history update failed", exc_info=True)

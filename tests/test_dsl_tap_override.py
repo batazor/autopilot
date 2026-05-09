@@ -9,14 +9,6 @@ import yaml
 import tasks.dsl_scenario as dsl
 
 
-class _FakeRedis:
-    async def hset(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
 class _FakeActions:
     tapped: list[tuple[str, int, int, str | None]] = []
 
@@ -30,7 +22,11 @@ class _FakeActions:
 
 
 @pytest.mark.asyncio
-async def test_dsl_click_uses_overlay_tap_override(tmp_path: Path, monkeypatch: Any) -> None:
+async def test_dsl_click_uses_overlay_tap_override(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
     (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
     (tmp_path / "scenarios" / "onboarding" / "hand_pointer.yaml").write_text(
         yaml.dump({"enabled": True, "name": "Hand", "steps": [{"click": "hand_pointer"}]}),
@@ -65,7 +61,7 @@ async def test_dsl_click_uses_overlay_tap_override(tmp_path: Path, monkeypatch: 
         task_id="t1",
         player_id="p1",
         scenario_key="hand_pointer",
-        redis_client=_FakeRedis(),
+        redis_client=redis_async,  # type: ignore[arg-type]
         tap_region="hand_pointer",
         tap_x_pct=50.0,
         tap_y_pct=70.0,

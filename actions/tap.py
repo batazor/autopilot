@@ -557,34 +557,53 @@ class AdbController:
         duration: timedelta = timedelta(milliseconds=300),
     ) -> bool:
         """Swipe with ±2 px jitter on all coordinates."""
-        x1 = _jitter(start.x, 2)
-        y1 = _jitter(start.y, 2)
-        x2 = _jitter(end.x, 2)
-        y2 = _jitter(end.y, 2)
+        # Important: for "long press" we call swipe(start=end). In that case we must
+        # keep start/end identical; otherwise independent jitter turns it into a
+        # tiny swipe (1–2 px) which many UIs ignore as a press/hold.
+        if int(start.x) == int(end.x) and int(start.y) == int(end.y):
+            x = _jitter(start.x, 2)
+            y = _jitter(start.y, 2)
+            x1 = x2 = x
+            y1 = y2 = y
+        else:
+            x1 = _jitter(start.x, 2)
+            y1 = _jitter(start.y, 2)
+            x2 = _jitter(end.x, 2)
+            y2 = _jitter(end.y, 2)
         ms = int(duration.total_seconds() * 1000)
         if x1 != x2 or y1 != y2:
             ms = max(ms, _SWIPE_MIN_DURATION_MS)
+        is_long_press = x1 == x2 and y1 == y2
+        swipe_payload: dict[str, object] = {
+            "type": "swipe",
+            "x1": int(x1),
+            "y1": int(y1),
+            "x2": int(x2),
+            "y2": int(y2),
+            "ms": int(ms),
+            "serial": self._serial,
+        }
+        # Same coordinates → long press; approvals UI expects x/y like ``tap`` for crosshair.
+        if is_long_press:
+            swipe_payload["gesture"] = "long_press"
+            swipe_payload["x"] = int(x1)
+            swipe_payload["y"] = int(y1)
         ok, req_id = _require_approval(
             self._instance_id,
-            self._approval_payload_with_preview(
-                {
-                    "type": "swipe",
-                    "x1": int(x1),
-                    "y1": int(y1),
-                    "x2": int(x2),
-                    "y2": int(y2),
-                    "ms": int(ms),
-                    "serial": self._serial,
-                }
-            ),
+            self._approval_payload_with_preview(swipe_payload),
         )
         if not ok:
             logger.info("ADB swipe blocked (no approval): %s", self._instance_id)
             return False
         with self._approval_execution(req_id):
-            self._shell(
-                "input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)
-            )
+            # Zero-distance swipe: prefer plain ``input swipe`` — ``touchscreen swipe`` often
+            # fails on emulators for press-and-hold at one pixel.
+            if is_long_press:
+                self._shell("input", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
+            else:
+                self._shell(
+                    "input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)
+                )
             logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
             time.sleep(_SWIPE_SETTLE_SECONDS)
             self._refresh_rolling_preview()

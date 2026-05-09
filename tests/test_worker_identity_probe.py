@@ -8,12 +8,6 @@ import pytest
 import worker.instance_worker as instance_worker
 from scheduler.queue import QueueItem
 
-
-class _FakeRedis:
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
 class _FakeQueue:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
@@ -38,7 +32,7 @@ def _queue_item(task_type: str, *, player_id: str = "") -> QueueItem:
 async def test_device_level_dsl_item_is_not_resolved_to_first_configured_player() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
-    worker._redis = _FakeRedis()
+    worker._redis = None
 
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
         worker,
@@ -57,7 +51,7 @@ async def test_registered_device_task_still_resolves_to_known_player(monkeypatch
     monkeypatch.setattr(instance_worker, "player_ids_for_device", lambda _: ["765502864"])
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", bluestacks_window_title="emulator-5554")
-    worker._redis = _FakeRedis()
+    worker._redis = None
 
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
         worker,
@@ -71,13 +65,7 @@ async def test_registered_device_task_still_resolves_to_known_player(monkeypatch
 async def test_startup_identity_probe_is_enqueued_once_as_device_level() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
-    # _seed_startup_tasks reads grace/interval from settings to delay tasks.
-    worker._settings = SimpleNamespace(
-        worker=SimpleNamespace(
-            overlay_analyze_after_launch_grace_seconds=0.0,
-            device_reference_snapshot_interval_seconds=0.0,
-        )
-    )
+    worker._settings = SimpleNamespace(worker=SimpleNamespace())
     worker._queue = _FakeQueue()
 
     await instance_worker.InstanceWorker._seed_startup_tasks(worker)

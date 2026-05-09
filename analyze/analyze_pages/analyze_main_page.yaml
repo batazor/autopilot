@@ -44,6 +44,17 @@ overlay:
         priority: 80000
         ttl: 1m
 
+  - name: isPostman.visible
+    region: isPostman
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - main_city
+    pushScenario:
+      - name: isPostman
+        priority: 80000
+        ttl: 5m
+
   - name: chapter.task.present
     region: chapter.task
     action: text

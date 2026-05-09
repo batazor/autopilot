@@ -1,0 +1,143 @@
+id: eleonora
+name: Eleonora
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/eleonora/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '11392'
+    def: '14850'
+    health: '222776'
+  expedition:
+    attack: 1281.02%
+    defense: 1281.02%
+story: 'The frozen queen, the nation liberator, the Sunfire Castle mayor, the ruler
+  of the tundra, the hope of Solaris, and the shield princess... All these describe
+  Eleonora III, the current ruler of the Solaris Dynasty, whose legitimacy is recognized
+  by few.\nAfter the fall of the her kingdom, Eleonora lived in exile under the protection
+  of her loyal knights until she came of age. Now, she has blossomed into a formidable
+  knight and an exceptional commander. While restoring her kingdom is her ultimate
+  goal, she has to work as a mercenary to make a living.
+
+
+  Eleonora was just an infant when Sunfire Castle collapsed, leaving her with no memory
+  of the old kingdom. For a long time, she simply accepted the mission to restore
+  it, without truly resonating with the aspiration. However, during her years of exile,
+  she endured much contempt and humiliation from the emerging nobility, and it was
+  through this hardship that the desire to create her own kingdom began to take root
+  in her heart.
+
+
+  Eleonora mastered the art of combat under the tutelage of Sir Gregory, even surpassing
+  her mentor. She slowly built a reputation on the tundra with her remarkable skills.
+
+
+  Nevertheless, she didn''t win everyone''s approval. In Jeronimo''s eyes, Eleonora
+  and her followers were nothing more than some imposters pretending to be royalty,
+  and he boldly claimed to have found the true princess. To clear her name, Eleonora
+  decided to challenge the arrogant swordsman. Although Sir Gregory eventually intervened
+  and stopped the duel, the desire to prove herself against Jeronimo still burned
+  deep within her.
+
+
+  With the backing of some old nobles, Eleonora once captured a sprawling city to
+  serve as her new capital. Yet, it wasn''t long before she fell out with her benefactors.
+
+
+  The indulgent and corrupt nobles levied heavy taxes and forced labor upon the people,
+  plunging them into misery. Eleonora, having once experienced the pain of being uprooted,
+  saw through the cruelty of the old order. She tried to help the struggling masses,
+  but her actions threatened the nobles'' interests. In response, they turned their
+  backs on her, expelled her from the new capital, and accused her of being an imposter.
+
+
+  With no other option but to start anew, Eleonora had the support of Sir Gregory
+  and other loyal warriors. Now, she has wholeheartedly embraced the dream of restoring
+  her kingdom—one founded on equality and compassion.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Mythic General Hero Shard
+- Foundry Shop
+skills:
+- name: Shield of Blaze
+  description: Eleonora raises a spiked shield, a symbol of royalty, gaining Attack*
+    100%/130%/160%/190%/220% shield value and reflecting 30% of damage taken to the
+    enemy. The shield ruptures after 3s, dealing 60%/65%/70%/75%/80% damage to nearby
+    enemies.
+- name: Regal Sanction
+  description: Eleonora strikes forcefully at the target with a heavy hammer, dealing
+    Attack* 100%/110%/120%/130%/140% damage and reducing the target's Defense by 10%/15%/20%/25%/30%
+    for 2s.
+- name: Majestic Corona
+  description: The noble blood in Eleonora renders her an unyielding spirit, reducing
+    her damage taken by 5%/7.5%/10%/12.5%/15% and increasing her damage dealt by 5%/7.5%/10%/12.5%/15%
+    .
+- name: Scorching Sun
+  description: Eleonora inspires all troops with her royal aura and sense of honor,
+    increasing their Health by 5%/10%/15%/20%/25% .
+- name: Solaris Nexus
+  description: Eleonora deploys a balanced formation, reducing damage taken by 2%/4%/6%/8%/10%
+    for her Infantries and increasing damage dealt by 2%/4%/6%/8%/10% for her Marksmen.
+- name: Soaring Flame
+  description: Eleonora strikes fear into her enemies with her fierce assaults, increasing
+    all troops' damage dealt by 5%/10%/15%/20%/25% and reducing their damage taken
+    by 5%/10%/15%/20%/25% every 5 attacks made by Infantry for 2 turns.
+- name: Hammer & Shield (Lv. 5)
+  description: Eleonora developed adaptability during her exile, increasing Attack
+    by 24% when her Health is higher than 50% and increasing her Defense by 75% when
+    her Health is under 50%.
+- name: Last Fortress (Lv. 5)
+  description: Eleonora fights every battle like her last, inspiring Defender Troops
+    and increasing their Health by 15%.

@@ -1,7 +1,0 @@
-enabled: true
-name: Tap upgrade (big button)
-# Tutorial-style upgrade prompt — purely UI, no player identity needed.
-device_level: true
-
-steps:
-  - click: upgrade_big_button

@@ -1,0 +1,249 @@
+id: research_center
+name: Research Center
+category: unknown
+requirements_by_level:
+  '1':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: '105'
+    construction_time: 00:00:02
+    building_power: 440
+  '2':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: '160'
+    construction_time: 00:00:09
+    building_power: 836
+  '3':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: '725'
+    construction_time: 00:00:45
+    building_power: null
+  '4':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 1.6K
+    - item: item_icon_104
+      amount: '320'
+    construction_time: 00:02:15
+    building_power: null
+  '5':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 6.8K
+    - item: item_icon_104
+      amount: 1.3K
+    construction_time: 00:04:30
+    building_power: null
+  '6':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 17K
+    - item: item_icon_104
+      amount: 3.4K
+    - item: item_icon_105
+      amount: '860'
+    construction_time: 00:09:00
+    building_power: null
+  '7':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 62K
+    - item: item_icon_104
+      amount: 12K
+    - item: item_icon_105
+      amount: 3.1K
+    construction_time: 00:18:00
+    building_power: null
+  '8':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 110K
+    - item: item_icon_104
+      amount: 22K
+    - item: item_icon_105
+      amount: 5.6K
+    construction_time: 00:27:00
+    building_power: null
+  '9':
+    prerequisites: Furnace Lv. 9
+    build_cost:
+    - item: item_icon_103
+      amount: 230K
+    - item: item_icon_104
+      amount: 47K
+    - item: item_icon_105
+      amount: 11K
+    construction_time: 00:40:30
+    building_power: null
+  '10':
+    prerequisites: Furnace Lv. 10
+    build_cost:
+    - item: item_icon_103
+      amount: 410K
+    - item: item_icon_104
+      amount: 82K
+    - item: item_icon_105
+      amount: 20K
+    construction_time: 00:54:00
+    building_power: null
+  '11':
+    prerequisites: Furnace Lv. 11
+    build_cost:
+    - item: item_icon_100011
+      amount: 520K
+    - item: item_icon_103
+      amount: 520K
+    - item: item_icon_104
+      amount: 100K
+    - item: item_icon_105
+      amount: 26K
+    construction_time: 01:07:30
+    building_power: null
+  '12':
+    prerequisites: Furnace Lv. 12
+    build_cost:
+    - item: item_icon_100011
+      amount: 670K
+    - item: item_icon_104
+      amount: 130K
+    - item: item_icon_105
+      amount: 33K
+    construction_time: 01:21:00
+    building_power: null
+  '13':
+    prerequisites: Furnace Lv. 13
+    build_cost:
+    - item: item_icon_100011
+      amount: 950K
+    - item: item_icon_103
+      amount: 950K
+    - item: item_icon_104
+      amount: 190K
+    - item: item_icon_105
+      amount: 47K
+    construction_time: 01:39:00
+    building_power: null
+  '14':
+    prerequisites: Furnace Lv. 14
+    build_cost:
+    - item: item_icon_104
+      amount: 250K
+    - item: item_icon_105
+      amount: 63K
+    construction_time: 02:06:00
+    building_power: null
+  '15':
+    prerequisites: Furnace Lv. 15
+    build_cost:
+    - item: item_icon_104
+      amount: 370K
+    - item: item_icon_105
+      amount: 93K
+    construction_time: 02:42:00
+    building_power: null
+  '16':
+    prerequisites: Furnace Lv.  16
+    build_cost:
+    - item: item_icon_104
+      amount: 470K
+    - item: item_icon_105
+      amount: 110K
+    construction_time: 04:34:00
+    building_power: null
+  '17':
+    prerequisites: Furnace Lv. 17
+    build_cost:
+    - item: item_icon_104
+      amount: 740K
+    - item: item_icon_105
+      amount: 180K
+    construction_time: 05:29:00
+    building_power: null
+  '18':
+    prerequisites: Furnace Lv. 18
+    build_cost:
+    - item: item_icon_105
+      amount: 250K
+    construction_time: 06:35:00
+    building_power: null
+  '19':
+    prerequisites: Furnace Lv. 19
+    build_cost:
+    - item: item_icon_105
+      amount: 310K
+    construction_time: 09:52:30
+    building_power: null
+  '20':
+    prerequisites: Furnace Lv. 20
+    build_cost:
+    - item: item_icon_105
+      amount: 430K
+    construction_time: '12:20:30'
+    building_power: null
+  '21':
+    prerequisites: Furnace Lv. 21
+    build_cost:
+    - item: item_icon_105
+      amount: 540K
+    construction_time: '16:02:30'
+    building_power: null
+  '22':
+    prerequisites: Furnace Lv. 22
+    build_cost:
+    - item: item_icon_105
+      amount: 720K
+    construction_time: 1d 00:04:00
+    building_power: null
+  '23':
+    prerequisites: Furnace Lv. 23
+    build_cost:
+    - item: item_icon_105
+      amount: 890K
+    construction_time: 1d 09:42:00
+    building_power: null
+  '24':
+    prerequisites: Furnace Lv. 24
+    build_cost: []
+    construction_time: 1d 23:11:00
+    building_power: null
+  '25':
+    prerequisites: Furnace Lv. 25
+    build_cost: []
+    construction_time: 2d 18:03:00
+    building_power: null
+  '26':
+    prerequisites: Furnace Lv. 26
+    build_cost: []
+    construction_time: 3d 03:57:00
+    building_power: null
+  '27':
+    prerequisites: Furnace Lv. 27
+    build_cost: []
+    construction_time: 3d 19:09:00
+    building_power: null
+  '28':
+    prerequisites: Furnace Lv. 28
+    build_cost: []
+    construction_time: 4d 08:49:00
+    building_power: null
+  '29':
+    prerequisites: Furnace Lv. 29
+    build_cost: []
+    construction_time: 5d 00:33:00
+    building_power: null
+  '30':
+    prerequisites: Furnace Lv. 30
+    build_cost: []
+    construction_time: 6d 00:40:00
+    building_power: null
+wiki_url: https://www.whiteoutsurvival.wiki/buildings/research-center/

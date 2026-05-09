@@ -1,0 +1,144 @@
+id: hector
+name: Hector
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/hector/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '3780'
+    def: '4928'
+    health: '73926'
+  expedition:
+    attack: 444.35%
+    defense: 444.35%
+story: 'Meet Hector, star of the arena, undisputed champion of the brave new world
+  of gladiatorial combat in the post-Great Chill era. Here is a man whose search for
+  worthy opponents, and their defeat, contributes much to his sense of honor and self-worth.
+  Hector''s approach to battle tends to be the approach of a furious thunderstorm
+  or suppressive tornado, being crushed. Nevertheless, one should not miscontur Hector
+  as a brute. On the contrary, he is renowned on the arena circuit for his comprehensive
+  understanding of mixed fighting styles and psychological warfare. Combattant like
+  Hector have been given increasing opportunities in recent times with new arenas
+  awarding fighters for competitive skills, particularly with the rise of many new
+  succesful cities. these opportunities have been tremendously exciting for Hecotr,
+  particularly the prospect of more challenging adversaries.
+
+
+  Hector was born to a small, impoverished town without the protection even of a single
+  Furnace.Times were tough and, unfortunately, there wasn''t enough food to go around.
+  Although just a child, Hector was left to fend for himself in the wilderness.It
+  was a grim lesson on the consequences of fragility.Hector''s first test arrived
+  in the form of a hungry wolf separated from its pack. True to form, they fought
+  and Hector won! The remarkable triumph caught the attention of a passing Chief named
+  Garald. So impressed was Garald at the boy''s abilities, he took Hector under his
+  wing.
+
+
+  Chief Garald was a loyal member of the Icebreaker Alliance, a league that placed
+  great importance on martial prowess. So it came as no surprise when he initiated
+  Hector''s training in the gladiatorial arts with an eye to eventually sponsoring
+  him in the arena.Combined with Hector''s natural aptitude, he soon became the strongest
+  of Garald''s formidable warriors. Like Garald, Hector too embraced the importance
+  of militarism and strength. By contrast with Garald''s strong city, Hector''s hometown
+  had already succumbed to the ice and snow long ago.Hector''s exceptional strength,
+  skills, and talents earned him immense arena prestige. If Hector feared anything,
+  it must be the memory of his vulnerable youth and its unsettling possibilities.
+  Hector began to believe all hardships in life can be attributed to weakness-whether
+  his own or that of others.
+
+
+  Hector believed that it was weakness that distorted the heart, vulnerability that
+  drove humans to theu nspeakable. And Hector also developed a deep disdain for those
+  that did not share his ideology until disaster prompted a more nuanced understanding.Hector
+  was visiting an arena when an immense snowstorm suddenly swept through. Having survived,
+  Hector watched other survivors, most of whom he regarded as feeble incompetents,
+  band together to rescue many others including Hector''sown colleagues. Although
+  each was weak individually, together the town had formed a mighty rescue force.
+  The incident invited some soul-searching. Hector had begun to reassess what true
+  strength really means.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+- Hall of Heroes
+- Daily Deals
+- Mythic General Hero Shard
+skills:
+- name: Sword Whirlwind
+  description: Hector unleashes a whirlwind of scordplay, increasing Attack Speed
+    by 80%/90%/100%/110%/120% and becoming immune to Freeze, Stun and other control
+    effect, for 4s.
+- name: Desperado
+  description: Hector thrives with danger, reduce Damage Taken by 20%/30%/40%/50%/60%
+    under 50% health.
+- name: Adrenaline Surge
+  description: Mortal peril is a powerful elixir to Hector's battle-hardened will.Hector
+    gains + 16%/24%/32%/40%/48% Attack under 50% Health.
+- name: Survival Instincts
+  description: A seasoned warrior with an uncanny knack for reading the battlefield,
+    Hector's presence has a 40% chance of reducing damage taken by 10%/20%/30%/40%/50%
+    for all troops.
+- name: Rampant
+  description: Hector excels at raiding on fortified positions with well-coordinated
+    Marksmen, increasing Infantry's Damage Dealt by 100%/125%/150%/175%/200% , and
+    Marksman's Damage dealt by 20%/40%/60%/80%/100% , it is effective for 10 attacks,
+    with each attack's damage boost being 85% of the previous one.
+- name: Blitz
+  description: Hector has mastered the offensive strategy, granting a 25% chance of
+    dealing 120%/140%/160%/180%/200% damage on attack.
+- name: Reaper's Embrace (Lv. 5)
+  description: The heat of battle reforges a warrior's spirit, extending Hector's
+    Sword Whirlwind by 1.5s and restore Hector's health by 15% of damage dealt.
+- name: Goliath (Lv. 5)
+  description: Hector excels at using terrain against attackers, increasing Defender
+    Troops Attack by 15%.

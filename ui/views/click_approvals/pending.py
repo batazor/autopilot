@@ -43,6 +43,17 @@ def _payload_action_label(payload: dict[str, Any]) -> str:
         node = str(payload.get("set_node") or "").strip()
         return f"set node -> {node}" if node else "set node"
     if kind == "swipe":
+        if str(payload.get("gesture") or "").strip().lower() == "long_press":
+            return "long press"
+        try:
+            x1 = int(payload.get("x1") or 0)
+            y1 = int(payload.get("y1") or 0)
+            x2 = int(payload.get("x2") or 0)
+            y2 = int(payload.get("y2") or 0)
+            if x1 == x2 and y1 == y2:
+                return "long press"
+        except (TypeError, ValueError):
+            pass
         return "swipe"
     if kind == "type_text":
         return "type text"
@@ -118,6 +129,18 @@ def fragment_pending_approval_columns(
     y = payload.get("y")
     x_i = int(x) if isinstance(x, (int, float)) else None
     y_i = int(y) if isinstance(y, (int, float)) else None
+    # Swipe payloads historically had only x1/y1/x2/y2 — no tap-style crosshair.
+    if x_i is None or y_i is None:
+        try:
+            if str(payload.get("type") or "").strip().lower() == "swipe":
+                sx1 = int(payload.get("x1") or 0)
+                sy1 = int(payload.get("y1") or 0)
+                sx2 = int(payload.get("x2") or 0)
+                sy2 = int(payload.get("y2") or 0)
+                if sx1 == sx2 and sy1 == sy2:
+                    x_i, y_i = sx1, sy1
+        except (TypeError, ValueError):
+            pass
     with col_img:
         st.subheader("Screenshot")
         render_preview_with_point(

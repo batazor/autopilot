@@ -28,6 +28,7 @@ wiki_analyze_page = st.Page(str(_ui_dir / "views" / "wiki_analyze.py"), title="A
 labeling_page = st.Page(str(_ui_dir / "views" / "labeling.py"), title="Labeling")
 db_gift_codes_page = st.Page(str(_ui_dir / "views" / "db_gift_codes.py"), title="Gift codes")
 db_player_state_page = st.Page(str(_ui_dir / "views" / "db_player_state.py"), title="Player state")
+wiki_db_page = st.Page(str(_ui_dir / "views" / "wiki_db.py"), title="Wiki reference")
 fsm_page = st.Page(
     str(_ui_dir / "views" / "fsm.py"),
     title="Routes",
@@ -38,7 +39,7 @@ settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings"
 st.navigation(
     {
         "Operate": [overview, instance_page],
-        "DB": [db_gift_codes_page, db_player_state_page],
+        "DB": [db_gift_codes_page, db_player_state_page, wiki_db_page],
         "Wiki": [
             gallery_page,
             labeling_page,

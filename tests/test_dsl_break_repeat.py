@@ -10,14 +10,6 @@ import yaml
 import tasks.dsl_scenario as dsl
 
 
-class _FakeRedis:
-    async def hset(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    async def hget(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-
 class _FakeActions:
     tapped: list[tuple[str, int, int, str | None]] = []
     swipes: list[tuple[str, str, int, int]] = []
@@ -42,7 +34,11 @@ class _FakeActions:
 
 
 @pytest.mark.asyncio
-async def test_dsl_break_repeat_stops_swipe(tmp_path: Path, monkeypatch: Any) -> None:
+async def test_dsl_break_repeat_stops_swipe(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
     (tmp_path / "scenarios" / "mail").mkdir(parents=True)
     (tmp_path / "scenarios" / "mail" / "break_repeat.yaml").write_text(
         yaml.dump(
@@ -129,7 +125,7 @@ async def test_dsl_break_repeat_stops_swipe(tmp_path: Path, monkeypatch: Any) ->
         task_id="t1",
         player_id="p1",
         scenario_key="break_repeat",
-        redis_client=_FakeRedis(),
+        redis_client=redis_async,  # type: ignore[arg-type]
     )
 
     result = await task.execute("bs1")

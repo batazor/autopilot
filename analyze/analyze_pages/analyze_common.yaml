@@ -136,12 +136,6 @@ overlay:
     - name: tap_tapanywhereyoexit
       priority: 76_000
 
-- name: upgrade_building.visible
-  region: upgrade_building
-  action: findIcon
-  threshold: 0.98
-  min_match_saturation: 48
-
 - name: upgrade_button.visible
   region: upgrade_button
   action: findIcon
@@ -185,6 +179,17 @@ overlay:
   ttl: 5s
   pushScenario:
     - name: tap_confirm_button
+      priority: 88_000
+
+- name: ui.button.confirm_blue.visible
+  region: ui.button.confirm_blue
+  action: findIcon
+  priority: 88_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_confirm_blue_button
       priority: 88_000
 
 - name: event.snowstorm.visible

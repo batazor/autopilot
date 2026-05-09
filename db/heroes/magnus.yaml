@@ -1,0 +1,154 @@
+id: magnus
+name: Magnus
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/magnus/
+rarity: Legendary
+class: Infantry
+sub_class: Combat
+stats:
+  exploration:
+    attack: '7901'
+    def: '10300'
+    health: '154511'
+  expedition:
+    attack: 940.75%
+    defense: 940.75%
+story: 'Magnus is one of those rare heroes who can confidently claim to have defeated
+  an ice dragon den with his bare hands, tamed the untamable Beast of the Abyss, and
+  single-handedly beat back an entire legion with a pistol and three mud-filled socks.
+  Read all about it and more in Magnus'' hot-selling autobiographical series "The
+  Adventures of Magnus the Magnificent", which are allegedly "based on true events".
+  Indeed, Magnus is already more myth than man in the eyes of countless youngsters
+  all over the Tundra.
+
+
+  Sadly, Magnus has yet to confirm or deny which happenings in his "autobiographical"
+  series are actually true events. By contrast, famed explorer Bahiti has on several
+  occasions publicly described Magnus'' claims as "99% bunk" and the work of an "average
+  explorer who for all of his skills remains no more than that".
+
+
+  Bahiti and Magnus'' testy public relationship was not always so heated. On at least
+  one occasion the present-day foes saved each other''s lives.
+
+
+  Explorers to the end, Bahiti and Magnus once found themselves holed up in the ruins
+  of an ancient city. Argument over finder''s rights quickly gave way to panic on
+  seeing an approaching mercenary group. Surrounded on all sides by ancient buildings
+  that were either crumbling or riddled with traps, they formed an uneasy but effective
+  alliance. Even Bahiti admitted it probably saved their lives—proving Magnus must
+  have at least some skill. Their only regret? What little treasure they retrieved
+  had not been worth the taking.
+
+
+  Sadly, this brief friendship soon crumbled under Bahiti''s renewed mockery of "Magnus
+  the Magnificent''s tall tales", who returned to defending himself against Bahiti''s
+  "conspiracy of skepticism".
+
+
+  Magnus'' obsession with becoming the best explorer of his age must be traced back
+  to his parents'' legacy. Although ordinary hunters in their time, the couple always
+  claimed to be descendants of the world''s mightiest pioneers, and were convinced
+  the same heroic blood flowed through their son''s veins. It was not long before
+  Magnus began to adopt the look and characteristics of his imagined ancestors—with
+  swashbuckling style and heroic exaggeration. Mockery from other children had no
+  effect.
+
+
+  Of course, Magnus is not just a speaker of words but a doer also, who by vigorous
+  training almost backs up the boasts of his youth. Unfortunately, his exaggerations
+  have expanded with age too. As summed up by Jesse: "Whatever you might say about
+  Magnus, there''s no denying his many stories have brought joy to countless kids."
+
+
+  Magnus'' impressive list of ancestors include a famous adventurer who explored the
+  seven seas, every continent, priceless archaeological ruins and ancient treasures
+  beyond number. Not even the autobiographical version of Magnus has done that. The
+  only achievement his ancestral pioneer left incomplete? Reaching the edge of the
+  world.
+
+
+  Not to be outdone, Magnus has publicly sworn to fulfill his ancestor''s unfinished
+  dream by planting his family crest on the very edge of our planet. This great feat,
+  he has declared, shall be performed come what may—even if, as some have warned,
+  the Earth is actually round.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Hall of Heroes
+skills:
+- name: Frozen Fury
+  description: Magnus whirls twin axes, taunting nearby enemies to attack while dealing
+    Attack* 60%/66%/72%/78%/84% damage to the same foes every 0.5 seconds for 3 seconds.
+- name: Wind Tomahawk
+  description: Magnus targets a hero with a devastating axe throw, dealing Attack*
+    100%/110%/120%/130%/140% damage, also tearing the wound and deals a further Attack*
+    50%/55%/60%/65%/70% damage for 3 seconds.
+- name: Sunderer
+  description: Magnus' normal attacks have a 30% chance of sundering opponent armor,
+    dealing Attack* 50%/55%/60%/65%/70% additional damage and reducing Defense by
+    5%/10%/15%/20%/25% for 2 seconds.
+- name: Rapacious
+  description: Magnus rouses his troops with brutal intensity, boosting friendly Troop
+    Attack by 5%/10%/15%/20%/25% .
+- name: Iron Phalanx
+  description: A master of tight formations, Infantry under Magnus' command enjoy
+    a 40% chance of gaining 10%/20%/30%/40%/50% Defense when attacking for 1 turn.
+- name: Iceman
+  description: Magnus' intrepid adventuring skills provide a 2%/4%/6%/8%/10% reduction
+    in damage versus friendly Infantry while boosting friendly Marksmen damage by
+    2%/4%/6%/8%/10% .
+- name: Heroic Stock (Lv. 5)
+  description: A true son of the tundra, Magnus' iron constitution reduces incoming
+    damage by 15% while increasing Frozen Fury's Defense bonus by 75%.
+- name: Valoric Inspiration (Lv. 5)
+  description: Ever the raconteur, Magnus' tales of Valhalla and ancient heroics inspires
+    Defender Squads with 15% increased Health.

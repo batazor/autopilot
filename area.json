@@ -566,7 +566,7 @@
         },
         {
           "name": "is_new_chapter",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1205,7 +1205,7 @@
       "regions": [
         {
           "name": "page.worker.add",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1372,6 +1372,81 @@
             "y": 15.652173913043478,
             "width": 73.3996138996139,
             "height": 10.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "building.name",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.698841698841699,
+            "y": 39.56521739130435,
+            "width": 61.2007722007722,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "screen_id": "main_city",
+      "ocr": "references/postman.png",
+      "regions": [
+        {
+          "name": "isPostman",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 20.617760617760617,
+            "y": 70.69565217391305,
+            "width": 8.6003861003861,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "isPostman_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.386100386100386,
+            "y": 16.08695652173913,
+            "width": 76.8011583011583,
+            "height": 64.50978260869566,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "screen_id": "",
+      "ocr": "references/ui.button.confirm_blue.png",
+      "regions": [
+        {
+          "name": "ui.button.confirm_blue",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.52123552123552,
+            "y": 87.17391304347827,
+            "width": 24.3996138996139,
+            "height": 3.8,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

@@ -11,6 +11,26 @@ overlay:
       priority: 80000
       ttl: 20s
 
+- name: building.name.present
+  region: building.name
+  action: text
+  screens:
+    - building
+  ttl: 30s
+
+- name: upgrade_building.visible
+  region: upgrade_building
+  action: findIcon
+  priority: 80_000
+  threshold: 0.87
+  min_match_saturation: 48
+  screens:
+    - building
+  ttl: 20s
+  pushScenario:
+    - name: upgrade
+      priority: 80_000
+
 - name: build_button.visible
   region: build_button
   action: findIcon

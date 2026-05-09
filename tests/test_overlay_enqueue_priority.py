@@ -7,6 +7,8 @@ import pytest
 
 from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
 
+pytestmark = pytest.mark.integration
+
 
 class _FakeQueue:
     def __init__(self) -> None:
@@ -15,14 +17,6 @@ class _FakeQueue:
     async def schedule(self, **kwargs: Any) -> bool:
         self.calls.append(kwargs)
         return True
-
-
-class _FakeRedis:
-    def __init__(self) -> None:
-        self.hsets: list[tuple[str, dict[str, str]]] = []
-
-    async def hset(self, key: str, mapping: dict[str, str]) -> None:
-        self.hsets.append((key, mapping))
 
 
 class _Worker(InstanceWorkerOverlayMixin):
@@ -55,6 +49,7 @@ async def test_overlay_enqueue_orders_matched_payloads_by_priority() -> None:
         "hand_pointer_small",
         "skip_text_button",
     ]
+    assert all(c.get("dedup_ignore_region") is True for c in worker._queue.calls)
 
 
 @pytest.mark.asyncio
@@ -77,12 +72,13 @@ async def test_overlay_enqueue_skips_unmatched_payloads() -> None:
     )
 
     assert [c["task_type"] for c in worker._queue.calls] == ["skip_text_button"]
+    assert worker._queue.calls[0].get("dedup_ignore_region") is True
 
 
 @pytest.mark.asyncio
-async def test_overlay_text_enqueue_writes_region_text_to_instance_state() -> None:
+async def test_overlay_text_enqueue_writes_region_text_to_instance_state(redis_async: object) -> None:
     worker = _Worker()
-    worker._redis = _FakeRedis()
+    worker._redis = redis_async  # type: ignore[assignment]
 
     await worker._schedule_overlay_matches(
         {
@@ -97,18 +93,17 @@ async def test_overlay_text_enqueue_writes_region_text_to_instance_state() -> No
         }
     )
 
-    assert worker._redis.hsets
-    key, mapping = worker._redis.hsets[0]
-    assert key == "wos:instance:bs1:state"
-    assert mapping["chapter.task"] == "Bunk Beds in Shelter 2"
-    assert mapping["chapter.task_text"] == "Bunk Beds in Shelter 2"
-    assert mapping["chapter.task_confidence"] == "0.9542"
+    key = "wos:instance:bs1:state"
+    raw = await redis_async.hgetall(key)  # type: ignore[attr-defined]
+    assert raw["chapter.task"] == "Bunk Beds in Shelter 2"
+    assert raw["chapter.task_text"] == "Bunk Beds in Shelter 2"
+    assert raw["chapter.task_confidence"] == "0.9542"
 
 
 @pytest.mark.asyncio
-async def test_overlay_set_node_writes_current_screen_to_instance_state() -> None:
+async def test_overlay_set_node_writes_current_screen_to_instance_state(redis_async: object) -> None:
     worker = _Worker()
-    worker._redis = _FakeRedis()
+    worker._redis = redis_async  # type: ignore[assignment]
 
     await worker._schedule_overlay_matches(
         {
@@ -121,7 +116,6 @@ async def test_overlay_set_node_writes_current_screen_to_instance_state() -> Non
         }
     )
 
-    assert worker._redis.hsets
-    key, mapping = worker._redis.hsets[0]
-    assert key == "wos:instance:bs1:state"
-    assert mapping["current_screen"] == "building"
+    key = "wos:instance:bs1:state"
+    cur = await redis_async.hget(key, "current_screen")  # type: ignore[attr-defined]
+    assert cur == "building"

@@ -1,0 +1,56 @@
+id: hero_lucky_box
+name: '[Hero] Lucky Box'
+wiki_url: https://www.whiteoutsurvival.wiki/items/ahmose-lucky-chest/
+category: ''
+description: 'Contains 1-10 [Hero] Shards for the specific daily deal hero or 1 General
+  Mythic Shard
+
+
+  Contains:
+
+
+  1x [Hero] Shard 70%
+
+
+  2x [Hero] Shard 10%
+
+
+  3x [Hero] Shard 5%
+
+
+  4x [Hero] Shard 3%
+
+
+  5x [Hero] Shard 1.6%
+
+
+  6x [Hero] Shard 1%
+
+
+  7x [Hero] Shard 0.6%
+
+
+  8x [Hero] Shard 0.5%
+
+
+  9x [Hero] Shard 0.2%
+
+
+  10x [Hero] Shard 0.1%
+
+
+  1x General Mythic Shard 8%'
+sources:
+- 'Contains:'
+- 1x [Hero] Shard 70%
+- 2x [Hero] Shard 10%
+- 3x [Hero] Shard 5%
+- 4x [Hero] Shard 3%
+- 5x [Hero] Shard 1.6%
+- 6x [Hero] Shard 1%
+- 7x [Hero] Shard 0.6%
+- 8x [Hero] Shard 0.5%
+- 9x [Hero] Shard 0.2%
+- 10x [Hero] Shard 0.1%
+- 1x General Mythic Shard 8%
+- Daily Deal Packs

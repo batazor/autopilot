@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import asyncio
-
+import pytest
 import tasks.dsl_scenario as dsl
+
+pytestmark = pytest.mark.integration
 
 
 def test_cond_ne_screen_passes_when_differs() -> None:
@@ -34,70 +35,57 @@ def test_decode_redis_value_handles_bytes_str_and_none() -> None:
     assert dsl._decode_redis_value(None) == ""
 
 
-class _FakeAsyncRedis:
-    """Minimal async stand-in for ``redis.asyncio`` returning ``bytes``."""
-
-    def __init__(self, screen: bytes | str | None) -> None:
-        self._screen = screen
-
-    async def hget(self, key: str, field: str) -> bytes | str | None:
-        del key, field
-        return self._screen
-
-
-class _FakeHashRedis:
-    """Async redis stub: ``hget`` reads from a field → value map."""
-
-    def __init__(self, fields: dict[str, bytes | str | None]) -> None:
-        self._fields = fields
-
-    async def hget(self, key: str, field: str) -> bytes | str | None:
-        del key
-        return self._fields.get(field)
-
-
-def test_cond_skips_when_async_redis_returns_bytes_main_city() -> None:
+@pytest.mark.asyncio
+async def test_cond_skips_when_async_redis_returns_bytes_main_city(redis_async: object) -> None:
     """Regression: ``redis.asyncio.from_url`` returns bytes by default; the cond
     check used to wrap them with ``str()`` and compare ``"b'main_city'"`` against
     ``"main_city"``, so steps with ``cond: currentNode != main_city`` always ran.
     """
 
-    fake = _FakeAsyncRedis(b"main_city")
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "main_city"})  # type: ignore[attr-defined]
     step = {"set_node": "main_city", "cond": "currentNode != main_city"}
-    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
 
 
-def test_cond_proceeds_when_async_redis_screen_differs() -> None:
-    fake = _FakeAsyncRedis(b"chief_profile")
+@pytest.mark.asyncio
+async def test_cond_proceeds_when_async_redis_screen_differs(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "chief_profile"})  # type: ignore[attr-defined]
     step = {"set_node": "main_city", "cond": "currentNode != main_city"}
-    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True
 
 
-def test_cond_instance_text_substring_shelter_matches_ocr_noise() -> None:
-    fake = _FakeHashRedis(
-        {
-            "chapter.task": b"ade2Bunk Beds in Shelter 2 to Lv. 4 1D ) 2)",
-        }
+@pytest.mark.asyncio
+async def test_cond_instance_text_substring_shelter_matches_ocr_noise(redis_async: object) -> None:
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"chapter.task": "ade2Bunk Beds in Shelter 2 to Lv. 4 1D ) 2)"},
     )
     step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Shelter"'}
-    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True
 
 
-def test_cond_instance_text_substring_false_is_valid_syntax() -> None:
-    fake = _FakeHashRedis({"chapter.task": b"Build something else"})
+@pytest.mark.asyncio
+async def test_cond_instance_text_substring_false_is_valid_syntax(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Build something else"})  # type: ignore[attr-defined]
     step = {"push_scenario": {"name": "upgrade"}, "cond": 'chapter.task ~= "Shelter"'}
-    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
 
 
-def test_cond_instance_text_rhs_strips_unicode_smart_quotes() -> None:
-    fake = _FakeHashRedis({"chapter.task": b"Bunk Beds in Shelter 2"})
+@pytest.mark.asyncio
+async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Bunk Beds in Shelter 2"})  # type: ignore[attr-defined]
     step = {
         "push_scenario": {"name": "upgrade"},
         "cond": "chapter.task ~= \u201cShelter\u201d",
     }
-    allowed = asyncio.run(dsl._dsl_cond_allows_step(step, "bs1", fake))
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True

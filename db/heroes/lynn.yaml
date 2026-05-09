@@ -1,0 +1,136 @@
+id: lynn
+name: Lynn
+wiki_url: https://www.whiteoutsurvival.wiki/heroes/lynn/
+rarity: Legendary
+class: Marksmen
+sub_class: Combat
+stats:
+  exploration:
+    attack: '4989'
+    def: '4106'
+    health: '30802'
+  expedition:
+    attack: 370.29%
+    defense: 370.29%
+story: 'Whether she is playing an instrument or reciting a poem, Lynn’s performances
+  are always enthralling. As a bard, she visits from city to city to share the story
+  of her bleak past to every corner of Icefield, hoping to lift the spirits of the
+  people.
+
+
+  Besides reciting poems and playing musical instruments, Lynn also excels in combat.
+  Her instrument, "Aira’s Tear," is modified from a weapon, so it can be used to play
+  music and battle. During one of her performances, a group of bandits barged into
+  the tavern, leaving everyone startled and confused. It was Lynn who fended off the
+  bandits singlehandedly amid the music and gunfire. For that, some say that she should
+  include her heroic deeds in the poems she recites.
+
+
+  Lynn’s best work is a song titled "Aira’s Dream," but she rarely sings it. Those
+  who are lucky enough to have heard the song claim that Lynn only sings it when she''s
+  drunk. As a result, plenty of "seasoned drinkers" have tried to make her perform
+  the song by having a drinking contest with her. However, these overconfident challengers
+  were long drunk before they achieved what they want.
+
+
+  Lynn was once a musician from a small town. After her town was invaded and occupied
+  by the bandits, she lost her home and eventually became a mercenary. As the years
+  passed, she became more skilled at wielding her weapon, but she had forgotten how
+  to play her instrument. Memories of her hometown too faded away, with the scenery
+  looking like a fantasy in her dreamland. Just like that, a former musician had evolved
+  into a merciless mercenary captain. Her soul was never the same.
+
+
+  It was a day that ended Lynn’s career as a mercenary. Her team was ordered to besiege
+  a town. Just as she was about to succeed, a song performed by an elderly musician
+  came from within. The tune, which was buried deeply in Lynn’s memory, originated
+  from her long-gone hometown—Aira. She thought no one would remember the song, just
+  like how her hometown was forgotten.
+
+
+  The sentimental tune made the mercenaries pause in their tracks. Like their captain,
+  tears were streaming down their faces. After everyone left, Lynn returned to the
+  embrace of music and stayed with the elderly musician with a youthful spirit. It
+  was only when the musician passed away did Lynn embark on her journey of becoming
+  a bard.'
+shards:
+  headers:
+  - Stars | Tiers
+  - Tier 1
+  - Tier 2
+  - Tier 3
+  - Tier 4
+  - Tier 5
+  - Tier 6
+  - Total
+  rows:
+  - Stars | Tiers: ''
+    Tier 1: '1'
+    Tier 2: '1'
+    Tier 3: '2'
+    Tier 4: '2'
+    Tier 5: '2'
+    Tier 6: '2'
+    Total: '10'
+  - Stars | Tiers: ''
+    Tier 1: '5'
+    Tier 2: '5'
+    Tier 3: '5'
+    Tier 4: '5'
+    Tier 5: '5'
+    Tier 6: '15'
+    Total: '40'
+  - Stars | Tiers: ''
+    Tier 1: '15'
+    Tier 2: '15'
+    Tier 3: '15'
+    Tier 4: '15'
+    Tier 5: '15'
+    Tier 6: '40'
+    Total: '115'
+  - Stars | Tiers: ''
+    Tier 1: '40'
+    Tier 2: '40'
+    Tier 3: '40'
+    Tier 4: '40'
+    Tier 5: '40'
+    Tier 6: '100'
+    Total: '300'
+  - Stars | Tiers: ''
+    Tier 1: '100'
+    Tier 2: '100'
+    Tier 3: '100'
+    Tier 4: '100'
+    Tier 5: '100'
+    Tier 6: '100'
+    Total: '600'
+sources:
+- Lucky Wheel
+skills:
+- name: Hymn of Sidrak
+  description: Lynn strikes a rousing battle hymn to uplift the troops, clearing all
+    debuffs (Freeze, Stun, etc.) for all troops and increasing their Attack by 3%/4%/5%/6%/7%
+    for 3/3.5/4/4.5/5s , during which they remain immune to all debuffs.
+- name: Lethal Finale
+  description: Seizes the opportunity to fire a bullet with strong penetrating power,
+    dealing Attack* 220%/240%/260%/280%/300% damage to enemies along the way.
+- name: Discordant Tune
+  description: Lynn bewilders the enemies with a mysterious and strange tune, reducing
+    Attack Speed by 1%/1.5%/2%/2.5%/3% and Healing effects by 40%/45%/50%/55%/60%
+    for all enemy troops.
+- name: Song of Lion
+  description: Lynn uplifts our troops with an enthusiastic rhythm, granting a 40%
+    chance of increasing damage dealt by 10%/20%/30%/40%/50% for all troops.
+- name: Melancholic Ballad
+  description: Lynn demoralizes the enemies with a somber tune, reducing damage dealt
+    by 4%/8%/12%/16%/20% for all enemy troops.
+- name: Oonai Cadenza
+  description: Lynn harnesses the power of music to elevate troops morale, increasing
+    her Marksmen's attack by 1%/2%/3%/4%/5% for every 3 attacks. Stackable and lasts
+    until the end of the battle.
+- name: Aira’s Elegy (Lv. 5)
+  description: Lynn increases Attack by 15% until the end of the battle after casting
+    "Hymn of Sidrak."
+- name: Iranon’s Determination (Lv. 5)
+  description: Lynn stirs the defenders with a nostalgic poem, increasing Defender
+    Troops' Lethality by 15%.

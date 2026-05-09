@@ -1,0 +1,10 @@
+id: island_prosperity
+name: Island Prosperity
+wiki_url: https://www.whiteoutsurvival.wiki/items/island-prosperity/
+category: ''
+description: The Prosperity Bonus of an decoration will only be beneficial to Island
+  Prosperity when placed on the Daybreak Island. The bonus will be affected by the
+  [Type Limit].
+sources:
+- Places a decoration on the Daybreak Island.
+- Upgrades a decoration on the Daybreak Island.
