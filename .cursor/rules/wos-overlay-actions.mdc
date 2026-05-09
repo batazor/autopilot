@@ -21,6 +21,8 @@ alwaysApply: false
 
 ## Do not mix
 
+- **Do NOT edit `area.json` manually.** It is generated/owned by the Labeling workflow.
+  If bbox/regions need changes, use the Labeling UI or ask for explicit permission first.
 - **Do NOT put** `findIcon` in `area.json` (use `exist` there).
 - **Do NOT put** `exist` in analyzer YAML (use `findIcon` there).
 
@@ -53,4 +55,3 @@ alwaysApply: false
 Notes:
 - `<field>` is a Redis field name; it may include dots (e.g. `chapter.task`).
 - Use quotes for the RHS when it contains spaces (recommended always).
-
