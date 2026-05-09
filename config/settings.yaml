@@ -63,6 +63,7 @@ tasks:
 worker:
   # adb path for worker (screencap rolling preview, taps, shell); align with UI adb override when needed.
   adb_executable: ""
+  # ADB foreground check interval for ``worker.game_health_watchdog`` (separate subprocess).
   health_check_interval_seconds: 15
   restart_wait_seconds: 10
   task_timeout_seconds: 300

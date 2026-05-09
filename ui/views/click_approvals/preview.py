@@ -12,7 +12,7 @@ from layout.crop_paths import exported_crop_png
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import load_rolling_instance_preview, references_root
 
-from .common import load_area_doc
+from .common import active_player_state_flat, load_area_doc
 from .ctx import ClickApprovalsCtx
 
 
@@ -114,9 +114,20 @@ def render_preview_with_point(
     y: int | None,
     payload: dict[str, Any] | None,
     where: Any,
+    client: Any = None,
 ) -> None:
-    """Render approval snapshot/rolling PNG preview with optional target crosshair."""
+    """Render approval snapshot/rolling PNG preview with optional target crosshair.
+
+    When ``client`` is provided, region lookups use the active player's state so screen-version
+    overrides (``cond``-driven ``_vN`` regions) resolve to the right variant for this instance.
+    Without ``client`` they fall back to the default version (the unsuffixed regions).
+    """
     ui = where or st
+    state_flat = (
+        active_player_state_flat(client=client, instance_id=instance_id)
+        if client is not None
+        else None
+    )
     png, rel, mtime = _load_payload_preview(payload)
     if png is None:
         png, rel, mtime = load_rolling_instance_preview(instance_id)
@@ -255,7 +266,7 @@ def render_preview_with_point(
                     _draw_focus_rect(bgr, x0=x0, y0=y0, x1=x1, y1=y1, label=f"{reg_name} (match)")
                 else:
                     area_doc = load_area_doc(ctx.area_path)
-                    pair = screen_region_by_name(area_doc, reg_name)
+                    pair = screen_region_by_name(area_doc, reg_name, state_flat=state_flat)
                     if pair is not None and isinstance(pair[1].get("bbox"), dict):
                         L, T, R, B = pct_bbox_to_px_rect(pair[1]["bbox"], w, h)
                         _draw_focus_rect(bgr, x0=L, y0=T, x1=R, y1=B, label=reg_name)

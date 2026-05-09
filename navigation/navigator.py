@@ -175,6 +175,13 @@ class Navigator:
             return await self._verify_ocr_rule(image, rule)
         return False
 
+    async def _ui_back_button_visible(self, image: np.ndarray) -> bool:
+        """True when ``back_button`` template matches in ``area.json`` (safe to tap)."""
+        return await self._verify_match_rule(
+            image,
+            {"match": "back_button", "threshold": 0.9},
+        )
+
     async def _wait_for_screen_verified(self, instance_id: str, target: str) -> bool:
         attempts, interval_seconds = screen_verify_retry(target)
         rules = screen_verify_rules(target)
@@ -241,20 +248,26 @@ class Navigator:
 
             if current == ScreenName.UNKNOWN:
                 logger.warning(
-                    "Unknown screen on %s attempt %d — backing to main city",
+                    "Unknown screen on %s attempt %d",
                     instance_id,
                     attempt,
                 )
                 await self._write_screen(instance_id, "")
-                # When screen is unknown, prefer Android BACK (works across screens/popups).
-                # If the project has a calibrated UI back button region, we try it first.
                 img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
-                if not self._tap_region_name(instance_id, "back_button", dev_w=dev_w, dev_h=dev_h):
-                    # No fallback: do not use Android keyevents; do not guess coordinates.
+                if await self._ui_back_button_visible(img):
+                    if not self._tap_region_name(
+                        instance_id, "back_button", dev_w=dev_w, dev_h=dev_h
+                    ):
+                        logger.warning(
+                            "Unknown screen: back_button matched but tap region missing on %s",
+                            instance_id,
+                        )
+                else:
                     logger.warning(
-                        "Unknown screen and no back_button region; taking no action on %s",
+                        "Unknown screen on %s attempt %d — back_button not visible; not tapping",
                         instance_id,
+                        attempt,
                     )
                 await asyncio.sleep(1.5)
                 continue
@@ -268,15 +281,22 @@ class Navigator:
                 if to_hub:
                     await self._execute_hops(instance_id, to_hub)
                 else:
-                    # Last resort: blind back tap to escape current screen.
                     logger.warning(
-                        "No route %s → main_city on %s; using back_button",
+                        "No route %s → main_city on %s; considering back_button",
                         current,
                         instance_id,
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
-                    self._tap_region_name(instance_id, "back_button", dev_w=dev_w2, dev_h=dev_h2)
+                    if await self._ui_back_button_visible(img2):
+                        self._tap_region_name(
+                            instance_id, "back_button", dev_w=dev_w2, dev_h=dev_h2
+                        )
+                    else:
+                        logger.warning(
+                            "No route to main_city and back_button not visible on %s; not tapping",
+                            instance_id,
+                        )
                     await asyncio.sleep(1.5)
                 continue
 

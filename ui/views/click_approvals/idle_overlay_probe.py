@@ -40,6 +40,14 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
 
 
 def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
+    """Logical region names visible in the probe selector.
+
+    Excludes ``_vN`` version-suffixed entries — those are runtime overrides resolved by
+    ``screen_region_by_name`` against the active player's state. Surfacing them as separate
+    options would let the user pick a variant that doesn't apply to the bound player.
+    """
+    from .common import has_version_suffix
+
     out: list[str] = []
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
@@ -48,7 +56,7 @@ def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
             if not isinstance(reg, dict):
                 continue
             name = str(reg.get("name") or "").strip()
-            if name:
+            if name and not has_version_suffix(name):
                 out.append(name)
     return sorted(set(out), key=str.lower)
 
@@ -96,7 +104,12 @@ def _ensure_fresh_reference_crop(
 
 def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     """Inspect overlay rule metrics on the rolling PNG."""
+    from .common import active_player_state_flat
+
     instance_id = ctx.instance_id
+    # Resolve regions in this panel against the bound player's state — same semantics as the
+    # worker's runtime so v2/v3 overrides surface for accounts whose ``cond`` matches.
+    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
     st.caption(
         "Uses the same rolling PNG and overlay evaluation as the worker, "
         "including Redis **`current_screen`** for YAML **`screens`** rules."
@@ -217,7 +230,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     sel_logical = sel.removeprefix("overlay::")
     if is_area_region:
         area_region = sel.removeprefix("area::")
-        pair0 = screen_region_by_name(area_doc, area_region)
+        pair0 = screen_region_by_name(area_doc, area_region, state_flat=state_flat)
         if pair0 is None:
             st.error("Missing area region payload.")
             return
@@ -385,7 +398,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     if not reg_name:
         return
 
-    pair = screen_region_by_name(area_doc, reg_name)
+    pair = screen_region_by_name(area_doc, reg_name, state_flat=state_flat)
     if pair is None or not isinstance(pair[1].get("bbox"), dict):
         st.caption(f"No `{reg_name}` bbox in area.json — skipping live vs template crops.")
         return

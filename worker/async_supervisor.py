@@ -1,4 +1,7 @@
-"""Single process: all workers and scheduler on one asyncio event loop (no multiprocessing)."""
+"""Single process: workers + scheduler share one asyncio loop.
+
+Foreground/game-process checks run in a separate OS process — see ``worker.game_health_watchdog``.
+"""
 
 from __future__ import annotations
 

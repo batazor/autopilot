@@ -18,6 +18,8 @@ from scheduler.queue import QueueItem, RedisQueue
 logger = logging.getLogger(__name__)
 
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
+# Published by ``PlayerFSM.on_enter_game_closed`` / ``fsm.machine``.
+_RESTART_EVENT_CHANNEL = "wos:events:restart"
 
 
 class InstanceWorkerRedisMixin:
@@ -222,6 +224,64 @@ class InstanceWorkerRedisMixin:
             tap_match_y_pct=item.tap_match_y_pct,
             start_step_index=item.start_step_index,
         )
+
+    async def _run_restart_event_listener(self) -> None:
+        """React to FSM ``game_closed`` — same channel as ``PlayerFSM._publish_restart_signal``."""
+        from config.devices import player_ids_for_device
+
+        client = self._redis
+        if client is None:
+            return
+
+        mine = set(player_ids_for_device(self._cfg.bluestacks_window_title))
+        pubsub = client.pubsub()
+        try:
+            await pubsub.subscribe(_RESTART_EVENT_CHANNEL)
+        except Exception:
+            logger.exception(
+                "Failed to subscribe to %s for %s",
+                _RESTART_EVENT_CHANNEL,
+                self._cfg.instance_id,
+            )
+            return
+
+        try:
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.get("type") != "message":
+                    continue
+                raw_data = msg.get("data")
+                if isinstance(raw_data, bytes):
+                    raw_data = raw_data.decode()
+                try:
+                    payload = json.loads(raw_data) if raw_data else {}
+                except json.JSONDecodeError:
+                    logger.debug("Ignoring invalid restart event JSON: %r", raw_data)
+                    continue
+                pid = str(payload.get("player_id") or "").strip()
+                if not pid or pid not in mine:
+                    continue
+                logger.warning(
+                    "Restart event for player %s (%s) — restarting application",
+                    pid,
+                    self._cfg.instance_id,
+                )
+                try:
+                    await self._restart_instance()  # type: ignore[misc]
+                except Exception:
+                    logger.exception(
+                        "Restart after game_closed event failed on %s",
+                        self._cfg.instance_id,
+                    )
+        except asyncio.CancelledError:
+            raise
+        finally:
+            with suppress(Exception):
+                await pubsub.unsubscribe(_RESTART_EVENT_CHANNEL)
+            with suppress(Exception):
+                await pubsub.aclose()
 
     async def _ensure_account(self, player_id: str) -> None:
         if self._redis is not None:

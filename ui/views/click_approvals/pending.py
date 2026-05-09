@@ -150,6 +150,7 @@ def fragment_pending_approval_columns(
             y=y_i,
             payload=payload,
             where=st,
+            client=client,
         )
 
     with col_events:

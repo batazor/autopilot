@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -20,32 +21,52 @@ class InstanceWorkerHealthMixin:
     async def _set_instance_state(self, state: Any, *, error: str = "") -> None:
         raise NotImplementedError
 
-    async def _health_check(self) -> bool:
-        """ADB-only: ``dumpsys`` must report Whiteout as resumed foreground activity."""
-        try:
-            fg = await self._run_blocking(
-                self._bot_actions.is_game_foreground,
-                self._cfg.instance_id,
-            )
-        except Exception:
-            logger.exception(
-                "Health check: is_game_foreground (ADB) failed for %s",
-                self._cfg.instance_id,
-            )
-            return False
-
-        if not fg:
-            logger.warning(
-                "Health check: Whiteout not foreground on %s — scheduling app restart",
-                self._cfg.instance_id,
-            )
-            return False
-        return True
-
     def _ensure_whiteout_at_worker_start(self) -> None:
+        """Bring Whiteout to foreground and verify process + resumed activity (same as health check)."""
         from actions.tap import BotActions
 
-        BotActions().ensure_game_foreground(self._cfg.instance_id)
+        ba = BotActions()
+        inst = self._cfg.instance_id
+        attempts = 5
+        settle_s = 2.5
+
+        for n in range(1, attempts + 1):
+            ba.ensure_game_foreground(inst)
+            time.sleep(settle_s)
+            if ba.is_game_foreground(inst):
+                logger.info(
+                    "Startup: Whiteout verified running and foreground on %s (%d/%d)",
+                    inst,
+                    n,
+                    attempts,
+                )
+                return
+            logger.warning(
+                "Startup: Whiteout not verified on %s — retry %d/%d",
+                inst,
+                n,
+                attempts,
+            )
+
+        logger.warning(
+            "Startup: forcing application restart on %s after failed verification",
+            inst,
+        )
+        try:
+            ba.restart_application(inst)
+            time.sleep(3.0)
+            ba.ensure_game_foreground(inst)
+            time.sleep(settle_s)
+            if ba.is_game_foreground(inst):
+                logger.info("Startup: Whiteout verified on %s after forced restart", inst)
+                return
+        except Exception:
+            logger.exception("Startup: forced restart failed on %s", inst)
+
+        logger.error(
+            "Startup: Whiteout could not be verified on %s — worker will still start",
+            inst,
+        )
 
     async def _restart_instance(self) -> None:
         from fsm.states import InstanceState

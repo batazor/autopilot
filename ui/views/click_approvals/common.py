@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+from typing import Any
 
 import httpx
 import streamlit as st
+
+from ui.redis_client import get_instance_state
+
+_VERSION_SUFFIX_RE = re.compile(r"_v\d+$")
 
 
 @st.cache_data(ttl=60)
@@ -34,6 +40,33 @@ def labeling_query_ref_from_area_ocr(ocr_rel: str) -> str | None:
     if s.startswith("references/"):
         s = s.removeprefix("references/")
     return s or None
+
+
+def active_player_state_flat(*, client: Any, instance_id: str) -> dict[str, Any] | None:
+    """Flat per-player state dict for the instance's active player, or ``None`` if absent.
+
+    Used by region-by-name lookups that must honor screen-version `cond` selection — without
+    state, lookups silently fall back to the default version, which means click_approvals
+    would surface stale v1 regions on accounts that have transitioned to v2/v3.
+    """
+    try:
+        row = get_instance_state(client, instance_id) or {}
+    except Exception:
+        return None
+    active = str(row.get("active_player") or "").strip()
+    if not active:
+        return None
+    try:
+        from config.state_store import get_state_store
+
+        return get_state_store().get_or_create(active).to_flat_dict()
+    except Exception:
+        return None
+
+
+def has_version_suffix(name: str) -> bool:
+    """``True`` if ``name`` ends with a ``_vN`` version suffix (``promote_btn_v2``, ``label_v3``)."""
+    return bool(_VERSION_SUFFIX_RE.search((name or "").strip()))
 
 
 @st.cache_data(ttl=5)

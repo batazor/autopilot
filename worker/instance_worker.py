@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,7 @@ class InstanceWorker(
             thread_name_prefix=f"wos-{self._cfg.instance_id}-",
         )
         self._rolling_snapshot_task: asyncio.Task[None] | None = None
+        self._restart_listener_task: asyncio.Task[None] | None = None
         self._blocking_executor_live: bool = True
         self._stopping: bool = False
         self._task_registry = _TASK_REGISTRY
@@ -256,8 +258,10 @@ class InstanceWorker(
                 self._device_reference_snapshot_loop(),
                 name=f"refsnap-{self._cfg.instance_id}",
             )
-            health_interval = self._settings.worker.health_check_interval_seconds
-            last_health_check = time.monotonic()
+            self._restart_listener_task = asyncio.create_task(
+                self._run_restart_event_listener(),
+                name=f"restart-events-{self._cfg.instance_id}",
+            )
             last_heartbeat = 0.0
 
             try:
@@ -274,12 +278,6 @@ class InstanceWorker(
                         except Exception:
                             logger.debug("Failed to write last_seen_at heartbeat", exc_info=True)
                         last_heartbeat = now_m
-
-                    # Periodic health check
-                    if time.monotonic() - last_health_check >= health_interval:
-                        if not await self._health_check():
-                            await self._restart_instance()
-                        last_health_check = time.monotonic()
 
                     await self._drain_ui_commands()
                     while self._ui_paused:
@@ -309,6 +307,12 @@ class InstanceWorker(
         finally:
             # Stop new thread-pool work before cancelling snapshot.
             self._stopping = True
+            rl = self._restart_listener_task
+            self._restart_listener_task = None
+            if rl is not None and not rl.done():
+                rl.cancel()
+                with suppress(asyncio.CancelledError):
+                    await rl
             snap = self._rolling_snapshot_task
             self._rolling_snapshot_task = None
             if snap is not None and not snap.done():
