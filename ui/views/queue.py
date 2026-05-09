@@ -12,6 +12,7 @@ from config.loader import load_settings
 from ui.redis_client import (
     count_queue_tasks_for_instance,
     fetch_next_queue_row_for_instance,
+    fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
     push_scheduler_command,
@@ -71,6 +72,51 @@ def _queue_fragment() -> None:
                     ts = time.strftime("%H:%M:%S", time.localtime(next_row.scheduled_at))
                     next_txt = f"{ts} · {next_row.task_type} · `{next_row.task_id}`"
                 st.caption(f"**{iid}** · queue **{size}** · next: {next_txt}")
+
+        with st.expander("Recent executions (last 20 per instance)", expanded=False):
+            tabs = st.tabs(inst_ids) if len(inst_ids) > 1 else None
+            containers = tabs if tabs is not None else [st.container()]
+            for tab, iid in zip(containers, inst_ids, strict=False):
+                with tab:
+                    hist = fetch_queue_history_rows(client, instance_id=iid, limit=20)
+                    if not hist:
+                        st.caption("No completed tasks yet.")
+                        continue
+                    header = st.columns([1.05, 1.35, 1.25, 1.0, 0.8, 0.9, 1.8])
+                    header[0].markdown("**Finished**")
+                    header[1].markdown("**Scenario**")
+                    header[2].markdown("**Player**")
+                    header[3].markdown("**Region**")
+                    header[4].markdown("**Dur**")
+                    header[5].markdown("**Status**")
+                    header[6].markdown("**Reason / task**")
+                    for hidx, h in enumerate(hist):
+                        finished = (
+                            time.strftime("%H:%M:%S", time.localtime(h.finished_at))
+                            if h.finished_at
+                            else "—"
+                        )
+                        status = "ok" if h.success else "failed"
+                        detail = h.reason or h.error or h.task_id
+                        if len(detail) > 64:
+                            detail = f"{detail[:61]}..."
+                        cols = st.columns([1.05, 1.35, 1.25, 1.0, 0.8, 0.9, 1.8])
+                        cols[0].write(finished)
+                        cols[1].write(h.scenario or h.task_type)
+                        cols[2].write(h.player_id or "—")
+                        cols[3].write(h.region or "")
+                        cols[4].write(f"{h.duration_s:.1f}s")
+                        if h.success:
+                            cols[5].success(status)
+                        else:
+                            cols[5].error(status)
+                        cols[6].write(detail)
+                        if h.payload and hidx < 3:
+                            with st.expander(f"Payload · {h.task_id}", expanded=False):
+                                st.code(
+                                    json.dumps(h.payload, ensure_ascii=False, indent=2),
+                                    language="json",
+                                )
 
     if not rows:
         st.info("Queue is empty.")

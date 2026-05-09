@@ -37,6 +37,24 @@ class RunningQueueRow:
     payload: dict[str, object] | None = None
 
 
+@dataclass(frozen=True)
+class QueueHistoryRow:
+    task_id: str
+    task_type: str
+    scenario: str
+    player_id: str
+    instance_id: str
+    priority: int
+    started_at: float
+    finished_at: float
+    duration_s: float
+    success: bool
+    region: str | None = None
+    reason: str = ""
+    error: str = ""
+    payload: dict[str, object] | None = None
+
+
 class InstanceStateRow(TypedDict, total=False):
     state: str
     active_player: str
@@ -61,6 +79,10 @@ def _queue_key(instance_id: str) -> str:
     return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
 
 
+def _history_key(instance_id: str) -> str:
+    return f"wos:queue:history:{str(instance_id or '').strip()}"
+
+
 def _parse_queue_row(payload: str, score: float) -> QueueRow | None:
     try:
         data = json.loads(payload)
@@ -80,6 +102,45 @@ def _parse_queue_row(payload: str, score: float) -> QueueRow | None:
         instance_id=str(data.get("instance_id", "")),
         cooperative=task_type in _COOPERATIVE_TASKS,
         region=region,
+        payload=data,
+    )
+
+
+def _parse_history_row(payload: str) -> QueueHistoryRow | None:
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    reg = data.get("region")
+    region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
+    try:
+        started_at = float(data.get("started_at", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        started_at = 0.0
+    try:
+        finished_at = float(data.get("finished_at", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        finished_at = 0.0
+    try:
+        duration_s = float(data.get("duration_s", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        duration_s = max(0.0, finished_at - started_at)
+    return QueueHistoryRow(
+        task_id=str(data.get("task_id", "")),
+        task_type=str(data.get("task_type", "")),
+        scenario=str(data.get("scenario", "") or data.get("task_type", "")),
+        player_id=str(data.get("player_id", "")),
+        instance_id=str(data.get("instance_id", "")),
+        priority=int(data.get("priority", 0) or 0),
+        started_at=started_at,
+        finished_at=finished_at,
+        duration_s=duration_s,
+        success=bool(data.get("success", False)),
+        region=region,
+        reason=str(data.get("reason", "") or ""),
+        error=str(data.get("error", "") or ""),
         payload=data,
     )
 
@@ -163,7 +224,9 @@ def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
     return rows
 
 
-def fetch_running_queue_row(client: redis.Redis, *, instance_id: str | None = None) -> RunningQueueRow | None:
+def fetch_running_queue_row(
+    client: redis.Redis, *, instance_id: str | None = None
+) -> RunningQueueRow | None:
     key = f"wos:queue:running:{instance_id}" if instance_id else "wos:queue:running"
     raw = client.get(key)
     if not raw:
@@ -190,6 +253,21 @@ def fetch_running_queue_row(client: redis.Redis, *, instance_id: str | None = No
         region=region,
         payload=data,
     )
+
+
+def fetch_queue_history_rows(
+    client: redis.Redis, *, instance_id: str, limit: int = 20
+) -> list[QueueHistoryRow]:
+    try:
+        raw_items = client.lrange(_history_key(instance_id), 0, max(0, int(limit) - 1))
+    except redis.RedisError:
+        return []
+    rows: list[QueueHistoryRow] = []
+    for payload in raw_items:
+        row = _parse_history_row(str(payload))
+        if row is not None:
+            rows.append(row)
+    return rows
 
 
 def remove_queue_task(client: redis.Redis, task_id: str) -> bool:

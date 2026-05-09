@@ -14,12 +14,6 @@ class TaskConfig:
 
 
 @dataclass(frozen=True)
-class PlayerConfig:
-    level: int
-    name: str
-
-
-@dataclass(frozen=True)
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
@@ -51,7 +45,7 @@ class SchedulerConfig:
 
 @dataclass(frozen=True)
 class WorkerConfig:
-    health_check_interval_seconds: int = 30
+    health_check_interval_seconds: int = 15
     restart_wait_seconds: int = 10
     task_timeout_seconds: int = 300
     bluestacks_launch_timeout_seconds: int = 120
@@ -72,7 +66,6 @@ class Settings:
     scheduler: SchedulerConfig
     worker: WorkerConfig
     instances: list[InstanceConfig]
-    players: dict[str, PlayerConfig]
     tasks: dict[str, TaskConfig]
 
 
@@ -95,7 +88,6 @@ def load_settings(path: Path | None = None) -> Settings:
         )
         for inst in raw["instances"]
     ]
-    players = {pid: PlayerConfig(**pcfg) for pid, pcfg in raw["players"].items()}
     tasks = {tid: TaskConfig(**tcfg) for tid, tcfg in raw["tasks"].items()}
 
     return Settings(
@@ -104,7 +96,6 @@ def load_settings(path: Path | None = None) -> Settings:
         scheduler=scheduler_cfg,
         worker=worker_cfg,
         instances=instances,
-        players=players,
         tasks=tasks,
     )
 

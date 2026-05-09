@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from config.loader import get_settings
+from config.devices import get_device_registry
 from scenarios.models import Scenario, StepCondition
 from tasks.base import BaseTask
 
@@ -20,7 +20,6 @@ class ScenarioEvaluator:
         player_state: dict[str, object],
     ) -> bool:
         now = datetime.now(tz=UTC)
-        settings = get_settings()
 
         for cond in conditions:
             match cond.type:
@@ -32,8 +31,8 @@ class ScenarioEvaluator:
                         return False
                 case "player_level_min":
                     player_id = str(player_state.get("player_id", ""))
-                    pcfg = settings.players.get(player_id)
-                    level = pcfg.level if pcfg else 0
+                    gamer = get_device_registry().get_gamer(player_id)
+                    level = gamer.level if gamer else 0
                     if level < int(cond.value or 0):
                         return False
                 case "resource_min":

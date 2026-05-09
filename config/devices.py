@@ -9,6 +9,7 @@ Format mirrors db/devices.yaml:
             gamer:
               - id: 123456789
                 nickname: Hero1
+                level: 15   # optional; used by scenario condition player_level_min
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 class Gamer:
     id: int
     nickname: str
+    level: int = 0
 
     @property
     def player_id(self) -> str:
@@ -96,7 +98,11 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
         profiles: list[DeviceProfile] = []
         for p in d.get("profiles", []):
             gamers = tuple(
-                Gamer(id=int(g["id"]), nickname=g["nickname"])
+                Gamer(
+                    id=int(g["id"]),
+                    nickname=g["nickname"],
+                    level=int(g.get("level", 0)),
+                )
                 for g in p.get("gamer", [])
             )
             profiles.append(DeviceProfile(email=p["email"], gamers=gamers))

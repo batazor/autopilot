@@ -40,10 +40,6 @@ def _all_player_ids(settings: Settings) -> list[str]:
             if pid not in seen:
                 seen.add(pid)
                 out.append(pid)
-    for pk in settings.players:
-        if pk not in seen:
-            seen.add(pk)
-            out.append(pk)
     return out
 
 
@@ -426,7 +422,7 @@ with tab_cron:
 with tab_assign:
     all_players = _all_player_ids(settings)
     if not all_players:
-        st.info("No players in settings.yaml")
+        st.info("No players in **db/devices.yaml** for configured instances.")
         st.stop()
 
     pid = st.selectbox("Player ID", all_players)

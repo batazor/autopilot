@@ -19,7 +19,7 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
    docker compose up -d
    ```
 
-2. Edit `config/settings.yaml` (`redis.url`, `ocr.url`, `instances`, players).
+2. Edit `config/settings.yaml` (`redis.url`, `ocr.url`, `instances`) and `db/devices.yaml` (players per device).
 
 3. Install deps and run **one app** — UI and bot in a **single process** (bot as a background asyncio thread inside Streamlit):
 

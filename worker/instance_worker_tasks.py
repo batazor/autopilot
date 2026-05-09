@@ -27,6 +27,10 @@ def _running_key_for_instance(instance_id: str) -> str:
     return f"wos:queue:running:{instance_id}"
 
 
+def _history_key_for_instance(instance_id: str) -> str:
+    return f"wos:queue:history:{instance_id}"
+
+
 def _redis_float_str(value: float | None) -> str:
     if value is None:
         return ""
@@ -58,6 +62,7 @@ class InstanceWorkerTasksMixin:
     async def _run_one_queue_item(self, item: QueueItem, task: BaseTask) -> None:
         skip_account = getattr(task, "skip_account_check", False)
         self._task_busy.set()
+        started_at = float(time.time())
 
         state_key = f"wos:instance:{self._cfg.instance_id}:state"
         await self._set_instance_state(InstanceState.BUSY)
@@ -75,7 +80,7 @@ class InstanceWorkerTasksMixin:
                         "priority": item.priority,
                         "instance_id": self._cfg.instance_id,
                         "region": item.region or "",
-                        "started_at": float(time.time()),
+                        "started_at": started_at,
                     },
                     ensure_ascii=False,
                 )
@@ -186,6 +191,7 @@ class InstanceWorkerTasksMixin:
             item.priority,
         )
         _task_result: TaskResult | None = None
+        _task_error = ""
         try:
             if not skip_account:
                 await self._ensure_account(item.player_id)
@@ -203,9 +209,18 @@ class InstanceWorkerTasksMixin:
             else:
                 logger.info("Task done %s: id=%s (no result)", self._cfg.instance_id, item.task_id)
         except Exception as exc:
+            _task_error = f"{type(exc).__name__}: {exc!s}"
             await self._set_instance_state(InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}")
             await self._handle_failure(item, exc)
         finally:
+            await self._record_task_history(
+                item=item,
+                task=task,
+                started_at=started_at,
+                finished_at=float(time.time()),
+                result=_task_result,
+                error=_task_error,
+            )
             self._task_busy.clear()
             await self._set_instance_state(InstanceState.READY)
             # Re-enqueue only if the hand-pointer task actually matched and clicked
@@ -273,6 +288,46 @@ class InstanceWorkerTasksMixin:
                 },
             )
 
+    async def _record_task_history(
+        self,
+        *,
+        item: QueueItem,
+        task: BaseTask,
+        started_at: float,
+        finished_at: float,
+        result: TaskResult | None,
+        error: str = "",
+    ) -> None:
+        if self._redis is None:
+            return
+        try:
+            import json
+
+            metadata = result.metadata if result is not None else {}
+            success = bool(result.success) if result is not None else (not error)
+            row = {
+                "task_id": item.task_id,
+                "task_type": item.task_type,
+                "scenario": str(getattr(task, "scenario_key", "") or item.task_type),
+                "player_id": item.player_id,
+                "instance_id": self._cfg.instance_id,
+                "priority": item.priority,
+                "region": item.region or "",
+                "started_at": started_at,
+                "finished_at": finished_at,
+                "duration_s": max(0.0, finished_at - started_at),
+                "success": success,
+                "error": error,
+                "reason": str((metadata or {}).get("reason") or ""),
+                "metadata": metadata or {},
+            }
+            key = _history_key_for_instance(self._cfg.instance_id)
+            await self._redis.lpush(key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]
+            await self._redis.ltrim(key, 0, 19)  # type: ignore[union-attr]
+            await self._redis.expire(key, 60 * 60 * 24 * 7)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("queue history update failed", exc_info=True)
+
     async def _reschedule_if_needed(self, item: QueueItem, result: TaskResult | None) -> None:
         if result is None or result.next_run_at is None or self._queue is None:
             return
@@ -288,4 +343,3 @@ class InstanceWorkerTasksMixin:
             threshold=item.threshold,
             score=item.score,
         )
-
