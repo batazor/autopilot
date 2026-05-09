@@ -1,5 +1,7 @@
 enabled: true
 name: Tap reconnect (disconnect screen)
+# Network reconnect popup — must run regardless of player identity (priority 999_000).
+device_level: true
 
 steps:
   - click: reconnect_button

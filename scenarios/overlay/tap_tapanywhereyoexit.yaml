@@ -1,5 +1,7 @@
 enabled: true
 name: Tap anywhere to exit
+# Popup dismissal — purely UI, no player identity needed.
+device_level: true
 
 steps:
   - match: tapanywhereyoexit

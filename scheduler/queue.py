@@ -281,6 +281,68 @@ class RedisQueue:
                 out.add(t)
         return out
 
+    @staticmethod
+    def _task_types_device_level() -> set[str]:
+        """Task types from `scenarios/**/*.yaml` that declare ``device_level: true``.
+
+        These scenarios are explicitly safe to run without ``active_player`` —
+        identity probes (``who_i_am``/``where_i_am``), tutorial dismissals
+        (``skip_button``/``hand_pointer*``), and popup taps.  Everything else
+        is treated as player-bound and gated until ``active_player`` is set.
+        """
+        repo_root = Path(__file__).resolve().parent.parent
+        scen_dir = repo_root / "scenarios"
+        if not scen_dir.is_dir():
+            return set()
+        fp = RedisQueue._scenarios_tree_fingerprint(scen_dir)
+        return RedisQueue._task_types_device_level_cached(fp)
+
+    @staticmethod
+    def _scenarios_tree_fingerprint(
+        scen_dir: Path,
+    ) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+        """Stable fingerprint for the whole ``scenarios/`` tree (excludes drafts)."""
+        items: list[tuple[str, int, int]] = []
+        for p in sorted(scen_dir.rglob("*.yaml")):
+            if "drafts" in {part.lower() for part in p.parts}:
+                continue
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            items.append((p.relative_to(scen_dir).as_posix(), int(st.st_mtime_ns), int(st.st_size)))
+        return (str(scen_dir), tuple(items))
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _task_types_device_level_cached(
+        fp: tuple[str, tuple[tuple[str, int, int], ...]]
+    ) -> set[str]:
+        scen_dir = Path(fp[0])
+        try:
+            import yaml
+        except Exception:
+            return set()
+
+        out: set[str] = set()
+        for yml in sorted(scen_dir.rglob("*.yaml")):
+            if "drafts" in {part.lower() for part in yml.parts}:
+                continue
+            try:
+                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
+            except Exception:
+                continue
+            if not isinstance(raw, dict):
+                continue
+            if raw.get("device_level") is not True:
+                continue
+            t = str(raw.get("task") or raw.get("task_type") or "").strip()
+            if not t:
+                t = yml.stem
+            if t:
+                out.add(t)
+        return out
+
     async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
         import json
 
@@ -290,6 +352,7 @@ class RedisQueue:
         # resolved to an active player at execution time.
         instance_players = self._players_for_instance(instance_id)
         # Include players discovered at runtime (OCR'd in-game id written by who_i_am).
+        ap = ""
         try:
             raw_ap = await self._redis.hget(
                 f"wos:instance:{instance_id}:state", "active_player"
@@ -319,6 +382,15 @@ class RedisQueue:
                 due = [x for x in due if str(x[1].get("task_type") or "") not in gated]
                 if not due:
                     return None
+
+        # No active player yet: only run scenarios explicitly marked `device_level: true`
+        # (identity probes, tutorial dismissals, popup taps).  Everything else is
+        # player-bound and must wait until ``who_i_am`` populates ``active_player``.
+        if not ap:
+            device_level = self._task_types_device_level()
+            due = [x for x in due if str(x[1].get("task_type") or "") in device_level]
+            if not due:
+                return None
 
         due.sort(
             key=lambda item: (

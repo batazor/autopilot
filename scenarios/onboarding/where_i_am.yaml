@@ -1,5 +1,7 @@
 enabled: true
 name: Where am I — detect current page
+# Bootstraps `current_screen` — must be runnable before any player is identified.
+device_level: true
 
 steps:
   - exec: detect_screen

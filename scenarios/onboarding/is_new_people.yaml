@@ -1,5 +1,7 @@
 enabled: true
 name: "New People"
+# Tutorial-style indicator click — purely UI, no player identity needed.
+device_level: true
 
 steps:
   - click: isNewPeople

@@ -1,5 +1,7 @@
 enabled: true
 name: Tap skip
+# Tutorial dismissal — purely UI, safe to run before player identity is known.
+device_level: true
 
 steps:
   - match: skip_button
