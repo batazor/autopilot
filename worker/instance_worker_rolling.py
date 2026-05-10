@@ -14,6 +14,13 @@ from config.reference_naming import reference_file_basename, reference_png_abs_p
 logger = logging.getLogger(__name__)
 
 
+def _runtime_error_is_adb_signal_exit(exc: BaseException) -> bool:
+    """True when ADB died on a signal (Python reports ``exit -N``); common during Ctrl+C shutdown."""
+    if not isinstance(exc, RuntimeError):
+        return False
+    return "ADB failed (exit -" in str(exc)
+
+
 class InstanceWorkerRollingMixin:
     _cfg: Any
     _settings: Any
@@ -54,10 +61,17 @@ class InstanceWorkerRollingMixin:
             image_bgr = await self._run_blocking(self._grab_layout_bgr)
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as e:
             if self._stopping:
                 logger.debug(
                     "[rolling] %s: screenshot skipped during shutdown",
+                    self._cfg.instance_id,
+                    exc_info=True,
+                )
+            elif _runtime_error_is_adb_signal_exit(e):
+                logger.debug(
+                    "[rolling] %s: screenshot aborted (ADB subprocess exited on a signal; "
+                    "common when stopping with Ctrl+C)",
                     self._cfg.instance_id,
                     exc_info=True,
                 )

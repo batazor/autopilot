@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import signal
 import subprocess
 from pathlib import Path
 
@@ -59,6 +60,21 @@ def resolve_adb_executable(user_pref: str = "adb") -> str | None:
     return None
 
 
+def _stderr_or_signal_detail(returncode: int, stderr: bytes) -> str:
+    """Human-readable failure detail; negative ``returncode`` means killed by signal (-N → signal N)."""
+    text = stderr.decode(errors="replace").strip()
+    if returncode < 0:
+        sig = -returncode
+        try:
+            label = signal.strsignal(sig)
+        except (ValueError, OSError):
+            label = f"signal {sig}"
+        if text:
+            return f"killed by {label} — {text}"
+        return f"killed by {label}"
+    return text or "unknown error"
+
+
 def adb_screencap_png(
     adb_bin: str = DEFAULT_ADB_BIN,
     serial: str | None = None,
@@ -87,9 +103,14 @@ def adb_screencap_png(
     except FileNotFoundError:
         return None, f"Failed to run {resolved!r} (FileNotFoundError)."
     if proc.returncode != 0:
-        err = proc.stderr.decode(errors="replace").strip() or "unknown error"
-        msg = f"ADB failed (exit {proc.returncode}): {err}"
-        logger.debug("ADB screencap failed: exe=%s serial=%s err=%s", resolved, serial, err)
+        detail = _stderr_or_signal_detail(proc.returncode, proc.stderr)
+        msg = f"ADB failed (exit {proc.returncode}): {detail}"
+        logger.debug(
+            "ADB screencap failed: exe=%s serial=%s detail=%s",
+            resolved,
+            serial,
+            detail,
+        )
         return None, msg
     data = proc.stdout
     if not data.startswith(b"\x89PNG"):
