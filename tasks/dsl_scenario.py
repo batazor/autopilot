@@ -32,6 +32,7 @@ from layout.template_match import (
 from layout.types import Point, Region
 from tasks.base import TaskResult
 from ui.notifications import push_ui_notification
+from ui.redis_client import dsl_preempt_gen_key
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,8 @@ _COND_SCREEN_RE = re.compile(
     r"^\s*(?P<lhs>[\w]+)\s*(?P<op>==|!=)\s*(?P<rhs>[\w.-]+)\s*$",
 )
 _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
+# RHS tokens that mean Redis ``current_screen`` is unset / overlay ``screens: [none]``.
+_COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
 
 # Instance-state text guards, e.g. ``cond: chapter.task ~= "Upgrade 2"``.
 # - lhs is a Redis hash field in `wos:instance:<id>:state`
@@ -164,9 +167,15 @@ def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
     op = m.group("op")
     rhs = m.group("rhs").strip()
     cur = current_screen.strip()
+    cur_lc = cur.lower()
+    rhs_lc = rhs.lower()
     if op == "==":
-        return cur == rhs
-    return cur != rhs
+        if rhs_lc in _COND_SCREEN_UNKNOWN_RHS:
+            return cur_lc == "" or cur_lc in _COND_SCREEN_UNKNOWN_RHS
+        return cur_lc == rhs_lc
+    if rhs_lc in _COND_SCREEN_UNKNOWN_RHS:
+        return cur_lc != "" and cur_lc not in _COND_SCREEN_UNKNOWN_RHS
+    return cur_lc != rhs_lc
 
 
 def _decode_redis_value(raw: Any) -> str:
@@ -413,6 +422,49 @@ class DslScenarioTask:
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]] = field(
         default_factory=dict, init=False, repr=False
     )
+    # Snapshot of ``dsl_preempt_gen`` at scenario start; debug UI bumps the counter to exit early.
+    _preempt_gen_at_start: int = field(default=0, init=False, repr=False)
+
+    async def _read_dsl_preempt_gen(self, instance_id: str) -> int:
+        if self.redis_client is None:
+            return 0
+        try:
+            raw = await self.redis_client.get(dsl_preempt_gen_key(instance_id))
+            if raw is None:
+                return 0
+            s = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+            return int(s)
+        except Exception:
+            return 0
+
+    async def _preempted_by_new_debug(self, instance_id: str) -> bool:
+        if self.redis_client is None:
+            return False
+        try:
+            cur = await self._read_dsl_preempt_gen(instance_id)
+            return cur > int(self._preempt_gen_at_start)
+        except Exception:
+            return False
+
+    async def _inline_preempt_if_needed(
+        self, instance_id: str, scenario_key: str
+    ) -> TaskResult | None:
+        if not await self._preempted_by_new_debug(instance_id):
+            return None
+        await self._clear_step_context(instance_id)
+        logger.info(
+            "dsl_scenario: preempted by debug Run scenario now — %s",
+            _scen(scenario_key),
+        )
+        return TaskResult(
+            success=False,
+            next_run_at=None,
+            metadata={
+                "scenario": scenario_key,
+                "reason": "dsl_preempted_debug",
+                "preempted": True,
+            },
+        )
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
@@ -452,6 +504,10 @@ class DslScenarioTask:
         """Expose last template ``match`` outcome on instance Redis hash for Click approvals UI."""
         if self.redis_client is None:
             return
+        detail_s = (detail or "").strip()
+        if not detail_s and isinstance(row, dict):
+            # Overlay sets ``reason`` when a post-threshold gate fails (e.g. low_bright_detail_ratio).
+            detail_s = str(row.get("reason") or "").strip()
         thr_s = f"{float(threshold):.6g}"
         score_s = ""
         matched_s = ""
@@ -464,7 +520,7 @@ class DslScenarioTask:
             "dsl_last_match_threshold": thr_s,
             "dsl_last_match_score": score_s,
             "dsl_last_match_matched": matched_s,
-            "dsl_last_match_detail": (detail or "").strip(),
+            "dsl_last_match_detail": detail_s,
             "dsl_last_match_at": str(time.time()),
         }
         if isinstance(row, dict):
@@ -1442,6 +1498,25 @@ class DslScenarioTask:
         dev_w: int,
         dev_h: int,
     ) -> Point:
+        # Prefer coordinates from the latest in-scenario overlay probe (`match` / `while_match`).
+        # Queue items may carry `tap_x_pct`/`tap_y_pct` from when overlay enqueued `pushScenario`;
+        # those can be a different peak or an older frame than the capture used for this click.
+        if (
+            self._last_match_row is not None
+            and self._last_match_region == region
+            and bool(self._last_match_row.get("matched"))
+            and self._last_match_row.get("tap_x_pct") is not None
+            and self._last_match_row.get("tap_y_pct") is not None
+        ):
+            try:
+                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
+                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                return Point(
+                    int(round(txp / 100.0 * dev_w)),
+                    int(round(typ / 100.0 * dev_h)),
+                )
+            except Exception:
+                pass
         tap_region = str(self.tap_region or "").strip()
         if (
             self.tap_x_pct is not None
@@ -1452,23 +1527,6 @@ class DslScenarioTask:
                 int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
                 int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
             )
-        if (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and bool(self._last_match_row.get("matched"))
-            and self._last_match_row.get("tap_x_pct") is not None
-            and self._last_match_row.get("tap_y_pct") is not None
-        ):
-            # Use the concrete match location computed by the overlay engine.
-            try:
-                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
-                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
-                return Point(
-                    int(round(txp / 100.0 * dev_w)),
-                    int(round(typ / 100.0 * dev_h)),
-                )
-            except Exception:
-                pass
         return bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
 
     async def _run_inline_step(
@@ -1488,6 +1546,9 @@ class DslScenarioTask:
             if tgt == "repeat":
                 raise _BreakRepeat()
             return None
+        ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
+        if ip is not None:
+            return ip
         if "long_click" in step:
             region = str(step.get("long_click") or "").strip()
             if not region:
@@ -1857,9 +1918,65 @@ class DslScenarioTask:
                 m["resume_from_step_index"] = int(self.start_step_index)
             return m
 
+        self._preempt_gen_at_start = await self._read_dsl_preempt_gen(instance_id)
+
+        raw_root_cond = doc.get("cond")
+        if raw_root_cond is not None and not isinstance(raw_root_cond, bool):
+            cond_s = str(raw_root_cond).strip()
+            if cond_s:
+                if not await _dsl_cond_allows_step(
+                    {"cond": raw_root_cond}, instance_id, self.redis_client
+                ):
+                    await self._clear_step_context(instance_id)
+                    logger.debug(
+                        "dsl_scenario: scenario skipped by root cond (%s)", cond_s
+                    )
+                    return TaskResult(
+                        success=True,
+                        next_run_at=None,
+                        metadata=_fin(
+                            {
+                                "scenario": key,
+                                "reason": "scenario_cond_false",
+                                "cond": cond_s,
+                            },
+                            completed=True,
+                        ),
+                    )
+
+        if await self._preempted_by_new_debug(instance_id):
+            await self._clear_step_context(instance_id)
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata=_fin(
+                    {
+                        "scenario": key,
+                        "reason": "dsl_preempted_debug",
+                        "preempted": True,
+                    },
+                    completed=False,
+                ),
+            )
+
         actions = BotActions()
         area_doc = _load_area_json(repo_root)
         dev_w, dev_h = actions.screen_resolution(instance_id)
+
+        if await self._preempted_by_new_debug(instance_id):
+            await self._clear_step_context(instance_id)
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata=_fin(
+                    {
+                        "scenario": key,
+                        "reason": "dsl_preempted_debug",
+                        "preempted": True,
+                    },
+                    completed=False,
+                ),
+            )
 
         # Optional root-level `node: <screen>` — navigate the FSM to the target
         # screen before running steps. Lets DSL scenarios skip explicit
@@ -1927,6 +2044,21 @@ class DslScenarioTask:
             step = steps[step_index]
             _resumable_step = step_index  # capture before increment for resume tracking
             step_index += 1
+            if await self._preempted_by_new_debug(instance_id):
+                await self._clear_step_context(instance_id)
+                _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata=_fin(
+                        {
+                            "scenario": key,
+                            "reason": "dsl_preempted_debug",
+                            "preempted": True,
+                        },
+                        completed=False,
+                    ),
+                )
             # Persist current step so hand-pointer resume knows where to continue.
             if self.redis_client is not None:
                 with suppress(Exception):
@@ -2078,6 +2210,21 @@ class DslScenarioTask:
                 iterations = 0
                 inner_result: TaskResult | None = None
                 for _ in range(max_iters):
+                    if await self._preempted_by_new_debug(instance_id):
+                        await self._clear_step_context(instance_id)
+                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
+                        return TaskResult(
+                            success=False,
+                            next_run_at=None,
+                            metadata=_fin(
+                                {
+                                    "scenario": key,
+                                    "reason": "dsl_preempted_debug",
+                                    "preempted": True,
+                                },
+                                completed=False,
+                            ),
+                        )
                     probe_attempts = initial_attempts if iterations == 0 else 1
                     matched = False
                     for attempt in range(probe_attempts):
@@ -2235,6 +2382,21 @@ class DslScenarioTask:
                     ]
 
                 for _ in range(max_iters):
+                    if await self._preempted_by_new_debug(instance_id):
+                        await self._clear_step_context(instance_id)
+                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
+                        return TaskResult(
+                            success=False,
+                            next_run_at=None,
+                            metadata=_fin(
+                                {
+                                    "scenario": key,
+                                    "reason": "dsl_preempted_debug",
+                                    "preempted": True,
+                                },
+                                completed=False,
+                            ),
+                        )
                     if until_match:
                         row = await self._match_region(
                             actions=actions,

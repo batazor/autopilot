@@ -206,7 +206,7 @@ def fragment_pending_approval_columns(
                 if scen_key:
                     st.info(f"Scenario: `{scen_key}`")
                     st.page_link(
-                        "views/wiki_scenarios.py",
+                        "views/scenarios.py",
                         label="Open scenario",
                         query_params={"q": scen_key},
                         width="stretch",

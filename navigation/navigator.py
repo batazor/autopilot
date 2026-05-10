@@ -5,7 +5,7 @@ import inspect
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -26,6 +26,9 @@ from ocr.fuzzy import match as fuzzy_match
 logger = logging.getLogger(__name__)
 
 _MAIN_CITY = ScreenName.MAIN_CITY
+
+# _execute_hops outcomes: tap failed (rejected / blocked) vs screen never verified.
+_HopExec = Literal["ok", "tap_failed", "verify_failed"]
 
 
 class Navigator:
@@ -320,7 +323,12 @@ class Navigator:
                 # No direct route or missing taps: go main_city first, then retry.
                 to_hub = route_hops(str(current), str(_MAIN_CITY))
                 if to_hub:
-                    await self._execute_hops(instance_id, to_hub, from_screen=str(current))
+                    hr = await self._execute_hops(
+                        instance_id, to_hub, from_screen=str(current)
+                    )
+                    if hr == "tap_failed":
+                        await self._write_screen(instance_id, "")
+                        return False
                 else:
                     logger.warning(
                         "No route %s → main_city on %s; considering back_button",
@@ -345,8 +353,14 @@ class Navigator:
                 # Already at main_city but no path to target.
                 from_hub = route_hops(str(_MAIN_CITY), str(target))
                 if from_hub:
-                    if await self._execute_hops(instance_id, from_hub, from_screen=str(_MAIN_CITY)):
+                    hr = await self._execute_hops(
+                        instance_id, from_hub, from_screen=str(_MAIN_CITY)
+                    )
+                    if hr == "ok":
                         return True
+                    if hr == "tap_failed":
+                        await self._write_screen(instance_id, "")
+                        return False
                 else:
                     logger.info(
                         "No navigation path from %s to %s (and no route via main_city)",
@@ -356,8 +370,14 @@ class Navigator:
                     return False
                 continue
 
-            if await self._execute_hops(instance_id, hop_sequences, from_screen=str(current)):
+            hr = await self._execute_hops(
+                instance_id, hop_sequences, from_screen=str(current)
+            )
+            if hr == "ok":
                 return True
+            if hr == "tap_failed":
+                await self._write_screen(instance_id, "")
+                return False
 
         logger.error("Failed to navigate to %s after 10 attempts", target)
         await self._write_screen(instance_id, "")
@@ -369,7 +389,7 @@ class Navigator:
         hop_sequences: list[tuple[str, list[object]]],
         *,
         from_screen: str | None = None,
-    ) -> bool:
+    ) -> _HopExec:
         # Use current framebuffer size for percent->pixel mapping.
         img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
         dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
@@ -385,7 +405,12 @@ class Navigator:
                     from_screen=src_screen,
                     to_screen=str(dst_screen),
                 ):
-                    return False
+                    logger.info(
+                        "Navigator: navigation tap not executed (rejected, blocked, or bad region) "
+                        "on %s — aborting route",
+                        instance_id,
+                    )
+                    return "tap_failed"
                 await asyncio.sleep(0.8)
             await asyncio.sleep(1.5)
             if await self._wait_for_screen_verified(instance_id, str(dst_screen)):
@@ -398,5 +423,5 @@ class Navigator:
                     instance_id,
                 )
                 await self._write_screen(instance_id, "")
-                return False
-        return True
+                return "verify_failed"
+        return "ok"

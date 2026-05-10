@@ -340,24 +340,41 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         gap_s = None
         if score_f is not None and thr_f is not None:
             gap_s = f"{score_f - thr_f:+.4f}"
+        score_ge_thr = (
+            score_f is not None
+            and thr_f is not None
+            and score_f >= thr_f
+        )
 
         m1, m2, m3, m4 = st.columns(4)
         with m1:
             ok_eval = score_f is not None and thr_f is not None
             if not ok_eval:
-                txt = "—"
-                color = "#9aa0a6"
+                fin_txt, fin_color = "—", "#9aa0a6"
+                thr_line = ""
             else:
-                txt = "yes" if matched else "no"
-                color = "#16a34a" if matched else "#dc2626"
+                # ``matched`` is false when post-score gates fail (peak uniqueness, bright detail,
+                # saturation) even if combined score is above ``threshold`` — do not label that as
+                # "below threshold".
+                fin_txt = "yes" if matched else "no"
+                fin_color = "#16a34a" if matched else "#dc2626"
+                thr_yes = "yes" if score_ge_thr else "no"
+                thr_color = "#16a34a" if score_ge_thr else "#dc2626"
+                thr_line = (
+                    f'<div style="font-size: 0.8rem; margin-top: 6px; opacity: 0.9;">'
+                    f'<span style="opacity: 0.75;">score ≥ thr</span> '
+                    f'<span style="font-weight: 650; color: {thr_color};">{thr_yes}</span>'
+                    f"</div>"
+                )
             st.markdown(
                 f"""
                 <div>
-                  <div style="font-size: 0.85rem; opacity: 0.75;">≥ threshold</div>
+                  <div style="font-size: 0.85rem; opacity: 0.75;">Matched (after gates)</div>
                   <div style="font-size: 1.75rem; font-weight: 650;
-                              line-height: 1.2; color: {color};">
-                    {txt}
+                              line-height: 1.2; color: {fin_color};">
+                    {fin_txt}
                   </div>
+                  {thr_line}
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -491,7 +508,8 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                     )
                     cap = (
                         "**Orange** outline: `search_region` ROI · "
-                        "**Green** / **cyan**: template match (green = ≥ threshold) · "
+                        "**Green** / **cyan**: match box (green = final `matched`; cyan = rejected — "
+                        "score below threshold **or** post-score gates, e.g. peak uniqueness) · "
                         "**Red** cross: tap target"
                     )
                     if str(pay.get("action") or "").strip() == "color_check":

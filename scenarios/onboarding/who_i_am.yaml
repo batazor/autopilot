@@ -2,6 +2,8 @@ enabled: true
 name: Who am I — capture chief profile
 # Bootstraps `active_player` itself — must be runnable before any player is identified.
 device_level: true
+# Skip OCR/API when we already know who is on this device (see root `cond` in dsl_scenario).
+cond: active_player == ""
 
 # Root `node:` tells the runner to navigate the FSM to `chief_profile`
 # (via screen_graph BFS) before executing `steps`. After steps the bot stays

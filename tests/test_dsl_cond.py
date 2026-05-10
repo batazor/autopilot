@@ -20,6 +20,16 @@ def test_cond_eq_screen() -> None:
     assert dsl._eval_simple_screen_cond("current_screen == main_city", "x") is False
 
 
+def test_cond_eq_none_matches_empty_or_unknown_tokens() -> None:
+    assert dsl._eval_simple_screen_cond("currentNode == none", "") is True
+    assert dsl._eval_simple_screen_cond("current_screen == none", "none") is True
+    assert dsl._eval_simple_screen_cond("current_screen == unknown", "") is True
+
+
+def test_cond_eq_none_false_when_screen_known() -> None:
+    assert dsl._eval_simple_screen_cond("currentNode == none", "main_city") is False
+
+
 def test_cond_unknown_lhs() -> None:
     assert dsl._eval_simple_screen_cond("foo != bar", "") is False
 

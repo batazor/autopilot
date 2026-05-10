@@ -97,6 +97,9 @@ class InstanceWorkerUiMixin:
                     await self._schedule_manual_task(pid, ttype)
             case "restart":
                 await self._restart_instance()  # provided by InstanceWorker
+            case "wake":
+                # Used by debug UI / tooling to interrupt idle wait so queued work is picked up.
+                pass
             case _:
                 logger.warning("Unknown UI command: %s", cmd)
 

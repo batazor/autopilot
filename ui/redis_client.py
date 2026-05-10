@@ -422,6 +422,18 @@ def set_player_scenario(client: redis.Redis, player_id: str, scenario_id: str | 
         client.set(key, scenario_id)
 
 
+def dsl_preempt_gen_key(instance_id: str) -> str:
+    """Redis key: monotonic counter bumped when debug UI enqueues \"Run scenario now\"."""
+
+    return f"wos:instance:{instance_id}:dsl_preempt_gen"
+
+
+def bump_dsl_preempt_generation(client: redis.Redis, instance_id: str) -> int:
+    """Increment so any running DSL task can cooperatively exit before the next queue pop."""
+
+    return int(client.incr(dsl_preempt_gen_key(instance_id)))
+
+
 def push_instance_command(client: redis.Redis, instance_id: str, cmd: dict[str, object]) -> None:
     client.lpush(f"wos:ui:command:{instance_id}", json.dumps(cmd))
 

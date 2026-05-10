@@ -286,7 +286,17 @@ class InstanceWorker(
 
                     item = await self._pop_next_task()
                     if item is None:
-                        await asyncio.sleep(2.0)
+                        # Block up to 2s but wake immediately when UI pushes to the command list
+                        # (e.g. debug "Run scenario now" sends ``wake`` after zadding the task).
+                        if self._redis is not None:
+                            cmd_key = f"wos:ui:command:{self._cfg.instance_id}"
+                            raw_bp = await self._redis.brpop(cmd_key, timeout=2)  # type: ignore[union-attr]
+                            if raw_bp:
+                                _, payload = raw_bp
+                                await self._handle_ui_command(payload)
+                                await self._drain_ui_commands()
+                        else:
+                            await asyncio.sleep(2.0)
                         continue
                     item = await self._resolve_queue_item_player(item)
 

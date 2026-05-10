@@ -79,39 +79,28 @@ class _FolderNode:
     files: list[dict] = field(default_factory=list)
 
 
-def _wiki_story_link_url(scenario_key: str) -> str:
-    """Full URL to Wiki · Scenarios with ``scenario=<scenario key>`` (``LinkColumn``).
-
-    Path segment matches ``st.Page(..., \"views/wiki_scenarios.py\")`` → ``/wiki_scenarios``.
-    """
+def _scenario_link_url(scenario_key: str, page: str) -> str:
+    """Full URL to a sibling page with ``scenario=<scenario key>``."""
     raw = getattr(st.context, "url", None)
     if not (raw and str(raw).strip()):
         raw = "http://localhost:8501/"
     u = urlparse(str(raw))
     parts = [p for p in u.path.strip("/").split("/") if p]
     if parts:
-        parts[-1] = "wiki_scenarios"
-        wiki_path = "/" + "/".join(parts)
+        parts[-1] = page
+        new_path = "/" + "/".join(parts)
     else:
-        wiki_path = "/wiki_scenarios"
+        new_path = "/" + page
     query = urlencode({"scenario": scenario_key})
-    return urlunparse((u.scheme, u.netloc, wiki_path, "", query, ""))
+    return urlunparse((u.scheme, u.netloc, new_path, "", query, ""))
 
 
 def _debug_scenario_link_url(scenario_key: str) -> str:
-    """Full URL to Debug · Scenario runner with ``scenario=<scenario key>``."""
-    raw = getattr(st.context, "url", None)
-    if not (raw and str(raw).strip()):
-        raw = "http://localhost:8501/"
-    u = urlparse(str(raw))
-    parts = [p for p in u.path.strip("/").split("/") if p]
-    if parts:
-        parts[-1] = "debug_scenarios"
-        debug_path = "/" + "/".join(parts)
-    else:
-        debug_path = "/debug_scenarios"
-    query = urlencode({"scenario": scenario_key})
-    return urlunparse((u.scheme, u.netloc, debug_path, "", query, ""))
+    return _scenario_link_url(scenario_key, "debug_scenarios")
+
+
+def _edit_scenario_link_url(scenario_key: str) -> str:
+    return _scenario_link_url(scenario_key, "edit_scenarios")
 
 
 def _build_folder_tree_from_meta(
@@ -125,7 +114,7 @@ def _build_folder_tree_from_meta(
         row = {
             "id": sid,
             "name": name,
-            "wiki": _wiki_story_link_url(sid),
+            "edit": _edit_scenario_link_url(sid),
             "debug": _debug_scenario_link_url(sid),
             "enabled": bool(raw.get("enabled", False)),
             "steps": n_steps,
@@ -185,7 +174,7 @@ def _render_scenario_folder_tree(
 
 st.title("Scenarios")
 
-_nav = st.columns([1, 1, 6])
+_nav = st.columns([1, 1, 5])
 with _nav[0]:
     st.page_link(
         "views/fsm.py",
@@ -195,9 +184,9 @@ with _nav[0]:
     )
 with _nav[1]:
     st.page_link(
-        "views/wiki_scenarios.py",
-        label="Wiki · Scenarios",
-        help="Browse scenarios as a readable story (steps, taps, regions).",
+        "views/edit_scenarios.py",
+        label="Editor",
+        help="Structured form-based editor for DSL scenarios.",
         width="stretch",
     )
 with _nav[2]:
@@ -272,15 +261,38 @@ for path, rel, sid, name, raw in scenario_meta:
 tab_files, tab_cron, tab_assign = st.tabs(["Scenario files", "Cron jobs", "Player assignment"])
 
 with tab_files:
+    qp0 = st.query_params
+    _filter_default = ""
+    _qv = qp0.get("q")
+    if _qv is not None:
+        _filter_default = _qv[0] if isinstance(_qv, list) else str(_qv)
+    else:
+        _sv = qp0.get("scenario")
+        if _sv is not None:
+            _filter_default = _sv[0] if isinstance(_sv, list) else str(_sv)
+
+    file_filter = st.text_input(
+        "Filter by id / name / path",
+        value=_filter_default,
+        key="scenarios_tab_files_filter",
+    ).strip().lower()
+
+    scenario_meta_filtered: list[tuple[Path, str, str, str, dict]] = []
+    for tup in scenario_meta:
+        _path, rel, sid, name, _raw = tup
+        hay = f"{sid}\n{name}\n{rel}".lower()
+        if not file_filter or file_filter in hay:
+            scenario_meta_filtered.append(tup)
+
     st.caption("Files are grouped by subfolders under `scenarios/` — expand a folder to edit scenarios inside it.")
 
     _scenario_column_config = {
         "id": st.column_config.TextColumn("ID", disabled=True, width="small"),
         "name": st.column_config.TextColumn("Name", disabled=True),
-        "wiki": st.column_config.LinkColumn(
-            "Wiki",
-            display_text="Wiki",
-            help="Readable story (steps, taps, regions)",
+        "edit": st.column_config.LinkColumn(
+            "Edit",
+            display_text="Open",
+            help="Open this scenario in the structured editor",
             width="small",
         ),
         "debug": st.column_config.LinkColumn(
@@ -292,17 +304,20 @@ with tab_files:
         "enabled": st.column_config.CheckboxColumn("Enabled", default=False),
         "steps": st.column_config.NumberColumn("Steps", disabled=True, format="%d", width="small"),
     }
-    _scenario_disabled = ("id", "name", "wiki", "debug", "steps")
+    _scenario_disabled = ("id", "name", "edit", "debug", "steps")
 
     merged_edits: list[dict] = []
-    tree = _build_folder_tree_from_meta(scenario_meta)
-    _render_scenario_folder_tree(
-        tree,
-        (),
-        merged_edits=merged_edits,
-        column_config=_scenario_column_config,
-        disabled=_scenario_disabled,
-    )
+    if not scenario_meta_filtered:
+        st.warning("No scenarios match the filter.")
+    else:
+        tree = _build_folder_tree_from_meta(scenario_meta_filtered)
+        _render_scenario_folder_tree(
+            tree,
+            (),
+            merged_edits=merged_edits,
+            column_config=_scenario_column_config,
+            disabled=_scenario_disabled,
+        )
 
     btns = st.columns([1, 5])
     with btns[0]:

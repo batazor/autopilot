@@ -15,7 +15,6 @@ import numpy as np
 from analysis.overlay_duration import parse_duration_seconds
 from analysis.overlay_engine import (
     _apply_min_saturation_gate,
-    _apply_peak_uniqueness_gate,
     evaluate_overlay_rules_async,
 )
 from analysis.overlay_manifest import default_analyze_yaml_path, load_analyze_yaml
@@ -126,5 +125,4 @@ __all__ = [
     "run_overlay_analysis",
     "run_overlay_analysis_sync",
     "_apply_min_saturation_gate",
-    "_apply_peak_uniqueness_gate",
 ]

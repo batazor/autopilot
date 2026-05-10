@@ -106,9 +106,9 @@ def _render_rule(rule: dict[str, Any]) -> None:
                 st.markdown(f"- `{s}`")
             with c2:
                 st.page_link(
-                    "views/wiki_scenarios.py",
+                    "views/scenarios.py",
                     label="Open",
-                    query_params={"q": s, "show_all": "1"},
+                    query_params={"q": s},
                     width="stretch",
                 )
 

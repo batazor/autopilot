@@ -32,8 +32,16 @@ debug_scenarios_page = st.Page(
     title="Scenario runner",
     url_path="debug_scenarios",
 )
-scenarios_page = st.Page(str(_ui_dir / "views" / "scenarios.py"), title="Scenarios")
-wiki_scenarios_page = st.Page(str(_ui_dir / "views" / "wiki_scenarios.py"), title="Scenarios")
+scenarios_page = st.Page(
+    str(_ui_dir / "views" / "scenarios.py"),
+    title="Scenarios",
+    url_path="scenarios",
+)
+edit_scenarios_page = st.Page(
+    str(_ui_dir / "views" / "edit_scenarios.py"),
+    title="Scenarios editor",
+    url_path="edit_scenarios",
+)
 wiki_analyze_page = st.Page(str(_ui_dir / "views" / "wiki_analyze.py"), title="Analyze")
 labeling_page = st.Page(str(_ui_dir / "views" / "labeling.py"), title="Labeling")
 db_gift_codes_page = st.Page(str(_ui_dir / "views" / "db_gift_codes.py"), title="Gift codes")
@@ -52,7 +60,7 @@ st.navigation(
         "Wiki": [
             gallery_page,
             labeling_page,
-            wiki_scenarios_page,
+            edit_scenarios_page,
             wiki_analyze_page,
         ],
         "Debug": [click_approvals_page, queue_page, debug_scenarios_page, fsm_page],

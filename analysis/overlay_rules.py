@@ -88,34 +88,6 @@ def optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
         return None
 
 
-# Default min margin between the best NCC peak and the 2nd-best peak (in a structurally
-# different location of the search ROI) for sliding ``findIcon``. Calibrated from real
-# frames: true positives sit at ≥0.12, false positives on cluttered scenes top out at
-# ≈0.05. ``0.08`` separates them with comfortable headroom and is below the natural
-# margin of textured/distinctive templates (which routinely exceed 0.20).
-DEFAULT_PEAK_UNIQUE_MARGIN: float = 0.08
-
-
-def optional_peak_unique_margin(rule: dict[str, Any]) -> float:
-    """YAML ``peak_unique_margin``: required gap between best and 2nd-best NCC peaks.
-
-    Set to ``0`` to opt out (e.g. legitimately repeated icon on screen).
-    Falls back to :data:`DEFAULT_PEAK_UNIQUE_MARGIN` when unset / malformed.
-    """
-    v = rule.get("peak_unique_margin")
-    if v is None or isinstance(v, bool):
-        return DEFAULT_PEAK_UNIQUE_MARGIN
-    try:
-        f = float(v)
-    except (TypeError, ValueError):
-        return DEFAULT_PEAK_UNIQUE_MARGIN
-    if f < 0.0:
-        return 0.0
-    if f > 1.0:
-        return 1.0
-    return f
-
-
 def optional_fuzzy_threshold(rule: dict[str, Any]) -> float | None:
     v = rule.get("fuzzy_threshold")
     if v is None or isinstance(v, bool):

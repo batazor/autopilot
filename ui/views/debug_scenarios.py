@@ -20,9 +20,11 @@ from analysis.overlay_manifest import default_analyze_yaml_path
 from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
 from ui.redis_client import (
+    bump_dsl_preempt_generation,
     fetch_queue_rows,
     fetch_running_queue_row,
     get_instance_state,
+    push_instance_command,
     require_redis_connection,
 )
 from ui.views.click_approvals.chrome import render_ui_notifications
@@ -177,10 +179,29 @@ def _enqueue_debug_scenario(
     }
     if start_step_index > 0:
         payload["start_step_index"] = int(start_step_index)
+    # Ask any in-flight DSL scenario on this instance to exit so this task runs next.
+    try:
+        bump_dsl_preempt_generation(client, instance_id)
+    except Exception:
+        pass
     client.zadd(
         f"wos:queue:{instance_id}",
         {json.dumps(payload, ensure_ascii=False): float(now)},
     )
+    # Match `who_i_am` / OCR: scheduler and `_resolve_queue_item_player` gate on
+    # `wos:instance:*:state.active_player`. Debug enqueue already carries `player_id`
+    # in the payload — persist it so player-bound scenarios are not stuck waiting.
+    pid = str(player_id or "").strip()
+    if pid:
+        client.hset(
+            f"wos:instance:{instance_id}:state",
+            mapping={
+                "active_player": pid,
+                "active_player_at": str(now),
+            },
+        )
+    # Worker idle loop uses BRPOP on this queue so it picks up new work without a 2s poll delay.
+    push_instance_command(client, instance_id, {"cmd": "wake"})
     return task_id
 
 
@@ -349,8 +370,8 @@ if current_scenario_param != scenario.key:
 
 with right:
     st.link_button(
-        "Open in Wiki",
-        _page_url("wiki_scenarios", {"scenario": scenario.key}),
+        "Open in Scenarios",
+        _page_url("scenarios", {"q": scenario.key}),
         width="stretch",
     )
 

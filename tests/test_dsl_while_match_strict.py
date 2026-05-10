@@ -298,10 +298,11 @@ async def test_player_bound_while_match_uses_implicit_search_region(
 
 
 @pytest.mark.asyncio
-async def test_assign_worker_while_match_current_fixture_uses_search_region_but_misses(
+async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
+    """Real PNG fixture matches ``page.worker.add`` (sliding search); Redis carries search_region."""
     repo_root = Path(__file__).resolve().parents[1]
     fixture = repo_root / "tests" / "fixtures" / "page_worker_add_current_state.png"
     frame = cv2.imread(str(fixture))
@@ -330,12 +331,12 @@ async def test_assign_worker_while_match_current_fixture_uses_search_region_but_
 
     result = await task.execute("bs1")
 
-    assert result.success is False
-    assert (result.metadata or {}).get("reason") == "while_match_no_iterations"
-    assert actions.tapped == []
+    assert result.success is True
+    assert actions.tapped
+    md = result.metadata or {}
+    assert md.get("scenario_completed") is True
     row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
-    assert row["dsl_last_match_matched"] == "0"
 
 
 @pytest.mark.asyncio
