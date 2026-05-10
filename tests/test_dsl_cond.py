@@ -121,15 +121,69 @@ async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: o
 
 
 @pytest.mark.asyncio
+async def test_cond_text_reads_player_state_for_ocr_default_scope(redis_async: object) -> None:
+    """OCR ``store:`` writes player-scoped by default — text-cond must read from there.
+
+    Regression: ``squad_fight`` scenario's ``until_cond: squad_status ~= "victory|defeat"``
+    used to always evaluate False because the cond reader only looked at instance state,
+    while OCR had written ``squad_status`` to ``wos:player:<pid>:state``.
+    """
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state", mapping={"active_player": "765502864"}
+    )
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:player:765502864:state", mapping={"squad_status": "Victory!"}
+    )
+    step = {"cond": 'squad_status ~= "victory|defeat"'}
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_cond_text_falls_back_to_instance_state_when_player_field_missing(
+    redis_async: object,
+) -> None:
+    """Existing instance-scoped fields (``chapter.task`` written elsewhere, DSL bookkeeping)
+    must still resolve when the player hash doesn't carry the field.
+    """
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"active_player": "765502864", "chapter.task": "Bunk Beds in Shelter 2"},
+    )
+    # Player hash deliberately empty — fallback path must engage.
+    step = {"cond": 'chapter.task ~= "Shelter"'}
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_cond_text_player_state_wins_over_instance_state(redis_async: object) -> None:
+    """When both scopes have the field, player state wins (OCR-store default scope)."""
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"active_player": "765502864", "squad_status": "stale"},
+    )
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:player:765502864:state", mapping={"squad_status": "Victory!"}
+    )
+    step = {"cond": 'squad_status ~= "victory"'}
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
+    assert allowed is True
+
+
+@pytest.mark.asyncio
 async def test_cond_arithmetic_against_player_state_truthy(redis_async: object) -> None:
     """Non-regex cond falls back to ``eval_cond`` against the supplied player state."""
     state_flat = {
-        "squad_settings.myPower": 1000,
-        "squad_settings.enemyPower": 800,
+        "exploration.state.myPower": 1000,
+        "exploration.state.enemyPower": 800,
     }
     step = {
         "push_scenario": {"name": "x"},
-        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+        "cond": "exploration.state.myPower * 1.2 >= exploration.state.enemyPower",
     }
     # 1000 * 1.2 = 1200 >= 800 → True.
     allowed = await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
@@ -141,12 +195,12 @@ async def test_cond_arithmetic_against_player_state_truthy(redis_async: object) 
 @pytest.mark.asyncio
 async def test_cond_arithmetic_against_player_state_falsy(redis_async: object) -> None:
     state_flat = {
-        "squad_settings.myPower": 100,
-        "squad_settings.enemyPower": 999,
+        "exploration.state.myPower": 100,
+        "exploration.state.enemyPower": 999,
     }
     step = {
         "push_scenario": {"name": "x"},
-        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+        "cond": "exploration.state.myPower * 1.2 >= exploration.state.enemyPower",
     }
     # 100 * 1.2 = 120 >= 999 → False.
     allowed = await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
@@ -160,7 +214,7 @@ async def test_cond_arithmetic_without_state_flat_skips(redis_async: object) -> 
     """Without ``state_flat`` the arithmetic cond can't be evaluated → step skipped."""
     step = {
         "push_scenario": {"name": "x"},
-        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+        "cond": "exploration.state.myPower * 1.2 >= exploration.state.enemyPower",
     }
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", redis_async)  # type: ignore[arg-type]
     assert allowed is False

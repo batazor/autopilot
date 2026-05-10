@@ -664,12 +664,13 @@ async def test_ocr_chief_profile_player_id_against_real_service() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ocr_step_to_state_true_syncs_to_state_store(
+async def test_ocr_step_state_keyword_writes_to_state_yaml(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    """``to_state: true`` mirrors the parsed OCR value into ``db/state.yaml`` via state_store."""
+    """``state: <path>`` writes the OCR value into ``db/state.yaml`` via state_store
+    and *does not* touch Redis (since no ``store:`` was set)."""
     (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
     (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
         yaml.dump(
@@ -678,10 +679,10 @@ async def test_ocr_step_to_state_true_syncs_to_state_store(
                 "name": "Check squad",
                 "steps": [
                     {
-                        "ocr": "squad_settings.level",
+                        "ocr": "exploration.level",
                         "type": "integer",
                         "scope": "player",
-                        "to_state": True,
+                        "state": "exploration.level",
                     }
                 ],
             }
@@ -698,7 +699,7 @@ async def test_ocr_step_to_state_true_syncs_to_state_store(
                         "ocr": "references/squad_settings.png",
                         "regions": [
                             {
-                                "name": "squad_settings.level",
+                                "name": "exploration.level",
                                 "action": "text",
                                 "type": "string",
                                 "threshold": 0.5,
@@ -751,20 +752,106 @@ async def test_ocr_step_to_state_true_syncs_to_state_store(
 
     assert result.success is True
     assert captured["player_id"] == "player_42"
-    assert captured["flat"] == {"squad_settings.level": 12}
+    assert captured["flat"] == {"exploration.level": 12}
 
-    # Redis hash still holds the string; state_store path is the typed sync.
+    # No ``store:`` → Redis player hash should be untouched.
     final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
-    assert final["squad_settings.level"] == "12"
+    assert "exploration.level" not in final
+    assert "squad_settings.level" not in final
 
 
 @pytest.mark.asyncio
-async def test_ocr_step_to_state_false_skips_state_store(
+async def test_ocr_step_state_and_store_together_write_both_targets(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    """Without ``to_state: true`` the state_store is never touched (Redis-only path)."""
+    """Both keywords on one step → Redis (``store``) AND state.yaml (``state``)."""
+    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
+    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "Check squad",
+                "steps": [
+                    {
+                        "ocr": "exploration.level",
+                        "type": "integer",
+                        "store": "level_redis",
+                        "state": "exploration.level",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 44,
+                        "screen_id": "squad_settings",
+                        "ocr": "references/squad_settings.png",
+                        "regions": [
+                            {
+                                "name": "exploration.level",
+                                "action": "text",
+                                "type": "string",
+                                "threshold": 0.5,
+                                "bbox": {"x": 25.0, "y": 50.0, "width": 50.0, "height": 10.0},
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    captured: dict[str, Any] = {"flat": None}
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            captured["flat"] = dict(flat)
+
+    class _StubOcrClient:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+            return OCRResult(region_id="r0", text="Lv. 7", confidence=0.97)
+
+    import ocr.client as ocr_client_module
+    import config.state_store as state_store_module
+
+    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+
+    task = dsl.DslScenarioTask(
+        task_id="t-squad",
+        player_id="player_42",
+        scenario_key="check_squad",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert captured["flat"] == {"exploration.level": 7}
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    assert final["level_redis"] == "7"
+
+
+@pytest.mark.asyncio
+async def test_ocr_step_without_state_keyword_skips_state_store(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """Without ``state:`` keyword the state_store is never touched (Redis-only path)."""
     (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
     (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
         yaml.dump(

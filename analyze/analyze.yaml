@@ -5,4 +5,5 @@ include:
   - analyze_pages/analyze_building.yaml
   - analyze_pages/analyze_survivor_status.yaml
   - analyze_pages/analyze_hero_recruitment.yaml
+  - analyze_pages/analyze_heroes.yaml
   - analyze_pages/analyze_squad_settings.yaml

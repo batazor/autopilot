@@ -92,6 +92,54 @@ async def push_ui_notification(
     return eid
 
 
+def push_ui_notification_sync(
+    sync_redis_client: Any | None,
+    instance_id: str,
+    *,
+    kind: str,
+    message: str,
+    level: str = "success",
+    event_id: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> str | None:
+    """Sync sibling of :func:`push_ui_notification` for Streamlit producers.
+
+    Streamlit pages run synchronously and already hold a sync Redis client
+    (``require_redis_connection``); calling the async producer would force
+    ``asyncio.run`` per click. The on-wire payload is identical so consumers
+    don't need to know which side wrote it.
+    """
+    if sync_redis_client is None:
+        return None
+    inst = (instance_id or "").strip()
+    if not inst:
+        return None
+    eid = (event_id or uuid.uuid4().hex).strip()
+    body = {
+        "id": eid,
+        "ts": time.time(),
+        "kind": str(kind or "").strip() or "info",
+        "message": str(message or ""),
+        "level": str(level or "info").strip().lower() or "info",
+    }
+    if payload:
+        body["payload"] = payload
+    try:
+        encoded = json.dumps(body, ensure_ascii=False)
+    except Exception:
+        logger.debug("push_ui_notification_sync: failed to encode payload", exc_info=True)
+        return None
+    key = _redis_key(inst)
+    try:
+        sync_redis_client.lpush(key, encoded)
+        sync_redis_client.ltrim(key, 0, MAX_RETAINED_NOTIFICATIONS - 1)
+        sync_redis_client.expire(key, RETENTION_SECONDS)
+    except Exception:
+        logger.debug("push_ui_notification_sync: redis write failed", exc_info=True)
+        return None
+    return eid
+
+
 def pop_new_notifications(
     sync_redis_client: Any,
     instance_id: str,

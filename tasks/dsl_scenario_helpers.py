@@ -230,6 +230,27 @@ async def _read_active_player(instance_id: str, redis_async: Any | None) -> str:
     return await _read_instance_state_field(instance_id, "active_player", redis_async)
 
 
+async def _read_player_state_field(
+    player_id: str, field: str, redis_async: Any | None
+) -> str:
+    pid = str(player_id or "").strip()
+    field = str(field or "").strip()
+    if not pid or not field:
+        return ""
+    key = f"wos:player:{pid}:state"
+    if redis_async is not None:
+        try:
+            raw = await redis_async.hget(key, field)
+            return _decode_redis_value(raw)
+        except Exception:
+            logger.debug("redis async hget player state field failed", exc_info=True)
+    try:
+        return _decode_redis_value(_redis().hget(key, field))
+    except Exception:
+        logger.debug("redis sync hget player state field failed", exc_info=True)
+        return ""
+
+
 def _strip_quotes(s: str) -> str:
     s2 = (s or "").strip()
     if len(s2) >= 2 and ((s2[0] == '"' and s2[-1] == '"') or (s2[0] == "'" and s2[-1] == "'")):
@@ -249,7 +270,16 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
     rhs = _strip_quotes(str(m.group("rhs") or ""))
     if not lhs:
         return False
-    cur = await _read_instance_state_field(instance_id, lhs, redis_async)
+    # Prefer player-scoped state — that's where OCR ``store:`` writes by default
+    # (``ocr: page.squad_settings.status / store: squad_status`` lands in
+    # ``wos:player:<pid>:state``). Fall back to instance state for system fields
+    # (``current_screen``-adjacent) and DSL bookkeeping (``dsl_last_match_*``).
+    cur = ""
+    pid = await _read_active_player(instance_id, redis_async)
+    if pid:
+        cur = await _read_player_state_field(pid, lhs, redis_async)
+    if not cur:
+        cur = await _read_instance_state_field(instance_id, lhs, redis_async)
     cur_lc = cur.strip().lower()
     rhs_lc = rhs.strip().lower()
     if op == "~=":
@@ -282,7 +312,7 @@ async def _dsl_cond_allows_step(
         return await _eval_instance_text_cond(s, instance_id, redis_async)
     # Fallback: arithmetic / boolean expression evaluated against the player's
     # flat state dict. Lets scenarios gate on resource thresholds and computed
-    # comparisons (e.g. ``squad_settings.myPower * 1.2 >= squad_settings.enemyPower``).
+    # comparisons (e.g. ``exploration.state.myPower * 1.2 >= exploration.state.enemyPower``).
     # ``eval_cond`` swallows runtime errors and returns ``False`` so a stale or
     # broken expression cannot crash the worker — the scenario simply skips.
     if state_flat is not None:

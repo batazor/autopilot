@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -26,9 +27,44 @@ from gift.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
 logger = logging.getLogger(__name__)
 
 _MAX_CAPTCHA_RETRIES = 3
-_INTER_PLAYER_DELAY = 1.0   # seconds between players
-_INTER_CODE_DELAY = 5.0     # seconds between codes (avoids captcha frequency errors)
-_CAPTCHA_RETRY_DELAY = 8.0  # seconds to wait before re-requesting captcha after error
+_INTER_PLAYER_DELAY = 2.0   # seconds between players
+_INTER_CODE_DELAY = 10.0    # seconds between codes (avoids captcha frequency errors)
+_CAPTCHA_RETRY_DELAY = 8.0  # base delay before re-requesting captcha after error
+_JITTER = 0.25              # ±25% multiplicative jitter on every sleep below
+
+
+def _jittered(seconds: float) -> float:
+    """Spread bot calls so multiple instances on one IP don't sync up."""
+    if seconds <= 0:
+        return 0.0
+    return seconds * (1.0 + random.uniform(-_JITTER, _JITTER))
+
+
+def _captcha_backoff(attempt: int) -> float:
+    """Exponential backoff for captcha retries: 8s → 16s → 32s, with jitter."""
+    return _jittered(_CAPTCHA_RETRY_DELAY * (2 ** (attempt - 1)))
+
+
+def _is_too_frequent_error(exc: BaseException) -> bool:
+    return "too frequent" in str(exc).lower()
+
+
+# Errors that mean "the interpreter is going down, give up cleanly". When asyncio's
+# default executor is shut down (Ctrl+C) while a coroutine is mid-``getaddrinfo`` /
+# ``connect_tcp``, the network call surfaces as a normal ``RuntimeError``. Without
+# special-casing it, the broad ``except Exception`` arms below mark the code as
+# FAILED in ``db/giftCodes.yaml`` — sticky pollution from what was just a clean exit.
+_SHUTDOWN_ERROR_MARKERS = (
+    "cannot schedule new futures after shutdown",
+    "event loop is closed",
+)
+
+
+def _is_shutdown_error(exc: BaseException) -> bool:
+    if not isinstance(exc, RuntimeError):
+        return False
+    msg = str(exc).lower()
+    return any(marker in msg for marker in _SHUTDOWN_ERROR_MARKERS)
 
 
 @dataclass(frozen=True)
@@ -168,11 +204,11 @@ class GiftCodeRedeemer:
                     stop = True
                     break
 
-                await asyncio.sleep(_INTER_PLAYER_DELAY)
+                await asyncio.sleep(_jittered(_INTER_PLAYER_DELAY))
 
             if stop:
                 break
-            await asyncio.sleep(_INTER_CODE_DELAY)
+            await asyncio.sleep(_jittered(_INTER_CODE_DELAY))
         return summary
 
     # ------------------------------------------------------------------
@@ -183,7 +219,9 @@ class GiftCodeRedeemer:
         # Step 1: login
         try:
             await self._client.fetch_player(fid)
-        except (CenturyAPIError, Exception):
+        except Exception as exc:
+            if _is_shutdown_error(exc):
+                raise
             logger.exception("Login failed for fid=%d", fid)
             return RedeemStatus.FAILED, None, None
 
@@ -191,7 +229,20 @@ class GiftCodeRedeemer:
         for attempt in range(1, _MAX_CAPTCHA_RETRIES + 1):
             try:
                 captcha_data = await self._client.fetch_captcha(fid)
-            except (CenturyAPIError, Exception):
+            except CenturyAPIError as exc:
+                if _is_too_frequent_error(exc) and attempt < _MAX_CAPTCHA_RETRIES:
+                    delay = _captcha_backoff(attempt)
+                    logger.warning(
+                        "Captcha fetch rate-limited fid=%d attempt=%d/%d, sleeping %.1fs",
+                        fid, attempt, _MAX_CAPTCHA_RETRIES, delay,
+                    )
+                    await asyncio.sleep(delay)
+                    continue
+                logger.exception("Captcha request failed fid=%d attempt=%d", fid, attempt)
+                return RedeemStatus.FAILED, None, None
+            except Exception as exc:
+                if _is_shutdown_error(exc):
+                    raise
                 logger.exception("Captcha request failed fid=%d attempt=%d", fid, attempt)
                 return RedeemStatus.FAILED, None, None
 
@@ -203,19 +254,20 @@ class GiftCodeRedeemer:
 
             try:
                 ec, api_msg = await self._client.redeem(fid, code, captcha_text)
-            except (CenturyAPIError, Exception):
+            except Exception as exc:
+                if _is_shutdown_error(exc):
+                    raise
                 logger.exception("Redeem call failed fid=%d", fid)
                 return RedeemStatus.FAILED, None, None
 
             if ec in (ErrCode.CAPTCHA_TOO_FREQUENT, ErrCode.CAPTCHA_ERROR):
                 if attempt < _MAX_CAPTCHA_RETRIES:
+                    delay = _captcha_backoff(attempt)
                     logger.debug(
-                        "Captcha error ec=%s, retry %d/%d",
-                        ec,
-                        attempt,
-                        _MAX_CAPTCHA_RETRIES,
+                        "Captcha error ec=%s, retry %d/%d after %.1fs",
+                        ec, attempt, _MAX_CAPTCHA_RETRIES, delay,
                     )
-                    await asyncio.sleep(_CAPTCHA_RETRY_DELAY)
+                    await asyncio.sleep(delay)
                     continue
                 return RedeemStatus.FAILED, None, None
 

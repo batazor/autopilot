@@ -109,7 +109,7 @@ overlay:
   priority: 76_000
   threshold: 0.98
   min_match_saturation: 48
-  ttl: 5s
+  ttl: 1s
   pushScenario:
     - name: tap_claim_button
       priority: 76_000
@@ -120,7 +120,7 @@ overlay:
   priority: 76_000
   threshold: 0.92
   min_match_saturation: 48
-  ttl: 5s
+  ttl: 1s
   pushScenario:
     - name: tap_claim_all
       priority: 76_000

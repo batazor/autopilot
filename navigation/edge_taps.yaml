@@ -9,6 +9,7 @@ edges:
     chief_profile: [to_chief_profile]
     mail: [mail.new]
     exploration: [main_city.to.exploration]
+    heroes: [main_city.to.heroes]
     survivor_status: [isWorkers]
     suggestion_box: [isPostman]
   # arena:
@@ -36,3 +37,6 @@ edges:
     squad_settings: [exploration.to.squad_settings]
   squad_settings:
     exploration: [back_button]
+  heroes:
+    main_city: [back_button]
+    hero.recrutment: [heroes.recruit]

@@ -92,21 +92,24 @@ class DslOcrMixin:
         step: dict[str, Any],
         region: str,
     ) -> None:
-        """OCR a named region and persist the result to Redis.
+        """OCR a named region and persist the result.
 
         Step shape::
 
             - ocr: <region_name>
-              store: <field>          # default = region name
-              scope: player|instance  # default = "player"
-                                     # falls back to instance when no player_id
+              store: <field>          # Redis player/instance hash. Ephemeral —
+                                      # used to share data between scenario steps
+                                      # via cond/until_cond text matches.
+              state: <dotted.path>    # db/state.yaml dot-path. Long-lived; drives
+                                      # arithmetic ``cond`` (e.g.
+                                      # ``exploration.state.myPower * 1.2 >= ...``).
+              scope: player|instance  # default = "player" (applies to ``store:``)
               type: integer|string    # default = inherits area.json `type`
               threshold: 0.7          # confidence floor; default = inherits area.json `threshold`
 
-        The decoded value is written to ``wos:player:<player_id>:state`` (player scope) or
-        ``wos:instance:<instance_id>:state`` (instance scope) under ``<store>``, alongside
-        ``<store>_text`` (raw OCR text), ``<store>_confidence`` and ``<store>_at`` for
-        debugging. Low-confidence reads are logged and skipped, never persisted.
+        ``store:`` and ``state:`` are independent — set either, both, or neither.
+        If neither is given, the legacy default ``store: <region_name>`` is used.
+        Low-confidence reads are logged and skipped, never persisted to either side.
         """
         pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
@@ -317,15 +320,36 @@ class DslOcrMixin:
         text = (result.text or "").strip()
         confidence = float(getattr(result, "confidence", 0.0) or 0.0)
         conf_s = f"{confidence:.4f}"
+        scen_label = _scen(scenario_key)
+
+        # Two independent persistence channels (resolved up front so every skip
+        # path can still name the intended target):
+        #   - ``store: <field>`` → Redis (ephemeral, scenario-step scope).
+        #   - ``state: <dotted.path>`` → ``db/state.yaml`` (long-lived, drives
+        #     arithmetic ``cond`` via state_flat).
+        # Backward-compat: if neither is given, default to ``store: <region>``.
+        raw_store = step.get("store")
+        raw_state = step.get("state")
+        if raw_store is None and raw_state is None:
+            store_redis_field = region.strip() if region else ""
+            state_yaml_path = ""
+        else:
+            store_redis_field = str(raw_store or "").strip()
+            state_yaml_path = str(raw_state or "").strip()
+        planned_target = store_redis_field or state_yaml_path
+        # Single name used in early-skip logs (low_confidence, integer_cast_failed, etc).
+        planned_store_field = planned_target
+
         if confidence < threshold:
             logger.warning(
-                "dsl_scenario: OCR low confidence — skipping store. scenario=%s region=%s "
-                "text=%r confidence=%.3f threshold=%.3f",
-                _scen(scenario_key),
-                region,
+                "dsl_scenario: store skipped field=%s reason=low_confidence "
+                "value=%r confidence=%.3f threshold=%.3f region=%s scenario=%s",
+                planned_store_field or "?",
                 text,
                 confidence,
                 threshold,
+                region,
+                scen_label,
             )
             await self._ocr_audit_step(
                 instance_id,
@@ -344,11 +368,12 @@ class DslOcrMixin:
             digits = re.sub(r"\D+", "", text)
             if not digits:
                 logger.warning(
-                    "dsl_scenario: OCR integer cast failed — empty digits. "
-                    "scenario=%s region=%s text=%r",
-                    _scen(scenario_key),
-                    region,
+                    "dsl_scenario: store skipped field=%s reason=integer_cast_failed "
+                    "value=%r region=%s scenario=%s",
+                    planned_store_field or "?",
                     text,
+                    region,
+                    scen_label,
                 )
                 await self._ocr_audit_step(
                     instance_id,
@@ -362,8 +387,12 @@ class DslOcrMixin:
                 return
             value = digits
 
-        store_field = str(step.get("store") or region).strip()
-        if not store_field:
+        if not store_redis_field and not state_yaml_path:
+            logger.warning(
+                "dsl_scenario: persist skipped reason=no_target "
+                "value=%r region=%s scenario=%s — specify `store:` and/or `state:`",
+                value, region, scen_label,
+            )
             await self._ocr_audit_step(
                 instance_id,
                 region=region,
@@ -379,123 +408,113 @@ class DslOcrMixin:
         if scope not in {"player", "instance"}:
             logger.warning(
                 "dsl_scenario: unknown ocr scope %r — defaulting to 'player' (scenario=%s)",
-                scope,
-                _scen(scenario_key),
+                scope, scen_label,
             )
             scope = "player"
 
-        if self.redis_client is None:
-            logger.info(
-                "dsl_scenario: OCR result not persisted (no redis client). "
-                "scenario=%s region=%s field=%s value=%s confidence=%.3f",
-                _scen(scenario_key),
-                region,
-                store_field,
-                value,
-                confidence,
-            )
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="no_redis_client",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-                value_s=str(value),
-            )
-            return
-
-        if scope == "player" and self.player_id:
-            redis_key = f"wos:player:{self.player_id}:state"
-        elif scope == "player" and store_field == "player_id" and value:
-            # `who_i_am` is intentionally a device-level probe. Once OCR tells
-            # us the in-game id, let the rest of the scenario (e.g. fetch_player)
-            # continue under that real identity.
-            self.player_id = str(value)
-            redis_key = f"wos:player:{self.player_id}:state"
-        else:
-            redis_key = f"wos:instance:{instance_id}:state"
-
-        mapping: dict[str, str] = {
-            store_field: str(value),
-            f"{store_field}_text": text,
-            f"{store_field}_confidence": f"{confidence:.4f}",
-            f"{store_field}_at": str(time.time()),
-        }
-        try:
-            await self.redis_client.hset(redis_key, mapping=mapping)
-            if store_field == "player_id" and value:
-                await self.redis_client.hset(
-                    f"wos:instance:{instance_id}:state",
-                    mapping={
-                        "active_player": str(self.player_id or value),
-                        "active_player_at": str(time.time()),
-                    },
+        # ----- Redis (ephemeral) write -----
+        redis_written = False
+        redis_key = ""
+        if store_redis_field:
+            if self.redis_client is None:
+                logger.warning(
+                    "dsl_scenario: store skipped field=%s reason=no_redis_client "
+                    "value=%r confidence=%.4f region=%s scenario=%s",
+                    store_redis_field, value, confidence, region, scen_label,
                 )
-        except Exception:
-            logger.exception(
-                "dsl_scenario: failed to persist OCR result (scenario=%s region=%s key=%s)",
-                _scen(scenario_key),
-                region,
-                redis_key,
-            )
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="redis_write_failed",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-                value_s=str(value),
-            )
-            return
+                # No early return: the ``state:`` write below may still be useful.
+            else:
+                if scope == "player" and self.player_id:
+                    redis_key = f"wos:player:{self.player_id}:state"
+                elif scope == "player" and store_redis_field == "player_id" and value:
+                    # `who_i_am` is a device-level probe. Once OCR tells us the in-game id,
+                    # let the rest of the scenario (e.g. fetch_player) continue under it.
+                    self.player_id = str(value)
+                    redis_key = f"wos:player:{self.player_id}:state"
+                else:
+                    redis_key = f"wos:instance:{instance_id}:state"
 
-        # Optional persistence to ``db/state.yaml`` for player-scoped writes.
-        # Off by default (Redis-only is the historical behavior); opt-in via
-        # ``to_state: true`` on the YAML step. Type-aware: integers go in as int
-        # so ``GamerState`` accepts them and ``to_flat_dict`` returns numbers.
-        if (
-            bool(step.get("to_state"))
-            and scope == "player"
-            and self.player_id
-            and store_field
-        ):
-            typed_value: Any = value
-            if type_hint in {"int", "integer"}:
-                with suppress(TypeError, ValueError):
-                    typed_value = int(value)
-            try:
-                from config.state_store import get_state_store
+                mapping: dict[str, str] = {
+                    store_redis_field: str(value),
+                    f"{store_redis_field}_text": text,
+                    f"{store_redis_field}_confidence": f"{confidence:.4f}",
+                    f"{store_redis_field}_at": str(time.time()),
+                }
+                try:
+                    await self.redis_client.hset(redis_key, mapping=mapping)
+                    if store_redis_field == "player_id" and value:
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            mapping={
+                                "active_player": str(self.player_id or value),
+                                "active_player_at": str(time.time()),
+                            },
+                        )
+                    redis_written = True
+                    logger.info(
+                        "dsl_scenario: store ok field=%s value=%r key=%s scope=%s "
+                        "confidence=%.4f region=%s scenario=%s",
+                        store_redis_field, value, redis_key, scope, confidence,
+                        region, scen_label,
+                    )
+                except Exception:
+                    logger.exception(
+                        "dsl_scenario: store failed field=%s value=%r reason=redis_write_failed "
+                        "key=%s region=%s scenario=%s",
+                        store_redis_field, value, redis_key, region, scen_label,
+                    )
+                    await self._ocr_audit_step(
+                        instance_id,
+                        region=region,
+                        step=step,
+                        status="redis_write_failed",
+                        threshold_s=thr_s,
+                        confidence_s=conf_s,
+                        raw_text=text,
+                        value_s=str(value),
+                    )
+                    return
 
-                store = get_state_store().get_or_create(str(self.player_id))
-                store.update_from_flat({store_field: typed_value})
-            except Exception:
-                logger.exception(
-                    "dsl_scenario: state_store sync failed (scenario=%s region=%s field=%s)",
-                    _scen(scenario_key),
-                    region,
-                    store_field,
+        # ----- state.yaml (long-lived) write -----
+        state_written = False
+        if state_yaml_path:
+            if scope != "player" or not self.player_id:
+                logger.warning(
+                    "dsl_scenario: state skipped path=%s reason=no_player_scope "
+                    "value=%r region=%s scenario=%s",
+                    state_yaml_path, value, region, scen_label,
                 )
+            else:
+                typed_value: Any = value
+                if type_hint in {"int", "integer"}:
+                    with suppress(TypeError, ValueError):
+                        typed_value = int(value)
+                try:
+                    from config.state_store import get_state_store
+
+                    store = get_state_store().get_or_create(str(self.player_id))
+                    store.update_from_flat({state_yaml_path: typed_value})
+                    state_written = True
+                    logger.info(
+                        "dsl_scenario: state ok path=%s value=%r player=%s "
+                        "confidence=%.4f region=%s scenario=%s",
+                        state_yaml_path, typed_value, self.player_id, confidence,
+                        region, scen_label,
+                    )
+                except Exception:
+                    logger.exception(
+                        "dsl_scenario: state failed path=%s value=%r reason=state_store_write "
+                        "region=%s scenario=%s",
+                        state_yaml_path, value, region, scen_label,
+                    )
 
         await self._ocr_audit_step(
             instance_id,
             region=region,
             step=step,
-            status="stored",
+            status="stored" if (redis_written or state_written) else "no_redis_client",
             threshold_s=thr_s,
             confidence_s=conf_s,
             raw_text=text,
             value_s=str(value),
-        )
-        logger.info(
-            "dsl_scenario: OCR stored scenario=%s region=%s key=%s field=%s value=%s "
-            "confidence=%.3f",
-            _scen(scenario_key),
-            region,
-            redis_key,
-            store_field,
-            value,
-            confidence,
         )

@@ -28,6 +28,7 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
+from ui.notifications import push_ui_notification_sync
 from ui.views.click_approvals.chrome import render_ui_notifications
 from ui.views.click_approvals.ctx import ClickApprovalsCtx
 from ui.views.click_approvals.pending import (
@@ -408,10 +409,12 @@ with run_left:
             st.session_state[scenario_pick_key] = default_index
         st.session_state[query_sync_key] = current_scenario_param
 
+    if scenario_pick_key not in st.session_state:
+        st.session_state[scenario_pick_key] = default_index
+
     picked_idx = st.selectbox(
         "Scenario",
         range(len(files)),
-        index=default_index,
         format_func=lambda i: labels[int(i)],
         key=scenario_pick_key,
     )
@@ -511,6 +514,27 @@ if st.button("Run scenario now", type="primary", width="stretch"):
             start_step_index=int(start_step_index),
         )
         st.session_state["debug_scenario_last_task_id"] = task_id
+        push_ui_notification_sync(
+            client,
+            inst.instance_id,
+            kind="debug_scenarios.enqueue",
+            message=(
+                f"Scenario enqueued: {scenario.key} "
+                f"(priority {int(priority)}"
+                + (f", step {int(start_step_index)}" if int(start_step_index) > 0 else "")
+                + (f", player {pid}" if pid else "")
+                + ")"
+            ),
+            level="info",
+            payload={
+                "task_id": task_id,
+                "scenario": scenario.key,
+                "priority": int(priority),
+                "start_step_index": int(start_step_index),
+                "player_id": pid or "",
+                "instance_id": inst.instance_id,
+            },
+        )
         msg = f"Enqueued `{task_id}` with priority `{int(priority)}`."
         st.success(msg)
         st.rerun()

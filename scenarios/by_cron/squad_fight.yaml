@@ -10,24 +10,25 @@ priority: 12
 # Navigator BFS: main_city → exploration → squad_settings (see edge_taps.yaml).
 node: squad_settings
 
-cond: "squad_settings.myPower * 1.2 >= squad_settings.enemyPower"
+# cond: "exploration.state.myPower * 1.2 >= exploration.state.enemyPower"
 
 steps:
-  # OCR the squad level + matchup powers. ``to_state: true`` mirrors each
-  # integer into ``db/state.yaml`` so the *next* run's root ``cond`` —
-  # ``squad_settings.myPower * 1.2 >= squad_settings.enemyPower`` — sees this
-  # fight's readings (the cond runs before any OCR, so it gates on the
+  # OCR the squad level + matchup powers. ``state:`` writes each integer into
+  # ``db/state.yaml`` (long-lived) so the *next* run's root ``cond`` —
+  # ``exploration.state.myPower * 1.2 >= exploration.state.enemyPower`` — sees
+  # this fight's readings. The cond runs before any OCR, so it gates on the
   # *previous* matchup; on the very first run all three default to 0 and the
-  # cond passes trivially).
-  - ocr: squad_settings.level
+  # cond passes trivially. No Redis write here (no ``store:``) since these
+  # values aren't consumed between steps within this same scenario.
+  - ocr: exploration.level
     type: integer
-    to_state: true
-  - ocr: squad_settings.myPower
+    state: exploration.level
+  - ocr: exploration.state.myPower
     type: integer
-    to_state: true
-  - ocr: squad_settings.enemyPower
+    state: exploration.state.myPower
+  - ocr: exploration.state.enemyPower
     type: integer
-    to_state: true
+    state: exploration.state.enemyPower
 
   # Re-deploy the squad and start a fight.
   - click: squad_settings.quick_deploy
@@ -36,7 +37,7 @@ steps:
 
   # Initial wait so the fight animation has time to land before we start
   # polling the status banner.
-  - wait: 6s
+  - wait: 10s
 
   # Poll OCR'ing the status banner each iteration; exit once the text contains
   # ``victory`` or ``defeat`` (case-insensitive). ``threshold: 0.0`` accepts
@@ -46,8 +47,6 @@ steps:
   # first stops the loop so a stuck banner can't lock the worker.
   - loop:
       until_cond: 'squad_status ~= "victory|defeat"'
-      ttl: 60s
-      max: 30
       steps:
         - ocr: page.squad_settings.status
           store: squad_status
@@ -61,3 +60,8 @@ steps:
     steps:
       - click: page.squad_settings.next
       - push_scenario: squad_fight
+
+  - cond: squad_status ~= "defeat"
+    steps:
+      - click: page.squad_settings.status.defeat
+      - wait: 2s

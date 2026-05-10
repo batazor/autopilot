@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 from typing import Any
 
 import cv2
@@ -64,6 +66,65 @@ def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
                 if name:
                     out.add(name)
     return sorted(out, key=str.lower)
+
+
+def _probe_area_region_ocr(
+    *,
+    pay: dict[str, Any],
+    image_bgr: Any,
+    reg: dict[str, Any],
+    instance_id: str,
+) -> None:
+    """Run OCR on a live area-region crop and populate ``pay`` in place.
+
+    Streamlit reruns the panel on every interaction; cache by crop hash so
+    the OCR service isn't hit on unrelated widget toggles.
+    """
+    bbox = reg.get("bbox")
+    if not isinstance(bbox, dict):
+        return
+    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    L, T, R, B = _pct_bbox_to_px_rect(bbox, w, h)
+    if R <= L or B <= T:
+        return
+    crop = image_bgr[T:B, L:R]
+    if crop.size <= 0:
+        return
+
+    digest = hashlib.md5(crop.tobytes()).hexdigest()
+    region_name = str(pay.get("region") or "")
+    cache_key = f"idle_ocr_probe::{instance_id}::{region_name}::{digest}"
+    cached = st.session_state.get(cache_key)
+    if cached is None:
+        from layout.types import Region as LayoutRegion
+        from ocr.client import OcrClient
+
+        try:
+            res = asyncio.run(
+                OcrClient().ocr_region(image_bgr, LayoutRegion(L, T, R - L, B - T))
+            )
+            cached = {
+                "ok": True,
+                "text": str(getattr(res, "text", "") or "").strip(),
+                "confidence": float(getattr(res, "confidence", 0.0) or 0.0),
+            }
+        except Exception as exc:  # noqa: BLE001
+            cached = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        st.session_state[cache_key] = cached
+
+    if not cached.get("ok"):
+        pay["reason"] = f"ocr_failed: {cached.get('error', '')}"
+        return
+
+    txt = str(cached.get("text") or "")
+    conf = float(cached.get("confidence") or 0.0)
+    try:
+        thr = float(pay.get("threshold") or 0.0)
+    except (TypeError, ValueError):
+        thr = 0.0
+    pay["text"] = txt
+    pay["confidence"] = conf
+    pay["matched"] = bool(txt) and conf >= thr
 
 
 def _ensure_fresh_reference_crop(
@@ -248,6 +309,13 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             "_area_ref": str(entry0.get("ocr") or "").strip(),
             "_area_type": str(reg0.get("type") or "").strip(),
         }
+        if pay["action"] == "text":
+            _probe_area_region_ocr(
+                pay=pay,
+                image_bgr=image_bgr,
+                reg=reg0,
+                instance_id=instance_id,
+            )
     else:
         pay = results.get(sel_logical)
     if not isinstance(pay, dict):

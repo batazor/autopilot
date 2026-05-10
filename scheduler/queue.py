@@ -413,19 +413,31 @@ class RedisQueue:
             return None
 
         # Unknown/none: do not run tasks that were defined with a required `node` in specs.
+        # ``debug: true`` payloads (UI "Run scenario now") bypass this — the user explicitly
+        # chose to run regardless of the current screen state.
         if not str(current_screen or "").strip():
             gated = self._task_types_requiring_node()
             if gated:
-                due = [x for x in due if str(x[1].get("task_type") or "") not in gated]
+                due = [
+                    x for x in due
+                    if bool(x[1].get("debug"))
+                    or str(x[1].get("task_type") or "") not in gated
+                ]
                 if not due:
                     return None
 
         # No active player yet: only run scenarios explicitly marked `device_level: true`
-        # (identity probes, tutorial dismissals, popup taps).  Everything else is
+        # (identity probes, tutorial dismissals, popup taps). Everything else is
         # player-bound and must wait until ``who_i_am`` populates ``active_player``.
+        # ``debug: true`` payloads bypass this gate too — they already carry the player_id
+        # the UI selected, so there's nothing to wait for.
         if not ap:
             device_level = self._task_types_device_level()
-            due = [x for x in due if str(x[1].get("task_type") or "") in device_level]
+            due = [
+                x for x in due
+                if bool(x[1].get("debug"))
+                or str(x[1].get("task_type") or "") in device_level
+            ]
             if not due:
                 return None
 

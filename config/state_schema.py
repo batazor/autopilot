@@ -41,6 +41,17 @@ class Resources(BaseModel):
 
 
 class ExplorationState(BaseModel):
+    """Exploration → squad_settings matchup card readings.
+
+    Populated on each ``squad_fight`` cron run by OCR'ing the squad screen:
+
+    - ``myPower`` / ``enemyPower`` — power values for the matchup card; the
+      scenario's root ``cond`` gates further fights on them
+      (``exploration.state.myPower * 1.2 >= exploration.state.enemyPower``).
+    - ``battleStatus`` — last banner outcome (``victory`` / ``defeat``).
+    - ``isClaimActive`` — whether the claim-rewards button is currently visible.
+    """
+
     isClaimActive: bool = False
     myPower: int = 0
     enemyPower: int = 0
@@ -48,25 +59,15 @@ class ExplorationState(BaseModel):
 
 
 class Exploration(BaseModel):
-    level: int = 0
-    state: ExplorationState = Field(default_factory=ExplorationState)
-    isNotify: bool = False
+    """Exploration screen + the squad upgrade card it leads to.
 
-
-class SquadSettings(BaseModel):
-    """Squad upgrade screen reachable from exploration → squad_settings.
-
-    Populated on each ``squad_fight`` cron run by OCR'ing the squad screen:
-
-    - ``level`` — squad upgrade tier (drives gear/march/heal-rate scaling).
-    - ``myPower`` / ``enemyPower`` — power readings for the matchup card,
-      used by the scenario's root ``cond`` to skip overmatched fights
-      (``squad_settings.myPower * 1.2 >= squad_settings.enemyPower``).
+    ``level`` is the squad upgrade tier (drives gear / march / heal-rate scaling)
+    and is OCR'd by ``squad_fight``.
     """
 
     level: int = 0
-    myPower: int = 0
-    enemyPower: int = 0
+    state: ExplorationState = Field(default_factory=ExplorationState)
+    isNotify: bool = False
 
 
 class Heroes(BaseModel):
@@ -298,7 +299,6 @@ class GamerState(BaseModel):
     vip: VIP = Field(default_factory=VIP)
     resources: Resources = Field(default_factory=Resources)
     exploration: Exploration = Field(default_factory=Exploration)
-    squad_settings: SquadSettings = Field(default_factory=SquadSettings)
     heroes: Heroes = Field(default_factory=Heroes)
     messages: Messages = Field(default_factory=Messages)
     alliance: Alliance = Field(default_factory=Alliance)
