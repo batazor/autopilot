@@ -18,6 +18,7 @@ from layout.area_versions import (
     resolve_region_with_version,
     split_versioned_name,
 )
+from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import list_reference_pngs, references_root
 
@@ -577,15 +578,7 @@ def _render_cards(
 
         layout_rel = _display_ref_rel_for_card(area_doc, rel, card_ver)
         labeling_ref = _display_ref_rel_for_card(area_doc, rel, "default")
-        labeling_qp: dict[str, str] = {"ref": labeling_ref}
-        if card_ver in ("auto", "default"):
-            labeling_qp["version"] = "default"
-        else:
-            vid_link = normalize_version_id(card_ver)
-            if vid_link:
-                labeling_qp["version"] = vid_link
-            else:
-                labeling_qp["version"] = "default"
+        labeling_qp = open_in_labeling_query_params(labeling_ref, card_ver)
         img_path = (ref_root / layout_rel).resolve()
         try:
             if img_path.is_file():

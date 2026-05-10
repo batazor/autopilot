@@ -291,11 +291,9 @@ with hdr_btn:
             ),
         )
 
-if st.session_state.get(LABELING_REFRESH_PENDING):
-    st.info(
-        "**Refresh selected** — confirm overwrite below the labeling workspace "
-        "(after the reference tree)."
-    )
+# Placeholder: refresh confirmation is rendered here visually but filled after the annotator
+# so ``sel`` / ``entry_idx`` match the tree (same logic as before).
+labeling_refresh_confirm_slot = st.empty()
 
 if discard_capture:
     _handle_discard_pending_capture(ref_root=ref_root)
@@ -390,60 +388,61 @@ if sel:
             elif _labeling_has_version_query_param(st.query_params):
                 del st.query_params["version"]
 
-if st.session_state.get(LABELING_REFRESH_PENDING):
-    if not sel:
-        st.warning("Nothing selected to refresh.")
-        st.session_state.pop(LABELING_REFRESH_PENDING, None)
-    else:
-        rel_disp = str(sel).replace("\\", "/").strip()
-        target_rel, ver_note = _refresh_rel_and_note_for_session(rel_disp)
-        lines = [
-            f"This will **write** a new ADB screenshot to `references/{target_rel}` "
-            "(same logical target as the canvas; `area.json` regions are unchanged)."
-        ]
-        if ver_note:
-            lines.append(ver_note)
-        st.warning("\n\n".join(lines))
-        bc1, bc2 = st.columns(2)
-        with bc1:
-            confirm_refresh = st.button(
-                "Confirm overwrite",
-                type="primary",
-                key="labeling_refresh_confirm_yes",
-            )
-        with bc2:
-            if st.button("Cancel", key="labeling_refresh_confirm_no"):
-                st.session_state.pop(LABELING_REFRESH_PENDING, None)
-                st.rerun()
-        if confirm_refresh:
-            target_rel, _ = _refresh_rel_and_note_for_session(rel_disp)
-            if not target_rel or target_rel.startswith("..") or "/.." in target_rel:
-                st.error("Invalid selected path.")
-                st.session_state.pop(LABELING_REFRESH_PENDING, None)
-                st.stop()
-            target = (ref_root / target_rel).resolve()
-            ref_abs = ref_root.resolve()
-            try:
-                target.relative_to(ref_abs)
-            except ValueError:
-                st.error("Invalid selected path (outside references/).")
-                st.session_state.pop(LABELING_REFRESH_PENDING, None)
-                st.stop()
-            with st.spinner(f"Refreshing screenshot via ADB → `{target_rel}` …"):
-                ok, msg = adb_screencap_to_file(
-                    target,
-                    adb_bin=get_ui_adb_bin(),
-                    serial=inst_cfg.bluestacks_window_title,
-                )
+with labeling_refresh_confirm_slot.container():
+    if st.session_state.get(LABELING_REFRESH_PENDING):
+        if not sel:
+            st.warning("Nothing selected to refresh.")
             st.session_state.pop(LABELING_REFRESH_PENDING, None)
-            if not ok:
-                with st.expander("ADB error details", expanded=True):
-                    st.error(msg)
-            else:
-                st.session_state[LABELING_RENAME_FLASH] = (
-                    f"Refreshed **references/{target_rel}**"
+        else:
+            rel_disp = str(sel).replace("\\", "/").strip()
+            target_rel, ver_note = _refresh_rel_and_note_for_session(rel_disp)
+            lines = [
+                f"This will **write** a new ADB screenshot to `references/{target_rel}` "
+                "(same logical target as the canvas; `area.json` regions are unchanged)."
+            ]
+            if ver_note:
+                lines.append(ver_note)
+            st.warning("\n\n".join(lines))
+            bc1, bc2 = st.columns(2)
+            with bc1:
+                confirm_refresh = st.button(
+                    "Confirm overwrite",
+                    type="primary",
+                    key="labeling_refresh_confirm_yes",
                 )
-            st.rerun()
+            with bc2:
+                if st.button("Cancel", key="labeling_refresh_confirm_no"):
+                    st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                    st.rerun()
+            if confirm_refresh:
+                target_rel_go, _ = _refresh_rel_and_note_for_session(rel_disp)
+                if not target_rel_go or target_rel_go.startswith("..") or "/.." in target_rel_go:
+                    st.error("Invalid selected path.")
+                    st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                    st.stop()
+                target = (ref_root / target_rel_go).resolve()
+                ref_abs = ref_root.resolve()
+                try:
+                    target.relative_to(ref_abs)
+                except ValueError:
+                    st.error("Invalid selected path (outside references/).")
+                    st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                    st.stop()
+                with st.spinner(f"Refreshing screenshot via ADB → `{target_rel_go}` …"):
+                    ok, msg = adb_screencap_to_file(
+                        target,
+                        adb_bin=get_ui_adb_bin(),
+                        serial=inst_cfg.bluestacks_window_title,
+                    )
+                st.session_state.pop(LABELING_REFRESH_PENDING, None)
+                if not ok:
+                    with st.expander("ADB error details", expanded=True):
+                        st.error(msg)
+                else:
+                    st.session_state[LABELING_RENAME_FLASH] = (
+                        f"Refreshed **references/{target_rel_go}**"
+                    )
+                st.rerun()
 
 if write_crops:
     doc = st.session_state.get(AREA_DOC)
