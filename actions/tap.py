@@ -264,6 +264,21 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 fb = (raw.get("last_overlay_patch_bright_ratio") or "").strip()
                 if fb:
                     ctx["current_task_patch_bright_ratio"] = fb
+            last_match_region = (raw.get("dsl_last_match_region") or "").strip()
+            if last_match_region and last_match_region == task_region:
+                fallback_fields = {
+                    "current_task_match_top_left_x": "dsl_last_match_top_left_x",
+                    "current_task_match_top_left_y": "dsl_last_match_top_left_y",
+                    "current_task_template_w": "dsl_last_match_template_w",
+                    "current_task_template_h": "dsl_last_match_template_h",
+                    "current_task_tap_match_x_pct": "dsl_last_match_tap_match_x_pct",
+                    "current_task_tap_match_y_pct": "dsl_last_match_tap_match_y_pct",
+                }
+                for ctx_key, raw_key in fallback_fields.items():
+                    if not ctx.get(ctx_key):
+                        fb = (raw.get(raw_key) or "").strip()
+                        if fb:
+                            ctx[ctx_key] = fb
     except Exception:
         ctx = {}
 

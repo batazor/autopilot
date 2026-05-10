@@ -34,6 +34,9 @@ class _FakeActions:
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         assert instance_id == "bs1"
+        if self.frames:
+            h, w = self.frames[0].shape[:2]
+            return int(w), int(h)
         return 100, 100
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
@@ -224,6 +227,115 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
 
     assert result.success is True
     assert len(actions.tapped) == 1  # one click after retry succeeded
+
+
+@pytest.mark.asyncio
+async def test_player_bound_while_match_uses_implicit_search_region(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """`while_match: x` should search inside implicit `x_search` when present."""
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    frame[70:80, 70:80] = _claim_pattern()
+    _write_player_bound_scenario(tmp_path, frame)
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 1,
+                        "ocr": "references/page.worker.add.png",
+                        "regions": [
+                            {
+                                "name": "page.worker.add",
+                                "bbox": {"x": 20, "y": 20, "width": 10, "height": 10},
+                                "threshold": 0.9,
+                            },
+                            {
+                                "name": "page.worker.add_search",
+                                "bbox": {"x": 60, "y": 60, "width": 30, "height": 30},
+                                "overlay_auxiliary": True,
+                            },
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    # Template is still exported from the primary bbox in the reference image.
+    ref = np.zeros((100, 100, 3), dtype=np.uint8)
+    ref[20:30, 20:30] = _claim_pattern()
+    cv2.imwrite(
+        str(tmp_path / "references/crop/page.worker.add_page.worker.add.png"),
+        ref[20:30, 20:30],
+    )
+
+    actions = _FakeActions([frame, np.zeros((100, 100, 3), dtype=np.uint8)])
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    real_sleep = dsl.asyncio.sleep
+
+    async def _instant_sleep(_s: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="test_assign",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert actions.tapped == [("bs1", 75, 75, "page.worker.add")]
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    assert row["dsl_last_match_search_region"] == "page.worker.add_search"
+
+
+@pytest.mark.asyncio
+async def test_assign_worker_while_match_current_fixture_uses_search_region_but_misses(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fixture = repo_root / "tests" / "fixtures" / "page_worker_add_current_state.png"
+    frame = cv2.imread(str(fixture))
+    assert frame is not None, f"fixture missing or unreadable: {fixture}"
+    blank = np.zeros_like(frame)
+    actions = _FakeActions([frame, blank])
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
+    real_sleep = dsl.asyncio.sleep
+
+    async def _instant_sleep(_s: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"current_screen": "survivor_status"},
+    )
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="assign_worker",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert (result.metadata or {}).get("reason") == "while_match_no_iterations"
+    assert actions.tapped == []
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    assert row["dsl_last_match_search_region"] == "page.worker.add_search"
+    assert row["dsl_last_match_matched"] == "0"
 
 
 @pytest.mark.asyncio

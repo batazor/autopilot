@@ -3,10 +3,12 @@
 Uses the same pixel rounding as :func:`ui.area_annotator.crop_region` / crop export.
 The live frame must be the **same resolution** as when the crop was produced.
 
-Sliding-window search (:func:`match_template_in_search_roi_bbox_percent`) can optionally require the
-template pixel size to agree with the **primary** labeled bbox on the live frame (see
-``primary_bbox_percent``). That blocks misleading TM peaks when a tiny template slides inside a
-large ROI (e.g. ``10×8`` template vs ``157×74`` expected landmark).
+Sliding-window search (:func:`match_template_in_search_roi_bbox_percent`) scores multiple NCC peaks
+(non-max suppression) and keeps the one with the best ``min(NCC, color, edge)`` against the BGR
+crop — not the grayscale-NCC argmax alone. It can optionally require the template pixel size to
+agree with the **primary** labeled bbox on the live frame (see ``primary_bbox_percent``), blocking
+misleading TM peaks when a tiny template slides inside a large ROI (e.g. ``10×8`` template vs
+``157×74`` expected landmark).
 """
 
 from __future__ import annotations
@@ -213,7 +215,9 @@ def match_template_in_search_roi_bbox_percent(
 ) -> TemplateMatchResult:
     """Slide ``template_bgr`` inside ROI from ``search_bbox_percent``.
 
-    Returns best TM_CCOEFF_NORMED and global top-left on ``image_bgr``.
+    Among spatially separated NCC peaks (non-max suppression on the heatmap), picks the location
+    with the **best combined** score ``min(NCC, color, edge)`` so the winner matches the full BGR
+    template, not only grayscale correlation (same silhouette, different tint).
 
     When ``primary_bbox_percent`` is set (the labeled **detector** region), template dimensions must
     agree with that bbox cut out on ``image_bgr`` within :data:`_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX`
@@ -237,7 +241,8 @@ def match_template_in_search_roi_bbox_percent(
 
     rg = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    heat = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
+    heat_orig = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
+    hm, wm = int(heat_orig.shape[0]), int(heat_orig.shape[1])
 
     def _is_excluded(gx0: int, gy0: int) -> bool:
         if not exclude_top_lefts or exclude_radius_px <= 0:
@@ -250,47 +255,87 @@ def match_template_in_search_roi_bbox_percent(
                 return True
         return False
 
-    max_loc: tuple[int, int] | None = None
-    max_val: float = -1.0
-    # Try a few best NCC peaks, skipping excluded neighborhoods.
+    heat_scan = heat_orig.copy()
+    best_combined = -1.0
+    best_x_off = 0
+    best_y_off = 0
+    best_ncc = -1.0
+    best_color = 0.0
+    best_edge = 0.0
+    found_candidate = False
     for _ in range(25):
-        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat)
+        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_scan)
         if cur_val <= -0.5:
             break
         x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
         gx0 = int(L + x_off_i)
         gy0 = int(T + y_off_i)
-        if not _is_excluded(gx0, gy0):
-            max_loc = (x_off_i, y_off_i)
-            max_val = float(cur_val)
-            break
-        # Mask this peak and retry.
-        heat[y_off_i, x_off_i] = -1.0
+        if _is_excluded(gx0, gy0):
+            heat_scan[y_off_i, x_off_i] = -1.0
+            continue
+        patch_i = roi[y_off_i : y_off_i + th, x_off_i : x_off_i + tw]
+        ncc_i = float(cur_val)
+        color_i = _color_similarity_score(patch_i, template_bgr)
+        edge_i = _edge_similarity_score(patch_i, template_bgr)
+        combined_i = min(ncc_i, color_i, edge_i)
+        found_candidate = True
+        if combined_i > best_combined:
+            best_combined = combined_i
+            best_x_off = x_off_i
+            best_y_off = y_off_i
+            best_ncc = ncc_i
+            best_color = color_i
+            best_edge = edge_i
+        y1 = min(hm, y_off_i + th)
+        x1 = min(wm, x_off_i + tw)
+        heat_scan[y_off_i:y1, x_off_i:x1] = -1.0
 
-    if max_loc is None:
-        # Everything excluded or no valid peak; fall back to raw argmax.
-        _mn, max_val, _mn_loc, max_loc0 = cv2.minMaxLoc(heat)
-        max_loc = (int(max_loc0[0]), int(max_loc0[1]))
+    if not found_candidate:
+        heat_fb = heat_orig.copy()
+        max_loc: tuple[int, int] | None = None
+        max_val = -1.0
+        for _ in range(25):
+            _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_fb)
+            if cur_val <= -0.5:
+                break
+            x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
+            gx0 = int(L + x_off_i)
+            gy0 = int(T + y_off_i)
+            if not _is_excluded(gx0, gy0):
+                max_loc = (x_off_i, y_off_i)
+                max_val = float(cur_val)
+                break
+            heat_fb[y_off_i, x_off_i] = -1.0
+        if max_loc is None:
+            _mn, max_val, _mn_loc, max_loc0 = cv2.minMaxLoc(heat_orig)
+            max_loc = (int(max_loc0[0]), int(max_loc0[1]))
+        x_off, y_off = max_loc
+        gx = int(L + x_off)
+        gy = int(T + y_off)
+        patch = roi[y_off : y_off + th, x_off : x_off + tw]
+        score_color = _color_similarity_score(patch, template_bgr)
+        score_edge = _edge_similarity_score(patch, template_bgr)
+        score_ncc = float(max_val)
+        score_ncc_second = _second_best_peak_ncc(heat_orig, x_off, y_off, tw, th)
+        return TemplateMatchResult(
+            score=min(score_ncc, score_color, score_edge),
+            top_left=(gx, gy),
+            score_ncc=score_ncc,
+            score_color=score_color,
+            score_edge=score_edge,
+            score_ncc_second=score_ncc_second,
+        )
 
-    x_off, y_off = max_loc
+    x_off, y_off = best_x_off, best_y_off
     gx = int(L + x_off)
     gy = int(T + y_off)
-    patch = roi[y_off : y_off + th, x_off : x_off + tw]
-    score_color = _color_similarity_score(patch, template_bgr)
-    score_edge = _edge_similarity_score(patch, template_bgr)
-    score_ncc = float(max_val)
-
-    # Lowe-style peak uniqueness: the next-best NCC peak in a structurally
-    # different location (masked ±template-size around the winner). Low-info /
-    # smooth templates produce a plateau where many positions score nearly the
-    # same — the overlay engine uses this to reject those false positives.
-    score_ncc_second = _second_best_peak_ncc(heat, x_off, y_off, tw, th)
+    score_ncc_second = _second_best_peak_ncc(heat_orig, x_off, y_off, tw, th)
     return TemplateMatchResult(
-        score=min(score_ncc, score_color, score_edge),
+        score=best_combined,
         top_left=(gx, gy),
-        score_ncc=score_ncc,
-        score_color=score_color,
-        score_edge=score_edge,
+        score_ncc=best_ncc,
+        score_color=best_color,
+        score_edge=best_edge,
         score_ncc_second=score_ncc_second,
     )
 

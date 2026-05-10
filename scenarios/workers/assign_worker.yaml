@@ -10,9 +10,6 @@ steps:
   # single-shot since lack of a match means clicks are done.
   - while_match: page.worker.add
     max: 6
-    retry:
-      attempts: 2
-      interval: 500ms
     steps:
       - click: page.worker.add
       - wait: 1s

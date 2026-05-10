@@ -267,6 +267,38 @@ def test_require_approval_tap_keeps_task_region(monkeypatch: Any, redis_sync: An
     assert current["context"]["current_task_region"] == "ads_rookie_value_pack"
 
 
+def test_require_approval_tap_uses_dsl_last_match_position_context(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={
+            "current_task_region": "page.worker.add",
+            "dsl_last_match_region": "page.worker.add",
+            "dsl_last_match_top_left_x": "612",
+            "dsl_last_match_top_left_y": "752",
+            "dsl_last_match_template_w": "40",
+            "dsl_last_match_template_h": "36",
+            "dsl_last_match_tap_match_x_pct": "87.8",
+            "dsl_last_match_tap_match_y_pct": "60.1",
+        },
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, _req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is True
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    ctx = current["context"]
+    assert ctx["current_task_match_top_left_x"] == "612"
+    assert ctx["current_task_match_top_left_y"] == "752"
+    assert ctx["current_task_template_w"] == "40"
+    assert ctx["current_task_template_h"] == "36"
+
+
 def test_require_approval_tap_includes_threshold_and_score_context(
     monkeypatch: Any, redis_sync: Any
 ) -> None:
