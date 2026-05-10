@@ -32,3 +32,9 @@ steps:
             - wait: 2s
             - click: button.next
             - wait: 2s
+        - while_match: build_building_item
+          max: 1
+          steps:
+            - wait: 2s
+            - click: build_building_item
+            - wait: 2s
