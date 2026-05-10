@@ -1,0 +1,12 @@
+enabled: true
+name: "Open backpack: Gear tab"
+
+node: backpack
+
+# Pushed by ``page.backpack.gear.has_red_dot`` when the Gear tab on the
+# backpack screen lights up. Just opens the tab — claim flow is handled by
+# overlays on the backpack.gear screen.
+
+steps:
+  - click: page.backpack.gear
+  - wait: 1s

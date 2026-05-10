@@ -181,7 +181,7 @@ def test_effective_ocr_for_version_region_uses_version_ocr() -> None:
                 "id": "v2",
                 "cond": "True",
                 "ocr": "references/main_city_v2.png",
-                "regions": [{"name": "is_new_chapter", "bbox": {}}],
+                "regions": [{"name": "chapter.new", "bbox": {}}],
             }
         ],
     }
@@ -192,7 +192,7 @@ def test_effective_ocr_for_version_region_uses_version_ocr() -> None:
 def test_effective_ocr_for_base_region_uses_default_ocr() -> None:
     entry = {
         "ocr": "references/main_city.png",
-        "regions": [{"name": "is_new_chapter", "bbox": {}}],
+        "regions": [{"name": "chapter.new", "bbox": {}}],
         "versions": [
             {
                 "id": "v2",

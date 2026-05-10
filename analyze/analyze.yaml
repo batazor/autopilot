@@ -8,3 +8,5 @@ include:
   - analyze_pages/analyze_heroes.yaml
   - analyze_pages/analyze_page_heroes_unit.yaml
   - analyze_pages/analyze_squad_settings.yaml
+  - analyze_pages/analyze_backpack.yaml
+  - analyze_pages/analyze_trials.yaml

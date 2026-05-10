@@ -1,0 +1,12 @@
+enabled: true
+name: "Open backpack: Speedup tab"
+
+node: backpack
+
+# Pushed by ``page.backpack.speedup.has_red_dot`` when the Speedup tab on the
+# backpack screen lights up. Just opens the tab — claim flow is handled by
+# overlays on the backpack.speedup screen.
+
+steps:
+  - click: page.backpack.speedup
+  - wait: 1s

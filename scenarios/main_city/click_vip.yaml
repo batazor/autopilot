@@ -1,0 +1,11 @@
+enabled: true
+name: "Open VIP page"
+
+node: main_city
+
+# Pushed by ``page.vip.has_red_dot`` when the VIP button on main_city lights
+# up. Just opens the page — claim/buy flow is handled by overlays on `vip`.
+
+steps:
+  - click: page.vip
+  - wait: 1s

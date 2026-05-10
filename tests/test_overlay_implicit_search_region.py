@@ -79,8 +79,8 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
     template_v1[:, :5] = (255, 0, 0)
     template_v1[:, 5:] = (0, 255, 0)
     # New schema: same logical region name in base and version blocks; crops use unsuffixed names.
-    cv2.imwrite(str(exported_crop_png(repo, ref_rel, "is_new_chapter")), template_v1)
-    cv2.imwrite(str(exported_crop_png(repo, ref_rel_v2, "is_new_chapter")), template_v2)
+    cv2.imwrite(str(exported_crop_png(repo, ref_rel, "chapter.new")), template_v1)
+    cv2.imwrite(str(exported_crop_png(repo, ref_rel_v2, "chapter.new")), template_v2)
 
     area_doc = {
         "screens": [
@@ -88,7 +88,7 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
                 "id": 1,
                 "ocr": ref_rel,
                 "regions": [
-                    {"name": "is_new_chapter", "bbox": {"x": 1, "y": 1, "width": 10, "height": 10}},
+                    {"name": "chapter.new", "bbox": {"x": 1, "y": 1, "width": 10, "height": 10}},
                 ],
                 "versions": [
                     {
@@ -97,7 +97,7 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
                         "ocr": ref_rel_v2,
                         "regions": [
                             {
-                                "name": "is_new_chapter",
+                                "name": "chapter.new",
                                 "bbox": {"x": 30, "y": 40, "width": 10, "height": 10},
                             },
                         ],
@@ -109,7 +109,7 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
     rules = [
         {
             "name": "new_chapter.visible",
-            "region": "is_new_chapter",
+            "region": "chapter.new",
             "action": "findIcon",
             "threshold": 0.98,
         }
@@ -125,6 +125,6 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
     hit = out["new_chapter.visible"]
 
     assert hit["matched"] is True
-    assert hit["region"] == "is_new_chapter"
-    assert hit["resolved_region"] == "is_new_chapter"
+    assert hit["region"] == "chapter.new"
+    assert hit["resolved_region"] == "chapter.new"
     assert hit["resolved_version"] == "v2"

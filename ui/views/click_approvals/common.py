@@ -6,10 +6,47 @@ from typing import Any
 
 import httpx
 import streamlit as st
+import yaml
 
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region, region_version_of
 from ui.redis_client import get_instance_state
+
+
+@st.cache_data(ttl=60)
+def _scenario_display_names_cached(scenarios_root: str) -> dict[str, str]:
+    """Map scenario_key (filename stem) → human ``name:`` field."""
+    out: dict[str, str] = {}
+    root = Path(scenarios_root)
+    if not root.is_dir():
+        return out
+    for path in root.rglob("*.yaml"):
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith("drafts/"):
+            continue
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if name:
+            out[path.stem] = name
+    return out
+
+
+def scenario_display_name(scenario_key: str) -> str:
+    """Resolve a scenario key (filename stem) to its YAML ``name:`` field.
+
+    Falls back to the key when the scenario YAML is missing or has no ``name``.
+    """
+    key = (scenario_key or "").strip()
+    if not key:
+        return ""
+    repo_root = Path(__file__).resolve().parents[3]
+    names = _scenario_display_names_cached(str(repo_root / "scenarios"))
+    return names.get(key, key)
 
 
 @st.cache_data(ttl=60)

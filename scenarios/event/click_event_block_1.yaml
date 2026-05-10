@@ -1,6 +1,7 @@
 enabled: true
 name: "Open event block 1"
-device_level: true
+
+node: main_city
 
 # Pushed by ``main_city.event.block.1.has_red_dot`` when the first event slot
 # on main_city lights up. Just opens it — anything beyond that (claim flow,

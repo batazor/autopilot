@@ -1,0 +1,12 @@
+enabled: true
+name: "Open backpack: Resources tab"
+
+node: backpack
+
+# Pushed by ``page.backpack.resources.has_red_dot`` when the Resources tab on
+# the backpack screen lights up. Just opens the tab — claim flow is handled
+# by overlays on the backpack.resources screen.
+
+steps:
+  - click: page.backpack.resources
+  - wait: 1s

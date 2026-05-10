@@ -41,8 +41,12 @@ def test_step_red_dot_requirement_reads_bool_and_aliases() -> None:
 
 def _frame_with_red_dot(w: int = 720, h: int = 1280, *, with_dot: bool) -> np.ndarray:
     """Calibration-sized frame (game-typical 720×1280) so the detector's radius
-    range covers the synthetic dot without re-tuning constants per-test."""
-    img = np.full((h, w, 3), 60, dtype=np.uint8)
+    range covers the synthetic dot without re-tuning constants per-test.
+
+    Background is a saturated dark teal (BGR 90,60,30 → HSV S≈170) so the
+    detector's surround-saturation gate sees a button-like surface around the
+    synthetic dot. Pure grey would trip the gate as a false negative."""
+    img = np.full((h, w, 3), (90, 60, 30), dtype=np.uint8)
     if with_dot:
         cv2.circle(img, (w // 2, h // 2), 10, (40, 40, 230), thickness=-1)
     return img

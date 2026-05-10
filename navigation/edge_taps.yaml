@@ -12,6 +12,9 @@ edges:
     heroes: [main_city.to.heroes]
     survivor_status: [isWorkers]
     suggestion_box: [isPostman]
+    backpack: [main_city.to.backpack]
+    vip: [page.vip]
+    shop: [page.shop]
   # arena:
   #   main_city: [back_button]
   # training:
@@ -42,3 +45,26 @@ edges:
     hero.recrutment: [heroes.recruit]
   page.heroes.unit:
     heroes: [back_button]
+  backpack:
+    main_city: [back_button]
+    backpack.resources: [page.backpack.resources]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.gear: [page.backpack.gear]
+    backpack.other: [page.backpack.other]
+  backpack.resources:
+    main_city: [back_button]
+  backpack.speedup:
+    main_city: [back_button]
+  backpack.bonus:
+    main_city: [back_button]
+  backpack.gear:
+    main_city: [back_button]
+  backpack.other:
+    main_city: [back_button]
+  vip:
+    main_city: [back_button]
+  shop:
+    main_city: [back_button]
+  trials:
+    main_city: [back_button]

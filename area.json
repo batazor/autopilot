@@ -566,19 +566,20 @@
           }
         },
         {
-          "name": "is_new_chapter",
+          "name": "chapter.new",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 2.6621621621621623,
-            "y": 85.97826086956522,
-            "width": 5.795366795366795,
-            "height": 3.1,
+            "x": 0.7316602316602316,
+            "y": 84.34782608695652,
+            "width": 10.548262548262548,
+            "height": 4.681521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "has_red_dot": true
         },
         {
           "name": "to_chief_profile",
@@ -625,6 +626,22 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "isWorkers",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.972972972972975,
+            "y": 0.21739130434782608,
+            "width": 20.0,
+            "height": 3.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
         }
       ],
       "versions": [
@@ -633,21 +650,6 @@
           "cond": "buildings.furnace.level >= 4",
           "ocr": "references/main_city_v2.png",
           "regions": [
-            {
-              "name": "is_new_chapter",
-              "action": "exist",
-              "type": "string",
-              "threshold": 0.9,
-              "bbox": {
-                "x": 3.241312741312741,
-                "y": 81.41304347826087,
-                "width": 5.795366795366795,
-                "height": 2.3869565217391306,
-                "rotation": 0.0,
-                "original_width": 720,
-                "original_height": 1280
-              }
-            },
             {
               "name": "chapter.task",
               "action": "text",
@@ -1225,29 +1227,6 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
-        }
-      ]
-    },
-    {
-      "id": 30,
-      "screen_id": "main_city",
-      "ocr": "references/workers.png",
-      "regions": [
-        {
-          "name": "isWorkers",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 32.972972972972975,
-            "y": 0.0,
-            "width": 20.0,
-            "height": 3.0,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
         }
       ]
     },
@@ -2063,6 +2042,314 @@
             "original_width": 720,
             "original_height": 1280
           }
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "screen_id": "",
+      "ocr": "references/main_city_vip.png",
+      "regions": [
+        {
+          "name": "page.vip",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.45945945945946,
+            "y": 3.4782608695652173,
+            "width": 20.6003861003861,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.shop",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.6949806949807,
+            "y": 3.4782608695652173,
+            "width": 19.0,
+            "height": 3.5000000000000004,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_city.event.block.3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.45173745173746,
+            "y": 23.369565217391305,
+            "width": 11.200772200772201,
+            "height": 6.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "main_city.event.block.4",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.45173745173746,
+            "y": 30.76086956521739,
+            "width": 11.200772200772201,
+            "height": 7.000000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "main_city.to.backpack",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.13127413127413,
+            "y": 91.95652173913044,
+            "width": 15.2007722007722,
+            "height": 7.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "screen_id": "",
+      "ocr": "references/page.backpack.png",
+      "regions": [
+        {
+          "name": "page.backpack.resources",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.505791505791506,
+            "y": 4.891304347826087,
+            "width": 21.227799227799228,
+            "height": 6.125,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.backpack.speedup",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 23.127413127413128,
+            "y": 5.543478260869565,
+            "width": 18.2007722007722,
+            "height": 5.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.backpack.bonus",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.85328185328186,
+            "y": 5.543478260869565,
+            "width": 18.0,
+            "height": 5.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.backpack.gear",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 60.19305019305019,
+            "y": 5.543478260869565,
+            "width": 19.0,
+            "height": 5.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.backpack.other",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.07722007722008,
+            "y": 5.434782608695652,
+            "width": 18.0,
+            "height": 6.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "screen_id": "",
+      "ocr": "references/page.trials.png",
+      "regions": [
+        {
+          "name": "trial.task.1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.8223938223938223,
+            "y": 48.47826086956522,
+            "width": 30.6003861003861,
+            "height": 5.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.task.2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.66023166023166,
+            "y": 48.47826086956522,
+            "width": 23.7992277992278,
+            "height": 5.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.task.3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 68.68725868725869,
+            "y": 48.47826086956522,
+            "width": 27.2007722007722,
+            "height": 5.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.day.1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.193050193050192,
+            "y": 37.93478260869565,
+            "width": 13.3996138996139,
+            "height": 7.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.day.2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.21621621621622,
+            "y": 37.82608695652174,
+            "width": 15.2007722007722,
+            "height": 7.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.day.3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.55598455598456,
+            "y": 37.608695652173914,
+            "width": 14.200772200772201,
+            "height": 7.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.day.4",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.351351351351354,
+            "y": 37.391304347826086,
+            "width": 15.0,
+            "height": 7.999999999999999,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.day.5",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.34362934362935,
+            "y": 37.28260869565217,
+            "width": 14.6003861003861,
+            "height": 7.900000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
         }
       ]
     }

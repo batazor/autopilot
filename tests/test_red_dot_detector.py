@@ -32,8 +32,11 @@ REFERENCE_H = REFERENCE_IMAGE_HEIGHT
 
 
 def _blank_frame(w: int = REFERENCE_W, h: int = REFERENCE_H) -> np.ndarray:
-    """Dim grey background — no false-positive triggers."""
-    img = np.full((h, w, 3), 64, dtype=np.uint8)
+    """Dark teal-blue UI background — emulates the saturated panel a real
+    notification badge sits on. The detector's surround-saturation gate
+    expects ring S ≥ 45; pure grey (S=0) would trip the gate and turn every
+    synthetic dot into a false negative."""
+    img = np.full((h, w, 3), (90, 60, 30), dtype=np.uint8)  # BGR → HSV S≈170
     return img
 
 
@@ -175,19 +178,22 @@ def test_has_red_dot_handles_invalid_inputs() -> None:
 #
 #   * avatar profile circle                        ≈ (87,    10)
 #   * workers count "6/8"                          ≈ (373,   12)
-#   * top-right event indicator                    ≈ (693,  218)
 #   * Build: Hero Hall hammer        (counter "1") ≈ ( 67, 1029)
 #   * mail envelope (bottom-right)   (counter "1") ≈ (692, 1018)
 #   * Exploration tab icon                         ≈ ( 99, 1189)
 #   * Heroes tab icon                              ≈ (217, 1189)
 #
-# False-positive guard: a cooked-meat icon at ≈(590, 279) is pinkish-orange
-# (HSV S≈170, V≈204) — the median-S/V floor on matched pixels keeps it out.
+# False-positive guards:
+# * Cooked-meat icon at ≈(590, 279) is pinkish-orange (HSV S≈170, V≈204) —
+#   the median-S/V floor on matched pixels keeps it out.
+# * A bright-red dot at ≈(693, 218) sits on the Davy hero avatar, which is
+#   rendered against open sky (surround S≈30). Pixel-perfect notification
+#   colour (H=0, S=225, V=255) but the surround-saturation gate rejects it
+#   because no real button/icon backs it.
 
 ALL_KNOWN_BADGES_PX: list[tuple[str, int, int]] = [
     ("avatar",         87,   10),
     ("workers",       373,   12),
-    ("event_top",     693,  218),
     ("build_hammer",   67, 1029),
     ("mail_envelope", 692, 1018),
     ("tab_explore",    99, 1189),
@@ -201,8 +207,8 @@ def _load_main_city_v2() -> np.ndarray:
     return img
 
 
-def test_real_main_city_v2_detects_exactly_seven_badges() -> None:
-    """Hard count: the captured frame holds exactly 7 red-dot indicators.
+def test_real_main_city_v2_detects_exactly_six_badges() -> None:
+    """Hard count: the captured frame holds exactly 6 red-dot indicators.
     A drift here means either we lost a true badge or a false-positive snuck in.
     """
     img = _load_main_city_v2()
@@ -248,6 +254,18 @@ def test_real_main_city_v2_has_no_red_dot_in_empty_central_area() -> None:
     h, w = img.shape[:2]
     bbox = _bbox_percent(252, 380, 216, 320, frame_w=w, frame_h=h)
     assert has_red_dot_in_bbox_percent(img, bbox) is False
+
+
+def test_real_main_city_v2_rejects_davy_avatar_red_dot() -> None:
+    """A pixel-perfect red dot at ≈(693, 218) sits on the Davy hero avatar
+    rendered against open sky (surround S≈30). Hue/sat/val are identical to
+    real notification badges (H=0, S=225, V=255) — only the unsaturated
+    surround tells them apart. The surround-saturation gate must keep it out
+    of the ``main_city.event.block.2`` bbox."""
+    img = _load_main_city_v2()
+    h, w = img.shape[:2]
+    bbox = _bbox_percent(629, 201, 83, 91, frame_w=w, frame_h=h)
+    assert has_red_dot_in_bbox_percent(img, bbox, accept_frost=False) is False
 
 
 def test_real_main_city_v2_rejects_pinkish_meat_icon() -> None:

@@ -1,96 +1,154 @@
 overlay:
-  - name: mail.new.visible
-    region: mail.new
-    isRedDot: true
-    screens:
-      - main_city
-    pushScenario:
-      - name: read_mail_gifts
-        priority: 80000
-        ttl: 1m
+- name: mail.new.visible
+  region: mail.new
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: read_mail_gifts
+    priority: 80000
+    ttl: 1m
 
-  - name: new_chapter.visible
-    region: is_new_chapter
-    action: findIcon
-    threshold: 0.9
-    screens:
-      - main_city
-    pushScenario:
-      - name: new_chapter
-        priority: 80000
-        ttl: 15m
+- name: new_chapter.visible
+  region: chapter.new
+  action: findIcon
+  threshold: 0.9
+  screens:
+  - main_city
+  pushScenario:
+  - name: new_chapter
+    priority: 80000
+    ttl: 15m
 
-  - name: isNewPeople.visible
-    region: isNewPeople
-    action: findIcon
-    threshold: 0.92
-    screens:
-      - main_city
-    pushScenario:
-      - name: is_new_people
-        priority: 80000
-        ttl: 15m
+- name: chapter.new.has_red_dot
+  region: chapter.new
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: new_chapter
+    priority: 80000
+    ttl: 15m
 
-  - name: isWorkers.visible
-    region: isWorkers
-    isRedDot: true
-    screens:
-      - main_city
-    pushScenario:
-      - name: assign_worker
-        priority: 80000
-        ttl: 1m
+- name: isNewPeople.visible
+  region: isNewPeople
+  action: findIcon
+  threshold: 0.92
+  screens:
+  - main_city
+  pushScenario:
+  - name: is_new_people
+    priority: 80000
+    ttl: 15m
 
-  - name: isPostman.visible
-    region: isPostman
-    action: findIcon
-    threshold: 0.9
-    screens:
-      - main_city
-    pushScenario:
-      - name: isPostman
-        priority: 80000
-        ttl: 5m
+- name: isWorkers.visible
+  region: isWorkers
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: assign_worker
+    priority: 80000
+    ttl: 1m
 
-  - name: main_city.to.exploration.has_reward
-    region: main_city.to.exploration
-    threshold: 0.98
-    isRedDot: true
-    screens:
-      - main_city
-    pushScenario:
-      - name: claim_exploration_rewards
-        ttl: 1m
+- name: isPostman.visible
+  region: isPostman
+  action: findIcon
+  threshold: 0.9
+  screens:
+  - main_city
+  pushScenario:
+  - name: isPostman
+    priority: 80000
+    ttl: 5m
 
-  - name: main_city.event.block.1.has_red_dot
-    region: main_city.event.block.1
-    isRedDot: true
-    screens:
-      - main_city
-    pushScenario:
-      - name: click_event_block_1
-        priority: 80000
-        ttl: 5m
+- name: main_city.to.exploration.has_reward
+  region: main_city.to.exploration
+  threshold: 0.98
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: claim_exploration_rewards
+    ttl: 1m
 
-  - name: main_city.event.block.2.has_red_dot
-    region: main_city.event.block.2
-    isRedDot: true
-    screens:
-      - main_city
-    pushScenario:
-      - name: click_event_block_2
-        priority: 80000
-        ttl: 5m
+- name: main_city.event.block.1.has_red_dot
+  region: main_city.event.block.1
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_1
+    priority: 80000
+    ttl: 5m
 
-  - name: chapter.task.present
-    region: chapter.task
-    action: text
-    # Any non-empty OCR text counts as "present" (overlay engine semantics for action=text).
-    # Restrict to main_city: Redis current_screen must match (case-insensitive in overlay_engine).
-    screens:
-      - main_city
-    ttl: 30s
-    pushScenario:
-      - name: chapter_task_router
-        priority: 70000
-        ttl: 20s
+- name: main_city.event.block.2.has_red_dot
+  region: main_city.event.block.2
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_2
+    priority: 80000
+    ttl: 5m
+
+- name: main_city.event.block.3.has_red_dot
+  region: main_city.event.block.3
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_3
+    priority: 80000
+    ttl: 5m
+
+- name: main_city.event.block.4.has_red_dot
+  region: main_city.event.block.4
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_4
+    priority: 80000
+    ttl: 5m
+
+- name: page.vip.has_red_dot
+  region: page.vip
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_vip
+    priority: 80000
+    ttl: 5m
+
+- name: page.shop.has_red_dot
+  region: page.shop
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_shop
+    priority: 80000
+    ttl: 5m
+
+- name: main_city.to.backpack.has_red_dot
+  region: main_city.to.backpack
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_backpack
+    priority: 80000
+    ttl: 5m
+
+- name: chapter.task.present
+  region: chapter.task
+  action: text
+  screens:
+  - main_city
+  ttl: 30s
+  pushScenario:
+  - name: chapter_task_router
+    priority: 70000
+    ttl: 20s

@@ -1,0 +1,221 @@
+enabled: true
+name: "Claim trials"
+
+node: trials
+
+# Pushed when the player lands on the Trials event screen (overlay rule
+# `trials.entered` in analyze_trials.yaml). Walks all 5 days and, for each
+# day with a red-dot indicator, opens it and claims every task that has its
+# own red-dot indicator. After each task tap we drain `button.claim` popups
+# (the game often shows multiple claim panels in sequence).
+#
+# DSL idiom: `while_match: <region> isRedDot: true max: 1` is a poor man's
+# `if has_red_dot then …` — it runs the inner steps at most once and silently
+# continues when the guard fails, unlike a hard `match` guard which aborts the
+# whole scenario.
+
+steps:
+  # ---------------- Day 1 ----------------
+  - while_match: trial.day.1
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.day.1
+      - wait: 1s
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+
+  # ---------------- Day 2 ----------------
+  - while_match: trial.day.2
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.day.2
+      - wait: 1s
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+
+  # ---------------- Day 3 ----------------
+  - while_match: trial.day.3
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.day.3
+      - wait: 1s
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+
+  # ---------------- Day 4 ----------------
+  - while_match: trial.day.4
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.day.4
+      - wait: 1s
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+
+  # ---------------- Day 5 ----------------
+  - while_match: trial.day.5
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.day.5
+      - wait: 1s
+      - while_match: trial.task.1
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.1
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.2
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.2
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s
+      - while_match: trial.task.3
+        isRedDot: true
+        max: 1
+        steps:
+          - click: trial.task.3
+          - wait: 0.8s
+          - while_match: button.claim
+            max: 3
+            steps:
+              - click: button.claim
+              - wait: 0.5s

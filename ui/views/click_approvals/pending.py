@@ -10,6 +10,7 @@ from .common import (
     active_player_state_flat,
     labeling_query_params_for_area_region,
     load_area_doc,
+    scenario_display_name,
 )
 from .ctx import ClickApprovalsCtx
 from .preview import render_preview_with_point
@@ -204,7 +205,7 @@ def fragment_pending_approval_columns(
             if isinstance(ctx0, dict):
                 scen_key = str(ctx0.get("scenario") or "").strip()
                 if scen_key:
-                    st.info(f"Scenario: `{scen_key}`")
+                    st.info(f"Scenario: `{scenario_display_name(scen_key)}`")
                     st.page_link(
                         "views/scenarios.py",
                         label="Open scenario",

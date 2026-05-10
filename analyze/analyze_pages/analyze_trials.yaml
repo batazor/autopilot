@@ -1,0 +1,14 @@
+overlay:
+# "Trials screen entered" trigger: when current_screen=trials and the title
+# OCR yields any text, push the claim_trials walker. The 30s ttl dedupes
+# repeated overlay ticks while a claim run is in flight.
+- name: trials.entered
+  region: page_title
+  action: text
+  screens:
+  - trials
+  ttl: 30s
+  pushScenario:
+  - name: claim_trials
+    priority: 80000
+    ttl: 30s

@@ -22,6 +22,7 @@ text_switch:
       chat: [chat]
       mail: [mail]
       chief_profile: [chief profile, chief, profile]
+      trials: [trials, trial]
 
 screens:
   building:
@@ -93,6 +94,12 @@ screens:
     rules:
       - ocr: page_title
         contains: [mail]
+        threshold: 0.8
+
+  trials:
+    rules:
+      - ocr: page_title
+        contains: [trials, trial]
         threshold: 0.8
 
   chief_profile:

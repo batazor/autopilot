@@ -38,6 +38,7 @@ class ScreenName(StrEnum):
     SURVIVOR_STATUS = "survivor_status"
     SUGGESTION_BOX = "suggestion_box"
     HERO_RECRUTMENT = "hero.recrutment"
+    TRIALS = "trials"
     UNKNOWN = "unknown"
 
 

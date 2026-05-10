@@ -58,6 +58,16 @@ orange-leaning blobs (cooked-meat icons, salmon UI elements) sit at S≈170,
 V≈204 — these floors discriminate cleanly. Sampling restricted to mask pixels
 so an inner white counter digit cannot drag the medians down."""
 
+RED_DOT_SURROUND_RING_PX = 4
+RED_DOT_MIN_SURROUND_MEDIAN_SATURATION = 45
+"""Median saturation of the thin ring just outside the candidate contour
+(red-mask pixels in the ring are excluded so the dot's own halo doesn't pollute
+the sample). Real notification badges sit on saturated UI elements — buttons
+and icon panels — whose surround S clusters in [62, 147] across the captured
+720×1280 frame. Stray red marks floating over washed-out scenery (sky, snow,
+character avatars rendered against open background) drop to S≈30. The gate at
+45 cleanly separates them."""
+
 
 # ---------------------------------------------------------------------------
 # Winter-event "frost badge" variant
@@ -151,6 +161,10 @@ def find_red_dots(
     hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
     sat_plane = hsv[..., 1]
     val_plane = hsv[..., 2]
+    ring_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * RED_DOT_SURROUND_RING_PX + 1, 2 * RED_DOT_SURROUND_RING_PX + 1),
+    )
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out: list[RedDotDetection] = []
@@ -197,6 +211,16 @@ def find_red_dots(
             continue
         if v_med < RED_DOT_MIN_MEDIAN_VALUE:
             continue
+
+        # Surround-saturation gate: a real notification badge sits on a
+        # saturated UI element (button, icon). Stray reds over washed-out
+        # scenery (sky, snow, an avatar's hair) drop to S≈30 and fail.
+        dilated = cv2.dilate(cmask, ring_kernel)
+        ring = (dilated > 0) & (cmask == 0) & (mask == 0)
+        if int(ring.sum()) >= 8:
+            ring_s_med = float(np.median(sat_plane[ring]))
+            if ring_s_med < RED_DOT_MIN_SURROUND_MEDIAN_SATURATION:
+                continue
 
         cx = float(x) + bw / 2.0
         cy = float(y) + bh / 2.0

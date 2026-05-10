@@ -1,12 +1,12 @@
 enabled: true
-name: "Open event block 2"
+name: "Open event block 3"
 
 node: main_city
 
-# Pushed by ``main_city.event.block.2.has_red_dot`` when the second event slot
+# Pushed by ``main_city.event.block.3.has_red_dot`` when the third event slot
 # on main_city lights up. Just opens it — anything beyond that (claim flow,
 # minigame entry) is the next overlay tick's job.
 
 steps:
-  - click: main_city.event.block.2
+  - click: main_city.event.block.3
   - wait: 1s

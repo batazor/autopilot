@@ -2,7 +2,7 @@ enabled: true
 name: "New chapter"
 
 steps:
-  - match: is_new_chapter
+  - match: chapter.new
     threshold: 0.9
-  - click: is_new_chapter
+  - click: chapter.new
   - wait: 1s
