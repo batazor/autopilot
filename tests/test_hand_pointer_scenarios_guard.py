@@ -15,7 +15,7 @@ def test_hand_pointer_scenarios_check_visibility_before_click() -> None:
             {"click": "hand_pointer"},
         ],
         "hand_pointer_small.yaml": [
-            {"match": "hand_pointer_small", "threshold": 0.75, "min_match_saturation": 40},
+            {"match": "hand_pointer_small", "threshold": 0.9, "min_match_saturation": 50},
             {"click": "hand_pointer_small"},
         ],
         "hand_pointer_small_reverse.yaml": [
