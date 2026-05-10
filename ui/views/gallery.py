@@ -68,25 +68,6 @@ def _declared_version_ids(entry: dict[str, object]) -> set[str]:
     return out
 
 
-def _all_version_ids_from_doc(doc: dict[str, object]) -> list[str]:
-    ids: set[str] = set()
-    screens = doc.get("screens") if isinstance(doc, dict) else None
-    if not isinstance(screens, list):
-        return []
-    for e in screens:
-        if isinstance(e, dict):
-            ids.update(_declared_version_ids(e))
-
-    def sort_key(vid: str) -> tuple[int, str]:
-        tail = vid[1:] if vid.startswith("v") else vid
-        try:
-            return (int(tail), vid)
-        except ValueError:
-            return (9999, vid)
-
-    return sorted(ids, key=sort_key)
-
-
 def _refs_from_screen_entry(entry: dict[str, object]) -> list[tuple[str, str | None]]:
     """``(ref_rel, auto_active_version)`` — ``None`` means default (v1) screenshot."""
     out: list[tuple[str, str | None]] = []
@@ -183,6 +164,46 @@ def _screen_entry_for_ref(doc: dict[str, object], ref_rel: str) -> dict[str, obj
     return None
 
 
+def _screen_has_layout_versions(entry: dict[str, object] | None) -> bool:
+    """True when the screen declares at least one ``versions[]`` entry with id + ``ocr`` path."""
+    if entry is None:
+        return False
+    raw = entry.get("versions")
+    if not isinstance(raw, list):
+        return False
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        vid = normalize_version_id(str(v.get("id") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        if vid and vr:
+            return True
+    return False
+
+
+def _layout_ver_labels_for_entry(entry: dict[str, object] | None) -> OrderedDict[str, str]:
+    """Options: **Auto** only without ``versions``; else Auto, Default, Force vN per entry."""
+    od: OrderedDict[str, str] = OrderedDict()
+    od["auto"] = "Auto (match file)"
+    if entry is None or not _screen_has_layout_versions(entry):
+        return od
+    od["default"] = "Default (v1)"
+    raw = entry.get("versions")
+    if not isinstance(raw, list):
+        return od
+    seen: set[str] = set()
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        vid = normalize_version_id(str(v.get("id") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        if not vid or not vr or vid in seen:
+            continue
+        seen.add(vid)
+        od[vid] = f"Force {vid}"
+    return od
+
+
 def _display_ref_rel_for_card(
     doc: dict[str, object],
     listed_rel: str,
@@ -253,6 +274,41 @@ def _gallery_slice_cached(
     doc = _load_area_doc_cached(mtime)
     regs, boxes, sid = _gallery_slice_for_ref(doc, ref_rel, preview_mode)
     return frozenset(regs), boxes, sid
+
+
+def _refs_exclusive_to_versions(doc: dict[str, object]) -> frozenset[str]:
+    """Reference paths that appear only under ``versions[].ocr``, never as screen ``ocr``.
+
+    Those files are not listed as separate gallery rows — use **Layout → Force vN**
+    on the base screenshot row.
+    """
+    default_refs: set[str] = set()
+    version_refs: set[str] = set()
+    screens = doc.get("screens") if isinstance(doc, dict) else None
+    if not isinstance(screens, list):
+        return frozenset()
+    for e in screens:
+        if not isinstance(e, dict):
+            continue
+        dr = _ocr_to_ref_rel(str(e.get("ocr") or ""))
+        if dr:
+            default_refs.add(dr)
+        raw = e.get("versions")
+        if not isinstance(raw, list):
+            continue
+        for v in raw:
+            if not isinstance(v, dict):
+                continue
+            vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+            if vr:
+                version_refs.add(vr)
+    return frozenset(version_refs - default_refs)
+
+
+@st.cache_data(ttl=60)
+def _refs_exclusive_to_versions_cached(mtime: float) -> frozenset[str]:
+    doc = _load_area_doc_cached(mtime)
+    return _refs_exclusive_to_versions(doc)
 
 
 def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
@@ -417,16 +473,6 @@ with flt[0]:
 with flt[1]:
     show_crop = st.toggle("Include `references/crop/`", value=qp_crop)
 
-_ver_labels = OrderedDict(
-    [
-        ("auto", "Auto (match file)"),
-        ("default", "Default (v1)"),
-    ]
-)
-for _vid in _all_version_ids_from_doc(area_doc):
-    _ver_labels[_vid] = f"Force {_vid}"
-_ver_keys = list(_ver_labels.keys())
-
 region_sel = st.multiselect(
     "Filter by regions (from `area.json`)",
     options=all_regions,
@@ -468,9 +514,12 @@ files = list_reference_pngs(
 
 ql = q.strip().lower()
 want_regions = {str(x).strip() for x in (region_sel or []) if str(x).strip()}
+_version_only_refs = _refs_exclusive_to_versions_cached(area_mtime)
 filtered: list[Path] = []
 for p in files:
     rel = _rel_under_references(p, ref_root)
+    if rel in _version_only_refs:
+        continue
     if ql and ql not in rel.lower():
         continue
     if want_regions:
@@ -481,8 +530,9 @@ for p in files:
 
 st.caption(
     f"Showing **{len(filtered)} / {len(files)}** file(s) · root: `{ref_root}` · "
-    "per-image **Layout** below · region filter uses **Auto** · newest first · "
-    "click **Open in Labeling** to annotate."
+    "only **base** ``ocr`` screenshots listed — alternates via **Layout** · "
+    "**Layout** when ``versions`` exist · defaults to **Default (v1)** · "
+    "region filter **Auto** · **Open in Labeling** → default reference."
 )
 
 if not filtered:
@@ -495,27 +545,38 @@ def _render_cards(
     key_prefix: str,
     area_mtime: float,
     area_doc: dict[str, object],
-    ver_keys: list[str],
-    ver_labels: OrderedDict[str, str],
 ) -> None:
     for i, p in enumerate(paths):
         rel = _rel_under_references(p, ref_root)
         layout_key = f"layout::{key_prefix}::{i}"
 
-        ctl = st.columns([5, 1.4], vertical_alignment="bottom")
-        with ctl[1]:
-            card_ver = st.selectbox(
-                "Layout",
-                options=ver_keys,
-                format_func=lambda k: ver_labels[k],
-                index=0,
-                key=layout_key,
-                help="**Auto**: this gallery file + worker-style regions. "
-                "**Default** / **Force vN**: switch to the matching ``area.json`` "
-                "reference image (``ocr`` / ``versions[].ocr``) and regions.",
-            )
+        entry = _screen_entry_for_ref(area_doc, rel)
+        ver_labels = _layout_ver_labels_for_entry(entry)
+        ver_keys = list(ver_labels.keys())
+        show_layout_switch = len(ver_keys) > 1
+
+        if show_layout_switch:
+            ctl = st.columns([5, 1.4], vertical_alignment="bottom")
+            with ctl[1]:
+                _layout_default_idx = (
+                    ver_keys.index("default") if "default" in ver_keys else 0
+                )
+                card_ver = st.selectbox(
+                    "Layout",
+                    options=ver_keys,
+                    format_func=lambda k, labels=ver_labels: labels[k],
+                    index=_layout_default_idx,
+                    key=layout_key,
+                    help="**Auto**: this gallery file + worker-style regions. "
+                    "**Default** / **Force vN**: switch ``area.json`` reference "
+                    "(``ocr`` / ``versions[].ocr``) and regions.",
+                )
+        else:
+            card_ver = "auto"
 
         layout_rel = _display_ref_rel_for_card(area_doc, rel, card_ver)
+        # Labeling always edits the base ``ocr`` screenshot, not ``versions[].ocr``.
+        labeling_ref = _display_ref_rel_for_card(area_doc, rel, "default")
         img_path = (ref_root / layout_rel).resolve()
         try:
             if img_path.is_file():
@@ -537,13 +598,12 @@ def _render_cards(
             extra.append(f"page={sid.strip()}")
         if regs:
             extra.append(f"regions={len(regs)}")
-        if card_ver != "auto":
-            extra.append(f"ver={card_ver}")
-        if layout_rel != rel:
-            extra.append(f"image={layout_rel}")
         extra_txt = (" · " + " · ".join(extra)) if extra else ""
 
-        cap_rel = f"`{rel}`" if layout_rel == rel else f"gallery `{rel}` · **`{layout_rel}`**"
+        # One line: the file actually shown; optional note if the gallery row differs.
+        cap_rel = f"`{layout_rel}`"
+        if rel != layout_rel:
+            cap_rel = f"{cap_rel} · row `{rel}`"
 
         body = st.columns([5, 1.4], vertical_alignment="top")
         with body[1]:
@@ -576,7 +636,9 @@ def _render_cards(
             st.page_link(
                 "views/labeling.py",
                 label="Open in Labeling",
-                query_params={"ref": layout_rel},
+                query_params={"ref": labeling_ref},
+                help="Always opens the default (v1) reference for this screen in Labeling — "
+                "not the v2 preview.",
                 width="stretch",
             )
         st.divider()
@@ -597,8 +659,6 @@ if group_by == "page (screen_id)":
                 key_prefix=f"grp::{sid}",
                 area_mtime=area_mtime,
                 area_doc=area_doc,
-                ver_keys=_ver_keys,
-                ver_labels=_ver_labels,
             )
 else:
     _render_cards(
@@ -606,7 +666,5 @@ else:
         key_prefix="flat",
         area_mtime=area_mtime,
         area_doc=area_doc,
-        ver_keys=_ver_keys,
-        ver_labels=_ver_labels,
     )
 
