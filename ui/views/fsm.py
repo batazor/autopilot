@@ -1,4 +1,4 @@
-"""Game screen FSM topology (Python mirror of Go transition tables): regions and edges."""
+"""Game node graph topology (Python mirror of Go transition tables): regions and edges."""
 
 from __future__ import annotations
 
@@ -269,14 +269,14 @@ with tab_regions:
 
 with tab_merged:
     st.caption(
-        "Full FSM edge list is the union of the three regional tables — `FSM_SCREEN_EDGES` in "
+        "Full node-graph edge list is the union of the three regional tables — `FSM_SCREEN_EDGES` in "
         "`navigation/fsm_screen_map.py` (see **All edges**). Below: plan a **tap** route using only edges "
         "the bot can execute (`EDGE_TAPS`)."
     )
 
     st.subheader("Bot route planner (tap graph)")
     st.caption(
-        "Uses `navigation/screen_graph.py` · `EDGE_TAPS`. Can differ from the full Go FSM topology."
+        "Uses `navigation/screen_graph.py` · `EDGE_TAPS`. Can differ from the full Go node-graph topology."
     )
 
     def _tap_graph_nodes() -> list[str]:

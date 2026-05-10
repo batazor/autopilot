@@ -107,7 +107,7 @@ def _render_idle_approvals_column(inst: str) -> None:
     st.success("No pending click requests.")
     st.caption(
         "Clears **current_screen** in Redis (same as unknown / overlay `screens: [none]`). "
-        "Useful when the worker stuck on the wrong FSM screen."
+        "Useful when the worker is stuck on the wrong node."
     )
     st.caption(
         "Left **Screenshot** refreshes every second. This column does **not** auto-refresh — "

@@ -15,7 +15,7 @@ import redis.asyncio as aioredis
 
 from actions.tap import BotActions
 from capture.adb_screencap import DEFAULT_ADB_BIN
-from config.devices import player_ids_for_device
+from config.devices import player_ids_for_device, player_ids_for_device_candidates
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from fsm.states import InstanceState

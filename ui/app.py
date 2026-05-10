@@ -27,6 +27,11 @@ click_approvals_page = st.Page(
     title="Click approvals",
 )
 queue_page = st.Page(str(_ui_dir / "views" / "queue.py"), title="Queue")
+debug_scenarios_page = st.Page(
+    str(_ui_dir / "views" / "debug_scenarios.py"),
+    title="Scenario runner",
+    url_path="debug_scenarios",
+)
 scenarios_page = st.Page(str(_ui_dir / "views" / "scenarios.py"), title="Scenarios")
 wiki_scenarios_page = st.Page(str(_ui_dir / "views" / "wiki_scenarios.py"), title="Scenarios")
 wiki_analyze_page = st.Page(str(_ui_dir / "views" / "wiki_analyze.py"), title="Analyze")
@@ -50,7 +55,7 @@ st.navigation(
             wiki_scenarios_page,
             wiki_analyze_page,
         ],
-        "Debug": [click_approvals_page, queue_page, fsm_page],
+        "Debug": [click_approvals_page, queue_page, debug_scenarios_page, fsm_page],
         "Config": [scenarios_page, settings_page],
     }
 ).run()

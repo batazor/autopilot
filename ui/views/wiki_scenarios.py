@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode, urlparse, urlunparse
 
 import streamlit as st
 import yaml
@@ -16,6 +17,15 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 WIKI_STORY_DISPLAY_MAX_SIDE = 600
+
+
+def _page_url(page_path: str, params: dict[str, str]) -> str:
+    raw = getattr(st.context, "url", None)
+    if not (raw and str(raw).strip()):
+        raw = "http://localhost:8501/"
+    u = urlparse(str(raw))
+    path = "/" + page_path.strip("/")
+    return urlunparse((u.scheme, u.netloc, path, "", urlencode(params), ""))
 
 
 def _camel_to_snake(s: str) -> str:
@@ -42,26 +52,24 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 
 def _scenario_param_path(repo_root: Path, raw: object | None) -> tuple[Path | None, str]:
-    """Parse ``?scenario=…`` (repo-relative path under ``scenarios/``). Returns ``(path, err)``."""
+    """Parse ``?scenario=…`` (scenario key / filename stem). Returns ``(path, err)``."""
     if raw is None:
         return None, ""
     s = raw[0] if isinstance(raw, list) and raw else raw
     s = str(s).strip().replace("\\", "/")
     if not s:
         return None, ""
-    if not s.startswith("scenarios/"):
-        s = "scenarios/" + s.lstrip("/")
-    scenarios_root = (repo_root / "scenarios").resolve()
-    candidate = (repo_root / s).resolve()
-    try:
-        candidate.relative_to(scenarios_root)
-    except ValueError:
-        return None, f"`{s}` must be inside `scenarios/`."
-    if candidate.suffix.lower() != ".yaml":
-        return None, f"`{s}` must be a `.yaml` file."
-    if not candidate.is_file():
-        return None, f"File not found: `{s}`"
-    return candidate, ""
+    if "/" in s or s.endswith(".yaml"):
+        return None, f"`{s}` must be a scenario key, for example `ads_info`."
+    scenarios_root = repo_root / "scenarios"
+    hits = [
+        p for p in scenarios_root.rglob(f"{s}.yaml")
+        if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
+    ]
+    if not hits:
+        return None, f"Scenario not found: `{s}`"
+    hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
+    return hits[0], ""
 
 
 def _abs_image_path(repo_root: Path, rel: str) -> Path | None:
@@ -425,9 +433,19 @@ for it in indexed:
         meta_cols[2].markdown(f"**Priority**: `{priority}`")
         page_str = ", ".join(pages) if pages else "(unknown)"
         meta_cols[3].markdown(f"**Page(s)**: `{page_str}`")
-        st.caption(f"Steps: {len(steps) if isinstance(steps, list) else 0}")
+        action_cols = st.columns([1, 1, 4])
+        action_cols[0].link_button(
+            "Debug run",
+            _page_url("debug_scenarios", {"scenario": skey}),
+            width="stretch",
+        )
+        action_cols[1].link_button(
+            "Permalink",
+            _page_url("wiki_scenarios", {"scenario": skey}),
+            width="stretch",
+        )
+        action_cols[2].caption(f"Steps: {len(steps) if isinstance(steps, list) else 0}")
 
         st.divider()
         st.markdown("**Story**")
         _render_story_steps(steps=steps, repo_root=repo_root, regions_idx=regions_idx)
-

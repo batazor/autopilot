@@ -24,6 +24,7 @@ from layout.area_versions import effective_ocr_for_region
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
+from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.template_match import (
     patch_bgr_from_bbox_percent,
     validate_live_bbox_patch_vs_reference_dims,
@@ -36,6 +37,33 @@ logger = logging.getLogger(__name__)
 
 class _BreakRepeat(Exception):
     """Internal control-flow: break the nearest `repeat:` block."""
+
+
+def _step_red_dot_requirement(step: dict[str, Any]) -> bool | None:
+    """Read optional ``isRedDot`` predicate on a ``match:`` / ``while_match:`` step.
+
+    Accepts the YAML-natural form ``isRedDot: true|false`` and a few common string
+    aliases (``yes/no/on/off``) for resilience. Returns ``None`` when the field is
+    absent or unparseable — so ``match:`` behaves exactly as before for every step
+    that does not opt in.
+    """
+    if not isinstance(step, dict):
+        return None
+    if "isRedDot" in step:
+        raw = step.get("isRedDot")
+    elif "is_red_dot" in step:
+        raw = step.get("is_red_dot")
+    else:
+        return None
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        s = raw.strip().lower()
+        if s in {"true", "yes", "y", "1", "on"}:
+            return True
+        if s in {"false", "no", "n", "0", "off"}:
+            return False
+    return None
 
 # ---------------------------------------------------------------------------
 # Color checks (dominant color in a bbox)
@@ -636,6 +664,20 @@ class DslScenarioTask:
             image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
         )
         row = out.get(str(rule["name"]))
+
+        # Optional ``isRedDot: true|false`` filter — refines ``matched`` based on the
+        # programmatic red-dot detector against the same region's bbox. The standard
+        # match still has to succeed; this only narrows the result, never widens it.
+        red_dot_req = _step_red_dot_requirement(step)
+        if red_dot_req is not None:
+            row = self._apply_red_dot_filter(
+                row=row,
+                region=region,
+                region_def=pair[1],
+                image_bgr=image_bgr,
+                requirement=red_dot_req,
+            )
+
         if isinstance(row, dict):
             # Keep last match for subsequent `click:` on the same region.
             self._last_match_region = region
@@ -659,6 +701,46 @@ class DslScenarioTask:
             self._last_match_region = ""
             self._last_match_row = None
         return None
+
+    @staticmethod
+    def _apply_red_dot_filter(
+        *,
+        row: dict[str, Any] | None,
+        region: str,
+        region_def: dict[str, Any],
+        image_bgr: Any,
+        requirement: bool,
+    ) -> dict[str, Any]:
+        """Combine the standard ``match:`` row with the red-dot predicate.
+
+        Returns a fresh row that always exposes ``red_dot_required`` and (when
+        the detector ran) ``red_dot_present`` so DSL audit / Redis context lines
+        carry enough info to debug "why didn't this fire".
+        """
+        base: dict[str, Any] = dict(row) if isinstance(row, dict) else {
+            "matched": False,
+            "region": region,
+            "reason": "no_overlay_row",
+        }
+        base["red_dot_required"] = bool(requirement)
+
+        if not bool(region_def.get("has_red_dot")):
+            base["matched"] = False
+            base["reason"] = "red_dot_capability_disabled"
+            return base
+
+        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
+        if bbox is None:
+            base["matched"] = False
+            base["reason"] = "missing_bbox_for_red_dot"
+            return base
+
+        present = has_red_dot_in_bbox_percent(image_bgr, bbox)
+        base["red_dot_present"] = bool(present)
+        if bool(present) != bool(requirement):
+            base["matched"] = False
+            base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
+        return base
 
     async def _ocr_region(
         self,

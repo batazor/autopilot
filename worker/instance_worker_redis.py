@@ -41,7 +41,12 @@ class InstanceWorkerRedisMixin:
         # to avoid relying on a direct import in this module.
         from worker import instance_worker
 
-        for player_id in instance_worker.player_ids_for_device(self._cfg.bluestacks_window_title):
+        _pids_fn = getattr(instance_worker, "player_ids_for_device_candidates", None)
+        if callable(_pids_fn):
+            _pids = _pids_fn(self._cfg.bluestacks_window_title, self._cfg.instance_id)
+        else:
+            _pids = instance_worker.player_ids_for_device(self._cfg.bluestacks_window_title)
+        for player_id in _pids:
             fsm = PlayerFSM(player_id, self._redis, loop=loop)
             await fsm.restore_from_redis()
             self._player_fsms[player_id] = fsm
@@ -197,7 +202,11 @@ class InstanceWorkerRedisMixin:
             # Import via worker.instance_worker so tests can monkeypatch it there.
             from worker import instance_worker
 
-            _cfg_pids = instance_worker.player_ids_for_device(self._cfg.bluestacks_window_title)
+            _pids_fn = getattr(instance_worker, "player_ids_for_device_candidates", None)
+            if callable(_pids_fn):
+                _cfg_pids = _pids_fn(self._cfg.bluestacks_window_title, self._cfg.instance_id)
+            else:
+                _cfg_pids = instance_worker.player_ids_for_device(self._cfg.bluestacks_window_title)
             resolved = (active or (_cfg_pids[0] if _cfg_pids else "")).strip()
             if not resolved:
                 return item
@@ -227,13 +236,18 @@ class InstanceWorkerRedisMixin:
 
     async def _run_restart_event_listener(self) -> None:
         """React to FSM ``game_closed`` — same channel as ``PlayerFSM._publish_restart_signal``."""
-        from config.devices import player_ids_for_device
+        from config.devices import player_ids_for_device_candidates
 
         client = self._redis
         if client is None:
             return
 
-        mine = set(player_ids_for_device(self._cfg.bluestacks_window_title))
+        mine = set(
+            player_ids_for_device_candidates(
+                self._cfg.bluestacks_window_title,
+                self._cfg.instance_id,
+            )
+        )
         pubsub = client.pubsub()
         try:
             await pubsub.subscribe(_RESTART_EVENT_CHANNEL)

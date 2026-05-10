@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 import streamlit as st
 import yaml
 
-from config.devices import player_ids_for_device
+from config.devices import player_ids_for_device_candidates
 from config.loader import Settings, load_settings
 from ui.redis_client import get_player_scenario, require_redis_connection, set_player_scenario
 
@@ -36,7 +36,10 @@ def _all_player_ids(settings: Settings) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for inst in settings.instances:
-        for pid in player_ids_for_device(inst.bluestacks_window_title):
+        for pid in player_ids_for_device_candidates(
+            inst.bluestacks_window_title,
+            inst.instance_id,
+        ):
             if pid not in seen:
                 seen.add(pid)
                 out.append(pid)
@@ -76,8 +79,8 @@ class _FolderNode:
     files: list[dict] = field(default_factory=list)
 
 
-def _wiki_story_link_url(repo_rel: str) -> str:
-    """Full URL to Wiki · Scenarios with ``scenario=<repo-relative path>`` (``LinkColumn``).
+def _wiki_story_link_url(scenario_key: str) -> str:
+    """Full URL to Wiki · Scenarios with ``scenario=<scenario key>`` (``LinkColumn``).
 
     Path segment matches ``st.Page(..., \"views/wiki_scenarios.py\")`` → ``/wiki_scenarios``.
     """
@@ -91,8 +94,24 @@ def _wiki_story_link_url(repo_rel: str) -> str:
         wiki_path = "/" + "/".join(parts)
     else:
         wiki_path = "/wiki_scenarios"
-    query = urlencode({"scenario": repo_rel})
+    query = urlencode({"scenario": scenario_key})
     return urlunparse((u.scheme, u.netloc, wiki_path, "", query, ""))
+
+
+def _debug_scenario_link_url(scenario_key: str) -> str:
+    """Full URL to Debug · Scenario runner with ``scenario=<scenario key>``."""
+    raw = getattr(st.context, "url", None)
+    if not (raw and str(raw).strip()):
+        raw = "http://localhost:8501/"
+    u = urlparse(str(raw))
+    parts = [p for p in u.path.strip("/").split("/") if p]
+    if parts:
+        parts[-1] = "debug_scenarios"
+        debug_path = "/" + "/".join(parts)
+    else:
+        debug_path = "/debug_scenarios"
+    query = urlencode({"scenario": scenario_key})
+    return urlunparse((u.scheme, u.netloc, debug_path, "", query, ""))
 
 
 def _build_folder_tree_from_meta(
@@ -106,7 +125,8 @@ def _build_folder_tree_from_meta(
         row = {
             "id": sid,
             "name": name,
-            "wiki": _wiki_story_link_url(f"scenarios/{rel}"),
+            "wiki": _wiki_story_link_url(sid),
+            "debug": _debug_scenario_link_url(sid),
             "enabled": bool(raw.get("enabled", False)),
             "steps": n_steps,
         }
@@ -178,6 +198,13 @@ with _nav[1]:
         "views/wiki_scenarios.py",
         label="Wiki · Scenarios",
         help="Browse scenarios as a readable story (steps, taps, regions).",
+        width="stretch",
+    )
+with _nav[2]:
+    st.page_link(
+        "views/debug_scenarios.py",
+        label="Debug runner",
+        help="Force a selected scenario to run next on an instance.",
         width="stretch",
     )
 
@@ -256,10 +283,16 @@ with tab_files:
             help="Readable story (steps, taps, regions)",
             width="small",
         ),
+        "debug": st.column_config.LinkColumn(
+            "Debug",
+            display_text="Run",
+            help="Open this scenario in the debug runner",
+            width="small",
+        ),
         "enabled": st.column_config.CheckboxColumn("Enabled", default=False),
         "steps": st.column_config.NumberColumn("Steps", disabled=True, format="%d", width="small"),
     }
-    _scenario_disabled = ("id", "name", "wiki", "steps")
+    _scenario_disabled = ("id", "name", "wiki", "debug", "steps")
 
     merged_edits: list[dict] = []
     tree = _build_folder_tree_from_meta(scenario_meta)
@@ -335,7 +368,10 @@ with tab_cron:
             spec = _slug(name)
             n = 0
             for inst in settings.instances:
-                for pid in player_ids_for_device(inst.bluestacks_window_title):
+                for pid in player_ids_for_device_candidates(
+                    inst.bluestacks_window_title,
+                    inst.instance_id,
+                ):
                     payload = json.dumps(
                         {
                             "task_id": f"ui:cronpush:{spec}:{pid}:{int(now)}",

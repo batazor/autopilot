@@ -62,7 +62,7 @@ def mtimes(
 
 
 def pipeline_overlay_cache_key(instance_id: str, current_screen: str | None) -> tuple[str, str]:
-    """Cache bucket for rolling-overlay analysis (instance + FSM screen)."""
+    """Cache bucket for rolling-overlay analysis (instance + node)."""
     sk = (current_screen or "").strip()
     return (instance_id, sk)
 

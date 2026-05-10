@@ -35,8 +35,7 @@ overlay:
 
   - name: isWorkers.visible
     region: isWorkers
-    action: color_check
-    threshold: 0.9
+    isRedDot: true
     screens:
       - main_city
     pushScenario:

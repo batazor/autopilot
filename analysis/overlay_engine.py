@@ -22,6 +22,7 @@ from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
+from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
@@ -191,6 +192,92 @@ async def evaluate_overlay_rules_async(
         if action == "exist":
             action = "findIcon"
         # Only `text` is supported for OCR.
+
+        # YAML may use ``isRedDot: true|false`` instead of ``action:`` (same keys as DSL).
+        if rule.get("isRedDot") is True:
+            action = "red_dot"
+        elif rule.get("isRedDot") is False:
+            action = "red_dot_absent"
+
+        if action in ("red_dot", "red_dot_absent"):
+            want_present = action == "red_dot"
+            region_name_rd = str(rule.get("region") or "").strip()
+            pair_rd = (
+                screen_region_by_name(area_doc, region_name_rd, state_flat=state_flat)
+                if region_name_rd
+                else None
+            )
+            if pair_rd is None:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "unknown_region",
+                    "region": region_name_rd,
+                    "action": "red_dot",
+                    "want_dot_present": want_present,
+                }
+                continue
+            _entry_rd, reg_rd = pair_rd
+            if not bool(reg_rd.get("has_red_dot")):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "red_dot_capability_disabled",
+                    "region": region_name_rd,
+                    "action": "red_dot",
+                    "want_dot_present": want_present,
+                }
+                continue
+            bbox_rd = reg_rd.get("bbox")
+            if not isinstance(bbox_rd, dict):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "missing_bbox",
+                    "region": region_name_rd,
+                    "action": "red_dot",
+                    "want_dot_present": want_present,
+                }
+                continue
+            present_rd = bool(has_red_dot_in_bbox_percent(image_bgr, bbox_rd))
+            matched_rd = present_rd if want_present else not present_rd
+
+            bx = float(bbox_rd.get("x") or 0.0)
+            by = float(bbox_rd.get("y") or 0.0)
+            bw = float(bbox_rd.get("width") or 0.0)
+            bh = float(bbox_rd.get("height") or 0.0)
+            mx_pct_rd = bx + bw / 2.0
+            my_pct_rd = by + bh / 2.0
+            tap_x_pct_rd = mx_pct_rd
+            tap_y_pct_rd = my_pct_rd
+            tap_delta_rd = _tap_region_delta_pct(area_doc, region_name_rd, rule, state_flat=state_flat)
+            if tap_delta_rd is not None:
+                _tap_reg_rd, dx_pct_rd, dy_pct_rd = tap_delta_rd
+                tap_x_pct_rd = mx_pct_rd + dx_pct_rd
+                tap_y_pct_rd = my_pct_rd + dy_pct_rd
+
+            hit_rd: dict[str, Any] = {
+                "matched": matched_rd,
+                "action": "red_dot",
+                "region": region_name_rd,
+                "want_dot_present": want_present,
+                "red_dot_present": present_rd,
+                "tap_x_pct": tap_x_pct_rd,
+                "tap_y_pct": tap_y_pct_rd,
+                "tap_match_x_pct": mx_pct_rd,
+                "tap_match_y_pct": my_pct_rd,
+            }
+            if tap_delta_rd is not None:
+                tap_reg_rd, dx_pct_rd, dy_pct_rd = tap_delta_rd
+                hit_rd["tap_region"] = tap_reg_rd
+                hit_rd["tap_delta_x_pct"] = dx_pct_rd
+                hit_rd["tap_delta_y_pct"] = dy_pct_rd
+            push_tasks_rd = optional_push_scenario_tasks(rule)
+            if push_tasks_rd:
+                hit_rd["pushScenario"] = push_tasks_rd
+            if set_node_s:
+                hit_rd["set_node"] = set_node_s
+            if priority is not None:
+                hit_rd["priority"] = priority
+            out[logical_name] = hit_rd
+            continue
 
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()

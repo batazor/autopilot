@@ -131,7 +131,7 @@ def _render_player_identity(
     century_age = _format_age(state.get("century_player_sync_at") or 0.0)
 
     badge = " · _active_" if is_active else ""
-    header = f"**`{pid}`**{badge} · FSM `{fsm_state or 'unknown'}`"
+    header = f"**`{pid}`**{badge} · node `{fsm_state or 'unknown'}`"
 
     col_av, col_txt, col_live = st.columns([1, 5, 0.85], vertical_alignment="center")
     with col_live:
@@ -318,7 +318,7 @@ def _dashboard() -> None:
                     label="🔗",
                     query_params={"instance_id": inst.instance_id},
                     help=(
-                        "Instance — screenshots, queue commands, FSM history "
+                        "Instance — screenshots, queue commands, node history "
                         f"for `{inst.instance_id}`."
                     ),
                     width="stretch",

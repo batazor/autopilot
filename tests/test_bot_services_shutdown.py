@@ -21,3 +21,56 @@ def test_shutdown_hooks_skip_signals_outside_main_thread(monkeypatch: Any) -> No
     monkeypatch.setattr(bot_services.signal, "signal", fail_signal)
 
     bot_services._install_shutdown_hooks()
+
+
+def test_ensure_health_watchdog_reuses_existing_process(monkeypatch: Any) -> None:
+    class ExistingProcess:
+        pid = 12345
+
+    spawned: list[object] = []
+
+    monkeypatch.setattr(bot_services, "_health_proc", None)
+    monkeypatch.setattr(
+        bot_services,
+        "_existing_health_watchdog_process",
+        lambda _repo: ExistingProcess(),
+    )
+    monkeypatch.setattr(bot_services.subprocess, "Popen", lambda *a, **kw: spawned.append((a, kw)))
+
+    bot_services._ensure_health_watchdog()
+
+    assert spawned == []
+    assert bot_services._health_proc is None
+
+
+def test_stop_health_watchdog_stops_discovered_process(monkeypatch: Any) -> None:
+    class ExistingProcess:
+        def __init__(self) -> None:
+            self.terminated = False
+            self.killed = False
+            self.waited = False
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def wait(self, timeout: float) -> None:
+            assert timeout == 8.0
+            self.waited = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+    existing = ExistingProcess()
+
+    monkeypatch.setattr(bot_services, "_health_proc", None)
+    monkeypatch.setattr(
+        bot_services,
+        "_health_watchdog_processes",
+        lambda _repo: [existing],
+    )
+
+    bot_services._stop_health_watchdog()
+
+    assert existing.terminated is True
+    assert existing.waited is True
+    assert existing.killed is False

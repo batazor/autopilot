@@ -1151,34 +1151,19 @@
       "regions": [
         {
           "name": "isWorkers",
-          "action": "color_check",
-          "type": "red",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 50.92664092664093,
-            "y": 0.32608695652173914,
-            "width": 1.2007722007722008,
-            "height": 0.6,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "isWorkers_tap",
-          "action": "click",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 35.0965250965251,
-            "y": 0.43478260869565216,
-            "width": 13.025096525096526,
-            "height": 1.6858695652173914,
+            "x": 32.972972972972975,
+            "y": 0.0,
+            "width": 20.0,
+            "height": 3.0,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "has_red_dot": true
         }
       ]
     },

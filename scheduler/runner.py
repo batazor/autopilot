@@ -9,7 +9,7 @@ from pathlib import Path
 
 import redis.asyncio as aioredis
 
-from config.devices import player_ids_for_device
+from config.devices import player_ids_for_device_candidates
 from config.loader import get_settings
 from config.logging_stdout import setup_stdout_logging
 from scenarios.evaluator import ScenarioEvaluator
@@ -240,7 +240,10 @@ class SchedulerRunner:
                     else:
                         if current_screen.lower() != when_current_screen:
                             continue
-                _pids = player_ids_for_device(inst.bluestacks_window_title)
+                _pids = player_ids_for_device_candidates(
+                    inst.bluestacks_window_title,
+                    inst.instance_id,
+                )
                 player_ids = _pids[:1] if scope == "instance" else _pids
                 for player_id in player_ids:
                     if interval_s is not None:
@@ -288,7 +291,10 @@ class SchedulerRunner:
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
-            for player_id in player_ids_for_device(inst.bluestacks_window_title):
+            for player_id in player_ids_for_device_candidates(
+                inst.bluestacks_window_title,
+                inst.instance_id,
+            ):
                 key = f"wos:player:{player_id}:state"
                 raw = await self._redis.hgetall(key)  # type: ignore[union-attr]
                 state = {
@@ -304,7 +310,10 @@ class SchedulerRunner:
     async def _build_player_instance_map(self) -> dict[str, str]:
         mapping: dict[str, str] = {}
         for inst in self._settings.instances:
-            for player_id in player_ids_for_device(inst.bluestacks_window_title):
+            for player_id in player_ids_for_device_candidates(
+                inst.bluestacks_window_title,
+                inst.instance_id,
+            ):
                 mapping[player_id] = inst.instance_id
         return mapping
 

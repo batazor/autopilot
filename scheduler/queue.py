@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import redis.asyncio as aioredis
 
-from config.devices import player_ids_for_device
+from config.devices import player_ids_for_device_candidates
 from config.loader import get_settings
 
 logger = logging.getLogger(__name__)
@@ -684,5 +685,10 @@ class RedisQueue:
     def _players_for_instance(self, instance_id: str) -> set[str]:
         for inst in self._settings.instances:
             if inst.instance_id == instance_id:
-                return set(player_ids_for_device(inst.bluestacks_window_title))
+                return set(
+                    player_ids_for_device_candidates(
+                        inst.bluestacks_window_title,
+                        inst.instance_id,
+                    )
+                )
         return set()

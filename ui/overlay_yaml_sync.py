@@ -22,6 +22,32 @@ def overlay_tap_region_name(primary: str) -> str:
     return f"{str(primary).strip()}_tap"
 
 
+def cascade_aux_region_names(
+    primary_name: str,
+    existing_names: set[str] | frozenset[str],
+) -> list[str]:
+    """Return the overlay aux region names that should be cascade-deleted along
+    with ``primary_name``.
+
+    - If ``primary_name`` is itself an aux region (``*_search`` / ``*_tap``),
+      no cascade is performed (returns an empty list); deleting an aux must not
+      take its primary down with it.
+    - Only names that actually appear in ``existing_names`` are returned, so we
+      never list nonexistent helpers in the confirmation prompt.
+    """
+
+    name = (primary_name or "").strip()
+    if not name:
+        return []
+    if name.endswith("_search") or name.endswith("_tap"):
+        return []
+    out: list[str] = []
+    for aux in (overlay_search_region_name(name), overlay_tap_region_name(name)):
+        if aux in existing_names:
+            out.append(aux)
+    return out
+
+
 def _load_yaml_dict(path: Path) -> dict:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else {}

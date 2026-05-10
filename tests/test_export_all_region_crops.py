@@ -7,7 +7,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from ui.area_annotator import export_all_region_crops_for_area_doc
+from ui.area_annotator import (
+    crop_path_for_entry_region,
+    export_all_region_crops_for_area_doc,
+)
 
 
 def test_export_all_writes_one_crop_per_screen(tmp_path: Path) -> None:
@@ -106,3 +109,43 @@ def test_export_all_writes_one_crop_per_screen(tmp_path: Path) -> None:
     assert (crop_dir / "one_r1.png").is_file()
     assert (crop_dir / "two_r2.png").is_file()
     assert any("missing.png" in w for w in warns)
+
+
+def test_crop_path_uses_default_ocr_stem(tmp_path: Path) -> None:
+    entry = {"ocr": "references/main_city_v1.png"}
+
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox")
+
+    assert p == tmp_path / "references" / "crop" / "main_city_v1_mailBox.png"
+
+
+def test_crop_path_picks_version_ocr_for_versioned_region(tmp_path: Path) -> None:
+    entry = {
+        "ocr": "references/main_city_v1.png",
+        "versions": [
+            {"id": "v2", "ocr": "references/main_city_v2.png"},
+        ],
+    }
+
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox_v2")
+
+    assert p == tmp_path / "references" / "crop" / "main_city_v2_mailBox_v2.png"
+
+
+def test_crop_path_falls_back_to_default_ocr_when_version_missing_image(tmp_path: Path) -> None:
+    entry = {
+        "ocr": "references/main_city_v1.png",
+        "versions": [
+            {"id": "v2"},
+        ],
+    }
+
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox_v2")
+
+    assert p == tmp_path / "references" / "crop" / "main_city_v1_mailBox_v2.png"
+
+
+def test_crop_path_returns_none_without_ocr(tmp_path: Path) -> None:
+    assert crop_path_for_entry_region(tmp_path, {}, "mailBox") is None
+    assert crop_path_for_entry_region(tmp_path, None, "mailBox") is None
+    assert crop_path_for_entry_region(tmp_path, {"ocr": "ref.png"}, "") is None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from enum import StrEnum
@@ -256,3 +257,35 @@ class ScreenDetector:
         if scores[best] > 0:
             return best
         return ScreenName.UNKNOWN
+
+
+def suggest_node_for_image_sync(image_bgr: np.ndarray) -> str | None:
+    """Best-effort node id for ``image_bgr`` — UI-friendly sync wrapper.
+
+    Tries the full :class:`ScreenDetector` pipeline first (text switch + template
+    landmarks + OCR landmarks) so that screens already labeled in
+    ``navigation/screen_verify.yaml`` are picked up regardless of whether they
+    rely on icons or page titles. When OCR is unavailable (no backend running,
+    network error, slow timeout) the function silently falls back to the
+    template-only landmark path so the labeling UI stays usable offline.
+
+    Returns the screen id string (e.g. ``"main_city"``) on success, or ``None``
+    when no rule fires / detection is unsafe to suggest.
+    """
+    if image_bgr is None or image_bgr.ndim != 3 or image_bgr.size == 0:
+        return None
+    detector = ScreenDetector()
+    try:
+        result = asyncio.run(detector.detect_screen(image_bgr))
+    except Exception:
+        logger.debug("suggest_node_for_image_sync: full detect_screen failed", exc_info=True)
+        try:
+            result = asyncio.run(detector._detect_by_match_landmarks(image_bgr))
+        except Exception:
+            logger.debug(
+                "suggest_node_for_image_sync: template-only fallback failed", exc_info=True
+            )
+            return None
+    if not isinstance(result, ScreenName) or result == ScreenName.UNKNOWN:
+        return None
+    return str(result.value)

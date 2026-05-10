@@ -230,3 +230,23 @@ def get_device_registry() -> DeviceRegistry:
 def player_ids_for_device(device_name: str) -> list[str]:
     """Convenience wrapper: player IDs for *device_name* from the global registry."""
     return get_device_registry().player_ids_for_device(device_name)
+
+
+def player_ids_for_device_candidates(*device_names: str) -> list[str]:
+    """Player IDs for the first matching device alias.
+
+    Settings historically pass the ADB serial (``bluestacks_window_title``), while
+    ``db/devices.yaml`` is often keyed by ``instance_id`` (for example ``bs1``).
+    Accept both without forcing those names to be identical.
+    """
+    registry = get_device_registry()
+    seen_names: set[str] = set()
+    for raw in device_names:
+        name = str(raw or "").strip()
+        if not name or name in seen_names:
+            continue
+        seen_names.add(name)
+        players = registry.player_ids_for_device(name)
+        if players:
+            return players
+    return []

@@ -1,5 +1,5 @@
 """
-OCR region annotator UI (ADB screenshot + drawable canvas + screen FSM).
+OCR region annotator UI (ADB screenshot + drawable canvas + node graph).
 
 Used by the main dashboard (`ui/app.py`) and optionally by ``streamlit run app.py``.
 ``area.json`` lives in the **repository root** (parent of ``ui/``).
@@ -24,6 +24,9 @@ import streamlit as st
 from PIL import Image
 
 from layout.color_bucket import dominant_color_label_bgr
+from layout.crop_paths import exported_crop_png
+from layout.red_dot_detector import has_red_dot_in_bbox_percent
+from navigation.detector import suggest_node_for_image_sync
 from ui.streamlit_canvas_compat import ensure_drawable_canvas_compat
 
 ensure_drawable_canvas_compat()
@@ -47,6 +50,7 @@ from ui.keys import (
     ENTRY_IDX,
     IMAGE_ERROR,
     LABELING_PENDING_CAPTURE_REL,
+    LABELING_RENAME_FLASH,
     LABELING_SELECTION_BEFORE_CAPTURE,
     LABELING_TEMPORAL_REGIONS,
     LABELING_ZOOM,
@@ -65,6 +69,7 @@ from ui.labeling_reference_panel import (
     render_labeling_reference_column,
 )
 from ui.overlay_yaml_sync import (
+    cascade_aux_region_names,
     overlay_search_region_name,
     overlay_tap_region_name,
     rename_findicon_overlay_primary,
@@ -95,6 +100,13 @@ class RegionDict(TypedDict, total=False):
     bbox: BBoxDict
     overlay_auxiliary: bool
     """When True, region is optional overlay helper (search/tap ROI) — skip template crop export."""
+    has_red_dot: bool
+    """Capability flag: this region's bbox can show the in-game red-dot notification badge.
+
+    Enables ``isRedDot: true|false`` on ``match:`` / ``while_match:`` DSL steps.
+    Detection is purely programmatic via :mod:`layout.red_dot_detector` — no template,
+    no per-region tuning. Without this flag, ``isRedDot`` errors with
+    ``red_dot_capability_disabled`` to catch typos / unintended use."""
 
 
 class VersionDict(TypedDict, total=False):
@@ -118,14 +130,14 @@ class VersionDict(TypedDict, total=False):
 class AreaEntryDict(TypedDict, total=False):
     id: int
     ocr: str
-    """Game / world screen id in the FSM (same logical screen → many PNGs across worlds). Empty if unset."""
+    """Game / world node id (same logical node → many PNGs across worlds). Empty if unset."""
     screen_id: str
     regions: list[RegionDict]
     versions: list[VersionDict]
 
 
 class FSMDict(TypedDict, total=False):
-    """Directed transitions between game screens (FSM topology)."""
+    """Directed transitions between game nodes (node graph topology)."""
 
     initial_screen: str
     transitions: list[dict[str, str]]
@@ -257,6 +269,46 @@ def _safe_crop_filename_part(name: str, fallback: str) -> str:
     out = re.sub(r"[^\w\-.]+", "_", raw)
     out = out.strip("._-") or "region"
     return out[:120]
+
+
+def crop_path_for_entry_region(
+    repo_root: Path,
+    entry: AreaEntryDict | None,
+    region_name: str,
+) -> Path | None:
+    """Return the on-disk crop file produced by Labeling **Write crops** for
+    ``region_name`` within ``entry``.
+
+    Mirrors the version-aware stem selection used by
+    :func:`export_all_region_crops_for_area_doc` — names ending with a declared
+    ``versions[].id`` use that version's reference image (falling back to the
+    entry's default ``ocr``); other names use the default ``ocr``.
+
+    Returns ``None`` if the entry/region pair has no usable reference image.
+    """
+
+    if not isinstance(entry, dict):
+        return None
+    name = (region_name or "").strip()
+    if not name:
+        return None
+    default_ocr = str(entry.get("ocr") or "").strip()
+    chosen_ocr = default_ocr
+    versions = entry.get("versions") or []
+    if isinstance(versions, list):
+        for ver in versions:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id", "") or "").strip()
+            if not vid:
+                continue
+            suffix = f"_{vid}"
+            if name.endswith(suffix) and len(name) > len(suffix):
+                chosen_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
+                break
+    if not chosen_ocr:
+        return None
+    return exported_crop_png(repo_root, chosen_ocr, name)
 
 
 def export_region_crops(
@@ -583,10 +635,10 @@ def successor_screens(screen_id: str, doc: AreaDocDict) -> list[str]:
 
 
 def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[str]:
-    """Options for Screen ID: ``""`` = None; then sorted ids from FSM + entries (always includes ``current``)."""
+    """Options for Screen ID: ``""`` = None; then sorted node ids from area + entries (always includes ``current``)."""
     ids: set[str] = set(all_fsm_screen_ids(doc))
-    # Seed options with the "known" screen ids from runtime navigation/detection,
-    # so the dropdown isn't empty before the user defines FSM transitions.
+    # Seed options with the "known" node ids from runtime navigation/detection,
+    # so the dropdown isn't empty before the user defines node transitions.
     try:
         from navigation.detector import ScreenName
 
@@ -615,8 +667,35 @@ def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[s
 
 def _format_screen_id_choice(value: str) -> str:
     if value == "":
-        return "None (atypical / not in FSM)"
+        return "None (atypical / not in node graph)"
     return value
+
+
+_NODE_SUGGEST_CACHE_KEY = "_node_suggest_by_path"
+
+
+def _node_suggest_for_active_image() -> str | None:
+    """Best-effort node id for the canvas image, cached per absolute file path.
+
+    The detector is rerun only when the active reference PNG changes (each
+    Streamlit interaction would otherwise re-execute it). Returns ``None`` when
+    there is no image, the file is missing, or the detector cannot decide.
+    """
+    pil = st.session_state.get(PIL_ORIGINAL)
+    img_path = str(st.session_state.get(ACTIVE_IMAGE_PATH, "") or "").strip()
+    if pil is None or not img_path:
+        return None
+    cache: dict[str, str | None] = st.session_state.setdefault(_NODE_SUGGEST_CACHE_KEY, {})
+    if img_path in cache:
+        return cache[img_path]
+    try:
+        with st.spinner("Detecting node from screenshot…"):
+            arr = np.array(pil.convert("RGBA"))
+            bgr = cv2.cvtColor(arr, cv2.COLOR_RGBA2BGR)
+            cache[img_path] = suggest_node_for_image_sync(bgr)
+    except Exception:
+        cache[img_path] = None
+    return cache[img_path]
 
 
 def _render_screen_id_and_ocr_fields(
@@ -626,7 +705,7 @@ def _render_screen_id_and_ocr_fields(
     *,
     labeling_mode: bool,
 ) -> None:
-    """Screen ID + optional OCR path + transition hints (OCR path UI only outside Labeling)."""
+    """Node id + optional OCR path + transition hints (OCR path UI only outside Labeling)."""
     if not entries or entry_idx < 0 or entry_idx >= len(entries):
         return
     cur = entries[entry_idx]
@@ -637,16 +716,44 @@ def _render_screen_id_and_ocr_fields(
     except ValueError:
         sid_index = 0
     _sk = "lbl" if labeling_mode else "std"
+    selectbox_key = f"screen_id_{entry_idx}_{_sk}"
+
+    suggestion = _node_suggest_for_active_image()
+    if suggestion:
+        if not sid_default:
+            c1, c2 = st.columns([4, 1], vertical_alignment="center")
+            with c1:
+                st.info(f"🔍 Auto-detected node: **`{suggestion}`** _(current is empty)_")
+            with c2:
+                if st.button("Apply", key=f"apply_node_{entry_idx}_{_sk}"):
+                    st.session_state[selectbox_key] = suggestion
+                    cur["screen_id"] = suggestion
+                    st.rerun()
+        elif suggestion != sid_default:
+            c1, c2 = st.columns([4, 1], vertical_alignment="center")
+            with c1:
+                st.warning(
+                    f"🔍 Auto-detected **`{suggestion}`**, but current is "
+                    f"**`{sid_default}`** — possible mismatch."
+                )
+            with c2:
+                if st.button("Apply", key=f"apply_node_{entry_idx}_{_sk}"):
+                    st.session_state[selectbox_key] = suggestion
+                    cur["screen_id"] = suggestion
+                    st.rerun()
+        else:
+            st.caption(f"✓ Auto-detected node: **`{suggestion}`** _(matches current)_")
+
     screen_id = st.selectbox(
-        "Screen ID (FSM state)",
+        "Screen ID (node)",
         options=sid_opts,
         index=sid_index,
         format_func=_format_screen_id_choice,
-        key=f"screen_id_{entry_idx}_{_sk}",
+        key=selectbox_key,
         help=(
-            "Logical game / world screen from your FSM — **not** the PNG filename; "
-            "several reference images can share one FSM state. "
-            "Pick **None** until you map this shot to a screen."
+            "Logical game / world node — **not** the PNG filename; "
+            "several reference images can share one node. "
+            "Pick **None** until you map this shot to a node."
         ),
     )
     cur["screen_id"] = str(screen_id).strip()
@@ -663,7 +770,7 @@ def _render_screen_id_and_ocr_fields(
         if nxt:
             st.caption("Transitions from this screen: **" + "**, **".join(nxt) + "**")
         else:
-            st.caption("No outgoing edges for this `screen_id` — add them in the FSM section below.")
+            st.caption("No outgoing edges for this `screen_id` — add them in the Nodes section below.")
 
 
 ACTIVE_VERSION_DEFAULT = "default"
@@ -873,10 +980,11 @@ def _render_versions_block(
             """,
             unsafe_allow_html=True,
         )
-        st.caption(
-            "Multiple visual variants of the same screen. Region overrides live in the same "
-            "regions list with `_<version_id>` suffix; partial-override — only moved regions need a copy."
-        )
+        with st.popover("❓ Versions"):
+            st.markdown(
+                "Multiple visual variants of the same screen. Region overrides live in the same "
+                "regions list with `_<version_id>` suffix; partial-override — only moved regions need a copy."
+            )
         if show_active_picker:
             sel = st.selectbox(
                 "Active editing version",
@@ -1069,7 +1177,7 @@ def _render_versions_block(
 
 def _render_fsm_expander(doc: AreaDocDict) -> None:
     """Directed transitions editor (shared layout)."""
-    with st.expander("FSM / screen transitions", expanded=False):
+    with st.expander("Node graph (transitions)", expanded=False):
         if "fsm" not in doc or not isinstance(doc.get("fsm"), dict):
             doc["fsm"] = {"initial_screen": "", "transitions": []}
         fsm = doc["fsm"]
@@ -1256,6 +1364,16 @@ def _render_regions_expander(
                 cur_type = str(reg.get("type") or "").strip().lower()
                 idx_type = TYPES.index(cur_type) if cur_type in TYPES else 1
                 rtype = st.selectbox("type", TYPES, index=idx_type)
+            has_red_dot_chk = st.checkbox(
+                "Has red dot",
+                value=bool(reg.get("has_red_dot")),
+                help=(
+                    "Mark this region as one that may show the in-game red-dot "
+                    "notification badge. Enables ``isRedDot: true|false`` in DSL "
+                    "``match:`` / ``while_match:`` steps. No template/labeling "
+                    "needed — detection is purely programmatic (HSV + circularity)."
+                ),
+            )
             if st.form_submit_button("Apply edits"):
                 old_name = str(reg.get("name", "") or "").strip()
                 new_name = str(name.strip() or old_name or "region")
@@ -1280,6 +1398,10 @@ def _render_regions_expander(
                 reg["action"] = action
                 reg["type"] = rtype
                 reg["threshold"] = threshold
+                if has_red_dot_chk:
+                    reg["has_red_dot"] = True
+                else:
+                    reg.pop("has_red_dot", None)
                 try:
                     validate_unique_region_names(st.session_state.area_doc)
                 except ValueError as e:
@@ -1307,12 +1429,13 @@ def _render_regions_expander(
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
                 sn_ov = overlay_search_region_name(bn_ov)
                 tn_ov = overlay_tap_region_name(bn_ov)
-                st.caption(
-                    f"Optional overlay rectangles — same ``ocr`` frame as this region. "
-                    f"Sliding match uses ``{sn_ov}`` from ``area.json`` automatically; "
-                    f"clicks land at ``{tn_ov}`` center (offset from the matched primary) when present. "
-                    "YAML cleanup removes obsolete explicit ``search_region`` keys."
-                )
+                with st.popover("❓ Overlay rectangles"):
+                    st.markdown(
+                        f"Optional overlay rectangles — same `ocr` frame as this region. "
+                        f"Sliding match uses `{sn_ov}` from `area.json` automatically; "
+                        f"clicks land at `{tn_ov}` center (offset from the matched primary) when present. "
+                        "YAML cleanup removes obsolete explicit `search_region` keys."
+                    )
 
                 def _regions_contains(nm: str) -> bool:
                     return any(str(r.get("name", "") or "").strip() == nm for r in regions)
@@ -1428,7 +1551,41 @@ def _render_regions_expander(
         if pending_del_idx is not None:
             _pend = regions[pending_del_idx]
             _pend_nm = str(_pend.get("name") or "").strip() or f"(region {pending_del_idx})"
-            st.warning(f"Delete region `{_pend_nm}`? This removes it from this screen entry.")
+            existing_names = {
+                str(r.get("name") or "").strip() for r in regions if isinstance(r, dict)
+            }
+            existing_names.discard("")
+            cascade_aux = cascade_aux_region_names(_pend_nm, existing_names)
+            names_to_remove: set[str] = {_pend_nm, *cascade_aux} if _pend_nm else set()
+
+            entries_for_del: list[AreaEntryDict] = st.session_state.area_doc["screens"]
+            ei_for_del = int(st.session_state.entry_idx)
+            entry_for_del: AreaEntryDict | None = (
+                entries_for_del[ei_for_del]
+                if 0 <= ei_for_del < len(entries_for_del)
+                else None
+            )
+            crops_to_remove: list[Path] = []
+            for r in regions:
+                rn = str(r.get("name") or "").strip()
+                if not rn or rn not in names_to_remove:
+                    continue
+                if r.get("overlay_auxiliary"):
+                    continue
+                cp = crop_path_for_entry_region(REPO_ROOT, entry_for_del, rn)
+                if cp is not None and cp.is_file():
+                    crops_to_remove.append(cp)
+
+            warn_parts: list[str] = [f"Delete region `{_pend_nm}`?"]
+            if cascade_aux:
+                cascade_list = ", ".join(f"`{n}`" for n in cascade_aux)
+                warn_parts.append(f"Will also remove its overlay helper(s): {cascade_list}.")
+            if crops_to_remove:
+                crop_list = ", ".join(f"`references/crop/{p.name}`" for p in crops_to_remove)
+                warn_parts.append(f"Will also delete crop file(s): {crop_list}.")
+            if not cascade_aux and not crops_to_remove:
+                warn_parts.append("This removes it from this screen entry.")
+            st.warning(" ".join(warn_parts))
             _dc1, _dc2 = st.columns(2)
             with _dc1:
                 _confirm_del = st.button(
@@ -1441,11 +1598,38 @@ def _render_regions_expander(
                     st.session_state.pop(_del_pending_key, None)
                     st.rerun()
             if _confirm_del:
-                deleting_name = str(regions[pending_del_idx].get("name") or "").strip()
-                del regions[pending_del_idx]
+                kept: list[RegionDict] = []
+                deleted_names: list[str] = []
+                for r in regions:
+                    rn = str(r.get("name") or "").strip()
+                    if rn and rn in names_to_remove:
+                        deleted_names.append(rn)
+                        continue
+                    kept.append(r)
+                regions[:] = kept
                 set_current_regions(regions)
                 st.session_state.pop(_del_pending_key, None)
-                if str(st.session_state.get(SELECTED_REGION_NAME) or "").strip() == deleting_name:
+
+                deleted_crops: list[str] = []
+                crop_errors: list[str] = []
+                for cp in crops_to_remove:
+                    try:
+                        cp.unlink()
+                        deleted_crops.append(cp.name)
+                    except OSError as e:
+                        crop_errors.append(f"`references/crop/{cp.name}` ({e})")
+
+                # Drop the overlay aux checkbox state for this entry — indices shift after a
+                # cascade delete and any leftover ``ovl_aux_*`` keys would now point at the
+                # wrong region. They are recomputed on the next render.
+                ei_clean = int(st.session_state.entry_idx)
+                stale_aux_prefixes = (f"ovl_aux_s_{ei_clean}_", f"ovl_aux_t_{ei_clean}_")
+                for k in list(st.session_state.keys()):
+                    if isinstance(k, str) and k.startswith(stale_aux_prefixes):
+                        st.session_state.pop(k, None)
+
+                cur_sel = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
+                if cur_sel in names_to_remove:
                     st.session_state.selected_region_name = ""
                 st.session_state.selected_region_idx = max(0, pending_del_idx - 1)
                 st.session_state.selected_region_name = _selected_region_name_from_idx(
@@ -1453,10 +1637,50 @@ def _render_regions_expander(
                 )
                 st.session_state.canvas_rev += 1
                 st.session_state.last_canvas_sig = ""
+
+                flash_parts: list[str] = []
+                if len(deleted_names) > 1:
+                    flash_parts.append(
+                        "Deleted region(s): "
+                        + ", ".join(f"`{n}`" for n in deleted_names)
+                    )
+                if deleted_crops:
+                    flash_parts.append(
+                        "Removed crop(s): "
+                        + ", ".join(f"`references/crop/{n}`" for n in deleted_crops)
+                    )
+                if crop_errors:
+                    flash_parts.append(
+                        "Failed to delete crop(s): " + ", ".join(crop_errors)
+                    )
+                if flash_parts:
+                    st.session_state[LABELING_RENAME_FLASH] = ". ".join(flash_parts) + "."
                 st.rerun()
-        elif st.button("Delete region", key=f"del_region_{_rk}"):
-            st.session_state[_del_pending_key] = idx
-            st.rerun()
+        else:
+            st.markdown(
+                """
+                <style>
+                div[class*="st-key-region-danger-"] button {
+                    background-color: #c62828 !important;
+                    color: #ffffff !important;
+                    border: 1px solid #b71c1c !important;
+                }
+                div[class*="st-key-region-danger-"] button:hover {
+                    background-color: #b71c1c !important;
+                    border-color: #8e0000 !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.container(key=f"region-danger-{_rk}"):
+                if st.button(
+                    "Delete region",
+                    key=f"del_region_{_rk}",
+                    icon=":material/delete:",
+                ):
+                    st.session_state[_del_pending_key] = idx
+                    st.rerun()
 
         st.divider()
         st.subheader("Region preview" if labeling_mode else "Preview")
@@ -1471,6 +1695,16 @@ def _render_regions_expander(
             h = bbox["height"] / 100.0 * ch2
             crop = crop_region(canvas_img, left, top, w, h)
             st.image(cap_preview_image_max_side(crop, REGION_PREVIEW_MAX_SIDE))
+            if reg_for_preview.get("has_red_dot"):
+                try:
+                    arr_rd = np.array(pil_original.convert("RGBA"))
+                    bgr_rd = cv2.cvtColor(arr_rd, cv2.COLOR_RGBA2BGR)
+                    found_rd = has_red_dot_in_bbox_percent(bgr_rd, bbox)
+                except Exception:
+                    found_rd = False
+                st.caption(
+                    "Red dot now: " + ("**`yes`**" if found_rd else "**`no`**")
+                )
             if labeling_mode:
                 pass
             else:
@@ -1478,6 +1712,8 @@ def _render_regions_expander(
                 st.text_area("OCR result", value="(connect your OCR service)", height=68, disabled=True)
         elif not labeling_mode:
             st.caption("Load an image and select a region to preview the crop.")
+        elif labeling_mode and reg_for_preview.get("has_red_dot"):
+            st.caption("Red dot now: **`—`** _(no image / bbox)_")
 
         if not labeling_mode:
             st.divider()
@@ -2274,7 +2510,7 @@ def render_area_annotator_ui(
             if entries:
                 labels = [
                     (
-                        f"id={e.get('id')} [FSM: "
+                        f"id={e.get('id')} [node: "
                         f"{(str(e.get('screen_id', '') or '').strip() or 'None')}] "
                         f"— {e.get('ocr', '')}"
                     )
@@ -2425,7 +2661,7 @@ def render_area_annotator_ui(
 
     drawing_mode_labeling = "transform"
 
-    # ----- Labeling: canvas left; right column = reference tree + tools + regions + FSM + save -----
+    # ----- Labeling: canvas left; right column = reference tree + tools + regions + node graph + save -----
     if labeling_mode:
         with right_col:
             if pil_original is not None:
@@ -2447,7 +2683,7 @@ def render_area_annotator_ui(
                     if 0 <= ei_cur < len(entries):
                         cur_e = entries[ei_cur]
                         st.caption(
-                            f"Entry **id={cur_e.get('id')}** · FSM screen **"
+                            f"Entry **id={cur_e.get('id')}** · node **"
                             f"{(str(cur_e.get('screen_id', '') or '').strip() or 'None')}**"
                         )
                 if entries and 0 <= entry_idx < len(entries):

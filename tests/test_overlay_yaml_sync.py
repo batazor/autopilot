@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 from ui.overlay_yaml_sync import (
+    cascade_aux_region_names,
     rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
@@ -81,6 +82,36 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
     assert "search_region" not in rule
 
     assert rename_findicon_overlay_primary(tmp_path, "nope", "x") is False
+
+
+def test_cascade_aux_region_names_returns_existing_helpers() -> None:
+    existing = {"mailBox", "mailBox_search", "mailBox_tap", "other"}
+
+    cascade = cascade_aux_region_names("mailBox", existing)
+
+    assert cascade == ["mailBox_search", "mailBox_tap"]
+
+
+def test_cascade_aux_region_names_skips_missing_helpers() -> None:
+    existing = {"isWorkers", "isWorkers_tap"}
+
+    cascade = cascade_aux_region_names("isWorkers", existing)
+
+    assert cascade == ["isWorkers_tap"]
+
+
+def test_cascade_aux_region_names_empty_when_primary_is_aux() -> None:
+    # Deleting an aux region must NOT cascade to its primary; if user wants to
+    # remove the whole group they delete the primary itself.
+    existing = {"mailBox", "mailBox_search", "mailBox_tap"}
+
+    assert cascade_aux_region_names("mailBox_search", existing) == []
+    assert cascade_aux_region_names("mailBox_tap", existing) == []
+
+
+def test_cascade_aux_region_names_empty_for_blank_input() -> None:
+    assert cascade_aux_region_names("", {"foo_search"}) == []
+    assert cascade_aux_region_names("   ", {"foo_search"}) == []
 
 
 def test_building_furniture_overlay_uses_image_match() -> None:

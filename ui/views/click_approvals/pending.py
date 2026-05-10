@@ -7,7 +7,6 @@ from typing import Any
 import streamlit as st
 
 from .ctx import ClickApprovalsCtx
-from .dsl_audit import render_dsl_step_audit
 from .preview import render_preview_with_point
 
 CLICK_APPROVAL_PENDING_SNAP = "click_approvals_pending_snap"
@@ -201,9 +200,6 @@ def fragment_pending_approval_columns(
                         line.append(f"match score `{scr_c}`")
                     st.caption("Overlay · " + " · ".join(line))
             _scenario_block()
-
-        if isinstance(ctx0, dict):
-            render_dsl_step_audit(ctx0)
 
         with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")

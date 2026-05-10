@@ -233,7 +233,7 @@ with col_left:
             push_instance_command(client, instance_id, {"cmd": "restart"})
             st.success("restart queued")
 
-    with st.expander("FSM history (per player)", expanded=False):
+    with st.expander("Node history (per player)", expanded=False):
         if not _inst_player_ids:
             st.caption("No players in db/devices.yaml — nothing to show.")
         for pid in _inst_player_ids:

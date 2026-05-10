@@ -19,9 +19,12 @@ import threading
 from pathlib import Path
 from types import FrameType
 
+import psutil
+
 from config.logging_stdout import setup_stdout_logging
 
 _THREAD_NAME = "wos-async-services"
+_HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"
 
 _started = False
 _lock = threading.RLock()
@@ -47,6 +50,37 @@ def _existing_supervisor_thread() -> threading.Thread | None:
     return None
 
 
+def _is_health_watchdog_process(proc: psutil.Process, repo: Path) -> bool:
+    try:
+        if proc.pid == os.getpid():
+            return False
+        cmdline = proc.cmdline()
+        if not any(
+            arg == "-m"
+            and idx + 1 < len(cmdline)
+            and cmdline[idx + 1] == _HEALTH_WATCHDOG_MODULE
+            for idx, arg in enumerate(cmdline)
+        ):
+            return False
+        return Path(proc.cwd()).resolve() == repo
+    except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
+        return False
+
+
+def _health_watchdog_processes(repo: Path) -> list[psutil.Process]:
+    found: list[psutil.Process] = []
+    for proc in psutil.process_iter():
+        if _is_health_watchdog_process(proc, repo):
+            found.append(proc)
+    return found
+
+
+def _existing_health_watchdog_process(repo: Path) -> psutil.Process | None:
+    for proc in _health_watchdog_processes(repo):
+        return proc
+    return None
+
+
 def _ensure_health_watchdog() -> None:
     """Spawn ``python -m worker.game_health_watchdog`` if not already running."""
     global _health_proc
@@ -56,9 +90,13 @@ def _ensure_health_watchdog() -> None:
         _health_proc = None
         repo = Path(__file__).resolve().parent.parent
         log = logging.getLogger(__name__)
+        existing = _existing_health_watchdog_process(repo)
+        if existing is not None:
+            log.info("Game health watchdog subprocess already running pid=%s", existing.pid)
+            return
         try:
             _health_proc = subprocess.Popen(
-                [sys.executable, "-m", "worker.game_health_watchdog"],
+                [sys.executable, "-m", _HEALTH_WATCHDOG_MODULE],
                 cwd=str(repo),
                 env=os.environ.copy(),
             )
@@ -69,18 +107,22 @@ def _ensure_health_watchdog() -> None:
 
 def _stop_health_watchdog() -> None:
     global _health_proc
+    repo = Path(__file__).resolve().parent.parent
     with _lock:
         proc = _health_proc
         _health_proc = None
-    if proc is None:
-        return
-    if proc.poll() is not None:
-        return
-    proc.terminate()
-    try:
-        proc.wait(timeout=8.0)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=8.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    for existing in _health_watchdog_processes(repo):
+        existing.terminate()
+        try:
+            existing.wait(timeout=8.0)
+        except psutil.TimeoutExpired:
+            existing.kill()
 
 
 def ensure_embedded_bot() -> None:
