@@ -62,6 +62,26 @@ overlay:
       - name: claim_exploration_rewards
         ttl: 1m
 
+  - name: main_city.event.block.1.has_red_dot
+    region: main_city.event.block.1
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: click_event_block_1
+        priority: 80000
+        ttl: 5m
+
+  - name: main_city.event.block.2.has_red_dot
+    region: main_city.event.block.2
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: click_event_block_2
+        priority: 80000
+        ttl: 5m
+
   - name: chapter.task.present
     region: chapter.task
     action: text

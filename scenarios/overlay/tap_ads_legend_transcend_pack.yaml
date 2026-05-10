@@ -1,0 +1,14 @@
+enabled: true
+name: "Dismiss Legend Transcend Pack ad"
+# Popup dismissal — purely UI, no player identity needed.
+device_level: true
+
+# ``ads.legend_transcend_pack`` is the corner indicator (action=exist) used to
+# detect the ad. ``_tap`` is the actual close button at a different bbox
+# (action=click, overlay_auxiliary). Match on the indicator, click the button.
+
+steps:
+  - match: ads.legend_transcend_pack
+    threshold: 0.92
+  - click: ads.legend_transcend_pack
+  - wait: 2s

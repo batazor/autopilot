@@ -470,6 +470,133 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
 
 
 @pytest.mark.asyncio
+async def test_exec_sync_hero_unit_persists_name_and_level(
+    monkeypatch: Any,
+    caplog: pytest.LogCaptureFixture,
+    redis_async: object,
+) -> None:
+    """``sync_hero_unit`` reads OCR'd name+level from Redis and writes a
+    typed snapshot to ``heroes.entries.<slug>`` in state.yaml."""
+    import tasks.dsl_exec as dsl_exec
+
+    captured: dict[str, Any] = {}
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            captured["player_id"] = player_id
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            captured["flat"] = flat
+
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        mapping={
+            "page.heroes.unit.name": "Bahiti",
+            "page.heroes.unit.level": "5",
+        },
+    )
+
+    with caplog.at_level(logging.INFO):
+        await dsl_exec.DSL_EXEC_REGISTRY["sync_hero_unit"](
+            dsl_exec.DslExecContext(
+                redis_client=redis_async,
+                player_id="player_42",
+                instance_id="bs1",
+            )
+        )
+
+    assert captured["player_id"] == "player_42"
+    flat = captured["flat"]
+    assert "heroes.entries.bahiti" in flat
+    snapshot = flat["heroes.entries.bahiti"]
+    assert snapshot["name"] == "Bahiti"
+    assert snapshot["level"] == 5
+    assert isinstance(snapshot["seen_at"], float)
+    assert "hero=bahiti" in caplog.text
+    assert "level=5" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_hero_unit_skips_when_name_missing(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """No OCR'd name → no state.yaml write, no crash."""
+    import tasks.dsl_exec as dsl_exec
+
+    state_store_called = False
+
+    class _FakeStore:
+        def get_or_create(self, *_a: Any, **_kw: Any) -> Any:
+            nonlocal state_store_called
+            state_store_called = True
+            return self
+
+        def update_from_flat(self, *_a: Any, **_kw: Any) -> None:
+            nonlocal state_store_called
+            state_store_called = True
+
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    # Only level set; name is missing.
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        mapping={"page.heroes.unit.level": "3"},
+    )
+
+    await dsl_exec.DSL_EXEC_REGISTRY["sync_hero_unit"](
+        dsl_exec.DslExecContext(
+            redis_client=redis_async,
+            player_id="player_42",
+            instance_id="bs1",
+        )
+    )
+    assert state_store_called is False
+
+
+@pytest.mark.asyncio
+async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """OCR noise like punctuation / casing collapses to a stable hero ID."""
+    import tasks.dsl_exec as dsl_exec
+
+    captured: dict[str, Any] = {}
+
+    class _FakeStore:
+        def get_or_create(self, *_a: Any, **_kw: Any) -> Any:
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            captured["flat"] = flat
+
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:player_42:state",
+        mapping={
+            "page.heroes.unit.name": "Sgt. Black-eye!",
+            "page.heroes.unit.level": "9",
+        },
+    )
+
+    await dsl_exec.DSL_EXEC_REGISTRY["sync_hero_unit"](
+        dsl_exec.DslExecContext(
+            redis_client=redis_async,
+            player_id="player_42",
+            instance_id="bs1",
+        )
+    )
+
+    flat = captured["flat"]
+    assert "heroes.entries.sgtblackeye" in flat
+    # Original name preserved inside the snapshot.
+    assert flat["heroes.entries.sgtblackeye"]["name"] == "Sgt. Black-eye!"
+
+
+@pytest.mark.asyncio
 async def test_exec_fetch_player_syncs_century_fields(
     tmp_path: Path,
     monkeypatch: Any,

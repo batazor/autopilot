@@ -1,0 +1,16 @@
+enabled: true
+name: "Sync hero unit"
+
+# Snapshot whichever hero card is currently open into ``db/state.yaml`` under
+# ``heroes.entries.<slug>`` (key derived from OCR'd name, e.g. "Bahiti" → "bahiti").
+# Caller must have already navigated to a hero card; this scenario just reads
+# what's on screen and persists it. Re-running overwrites the level snapshot.
+node: page.heroes.unit
+
+steps:
+  - ocr: page.heroes.unit.name
+    store: page.heroes.unit.name
+  - ocr: page.heroes.unit.level
+    type: integer
+    store: page.heroes.unit.level
+  - exec: sync_hero_unit

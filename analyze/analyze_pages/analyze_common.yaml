@@ -28,6 +28,15 @@ overlay:
     - name: ads_info
       priority: 90_000
 
+- name: ads.legend_transcend_pack.visible
+  region: ads.legend_transcend_pack
+  action: findIcon
+  priority: 90_000
+  threshold: 0.9
+  pushScenario:
+    - name: tap_ads_legend_transcend_pack
+      priority: 90_000
+
 - name: button.done.visible
   region: button.done
   action: findIcon
@@ -156,6 +165,17 @@ overlay:
   ttl: 5s
   pushScenario:
     - name: tap_tapanywhereyoexit_blue
+      priority: 76_000
+
+- name: tapanywhereyoexit.yellow.visible
+  region: tapanywhereyoexit.yellow
+  action: findIcon
+  priority: 76_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_tapanywhereyoexit_yellow
       priority: 76_000
 
 - name: upgrade_button.visible

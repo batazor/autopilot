@@ -1121,7 +1121,7 @@
       "regions": [
         {
           "name": "tapanywhereyoexit",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1133,6 +1133,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "tapanywhereyoexit_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.357142857142858,
+            "y": 86.73913043478261,
+            "width": 22.347490347490346,
+            "height": 12.116304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -1315,8 +1331,8 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 85.34555984555985,
-            "y": 57.707608695652176,
+            "x": 85.53861003861005,
+            "y": 83.79456521739131,
             "width": 8.625482625482626,
             "height": 4.569565217391304,
             "rotation": 0.0,
@@ -1331,9 +1347,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 84.57335907335907,
-            "y": 46.946739130434786,
+            "y": 44.66413043478261,
             "width": 10.40926640926641,
-            "height": 42.4804347826087,
+            "height": 45.45434782608696,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1944,6 +1960,87 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "screen_id": "",
+      "ocr": "references/tapanywhereyoexit.yellow.png",
+      "regions": [
+        {
+          "name": "tapanywhereyoexit.yellow",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.339768339768344,
+            "y": 95.97826086956522,
+            "width": 8.200772200772201,
+            "height": 3.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "screen_id": "",
+      "ocr": "references/ads.legend_transcend_pack.png",
+      "regions": [
+        {
+          "name": "ads.legend_transcend_pack",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.23552123552123,
+            "y": 8.043478260869565,
+            "width": 6.386100386100386,
+            "height": 3.652173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "screen_id": "heroes",
+      "ocr": "references/page.heroes.unit.png",
+      "regions": [
+        {
+          "name": "page.heroes.unit.name",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.111969111969117,
+            "y": 0.21739130434782608,
+            "width": 52.60038610038611,
+            "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.heroes.unit.level",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.16988416988417,
+            "y": 75.8695652173913,
+            "width": 11.3996138996139,
+            "height": 4.000000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

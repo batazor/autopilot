@@ -1,0 +1,11 @@
+enabled: true
+name: "Open event block 2"
+device_level: true
+
+# Pushed by ``main_city.event.block.2.has_red_dot`` when the second event slot
+# on main_city lights up. Just opens it — anything beyond that (claim flow,
+# minigame entry) is the next overlay tick's job.
+
+steps:
+  - click: main_city.event.block.2
+  - wait: 1s

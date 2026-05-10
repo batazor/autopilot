@@ -40,3 +40,5 @@ edges:
   heroes:
     main_city: [back_button]
     hero.recrutment: [heroes.recruit]
+  page.heroes.unit:
+    heroes: [back_button]

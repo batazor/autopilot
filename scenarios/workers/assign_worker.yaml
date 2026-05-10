@@ -3,6 +3,14 @@ name: Assign worker (open workers)
 node: survivor_status
 
 steps:
+  # Nudge the worker list up so any partially-clipped "Add" button at the
+  # bottom edge moves into a comfortable tap zone before we start matching.
+  - swipe_direction:
+      direction: up
+      delta: 50
+      duration_ms: 300
+  - wait: 0.3s
+
   # Player-bound scenario: zero iterations of `while_match` is treated as a
   # soft failure (re-enqueued ~30s later) so a stale push or screen-settling
   # lag doesn't yield the slot to chapter_task_router with the work undone.

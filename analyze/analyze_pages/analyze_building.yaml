@@ -10,7 +10,6 @@ overlay:
   pushScenario:
     - name: upgrade
       priority: 80000
-      ttl: 20s
 
 - name: building.name.present
   region: building.name

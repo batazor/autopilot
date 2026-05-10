@@ -366,10 +366,16 @@ class Navigator:
                         dev_h=dev_h,
                         state_flat=state_flat,
                     ):
-                        logger.warning(
-                            "Unknown screen: back_button matched but tap region missing on %s",
-                            instance_id,
+                        # Tap was rejected (approval mode) or back_button bbox is gone:
+                        # either way, retrying for 10 attempts spams the approval UI and
+                        # ignores the user's explicit "no". Bail so the caller (DSL
+                        # scenario) can abort cleanly.
+                        logger.info(
+                            "Navigator: back_button tap not executed on %s — aborting "
+                            "navigation to %s",
+                            instance_id, target,
                         )
+                        return False
                 else:
                     logger.warning(
                         "Unknown screen on %s attempt %d — back_button not visible; not tapping",
@@ -401,13 +407,19 @@ class Navigator:
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
                     if await self._ui_back_button_visible(img2):
-                        self._tap_region_name(
+                        if not self._tap_region_name(
                             instance_id,
                             "back_button",
                             dev_w=dev_w2,
                             dev_h=dev_h2,
                             state_flat=state_flat,
-                        )
+                        ):
+                            logger.info(
+                                "Navigator: back_button tap not executed on %s — "
+                                "aborting navigation to %s",
+                                instance_id, target,
+                            )
+                            return False
                     else:
                         logger.warning(
                             "No route to main_city and back_button not visible on %s; not tapping",
