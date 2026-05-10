@@ -13,4 +13,4 @@ steps:
     steps:
       - click: chapter.task
       - wait: 2s
-      - push_scenario: upgrade
+      - push_scenario: building.upgrade

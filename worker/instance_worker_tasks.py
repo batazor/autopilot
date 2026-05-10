@@ -126,9 +126,9 @@ class InstanceWorkerTasksMixin:
                         _resume_step = int(_step_s) if _step_s else 0
                     except (ValueError, TypeError):
                         _resume_step = 0
-                    # `upgrade` steps 0–1 open the chapter task + settle UI; resuming at the repeat
+                    # `building.upgrade` steps 0–1 open the chapter task + settle UI; resuming at the repeat
                     # block (step >= 2) skips them and template matches fail with the panel closed.
-                    if _resume_scenario == "upgrade" and _resume_step >= 2:
+                    if _resume_scenario == "building.upgrade" and _resume_step >= 2:
                         _resume_step = 0
             except Exception:
                 logger.debug("hand pointer resume: failed to read interrupted scenario", exc_info=True)

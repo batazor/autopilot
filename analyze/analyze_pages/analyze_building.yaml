@@ -8,7 +8,7 @@ overlay:
   set_node: building
   ttl: 30s
   pushScenario:
-    - name: upgrade
+    - name: building.upgrade
       priority: 80000
 
 - name: building.name.present
@@ -28,7 +28,7 @@ overlay:
     - building
   ttl: 20s
   pushScenario:
-    - name: upgrade
+    - name: building.upgrade
       priority: 80_000
 
 - name: upgrade_big_button.visible
