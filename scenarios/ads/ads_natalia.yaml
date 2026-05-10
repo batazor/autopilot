@@ -1,0 +1,8 @@
+enabled: true
+name: "Dismiss Natalia first purchase ad"
+# Ads dismissal — purely UI, no player identity needed.
+device_level: true
+
+steps:
+  - click: ads.natalia
+  - wait: 800ms

@@ -19,6 +19,16 @@ overlay:
     - name: ads_rookie_value_pack
       priority: 90_000
 
+- name: ads.natalia.visible
+  region: ads.natalia
+  action: findIcon
+  priority: 90_000
+  threshold: 0.9
+  ttl: 3
+  pushScenario:
+    - name: ads_natalia
+      priority: 90_000
+
 - name: ads.info.visible
   region: ads.info
   action: findIcon

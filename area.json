@@ -2043,6 +2043,28 @@
           }
         }
       ]
+    },
+    {
+      "id": 51,
+      "screen_id": "",
+      "ocr": "references/ads.natalia.png",
+      "regions": [
+        {
+          "name": "ads.natalia",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.55598455598455,
+            "y": 3.369565217391304,
+            "width": 7.6003861003861,
+            "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }
