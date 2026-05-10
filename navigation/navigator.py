@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import logging
 from pathlib import Path
@@ -42,6 +43,7 @@ class Navigator:
         self._redis = redis_client
         self._area_doc: dict[str, Any] | None = None
         self._repo_root = Path(__file__).resolve().parent.parent
+        self._tap_accepts_approval_source: bool | None = None
 
     def _load_area_doc(self) -> dict[str, Any]:
         if self._area_doc is not None:
@@ -57,10 +59,15 @@ class Navigator:
         *,
         dev_w: int,
         dev_h: int,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
     ) -> bool:
         area_doc = self._load_area_doc()
         tap_variant = f"{region_name}_tap"
-        pair = screen_region_by_name(area_doc, tap_variant) or screen_region_by_name(area_doc, region_name)
+        pair = screen_region_by_name(area_doc, tap_variant) or screen_region_by_name(
+            area_doc,
+            region_name,
+        )
         if pair is None:
             logger.warning("Navigator: unknown region %r in area.json", region_name)
             return False
@@ -70,8 +77,42 @@ class Navigator:
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
         pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
-        self._tap(instance_id, pt)  # type: ignore[operator]
-        return True
+        approval_context: dict[str, object] = {}
+        if from_screen:
+            approval_context["from_screen"] = from_screen
+        if to_screen:
+            approval_context["to_screen"] = to_screen
+        if self._tap_supports_approval_source():
+            return bool(
+                self._tap(
+                    instance_id,
+                    pt,
+                    approval_region=str(reg.get("name") or region_name),
+                    approval_source="navigation",
+                    approval_context=approval_context,
+                )
+            )  # type: ignore[operator]
+        return bool(
+            self._tap(
+                instance_id,
+                pt,
+                approval_region=str(reg.get("name") or region_name),
+            )
+        )  # type: ignore[operator]
+
+    def _tap_supports_approval_source(self) -> bool:
+        if self._tap_accepts_approval_source is not None:
+            return self._tap_accepts_approval_source
+        try:
+            sig = inspect.signature(self._tap)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            self._tap_accepts_approval_source = False
+            return False
+        self._tap_accepts_approval_source = (
+            "approval_source" in sig.parameters
+            or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        )
+        return self._tap_accepts_approval_source
 
     def _state_key(self, instance_id: str) -> str:
         return f"wos:instance:{instance_id}:state"
@@ -279,7 +320,7 @@ class Navigator:
                 # No direct route or missing taps: go main_city first, then retry.
                 to_hub = route_hops(str(current), str(_MAIN_CITY))
                 if to_hub:
-                    await self._execute_hops(instance_id, to_hub)
+                    await self._execute_hops(instance_id, to_hub, from_screen=str(current))
                 else:
                     logger.warning(
                         "No route %s → main_city on %s; considering back_button",
@@ -304,7 +345,7 @@ class Navigator:
                 # Already at main_city but no path to target.
                 from_hub = route_hops(str(_MAIN_CITY), str(target))
                 if from_hub:
-                    if await self._execute_hops(instance_id, from_hub):
+                    if await self._execute_hops(instance_id, from_hub, from_screen=str(_MAIN_CITY)):
                         return True
                 else:
                     logger.info(
@@ -315,7 +356,7 @@ class Navigator:
                     return False
                 continue
 
-            if await self._execute_hops(instance_id, hop_sequences):
+            if await self._execute_hops(instance_id, hop_sequences, from_screen=str(current)):
                 return True
 
         logger.error("Failed to navigate to %s after 10 attempts", target)
@@ -323,19 +364,33 @@ class Navigator:
         return False
 
     async def _execute_hops(
-        self, instance_id: str, hop_sequences: list[tuple[str, list[object]]]
+        self,
+        instance_id: str,
+        hop_sequences: list[tuple[str, list[object]]],
+        *,
+        from_screen: str | None = None,
     ) -> bool:
         # Use current framebuffer size for percent->pixel mapping.
         img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
         dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
+        src_screen = str(from_screen or "")
         for dst_screen, taps in hop_sequences:
             for point in taps:
                 # Tap steps are always region names (strings).
-                self._tap_region_name(instance_id, str(point), dev_w=dev_w, dev_h=dev_h)
+                if not self._tap_region_name(
+                    instance_id,
+                    str(point),
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    from_screen=src_screen,
+                    to_screen=str(dst_screen),
+                ):
+                    return False
                 await asyncio.sleep(0.8)
             await asyncio.sleep(1.5)
             if await self._wait_for_screen_verified(instance_id, str(dst_screen)):
                 await self._write_screen(instance_id, str(dst_screen))
+                src_screen = str(dst_screen)
             else:
                 logger.warning(
                     "Navigator: destination %s was not verified on %s",

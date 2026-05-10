@@ -7,7 +7,7 @@ edges:
     # alliance: [alliance_btn]
     # gathering: [world_map_btn]
     chief_profile: [to_chief_profile]
-    mail: [is_has_new_mail]
+    mail: [mail.new]
     survivor_status: [isWorkers]
     suggestion_box: [isPostman]
   # arena:

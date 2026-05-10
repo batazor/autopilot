@@ -1,9 +1,7 @@
 overlay:
-  - name: is_has_new_mail.visible
-    region: is_has_new_mail
-    action: color_check
-    # For color checks, `threshold` is the minimum share (share of dominant pixels).
-    threshold: 0.6
+  - name: mail.new.visible
+    region: mail.new
+    isRedDot: true
     screens:
       - main_city
     pushScenario:

@@ -6,6 +6,11 @@ from typing import Any
 
 import streamlit as st
 
+from .common import (
+    active_player_state_flat,
+    labeling_query_params_for_area_region,
+    load_area_doc,
+)
 from .ctx import ClickApprovalsCtx
 from .preview import render_preview_with_point
 
@@ -59,6 +64,39 @@ def _payload_action_label(payload: dict[str, Any]) -> str:
     if kind == "tap":
         return "click"
     return kind or "действие"
+
+
+def _render_labeling_region_link(
+    *,
+    ctx: ClickApprovalsCtx,
+    client: Any,
+    inst: str,
+    reg_name: str,
+) -> None:
+    reg = str(reg_name or "").strip()
+    if not reg:
+        return
+    area_doc = load_area_doc(ctx.area_path)
+    state_flat = active_player_state_flat(client=client, instance_id=inst)
+    qp = labeling_query_params_for_area_region(area_doc, reg, state_flat=state_flat)
+    if not qp:
+        return
+    label_reg = qp.get("region") or reg
+    st.page_link(
+        "views/labeling.py",
+        label=f"Open Labeling for `{label_reg}`",
+        query_params=qp,
+        width="stretch",
+    )
+
+
+def _is_navigation_approval(payload: dict[str, Any], ctx0: object) -> bool:
+    src = str(payload.get("approval_source") or "").strip().lower()
+    if src == "navigation":
+        return True
+    if isinstance(ctx0, dict):
+        return str(ctx0.get("approval_source") or "").strip().lower() == "navigation"
+    return False
 
 
 def _clear_stale_pending_after_restart(
@@ -142,6 +180,8 @@ def fragment_pending_approval_columns(
             pass
     with col_img:
         st.subheader("Screenshot")
+        source_key = f"click_approval_show_captured::{inst}"
+        show_captured = bool(st.session_state.get(source_key, False))
         render_preview_with_point(
             ctx=ctx,
             instance_id=inst,
@@ -150,6 +190,9 @@ def fragment_pending_approval_columns(
             payload=payload,
             where=st,
             client=client,
+            image_source="capture" if show_captured else "live",
+            source_toggle_key=source_key,
+            source_toggle_value=show_captured,
         )
 
     with col_events:
@@ -175,13 +218,77 @@ def fragment_pending_approval_columns(
             _scenario_block()
             if sn:
                 st.info(f"Will set **current_screen** to `{sn}`.")
+        elif req_type == "diagnostic":
+            st.caption("Pending diagnostic pause (needs approval).")
+            _scenario_block()
+            diag = str(payload.get("diagnostic") or "").strip()
+            reg_disp = str(payload.get("region") or "").strip()
+            if diag == "while_match_no_iterations":
+                st.info("`while_match` matched zero times. Approve retries later; reject stops.")
+            if reg_disp:
+                st.info(f"Region under inspection: `{reg_disp}`")
+                _render_labeling_region_link(ctx=ctx, client=client, inst=inst, reg_name=reg_disp)
+            attempts = str(payload.get("attempts") or "").strip()
+            interval = str(payload.get("interval") or "").strip()
+            if attempts:
+                suffix = f" · interval `{interval}s`" if interval else ""
+                st.caption(f"Initial probes `{attempts}`{suffix}")
         else:
             st.caption("Pending click / ADB input (needs approval).")
             reg_disp = str(payload.get("region") or "").strip()
             if not reg_disp and isinstance(ctx0, dict):
                 reg_disp = str(ctx0.get("approval_region") or "").strip()
+            is_navigation = _is_navigation_approval(payload, ctx0)
+            if is_navigation:
+                nav_from = (
+                    str(ctx0.get("approval_from_screen") or "").strip()
+                    if isinstance(ctx0, dict)
+                    else ""
+                )
+                nav_to = (
+                    str(ctx0.get("approval_to_screen") or "").strip()
+                    if isinstance(ctx0, dict)
+                    else ""
+                )
+                route = f" · `{nav_from}` -> `{nav_to}`" if nav_from or nav_to else ""
+                if reg_disp:
+                    st.warning(f"Navigation click target: `{reg_disp}`{route}")
+                    _render_labeling_region_link(
+                        ctx=ctx,
+                        client=client,
+                        inst=inst,
+                        reg_name=reg_disp,
+                    )
+                elif route:
+                    st.warning(f"Navigation click{route}")
+                _scenario_block()
+                with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
+                    st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
+
+                c1, c2 = st.columns([1, 1], vertical_alignment="center")
+                with c1:
+                    if st.button(
+                        "✅ Approve",
+                        type="primary",
+                        width="stretch",
+                        key=f"appr-{inst}",
+                    ):
+                        response_key = str(payload.get("response_key") or "").strip()
+                        if response_key:
+                            client.set(response_key, "approve", ex=120)
+                            client.delete(curr_key)
+                        st.rerun()
+                with c2:
+                    if st.button("❌ Reject", width="stretch", key=f"rej-{inst}"):
+                        response_key = str(payload.get("response_key") or "").strip()
+                        if response_key:
+                            client.set(response_key, "reject", ex=120)
+                            client.delete(curr_key)
+                        st.rerun()
+                return
             if reg_disp:
                 st.info(f"Target region / label: `{reg_disp}`")
+                _render_labeling_region_link(ctx=ctx, client=client, inst=inst, reg_name=reg_disp)
             if isinstance(ctx0, dict):
                 thr_c = str(ctx0.get("current_task_threshold") or "").strip()
                 scr_c = str(ctx0.get("current_task_score") or "").strip()

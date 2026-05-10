@@ -551,21 +551,6 @@
       "ocr": "references/main_city.png",
       "regions": [
         {
-          "name": "is_has_new_mail",
-          "action": "color_check",
-          "type": "red",
-          "threshold": 0.99,
-          "bbox": {
-            "x": 94.86293436293437,
-            "y": 84.76304347826087,
-            "width": 0.44401544401544396,
-            "height": 0.3032608695652174,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "is_main_city",
           "action": "text",
           "type": "string",
@@ -611,22 +596,6 @@
           }
         },
         {
-          "name": "is_has_new_mail_tap",
-          "action": "click",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 89.27413127413128,
-            "y": 85.06086956521739,
-            "width": 4.264478764478764,
-            "height": 2.9130434782608696,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
-        },
-        {
           "name": "chapter.task",
           "action": "text",
           "type": "string",
@@ -670,6 +639,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "mail.new",
+          "action": "color_check",
+          "type": "red",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.06563706563706,
+            "y": 83.80434782608695,
+            "width": 11.200772200772201,
+            "height": 6.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
         }
       ],
       "versions": [

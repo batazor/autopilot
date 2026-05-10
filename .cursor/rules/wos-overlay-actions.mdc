@@ -52,6 +52,28 @@ alwaysApply: false
 - Overlay rules can publish a node transition with **`set_node: <node_id>`** when
   matched (writes Redis `current_screen`).
 
+## `findIcon` false-positive gates (automatic)
+
+When a `findIcon` rule uses a sliding `_search` window, the overlay engine runs three
+automatic post-match gates — every gate produces a clear `reason:` in overlay flat state
+so debug screens show *why* a row was rejected even though `score` was high enough:
+
+1. **`peak_unique_margin`** (Lowe-style ratio test): the best NCC peak in the heatmap
+   must beat the next-best peak (in a structurally different ROI location) by
+   ≥ `peak_unique_margin`. Default **`0.08`** — calibrated so true positives (margin
+   ≥ 0.12 on real frames) pass while plateau matches on smooth gradients
+   (margin ≤ 0.05) get rejected with `reason: low_peak_uniqueness`. Tune per-rule with
+   `peak_unique_margin: 0.12` (stricter) or `peak_unique_margin: 0` (disable, e.g. when
+   the same icon is intentionally repeated on screen). Applies to sliding search only.
+2. **bright-detail gate**: when the template has ≥25 % bright low-saturation pixels
+   (white sleeve, glyphs, borders), the candidate patch must keep enough of that
+   bright detail; otherwise `reason: low_bright_detail_ratio`. Always on, no YAML.
+3. **`min_match_saturation`**: optional YAML (0–255). Reject the candidate patch when
+   its mean HSV S is below the threshold (`reason: low_saturation`) — useful to keep
+   a saturated colored button from matching grey UI panels.
+
+If multiple gates fail, `reason` is set in this order: peak → bright → saturation.
+
 ## `_search` / `_tap` naming + cascade delete
 
 - Detector region: `foo`

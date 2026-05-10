@@ -28,7 +28,11 @@ from capture.adb_screencap import (
     resolve_adb_executable,
 )
 from config.loader import get_settings
-from config.reference_naming import reference_png_abs_path, rolling_preview_basename
+from config.reference_naming import (
+    reference_png_abs_path,
+    rolling_preview_basename,
+    temporal_png_abs_path,
+)
 from layout.types import Point
 
 logger = logging.getLogger(__name__)
@@ -178,8 +182,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # Attach context for debugging ("who" + "why").
     ctx: dict[str, object] = {}
     payload_type = ""
+    approval_source = ""
+    approval_context: dict[str, object] = {}
     if isinstance(payload, dict):
         payload_type = str(payload.get("type") or "").strip().lower()
+        approval_source = str(payload.get("approval_source") or "").strip().lower()
+        raw_approval_context = payload.get("approval_context")
+        if isinstance(raw_approval_context, dict):
+            approval_context = dict(raw_approval_context)
     try:
         inst_state_key = f"wos:instance:{instance_id}:state"
         raw = _redis().hgetall(inst_state_key)
@@ -190,7 +200,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             # the stale value here would make the approvals UI draw a misleading
             # region overlay carried over from the previous step.
             task_region = (raw.get("current_task_region") or "").strip()
-            if payload_type == "set_node":
+            if payload_type == "set_node" or approval_source == "navigation":
                 task_region = ""
             ctx = {
                 "current_screen": (raw.get("current_screen") or "").strip(),
@@ -223,6 +233,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 # YAML scenario key while a `DslScenarioTask` is running.
                 "scenario": (raw.get("current_scenario") or "").strip(),
             }
+            if approval_source:
+                ctx["approval_source"] = approval_source
+            if approval_context:
+                for k, v in approval_context.items():
+                    ctx[f"approval_{k}"] = str(v).strip()
             for audit_k in _DSL_APPROVAL_AUDIT_KEYS:
                 ctx[audit_k] = (raw.get(audit_k) or "").strip()
             if not ctx["current_task_threshold"]:
@@ -521,7 +536,14 @@ class AdbController:
     # Touch input — all with jitter to simulate natural fingers
     # ------------------------------------------------------------------
 
-    def tap(self, point: Point, *, approval_region: str | None = None) -> bool:
+    def tap(
+        self,
+        point: Point,
+        *,
+        approval_region: str | None = None,
+        approval_source: str | None = None,
+        approval_context: dict[str, object] | None = None,
+    ) -> bool:
         """Tap center of Point with ±2 px jitter.
 
         ``approval_region``: logical label for click-approval UI when this tap is not tied to
@@ -538,6 +560,11 @@ class AdbController:
         ar = str(approval_region or "").strip()
         if ar:
             ap["region"] = ar
+        src = str(approval_source or "").strip()
+        if src:
+            ap["approval_source"] = src
+        if approval_context:
+            ap["approval_context"] = dict(approval_context)
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(ap)
         ok, req_id = _require_approval(self._instance_id, ap)
@@ -674,6 +701,20 @@ class AdbController:
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(payload)
 
+    def _write_png_bytes_atomic(self, *, path: Path, png: bytes, tmp_prefix: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=tmp_prefix, suffix=".png", dir=path.parent
+        )
+        os.close(fd)
+        tmp = Path(tmp_name)
+        try:
+            tmp.write_bytes(png)
+            os.replace(tmp, path)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+
     def _capture_to_rolling_preview(self, *, tmp_prefix: str) -> tuple[Path, Path] | None:
         """Capture a fresh frame and atomically overwrite ``current_state.png``.
 
@@ -689,32 +730,41 @@ class AdbController:
                 rolling_preview_basename(self._instance_id),
                 self._instance_id,
             )
-            path.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp_name = tempfile.mkstemp(
-                prefix=tmp_prefix, suffix=".png", dir=path.parent
-            )
-            os.close(fd)
-            tmp = Path(tmp_name)
-            try:
-                tmp.write_bytes(png)
-                os.replace(tmp, path)
-            except Exception:
-                tmp.unlink(missing_ok=True)
-                raise
+            self._write_png_bytes_atomic(path=path, png=png, tmp_prefix=tmp_prefix)
             return path, repo_root
         except Exception:
             return None
 
     def _attach_approval_preview(self, payload: dict[str, object]) -> None:
-        """Capture pre-approval frame, write to current_state.png, attach to payload."""
-        result = self._capture_to_rolling_preview(tmp_prefix=".approval-")
-        if result is None:
+        """Capture pre-approval frame, attach a stable request snapshot to payload."""
+        try:
+            png = self.screenshot_bytes()
+            repo_root = Path(__file__).resolve().parent.parent
+            rolling_path = reference_png_abs_path(
+                repo_root,
+                rolling_preview_basename(self._instance_id),
+                self._instance_id,
+            )
+            approval_path = temporal_png_abs_path(
+                repo_root,
+                f"{self._instance_id}_approval_current",
+            )
+            self._write_png_bytes_atomic(
+                path=rolling_path,
+                png=png,
+                tmp_prefix=".approval-live-",
+            )
+            self._write_png_bytes_atomic(
+                path=approval_path,
+                png=png,
+                tmp_prefix=".approval-snapshot-",
+            )
+        except Exception:
             logger.debug(
                 "Failed to capture approval preview for %s", self._instance_id, exc_info=True
             )
             return
-        path, repo_root = result
-        rel = path.relative_to(repo_root / "references")
+        rel = approval_path.relative_to(repo_root / "references")
         payload["preview_png_rel"] = rel.as_posix()
         payload["preview_captured_at"] = time.time()
 
@@ -824,8 +874,21 @@ class BotActions:
             raise RuntimeError(err)
         return img
 
-    def tap(self, instance_id: str, point: Point, *, approval_region: str | None = None) -> bool:
-        return self._controller(instance_id).tap(point, approval_region=approval_region)
+    def tap(
+        self,
+        instance_id: str,
+        point: Point,
+        *,
+        approval_region: str | None = None,
+        approval_source: str | None = None,
+        approval_context: dict[str, object] | None = None,
+    ) -> bool:
+        return self._controller(instance_id).tap(
+            point,
+            approval_region=approval_region,
+            approval_source=approval_source,
+            approval_context=approval_context,
+        )
 
     def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
         self._controller(instance_id).attach_approval_preview(payload)

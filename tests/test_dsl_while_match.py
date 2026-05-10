@@ -131,4 +131,4 @@ def test_tap_claim_button_while_match_has_nested_steps() -> None:
     close = doc["steps"][1]
     assert close["while_match"] == "claim_button_close"
     assert close["max"] == 1
-    assert close["steps"] == [{"click": "claim_button_close"}, {"wait": "2s"}]
+    assert close["steps"] == [{"click": "claim_button_close"}, {"wait": "1s"}]

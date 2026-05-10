@@ -309,6 +309,72 @@ def _validate_scenarios(
         )
 
 
+def _validate_edge_taps(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+    *,
+    region_names: set[str],
+) -> None:
+    path = repo_root / "navigation" / "edge_taps.yaml"
+    if not path.is_file():
+        issues.append(
+            StartupValidationIssue("error", path.as_posix(), "navigation edge_taps.yaml not found")
+        )
+        return
+
+    doc = _load_yaml_dict(path)
+    if "__load_error__" in doc:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                path.as_posix(),
+                f"cannot parse YAML: {doc['__load_error__']}",
+            )
+        )
+        return
+
+    edges = doc.get("edges")
+    if not isinstance(edges, dict):
+        issues.append(
+            StartupValidationIssue("error", path.as_posix(), "edges must be a mapping")
+        )
+        return
+
+    for src, dsts in edges.items():
+        if not isinstance(dsts, dict):
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    path.as_posix(),
+                    f"edge source {src!r} must map to destination taps",
+                )
+            )
+            continue
+        for dst, taps in dsts.items():
+            source = f"edge_taps:{src}->{dst}"
+            if isinstance(taps, str):
+                tap_names = [taps]
+            elif isinstance(taps, list):
+                tap_names = taps
+            else:
+                issues.append(
+                    StartupValidationIssue(
+                        "error",
+                        source,
+                        "tap sequence must be a region name or list of region names",
+                    )
+                )
+                continue
+            for tap in tap_names:
+                _check_region(
+                    issues,
+                    region_names=region_names,
+                    source=source,
+                    field="tap",
+                    value=tap,
+                )
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     root = (repo_root or Path(__file__).resolve().parent.parent).resolve()
     issues: list[StartupValidationIssue] = []
@@ -329,6 +395,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     region_names = _area_region_names(area_doc)
     scenario_keys = _scenario_keys(root / "scenarios")
 
+    _validate_edge_taps(root, issues, region_names=region_names)
     _validate_analyze_manifest(
         root,
         issues,

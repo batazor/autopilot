@@ -23,7 +23,7 @@ _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX = 10
 _SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX = 20
 
 
-class TemplateMatchResult(TypedDict):
+class TemplateMatchResult(TypedDict, total=False):
     # Conservative score: structural NCC capped by BGR color similarity.
     score: float
     # Global top-left (x, y); crop rounding matches labeling export.
@@ -34,6 +34,12 @@ class TemplateMatchResult(TypedDict):
     score_color: float
     # Edge-map similarity (Canny on grayscale) as a strict content check.
     score_edge: float
+    # Second-best NCC peak in the search ROI, masked away from the winner by
+    # at least ``template_w x template_h`` so it picks a structurally different
+    # location. ``None`` for 1:1 matches (no sliding) or when the heatmap is too
+    # small for a 2nd peak. Used by the peak-uniqueness gate to reject low-info
+    # templates that produce a plateau of equally good candidates.
+    score_ncc_second: float | None
 
 
 def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> float:
@@ -192,6 +198,7 @@ def match_crop_1to1_at_bbox_percent(
         score_ncc=score_ncc,
         score_color=score_color,
         score_edge=score_edge,
+        score_ncc_second=None,
     )
 
 
@@ -272,13 +279,48 @@ def match_template_in_search_roi_bbox_percent(
     score_color = _color_similarity_score(patch, template_bgr)
     score_edge = _edge_similarity_score(patch, template_bgr)
     score_ncc = float(max_val)
+
+    # Lowe-style peak uniqueness: the next-best NCC peak in a structurally
+    # different location (masked ±template-size around the winner). Low-info /
+    # smooth templates produce a plateau where many positions score nearly the
+    # same — the overlay engine uses this to reject those false positives.
+    score_ncc_second = _second_best_peak_ncc(heat, x_off, y_off, tw, th)
     return TemplateMatchResult(
         score=min(score_ncc, score_color, score_edge),
         top_left=(gx, gy),
         score_ncc=score_ncc,
         score_color=score_color,
         score_edge=score_edge,
+        score_ncc_second=score_ncc_second,
     )
+
+
+def _second_best_peak_ncc(
+    heat: np.ndarray,
+    best_x: int,
+    best_y: int,
+    template_w: int,
+    template_h: int,
+) -> float | None:
+    """Best NCC value in ``heat`` after masking out a ±template-size box around the winner.
+
+    Returns ``None`` when masking removes the entire heatmap (e.g. template barely smaller
+    than ROI, no room for a structurally different second pick).
+    """
+    if heat.ndim != 2 or heat.size == 0:
+        return None
+    masked = heat.copy()
+    hh, hw = masked.shape[:2]
+    x0 = max(0, int(best_x) - int(template_w))
+    y0 = max(0, int(best_y) - int(template_h))
+    x1 = min(hw, int(best_x) + int(template_w))
+    y1 = min(hh, int(best_y) + int(template_h))
+    if x1 <= x0 or y1 <= y0:
+        return None
+    masked[y0:y1, x0:x1] = -1.0
+    if not np.isfinite(masked).any() or float(np.max(masked)) <= -0.99:
+        return None
+    return float(np.max(masked))
 
 
 def match_patch_bgr_at_top_left(

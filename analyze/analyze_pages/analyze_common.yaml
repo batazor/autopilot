@@ -87,8 +87,8 @@ overlay:
   region: hand_pointer_small_reverse
   action: findIcon
   priority: 86_000
-  threshold: 0.73
-  min_match_saturation: 40
+  threshold: 0.9
+  min_match_saturation: 50
   pushScenario:
     - name: hand_pointer_small_reverse
       priority: 86_000
@@ -97,8 +97,8 @@ overlay:
   region: hand_pointer_small
   action: findIcon
   priority: 86_000
-  threshold: 0.75
-  min_match_saturation: 40
+  threshold: 0.9
+  min_match_saturation: 50
   pushScenario:
     - name: hand_pointer_small
       priority: 86_000

@@ -15,7 +15,7 @@ from typing import Any
 import cv2
 import yaml
 
-from actions.tap import BotActions, _redis, _require_approval
+from actions.tap import BotActions, _redis, _require_approval, click_approval_enabled
 from analysis.overlay import evaluate_overlay_rules_async
 from config.log_ansi import scenario_log_label as _scen
 from config.state_store import get_state_store
@@ -527,6 +527,58 @@ class DslScenarioTask:
             await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=full)
         except Exception:
             logger.debug("dsl_scenario: persist dsl_last_color failed", exc_info=True)
+
+    async def _pause_for_while_match_no_iterations_approval(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        region: str,
+        attempts: int,
+        interval_s: float,
+    ) -> bool:
+        """In approval mode, publish a diagnostic pause before strict while_match retry."""
+        if not click_approval_enabled(instance_id):
+            return True
+
+        if self.redis_client is not None:
+            with suppress(Exception):
+                await self.redis_client.hset(
+                    f"wos:instance:{instance_id}:state",
+                    mapping={
+                        "current_task_region": region,
+                        "current_scenario": scenario_key,
+                    },
+                )
+
+        approval_payload: dict[str, object] = {
+            "type": "diagnostic",
+            "region": region,
+            "diagnostic": "while_match_no_iterations",
+            "attempts": int(attempts),
+            "interval": float(interval_s),
+            "source": {
+                "component": "tasks.dsl_scenario.DslScenarioTask",
+                "note": "while_match matched zero times; approve to retry later, reject to stop",
+            },
+        }
+        attach_preview = getattr(actions, "attach_approval_preview", None)
+        if callable(attach_preview):
+            with suppress(Exception):
+                await asyncio.to_thread(attach_preview, instance_id, approval_payload)
+
+        ok, req_id = await asyncio.to_thread(_require_approval, instance_id, approval_payload)
+        if req_id is not None:
+            with suppress(Exception):
+                _redis().delete(f"wos:ui:click_approval:current:{instance_id}")
+                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
+        if not ok:
+            logger.info(
+                "dsl_scenario: while_match no_iterations rejected — aborting scenario %s",
+                _scen(scenario_key),
+            )
+        return ok
 
     async def _clear_step_context(self, instance_id: str) -> None:
         if self.redis_client is None:
@@ -1345,7 +1397,12 @@ class DslScenarioTask:
 
         pt = self._point_for_region_action(region, pair[1]["bbox"], dev_w, dev_h)
 
-        tapped = actions.tap(instance_id, pt, approval_region=region)
+        tapped = await asyncio.to_thread(
+            actions.tap,
+            instance_id,
+            pt,
+            approval_region=region,
+        )
         if not tapped:
             logger.info(
                 "dsl_scenario: tap rejected or blocked — aborting scenario %s",
@@ -1459,7 +1516,14 @@ class DslScenarioTask:
             pt = self._point_for_region_action(region, bbox, dev_w, dev_h)
             ok = False
             try:
-                ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))
+                ok = bool(
+                    await asyncio.to_thread(
+                        actions.long_tap,
+                        instance_id,
+                        pt,
+                        duration_ms=duration_ms,
+                    )
+                )
             except Exception:
                 ok = False
             if not ok:
@@ -1660,8 +1724,12 @@ class DslScenarioTask:
                 delta = 350
                 duration_ms = 300
             if direction and delta > 0:
-                ok = actions.swipe_direction(
-                    instance_id, direction=direction, delta=delta, duration_ms=duration_ms
+                ok = await asyncio.to_thread(
+                    actions.swipe_direction,
+                    instance_id,
+                    direction=direction,
+                    delta=delta,
+                    duration_ms=duration_ms,
                 )
                 if not ok:
                     logger.info(
@@ -2068,6 +2136,34 @@ class DslScenarioTask:
                     # means the work didn't happen.  Reschedule so the next
                     # `pop_due` cycle gets another shot instead of yielding to
                     # whatever lower-priority task is in the queue.
+                    approved = await self._pause_for_while_match_no_iterations_approval(
+                        actions=actions,
+                        instance_id=instance_id,
+                        scenario_key=key,
+                        region=reg,
+                        attempts=initial_attempts,
+                        interval_s=attempt_interval_s,
+                    )
+                    if not approved:
+                        await self._clear_step_context(instance_id)
+                        _trace_row(
+                            _resumable_step,
+                            step,
+                            "stopped",
+                            reason="while_match_no_iterations_not_approved",
+                        )
+                        return TaskResult(
+                            success=False,
+                            next_run_at=None,
+                            metadata=_fin(
+                                {
+                                    "scenario": key,
+                                    "reason": "while_match_no_iterations_not_approved",
+                                    "region": reg,
+                                },
+                                completed=False,
+                            ),
+                        )
                     logger.info(
                         "dsl_scenario: while_match no_iterations scenario=%s region=%s "
                         "attempts=%d → soft-fail with retry",
@@ -2249,7 +2345,8 @@ class DslScenarioTask:
                     delta = 350
                     duration_ms = 300
                 if direction and delta > 0:
-                    ok = actions.swipe_direction(
+                    ok = await asyncio.to_thread(
+                        actions.swipe_direction,
                         instance_id,
                         direction=direction,
                         delta=delta,
@@ -2491,7 +2588,14 @@ class DslScenarioTask:
                 pt = self._point_for_region_action(reg, bbox, dev_w, dev_h)
                 ok = False
                 with suppress(Exception):
-                    ok = bool(actions.long_tap(instance_id, pt, duration_ms=duration_ms))
+                    ok = bool(
+                        await asyncio.to_thread(
+                            actions.long_tap,
+                            instance_id,
+                            pt,
+                            duration_ms=duration_ms,
+                        )
+                    )
                 if not ok:
                     _trace_row(_resumable_step, step, "stopped", reason="long_click_not_approved")
                     return TaskResult(

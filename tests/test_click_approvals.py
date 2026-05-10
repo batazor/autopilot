@@ -214,6 +214,45 @@ def test_require_approval_set_node_drops_stale_task_region(
     assert current["context"]["scenario"] == "ads_rookie_value_pack"
 
 
+def test_require_approval_navigation_drops_stale_task_region(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={
+            "current_screen": "chief_profile",
+            "current_task_region": "chapter",
+            "current_scenario": "chapter_task_router",
+        },
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {
+            "type": "tap",
+            "x": 1,
+            "y": 2,
+            "region": "back_button",
+            "approval_source": "navigation",
+            "approval_context": {
+                "from_screen": "chief_profile",
+                "to_screen": "main_city",
+            },
+        },
+    )
+
+    assert ok is True
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["context"]["current_task_region"] == ""
+    assert current["context"]["approval_source"] == "navigation"
+    assert current["context"]["approval_from_screen"] == "chief_profile"
+    assert current["context"]["approval_to_screen"] == "main_city"
+
+
 def test_require_approval_tap_keeps_task_region(monkeypatch: Any, redis_sync: Any) -> None:
     r = _RedisProxy(redis_sync, approve_on_current=True)
     r.set("wos:ui:click_approval:enabled:bs1", "1")

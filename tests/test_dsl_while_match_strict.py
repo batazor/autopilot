@@ -30,6 +30,7 @@ class _FakeActions:
         self.frames = frames
         self.capture_count = 0
         self.tapped: list[tuple[str, int, int, str | None]] = []
+        self.approval_previews: list[tuple[str, dict[str, object]]] = []
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         assert instance_id == "bs1"
@@ -44,6 +45,9 @@ class _FakeActions:
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
         self.tapped.append((instance_id, point.x, point.y, approval_region))
         return True
+
+    def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
+        self.approval_previews.append((instance_id, dict(payload)))
 
 
 def _claim_pattern() -> np.ndarray:
@@ -116,6 +120,7 @@ async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     actions = _FakeActions([blank, blank, blank, blank, blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
     # Strip retry interval so the test runs instantly.
     real_sleep = dsl.asyncio.sleep
 
@@ -138,6 +143,52 @@ async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     assert (result.metadata or {}).get("reason") == "while_match_no_iterations"
     assert (result.metadata or {}).get("attempts") == 5  # default for player-bound
     assert actions.tapped == []  # no clicks happened
+
+
+@pytest.mark.asyncio
+async def test_player_bound_while_match_zero_iterations_pauses_in_approval_mode(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    blank = np.zeros((100, 100, 3), dtype=np.uint8)
+    _write_player_bound_scenario(tmp_path, _frame_with_pattern())
+    actions = _FakeActions([blank, blank, blank, blank, blank])
+    approvals: list[tuple[str, dict[str, object]]] = []
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: True)
+    monkeypatch.setattr(
+        dsl,
+        "_require_approval",
+        lambda instance_id, payload: approvals.append((instance_id, dict(payload)))
+        or (True, None),
+    )
+    real_sleep = dsl.asyncio.sleep
+
+    async def _instant_sleep(_s: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="test_assign",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert result.next_run_at is not None
+    assert approvals
+    instance_id, payload = approvals[0]
+    assert instance_id == "bs1"
+    assert payload["type"] == "diagnostic"
+    assert payload["diagnostic"] == "while_match_no_iterations"
+    assert payload["region"] == "page.worker.add"
+    assert actions.approval_previews[0][0] == "bs1"
 
 
 @pytest.mark.asyncio
@@ -193,6 +244,7 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     actions = _FakeActions([blank, blank, blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
     real_sleep = dsl.asyncio.sleep
 
     async def _instant_sleep(_s: float) -> None:

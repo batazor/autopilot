@@ -75,6 +75,14 @@ async def test_registered_task_no_active_player_uses_devices_yaml(monkeypatch: A
         pass
 
     monkeypatch.setitem(instance_worker._TASK_REGISTRY, "arena", _Reg)
+    # Production code now resolves through ``player_ids_for_device_candidates``
+    # (accepts both the bluestacks_window_title and the instance_id as aliases).
+    # Monkeypatch *that* hook so the test doesn't depend on db/devices.yaml.
+    monkeypatch.setattr(
+        instance_worker,
+        "player_ids_for_device_candidates",
+        lambda *_names: ["999000111"],
+    )
     monkeypatch.setattr(
         instance_worker, "player_ids_for_device", lambda _name: ["999000111"]
     )
@@ -90,6 +98,11 @@ async def test_registered_task_active_player_takes_priority(monkeypatch: Any) ->
         pass
 
     monkeypatch.setitem(instance_worker._TASK_REGISTRY, "arena", _Reg)
+    monkeypatch.setattr(
+        instance_worker,
+        "player_ids_for_device_candidates",
+        lambda *_names: ["999000111"],
+    )
     monkeypatch.setattr(
         instance_worker, "player_ids_for_device", lambda _name: ["999000111"]
     )

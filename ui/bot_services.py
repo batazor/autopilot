@@ -31,6 +31,7 @@ _lock = threading.RLock()
 _stop_event: threading.Event | None = None
 _thread: threading.Thread | None = None
 _health_proc: subprocess.Popen[bytes] | None = None
+_known_health_watchdog_pid: int | None = None
 _hooks_installed = False
 _previous_signal_handlers: dict[int, signal.Handlers] = {}
 
@@ -83,16 +84,21 @@ def _existing_health_watchdog_process(repo: Path) -> psutil.Process | None:
 
 def _ensure_health_watchdog() -> None:
     """Spawn ``python -m worker.game_health_watchdog`` if not already running."""
-    global _health_proc
+    global _health_proc, _known_health_watchdog_pid
     with _lock:
         if _health_proc is not None and _health_proc.poll() is None:
+            _known_health_watchdog_pid = _health_proc.pid
             return
         _health_proc = None
         repo = Path(__file__).resolve().parent.parent
         log = logging.getLogger(__name__)
         existing = _existing_health_watchdog_process(repo)
         if existing is not None:
-            log.info("Game health watchdog subprocess already running pid=%s", existing.pid)
+            if _known_health_watchdog_pid != existing.pid:
+                log.info("Game health watchdog subprocess already running pid=%s", existing.pid)
+            else:
+                log.debug("Game health watchdog subprocess already running pid=%s", existing.pid)
+            _known_health_watchdog_pid = existing.pid
             return
         try:
             _health_proc = subprocess.Popen(
@@ -100,17 +106,19 @@ def _ensure_health_watchdog() -> None:
                 cwd=str(repo),
                 env=os.environ.copy(),
             )
+            _known_health_watchdog_pid = _health_proc.pid
             log.info("Game health watchdog subprocess pid=%s", _health_proc.pid)
         except Exception:
             log.exception("Failed to start game health watchdog subprocess")
 
 
 def _stop_health_watchdog() -> None:
-    global _health_proc
+    global _health_proc, _known_health_watchdog_pid
     repo = Path(__file__).resolve().parent.parent
     with _lock:
         proc = _health_proc
         _health_proc = None
+        _known_health_watchdog_pid = None
     if proc is not None and proc.poll() is None:
         proc.terminate()
         try:

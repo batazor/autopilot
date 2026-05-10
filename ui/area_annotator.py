@@ -2346,6 +2346,46 @@ def current_regions() -> list[RegionDict]:
     return entries[idx]["regions"]  # type: ignore[return-value]
 
 
+def _query_param_scalar(name: str) -> str:
+    try:
+        raw = st.query_params.get(name)
+    except Exception:
+        return ""
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return str(raw or "").strip()
+
+
+def _apply_labeling_region_query_selection() -> None:
+    """Honor Labeling deep-link ``?region=...`` once for the active entry."""
+    wanted = _query_param_scalar("region")
+    if not wanted:
+        return
+    entries: list[AreaEntryDict] = st.session_state.area_doc.get("screens") or []
+    entry_idx = int(st.session_state.get(ENTRY_IDX, -1))
+    if entry_idx < 0 or entry_idx >= len(entries):
+        return
+    cur_entry = entries[entry_idx]
+    active_version = get_active_version(cur_entry)
+    signature = f"{entry_idx}:{active_version or ACTIVE_VERSION_DEFAULT}:{wanted}"
+    if st.session_state.get("_labeling_region_query_applied") == signature:
+        return
+
+    regions = current_regions()
+    candidates = [wanted]
+    if active_version and not wanted.endswith(f"_{active_version}"):
+        candidates.append(f"{wanted}_{active_version}")
+    for cand in candidates:
+        for i, reg in enumerate(regions):
+            if str(reg.get("name") or "").strip() != cand:
+                continue
+            st.session_state.selected_region_idx = i
+            st.session_state.selected_region_name = cand
+            st.session_state["_labeling_region_query_applied"] = signature
+            return
+    st.session_state["_labeling_region_query_applied"] = signature
+
+
 def set_current_regions(regions: list[RegionDict]) -> None:
     ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
     if "/temporal/" in ref.replace("\\", "/"):
@@ -2663,6 +2703,8 @@ def render_area_annotator_ui(
 
     # ----- Labeling: canvas left; right column = reference tree + tools + regions + node graph + save -----
     if labeling_mode:
+        _apply_labeling_region_query_selection()
+
         with right_col:
             if pil_original is not None:
                 regions_ct = current_regions()

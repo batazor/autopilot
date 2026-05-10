@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
 
@@ -41,6 +42,30 @@ def test_ensure_health_watchdog_reuses_existing_process(monkeypatch: Any) -> Non
 
     assert spawned == []
     assert bot_services._health_proc is None
+
+
+def test_ensure_health_watchdog_logs_existing_process_once(monkeypatch: Any, caplog: Any) -> None:
+    class ExistingProcess:
+        pid = 12345
+
+    monkeypatch.setattr(bot_services, "_health_proc", None)
+    monkeypatch.setattr(bot_services, "_known_health_watchdog_pid", None)
+    monkeypatch.setattr(
+        bot_services,
+        "_existing_health_watchdog_process",
+        lambda _repo: ExistingProcess(),
+    )
+
+    with caplog.at_level(logging.INFO, logger=bot_services.__name__):
+        bot_services._ensure_health_watchdog()
+        bot_services._ensure_health_watchdog()
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if "Game health watchdog subprocess already running" in record.getMessage()
+    ]
+    assert messages == ["Game health watchdog subprocess already running pid=12345"]
 
 
 def test_stop_health_watchdog_stops_discovered_process(monkeypatch: Any) -> None:

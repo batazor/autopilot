@@ -116,6 +116,9 @@ def render_preview_with_point(
     payload: dict[str, Any] | None,
     where: Any,
     client: Any = None,
+    image_source: str = "capture",
+    source_toggle_key: str | None = None,
+    source_toggle_value: bool | None = None,
 ) -> None:
     """Render approval snapshot/rolling PNG preview with optional target crosshair.
 
@@ -129,7 +132,15 @@ def render_preview_with_point(
         if client is not None
         else None
     )
-    png, rel, mtime = _load_payload_preview(payload)
+    source = str(image_source or "").strip().lower()
+    if source not in {"capture", "live"}:
+        source = "capture"
+
+    png: bytes | None = None
+    rel = ""
+    mtime: float | None = None
+    if source == "capture":
+        png, rel, mtime = _load_payload_preview(payload)
     if png is None:
         png, rel, mtime = load_rolling_instance_preview(instance_id)
     if png is None:
@@ -291,7 +302,15 @@ def render_preview_with_point(
         cap = f"{cap} · {time.strftime('%H:%M:%S', time.localtime(mtime))}"
     if x is not None and y is not None:
         cap = f"{cap} · target=({x},{y})"
+    src_label = "live" if source == "live" else "captured"
+    cap = f"{src_label} · {cap}"
     ui.image(fitted, caption=cap, width="stretch")
+    if source_toggle_key:
+        ui.toggle(
+            "Captured request snapshot",
+            value=bool(source_toggle_value),
+            key=source_toggle_key,
+        )
 
     if not isinstance(payload, dict) or is_set_node:
         return

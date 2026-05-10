@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 import streamlit as st
 
+from layout.area_lookup import screen_region_by_name
+from layout.area_versions import effective_ocr_for_region
 from ui.redis_client import get_instance_state
 
 _VERSION_SUFFIX_RE = re.compile(r"_v\d+$")
@@ -40,6 +42,40 @@ def labeling_query_ref_from_area_ocr(ocr_rel: str) -> str | None:
     if s.startswith("references/"):
         s = s.removeprefix("references/")
     return s or None
+
+
+def labeling_query_params_for_area_region(
+    area_doc: dict[str, Any],
+    region_name: str,
+    *,
+    state_flat: dict[str, Any] | None = None,
+) -> dict[str, str] | None:
+    """Build a Labeling deep-link for a logical area region."""
+    pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+    if pair is None:
+        return None
+    entry, reg = pair
+    ref_rel = effective_ocr_for_region(entry, reg)
+    lbl_ref = labeling_query_ref_from_area_ocr(ref_rel)
+    if not lbl_ref:
+        return None
+
+    resolved_region = str(reg.get("name") or "").strip() or str(region_name or "").strip()
+    params = {"ref": lbl_ref}
+    if resolved_region:
+        params["region"] = resolved_region
+
+    versions = entry.get("versions") or []
+    if isinstance(versions, list):
+        for ver in versions:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id") or "").strip()
+            suffix = f"_{vid}" if vid else ""
+            if suffix and resolved_region.endswith(suffix) and len(resolved_region) > len(suffix):
+                params["version"] = vid
+                break
+    return params
 
 
 def active_player_state_flat(*, client: Any, instance_id: str) -> dict[str, Any] | None:
@@ -81,4 +117,3 @@ def ocr_health_status(ocr_url: str) -> tuple[bool, str]:
         return True, "ok"
     except Exception as exc:  # noqa: BLE001 - UI diagnostic only
         return False, f"{type(exc).__name__}: {exc}"
-

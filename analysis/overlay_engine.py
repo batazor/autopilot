@@ -12,6 +12,7 @@ from analysis.overlay_rules import (
     optional_expected_texts,
     optional_fuzzy_threshold,
     optional_min_match_saturation,
+    optional_peak_unique_margin,
     optional_priority,
     optional_push_scenario_tasks,
     optional_ttl_seconds,
@@ -89,6 +90,31 @@ def _apply_bright_detail_gate(
     if patch_ratio < min_ratio:
         return False, template_ratio, patch_ratio, "low_bright_detail_ratio"
     return True, template_ratio, patch_ratio, None
+
+
+def _apply_peak_uniqueness_gate(
+    score_ncc: float,
+    score_ncc_second: float | None,
+    min_margin: float,
+) -> tuple[bool, float | None, str | None]:
+    """Reject sliding-search matches whose best NCC peak is not meaningfully better than
+    the 2nd-best peak in a structurally different location.
+
+    ``score_ncc_second is None`` means the heatmap was too small for a 2nd peak (e.g. the
+    template barely fits the ROI); we accept in that case — same effect as 1:1.
+
+    ``min_margin <= 0`` disables the gate (per-rule opt-out).
+
+    Returns ``(passes, observed_margin_or_none, fail_reason_or_none)``.
+    """
+    if min_margin <= 0.0:
+        return True, None, None
+    if score_ncc_second is None:
+        return True, None, None
+    margin = float(score_ncc) - float(score_ncc_second)
+    if margin < float(min_margin):
+        return False, margin, "low_peak_uniqueness"
+    return True, margin, None
 
 
 def _bbox_percent_to_region_px(
@@ -415,6 +441,16 @@ async def evaluate_overlay_rules_async(
                     bright_fail: str | None = None
                     tpl_bright: float | None = None
                     patch_bright: float | None = None
+                    peak_fail: str | None = None
+                    peak_margin: float | None = None
+                    peak_min_margin = optional_peak_unique_margin(rule)
+                    if matched:
+                        ok, peak_margin, peak_fail = _apply_peak_uniqueness_gate(
+                            float(res.get("score_ncc") or 0.0),
+                            res.get("score_ncc_second"),
+                            peak_min_margin,
+                        )
+                        matched = ok
                     if matched:
                         ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
                             image_bgr, tpl, tl_tuple
@@ -429,6 +465,7 @@ async def evaluate_overlay_rules_async(
                         "matched": matched,
                         "score": score,
                         "score_ncc": res.get("score_ncc"),
+                        "score_ncc_second": res.get("score_ncc_second"),
                         "score_color": res.get("score_color"),
                         "threshold": threshold,
                         "top_left": list(res["top_left"]),
@@ -462,8 +499,11 @@ async def evaluate_overlay_rules_async(
                         hit["patch_bright_ratio"] = patch_bright
                     if mean_sat is not None:
                         hit["mean_saturation"] = mean_sat
-                    if bright_fail or sat_fail:
-                        hit["reason"] = bright_fail or sat_fail
+                    if peak_margin is not None:
+                        hit["peak_unique_margin_observed"] = peak_margin
+                        hit["peak_unique_margin_required"] = peak_min_margin
+                    if peak_fail or bright_fail or sat_fail:
+                        hit["reason"] = peak_fail or bright_fail or sat_fail
                     out[logical_name] = hit
                     continue
 
