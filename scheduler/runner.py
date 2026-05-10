@@ -15,6 +15,7 @@ from config.logging_stdout import setup_stdout_logging
 from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scenarios.models import Scenario
+from scenarios.cron_specs import iter_cron_yaml_files
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
 from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
@@ -50,10 +51,6 @@ class SchedulerRunner:
             await client.aclose()
         except Exception:
             logger.debug("Scheduler Redis aclose failed", exc_info=True)
-
-    def _cron_specs_dir(self) -> Path:
-        # Stable location for cron-maintenance jobs (YAML specs).
-        return Path(__file__).resolve().parent.parent / "scenarios" / "by_cron"
 
     async def _instance_current_screen(self, instance_id: str) -> str:
         assert self._redis is not None
@@ -198,13 +195,14 @@ class SchedulerRunner:
         """Enqueue cron-based jobs (no extra checks beyond cron)."""
         assert self._redis is not None and self._queue is not None
         now = time.time()
-        cron_dir = self._cron_specs_dir()
-        if not cron_dir.is_dir():
+        scenarios_root = Path(__file__).resolve().parent.parent / "scenarios"
+        cron_ymls = iter_cron_yaml_files(scenarios_root)
+        if not cron_ymls:
             return
 
         import yaml
 
-        for yml in sorted(cron_dir.glob("*.yaml")):
+        for yml in cron_ymls:
             try:
                 raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
             except Exception:

@@ -101,7 +101,7 @@ def _list_scenario_files(repo_root: Path) -> list[ScenarioFile]:
     out: list[ScenarioFile] = []
     for p in sorted(scenarios_root.rglob("*.yaml")):
         rel = p.relative_to(scenarios_root).as_posix()
-        if rel.startswith("drafts/") or rel.startswith("by_cron/"):
+        if rel.startswith("drafts/"):
             continue
         try:
             raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}

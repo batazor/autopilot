@@ -8,6 +8,7 @@ edges:
     # gathering: [world_map_btn]
     chief_profile: [to_chief_profile]
     mail: [mail.new]
+    exploration: [main_city.to.exploration]
     survivor_status: [isWorkers]
     suggestion_box: [isPostman]
   # arena:
@@ -29,4 +30,6 @@ edges:
   suggestion_box:
     main_city: [back_button]
   hero.recrutment:
+    main_city: [back_button]
+  exploration:
     main_city: [back_button]

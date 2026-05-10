@@ -74,8 +74,22 @@ _MAIN_MENU_RAW: Final[dict[str, set[str]]] = {
         "main_menu_tech_research",
         "vip",
         "exploration",
+        "chat",
         "alliance_manage",
         "chief_profile",
+    },
+}
+
+# exploration ↔ main menu (Go FSM parity; tap routing still lives in edge_taps when labeled)
+_EXPLORATION_RAW: Final[dict[str, set[str]]] = {
+    "exploration": {
+        "main_menu_city",
+    },
+}
+
+_CHAT_RAW: Final[dict[str, set[str]]] = {
+    "chat": {
+        "main_menu_city",
     },
 }
 
@@ -86,16 +100,19 @@ _TROOPS_RAW: Final[dict[str, set[str]]] = {
     "marksman_city_view": {"main_city", "main_menu_city", "arena_city_view", "fishing_main"},
 }
 
-# Hub screen ↔ survivor/worker list (Python tap graph; see navigation/edge_taps.yaml).
+# Hub screen ↔ survivor/worker list / exploration (Python tap graph; see navigation/edge_taps.yaml).
 _MAIN_CITY_HUB_RAW: Final[dict[str, set[str]]] = {
-    "main_city": {"survivor_status", "suggestion_box", "hero.recrutment"},
+    "main_city": {"survivor_status", "suggestion_box", "hero.recrutment", "exploration"},
     "survivor_status": {"main_city"},
     "suggestion_box": {"main_city"},
     "hero.recrutment": {"main_city"},
+    "exploration": {"main_city"},
 }
 
 TUNDRA_ADVENTURE_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TUNDRA_RAW)
 MAIN_MENU_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_MAIN_MENU_RAW)
+EXPLORATION_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_EXPLORATION_RAW)
+CHAT_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_CHAT_RAW)
 TROOPS_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TROOPS_RAW)
 MAIN_CITY_HUB_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_MAIN_CITY_HUB_RAW)
 
@@ -114,6 +131,8 @@ def merge_fsm_edges(
 FSM_SCREEN_EDGES: Final[dict[str, frozenset[str]]] = merge_fsm_edges(
     TUNDRA_ADVENTURE_EDGES,
     MAIN_MENU_EDGES,
+    EXPLORATION_EDGES,
+    CHAT_EDGES,
     TROOPS_EDGES,
     MAIN_CITY_HUB_EDGES,
 )

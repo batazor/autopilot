@@ -571,9 +571,9 @@ def _selected_path_key() -> str:
 
 st.title("Scenarios editor")
 st.caption(
-    "Edit DSL scenarios in form view. `drafts/` and `by_cron/` are read-only here. "
-    "Saves are validated against the DSL schema and back up the previous file under "
-    "`scenarios/.backups/<timestamp>/`."
+    "Edit DSL scenarios in form view. `drafts/` is read-only; the top-level `by_cron/` domain "
+    "is read-only for legacy layout. Saves are validated against the DSL schema and back up the "
+    "previous file under `scenarios/.backups/<timestamp>/`."
 )
 
 files = _list_scenario_files()

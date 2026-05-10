@@ -2,6 +2,8 @@
 
 Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via a separate OCR HTTP service.
 
+**Discord:** [https://discord.gg/G8encVpD9](https://discord.gg/G8encVpD9)
+
 ## Screenshots
 
 The Streamlit app (`uv run wos`) covers **gift codes**, **labeling and YAML scenarios**, and **runtime scenario debugging**. On GitHub, use the arrows to expand each screenshot.
@@ -65,14 +67,4 @@ Keep BlueStacks running and the device visible in `adb devices` before workers s
 
 ## Streamlit dashboard
 
-This is **not** a second process next to the bot: **`uv run wos`** starts Streamlit once; **`ui/app.py`** loads the scheduler and workers **inside that same process** (background asyncio). The wrapper only sets `PYTHONPATH`, port (`WOS_STREAMLIT_PORT`), headless defaults, and shutdown hooks — same app as:
-
-```bash
-uv run streamlit run ui/app.py
-```
-
-The dashboard reads Redis and sends commands (`wos:ui:command:{instance_id}`, `wos:ui:command:scheduler`).
-
-**Labeling:** one sidebar page — **`references/`** capture via **ADB** (serial = **`bluestacks_window_title`**) plus the OCR rectangle editor (**`streamlit-drawable-canvas`**) that writes **`area.json`** at the repo root. Same canvas as optional standalone `uv run streamlit run app.py`. Screenshots are not stored in Redis.
-
-Run the dashboard with **`uv run wos`** on the machine that has the repo and **ADB**. **`docker compose`** here is only for **Redis** and **OCR**; the Compose **`ui`** service is a slim image and does **not** run the full embedded bot (see `ui/Dockerfile`).
+The UI reads Redis state and publishes commands on **`wos:ui:command:{instance_id}`** and **`wos:ui:command:scheduler`**. For capture/labeling over **ADB**, run **`uv run wos`** on a machine with the repo and **adb** — the Compose **`ui`** image is optional/lightweight and does not mirror that full setup (see **`ui/Dockerfile`**).

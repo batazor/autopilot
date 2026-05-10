@@ -20,9 +20,6 @@ LABELING_REF_TREE_NONCE = "labeling_ref_tree_nonce"
 LABELING_LAST_INSTANCE = "labeling_bn_last_instance"
 LABELING_BN_NONE = "labeling_bn_none"
 LABELING_REFRESH_PENDING = "labeling_refresh_pending"
-LABELING_ZOOM = "labeling_zoom"
-LABELING_ZOOM_X = "labeling_zoom_x"
-LABELING_ZOOM_Y = "labeling_zoom_y"
 
 # ---------------------------------------------------------------------------
 # Area annotator (shared between area_annotator.py, labeling_reference_panel.py,

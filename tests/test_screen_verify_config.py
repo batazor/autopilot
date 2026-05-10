@@ -91,6 +91,34 @@ def test_production_screen_verify_yaml_contains_mail_title_switch() -> None:
     ]
 
 
+def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        rules = screen_graph.screen_text_switch_rules()
+        expl_rules = screen_graph.screen_verify_rules("exploration")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    assert any("exploration" in rule.get("cases", {}) for rule in rules)
+    assert expl_rules == [
+        {"ocr": "page_title", "contains": ["exploration"], "threshold": 0.8}
+    ]
+
+
+def test_production_screen_verify_yaml_contains_chat_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        rules = screen_graph.screen_text_switch_rules()
+        chat_rules = screen_graph.screen_verify_rules("chat")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    assert any("chat" in rule.get("cases", {}) for rule in rules)
+    assert chat_rules == [
+        {"ocr": "page_title", "contains": ["chat"], "threshold": 0.8}
+    ]
+
+
 def test_production_screen_verify_yaml_contains_building_landmark() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:

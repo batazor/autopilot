@@ -1,0 +1,7 @@
+enabled: true
+name: Claim Exploration Rewards
+
+cron: "0 */4 * * *"
+priority: 52
+
+steps: []

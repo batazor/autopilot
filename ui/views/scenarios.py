@@ -12,6 +12,7 @@ import yaml
 
 from config.devices import player_ids_for_device_candidates
 from config.loader import Settings, load_settings
+from scenarios.cron_specs import iter_cron_yaml_files, iter_plain_scenario_yaml_files
 from ui.redis_client import get_player_scenario, require_redis_connection, set_player_scenario
 
 
@@ -55,22 +56,8 @@ def _rows_to_records(edited: object, fallback: list[dict]) -> list[dict]:
 
 
 def _list_scenario_yaml_files(scenarios_dir: Path) -> list[Path]:
-    """All runnable scenario YAMLs under ``scenarios/`` (recursive).
-
-    Mirrors :meth:`scenarios.loader.ScenarioLoader.reload` — skips ``drafts/``
-    and ``by_cron/`` (cron specs have their own tab).
-    """
-    if not scenarios_dir.is_dir():
-        return []
-    out: list[Path] = []
-    for p in scenarios_dir.rglob("*.yaml"):
-        if "drafts" in {x.lower() for x in p.parts}:
-            continue
-        rel = p.relative_to(scenarios_dir)
-        if rel.parts and rel.parts[0].lower() == "by_cron":
-            continue
-        out.append(p)
-    return sorted(out)
+    """DSL scenario YAMLs for the main tab (skips ``drafts/`` and root ``cron`` schedules)."""
+    return iter_plain_scenario_yaml_files(scenarios_dir)
 
 
 @dataclass
@@ -202,11 +189,10 @@ client = require_redis_connection()
 
 scenarios_dir = Path(__file__).resolve().parents[2] / "scenarios"
 files = _list_scenario_yaml_files(scenarios_dir)
-cron_dir = scenarios_dir / "by_cron"
-cron_files = sorted(cron_dir.glob("*.yaml")) if cron_dir.is_dir() else []
+cron_files = iter_cron_yaml_files(scenarios_dir)
 
 if not files and not cron_files:
-    st.warning(f"No scenario YAML under {scenarios_dir} (excluding drafts/ and by_cron/)")
+    st.warning(f"No scenario YAML under {scenarios_dir} (excluding drafts/)")
     st.stop()
 
 scenario_meta: list[tuple[Path, str, str, str, dict]] = []
@@ -350,7 +336,7 @@ with tab_files:
 
 with tab_cron:
     if not cron_meta:
-        st.info("No cron YAML specs under `scenarios/by_cron/`.")
+        st.info("No YAML files with a root `cron` field under `scenarios/`.")
     else:
         import json
         import re

@@ -30,6 +30,8 @@ class ScreenName(StrEnum):
     TRAINING = "training"
     GATHERING = "gathering"
     ALLIANCE = "alliance"
+    EXPLORATION = "exploration"
+    CHAT = "chat"
     MAIL = "mail"
     CHIEF_PROFILE = "chief_profile"
     SURVIVOR_STATUS = "survivor_status"

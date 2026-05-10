@@ -35,6 +35,7 @@ from streamlit_drawable_canvas import st_canvas
 
 from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import (
+    dedupe_redundant_version_regions,
     is_auxiliary_overlay_region,
     validate_unique_region_names,
     validate_versions,
@@ -53,9 +54,6 @@ from ui.keys import (
     LABELING_RENAME_FLASH,
     LABELING_SELECTION_BEFORE_CAPTURE,
     LABELING_TEMPORAL_REGIONS,
-    LABELING_ZOOM,
-    LABELING_ZOOM_X,
-    LABELING_ZOOM_Y,
     LOAD_ERROR,
     OVL_YAML_WARN,
     PENDING_IMAGE_PATH,
@@ -160,7 +158,7 @@ ACTIONS = ("text", "exist", "color_check", "click")
 TYPES = ("integer", "string", "boolean")
 COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
-# Drawable canvas display size (longer side cap); zoom multiplier applied on top in labeling mode.
+# Drawable canvas display size (longer side cap).
 CANVAS_DISPLAY_MAX_SIDE = 1280
 # Labeling layout: slightly smaller canvas so the reference / regions column gets more width.
 LABELING_CANVAS_DISPLAY_MAX_SIDE = 920
@@ -563,8 +561,13 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
     raise ValueError("area.json must be a JSON array or an object with 'screens'")
 
 
-def save_json(path: Path, doc: AreaDocDict) -> None:
-    """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``)."""
+def save_json(path: Path, doc: AreaDocDict) -> int:
+    """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``).
+
+    Returns how many version-specific regions were dropped because they matched
+    the base region (same geometry/options).
+    """
+    removed = dedupe_redundant_version_regions(doc)
     validate_unique_region_names(doc)
     validate_versions(doc)
     content = json.dumps(doc, indent=2)
@@ -574,6 +577,7 @@ def save_json(path: Path, doc: AreaDocDict) -> None:
         f.write(content)
         tmp = f.name
     os.replace(tmp, path)
+    return removed
 
 
 def load_json(path: Path) -> AreaDocDict:
@@ -2203,72 +2207,6 @@ def resize_for_canvas(
     return im, scale
 
 
-def _regions_to_viewport(
-    regions: list[RegionDict],
-    *,
-    x_off: int,
-    y_off: int,
-    vp_w: float,
-    vp_h: float,
-    orig_w: int,
-    orig_h: int,
-) -> list[RegionDict]:
-    """Remap full-image % bboxes to viewport-relative % for canvas display."""
-    result: list[RegionDict] = []
-    for r in regions:
-        bbox = r.get("bbox")
-        if not bbox:
-            result.append(r)
-            continue
-        ox = bbox["x"] / 100.0 * orig_w - x_off
-        oy = bbox["y"] / 100.0 * orig_h - y_off
-        ow = bbox["width"] / 100.0 * orig_w
-        oh = bbox["height"] / 100.0 * orig_h
-        new_bbox: BBoxDict = {
-            **bbox,
-            "x": ox / vp_w * 100.0,
-            "y": oy / vp_h * 100.0,
-            "width": ow / vp_w * 100.0,
-            "height": oh / vp_h * 100.0,
-        }
-        result.append({**r, "bbox": new_bbox})  # type: ignore[misc]
-    return result
-
-
-def _regions_from_viewport(
-    regions: list[RegionDict],
-    *,
-    x_off: int,
-    y_off: int,
-    vp_w: float,
-    vp_h: float,
-    orig_w: int,
-    orig_h: int,
-) -> list[RegionDict]:
-    """Remap viewport-relative % bboxes back to full-image % after canvas sync."""
-    result: list[RegionDict] = []
-    for r in regions:
-        bbox = r.get("bbox")
-        if not bbox:
-            result.append(r)
-            continue
-        ox = bbox["x"] / 100.0 * vp_w + x_off
-        oy = bbox["y"] / 100.0 * vp_h + y_off
-        ow = bbox["width"] / 100.0 * vp_w
-        oh = bbox["height"] / 100.0 * vp_h
-        new_bbox: BBoxDict = {
-            **bbox,
-            "x": ox / orig_w * 100.0,
-            "y": oy / orig_h * 100.0,
-            "width": ow / orig_w * 100.0,
-            "height": oh / orig_h * 100.0,
-            "original_width": orig_w,
-            "original_height": orig_h,
-        }
-        result.append({**r, "bbox": new_bbox})  # type: ignore[misc]
-    return result
-
-
 # -----------------------------------------------------------------------------
 # Session state
 # -----------------------------------------------------------------------------
@@ -2736,8 +2674,11 @@ def render_area_annotator_ui(
             st.divider()
             if st.button("Save area.json", type="primary", width="stretch", key="save_area_json_lbl"):
                 try:
-                    save_json(AREA_JSON_PATH, st.session_state.area_doc)
-                    st.success(f"Wrote {AREA_JSON_PATH}")
+                    removed = save_json(AREA_JSON_PATH, st.session_state.area_doc)
+                    msg = f"Wrote {AREA_JSON_PATH}"
+                    if removed:
+                        msg += f" · removed {removed} redundant version override(s) matching base"
+                    st.success(msg)
                     _write_all_region_crops_with_feedback(st.session_state.area_doc)
                     st.session_state.pop(LABELING_PENDING_CAPTURE_REL, None)
                     st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
@@ -2752,24 +2693,7 @@ def render_area_annotator_ui(
             else:
                 orig_w, orig_h = pil_original.size
 
-                # --- viewport state ---
-                zoom = float(st.session_state.get(LABELING_ZOOM, 1.0))
-                vp_w = orig_w / zoom
-                vp_h = orig_h / zoom
-                x_off_max = max(0, orig_w - int(math.ceil(vp_w)))
-                y_off_max = max(0, orig_h - int(math.ceil(vp_h)))
-                x_off = max(0, min(int(st.session_state.get(LABELING_ZOOM_X, 0)), x_off_max))
-                y_off = max(0, min(int(st.session_state.get(LABELING_ZOOM_Y, 0)), y_off_max))
-
-                # Crop viewport from original image when zoomed in
-                if zoom > 1.0:
-                    crop_r = min(orig_w, x_off + int(math.ceil(vp_w)))
-                    crop_b = min(orig_h, y_off + int(math.ceil(vp_h)))
-                    viewport_pil = pil_original.crop((x_off, y_off, crop_r, crop_b))
-                else:
-                    viewport_pil = pil_original
-
-                canvas_img, _ = resize_for_canvas(viewport_pil, max_side=canvas_max_side)
+                canvas_img, _ = resize_for_canvas(pil_original, max_side=canvas_max_side)
                 canvas_w, canvas_h = canvas_img.size
 
                 full_regions = current_regions()
@@ -2782,22 +2706,7 @@ def render_area_annotator_ui(
                     regions, visible_indices = full_regions, list(range(len(full_regions)))
                 sel = _resolve_selected_region_idx(regions)
 
-                # Remap bbox percentages to viewport coordinate space for display
-                display_regions = (
-                    _regions_to_viewport(
-                        regions,
-                        x_off=x_off,
-                        y_off=y_off,
-                        vp_w=vp_w,
-                        vp_h=vp_h,
-                        orig_w=orig_w,
-                        orig_h=orig_h,
-                    )
-                    if zoom > 1.0
-                    else regions
-                )
-
-                initial = regions_to_initial_drawing(display_regions, canvas_w, canvas_h, sel)
+                initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
 
                 canvas_result = st_canvas(
                     fill_color="rgba(120, 180, 255, 0.15)",
@@ -2817,9 +2726,9 @@ def render_area_annotator_ui(
                     if sig != st.session_state.last_canvas_sig:
                         st.session_state.last_canvas_sig = sig
                         prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
-                        current_bbox_sig = _regions_bbox_semantic_sig(display_regions)
+                        current_bbox_sig = _regions_bbox_semantic_sig(regions)
                         synced = sync_regions_from_canvas(
-                            display_regions,
+                            regions,
                             canvas_result.json_data,
                             canvas_w,
                             canvas_h,
@@ -2830,70 +2739,12 @@ def render_area_annotator_ui(
                         if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
                             if incoming_bbox_sig != current_bbox_sig:
                                 _remember_stale_canvas_sig(current_bbox_sig)
-                            updated_visible = (
-                                _regions_from_viewport(
-                                    synced,
-                                    x_off=x_off,
-                                    y_off=y_off,
-                                    vp_w=vp_w,
-                                    vp_h=vp_h,
-                                    orig_w=orig_w,
-                                    orig_h=orig_h,
-                                )
-                                if zoom > 1.0
-                                else synced
-                            )
-                            updated = _merge_synced_regions(
-                                full_regions, updated_visible, visible_indices
-                            )
+                            updated = _merge_synced_regions(full_regions, synced, visible_indices)
                             if incoming_bbox_sig != current_bbox_sig:
                                 set_current_regions(updated)
                             if prev_sel_name:
                                 st.session_state.selected_region_name = prev_sel_name
                             _resolve_selected_region_idx(updated)
-
-                # --- zoom + pan sliders ---
-                def _on_zoom_change() -> None:
-                    st.session_state[CANVAS_REV] = int(st.session_state.get(CANVAS_REV, 0)) + 1
-                    st.session_state[CANVAS_LAST_SIG] = ""
-                    st.session_state[LABELING_ZOOM_X] = 0
-                    st.session_state[LABELING_ZOOM_Y] = 0
-
-                def _on_pan_change() -> None:
-                    st.session_state[CANVAS_REV] = int(st.session_state.get(CANVAS_REV, 0)) + 1
-                    st.session_state[CANVAS_LAST_SIG] = ""
-
-                st.slider(
-                    "Zoom",
-                    min_value=1.0,
-                    max_value=4.0,
-                    value=zoom,
-                    step=0.25,
-                    format="%.2fx",
-                    key=LABELING_ZOOM,
-                    on_change=_on_zoom_change,
-                    help="Scale the canvas to annotate small regions with more precision.",
-                )
-                if x_off_max > 0:
-                    st.slider(
-                        "Pan X →",
-                        min_value=0,
-                        max_value=x_off_max,
-                        value=x_off,
-                        key=LABELING_ZOOM_X,
-                        on_change=_on_pan_change,
-                        help="Scroll left / right within the zoomed image.",
-                    )
-                if y_off_max > 0:
-                    st.slider(
-                        "Pan Y ↓",
-                        min_value=0,
-                        max_value=y_off_max,
-                        value=y_off,
-                        key=LABELING_ZOOM_Y,
-                        on_change=_on_pan_change,
-                        help="Scroll up / down within the zoomed image.",
-                    )
 
     else:
         # ----- Standalone: canvas center; regions + save right -----
@@ -2990,8 +2841,11 @@ def render_area_annotator_ui(
             st.divider()
             if st.button("Save area.json", type="primary", width="stretch", key="save_area_json_std"):
                 try:
-                    save_json(AREA_JSON_PATH, st.session_state.area_doc)
-                    st.success(f"Wrote {AREA_JSON_PATH}")
+                    removed = save_json(AREA_JSON_PATH, st.session_state.area_doc)
+                    msg = f"Wrote {AREA_JSON_PATH}"
+                    if removed:
+                        msg += f" · removed {removed} redundant version override(s) matching base"
+                    st.success(msg)
                     _write_all_region_crops_with_feedback(st.session_state.area_doc)
                 except (OSError, ValueError) as e:
                     st.error(str(e))

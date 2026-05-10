@@ -289,42 +289,45 @@ class RedisQueue:
 
     @staticmethod
     def _task_types_requiring_node() -> set[str]:
-        """Task types from `scenarios/by_cron/*.yaml` that declare `node`.
+        """Task types from scenario YAMLs with root ``cron`` that declare `node`.
 
         These tasks must not run while instance `current_screen` is empty/unknown.
         """
         repo_root = Path(__file__).resolve().parent.parent
-        cron_dir = repo_root / "scenarios" / "by_cron"
-        if not cron_dir.is_dir():
-            return set()
-        fp = RedisQueue._cron_dir_fingerprint(cron_dir)
+        fp = RedisQueue._cron_specs_fingerprint(repo_root)
         return RedisQueue._task_types_requiring_node_cached(fp)
 
     @staticmethod
-    def _cron_dir_fingerprint(cron_dir: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
-        """Stable fingerprint for by_cron YAMLs for cache invalidation."""
+    def _cron_specs_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+        """Stable fingerprint for all cron YAML specs (cache invalidation)."""
+        from scenarios.cron_specs import iter_cron_yaml_files
+
+        scenarios_root = repo_root / "scenarios"
         items: list[tuple[str, int, int]] = []
-        for p in sorted(cron_dir.glob("*.yaml")):
+        for p in iter_cron_yaml_files(scenarios_root):
             try:
                 st = p.stat()
             except OSError:
                 continue
-            items.append((p.name, int(st.st_mtime_ns), int(st.st_size)))
-        return (str(cron_dir), tuple(items))
+            rel = p.relative_to(scenarios_root).as_posix()
+            items.append((rel, int(st.st_mtime_ns), int(st.st_size)))
+        items.sort(key=lambda x: x[0])
+        return (str(scenarios_root), tuple(items))
 
     @staticmethod
     @lru_cache(maxsize=8)
     def _task_types_requiring_node_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
-        cron_dir = Path(fp[0])
+        scenarios_root = Path(fp[0])
         try:
             import yaml
         except Exception:
             return set()
 
         out: set[str] = set()
-        for yml in sorted(cron_dir.glob("*.yaml")):
+        for rel, _, _ in fp[1]:
+            yml = scenarios_root / rel
             try:
                 raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
             except Exception:
