@@ -532,7 +532,8 @@ st.caption(
     f"Showing **{len(filtered)} / {len(files)}** file(s) · root: `{ref_root}` · "
     "only **base** ``ocr`` screenshots listed — alternates via **Layout** · "
     "**Layout** when ``versions`` exist · defaults to **Default (v1)** · "
-    "region filter **Auto** · **Open in Labeling** → default reference."
+    "region filter **Auto** · **Open in Labeling**: default ``ocr``, "
+    "adds ``version`` when Layout forces vN."
 )
 
 if not filtered:
@@ -575,8 +576,12 @@ def _render_cards(
             card_ver = "auto"
 
         layout_rel = _display_ref_rel_for_card(area_doc, rel, card_ver)
-        # Labeling always edits the base ``ocr`` screenshot, not ``versions[].ocr``.
         labeling_ref = _display_ref_rel_for_card(area_doc, rel, "default")
+        labeling_qp: dict[str, str] = {"ref": labeling_ref}
+        if card_ver not in ("auto", "default"):
+            vid_link = normalize_version_id(card_ver)
+            if vid_link:
+                labeling_qp["version"] = vid_link
         img_path = (ref_root / layout_rel).resolve()
         try:
             if img_path.is_file():
@@ -636,9 +641,9 @@ def _render_cards(
             st.page_link(
                 "views/labeling.py",
                 label="Open in Labeling",
-                query_params={"ref": labeling_ref},
-                help="Always opens the default (v1) reference for this screen in Labeling — "
-                "not the v2 preview.",
+                query_params=labeling_qp,
+                help="Opens the screen's **default** ``ocr`` file; **Force vN** adds "
+                "``?version=…`` so Labeling matches that layout.",
                 width="stretch",
             )
         st.divider()

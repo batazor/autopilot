@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 import streamlit as st
@@ -13,10 +14,15 @@ from config.reference_naming import (
     temporal_png_abs_path,
     unique_label_capture_basename,
 )
+from layout.area_versions import normalize_version_id
 from ui.area_annotator import (
     REPO_ROOT,
+    apply_active_version_from_labeling_query,
     ensure_entry_for_reference_path,
     export_all_region_crops_for_area_doc,
+    get_active_version,
+    get_active_version_ocr_override,
+    init_session,
     render_area_annotator_ui,
 )
 from ui.keys import (
@@ -38,8 +44,45 @@ from ui.labeling_reference_panel import (
     labeling_resolve_sel,
     purge_reference_png_and_area_entries,
 )
+from ui.labeling_refresh_target import ocr_path_to_ref_rel, resolve_labeling_refresh_target_rel
 from ui.reference_preview import list_reference_pngs, references_root
 from ui.settings_state import ensure_ui_settings_session_defaults, get_ui_adb_bin
+
+
+def _labeling_has_version_query_param(params: object) -> bool:
+    try:
+        return "version" in params  # type: ignore[operator]
+    except Exception:
+        return False
+
+
+def _labeling_query_version_raw(params: object) -> str:
+    raw = params.get("version")  # type: ignore[union-attr]
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    if raw is None:
+        return ""
+    return str(raw)
+
+
+def _refresh_rel_and_note_for_session(rel_disp: str) -> tuple[str, str | None]:
+    doc = st.session_state.get(AREA_DOC)
+    entry_idx = int(st.session_state.get("entry_idx", -1))
+    entries = doc.get("screens") if isinstance(doc, dict) else None
+    base_rel: str | None = None
+    ver_rel: str | None = None
+    if isinstance(entries, list) and 0 <= entry_idx < len(entries):
+        entry = entries[entry_idx]
+        if isinstance(entry, dict):
+            base_rel = ocr_path_to_ref_rel(str(entry.get("ocr") or ""))
+            ov = get_active_version_ocr_override(entry)
+            ver_rel = ocr_path_to_ref_rel(ov) if ov else None
+    return resolve_labeling_refresh_target_rel(
+        rel_disp,
+        entry_default_ref_rel=base_rel,
+        active_version_ref_rel=ver_rel,
+        temporal_subdir=TEMPORAL_SUBDIR,
+    )
 
 
 def _handle_discard_pending_capture(*, ref_root: Path) -> None:
@@ -134,7 +177,9 @@ if st.session_state.get(LABELING_LAST_INSTANCE) != instance_id:
 ref_root = references_root()
 existing = list_reference_pngs(exclude_temporal=True, exclude_crop=True)
 
-# Optional deep-link / persistence: `?ref=<path under references/>`
+init_session()
+
+# Optional deep-link / persistence: `?ref=<path under references/>` and `?version=v2|default`
 params = st.query_params
 ref_param = params.get("ref")
 if isinstance(ref_param, str):
@@ -153,6 +198,35 @@ if isinstance(ref_param, str):
             st.session_state[LABELING_TREE_SELECTION] = cand
         else:
             st.session_state[LABELING_TREE_SELECTION] = cand
+
+if _labeling_has_version_query_param(params):
+    raw_sel = st.session_state.get(LABELING_TREE_SELECTION)
+    doc0 = st.session_state.area_doc
+    entries0 = doc0.get("screens") if isinstance(doc0, dict) else None
+    if (
+        isinstance(entries0, list)
+        and isinstance(raw_sel, str)
+        and raw_sel.strip()
+        and not raw_sel.startswith("..")
+        and "/.." not in raw_sel
+    ):
+        rs = raw_sel.replace("\\", "/").strip()
+        temporal_prefix = f"{TEMPORAL_SUBDIR}/"
+        if (
+            rs != TEMPORAL_SUBDIR
+            and not rs.startswith(temporal_prefix)
+            and (ref_root / rs).is_file()
+        ):
+            ocr_norm = (Path("references") / rs).as_posix()
+            ei0 = ensure_entry_for_reference_path(entries0, ocr_norm)
+            if 0 <= ei0 < len(entries0):
+                ent0 = entries0[ei0]
+                if isinstance(ent0, dict):
+                    apply_active_version_from_labeling_query(
+                        ent0,
+                        _labeling_query_version_raw(params),
+                    )
+                    st.session_state.entry_idx = ei0
 
 new_screenshot = False
 write_crops = False
@@ -181,8 +255,8 @@ with hdr_btn:
             width="stretch",
             key="labeling_header_refresh",
             help=(
-                "ADB → overwrite the **currently selected** PNG under `references/` "
-                "(use when the screenshot is stale, but you want to keep the same filename). "
+                "ADB → overwrite the PNG you are editing under `references/` "
+                "(respects **Active editing version** when it uses its own reference image). "
                 "Asks for confirmation first."
             ),
         ):
@@ -273,6 +347,8 @@ if new_screenshot:
         st.session_state[LABELING_TREE_SELECTION] = fname
         try:
             st.query_params["ref"] = fname
+            if _labeling_has_version_query_param(st.query_params):
+                del st.query_params["version"]
         except Exception:
             pass
         st.session_state["_labeling_last_ref_param"] = fname
@@ -297,10 +373,22 @@ if sel:
     # pending temporal file; avoid overwriting it with the current tree selection.
     if not new_screenshot and last_ref != sel:
         st.session_state["_labeling_last_ref_param"] = sel
-        try:
+        with contextlib.suppress(Exception):
             st.query_params["ref"] = sel
-        except Exception:
-            pass
+    sel_norm = str(sel).replace("\\", "/").strip()
+    temporal_sel = sel_norm == TEMPORAL_SUBDIR or sel_norm.startswith(f"{TEMPORAL_SUBDIR}/")
+    if not new_screenshot and not temporal_sel:
+        ei = int(st.session_state.get("entry_idx", -1))
+        entries = st.session_state.area_doc.get("screens") or []
+        ver_qp = ""
+        if isinstance(entries, list) and 0 <= ei < len(entries):
+            av = get_active_version(entries[ei])
+            ver_qp = normalize_version_id(av) if av else ""
+        with contextlib.suppress(Exception):
+            if ver_qp:
+                st.query_params["version"] = ver_qp
+            elif _labeling_has_version_query_param(st.query_params):
+                del st.query_params["version"]
 
 if st.session_state.get(LABELING_REFRESH_PENDING):
     if not sel:
@@ -308,10 +396,14 @@ if st.session_state.get(LABELING_REFRESH_PENDING):
         st.session_state.pop(LABELING_REFRESH_PENDING, None)
     else:
         rel_disp = str(sel).replace("\\", "/").strip()
-        st.warning(
-            f"This will **overwrite** `references/{rel_disp}` with a new ADB screenshot "
-            "(same filename; `area.json` regions are unchanged)."
-        )
+        target_rel, ver_note = _refresh_rel_and_note_for_session(rel_disp)
+        lines = [
+            f"This will **write** a new ADB screenshot to `references/{target_rel}` "
+            "(same logical target as the canvas; `area.json` regions are unchanged)."
+        ]
+        if ver_note:
+            lines.append(ver_note)
+        st.warning("\n\n".join(lines))
         bc1, bc2 = st.columns(2)
         with bc1:
             confirm_refresh = st.button(
@@ -324,17 +416,20 @@ if st.session_state.get(LABELING_REFRESH_PENDING):
                 st.session_state.pop(LABELING_REFRESH_PENDING, None)
                 st.rerun()
         if confirm_refresh:
-            target_rel = rel_disp
+            target_rel, _ = _refresh_rel_and_note_for_session(rel_disp)
             if not target_rel or target_rel.startswith("..") or "/.." in target_rel:
                 st.error("Invalid selected path.")
                 st.session_state.pop(LABELING_REFRESH_PENDING, None)
                 st.stop()
             target = (ref_root / target_rel).resolve()
-            if not target.is_file():
-                st.error(f"Selected file missing: `{target_rel}`")
+            ref_abs = ref_root.resolve()
+            try:
+                target.relative_to(ref_abs)
+            except ValueError:
+                st.error("Invalid selected path (outside references/).")
                 st.session_state.pop(LABELING_REFRESH_PENDING, None)
                 st.stop()
-            with st.spinner(f"Refreshing selected screenshot via ADB → `{target_rel}` …"):
+            with st.spinner(f"Refreshing screenshot via ADB → `{target_rel}` …"):
                 ok, msg = adb_screencap_to_file(
                     target,
                     adb_bin=get_ui_adb_bin(),
@@ -368,7 +463,9 @@ if write_crops:
                 more = f"\n… and **{len(rels) - 80}** more." if len(rels) > 80 else ""
                 st.success(f"Wrote **{len(rels)}** crop(s):\n{preview}{more}")
             else:
-                st.warning("No crops written — check reference PNG paths and non-auxiliary regions.")
+                st.warning(
+                    "No crops written — check reference PNG paths and non-auxiliary regions."
+                )
             if warns:
                 with st.expander("Warnings", expanded=False):
                     st.markdown("\n".join(f"- {w}" for w in warns))

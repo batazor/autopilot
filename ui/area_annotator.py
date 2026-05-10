@@ -688,6 +688,35 @@ def get_active_version(entry: AreaEntryDict) -> str | None:
     return sel if sel in declared else None
 
 
+def apply_active_version_from_labeling_query(
+    entry: AreaEntryDict | None,
+    version_raw: str,
+) -> None:
+    """Apply Labeling deep-link ``?version=`` (``default`` / empty → implicit default row)."""
+    if entry is None:
+        return
+    eid = entry.get("id", "")
+    state_key = _active_version_state_key(eid)
+    raw = str(version_raw or "").strip()
+    if not raw or raw.lower() == "default":
+        st.session_state[state_key] = ACTIVE_VERSION_DEFAULT
+        return
+    vid = normalize_version_id(raw)
+    if vid is None:
+        return
+    matching_raw: str | None = None
+    for v in entry.get("versions") or []:
+        if not isinstance(v, dict):
+            continue
+        rid = str(v.get("id", "") or "").strip()
+        if rid and normalize_version_id(rid) == vid:
+            matching_raw = rid
+            break
+    if matching_raw is None:
+        return
+    st.session_state[state_key] = matching_raw
+
+
 def _version_obj(entry: AreaEntryDict, version_id: str) -> VersionDict | None:
     for v in entry.get("versions") or []:
         if isinstance(v, dict) and str(v.get("id", "") or "").strip() == version_id:
