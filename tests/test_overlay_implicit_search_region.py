@@ -63,6 +63,7 @@ def test_findicon_implicit_search_region_matches_without_yaml_key(tmp_path: Path
 
 
 def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> None:
+    """v2 active: engine reads override bbox + version-specific crop, exposes resolved_version."""
     repo = tmp_path
     ref_rel = "references/main_city.png"
     ref_rel_v2 = "references/main_city_v2.png"
@@ -77,27 +78,30 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
     template_v1 = np.zeros((10, 10, 3), dtype=np.uint8)
     template_v1[:, :5] = (255, 0, 0)
     template_v1[:, 5:] = (0, 255, 0)
+    # New schema: same logical region name in base and version blocks; crops use unsuffixed names.
     cv2.imwrite(str(exported_crop_png(repo, ref_rel, "is_new_chapter")), template_v1)
-    cv2.imwrite(str(exported_crop_png(repo, ref_rel_v2, "is_new_chapter_v2")), template_v2)
+    cv2.imwrite(str(exported_crop_png(repo, ref_rel_v2, "is_new_chapter")), template_v2)
 
     area_doc = {
         "screens": [
             {
                 "id": 1,
                 "ocr": ref_rel,
+                "regions": [
+                    {"name": "is_new_chapter", "bbox": {"x": 1, "y": 1, "width": 10, "height": 10}},
+                ],
                 "versions": [
                     {
                         "id": "v2",
                         "cond": "buildings.furnace.level >= 4",
                         "ocr": ref_rel_v2,
+                        "regions": [
+                            {
+                                "name": "is_new_chapter",
+                                "bbox": {"x": 30, "y": 40, "width": 10, "height": 10},
+                            },
+                        ],
                     }
-                ],
-                "regions": [
-                    {"name": "is_new_chapter", "bbox": {"x": 1, "y": 1, "width": 10, "height": 10}},
-                    {
-                        "name": "is_new_chapter_v2",
-                        "bbox": {"x": 30, "y": 40, "width": 10, "height": 10},
-                    },
                 ],
             }
         ]
@@ -122,4 +126,5 @@ def test_findicon_uses_versioned_region_crop_and_reference(tmp_path: Path) -> No
 
     assert hit["matched"] is True
     assert hit["region"] == "is_new_chapter"
-    assert hit["resolved_region"] == "is_new_chapter_v2"
+    assert hit["resolved_region"] == "is_new_chapter"
+    assert hit["resolved_version"] == "v2"

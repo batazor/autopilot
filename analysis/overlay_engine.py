@@ -19,7 +19,7 @@ from analysis.overlay_rules import (
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region
+from layout.area_versions import effective_ocr_for_region, region_version_of
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
@@ -441,6 +441,7 @@ async def evaluate_overlay_rules_async(
                         "action": "findIcon",
                         "region": region_name,
                         "resolved_region": resolved_region_name,
+                        "resolved_version": region_version_of(entry, reg),
                         "search_region": search_region_name,
                         "tap_x_pct": tap_x_pct,
                         "tap_y_pct": tap_y_pct,
@@ -528,6 +529,7 @@ async def evaluate_overlay_rules_async(
                 "action": "findIcon",
                 "region": region_name,
                 "resolved_region": resolved_region_name,
+                "resolved_version": region_version_of(entry, reg),
                 "tap_x_pct": tap_x_pct_1,
                 "tap_y_pct": tap_y_pct_1,
             }

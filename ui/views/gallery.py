@@ -14,9 +14,9 @@ from PIL import Image, ImageDraw
 from layout.area_regions import is_auxiliary_overlay_region
 from layout.area_versions import (
     effective_ocr_for_region,
+    get_version_block,
     normalize_version_id,
     resolve_region_with_version,
-    split_versioned_name,
 )
 from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
@@ -113,31 +113,32 @@ def _merged_bbox_entries_for_ref(
     For **auto** / **default**, keep worker parity: only regions whose
     ``effective_ocr_for_region`` matches this screenshot path.
 
-    For **forced ``vN``**, skip that filter so ``*_vN`` regions (whose crop lives
-    on ``versions[].ocr``) still appear when viewing the default reference image.
-    Otherwise switching to “Force v2” on ``main_city.png`` hid ``chapter.task_v2``
-    and left only v1 boxes.
+    For **forced ``vN``**, skip that filter so version-only regions (whose crop
+    lives on ``versions[V].ocr``) still appear when viewing the default
+    reference image — switching to “Force v2” on ``main_city.png`` should not
+    hide v2-exclusive boxes.
     """
-    known = _declared_version_ids(entry)
     av = _active_version_for_ref(ref_rel, entry, preview_mode)
     skip_eff_match = preview_mode not in ("auto", "default")
-    raw_regs = entry.get("regions")
-    if not isinstance(raw_regs, list):
-        return []
 
-    bases: set[str] = set()
-    for r in raw_regs:
-        if not isinstance(r, dict):
-            continue
-        nm = str(r.get("name") or "").strip()
-        if not nm:
-            continue
-        base, _vid = split_versioned_name(nm, known)
-        bases.add(base)
+    candidate_names: set[str] = set()
+    for r in entry.get("regions") or []:
+        if isinstance(r, dict):
+            nm = str(r.get("name") or "").strip()
+            if nm:
+                candidate_names.add(nm)
+    if av:
+        ver_block = get_version_block(entry, av)
+        if ver_block is not None:
+            for r in ver_block.get("regions") or []:
+                if isinstance(r, dict):
+                    nm = str(r.get("name") or "").strip()
+                    if nm:
+                        candidate_names.add(nm)
 
     by_name: dict[str, dict[str, object]] = {}
-    for base in bases:
-        resolved = resolve_region_with_version(entry, base, av)
+    for name in candidate_names:
+        resolved = resolve_region_with_version(entry, name, av)
         if resolved is None or not isinstance(resolved, dict):
             continue
         if not skip_eff_match:
@@ -313,7 +314,11 @@ def _refs_exclusive_to_versions_cached(mtime: float) -> frozenset[str]:
 
 
 def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
-    """Region names for Gallery filter: exclude overlay search ROIs and tap helpers."""
+    """Region names for Gallery filter: exclude overlay search ROIs and tap helpers.
+
+    Walks base ``regions[]`` and every ``versions[].regions[]`` so version-only
+    names (e.g. a button that only exists in v2) appear in the filter.
+    """
     names: set[str] = set()
     screens = doc.get("screens") if isinstance(doc, dict) else None
     if not isinstance(screens, list):
@@ -321,17 +326,19 @@ def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
     for e in screens:
         if not isinstance(e, dict):
             continue
-        raw_regs = e.get("regions")
-        if not isinstance(raw_regs, list):
-            continue
-        for r in raw_regs:
-            if not isinstance(r, dict):
+        for source in (e.get("regions"), *(
+            v.get("regions") for v in (e.get("versions") or []) if isinstance(v, dict)
+        )):
+            if not isinstance(source, list):
                 continue
-            if is_auxiliary_overlay_region(r):
-                continue
-            nm = str(r.get("name") or "").strip()
-            if nm:
-                names.add(nm)
+            for r in source:
+                if not isinstance(r, dict):
+                    continue
+                if is_auxiliary_overlay_region(r):
+                    continue
+                nm = str(r.get("name") or "").strip()
+                if nm:
+                    names.add(nm)
     return sorted(names)
 
 

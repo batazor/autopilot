@@ -24,16 +24,16 @@ def test_labeling_query_params_for_active_version_region() -> None:
         "screens": [
             {
                 "ocr": "references/main_city.png",
+                "regions": [
+                    {"name": "mail", "bbox": {"x": 1, "y": 2}},
+                ],
                 "versions": [
                     {
                         "id": "v2",
                         "cond": "heroes.norah.level >= 6",
                         "ocr": "references/main_city_v2.png",
+                        "regions": [{"name": "mail", "bbox": {"x": 3, "y": 4}}],
                     }
-                ],
-                "regions": [
-                    {"name": "mail", "bbox": {"x": 1, "y": 2}},
-                    {"name": "mail_v2", "bbox": {"x": 3, "y": 4}},
                 ],
             }
         ]
@@ -45,6 +45,6 @@ def test_labeling_query_params_for_active_version_region() -> None:
         state_flat={"heroes.norah.level": 6},
     ) == {
         "ref": "main_city_v2.png",
-        "region": "mail_v2",
+        "region": "mail",
         "version": "v2",
     }

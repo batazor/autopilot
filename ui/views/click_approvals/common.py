@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 from typing import Any
 
@@ -9,10 +8,8 @@ import httpx
 import streamlit as st
 
 from layout.area_lookup import screen_region_by_name
-from layout.area_versions import effective_ocr_for_region
+from layout.area_versions import effective_ocr_for_region, region_version_of
 from ui.redis_client import get_instance_state
-
-_VERSION_SUFFIX_RE = re.compile(r"_v\d+$")
 
 
 @st.cache_data(ttl=60)
@@ -65,16 +62,9 @@ def labeling_query_params_for_area_region(
     if resolved_region:
         params["region"] = resolved_region
 
-    versions = entry.get("versions") or []
-    if isinstance(versions, list):
-        for ver in versions:
-            if not isinstance(ver, dict):
-                continue
-            vid = str(ver.get("id") or "").strip()
-            suffix = f"_{vid}" if vid else ""
-            if suffix and resolved_region.endswith(suffix) and len(resolved_region) > len(suffix):
-                params["version"] = vid
-                break
+    vid = region_version_of(entry, reg)
+    if vid:
+        params["version"] = vid
     return params
 
 
@@ -98,11 +88,6 @@ def active_player_state_flat(*, client: Any, instance_id: str) -> dict[str, Any]
         return get_state_store().get_or_create(active).to_flat_dict()
     except Exception:
         return None
-
-
-def has_version_suffix(name: str) -> bool:
-    """``True`` if ``name`` ends with a ``_vN`` version suffix (``promote_btn_v2``, ``label_v3``)."""
-    return bool(_VERSION_SUFFIX_RE.search((name or "").strip()))
 
 
 @st.cache_data(ttl=5)

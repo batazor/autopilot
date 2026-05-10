@@ -99,11 +99,18 @@ def _region_names_cached(area_mtime: float) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
     for screen in doc.get("screens", []) or []:
-        for reg in (screen or {}).get("regions", []) or []:
-            name = str((reg or {}).get("name") or "").strip()
-            if name and name not in seen:
-                seen.add(name)
-                out.append(name)
+        if not isinstance(screen, dict):
+            continue
+        sources = [screen.get("regions") or []]
+        for ver in screen.get("versions") or []:
+            if isinstance(ver, dict):
+                sources.append(ver.get("regions") or [])
+        for regs in sources:
+            for reg in regs or []:
+                name = str((reg or {}).get("name") or "").strip()
+                if name and name not in seen:
+                    seen.add(name)
+                    out.append(name)
     return sorted(out)
 
 

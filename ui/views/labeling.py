@@ -45,6 +45,7 @@ from ui.labeling_reference_panel import (
     purge_reference_png_and_area_entries,
 )
 from ui.labeling_refresh_target import ocr_path_to_ref_rel, resolve_labeling_refresh_target_rel
+from ui.labeling_version_redirect import resolve_version_ref_redirect
 from ui.reference_preview import list_reference_pngs, references_root
 from ui.settings_state import ensure_ui_settings_session_defaults, get_ui_adb_bin
 
@@ -178,6 +179,18 @@ ref_root = references_root()
 existing = list_reference_pngs(exclude_temporal=True, exclude_crop=True)
 
 init_session()
+
+# Old deep-links pointed at version-specific PNGs (`?ref=main_city_v2.png`); v3 schema
+# canonical form is base ref + `?version=v2`. Redirect once before reading params so the
+# rest of the page sees the canonical form.
+_redir = resolve_version_ref_redirect(
+    st.session_state.area_doc,
+    st.query_params.get("ref"),
+)
+if _redir is not None:
+    st.query_params["ref"] = _redir[0]
+    st.query_params["version"] = _redir[1]
+    st.rerun()
 
 # Optional deep-link / persistence: `?ref=<path under references/>` and `?version=v2|default`
 params = st.query_params

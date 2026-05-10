@@ -29,16 +29,22 @@ def _load_yaml_dict(path: Path) -> dict[str, Any]:
 
 
 def _area_region_names(area_doc: dict[str, Any]) -> set[str]:
+    """Every region name a use case might reference (base + version blocks)."""
     out: set[str] = set()
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
             continue
-        for reg in screen.get("regions") or []:
-            if not isinstance(reg, dict):
+        for source in (screen.get("regions"), *(
+            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
+        )):
+            if not isinstance(source, list):
                 continue
-            name = str(reg.get("name") or "").strip()
-            if name:
-                out.add(name)
+            for reg in source:
+                if not isinstance(reg, dict):
+                    continue
+                name = str(reg.get("name") or "").strip()
+                if name:
+                    out.add(name)
     return out
 
 

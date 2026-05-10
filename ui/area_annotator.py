@@ -36,11 +36,17 @@ from streamlit_drawable_canvas import st_canvas
 from capture.adb_screencap import DEFAULT_ADB_BIN
 from layout.area_regions import (
     dedupe_redundant_version_regions,
+    get_version_block,
     is_auxiliary_overlay_region,
     validate_unique_region_names,
     validate_versions,
 )
-from layout.area_versions import VERSION_ID_RE, compile_cond, next_version_id, normalize_version_id
+from layout.area_versions import (
+    VERSION_ID_RE,
+    compile_cond,
+    next_version_id,
+    normalize_version_id,
+)
 from ui.keys import (
     ACTIVE_IMAGE_PATH,
     ANNOT_LABELING_REF,
@@ -110,9 +116,9 @@ class RegionDict(TypedDict, total=False):
 class VersionDict(TypedDict, total=False):
     """Visual variant of a screen (e.g. ``v2`` for a high-level hero card layout).
 
-    Region overrides for this version live in the same ``regions[]`` list with
-    a ``_<id>`` suffix; partial-override semantics — only the moved regions
-    need a versioned copy.
+    Region overrides for this version live inside the version's own ``regions[]``
+    block (no name suffix). Names omitted from the version's regions fall back to
+    base; names listed in ``removed[]`` are treated as absent in this version.
     """
 
     id: str
@@ -123,6 +129,10 @@ class VersionDict(TypedDict, total=False):
     """Optional per-version reference PNG (relative to repo root). When set and active in
     annotator, the canvas loads this image instead of the entry's default ``ocr`` — so
     overrides can be drawn against the actually-shifted layout."""
+    regions: list["RegionDict"]
+    """Override / version-only region entries scoped to this visual variant."""
+    removed: list[str]
+    """Names of base regions that do not exist in this version."""
 
 
 class AreaEntryDict(TypedDict, total=False):
@@ -273,40 +283,40 @@ def crop_path_for_entry_region(
     repo_root: Path,
     entry: AreaEntryDict | None,
     region_name: str,
+    *,
+    active_version: str | None = None,
 ) -> Path | None:
-    """Return the on-disk crop file produced by Labeling **Write crops** for
-    ``region_name`` within ``entry``.
+    """Return the on-disk crop file for ``region_name`` within ``entry``.
 
-    Mirrors the version-aware stem selection used by
-    :func:`export_all_region_crops_for_area_doc` — names ending with a declared
-    ``versions[].id`` use that version's reference image (falling back to the
-    entry's default ``ocr``); other names use the default ``ocr``.
+    Walks the active version's ``regions[]`` first (when set), falls back to
+    the entry's base ``regions[]``. The crop's stem comes from the version's
+    ``ocr`` for version-block regions and the entry's default ``ocr`` for base
+    regions.
 
     Returns ``None`` if the entry/region pair has no usable reference image.
     """
-
     if not isinstance(entry, dict):
         return None
     name = (region_name or "").strip()
     if not name:
         return None
-    default_ocr = str(entry.get("ocr") or "").strip()
-    chosen_ocr = default_ocr
-    versions = entry.get("versions") or []
-    if isinstance(versions, list):
-        for ver in versions:
-            if not isinstance(ver, dict):
-                continue
-            vid = str(ver.get("id", "") or "").strip()
-            if not vid:
-                continue
-            suffix = f"_{vid}"
-            if name.endswith(suffix) and len(name) > len(suffix):
-                chosen_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
-                break
-    if not chosen_ocr:
-        return None
-    return exported_crop_png(repo_root, chosen_ocr, name)
+
+    if active_version:
+        ver_block = get_version_block(entry, active_version)
+        if ver_block is not None:
+            for reg in ver_block.get("regions") or []:
+                if isinstance(reg, dict) and str(reg.get("name", "") or "").strip() == name:
+                    chosen_ocr = str(ver_block.get("ocr", "") or "").strip() or str(
+                        entry.get("ocr") or ""
+                    ).strip()
+                    return exported_crop_png(repo_root, chosen_ocr, name) if chosen_ocr else None
+
+    for reg in entry.get("regions") or []:
+        if isinstance(reg, dict) and str(reg.get("name", "") or "").strip() == name:
+            chosen_ocr = str(entry.get("ocr") or "").strip()
+            return exported_crop_png(repo_root, chosen_ocr, name) if chosen_ocr else None
+
+    return None
 
 
 def export_region_crops(
@@ -369,11 +379,12 @@ def export_all_region_crops_for_area_doc(
 ) -> tuple[list[Path], list[str]]:
     """Write template crops for every screen whose ``ocr`` PNG exists on disk.
 
-    Each declared version is exported as its own task group: ``_<vid>``-suffixed regions
-    are cropped from that version's ``versions[].ocr`` (falling back to the entry's default
-    ``ocr`` if the version has no own image), and the crop filename's stem comes from the
-    version's image — so v2 crops naturally end up like ``<entry>_v2_<region>_v2.png``,
-    keeping them physically separate from v1 crops.
+    Base ``regions[]`` are cropped from the entry's default ``ocr``. Each declared
+    version is exported as its own task group: ``versions[V].regions[]`` are cropped
+    from that version's ``ocr`` (falling back to the entry's default ``ocr`` if the
+    version has no own image), and the crop filename's stem comes from the version's
+    image — so v2 crops naturally end up like ``<entry>_v2_<region>.png``, keeping
+    them physically separate from base crops.
 
     Skips ``overlay_auxiliary`` regions (same rules as :func:`export_region_crops`).
 
@@ -389,50 +400,33 @@ def export_all_region_crops_for_area_doc(
         if not isinstance(entry, dict):
             continue
         default_ocr = str(entry.get("ocr") or "").strip()
-        regions_raw = entry.get("regions")
-        if not isinstance(regions_raw, list):
-            continue
-        all_regions = [r for r in regions_raw if isinstance(r, dict)]
 
-        versions = entry.get("versions") or []
-        declared_ids = {
-            str(v.get("id", "") or "").strip()
-            for v in versions
-            if isinstance(v, dict)
-        }
-        declared_ids = {v for v in declared_ids if v}
-
-        # Default group: regions without any declared version suffix.
-        default_regions = [
-            r
-            for r in all_regions
-            if all(
-                not str(r.get("name", "") or "").endswith(f"_{vid}")
-                for vid in declared_ids
-            )
-        ]
-        if default_ocr:
+        base_regions_raw = entry.get("regions")
+        base_regions = (
+            [r for r in base_regions_raw if isinstance(r, dict)]
+            if isinstance(base_regions_raw, list)
+            else []
+        )
+        if default_ocr and base_regions:
             rel = Path(default_ocr)
             abs_path = rel if rel.is_absolute() else (root / rel)
             if not abs_path.is_file():
                 warnings.append(f"Skip (missing file): `{default_ocr}`")
-            elif _count_exportable_crop_regions(default_regions) > 0:
-                tasks.append((default_ocr, default_regions, abs_path))
+            elif _count_exportable_crop_regions(base_regions) > 0:
+                tasks.append((default_ocr, base_regions, abs_path))
 
-        # Per-version groups: regions ending with ``_<vid>`` cropped from that version's image.
-        for ver in versions:
+        for ver in entry.get("versions") or []:
             if not isinstance(ver, dict):
                 continue
             vid = str(ver.get("id", "") or "").strip()
             if not vid:
                 continue
-            suffix = f"_{vid}"
-            ver_regions = [
-                r
-                for r in all_regions
-                if str(r.get("name", "") or "").endswith(suffix)
-                and len(str(r.get("name", "") or "")) > len(suffix)
-            ]
+            ver_regions_raw = ver.get("regions")
+            ver_regions = (
+                [r for r in ver_regions_raw if isinstance(r, dict)]
+                if isinstance(ver_regions_raw, list)
+                else []
+            )
             if not ver_regions or _count_exportable_crop_regions(ver_regions) == 0:
                 continue
             ver_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
@@ -925,7 +919,7 @@ def render_active_version_picker(
         options=options,
         index=options.index(current_sel),
         key=f"version_select_compact_{eid}",
-        help="Switch to a non-default version to edit its overrides. Default is implicit (unsuffixed regions).",
+        help="Switch to a non-default version to edit its overrides. Default is implicit (base regions[]).",
     )
     st.session_state[state_key] = sel
 
@@ -986,8 +980,9 @@ def _render_versions_block(
         )
         with st.popover("❓ Versions"):
             st.markdown(
-                "Multiple visual variants of the same screen. Region overrides live in the same "
-                "regions list with `_<version_id>` suffix; partial-override — only moved regions need a copy."
+                "Multiple visual variants of the same screen. Each version has its own "
+                "`regions[]` list (overrides + version-only additions) and an optional "
+                "`removed[]` list naming base regions that disappear in that version."
             )
         if show_active_picker:
             sel = st.selectbox(
@@ -995,7 +990,7 @@ def _render_versions_block(
                 options=options,
                 index=options.index(current_sel),
                 key=f"version_select_{eid}",
-                help="Switch to a non-default version to edit its overrides. Default is implicit (unsuffixed regions).",
+                help="Switch to a non-default version to edit its overrides. Default is implicit (base regions[]).",
             )
             st.session_state[state_key] = sel
         else:
@@ -1105,8 +1100,8 @@ def _render_versions_block(
                     key=f"version_sync_btn_{eid}_{sel}",
                     icon=":material/content_copy:",
                     help=(
-                        "Copy every default-version region into this version with the "
-                        f"`_{sel}` suffix (skipping ones that already exist and overlay helpers). "
+                        f"Copy every base region into `versions[{sel}].regions[]` "
+                        "(skipping ones that already exist and overlay helpers). "
                         "Drag the copies to their new positions on the version's reference image."
                     ),
                 ):
@@ -1118,7 +1113,9 @@ def _render_versions_block(
                         )
                         st.rerun()
                     else:
-                        st.info(f"Nothing to sync — every default region already has a `_{sel}` override.")
+                        st.info(
+                            f"Nothing to sync — every base region already exists in `versions[{sel}].regions[]`."
+                        )
                 edited_cond = st.text_input(
                     "cond",
                     value=str(ver_obj.get("cond", "") or ""),
@@ -1151,7 +1148,7 @@ def _render_versions_block(
                             st.session_state[confirm_key] = True
                     if st.session_state.get(confirm_key):
                         st.warning(
-                            f"Delete version `{sel}` and all `_{sel}`-suffixed regions for this entry?"
+                            f"Delete version `{sel}` and all its overrides for this entry?"
                         )
                         c_yes, c_no = st.columns(2)
                         with c_yes:
@@ -1163,12 +1160,6 @@ def _render_versions_block(
                                 ):
                                     cur["versions"] = [
                                         v for v in versions if str(v.get("id", "") or "").strip() != sel
-                                    ]
-                                    suffix = f"_{sel}"
-                                    cur["regions"] = [
-                                        r
-                                        for r in (cur.get("regions") or [])
-                                        if not str(r.get("name", "") or "").endswith(suffix)
                                     ]
                                     st.session_state[state_key] = ACTIVE_VERSION_DEFAULT
                                     st.session_state[confirm_key] = False
@@ -1264,8 +1255,8 @@ def _render_regions_expander(
     with st.expander("Regions", expanded=True):
         if active_version:
             st.caption(
-                f"Editing version `{active_version}` — only `_{active_version}`-suffixed regions are shown. "
-                "New regions auto-named with that suffix."
+                f"Editing version `{active_version}` — overrides live in `versions[{active_version}].regions[]`. "
+                "Regions added here win over base regions with the same name."
             )
         if st.button("Add region", key=f"area_add_region_{_rk}", width="stretch"):
             regs = current_regions()
@@ -1273,8 +1264,7 @@ def _render_regions_expander(
             pil_i: Image.Image | None = st.session_state.get(PIL_ORIGINAL)
             if pil_i is not None:
                 ow, oh = pil_i.size
-            new_name = _name_for_active_version("region", active_version)
-            regs.append(_default_region(ow, oh, name=new_name))
+            regs.append(_default_region(ow, oh, name="region"))
             set_current_regions(regs)
             st.session_state.canvas_rev += 1
             st.session_state.selected_region_idx = len(regs) - 1
@@ -1285,42 +1275,27 @@ def _render_regions_expander(
 
         regions = current_regions()
         if not regions:
-            if labeling_mode:
+            if active_version:
+                st.caption(
+                    f"No overrides for `{active_version}` yet. Click **Add region** to create one, "
+                    "or **Sync regions from default** in the Versions panel."
+                )
+            elif labeling_mode:
                 st.caption("No regions yet - click **Add region**.")
             else:
                 st.caption("No regions yet — draw on the canvas or click **Add region**.")
             return
 
-        visible_indices = [
-            i
-            for i, r in enumerate(regions)
-            if _region_matches_active_version(
-                str(r.get("name", "") or ""), active_version, declared_version_ids
-            )
-        ]
-        if not visible_indices:
-            if active_version:
-                st.caption(
-                    f"No `_{active_version}`-suffixed regions yet. Click **Add region** to create one — "
-                    "the new region will be auto-named with the suffix."
-                )
-            else:
-                st.caption("No default regions in this entry.")
-            return
-        names = [f"{i}: {regions[i].get('name', '')}" for i in visible_indices]
-        cur_full_idx = int(st.session_state.get("selected_region_idx", -1))
-        try:
-            idx_init = visible_indices.index(cur_full_idx)
-        except ValueError:
-            idx_init = 0
-        r_sel_pos = st.radio(
+        names = [f"{i}: {regions[i].get('name', '')}" for i in range(len(regions))]
+        cur_idx = int(st.session_state.get("selected_region_idx", -1))
+        idx_init = cur_idx if 0 <= cur_idx < len(regions) else 0
+        r_sel = st.radio(
             "Select region",
             range(len(names)),
             format_func=lambda i: names[i],
             index=idx_init,
             horizontal=False,
         )
-        r_sel = visible_indices[int(r_sel_pos)]
         st.session_state.selected_region_idx = int(r_sel)
         st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))
 
@@ -1576,7 +1551,12 @@ def _render_regions_expander(
                     continue
                 if r.get("overlay_auxiliary"):
                     continue
-                cp = crop_path_for_entry_region(REPO_ROOT, entry_for_del, rn)
+                cp = crop_path_for_entry_region(
+                    REPO_ROOT,
+                    entry_for_del,
+                    rn,
+                    active_version=active_version,
+                )
                 if cp is not None and cp.is_file():
                     crops_to_remove.append(cp)
 
@@ -1811,143 +1791,54 @@ def _default_region(orig_w: int, orig_h: int, *, name: str = "region") -> Region
     )
 
 
-def _name_for_active_version(base: str, active_version: str | None) -> str:
-    """Append ``_<active_version>`` to ``base`` unless already suffixed."""
-    if not active_version:
-        return base
-    suffix = f"_{active_version}"
-    return base if base.endswith(suffix) else f"{base}{suffix}"
-
-
 def _sync_default_regions_into_version(
     entry: AreaEntryDict,
     version_id: str,
 ) -> tuple[int, int]:
-    """Copy default-version regions into ``version_id`` with the ``_<vid>`` suffix.
+    """Copy base regions into ``versions[V].regions[]`` (without suffix).
 
-    For each region whose name has no declared version suffix and is not an overlay
-    auxiliary helper (``_search`` / ``_tap``), check if its ``_<vid>``-suffixed counterpart
-    already exists in the entry. If not, append a deep copy with the new name — the user
-    can then drag it to its new position on the v2 image.
+    Skips overlay auxiliaries (``_search`` / ``_tap``) and regions already
+    present in the version block. The user then drags the copies to their new
+    positions on the version's reference image.
 
-    Returns ``(added, skipped_existing)``. Skipped covers both pre-existing v2 overrides
-    and regions filtered out (auxiliary, version-suffixed).
+    Returns ``(added, skipped)``.
     """
     import copy as _copy
 
-    declared = {
-        str(v.get("id", "") or "").strip()
-        for v in (entry.get("versions") or [])
-        if isinstance(v, dict)
+    ver_block = get_version_block(entry, version_id)
+    if ver_block is None:
+        return 0, 0
+
+    base_regions = entry.get("regions") or []
+    ver_regions = ver_block.get("regions")
+    if not isinstance(ver_regions, list):
+        ver_regions = []
+        ver_block["regions"] = ver_regions
+    existing = {
+        str(r.get("name", "") or "").strip()
+        for r in ver_regions
+        if isinstance(r, dict)
     }
-    declared = {v for v in declared if v}
-    suffix = f"_{version_id}"
-    regions = entry.get("regions") or []
-    existing_names = {str(r.get("name", "") or "").strip() for r in regions if isinstance(r, dict)}
 
     added = 0
     skipped = 0
-    new_items: list[RegionDict] = []
-    for r in regions:
+    for r in base_regions:
         if not isinstance(r, dict):
             continue
         name = str(r.get("name", "") or "").strip()
         if not name:
             continue
-        # Only copy "default-version" regions — those without any declared suffix.
-        is_default = all(not name.endswith(f"_{vid}") for vid in declared)
-        if not is_default:
-            skipped += 1
-            continue
         if is_auxiliary_overlay_region(r):
             skipped += 1
             continue
-        target_name = f"{name}{suffix}"
-        if target_name in existing_names:
+        if name in existing:
             skipped += 1
             continue
-        clone = _copy.deepcopy(r)
-        clone["name"] = target_name
-        new_items.append(clone)
-        existing_names.add(target_name)
+        ver_regions.append(_copy.deepcopy(r))
+        existing.add(name)
         added += 1
 
-    if new_items:
-        entry["regions"] = list(regions) + new_items
     return added, skipped
-
-
-def _filter_regions_by_active_version(
-    entry: AreaEntryDict,
-    regions: list[RegionDict],
-) -> tuple[list[RegionDict], list[int]]:
-    """Split ``regions`` into the canvas-visible subset for the entry's active version.
-
-    Returns ``(visible_regions, original_indices)``: only regions belonging to the
-    active version's view. The full list stays untouched — a separate ``_merge_synced_regions``
-    call writes canvas changes back without disturbing hidden (other-version) regions.
-    """
-    av = get_active_version(entry)
-    declared = {
-        str(v.get("id", "") or "").strip()
-        for v in (entry.get("versions") or [])
-        if isinstance(v, dict)
-    }
-    declared = {v for v in declared if v}
-    visible: list[RegionDict] = []
-    indices: list[int] = []
-    for i, r in enumerate(regions):
-        if _region_matches_active_version(
-            str(r.get("name", "") or ""), av, declared
-        ):
-            visible.append(r)
-            indices.append(i)
-    return visible, indices
-
-
-def _merge_synced_regions(
-    full_regions: list[RegionDict],
-    synced_visible: list[RegionDict],
-    visible_indices: list[int],
-) -> list[RegionDict]:
-    """Re-assemble the entry's regions list after canvas sync.
-
-    Hidden regions (not in the active-version view) stay exactly as they were — that's the
-    whole point: the user shouldn't be able to mutate v1 regions while editing v2. If the
-    canvas added or removed boxes, the visible subset's length differs from ``visible_indices``;
-    we keep hidden regions in their original positions and then append the synced visible set.
-    """
-    if len(synced_visible) == len(visible_indices):
-        out = list(full_regions)
-        for src_idx, sub in zip(visible_indices, synced_visible, strict=True):
-            out[src_idx] = sub
-        return out
-    visible_set = set(visible_indices)
-    hidden = [r for i, r in enumerate(full_regions) if i not in visible_set]
-    return hidden + list(synced_visible)
-
-
-def _region_matches_active_version(
-    region_name: str,
-    active_version: str | None,
-    declared_version_ids: set[str],
-) -> bool:
-    """Filter rule: which regions belong to the active editing version's view.
-
-    - Default (``active_version`` is ``None``): include only regions whose name
-      does NOT end with any declared ``_vN`` suffix — these are the base set.
-    - Non-default (``vN`` active): include only regions whose name ends with
-      ``_vN`` — the override set for that version.
-    """
-    name = (region_name or "").strip()
-    if active_version:
-        suffix = f"_{active_version}"
-        return name.endswith(suffix) and len(name) > len(suffix)
-    for vid in declared_version_ids:
-        suffix = f"_{vid}"
-        if name.endswith(suffix) and len(name) > len(suffix):
-            return False
-    return True
 
 
 def _bbox_to_canvas_rect(
@@ -2270,8 +2161,13 @@ def ensure_entry(entries: list[AreaEntryDict], idx: int) -> None:
 
 
 def current_regions() -> list[RegionDict]:
-    # Labeling temporal refs are not persisted to `area.json` until the user assigns a basename.
-    # While a `references/temporal/...` image is active, keep regions in session_state only.
+    """Return the regions list for the current edit context.
+
+    With no active version, returns the entry's base ``regions[]``. With an
+    active version ``vN``, returns ``versions[V].regions[]`` (auto-creating an
+    empty list if the version block had no overrides yet, so callers can mutate
+    in place). Temporal references stay in session-state only.
+    """
     ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
     if "/temporal/" in ref.replace("\\", "/"):
         v = st.session_state.get(LABELING_TEMPORAL_REGIONS)
@@ -2281,7 +2177,17 @@ def current_regions() -> list[RegionDict]:
     if idx < 0 or idx >= len(entries):
         return []
     ensure_entry(entries, idx)
-    return entries[idx]["regions"]  # type: ignore[return-value]
+    cur = entries[idx]
+    av = get_active_version(cur)
+    if av:
+        ver = get_version_block(cur, av)
+        if ver is not None:
+            regs = ver.get("regions")
+            if not isinstance(regs, list):
+                regs = []
+                ver["regions"] = regs
+            return regs  # type: ignore[return-value]
+    return cur["regions"]  # type: ignore[return-value]
 
 
 def _query_param_scalar(name: str) -> str:
@@ -2310,21 +2216,18 @@ def _apply_labeling_region_query_selection() -> None:
         return
 
     regions = current_regions()
-    candidates = [wanted]
-    if active_version and not wanted.endswith(f"_{active_version}"):
-        candidates.append(f"{wanted}_{active_version}")
-    for cand in candidates:
-        for i, reg in enumerate(regions):
-            if str(reg.get("name") or "").strip() != cand:
-                continue
-            st.session_state.selected_region_idx = i
-            st.session_state.selected_region_name = cand
-            st.session_state["_labeling_region_query_applied"] = signature
-            return
+    for i, reg in enumerate(regions):
+        if str(reg.get("name") or "").strip() != wanted:
+            continue
+        st.session_state.selected_region_idx = i
+        st.session_state.selected_region_name = wanted
+        st.session_state["_labeling_region_query_applied"] = signature
+        return
     st.session_state["_labeling_region_query_applied"] = signature
 
 
 def set_current_regions(regions: list[RegionDict]) -> None:
+    """Write back the regions list for the current edit context (active version or base)."""
     ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
     if "/temporal/" in ref.replace("\\", "/"):
         st.session_state[LABELING_TEMPORAL_REGIONS] = list(regions)
@@ -2333,7 +2236,14 @@ def set_current_regions(regions: list[RegionDict]) -> None:
     idx: int = st.session_state.entry_idx
     if idx < 0 or idx >= len(entries):
         return
-    entries[idx]["regions"] = regions
+    cur = entries[idx]
+    av = get_active_version(cur)
+    if av:
+        ver = get_version_block(cur, av)
+        if ver is not None:
+            ver["regions"] = list(regions)
+            return
+    cur["regions"] = list(regions)
 
 
 def ensure_entry_for_reference_path(entries: list[AreaEntryDict], ocr_repo_rel: str) -> int:
@@ -2696,14 +2606,9 @@ def render_area_annotator_ui(
                 canvas_img, _ = resize_for_canvas(pil_original, max_side=canvas_max_side)
                 canvas_w, canvas_h = canvas_img.size
 
-                full_regions = current_regions()
-                # Restrict canvas to the active version's regions so v1 boxes can't be grabbed
-                # while editing v2 (and vice versa). Hidden regions are merged back unchanged.
-                cur_entry = entries[entry_idx] if 0 <= entry_idx < len(entries) else None
-                if cur_entry is not None:
-                    regions, visible_indices = _filter_regions_by_active_version(cur_entry, full_regions)
-                else:
-                    regions, visible_indices = full_regions, list(range(len(full_regions)))
+                # current_regions() already returns the active block (base or versions[V].regions),
+                # so canvas writes directly into the correct list.
+                regions = current_regions()
                 sel = _resolve_selected_region_idx(regions)
 
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
@@ -2739,12 +2644,10 @@ def render_area_annotator_ui(
                         if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
                             if incoming_bbox_sig != current_bbox_sig:
                                 _remember_stale_canvas_sig(current_bbox_sig)
-                            updated = _merge_synced_regions(full_regions, synced, visible_indices)
-                            if incoming_bbox_sig != current_bbox_sig:
-                                set_current_regions(updated)
+                                set_current_regions(synced)
                             if prev_sel_name:
                                 st.session_state.selected_region_name = prev_sel_name
-                            _resolve_selected_region_idx(updated)
+                            _resolve_selected_region_idx(synced)
 
     else:
         # ----- Standalone: canvas center; regions + save right -----
@@ -2758,12 +2661,7 @@ def render_area_annotator_ui(
                 canvas_img, _ = resize_for_canvas(pil_original, max_side=canvas_max_side)
                 canvas_w, canvas_h = canvas_img.size
 
-                full_regions = current_regions()
-                cur_entry = entries[entry_idx] if 0 <= entry_idx < len(entries) else None
-                if cur_entry is not None:
-                    regions, visible_indices = _filter_regions_by_active_version(cur_entry, full_regions)
-                else:
-                    regions, visible_indices = full_regions, list(range(len(full_regions)))
+                regions = current_regions()
                 sel = _resolve_selected_region_idx(regions)
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
 
@@ -2810,7 +2708,7 @@ def render_area_annotator_ui(
                         st.session_state.last_canvas_sig = sig
                         prev_sel_name = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
                         current_bbox_sig = _regions_bbox_semantic_sig(regions)
-                        synced_visible = sync_regions_from_canvas(
+                        synced = sync_regions_from_canvas(
                             regions,
                             canvas_result.json_data,
                             canvas_w,
@@ -2818,17 +2716,14 @@ def render_area_annotator_ui(
                             orig_w,
                             orig_h,
                         )
-                        incoming_bbox_sig = _regions_bbox_semantic_sig(synced_visible)
+                        incoming_bbox_sig = _regions_bbox_semantic_sig(synced)
                         if not _should_ignore_stale_canvas_sig(incoming_bbox_sig, current_bbox_sig):
-                            updated = _merge_synced_regions(
-                                full_regions, synced_visible, visible_indices
-                            )
                             if incoming_bbox_sig != current_bbox_sig:
                                 _remember_stale_canvas_sig(current_bbox_sig)
-                                set_current_regions(updated)
+                                set_current_regions(synced)
                             if prev_sel_name:
                                 st.session_state.selected_region_name = prev_sel_name
-                            _resolve_selected_region_idx(updated)
+                            _resolve_selected_region_idx(synced)
 
                 st.caption(
                     "Editing borders: switch to **Move / resize**, click the box, then drag edges or corners. "

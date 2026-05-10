@@ -43,23 +43,27 @@ def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, in
 def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
     """Logical region names visible in the probe selector.
 
-    Excludes ``_vN`` version-suffixed entries — those are runtime overrides resolved by
-    ``screen_region_by_name`` against the active player's state. Surfacing them as separate
-    options would let the user pick a variant that doesn't apply to the bound player.
+    Walks every base + ``versions[].regions[]`` block — includes version-only
+    region names (e.g. a button that exists only in v2). ``screen_region_by_name``
+    resolves picks against the active player's state so version selection is
+    automatic.
     """
-    from .common import has_version_suffix
-
-    out: list[str] = []
+    out: set[str] = set()
     for screen in area_doc.get("screens") or []:
         if not isinstance(screen, dict):
             continue
-        for reg in screen.get("regions") or []:
-            if not isinstance(reg, dict):
+        for source in (screen.get("regions"), *(
+            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
+        )):
+            if not isinstance(source, list):
                 continue
-            name = str(reg.get("name") or "").strip()
-            if name and not has_version_suffix(name):
-                out.append(name)
-    return sorted(set(out), key=str.lower)
+            for reg in source:
+                if not isinstance(reg, dict):
+                    continue
+                name = str(reg.get("name") or "").strip()
+                if name:
+                    out.add(name)
+    return sorted(out, key=str.lower)
 
 
 def _ensure_fresh_reference_crop(
@@ -388,9 +392,12 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
 
     sr_line = str(pay.get("search_region") or rule_search.get(sel_logical, "") or "").strip()
     resolved_line = str(pay.get("resolved_region") or "").strip()
+    resolved_ver = str(pay.get("resolved_version") or "").strip()
     region_line = str(pay.get("region") or "").strip()
     if resolved_line and resolved_line != region_line:
         region_line = f"{region_line or '—'} → {resolved_line}"
+    if resolved_ver:
+        region_line = f"{region_line or '—'} (`{resolved_ver}`)"
     st.markdown(
         f"**Region:** `{region_line or '—'}` · "
         f"**action:** `{act or '—'}` · "

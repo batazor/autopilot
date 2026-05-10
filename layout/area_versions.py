@@ -1,12 +1,19 @@
 """Multi-version screen support for ``area.json``.
 
-A screen-entry may declare alternate visual ``versions`` (e.g. ``v2`` for a
-high-level hero card whose buttons shifted). Each version has an ``id`` and a
-``cond`` — a Python expression evaluated against the player's flat state dict.
-Regions belonging to non-default versions are stored in the same ``regions[]``
-list with an ``_<version_id>`` suffix (e.g. ``promote_btn_v2``). Resolution is
-partial-override: under active ``v2`` the resolver tries ``promote_btn_v2``
-first, falls back to ``promote_btn`` if absent.
+A screen entry may declare alternate visual ``versions`` (e.g. ``v2`` for a
+high-level hero card whose buttons shifted). Each version has an ``id``, a
+``cond`` (Python expression evaluated against the player's flat state dict),
+its own optional ``ocr`` reference image, its own ``regions[]`` list of
+overrides, and an optional ``removed[]`` list of base region names that
+should be treated as absent in this version.
+
+Resolution rules (see :func:`resolve_region_with_version`):
+
+1. If ``active_version`` is set and ``region_name`` is in
+   ``versions[active].removed`` → the region is treated as absent.
+2. Else if ``versions[active].regions[]`` contains a region with that name →
+   return it (override or version-only addition).
+3. Else fall back to the entry's base ``regions[]``.
 """
 
 from __future__ import annotations
@@ -51,6 +58,8 @@ def next_version_id(declared_ids: list[str]) -> str:
     while n in used:
         n += 1
     return f"v{n}"
+
+
 _DOTTED_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
 _PYTHON_KEYWORDS = frozenset({"True", "False", "None", "and", "or", "not", "in", "is"})
 
@@ -111,7 +120,7 @@ def pick_active_version(
 ) -> str | None:
     """Return the id of the first version whose ``cond`` is truthy, or ``None``.
 
-    ``None`` means use the default (unsuffixed) regions. Passing ``state_flat=None``
+    ``None`` means use the default (base) regions. Passing ``state_flat=None``
     short-circuits to ``None`` so callers without state context get default behavior.
     """
     if state_flat is None:
@@ -131,77 +140,134 @@ def pick_active_version(
     return None
 
 
-def resolve_region_with_version(
+def get_version_block(
     screen_entry: dict[str, Any],
-    region_name: str,
-    active_version: str | None,
+    version_id: str | None,
 ) -> dict[str, Any] | None:
-    """Find the region dict for ``region_name`` in ``screen_entry``.
-
-    With ``active_version`` set, tries ``f"{region_name}_{active_version}"``
-    first and falls back to the default ``region_name`` if that override is
-    absent (partial-override semantics).
-    """
-    key = str(region_name or "").strip()
-    if not key:
+    """Return the ``versions[]`` element with matching id, or ``None``."""
+    if not version_id:
         return None
-    regions = screen_entry.get("regions") or []
+    versions = screen_entry.get("versions") or []
+    if not isinstance(versions, list):
+        return None
+    for ver in versions:
+        if not isinstance(ver, dict):
+            continue
+        if str(ver.get("id", "") or "").strip() == version_id:
+            return ver
+    return None
+
+
+def _index_regions_by_name(regions: Any) -> dict[str, dict[str, Any]]:
     if not isinstance(regions, list):
-        return None
-
-    candidates: list[str] = []
-    if active_version:
-        candidates.append(f"{key}_{active_version}")
-    candidates.append(key)
-
-    by_name: dict[str, dict[str, Any]] = {}
+        return {}
+    out: dict[str, dict[str, Any]] = {}
     for reg in regions:
         if not isinstance(reg, dict):
             continue
         name = str(reg.get("name", "") or "").strip()
         if name:
-            by_name[name] = reg
-    for cand in candidates:
-        if cand in by_name:
-            return by_name[cand]
-    return None
+            out[name] = reg
+    return out
 
 
-def effective_ocr_for_region(screen_entry: dict[str, Any], region: dict[str, Any]) -> str:
-    """Reference image to use for ``region``.
+def resolve_region_with_version(
+    screen_entry: dict[str, Any],
+    region_name: str,
+    active_version: str | None,
+) -> dict[str, Any] | None:
+    """Resolve ``region_name`` honoring the active version.
 
-    Version-specific regions (``name_v2``) are cropped from ``versions[].ocr`` when
-    that image is declared; default or fallback regions use the screen entry's
-    ordinary ``ocr``.
+    Order:
+      1. If the version declares the name in ``removed[]`` — return ``None``
+         (region is intentionally absent in this version).
+      2. If the version's ``regions[]`` has the name — return it.
+      3. Else fall back to the entry's base ``regions[]``.
+
+    Returns ``None`` if neither place has the region (or it was removed).
     """
-    default_ocr = str(screen_entry.get("ocr") or "").strip()
-    reg_name = str(region.get("name") or "").strip()
-    versions = screen_entry.get("versions") or []
-    if not reg_name or not isinstance(versions, list):
-        return default_ocr
+    key = str(region_name or "").strip()
+    if not key:
+        return None
 
+    ver_block = get_version_block(screen_entry, active_version)
+    if ver_block is not None:
+        removed = ver_block.get("removed") or []
+        if isinstance(removed, list) and key in {
+            str(x).strip() for x in removed if isinstance(x, str)
+        }:
+            return None
+        ver_regions = _index_regions_by_name(ver_block.get("regions"))
+        if key in ver_regions:
+            return ver_regions[key]
+
+    base = _index_regions_by_name(screen_entry.get("regions"))
+    return base.get(key)
+
+
+def region_version_of(
+    screen_entry: dict[str, Any],
+    region: dict[str, Any],
+) -> str | None:
+    """Return the version id whose ``regions[]`` contains this region, or ``None`` for base.
+
+    Identity-based lookup — pass the dict you got from
+    :func:`resolve_region_with_version` (or by walking the structure directly).
+    """
+    versions = screen_entry.get("versions") or []
+    if not isinstance(versions, list):
+        return None
     for ver in versions:
         if not isinstance(ver, dict):
             continue
-        vid = str(ver.get("id", "") or "").strip()
-        if not vid:
+        ver_regions = ver.get("regions") or []
+        if not isinstance(ver_regions, list):
             continue
-        suffix = f"_{vid}"
-        if reg_name.endswith(suffix) and len(reg_name) > len(suffix):
-            return str(ver.get("ocr") or "").strip() or default_ocr
-    return default_ocr
+        for r in ver_regions:
+            if r is region:
+                vid = str(ver.get("id", "") or "").strip()
+                return vid or None
+    return None
 
 
-def split_versioned_name(name: str, known_version_ids: set[str]) -> tuple[str, str | None]:
-    """Split a region name into ``(base_name, version_id_or_None)``.
+def effective_ocr_for_region(
+    screen_entry: dict[str, Any],
+    region: dict[str, Any],
+) -> str:
+    """Reference image to use for ``region``.
 
-    Only splits if the trailing ``_vN`` suffix matches a version declared in
-    ``known_version_ids`` for the entry — this avoids false positives on names
-    that happen to end with ``_v3`` for unrelated reasons.
+    Regions inside a ``versions[]`` block use that version's ``ocr`` if set,
+    falling back to the entry's default ``ocr``. Base regions always use the
+    entry's default ``ocr``.
     """
-    raw = str(name or "").strip()
-    for vid in known_version_ids:
-        suffix = f"_{vid}"
-        if raw.endswith(suffix) and len(raw) > len(suffix):
-            return raw[: -len(suffix)], vid
-    return raw, None
+    default_ocr = str(screen_entry.get("ocr") or "").strip()
+    vid = region_version_of(screen_entry, region)
+    if not vid:
+        return default_ocr
+    ver_block = get_version_block(screen_entry, vid)
+    if ver_block is None:
+        return default_ocr
+    ver_ocr = str(ver_block.get("ocr") or "").strip()
+    return ver_ocr or default_ocr
+
+
+def iter_all_regions(
+    screen_entry: dict[str, Any],
+) -> list[tuple[dict[str, Any], str | None]]:
+    """Yield ``(region, version_id_or_None)`` for every region across base + all versions.
+
+    Used by validation, autocomplete, and crop export — anything that needs to
+    walk every region regardless of which version is active.
+    """
+    out: list[tuple[dict[str, Any], str | None]] = []
+    for reg in screen_entry.get("regions") or []:
+        if isinstance(reg, dict):
+            out.append((reg, None))
+    for ver in screen_entry.get("versions") or []:
+        if not isinstance(ver, dict):
+            continue
+        vid = str(ver.get("id", "") or "").strip() or None
+        for reg in ver.get("regions") or []:
+            if isinstance(reg, dict):
+                out.append((reg, vid))
+    return out

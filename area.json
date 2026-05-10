@@ -611,37 +611,6 @@
           }
         },
         {
-          "name": "is_new_chapter_v2",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 3.241312741312741,
-            "y": 81.41304347826087,
-            "width": 5.795366795366795,
-            "height": 2.3869565217391306,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "chapter.task_v2",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 10.81081081081081,
-            "y": 80.97826086956522,
-            "width": 73.26061776061776,
-            "height": 2.5391304347826087,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
           "name": "mail.new",
           "action": "color_check",
           "type": "red",
@@ -656,44 +625,77 @@
             "original_height": 1280
           },
           "has_red_dot": true
-        },
-        {
-          "name": "mail.new_v2",
-          "action": "color_check",
-          "type": "red",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 86.67953667953668,
-            "y": 78.3695652173913,
-            "width": 11.200772200772201,
-            "height": 6.7,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "main_city.to.exploration_v2",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.698841698841699,
-            "y": 92.06521739130434,
-            "width": 15.2007722007722,
-            "height": 7.199999999999999,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
         }
       ],
       "versions": [
         {
           "id": "v2",
           "cond": "buildings.furnace.level >= 4",
-          "ocr": "references/main_city_v2.png"
+          "ocr": "references/main_city_v2.png",
+          "regions": [
+            {
+              "name": "is_new_chapter",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 3.241312741312741,
+                "y": 81.41304347826087,
+                "width": 5.795366795366795,
+                "height": 2.3869565217391306,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              }
+            },
+            {
+              "name": "chapter.task",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 10.81081081081081,
+                "y": 80.97826086956522,
+                "width": 73.26061776061776,
+                "height": 2.5391304347826087,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "has_red_dot": true
+            },
+            {
+              "name": "mail.new",
+              "action": "color_check",
+              "type": "red",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 86.67953667953668,
+                "y": 78.3695652173913,
+                "width": 11.200772200772201,
+                "height": 6.7,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "has_red_dot": true
+            },
+            {
+              "name": "main_city.to.exploration",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 1.698841698841699,
+                "y": 92.06521739130434,
+                "width": 15.2007722007722,
+                "height": 7.199999999999999,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              }
+            }
+          ]
         }
       ]
     },

@@ -1,4 +1,13 @@
-"""area.json helpers: unique region names and lookup by name (shared by UI and worker)."""
+"""area.json helpers: region-name validation, version-aware lookup, dedup.
+
+Schema after the v3 refactor:
+- Each screen entry has a base ``regions[]`` list.
+- Optional ``versions[]`` declares visual variants. Each version has its own
+  ``regions[]`` (overrides + version-only additions) and an optional
+  ``removed[]`` list of base region names that are absent in that version.
+- A name may repeat between base and version regions (override) but must be
+  unique within a single block.
+"""
 
 from __future__ import annotations
 
@@ -8,9 +17,10 @@ from typing import Any
 from layout.area_versions import (
     VERSION_ID_RE,
     compile_cond,
+    get_version_block,
+    iter_all_regions,
     pick_active_version,
     resolve_region_with_version,
-    split_versioned_name,
 )
 
 
@@ -22,26 +32,65 @@ def is_auxiliary_overlay_region(reg: dict[str, Any]) -> bool:
     return nm.endswith("_search") or nm.endswith("_tap")
 
 
+def _region_names_in(regions: Any) -> list[str]:
+    """Non-empty names of regions in a list (skipping non-dict entries)."""
+    if not isinstance(regions, list):
+        return []
+    out: list[str] = []
+    for reg in regions:
+        if not isinstance(reg, dict):
+            continue
+        name = str(reg.get("name", "") or "").strip()
+        if name:
+            out.append(name)
+    return out
+
+
 def collect_region_name_counts(doc: dict[str, Any]) -> dict[str, int]:
-    """Count non-empty region names across all screen entries."""
+    """Count non-empty region names across all screen entries (base + every version block).
+
+    Used by autocompletes that want every name a use case might reference.
+    """
     counts: dict[str, int] = {}
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
             continue
-        for reg in entry.get("regions") or []:
-            if not isinstance(reg, dict):
-                continue
-            name = str(reg.get("name", "") or "").strip()
-            if not name:
-                continue
+        for name in _region_names_in(entry.get("regions")):
             counts[name] = counts.get(name, 0) + 1
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
+                continue
+            for name in _region_names_in(ver.get("regions")):
+                counts[name] = counts.get(name, 0) + 1
     return counts
 
 
-def duplicate_region_names(doc: dict[str, Any]) -> list[str]:
-    """Return sorted region names that appear more than once."""
-    counts = collect_region_name_counts(doc)
-    return sorted(n for n, c in counts.items() if c > 1)
+def validate_unique_region_names(doc: dict[str, Any]) -> None:
+    """Raise ValueError if any single block (base or one version) has duplicate names.
+
+    Names are allowed to repeat ACROSS blocks (a version override re-declares a
+    base name on purpose) but never within one ``regions[]`` list.
+    """
+    for entry in doc.get("screens") or []:
+        if not isinstance(entry, dict):
+            continue
+        entry_label = f"screen id={entry.get('id')!r} screen_id={entry.get('screen_id')!r}"
+        _check_unique_within(entry.get("regions"), f"{entry_label} base")
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id", "") or "").strip() or "?"
+            _check_unique_within(ver.get("regions"), f"{entry_label} version {vid!r}")
+
+
+def _check_unique_within(regions: Any, scope: str) -> None:
+    counts: dict[str, int] = {}
+    for name in _region_names_in(regions):
+        counts[name] = counts.get(name, 0) + 1
+    dups = sorted(n for n, c in counts.items() if c > 1)
+    if dups:
+        joined = ", ".join(repr(n) for n in dups)
+        raise ValueError(f"Duplicate region name(s) in {scope}: {joined}.")
 
 
 def _deep_almost_equal(
@@ -55,7 +104,6 @@ def _deep_almost_equal(
     if isinstance(a, bool) or isinstance(b, bool):
         return a is b
     if type(a) is not type(b):
-        # Allow int/float interchangeability for numeric leaves.
         if isinstance(a, (int, float)) and isinstance(b, (int, float)):
             return math.isclose(float(a), float(b), rel_tol=rel_tol, abs_tol=abs_tol)
         return False
@@ -77,80 +125,51 @@ def _deep_almost_equal(
     return a == b
 
 
-def _region_same_content_as_base(override: dict[str, Any], base: dict[str, Any]) -> bool:
-    """True if version override matches base region for every key except ``name``."""
-    keys_o = {k for k in override if k != "name"}
-    keys_b = {k for k in base if k != "name"}
-    if keys_o != keys_b:
-        return False
-    for k in keys_o:
-        if not _deep_almost_equal(override[k], base[k]):
+def _override_matches_base(override: dict[str, Any], base: dict[str, Any]) -> bool:
+    """True if a version override is byte-equivalent to its base region (modulo identity)."""
+    keys = set(override.keys()) | set(base.keys())
+    for k in keys:
+        if not _deep_almost_equal(override.get(k), base.get(k)):
             return False
     return True
 
 
 def dedupe_redundant_version_regions(doc: dict[str, Any]) -> int:
-    """Drop ``region_<vid>`` entries that match the base ``region`` on the same screen.
+    """Drop version overrides that are byte-identical to the corresponding base region.
 
-    When saving from the annotator, an override left identical to the default
-    (same bbox/options) is redundant — resolution would always fall back to the
-    same geometry anyway. Removes those overrides; returns how many regions were
-    dropped (mutates ``doc`` in place).
+    When the annotator saves an override left untouched relative to the default,
+    resolution would always return the same geometry/options anyway. Removes
+    those overrides; returns how many regions were dropped (mutates ``doc`` in
+    place).
     """
     removed = 0
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
             continue
-        versions = entry.get("versions") or []
-        known_ids: set[str] = set()
-        if isinstance(versions, list):
-            for ver in versions:
-                if isinstance(ver, dict):
-                    vid = str(ver.get("id", "") or "").strip()
-                    if vid:
-                        known_ids.add(vid)
-        if not known_ids:
-            continue
-        regions = entry.get("regions")
-        if not isinstance(regions, list):
-            continue
-        by_name: dict[str, dict[str, Any]] = {}
-        for reg in regions:
-            if isinstance(reg, dict):
-                n = str(reg.get("name", "") or "").strip()
-                if n:
-                    by_name[n] = reg
-        to_drop: set[str] = set()
-        for reg in regions:
-            if not isinstance(reg, dict):
+        base_by_name = {
+            str(r.get("name", "") or "").strip(): r
+            for r in (entry.get("regions") or [])
+            if isinstance(r, dict)
+        }
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
                 continue
-            name = str(reg.get("name", "") or "").strip()
-            base_name, _vid = split_versioned_name(name, known_ids)
-            if not base_name or name == base_name:
+            ver_regions = ver.get("regions")
+            if not isinstance(ver_regions, list):
                 continue
-            base_reg = by_name.get(base_name)
-            if base_reg is None:
-                continue
-            if _region_same_content_as_base(reg, base_reg):
-                to_drop.add(name)
-        if to_drop:
-            entry["regions"] = [
-                r
-                for r in regions
-                if not (isinstance(r, dict) and str(r.get("name", "") or "").strip() in to_drop)
-            ]
-            removed += len(to_drop)
+            kept: list[dict[str, Any]] = []
+            for reg in ver_regions:
+                if not isinstance(reg, dict):
+                    kept.append(reg)
+                    continue
+                nm = str(reg.get("name", "") or "").strip()
+                base = base_by_name.get(nm)
+                if base is not None and _override_matches_base(reg, base):
+                    removed += 1
+                    continue
+                kept.append(reg)
+            ver["regions"] = kept
     return removed
-
-
-def validate_unique_region_names(doc: dict[str, Any]) -> None:
-    """Raise ValueError if two or more regions share the same non-empty name."""
-    dups = duplicate_region_names(doc)
-    if dups:
-        joined = ", ".join(repr(n) for n in dups)
-        raise ValueError(
-            f"Duplicate region name(s): {joined}. Each region name must be unique across area.json."
-        )
 
 
 def region_bbox_for_name(
@@ -160,11 +179,9 @@ def region_bbox_for_name(
 ) -> dict[str, Any] | None:
     """Return the bbox dict for a region by name.
 
-    When ``state_flat`` is provided, the lookup honors the screen-entry's
-    ``versions`` list: the first version whose ``cond`` evaluates truthy wins,
-    and a ``_<version_id>``-suffixed override is preferred over the default
-    region (partial-override semantics). With ``state_flat=None`` the lookup
-    behaves as before — only default (unsuffixed) regions match.
+    With ``state_flat`` provided, lookup honors version selection: the first
+    version whose ``cond`` evaluates truthy wins, ``removed[]`` makes the region
+    absent, and version ``regions[]`` overrides win over base.
     """
     key = str(name or "").strip()
     if not key:
@@ -172,35 +189,27 @@ def region_bbox_for_name(
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
             continue
-        if state_flat is not None:
-            active = pick_active_version(entry, state_flat)
-            reg = resolve_region_with_version(entry, key, active)
-            if reg is not None:
-                bbox = reg.get("bbox")
-                return bbox if isinstance(bbox, dict) else None
+        active = pick_active_version(entry, state_flat) if state_flat is not None else None
+        reg = resolve_region_with_version(entry, key, active)
+        if reg is None:
             continue
-        for reg in entry.get("regions") or []:
-            if not isinstance(reg, dict):
-                continue
-            if str(reg.get("name", "") or "").strip() != key:
-                continue
-            bbox = reg.get("bbox")
-            if isinstance(bbox, dict):
-                return bbox
-            return None
+        bbox = reg.get("bbox")
+        return bbox if isinstance(bbox, dict) else None
     return None
 
 
 def validate_versions(doc: dict[str, Any]) -> None:
-    """Validate screen-entry ``versions`` metadata across the document.
+    """Validate ``versions`` metadata across the document.
 
-    Checks per entry:
-      - Each ``versions[].id`` matches ``^v\\d+$`` and is unique within the entry.
-      - Each ``versions[].cond`` is non-empty and parses as a Python expression.
-      - Every region whose name ends with ``_<version_id>`` corresponds to a
-        declared version in the same entry (no orphan overrides).
+    Per entry checks:
+      - ``versions[].id`` matches ``^v\\d+$`` and is unique within the entry.
+      - ``versions[].cond`` is non-empty and parses as a Python expression.
+      - ``versions[].regions[]`` (if present) is a list of dicts with unique names.
+      - ``versions[].removed[]`` (if present) is a list of strings, each naming an
+        existing base region of the same entry, with no overlap with
+        ``versions[].regions[]`` names (cannot both override and remove).
 
-    Raises ``ValueError`` on the first violation with a descriptive message.
+    Raises ``ValueError`` on the first violation.
     """
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):
@@ -209,10 +218,20 @@ def validate_versions(doc: dict[str, Any]) -> None:
         versions = entry.get("versions") or []
         if not isinstance(versions, list):
             raise ValueError(f"{entry_label}: 'versions' must be a list")
+
+        base_names = {
+            str(r.get("name", "") or "").strip()
+            for r in (entry.get("regions") or [])
+            if isinstance(r, dict)
+        }
+        base_names.discard("")
+
         seen_ids: set[str] = set()
         for ver in versions:
             if not isinstance(ver, dict):
-                raise ValueError(f"{entry_label}: version entry must be an object, got {type(ver).__name__}")
+                raise ValueError(
+                    f"{entry_label}: version entry must be an object, got {type(ver).__name__}"
+                )
             vid = str(ver.get("id", "") or "").strip()
             if not VERSION_ID_RE.match(vid):
                 raise ValueError(
@@ -221,29 +240,89 @@ def validate_versions(doc: dict[str, Any]) -> None:
             if vid in seen_ids:
                 raise ValueError(f"{entry_label}: duplicate version id {vid!r}")
             seen_ids.add(vid)
+
             cond = str(ver.get("cond", "") or "").strip()
             if not cond:
                 raise ValueError(f"{entry_label}: version {vid!r} has empty 'cond'")
             try:
                 compile_cond(cond)
             except SyntaxError as exc:
-                raise ValueError(f"{entry_label}: version {vid!r} cond syntax error: {exc}") from exc
+                raise ValueError(
+                    f"{entry_label}: version {vid!r} cond syntax error: {exc}"
+                ) from exc
 
-        for reg in entry.get("regions") or []:
-            if not isinstance(reg, dict):
-                continue
-            name = str(reg.get("name", "") or "").strip()
-            if not name:
-                continue
-            for vid in seen_ids:
-                suffix = f"_{vid}"
-                if name.endswith(suffix) and len(name) > len(suffix):
-                    break
-            else:
-                # Name might still end with _vN for an undeclared id — flag those.
-                tail = name.rsplit("_", 1)
-                if len(tail) == 2 and VERSION_ID_RE.match(tail[1]) and tail[1] not in seen_ids:
+            ver_regions = ver.get("regions")
+            if ver_regions is not None and not isinstance(ver_regions, list):
+                raise ValueError(
+                    f"{entry_label}: version {vid!r} 'regions' must be a list"
+                )
+            ver_region_names: set[str] = set()
+            if isinstance(ver_regions, list):
+                for r in ver_regions:
+                    if not isinstance(r, dict):
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} region entry must be an object"
+                        )
+                    nm = str(r.get("name", "") or "").strip()
+                    if not nm:
+                        continue
+                    if nm in ver_region_names:
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} duplicate region name {nm!r}"
+                        )
+                    ver_region_names.add(nm)
+
+            removed = ver.get("removed")
+            if removed is not None:
+                if not isinstance(removed, list):
                     raise ValueError(
-                        f"{entry_label}: region {name!r} has version suffix {tail[1]!r} "
-                        f"but no such version is declared in 'versions'"
+                        f"{entry_label}: version {vid!r} 'removed' must be a list of strings"
                     )
+                seen_removed: set[str] = set()
+                for item in removed:
+                    if not isinstance(item, str):
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} 'removed' entry must be a string, "
+                            f"got {type(item).__name__}"
+                        )
+                    nm = item.strip()
+                    if not nm:
+                        continue
+                    if nm in seen_removed:
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} 'removed' has duplicate {nm!r}"
+                        )
+                    seen_removed.add(nm)
+                    if nm not in base_names:
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} 'removed' references "
+                            f"non-existent base region {nm!r}"
+                        )
+                    if nm in ver_region_names:
+                        raise ValueError(
+                            f"{entry_label}: version {vid!r} cannot both override and remove "
+                            f"region {nm!r} — pick one"
+                        )
+
+
+def all_region_names(doc: dict[str, Any]) -> list[str]:
+    """Sorted unique non-empty region names across base + every version block.
+
+    Used by autocompletes (DSL editor, scenario authoring).
+    """
+    return sorted({n for n in collect_region_name_counts(doc).keys()})
+
+
+__all__ = [
+    "all_region_names",
+    "collect_region_name_counts",
+    "dedupe_redundant_version_regions",
+    "get_version_block",
+    "is_auxiliary_overlay_region",
+    "iter_all_regions",
+    "region_bbox_for_name",
+    "resolve_region_with_version",
+    "validate_unique_region_names",
+    "validate_versions",
+    "VERSION_ID_RE",
+]
