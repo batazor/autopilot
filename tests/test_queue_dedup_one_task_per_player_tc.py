@@ -109,3 +109,58 @@ async def test_pop_due_cleans_ignore_region_dup_index(redis_async: object) -> No
     # Note: for device-level pushes player_id may be '', but here it's specific.
     assert int(await r.scard(idx_key)) == 0  # type: ignore[attr-defined]
 
+
+
+@pytest.mark.asyncio
+async def test_has_pending_duplicate_catches_dupe_when_index_is_stale(
+    redis_async: object,
+) -> None:
+    """Repro for the production bug: queue had 56 items but the SADD index was
+    empty (silently failed earlier). ``has_pending_duplicate`` now scans the
+    queue directly so an empty / stale index can't bypass dedup.
+    """
+    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+
+    # Seed a queue item directly via ZADD without populating the dedup index —
+    # mirrors the real scenario where prior SADD calls failed silently.
+    payload = json.dumps(
+        {
+            "task_id": "ovl:bs1:claim_exploration_rewards:abc12345",
+            "player_id": "p1",
+            "task_type": "claim_exploration_rewards",
+            "priority": 80000,
+            "run_at": 1.0,
+            "instance_id": "bs1",
+            "region": "main_city.to.exploration",
+        }
+    )
+    await redis_async.zadd("wos:queue:bs1", {payload: 1.0})  # type: ignore[attr-defined]
+
+    # The ignore-region dedup-index key for this signature should be empty —
+    # we never SADD'd anything for it.
+    idx_key = "wos:queue:idx:bs1:claim_exploration_rewards::"
+    assert int(await redis_async.scard(idx_key)) == 0  # type: ignore[attr-defined]
+
+    # Despite the empty index, dedup must still see the queued payload.
+    assert (
+        await queue.has_pending_duplicate(
+            player_id="",
+            task_type="claim_exploration_rewards",
+            region=None,
+            instance_id="bs1",
+            ignore_region=True,
+        )
+        is True
+    )
+
+    # Player-level enqueue is also blocked by the device-level item already in queue.
+    assert (
+        await queue.has_pending_duplicate(
+            player_id="p1",
+            task_type="claim_exploration_rewards",
+            region="main_city.to.exploration",
+            instance_id="bs1",
+            ignore_region=True,
+        )
+        is True
+    )

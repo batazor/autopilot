@@ -9,6 +9,4 @@ steps:
     steps:
       - click: chapter.task
       - wait: 2s
-      - push_scenario:
-          name: upgrade
-          priority: 80000
+      - push_scenario: upgrade

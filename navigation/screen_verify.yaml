@@ -18,6 +18,7 @@ text_switch:
       gathering: [gather, resource, march]
       alliance: [alliance, guild, member]
       exploration: [exploration]
+      squad_settings: [squad]
       chat: [chat]
       mail: [mail]
       chief_profile: [chief profile, chief, profile]
@@ -74,6 +75,12 @@ screens:
     rules:
       - ocr: page_title
         contains: [exploration]
+        threshold: 0.8
+
+  squad_settings:
+    rules:
+      - ocr: page_title
+        contains: [squad]
         threshold: 0.8
 
   chat:

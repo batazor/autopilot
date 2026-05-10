@@ -581,31 +581,6 @@ def load_json(path: Path) -> AreaDocDict:
     return normalize_area_file(raw)
 
 
-def try_import_bot_fsm_transitions() -> list[dict[str, str]]:
-    """Edges from :mod:`navigation.fsm_screen_map` when running inside the repo."""
-    try:
-        from navigation.fsm_screen_map import FSM_SCREEN_EDGES
-    except ImportError:
-        return []
-    out: list[dict[str, str]] = []
-    for src, dsts in FSM_SCREEN_EDGES.items():
-        for dst in dsts:
-            out.append({"from": str(src), "to": str(dst), "event": ""})
-    return out
-
-
-def dedupe_transitions(transitions: list[dict[str, str]]) -> list[dict[str, str]]:
-    seen: set[tuple[str, str, str]] = set()
-    out: list[dict[str, str]] = []
-    for t in transitions:
-        key = (t.get("from", ""), t.get("to", ""), t.get("event", ""))
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(dict(t))
-    return out
-
-
 def all_fsm_screen_ids(doc: AreaDocDict) -> list[str]:
     ids: set[str] = set()
     for s in doc.get("screens") or []:
@@ -767,8 +742,6 @@ def _render_screen_id_and_ocr_fields(
         nxt = successor_screens(sid, doc)
         if nxt:
             st.caption("Transitions from this screen: **" + "**, **".join(nxt) + "**")
-        else:
-            st.caption("No outgoing edges for this `screen_id` — add them in the Nodes section below.")
 
 
 ACTIVE_VERSION_DEFAULT = "default"
@@ -1168,70 +1141,6 @@ def _render_versions_block(
                             if st.button("Cancel", key=f"version_delete_no_{eid}_{sel}"):
                                 st.session_state[confirm_key] = False
                                 st.rerun()
-
-
-def _render_fsm_expander(doc: AreaDocDict) -> None:
-    """Directed transitions editor (shared layout)."""
-    with st.expander("Node graph (transitions)", expanded=False):
-        if "fsm" not in doc or not isinstance(doc.get("fsm"), dict):
-            doc["fsm"] = {"initial_screen": "", "transitions": []}
-        fsm = doc["fsm"]
-        if fsm.get("transitions") is None:
-            fsm["transitions"] = []
-        cur_ini = str(fsm.get("initial_screen", "") or "")
-        id_set = set(all_fsm_screen_ids(doc))
-        if cur_ini:
-            id_set.add(cur_ini)
-        ids_opts = [""] + sorted(id_set)
-        ini_pick = st.selectbox(
-            "Initial screen",
-            options=ids_opts,
-            index=ids_opts.index(cur_ini) if cur_ini in ids_opts else 0,
-            help="Entry point in the graph (start screen for annotation).",
-        )
-        fsm["initial_screen"] = ini_pick.strip()
-
-        st.markdown("**Add transition** `from → to`")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            nf = st.text_input("from", key="fsm_new_from", placeholder="main_city")
-        with c2:
-            nt = st.text_input("to", key="fsm_new_to", placeholder="arena")
-        with c3:
-            ne = st.text_input("event (optional)", key="fsm_new_ev", placeholder="tap_arena")
-        if st.button("Add transition"):
-            if nf.strip() and nt.strip():
-                fsm["transitions"].append(
-                    {"from": nf.strip(), "to": nt.strip(), "event": ne.strip()}
-                )
-                fsm["transitions"] = dedupe_transitions(fsm["transitions"])
-                st.rerun()
-            else:
-                st.warning("Set both from and to.")
-
-        bot_n = len(try_import_bot_fsm_transitions())
-        if st.button(
-            f"Import edges from bot (fsm_screen_map), count: {bot_n}",
-            disabled=bot_n == 0,
-            help="Run from repo root with the package on PYTHONPATH.",
-        ):
-            merged = list(fsm["transitions"]) + try_import_bot_fsm_transitions()
-            fsm["transitions"] = dedupe_transitions(merged)
-            st.rerun()
-
-        trans = fsm["transitions"]
-        if trans:
-            rm_labels = [f"{i}: {t.get('from')} → {t.get('to')}" for i, t in enumerate(trans)]
-            kill = st.multiselect(
-                "Remove transitions", options=list(range(len(trans))), format_func=lambda i: rm_labels[i]
-            )
-            if st.button("Remove selected"):
-                keep = [t for i, t in enumerate(trans) if i not in set(kill)]
-                fsm["transitions"] = keep
-                st.rerun()
-
-        with st.expander("Mermaid (copy into a diagram editor)"):
-            st.code(transitions_to_mermaid(doc), language="text")
 
 
 def _render_regions_expander(
@@ -1739,26 +1648,6 @@ def _render_regions_expander(
                     st.error(str(e))
                 finally:
                     prog.empty()
-
-
-def transitions_to_mermaid(doc: AreaDocDict) -> str:
-    lines = ["flowchart LR"]
-    ini = str((doc.get("fsm") or {}).get("initial_screen", "") or "").strip()
-    if ini:
-        safe = ini.replace('"', "'")
-        lines.append(f'  _start((start)) --> "{safe}"')
-    for t in (doc.get("fsm") or {}).get("transitions") or []:
-        a = str(t.get("from", "")).replace('"', "'")
-        b = str(t.get("to", "")).replace('"', "'")
-        ev = str(t.get("event", "") or "").strip()
-        if not a or not b:
-            continue
-        if ev:
-            ev_safe = ev.replace('"', "'")
-            lines.append(f'  "{a}" -->|{ev_safe}| "{b}"')
-        else:
-            lines.append(f'  "{a}" --> "{b}"')
-    return "\n".join(lines)
 
 
 # -----------------------------------------------------------------------------
@@ -2418,7 +2307,6 @@ def render_area_annotator_ui(
                 _render_screen_id_and_ocr_fields(doc, entries, entry_idx, labeling_mode=False)
                 _render_versions_block(entries, entry_idx)
 
-            _render_fsm_expander(doc)
 
     # Load image from disk (pending capture or entry OCR path)
     pil_original: Image.Image | None = st.session_state.get(PIL_ORIGINAL)
@@ -2579,7 +2467,6 @@ def render_area_annotator_ui(
                 if entries and 0 <= entry_idx < len(entries):
                     _render_screen_id_and_ocr_fields(doc, entries, entry_idx, labeling_mode=True)
 
-            _render_fsm_expander(doc)
 
             st.divider()
             if st.button("Save area.json", type="primary", width="stretch", key="save_area_json_lbl"):

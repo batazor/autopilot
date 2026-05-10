@@ -292,6 +292,94 @@ def render_labeling_reference_column(
                     else:
                         st.error(msg)
 
+        # Destructive: PNG + every area.json entry that references it + per-region crop tiles.
+        # Two-step confirm so a misclick can't nuke a reference; the second click in the same
+        # rerun cycle commits the delete. The container key drives a CSS rule below so the
+        # button reads as red without abusing Streamlit's primary/secondary semantics.
+        if existing and sel_out:
+            confirm_key = f"labeling_delete_confirm::{sel_out}"
+            st.markdown(
+                """
+                <style>
+                div[class*="st-key-labeling-delete-"] button {
+                    background-color: #c62828 !important;
+                    color: #ffffff !important;
+                    border: 1px solid #b71c1c !important;
+                }
+                div[class*="st-key-labeling-delete-"] button:hover {
+                    background-color: #b71c1c !important;
+                    border-color: #8e0000 !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+            with st.container(key=f"labeling-delete-trigger-{labeling_basename_widget_key(sel_out)}"):
+                if st.button(
+                    "🗑 Delete reference (PNG + regions + crops)",
+                    key="labeling_delete_btn",
+                    width="stretch",
+                    help=(
+                        f"Removes `references/{sel_out}`, every `area.json` screen entry whose "
+                        f"`ocr` points at it (with all its regions + version overrides), and the "
+                        f"matching files under `references/crop/`. Saves `area.json` immediately."
+                    ),
+                ):
+                    st.session_state[confirm_key] = True
+
+            if st.session_state.get(confirm_key):
+                st.warning(
+                    f"Delete `references/{sel_out}` and **everything** linked to it? "
+                    "This cannot be undone."
+                )
+                yes_col, no_col = st.columns(2)
+                with yes_col:
+                    with st.container(key=f"labeling-delete-confirm-{labeling_basename_widget_key(sel_out)}"):
+                        if st.button(
+                            "Yes, delete",
+                            key="labeling_delete_yes",
+                            icon=":material/delete_forever:",
+                            width="stretch",
+                        ):
+                            n_entries, n_crops, n_err = delete_reference_completely(
+                                repo_root=ref_root.parent,
+                                ref_root=ref_root,
+                                rel_posix=sel_out,
+                            )
+                            # Reset selection / basename / canvas to the next available reference.
+                            st.session_state.pop(LABELING_BN_SYNC_SEL, None)
+                            st.session_state.pop(labeling_basename_widget_key(sel_out), None)
+                            st.session_state.pop(LABELING_TREE_SELECTION, None)
+                            st.session_state[LABELING_REF_TREE_NONCE] = (
+                                int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
+                            )
+                            st.session_state[CANVAS_REV] = (
+                                int(st.session_state.get(CANVAS_REV, 0)) + 1
+                            )
+                            st.session_state[CANVAS_LAST_SIG] = ""
+                            st.session_state.pop(confirm_key, None)
+                            try:
+                                if st.query_params.get("ref"):
+                                    del st.query_params["ref"]
+                            except Exception:
+                                pass
+                            flash = (
+                                f"Deleted `{sel_out}` · dropped {n_entries} `area.json` "
+                                f"entry/-ies · removed {n_crops} crop tile(s)"
+                            )
+                            if n_err:
+                                flash += f" · {n_err} error(s)"
+                            st.session_state[LABELING_RENAME_FLASH] = flash
+                            st.rerun()
+                with no_col:
+                    if st.button(
+                        "Cancel",
+                        key="labeling_delete_no",
+                        width="stretch",
+                    ):
+                        st.session_state.pop(confirm_key, None)
+                        st.rerun()
+
         # Lazy import to avoid circular dep with ui.area_annotator.
         from ui.area_annotator import render_active_version_picker
 
@@ -341,3 +429,112 @@ def purge_reference_png_and_area_entries(repo_root: Path, ref_root: Path, rel_po
             pass
         kept.append(e)
     doc["screens"] = kept
+
+
+def delete_reference_completely(
+    repo_root: Path,
+    ref_root: Path,
+    rel_posix: str,
+) -> tuple[int, int, int]:
+    """Delete a reference PNG, every ``area.json`` entry pointing at it, and
+    every cropped region tile that came from those entries.
+
+    Returns ``(area_entries_dropped, crops_deleted, errors)``. The caller is
+    expected to refresh the tree and selection — this function does not
+    touch session keys other than ``area_doc``.
+
+    Idempotent: missing files are skipped silently. Saves ``area.json`` to
+    disk after mutating session state so the deletion survives a worker /
+    Streamlit restart.
+    """
+    rel_posix = rel_posix.replace("\\", "/").strip()
+    if not rel_posix or rel_posix.startswith("..") or "/.." in rel_posix:
+        return 0, 0, 0
+
+    try:
+        target = (repo_root / "references" / rel_posix).resolve()
+    except OSError:
+        return 0, 0, 1
+
+    doc = st.session_state.get(AREA_DOC)
+    if not isinstance(doc, dict):
+        purge_reference_png_and_area_entries(repo_root, ref_root, rel_posix)
+        return 0, 0, 0
+
+    # Phase 1: collect crop paths from entries that are about to be dropped.
+    # Walk both base ``regions[]`` and per-version ``versions[].regions[]`` so
+    # ``main_city_v2_*.png`` tiles disappear together with the v2 reference.
+    crop_paths: list[Path] = []
+    matching_entries = 0
+    try:
+        from ui.area_annotator import crop_path_for_entry_region
+    except Exception:
+        crop_path_for_entry_region = None  # type: ignore[assignment]
+
+    for entry in doc.get("screens") or []:
+        if not isinstance(entry, dict):
+            continue
+        ocr_raw = str(entry.get("ocr") or "").strip()
+        if not ocr_raw:
+            continue
+        p = Path(ocr_raw)
+        if not p.is_absolute():
+            p = repo_root / p
+        try:
+            if p.resolve() != target:
+                continue
+        except OSError:
+            continue
+        matching_entries += 1
+        if crop_path_for_entry_region is None:
+            continue
+        for reg in entry.get("regions") or []:
+            if not isinstance(reg, dict):
+                continue
+            nm = str(reg.get("name") or "").strip()
+            if not nm:
+                continue
+            cp = crop_path_for_entry_region(repo_root, entry, nm)
+            if cp is not None and cp.is_file():
+                crop_paths.append(cp)
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id") or "").strip()
+            if not vid:
+                continue
+            for reg in ver.get("regions") or []:
+                if not isinstance(reg, dict):
+                    continue
+                nm = str(reg.get("name") or "").strip()
+                if not nm:
+                    continue
+                cp = crop_path_for_entry_region(
+                    repo_root, entry, nm, active_version=vid
+                )
+                if cp is not None and cp.is_file():
+                    crop_paths.append(cp)
+
+    # Phase 2: drop entries + PNG (in-memory + filesystem for the PNG).
+    purge_reference_png_and_area_entries(repo_root, ref_root, rel_posix)
+
+    # Phase 3: delete the crop tiles. Track errors but keep going.
+    crops_deleted = 0
+    errors = 0
+    for cp in crop_paths:
+        try:
+            cp.unlink(missing_ok=True)
+            crops_deleted += 1
+        except OSError:
+            errors += 1
+
+    # Phase 4: persist area.json so a UI reload (or worker restart) sees the
+    # deletion. Mirrors the rename flow, which also writes immediately.
+    try:
+        from ui.area_annotator import AREA_JSON_PATH, save_json
+
+        save_json(AREA_JSON_PATH, doc)
+    except Exception:
+        errors += 1
+
+    return matching_entries, crops_deleted, errors

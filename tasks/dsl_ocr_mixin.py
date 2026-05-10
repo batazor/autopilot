@@ -18,6 +18,7 @@ import asyncio
 import logging
 import re
 import time
+from contextlib import suppress
 from typing import Any
 
 from actions.tap import BotActions
@@ -450,6 +451,33 @@ class DslOcrMixin:
                 value_s=str(value),
             )
             return
+
+        # Optional persistence to ``db/state.yaml`` for player-scoped writes.
+        # Off by default (Redis-only is the historical behavior); opt-in via
+        # ``to_state: true`` on the YAML step. Type-aware: integers go in as int
+        # so ``GamerState`` accepts them and ``to_flat_dict`` returns numbers.
+        if (
+            bool(step.get("to_state"))
+            and scope == "player"
+            and self.player_id
+            and store_field
+        ):
+            typed_value: Any = value
+            if type_hint in {"int", "integer"}:
+                with suppress(TypeError, ValueError):
+                    typed_value = int(value)
+            try:
+                from config.state_store import get_state_store
+
+                store = get_state_store().get_or_create(str(self.player_id))
+                store.update_from_flat({store_field: typed_value})
+            except Exception:
+                logger.exception(
+                    "dsl_scenario: state_store sync failed (scenario=%s region=%s field=%s)",
+                    _scen(scenario_key),
+                    region,
+                    store_field,
+                )
 
         await self._ocr_audit_step(
             instance_id,

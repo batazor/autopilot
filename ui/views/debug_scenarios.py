@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
@@ -180,10 +181,8 @@ def _enqueue_debug_scenario(
     if start_step_index > 0:
         payload["start_step_index"] = int(start_step_index)
     # Ask any in-flight DSL scenario on this instance to exit so this task runs next.
-    try:
+    with suppress(Exception):
         bump_dsl_preempt_generation(client, instance_id)
-    except Exception:
-        pass
     client.zadd(
         f"wos:queue:{instance_id}",
         {json.dumps(payload, ensure_ascii=False): float(now)},
@@ -348,49 +347,10 @@ if target is not None:
             default_index = i
             break
 
-left, right = st.columns([2.2, 1.0], vertical_alignment="top")
-
-with left:
-    labels = [
-        f"{sf.rel_scenarios} · {sf.name} · key={sf.key}"
-        for sf in files
-    ]
-    picked_idx = st.selectbox(
-        "Scenario",
-        range(len(files)),
-        index=default_index,
-        format_func=lambda i: labels[int(i)],
-        key="debug_scenario_pick",
-    )
-    scenario = files[int(picked_idx)]
-
-current_scenario_param = _scenario_param_value(st.query_params.get("scenario"))
-if current_scenario_param != scenario.key:
-    st.query_params["scenario"] = scenario.key
-
-with right:
-    st.link_button(
-        "Open in Scenarios",
-        _page_url("scenarios", {"q": scenario.key}),
-        width="stretch",
-    )
-
-same_key = [sf for sf in files if sf.key == scenario.key]
-if len(same_key) > 1:
-    st.warning(
-        "This key is duplicated. The worker resolves by filename stem and will "
-        "choose the shortest path first: "
-        + ", ".join(sf.rel_scenarios for sf in same_key)
-    )
-
-meta = st.columns([2.0, 1.0, 1.0, 1.0, 1.6])
-meta[0].markdown(f"**File**: `{scenario.repo_rel}`")
-meta[1].markdown(f"**Key**: `{scenario.key}`")
-meta[2].markdown(f"**Enabled**: `{scenario.enabled}`")
-meta[3].markdown(f"**Device**: `{scenario.device_level}`")
-meta[4].markdown(f"**Steps**: `{scenario.steps}`")
-
-st.divider()
+labels = [
+    f"{sf.rel_scenarios} · {sf.name} · key={sf.key}"
+    for sf in files
+]
 
 inst_ids = [inst.instance_id for inst in settings.instances]
 if not inst_ids:
@@ -427,6 +387,62 @@ if enabled_ui != enabled_now:
         client.delete(ctx.hb_key)
     st.rerun()
 _render_approval_heartbeat(ctx)
+
+st.divider()
+st.subheader("Run scenario")
+
+run_left, run_right = st.columns([3.0, 1.0], vertical_alignment="bottom")
+with run_left:
+    scenario_pick_key = "debug_scenario_pick"
+    query_sync_key = "debug_scenario_last_query"
+    current_scenario_param = _scenario_param_value(st.query_params.get("scenario"))
+    last_synced_param = str(st.session_state.get(query_sync_key) or "")
+    if target is not None and current_scenario_param != last_synced_param:
+        current_pick = st.session_state.get(scenario_pick_key)
+        current_sf = (
+            files[int(current_pick)]
+            if isinstance(current_pick, int) and 0 <= current_pick < len(files)
+            else None
+        )
+        if current_sf is None or current_sf.path.resolve() != target.resolve():
+            st.session_state[scenario_pick_key] = default_index
+        st.session_state[query_sync_key] = current_scenario_param
+
+    picked_idx = st.selectbox(
+        "Scenario",
+        range(len(files)),
+        index=default_index,
+        format_func=lambda i: labels[int(i)],
+        key=scenario_pick_key,
+    )
+    scenario = files[int(picked_idx)]
+
+current_scenario_param = _scenario_param_value(st.query_params.get("scenario"))
+if current_scenario_param != scenario.key:
+    st.query_params["scenario"] = scenario.key
+    st.session_state["debug_scenario_last_query"] = scenario.key
+
+with run_right:
+    st.link_button(
+        "Open in Scenarios",
+        _page_url("scenarios", {"q": scenario.key}),
+        width="stretch",
+    )
+
+same_key = [sf for sf in files if sf.key == scenario.key]
+if len(same_key) > 1:
+    st.warning(
+        "This key is duplicated. The worker resolves by filename stem and will "
+        "choose the shortest path first: "
+        + ", ".join(sf.rel_scenarios for sf in same_key)
+    )
+
+meta = st.columns([2.0, 1.0, 1.0, 1.0, 1.6])
+meta[0].markdown(f"**File**: `{scenario.repo_rel}`")
+meta[1].markdown(f"**Key**: `{scenario.key}`")
+meta[2].markdown(f"**Enabled**: `{scenario.enabled}`")
+meta[3].markdown(f"**Device**: `{scenario.device_level}`")
+meta[4].markdown(f"**Steps**: `{scenario.steps}`")
 
 state = get_instance_state(client, inst.instance_id)
 active_player = str(state.get("active_player") or "").strip()
@@ -480,18 +496,24 @@ start_step_index = st.number_input(
 )
 
 if st.button("Run scenario now", type="primary", width="stretch"):
-    task_id = _enqueue_debug_scenario(
-        client,
-        instance_id=inst.instance_id,
-        player_id=pid,
-        scenario_key=scenario.key,
-        priority=int(priority),
-        start_step_index=int(start_step_index),
-    )
-    st.session_state["debug_scenario_last_task_id"] = task_id
-    msg = f"Enqueued `{task_id}` with priority `{int(priority)}`."
-    st.success(msg)
-    st.rerun()
+    if scenario.steps <= 0:
+        st.warning(
+            f"`{scenario.key}` has no steps yet. Add at least one step in Scenarios editor, "
+            "then run it again."
+        )
+    else:
+        task_id = _enqueue_debug_scenario(
+            client,
+            instance_id=inst.instance_id,
+            player_id=pid,
+            scenario_key=scenario.key,
+            priority=int(priority),
+            start_step_index=int(start_step_index),
+        )
+        st.session_state["debug_scenario_last_task_id"] = task_id
+        msg = f"Enqueued `{task_id}` with priority `{int(priority)}`."
+        st.success(msg)
+        st.rerun()
 
 st.divider()
 fragment_sync_pending_presence(inst=inst.instance_id, client=client)

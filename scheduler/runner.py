@@ -218,10 +218,9 @@ class SchedulerRunner:
             prio = int(raw.get("priority") or 1)
             name = str(raw.get("name") or "").strip() or yml.stem
             when_current_screen = str(raw.get("when_current_screen") or "").strip().lower()
-            scope = str(raw.get("scope") or "player").strip().lower()
             if not task_type:
                 # One file per cron job: default queue type is the YAML stem (e.g. `check_main_city.yaml`
-                # → `check_main_city`). Override with explicit `task:` when needed (e.g. `page_detect`).
+                # → `check_main_city`). Override with explicit `task:` when it must differ from the stem.
                 task_type = yml.stem
             if not expr or not task_type:
                 continue
@@ -238,11 +237,10 @@ class SchedulerRunner:
                     else:
                         if current_screen.lower() != when_current_screen:
                             continue
-                _pids = player_ids_for_device_candidates(
+                player_ids = player_ids_for_device_candidates(
                     inst.bluestacks_window_title,
                     inst.instance_id,
                 )
-                player_ids = _pids[:1] if scope == "instance" else _pids
                 for player_id in player_ids:
                     if interval_s is not None:
                         await self._ensure_interval_cron_item(

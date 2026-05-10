@@ -95,6 +95,7 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "match",
     "while_match",
     "repeat",
+    "loop",
     "push_scenario",
     "swipe_direction",
     "ocr",
@@ -263,7 +264,10 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
 
 
 async def _dsl_cond_allows_step(
-    step: dict[str, Any], instance_id: str, redis_async: Any | None
+    step: dict[str, Any],
+    instance_id: str,
+    redis_async: Any | None,
+    state_flat: dict[str, Any] | None = None,
 ) -> bool:
     raw = step.get("cond")
     if raw is None or isinstance(raw, bool):
@@ -276,6 +280,15 @@ async def _dsl_cond_allows_step(
         return _eval_simple_screen_cond(s, cur)
     if _COND_TEXT_RE.match(s):
         return await _eval_instance_text_cond(s, instance_id, redis_async)
+    # Fallback: arithmetic / boolean expression evaluated against the player's
+    # flat state dict. Lets scenarios gate on resource thresholds and computed
+    # comparisons (e.g. ``squad_settings.myPower * 1.2 >= squad_settings.enemyPower``).
+    # ``eval_cond`` swallows runtime errors and returns ``False`` so a stale or
+    # broken expression cannot crash the worker — the scenario simply skips.
+    if state_flat is not None:
+        from layout.area_versions import eval_cond as _eval_state_expr
+
+        return _eval_state_expr(s, state_flat)
     logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", s)
     return False
 

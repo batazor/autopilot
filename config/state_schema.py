@@ -53,6 +53,22 @@ class Exploration(BaseModel):
     isNotify: bool = False
 
 
+class SquadSettings(BaseModel):
+    """Squad upgrade screen reachable from exploration → squad_settings.
+
+    Populated on each ``squad_fight`` cron run by OCR'ing the squad screen:
+
+    - ``level`` — squad upgrade tier (drives gear/march/heal-rate scaling).
+    - ``myPower`` / ``enemyPower`` — power readings for the matchup card,
+      used by the scenario's root ``cond`` to skip overmatched fights
+      (``squad_settings.myPower * 1.2 >= squad_settings.enemyPower``).
+    """
+
+    level: int = 0
+    myPower: int = 0
+    enemyPower: int = 0
+
+
 class Heroes(BaseModel):
     isnotify: bool = False
     entries: dict[str, object] = Field(default_factory=dict)
@@ -282,6 +298,7 @@ class GamerState(BaseModel):
     vip: VIP = Field(default_factory=VIP)
     resources: Resources = Field(default_factory=Resources)
     exploration: Exploration = Field(default_factory=Exploration)
+    squad_settings: SquadSettings = Field(default_factory=SquadSettings)
     heroes: Heroes = Field(default_factory=Heroes)
     messages: Messages = Field(default_factory=Messages)
     alliance: Alliance = Field(default_factory=Alliance)

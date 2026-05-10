@@ -195,56 +195,30 @@ class RedisQueue:
         - Device-level pushes (``player_id=""``) match any player on the same
           instance, so one queued item blocks re-pushing for all players.
         - Player-specific pushes match only the same ``player_id``.
-        """
-        idx_region = None if ignore_region else region
-        # Fast path via index.
-        if instance_id:
-            try:
-                # Device-level items (player_id="") block all players on instance.
-                key_dev = _dup_index_key(
-                    instance_id=instance_id,
-                    player_id="",
-                    task_type=task_type,
-                    region=idx_region,
-                )
-                if int(await self._redis.scard(key_dev)) > 0:
-                    # Self-heal: index may be stale (e.g. queue item removed but idx not cleaned).
-                    if await self._scan_queue_for_duplicate(
-                        player_id="",
-                        task_type=task_type,
-                        region=region,
-                        instance_id=instance_id,
-                        ignore_region=ignore_region,
-                    ):
-                        return True
-                    with suppress(Exception):
-                        await self._redis.delete(key_dev)
-                if player_id:
-                    key_p = _dup_index_key(
-                        instance_id=instance_id,
-                        player_id=player_id,
-                        task_type=task_type,
-                        region=idx_region,
-                    )
-                    if int(await self._redis.scard(key_p)) > 0:
-                        if await self._scan_queue_for_duplicate(
-                            player_id=player_id,
-                            task_type=task_type,
-                            region=region,
-                            instance_id=instance_id,
-                            ignore_region=ignore_region,
-                        ):
-                            return True
-                        with suppress(Exception):
-                            await self._redis.delete(key_p)
-                        return False
-                    return False
-                # caller is device-level; checked key_dev above
-                return False
-            except Exception:
-                logger.debug("queue idx: scard failed; falling back to scan", exc_info=True)
 
-        # Fallback: scan the queue ZSET.
+        Always scans the queue ZSET — the previous index-based fast path stored
+        full payloads (with random ``task_id`` and varying ``run_at``), so two
+        ``SADD`` calls for the same logical task produced two different members
+        instead of one. The index also went silently stale on ``WRONGTYPE`` /
+        suppressed errors and let duplicates through. The scan is O(N) over the
+        per-instance queue which is small (tens of items) — correctness over
+        a microsecond fast path.
+        """
+        device_level_seen = False
+        if instance_id and player_id:
+            # Device-level enqueue (player_id="") blocks all players for the same
+            # task_type on this instance; check that first so a player-bound
+            # caller still respects an in-flight device-level push.
+            device_level_seen = await self._scan_queue_for_duplicate(
+                player_id="",
+                task_type=task_type,
+                region=region,
+                instance_id=instance_id,
+                ignore_region=ignore_region,
+            )
+            if device_level_seen:
+                return True
+
         return await self._scan_queue_for_duplicate(
             player_id=player_id,
             task_type=task_type,

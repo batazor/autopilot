@@ -25,6 +25,7 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "exec",
     "wait",
     "repeat",
+    "loop",
     "if",
     "break",
     "action",
@@ -56,6 +57,7 @@ class DslStep(BaseModel):
     push_scenario: str | dict[str, Any] | None = None
     swipe_direction: dict[str, Any] | None = None
     repeat: dict[str, Any] | int | None = None
+    loop: dict[str, Any] | None = None
 
     if_: str | None = Field(default=None, alias="if")
     break_: str | None = Field(default=None, alias="break")

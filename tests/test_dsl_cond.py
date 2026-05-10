@@ -118,3 +118,49 @@ async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: o
     }
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_cond_arithmetic_against_player_state_truthy(redis_async: object) -> None:
+    """Non-regex cond falls back to ``eval_cond`` against the supplied player state."""
+    state_flat = {
+        "squad_settings.myPower": 1000,
+        "squad_settings.enemyPower": 800,
+    }
+    step = {
+        "push_scenario": {"name": "x"},
+        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+    }
+    # 1000 * 1.2 = 1200 >= 800 → True.
+    allowed = await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
+        step, "bs1", redis_async, state_flat=state_flat
+    )
+    assert allowed is True
+
+
+@pytest.mark.asyncio
+async def test_cond_arithmetic_against_player_state_falsy(redis_async: object) -> None:
+    state_flat = {
+        "squad_settings.myPower": 100,
+        "squad_settings.enemyPower": 999,
+    }
+    step = {
+        "push_scenario": {"name": "x"},
+        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+    }
+    # 100 * 1.2 = 120 >= 999 → False.
+    allowed = await dsl._dsl_cond_allows_step(  # type: ignore[arg-type]
+        step, "bs1", redis_async, state_flat=state_flat
+    )
+    assert allowed is False
+
+
+@pytest.mark.asyncio
+async def test_cond_arithmetic_without_state_flat_skips(redis_async: object) -> None:
+    """Without ``state_flat`` the arithmetic cond can't be evaluated → step skipped."""
+    step = {
+        "push_scenario": {"name": "x"},
+        "cond": "squad_settings.myPower * 1.2 >= squad_settings.enemyPower",
+    }
+    allowed = await dsl._dsl_cond_allows_step(step, "bs1", redis_async)  # type: ignore[arg-type]
+    assert allowed is False

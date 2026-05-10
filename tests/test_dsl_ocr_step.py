@@ -661,3 +661,189 @@ async def test_ocr_chief_profile_player_id_against_real_service() -> None:
         f"OCR confidence too low for `player_id`: {result.confidence:.4f} "
         f"(text={result.text!r})"
     )
+
+
+@pytest.mark.asyncio
+async def test_ocr_step_to_state_true_syncs_to_state_store(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """``to_state: true`` mirrors the parsed OCR value into ``db/state.yaml`` via state_store."""
+    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
+    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "Check squad",
+                "steps": [
+                    {
+                        "ocr": "squad_settings.level",
+                        "type": "integer",
+                        "scope": "player",
+                        "to_state": True,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 44,
+                        "screen_id": "squad_settings",
+                        "ocr": "references/squad_settings.png",
+                        "regions": [
+                            {
+                                "name": "squad_settings.level",
+                                "action": "text",
+                                "type": "string",
+                                "threshold": 0.5,
+                                "bbox": {
+                                    "x": 25.0,
+                                    "y": 50.0,
+                                    "width": 50.0,
+                                    "height": 10.0,
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+
+    captured: dict[str, Any] = {"flat": None, "player_id": None}
+
+    class _FakeStore:
+        def get_or_create(self, player_id: str, nickname: str = "") -> Any:
+            captured["player_id"] = player_id
+            return self
+
+        def update_from_flat(self, flat: dict[str, Any]) -> None:
+            captured["flat"] = dict(flat)
+
+    class _StubOcrClient:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+            return OCRResult(region_id="r0", text="Lv. 12", confidence=0.97)
+
+    import ocr.client as ocr_client_module
+    import config.state_store as state_store_module
+
+    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+
+    task = dsl.DslScenarioTask(
+        task_id="t-squad",
+        player_id="player_42",
+        scenario_key="check_squad",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert captured["player_id"] == "player_42"
+    assert captured["flat"] == {"squad_settings.level": 12}
+
+    # Redis hash still holds the string; state_store path is the typed sync.
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    assert final["squad_settings.level"] == "12"
+
+
+@pytest.mark.asyncio
+async def test_ocr_step_to_state_false_skips_state_store(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """Without ``to_state: true`` the state_store is never touched (Redis-only path)."""
+    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
+    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "Check squad",
+                "steps": [
+                    {
+                        "ocr": "squad_settings.level",
+                        "type": "integer",
+                        "scope": "player",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 44,
+                        "screen_id": "squad_settings",
+                        "ocr": "references/squad_settings.png",
+                        "regions": [
+                            {
+                                "name": "squad_settings.level",
+                                "action": "text",
+                                "type": "string",
+                                "threshold": 0.5,
+                                "bbox": {
+                                    "x": 25.0,
+                                    "y": 50.0,
+                                    "width": 50.0,
+                                    "height": 10.0,
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+
+    state_store_called = False
+
+    class _FakeStore:
+        def get_or_create(self, *_a: Any, **_kw: Any) -> Any:
+            nonlocal state_store_called
+            state_store_called = True
+            return self
+
+        def update_from_flat(self, *_a: Any, **_kw: Any) -> None:
+            nonlocal state_store_called
+            state_store_called = True
+
+    class _StubOcrClient:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+            return OCRResult(region_id="r0", text="7", confidence=0.97)
+
+    import ocr.client as ocr_client_module
+    import config.state_store as state_store_module
+
+    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+
+    task = dsl.DslScenarioTask(
+        task_id="t-squad-nofs",
+        player_id="player_42",
+        scenario_key="check_squad",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert state_store_called is False

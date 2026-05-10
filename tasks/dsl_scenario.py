@@ -389,6 +389,7 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
         dev_h: int,
         scenario_key: str,
         region: str,
+        step: dict[str, Any] | None = None,
     ) -> TaskResult | None:
         pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
@@ -404,13 +405,18 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
             self._last_match_region == region and self._last_match_row is not None
         )
         if not already_matched and self._region_has_search_companion(area_doc, region):
+            # Forward optional gating from the click step so users can write
+            # ``click: foo / threshold: 0.95 / min_match_saturation: 40`` and have
+            # the implicit search honor those constraints. ``isRedDot`` and other
+            # match-only filters are not meaningful for a tap, but pass-through is
+            # cheap (the engine ignores unknown keys).
             await self._match_region(
                 actions=actions,
                 area_doc=area_doc,
                 repo_root=repo_root,
                 instance_id=instance_id,
                 scenario_key=scenario_key,
-                step={},
+                step=step or {},
                 region=region,
             )
             self._implicit_match_for_region = region
@@ -585,6 +591,7 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                     dev_h=dev_h,
                     scenario_key=scenario_key,
                     region=region,
+                    step=step,
                 )
                 if result is not None:
                     return result
@@ -680,6 +687,89 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                                 return None
                 except _BreakRepeat:
                     return None
+            return None
+        if "loop" in step:
+            spec = step.get("loop")
+            if not isinstance(spec, dict):
+                return None
+            inner_steps = spec.get("steps")
+            if not isinstance(inner_steps, list) or not inner_steps:
+                return None
+
+            cond_expr_raw = spec.get("cond")
+            cond_expr = (
+                str(cond_expr_raw).strip()
+                if cond_expr_raw is not None and not isinstance(cond_expr_raw, bool)
+                else None
+            ) or None
+            until_cond_raw = spec.get("until_cond")
+            until_cond = (
+                str(until_cond_raw).strip()
+                if until_cond_raw is not None and not isinstance(until_cond_raw, bool)
+                else None
+            ) or None
+
+            try:
+                max_iters = int(spec.get("max", 100))
+            except (TypeError, ValueError):
+                max_iters = 100
+            max_iters = max(0, max_iters)
+
+            ttl_raw = spec.get("ttl")
+            ttl_s = _parse_wait_seconds(ttl_raw) if ttl_raw is not None else 0.0
+            deadline = (time.monotonic() + ttl_s) if ttl_s > 0 else None
+
+            try:
+                for _ in range(max_iters):
+                    if deadline is not None and time.monotonic() >= deadline:
+                        break
+                    # ``cond`` continues while True; ``until_cond`` continues
+                    # while False — both are re-evaluated each iteration so
+                    # inner OCR / exec steps can flip state and exit the loop.
+                    if cond_expr is not None and not await _dsl_cond_allows_step(
+                        {"cond": cond_expr},
+                        instance_id,
+                        self.redis_client,
+                        state_flat=self._state_flat(),
+                    ):
+                        break
+                    if until_cond is not None and await _dsl_cond_allows_step(
+                        {"cond": until_cond},
+                        instance_id,
+                        self.redis_client,
+                        state_flat=self._state_flat(),
+                    ):
+                        break
+
+                    for inner in inner_steps:
+                        if not isinstance(inner, dict):
+                            continue
+                        # Step-level ``cond:`` is evaluated here so individual
+                        # inner steps can be conditionally skipped without
+                        # blocking the whole loop.
+                        if not await _dsl_cond_allows_step(
+                            inner,
+                            instance_id,
+                            self.redis_client,
+                            state_flat=self._state_flat(),
+                        ):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=scenario_key,
+                        )
+                        if result is not None:
+                            return result
+            except _BreakRepeat:
+                # ``break: repeat`` doubles as "exit loop" — keeps the existing
+                # break primitive working without inventing a separate keyword.
+                return None
             return None
         if "while_match" in step:
             reg = str(step.get("while_match") or "").strip()
@@ -813,7 +903,39 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                     skip_if_duplicate=skip_dup,
                 )
             return None
-        logger.warning("dsl_scenario: unsupported nested while_match step: %s", step)
+        if "exec" in step:
+            name = str(step.get("exec") or "").strip()
+            if name:
+                await self._run_exec_step(name, instance_id)
+            return None
+        if "ocr" in step:
+            region = str(step.get("ocr") or "").strip()
+            if region:
+                await self._ocr_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    instance_id=instance_id,
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    scenario_key=scenario_key,
+                    step=step,
+                    region=region,
+                )
+            return None
+        if "match" in step:
+            region = str(step.get("match") or "").strip()
+            if region:
+                await self._match_region(
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    scenario_key=scenario_key,
+                    step=step,
+                    region=region,
+                )
+            return None
+        logger.warning("dsl_scenario: unsupported nested step: %s", step)
         return None
 
     async def execute(self, instance_id: str) -> TaskResult:
@@ -903,7 +1025,10 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
             cond_s = str(raw_root_cond).strip()
             if cond_s:
                 if not await _dsl_cond_allows_step(
-                    {"cond": raw_root_cond}, instance_id, self.redis_client
+                    {"cond": raw_root_cond},
+                    instance_id,
+                    self.redis_client,
+                    state_flat=self._state_flat(),
                 ):
                     await self._clear_step_context(instance_id)
                     logger.debug(
@@ -1048,7 +1173,12 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
             if not isinstance(step, dict):
                 _trace_row(_resumable_step, step, "skipped_invalid")
                 continue
-            if not await _dsl_cond_allows_step(step, instance_id, self.redis_client):
+            if not await _dsl_cond_allows_step(
+                step,
+                instance_id,
+                self.redis_client,
+                state_flat=self._state_flat(),
+            ):
                 logger.debug("dsl_scenario: step skipped by cond (%s)", step.get("cond"))
                 _trace_row(_resumable_step, step, "skipped_cond")
                 continue
@@ -1062,7 +1192,12 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                 for inner in grouped:
                     if not isinstance(inner, dict):
                         continue
-                    if not await _dsl_cond_allows_step(inner, instance_id, self.redis_client):
+                    if not await _dsl_cond_allows_step(
+                        inner,
+                        instance_id,
+                        self.redis_client,
+                        state_flat=self._state_flat(),
+                    ):
                         logger.debug(
                             "dsl_scenario: grouped step skipped by cond (%s)",
                             inner.get("cond"),
@@ -1436,6 +1571,37 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                         break
                 _trace_row(_resumable_step, step, "ok")
                 continue
+            if "loop" in step:
+                # Delegate to the inline implementation: loop guards (`cond` /
+                # `until_cond` / `ttl`) are re-evaluated each iteration there
+                # and inner steps go through the same `_run_inline_step` path
+                # that the rest of the DSL uses.
+                await self._write_step_context(instance_id, scenario=key)
+                result = await self._run_inline_step(
+                    step,
+                    actions=actions,
+                    area_doc=area_doc,
+                    repo_root=repo_root,
+                    instance_id=instance_id,
+                    dev_w=dev_w,
+                    dev_h=dev_h,
+                    scenario_key=key,
+                )
+                if result is not None:
+                    md = dict(result.metadata or {})
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                    )
+                    return TaskResult(
+                        success=result.success,
+                        next_run_at=result.next_run_at,
+                        metadata=_fin(md, completed=False),
+                    )
+                _trace_row(_resumable_step, step, "ok")
+                continue
             if "push_scenario" in step:
                 await self._write_step_context(instance_id, scenario=key)
                 spec = step.get("push_scenario")
@@ -1520,7 +1686,10 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                             break
                         step_index += 1
                         if not await _dsl_cond_allows_step(
-                            next_step, instance_id, self.redis_client
+                            next_step,
+                            instance_id,
+                            self.redis_client,
+                            state_flat=self._state_flat(),
                         ):
                             logger.debug(
                                 "dsl_scenario: step skipped by cond (%s)",
@@ -1678,6 +1847,7 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                         dev_h=dev_h,
                         scenario_key=key,
                         region=reg,
+                        step=step,
                     )
                     if result is not None:
                         md = dict(result.metadata or {})

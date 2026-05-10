@@ -31,6 +31,7 @@ class ScreenName(StrEnum):
     GATHERING = "gathering"
     ALLIANCE = "alliance"
     EXPLORATION = "exploration"
+    SQUAD_SETTINGS = "squad_settings"
     CHAT = "chat"
     MAIL = "mail"
     CHIEF_PROFILE = "chief_profile"
@@ -209,6 +210,7 @@ class ScreenDetector:
             cases = rule.get("cases")
             if not isinstance(cases, dict):
                 continue
+            text_lc = str(result.text or "").strip().lower()
             for screen_s, candidates_raw in cases.items():
                 try:
                     screen = ScreenName(str(screen_s))
@@ -219,6 +221,15 @@ class ScreenDetector:
                     if isinstance(candidates_raw, list)
                     else []
                 )
+                if not candidates:
+                    continue
+                # Substring contains first — mirrors ``Navigator._verify_ocr_rule``
+                # so a candidate ``squad`` finds itself inside ``"Settings Squad"``
+                # without being rejected by ``fuzz.ratio``'s length penalty.
+                if any(c.lower() in text_lc for c in candidates):
+                    return screen
+                # Fuzzy fallback for OCR noise / case-mangled titles where the
+                # candidate is approximately the entire title.
                 if match(result.text, candidates, threshold=threshold):
                     return screen
         return ScreenName.UNKNOWN

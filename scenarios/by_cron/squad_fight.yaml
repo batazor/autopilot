@@ -1,0 +1,63 @@
+name: Squad fight
+enabled: true
+
+# 12-hour cadence: kicks off the redeploy loop. The scenario re-pushes itself
+# after every Victory, so a single cron tick can trigger many fights — the
+# chain only ends once the squad finally loses.
+cron: "0 */12 * * *"
+priority: 12
+
+# Navigator BFS: main_city → exploration → squad_settings (see edge_taps.yaml).
+node: squad_settings
+
+cond: "squad_settings.myPower * 1.2 >= squad_settings.enemyPower"
+
+steps:
+  # OCR the squad level + matchup powers. ``to_state: true`` mirrors each
+  # integer into ``db/state.yaml`` so the *next* run's root ``cond`` —
+  # ``squad_settings.myPower * 1.2 >= squad_settings.enemyPower`` — sees this
+  # fight's readings (the cond runs before any OCR, so it gates on the
+  # *previous* matchup; on the very first run all three default to 0 and the
+  # cond passes trivially).
+  - ocr: squad_settings.level
+    type: integer
+    to_state: true
+  - ocr: squad_settings.myPower
+    type: integer
+    to_state: true
+  - ocr: squad_settings.enemyPower
+    type: integer
+    to_state: true
+
+  # Re-deploy the squad and start a fight.
+  - click: squad_settings.quick_deploy
+  - wait: 500ms
+  - click: squad_settings.fight
+
+  # Initial wait so the fight animation has time to land before we start
+  # polling the status banner.
+  - wait: 6s
+
+  # Poll OCR'ing the status banner each iteration; exit once the text contains
+  # ``victory`` or ``defeat`` (case-insensitive). ``threshold: 0.0`` accepts
+  # low-confidence reads so an empty / mid-animation OCR still writes
+  # ``squad_status`` and the loop's ``until_cond`` re-checks each tick. ``ttl``
+  # is the wall-clock budget; ``max`` is the iteration cap — whichever fires
+  # first stops the loop so a stuck banner can't lock the worker.
+  - loop:
+      until_cond: 'squad_status ~= "victory|defeat"'
+      ttl: 60s
+      max: 30
+      steps:
+        - ocr: page.squad_settings.status
+          store: squad_status
+        - wait: 2s
+
+  # Won → tap `next` to dismiss the banner / start the next fight, then re-push
+  # ourselves so the scheduler picks up the next iteration. Lost → fall through
+  # and end (no push, no further taps). The ``~=`` operator is a case-insensitive
+  # substring match, so "Victory!", "VICTORY", and "victory" all hit.
+  - cond: squad_status ~= "victory"
+    steps:
+      - click: page.squad_settings.next
+      - push_scenario: squad_fight
