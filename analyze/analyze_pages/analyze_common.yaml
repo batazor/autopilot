@@ -224,3 +224,11 @@ overlay:
   pushScenario:
     - name: event.snowstorm
       priority: 70_000
+
+- name: big_claim_button.visible
+  region: big_claim_button
+  action: findIcon
+  threshold: 0.9
+  pushScenario:
+    - name: big_claim_button
+      priority: 70_000

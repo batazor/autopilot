@@ -52,6 +52,15 @@ overlay:
         priority: 80000
         ttl: 5m
 
+  - name: main_city.to.exploration.has_reward
+    region: main_city.to.exploration
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: claim_exploration_rewards
+        ttl: 1m
+
   - name: chapter.task.present
     region: chapter.task
     action: text

@@ -20,3 +20,8 @@ def test_survivor_status_routes_main_city() -> None:
     assert route_taps("survivor_status", "main_city") == [
         ["from.survivor_status.to.main_city"]
     ]
+
+
+def test_exploration_routes_squad_settings() -> None:
+    assert route_taps("exploration", "squad_settings") == [["exploration.to.squad_settings"]]
+    assert route_taps("squad_settings", "exploration") == [["back_button"]]

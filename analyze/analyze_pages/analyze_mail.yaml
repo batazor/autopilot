@@ -10,8 +10,3 @@ overlay:
     pushScenario:
       - name: read_mail_gifts
         priority: 80_000
-
-  - name: big_claim_button.visible
-    region: big_claim_button
-    action: findIcon
-    threshold: 0.9

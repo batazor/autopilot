@@ -273,6 +273,32 @@ def _walk_steps(
         )
 
 
+def duplicate_scenario_names(scenarios_root: Path) -> dict[str, list[str]]:
+    """Map ``name:`` value → list of relative file paths that share it.
+
+    Skips ``drafts/`` and unparseable / unnamed YAMLs. Used by both the worker
+    startup validator and the UI editor so the rules can't drift.
+    """
+    by_name: dict[str, list[str]] = {}
+    if not scenarios_root.is_dir():
+        return {}
+    for path in sorted(scenarios_root.rglob("*.yaml")):
+        rel = path.relative_to(scenarios_root).as_posix()
+        if rel.startswith("drafts/"):
+            continue
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        if not name:
+            continue
+        by_name.setdefault(name, []).append(rel)
+    return {n: rels for n, rels in by_name.items() if len(rels) > 1}
+
+
 def _validate_scenarios(
     repo_root: Path,
     issues: list[StartupValidationIssue],
@@ -291,6 +317,16 @@ def _validate_scenarios(
         )
         return
 
+    for name, rels in duplicate_scenario_names(scenarios_root).items():
+        joined = ", ".join(rels)
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                "scenarios:names",
+                f"duplicate scenario name {name!r} in: {joined}",
+            )
+        )
+
     for path in sorted(scenarios_root.rglob("*.yaml")):
         rel = path.relative_to(scenarios_root).as_posix()
         if rel.startswith("drafts/"):
@@ -306,6 +342,14 @@ def _validate_scenarios(
                 )
             )
             continue
+        if not str(doc.get("name") or "").strip():
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    source,
+                    "scenario `name` is empty or missing",
+                )
+            )
         _walk_steps(
             doc.get("steps"),
             source=source,

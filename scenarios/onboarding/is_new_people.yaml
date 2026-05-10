@@ -1,5 +1,8 @@
 enabled: true
 name: "New People"
+
+node: main_city
+
 # Tutorial-style indicator click — purely UI, no player identity needed.
 device_level: true
 
@@ -7,4 +10,4 @@ steps:
   - click: isNewPeople
   - wait: 3s
   - click: welcome_in
-
+  - wait: 1s

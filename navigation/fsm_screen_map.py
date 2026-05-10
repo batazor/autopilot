@@ -106,7 +106,8 @@ _MAIN_CITY_HUB_RAW: Final[dict[str, set[str]]] = {
     "survivor_status": {"main_city"},
     "suggestion_box": {"main_city"},
     "hero.recrutment": {"main_city"},
-    "exploration": {"main_city"},
+    "exploration": {"main_city", "squad_settings"},
+    "squad_settings": {"exploration"},
 }
 
 TUNDRA_ADVENTURE_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TUNDRA_RAW)

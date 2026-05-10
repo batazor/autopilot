@@ -21,6 +21,7 @@ import yaml
 from pydantic import ValidationError
 from st_ant_tree import st_ant_tree
 
+from config.startup_validation import duplicate_scenario_names
 from navigation.screen_graph import screen_verify_screen_names
 from scenarios.dsl_schema import DSL_ACTION_KEYS, dump_scenario, parse_scenario
 from tasks.dsl_exec import DSL_EXEC_REGISTRY
@@ -498,11 +499,38 @@ def _render_steps_list(
         st.rerun()
 
 
-def _render_header_form(doc: dict[str, Any]) -> None:
+def _name_collisions(current_rel: str, current_name: str) -> list[str]:
+    """Other scenario rel-paths whose ``name:`` equals ``current_name``.
+
+    Disk-backed: reads sibling files. Excludes ``current_rel`` itself so a
+    user who hasn't yet saved a rename doesn't collide with their own draft.
+    """
+    nm = (current_name or "").strip()
+    if not nm:
+        return []
+    dups = duplicate_scenario_names(_scenarios_root())
+    others: list[str] = []
+    for rel in dups.get(nm, []):
+        if rel != current_rel:
+            others.append(rel)
+    return others
+
+
+def _render_header_form(doc: dict[str, Any], current_rel: str) -> None:
     nodes = _fsm_nodes()
     c1, c2 = st.columns([3, 2])
     with c1:
         doc["name"] = st.text_input("name", value=str(doc.get("name") or ""), key="es::name")
+        if not str(doc["name"]).strip():
+            st.error("Scenario `name` is required.")
+        else:
+            collisions = _name_collisions(current_rel, doc["name"])
+            if collisions:
+                joined = ", ".join(f"`{p}`" for p in collisions)
+                st.error(
+                    f"Duplicate scenario name — also used by: {joined}. "
+                    "Rename here or in the other file before saving."
+                )
     with c2:
         doc["node"] = _select_with_freetext(
             "node (FSM target before steps)",
@@ -725,7 +753,7 @@ if doc_key not in st.session_state:
         st.stop()
 doc: dict[str, Any] = st.session_state[doc_key]
 
-_render_header_form(doc)
+_render_header_form(doc, chosen)
 
 st.markdown("### Steps")
 if not isinstance(doc.get("steps"), list):
@@ -735,9 +763,12 @@ _render_steps_list(doc["steps"], (), 0)
 st.divider()
 
 ok, err = _validate(doc)
+name_value = str(doc.get("name") or "").strip()
+name_collisions = _name_collisions(chosen, name_value)
+save_disabled = (not ok) or (not name_value) or bool(name_collisions)
 save_l, save_r = st.columns([1, 5])
 with save_l:
-    if st.button("Save", type="primary", disabled=not ok, key="es::save", width="stretch"):
+    if st.button("Save", type="primary", disabled=save_disabled, key="es::save", width="stretch"):
         try:
             _save_doc(selected_path, doc)
             st.session_state.pop(doc_key, None)

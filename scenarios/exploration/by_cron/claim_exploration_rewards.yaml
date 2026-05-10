@@ -1,8 +1,13 @@
 enabled: true
 name: Claim Exploration Rewards
 
+node: exploration
+
 cron: "0 */4 * * *"
+ttl: 4h
+
 priority: 52
 
 steps:
   - click: button.claim
+  - wait: 1s

@@ -33,3 +33,6 @@ edges:
     main_city: [back_button]
   exploration:
     main_city: [back_button]
+    squad_settings: [exploration.to.squad_settings]
+  squad_settings:
+    exploration: [back_button]

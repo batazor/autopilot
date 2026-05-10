@@ -55,6 +55,43 @@ class Navigator:
         self._area_doc = json.loads((self._repo_root / "area.json").read_text(encoding="utf-8"))
         return self._area_doc
 
+    async def _active_player_state_flat(
+        self, instance_id: str
+    ) -> dict[str, Any] | None:
+        """Per-instance flat state dict so version-aware region lookups resolve overrides.
+
+        Without this, ``screen_region_by_name`` only sees the base ``regions[]`` list,
+        and any version-only region (e.g. ``main_city.to.exploration`` that lives
+        only in ``versions[v2].regions[]``) would be reported as unknown.
+        """
+        if self._redis is None:
+            return None
+        try:
+            row = await self._redis.hgetall(self._state_key(instance_id))
+        except Exception:
+            return None
+        if not row:
+            return None
+        decoded = {
+            (k.decode() if isinstance(k, bytes) else str(k)):
+                (v.decode() if isinstance(v, bytes) else str(v))
+            for k, v in row.items()
+        }
+        active = decoded.get("active_player", "").strip()
+        if not active:
+            return None
+        try:
+            from config.state_store import get_state_store
+
+            return get_state_store().get_or_create(active).to_flat_dict()
+        except Exception:
+            logger.debug(
+                "Navigator: state_flat lookup failed for player=%s",
+                active,
+                exc_info=True,
+            )
+            return None
+
     def _tap_region_name(
         self,
         instance_id: str,
@@ -64,13 +101,13 @@ class Navigator:
         dev_h: int,
         from_screen: str | None = None,
         to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
     ) -> bool:
         area_doc = self._load_area_doc()
         tap_variant = f"{region_name}_tap"
-        pair = screen_region_by_name(area_doc, tap_variant) or screen_region_by_name(
-            area_doc,
-            region_name,
-        )
+        pair = screen_region_by_name(
+            area_doc, tap_variant, state_flat=state_flat
+        ) or screen_region_by_name(area_doc, region_name, state_flat=state_flat)
         if pair is None:
             logger.warning("Navigator: unknown region %r in area.json", region_name)
             return False
@@ -128,7 +165,13 @@ class Navigator:
         except Exception:
             logger.debug("Navigator: failed to write current_screen to Redis", exc_info=True)
 
-    async def _verify_match_rule(self, image: np.ndarray, rule: dict[str, object]) -> bool:
+    async def _verify_match_rule(
+        self,
+        image: np.ndarray,
+        rule: dict[str, object],
+        *,
+        state_flat: dict[str, Any] | None = None,
+    ) -> bool:
         region = str(rule.get("match") or "").strip()
         if not region:
             return False
@@ -152,6 +195,7 @@ class Navigator:
                 self._load_area_doc(),
                 self._repo_root,
                 [overlay_rule],
+                state_flat=state_flat,
             )
         except Exception:
             logger.debug("Navigator: match verify failed for %s", region, exc_info=True)
@@ -159,11 +203,17 @@ class Navigator:
         row = out.get(str(overlay_rule["name"]))
         return bool(isinstance(row, dict) and row.get("matched"))
 
-    async def _verify_ocr_rule(self, image: np.ndarray, rule: dict[str, object]) -> bool:
+    async def _verify_ocr_rule(
+        self,
+        image: np.ndarray,
+        rule: dict[str, object],
+        *,
+        state_flat: dict[str, Any] | None = None,
+    ) -> bool:
         region = str(rule.get("ocr") or "").strip()
         if not region:
             return False
-        pair = screen_region_by_name(self._load_area_doc(), region)
+        pair = screen_region_by_name(self._load_area_doc(), region, state_flat=state_flat)
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning("Navigator: OCR verify region %r not found", region)
             return False
@@ -212,11 +262,17 @@ class Navigator:
             threshold = 0.8
         return fuzzy_match(text, candidates, threshold=threshold) is not None
 
-    async def _verify_rule(self, image: np.ndarray, rule: dict[str, object]) -> bool:
+    async def _verify_rule(
+        self,
+        image: np.ndarray,
+        rule: dict[str, object],
+        *,
+        state_flat: dict[str, Any] | None = None,
+    ) -> bool:
         if "match" in rule:
-            return await self._verify_match_rule(image, rule)
+            return await self._verify_match_rule(image, rule, state_flat=state_flat)
         if "ocr" in rule:
-            return await self._verify_ocr_rule(image, rule)
+            return await self._verify_ocr_rule(image, rule, state_flat=state_flat)
         return False
 
     async def _ui_back_button_visible(self, image: np.ndarray) -> bool:
@@ -229,13 +285,14 @@ class Navigator:
     async def _wait_for_screen_verified(self, instance_id: str, target: str) -> bool:
         attempts, interval_seconds = screen_verify_retry(target)
         rules = screen_verify_rules(target)
+        state_flat = await self._active_player_state_flat(instance_id)
         for attempt in range(1, attempts + 1):
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             detected = await self._detector.detect_screen(image)
             if str(detected) == target:
                 return True
             for rule in rules:
-                if await self._verify_rule(image, rule):
+                if await self._verify_rule(image, rule, state_flat=state_flat):
                     return True
             logger.debug(
                 "Navigator: screen %s not verified on %s attempt %d/%d",
@@ -260,6 +317,7 @@ class Navigator:
             0.0,
             float(interval_seconds if interval_seconds is not None else default_interval),
         )
+        state_flat = await self._active_player_state_flat(instance_id)
         for attempt in range(1, attempts_i + 1):
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             detected = await self._detector.detect_screen(image)
@@ -268,7 +326,7 @@ class Navigator:
                 return str(detected)
             for screen in screen_verify_screen_names():
                 for rule in screen_verify_rules(screen):
-                    if await self._verify_rule(image, rule):
+                    if await self._verify_rule(image, rule, state_flat=state_flat):
                         await self._write_screen(instance_id, screen)
                         return screen
             logger.debug(
@@ -283,6 +341,7 @@ class Navigator:
 
     async def navigate_to(self, target: ScreenName, instance_id: str) -> bool:
         for attempt in range(10):
+            state_flat = await self._active_player_state_flat(instance_id)
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             current = await self._detector.detect_screen(image)
 
@@ -301,7 +360,11 @@ class Navigator:
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
                 if await self._ui_back_button_visible(img):
                     if not self._tap_region_name(
-                        instance_id, "back_button", dev_w=dev_w, dev_h=dev_h
+                        instance_id,
+                        "back_button",
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        state_flat=state_flat,
                     ):
                         logger.warning(
                             "Unknown screen: back_button matched but tap region missing on %s",
@@ -339,7 +402,11 @@ class Navigator:
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
                     if await self._ui_back_button_visible(img2):
                         self._tap_region_name(
-                            instance_id, "back_button", dev_w=dev_w2, dev_h=dev_h2
+                            instance_id,
+                            "back_button",
+                            dev_w=dev_w2,
+                            dev_h=dev_h2,
+                            state_flat=state_flat,
                         )
                     else:
                         logger.warning(
@@ -394,6 +461,7 @@ class Navigator:
         img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
         dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
         src_screen = str(from_screen or "")
+        state_flat = await self._active_player_state_flat(instance_id)
         for dst_screen, taps in hop_sequences:
             for point in taps:
                 # Tap steps are always region names (strings).
@@ -404,6 +472,7 @@ class Navigator:
                     dev_h=dev_h,
                     from_screen=src_screen,
                     to_screen=str(dst_screen),
+                    state_flat=state_flat,
                 ):
                     logger.info(
                         "Navigator: navigation tap not executed (rejected, blocked, or bad region) "

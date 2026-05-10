@@ -693,7 +693,8 @@
                 "rotation": 0.0,
                 "original_width": 720,
                 "original_height": 1280
-              }
+              },
+              "has_red_dot": true
             }
           ]
         }
@@ -774,7 +775,7 @@
       "regions": [
         {
           "name": "big_claim_button",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -796,7 +797,7 @@
             "x": 10.193050193050192,
             "y": 48.369565217391305,
             "width": 82.33783783783784,
-            "height": 38.565000000000005,
+            "height": 38.56521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1266,10 +1267,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 87.08301158301158,
-            "y": 58.68586956521739,
-            "width": 5.600386100386101,
-            "height": 2.8,
+            "x": 85.34555984555985,
+            "y": 57.707608695652176,
+            "width": 8.625482625482626,
+            "height": 4.569565217391304,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1281,10 +1282,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 84.76640926640927,
-            "y": 46.72934782608696,
-            "width": 9.913127413127413,
-            "height": 42.084782608695654,
+            "x": 84.57335907335907,
+            "y": 46.946739130434786,
+            "width": 10.40926640926641,
+            "height": 42.4804347826087,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1711,6 +1712,50 @@
       "screen_id": "",
       "ocr": "references/main_city_v2.png",
       "regions": []
+    },
+    {
+      "id": 43,
+      "screen_id": "exploration",
+      "ocr": "references/exploration.png",
+      "regions": [
+        {
+          "name": "exploration.to.squad_settings",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.343629343629345,
+            "y": 89.8913043478261,
+            "width": 20.0,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "screen_id": "squad_settings",
+      "ocr": "references/page.squad_settings.png",
+      "regions": [
+        {
+          "name": "squad_settings.level",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.13513513513514,
+            "y": 7.934782608695652,
+            "width": 9.35907335907336,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

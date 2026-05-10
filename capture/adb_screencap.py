@@ -82,14 +82,14 @@ def adb_screencap_png(
         )
     except subprocess.TimeoutExpired:
         msg = f"ADB screencap timed out after {timeout_seconds:.1f}s (serial={serial!r})."
-        logger.error("ADB screencap timeout: exe=%s serial=%s", resolved, serial)
+        logger.debug("ADB screencap timeout: exe=%s serial=%s", resolved, serial)
         return None, msg
     except FileNotFoundError:
         return None, f"Failed to run {resolved!r} (FileNotFoundError)."
     if proc.returncode != 0:
         err = proc.stderr.decode(errors="replace").strip() or "unknown error"
         msg = f"ADB failed (exit {proc.returncode}): {err}"
-        logger.error("ADB screencap failed: exe=%s serial=%s err=%s", resolved, serial, err)
+        logger.debug("ADB screencap failed: exe=%s serial=%s err=%s", resolved, serial, err)
         return None, msg
     data = proc.stdout
     if not data.startswith(b"\x89PNG"):
@@ -97,7 +97,7 @@ def adb_screencap_png(
             "ADB did not return PNG. Check `adb devices` and "
             "**bluestacks_window_title** (serial); verify USB authorization."
         )
-        logger.error(
+        logger.debug(
             "ADB screencap bad output: exe=%s serial=%s bytes=%d",
             resolved,
             serial,

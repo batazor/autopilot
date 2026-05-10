@@ -8,17 +8,14 @@ import time
 from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import cv2
-import yaml
 
 from actions.tap import BotActions, _redis, _require_approval, click_approval_enabled
 from analysis.overlay import evaluate_overlay_rules_async
 from config.log_ansi import scenario_log_label as _scen
-from config.state_store import get_state_store
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from layout.bbox_percent import bbox_percent_center_to_device_point
@@ -31,368 +28,41 @@ from layout.template_match import (
 )
 from layout.types import Point, Region
 from tasks.base import TaskResult
+from tasks.dsl_match_mixin import DslMatchMixin
+from tasks.dsl_ocr_mixin import DslOcrMixin
+from tasks.dsl_persist_mixin import DslPersistMixin
+from tasks.dsl_scenario_helpers import (
+    _BreakRepeat,
+    _COLOR_WORD_ALIASES,
+    _COND_SCREEN_RE,
+    _COND_TEXT_RE,
+    _DSL_STEP_ACTION_KEYS,
+    _decode_redis_value,
+    _dsl_cond_allows_step,
+    _dsl_step_summary,
+    _enqueue_scenario,
+    _eval_instance_text_cond,
+    _eval_simple_screen_cond,
+    _load_area_json,
+    _load_yaml,
+    _load_yaml_cached,
+    _parse_wait_seconds,
+    _read_active_player,
+    _read_current_screen,
+    _read_instance_state_field,
+    _repo_root,
+    _step_red_dot_requirement,
+    _strip_quotes,
+)
 from ui.notifications import push_ui_notification
 from ui.redis_client import dsl_preempt_gen_key
 
 logger = logging.getLogger(__name__)
 
-class _BreakRepeat(Exception):
-    """Internal control-flow: break the nearest `repeat:` block."""
-
-
-def _step_red_dot_requirement(step: dict[str, Any]) -> bool | None:
-    """Read optional ``isRedDot`` predicate on a ``match:`` / ``while_match:`` step.
-
-    Accepts the YAML-natural form ``isRedDot: true|false`` and a few common string
-    aliases (``yes/no/on/off``) for resilience. Returns ``None`` when the field is
-    absent or unparseable — so ``match:`` behaves exactly as before for every step
-    that does not opt in.
-    """
-    if not isinstance(step, dict):
-        return None
-    if "isRedDot" in step:
-        raw = step.get("isRedDot")
-    elif "is_red_dot" in step:
-        raw = step.get("is_red_dot")
-    else:
-        return None
-    if isinstance(raw, bool):
-        return raw
-    if isinstance(raw, str):
-        s = raw.strip().lower()
-        if s in {"true", "yes", "y", "1", "on"}:
-            return True
-        if s in {"false", "no", "n", "0", "off"}:
-            return False
-    return None
-
-# ---------------------------------------------------------------------------
-# Color checks (dominant color in a bbox)
-# ---------------------------------------------------------------------------
-
-_COLOR_WORD_ALIASES: dict[str, str] = {
-    "red": "red",
-    "blue": "blue",
-    "gray": "gray",
-    "grey": "gray",
-    "green": "green",
-    "красный": "red",
-    "синий": "blue",
-    "серый": "gray",
-    "зелёный": "green",
-    "зеленый": "green",
-}
-
-# Simple guard for DSL steps, e.g. ``cond: currentNode != main_city`` (skip when false).
-_COND_SCREEN_RE = re.compile(
-    r"^\s*(?P<lhs>[\w]+)\s*(?P<op>==|!=)\s*(?P<rhs>[\w.-]+)\s*$",
-)
-_COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
-# RHS tokens that mean Redis ``current_screen`` is unset / overlay ``screens: [none]``.
-_COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
-
-# Instance-state text guards, e.g. ``cond: chapter.task ~= "Upgrade 2"``.
-# - lhs is a Redis hash field in `wos:instance:<id>:state`
-# - op:
-#   - `~=`: case-insensitive substring contains; RHS may use ``|`` for alternatives
-#     (e.g. ``"Upgrade|Build"`` matches if any alternative is a substring)
-#   - `==` / `!=`: case-insensitive full-string match
-_COND_TEXT_RE = re.compile(
-    r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
-)
-
-# ``repeat`` / ``while_match`` also nest ``steps``; composite blocks use only ``cond`` + ``steps``.
-_DSL_STEP_ACTION_KEYS = frozenset({
-    "match",
-    "while_match",
-    "repeat",
-    "push_scenario",
-    "swipe_direction",
-    "ocr",
-    "exec",
-    "set_node",
-    "click",
-    "wait",
-})
-
-
-def _dsl_step_summary(step: Any) -> str:
-    """Short human-readable label for queue/history step traces."""
-    if not isinstance(step, dict):
-        return "(invalid)"
-    for key in (
-        "click",
-        "match",
-        "while_match",
-        "ocr",
-        "set_node",
-        "swipe_direction",
-        "push_scenario",
-        "exec",
-        "wait",
-        "repeat",
-    ):
-        if key not in step:
-            continue
-        val = step[key]
-        if key in ("click", "match", "while_match", "ocr", "set_node"):
-            s = str(val).strip()
-            return f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
-        if key == "repeat":
-            return "repeat"
-        if key == "swipe_direction":
-            return f"swipe:{str(val)[:40]}"
-        if key == "push_scenario":
-            return f"push:{str(val)[:40]}"
-        if key == "exec":
-            return f"exec:{str(val)[:40]}"
-        if key == "wait":
-            return f"wait:{str(val)[:24]}"
-    if "steps" in step and isinstance(step.get("steps"), list):
-        return f"group({len(step['steps'])})"
-    extra = [k for k in step if k != "cond"]
-    return ",".join(extra[:5]) or "(empty)"
-
-
-def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:
-    """Evaluate ``lhs == rhs`` / ``lhs != rhs`` where *lhs* is Redis ``current_screen``."""
-    m = _COND_SCREEN_RE.match(expr.strip())
-    if not m:
-        logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", expr)
-        return False
-    lhs_raw = m.group("lhs").strip().lower().replace("-", "_")
-    if lhs_raw not in _COND_SCREEN_LHS:
-        logger.warning("dsl_scenario: unknown cond lhs %r — skipping step", m.group("lhs"))
-        return False
-    op = m.group("op")
-    rhs = m.group("rhs").strip()
-    cur = current_screen.strip()
-    cur_lc = cur.lower()
-    rhs_lc = rhs.lower()
-    if op == "==":
-        if rhs_lc in _COND_SCREEN_UNKNOWN_RHS:
-            return cur_lc == "" or cur_lc in _COND_SCREEN_UNKNOWN_RHS
-        return cur_lc == rhs_lc
-    if rhs_lc in _COND_SCREEN_UNKNOWN_RHS:
-        return cur_lc != "" and cur_lc not in _COND_SCREEN_UNKNOWN_RHS
-    return cur_lc != rhs_lc
-
-
-def _decode_redis_value(raw: Any) -> str:
-    """Normalise a raw Redis value to a stripped ``str``.
-
-    The async client (``redis.asyncio``) is created without
-    ``decode_responses=True`` (see ``worker.instance_worker._connect``), so
-    ``hget`` returns ``bytes``. ``str(b"main_city")`` produces the literal
-    ``"b'main_city'"`` rather than the value, which silently breaks any
-    equality check against the configured node name (e.g. ``cond:
-    currentNode != main_city`` would always be true). Always decode bytes
-    before returning.
-    """
-
-    if raw is None:
-        return ""
-    if isinstance(raw, bytes):
-        try:
-            return raw.decode("utf-8", errors="replace").strip()
-        except Exception:
-            return ""
-    return str(raw).strip()
-
-
-async def _read_current_screen(instance_id: str, redis_async: Any | None) -> str:
-    key = f"wos:instance:{instance_id}:state"
-    field = "current_screen"
-    if redis_async is not None:
-        try:
-            raw = await redis_async.hget(key, field)
-            return _decode_redis_value(raw)
-        except Exception:
-            logger.debug("redis async hget current_screen failed", exc_info=True)
-    try:
-        return _decode_redis_value(_redis().hget(key, field))
-    except Exception:
-        logger.debug("redis sync hget current_screen failed", exc_info=True)
-        return ""
-
-
-async def _read_instance_state_field(
-    instance_id: str, field: str, redis_async: Any | None
-) -> str:
-    key = f"wos:instance:{instance_id}:state"
-    field = str(field or "").strip()
-    if not field:
-        return ""
-    if redis_async is not None:
-        try:
-            raw = await redis_async.hget(key, field)
-            return _decode_redis_value(raw)
-        except Exception:
-            logger.debug("redis async hget state field failed", exc_info=True)
-    try:
-        return _decode_redis_value(_redis().hget(key, field))
-    except Exception:
-        logger.debug("redis sync hget state field failed", exc_info=True)
-        return ""
-
-
-async def _read_active_player(instance_id: str, redis_async: Any | None) -> str:
-    return await _read_instance_state_field(instance_id, "active_player", redis_async)
-
-
-def _strip_quotes(s: str) -> str:
-    s2 = (s or "").strip()
-    if len(s2) >= 2 and ((s2[0] == '"' and s2[-1] == '"') or (s2[0] == "'" and s2[-1] == "'")):
-        return s2[1:-1]
-    # Unicode “smart” quotes (copy-paste / some editors).
-    if len(s2) >= 2 and (s2[0] in "\u201c\u2018" and s2[-1] in "\u201d\u2019"):
-        return s2[1:-1]
-    return s2
-
-
-async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any | None) -> bool:
-    m = _COND_TEXT_RE.match(expr.strip())
-    if not m:
-        return False
-    lhs = str(m.group("lhs") or "").strip()
-    op = str(m.group("op") or "").strip()
-    rhs = _strip_quotes(str(m.group("rhs") or ""))
-    if not lhs:
-        return False
-    cur = await _read_instance_state_field(instance_id, lhs, redis_async)
-    cur_lc = cur.strip().lower()
-    rhs_lc = rhs.strip().lower()
-    if op == "~=":
-        parts = [p.strip() for p in rhs_lc.split("|")]
-        alts = [p for p in parts if p]
-        return bool(alts) and any(a in cur_lc for a in alts)
-    if op == "==":
-        return cur_lc == rhs_lc
-    if op == "!=":
-        return cur_lc != rhs_lc
-    return False
-
-
-async def _dsl_cond_allows_step(
-    step: dict[str, Any], instance_id: str, redis_async: Any | None
-) -> bool:
-    raw = step.get("cond")
-    if raw is None or isinstance(raw, bool):
-        return True
-    s = str(raw).strip()
-    if not s:
-        return True
-    if _COND_SCREEN_RE.match(s):
-        cur = await _read_current_screen(instance_id, redis_async)
-        return _eval_simple_screen_cond(s, cur)
-    if _COND_TEXT_RE.match(s):
-        return await _eval_instance_text_cond(s, instance_id, redis_async)
-    logger.warning("dsl_scenario: unsupported cond syntax %r — skipping step", s)
-    return False
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
-
-
-async def _enqueue_scenario(
-    *,
-    redis_async: Any | None,
-    instance_id: str,
-    player_id: str,
-    scenario: str,
-    priority: int,
-    run_at: float,
-    skip_if_duplicate: bool,
-) -> bool:
-    """Enqueue a DSL scenario as a queue item (task_type = scenario key)."""
-    if redis_async is None:
-        return False
-    scenario = str(scenario or "").strip()
-    player_id = str(player_id or "").strip()
-    instance_id = str(instance_id or "").strip()
-    if not scenario or not player_id or not instance_id:
-        return False
-
-    # Optional duplicate guard: same (player, task_type) already queued.
-    if skip_if_duplicate:
-        try:
-            items = await redis_async.zrangebyscore(
-                f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown",
-                "-inf",
-                "+inf",
-            )
-            for raw in items:
-                try:
-                    payload = raw.decode() if isinstance(raw, bytes) else str(raw)
-                    doc = json.loads(payload)
-                    if (
-                        str(doc.get("player_id") or "") == player_id
-                        and str(doc.get("task_type") or "") == scenario
-                    ):
-                        return False
-                except Exception:
-                    continue
-        except Exception:
-            # If we can't check, still allow enqueue.
-            pass
-
-    body: dict[str, object] = {
-        "task_id": f"dsl:push:{scenario}:{player_id}:{int(run_at)}",
-        "player_id": player_id,
-        "task_type": scenario,
-        "priority": int(priority),
-        "run_at": float(run_at),
-        "instance_id": instance_id,
-    }
-    qkey = f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown"
-    await redis_async.zadd(qkey, {json.dumps(body): float(run_at)})
-    return True
-
-
-def _load_yaml(path: Path) -> dict[str, Any]:
-    try:
-        st = path.stat()
-    except OSError:
-        return {}
-    return _load_yaml_cached(str(path), st.st_mtime_ns, st.st_size)
-
-
-@lru_cache(maxsize=512)
-def _load_yaml_cached(path_s: str, mtime_ns: int, size: int) -> dict[str, Any]:
-    # mtime_ns/size are part of the cache key; they auto-invalidate on file change.
-    _ = (mtime_ns, size)
-    try:
-        raw = yaml.safe_load(Path(path_s).read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _load_area_json(repo_root: Path) -> dict[str, Any]:
-    p = repo_root / "area.json"
-    if not p.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(p.read_text(encoding="utf-8"))  # JSON is valid YAML
-    except Exception:
-        return {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _parse_wait_seconds(value: object) -> float:
-    if isinstance(value, (int, float)):
-        return float(value)
-    s = str(value or "").strip().lower()
-    if s.endswith("ms"):
-        return float(s[:-2].strip()) / 1000.0
-    if s.endswith("s"):
-        return float(s[:-1].strip())
-    return 0.0
 
 
 @dataclass
-class DslScenarioTask:
+class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
     """Generic runner for imperative DSL scenario YAML.
 
     This is the bridge that lets us keep scenario logic in YAML, while the worker still executes
@@ -418,6 +88,11 @@ class DslScenarioTask:
     _last_match_region: str = field(default="", init=False, repr=False)
     _last_match_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _last_tap_region_clicked: str = field(default="", init=False, repr=False)
+    # Set when ``_tap_region`` ran an implicit auto-match (no explicit ``match:`` in
+    # the scenario). Lets ``_point_for_region_action`` use the engine-reported best
+    # position even if the score didn't clear ``threshold`` — semantically the user
+    # said "this button is here, find it" rather than "verify it's there".
+    _implicit_match_for_region: str = field(default="", init=False, repr=False)
     _ocr_client: Any | None = field(default=None, init=False, repr=False)
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]] = field(
         default_factory=dict, init=False, repr=False
@@ -466,190 +141,6 @@ class DslScenarioTask:
             },
         )
 
-    async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
-        if self.redis_client is None:
-            return
-        with suppress(Exception):
-            await self.redis_client.hset(
-                f"wos:instance:{instance_id}:state",
-                mapping={"current_scenario": scenario},
-            )
-
-    def _state_flat(self) -> dict[str, Any] | None:
-        """Flat per-player state for version-aware region lookup.
-
-        Returns ``None`` (default-version semantics) when no player is bound or
-        the state store is unreachable, so a missing/broken state never breaks
-        region resolution — it just falls back to default regions.
-        """
-        pid = str(self.player_id or "").strip()
-        if not pid:
-            return None
-        try:
-            store = get_state_store().get_or_create(pid)
-            return store.to_flat_dict()
-        except Exception as exc:  # noqa: BLE001 — diagnostic, fallback to default
-            logger.debug("dsl: _state_flat fallback for player=%s: %s", pid, exc)
-            return None
-
-    async def _persist_dsl_last_match(
-        self,
-        instance_id: str,
-        *,
-        region: str,
-        threshold: float,
-        row: dict[str, Any] | None,
-        detail: str = "",
-    ) -> None:
-        """Expose last template ``match`` outcome on instance Redis hash for Click approvals UI."""
-        if self.redis_client is None:
-            return
-        detail_s = (detail or "").strip()
-        if not detail_s and isinstance(row, dict):
-            # Overlay sets ``reason`` when a post-threshold gate fails (e.g. low_bright_detail_ratio).
-            detail_s = str(row.get("reason") or "").strip()
-        thr_s = f"{float(threshold):.6g}"
-        score_s = ""
-        matched_s = ""
-        if isinstance(row, dict):
-            sc = row.get("score")
-            score_s = "" if sc is None else str(sc)
-            matched_s = "1" if bool(row.get("matched")) else "0"
-        mapping = {
-            "dsl_last_match_region": region,
-            "dsl_last_match_threshold": thr_s,
-            "dsl_last_match_score": score_s,
-            "dsl_last_match_matched": matched_s,
-            "dsl_last_match_detail": detail_s,
-            "dsl_last_match_at": str(time.time()),
-        }
-        if isinstance(row, dict):
-            tl = row.get("top_left")
-            tw = row.get("template_w")
-            th = row.get("template_h")
-            sr = row.get("search_region")
-            txp = row.get("tap_x_pct")
-            typ = row.get("tap_y_pct")
-            tmx = row.get("tap_match_x_pct")
-            tmy = row.get("tap_match_y_pct")
-            if isinstance(tl, (list, tuple)) and len(tl) >= 2:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_top_left_x"] = str(int(float(tl[0])))
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_top_left_y"] = str(int(float(tl[1])))
-            if tw is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_template_w"] = str(int(tw))
-            if th is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_template_h"] = str(int(th))
-            if sr is not None and str(sr).strip():
-                mapping["dsl_last_match_search_region"] = str(sr).strip()
-            if txp is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_x_pct"] = f"{float(txp):.6g}"
-            if typ is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_y_pct"] = f"{float(typ):.6g}"
-            if tmx is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_match_x_pct"] = f"{float(tmx):.6g}"
-            if tmy is not None:
-                with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_match_y_pct"] = f"{float(tmy):.6g}"
-        try:
-            await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=mapping)
-        except Exception:
-            logger.debug("dsl_scenario: persist dsl_last_match failed", exc_info=True)
-
-    async def _persist_dsl_last_ocr(self, instance_id: str, mapping: dict[str, str]) -> None:
-        """Expose last ``ocr:`` step outcome on instance Redis hash for Click approvals UI."""
-        if self.redis_client is None:
-            return
-        full = dict(mapping)
-        full["dsl_last_ocr_at"] = str(time.time())
-        try:
-            await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=full)
-        except Exception:
-            logger.debug("dsl_scenario: persist dsl_last_ocr failed", exc_info=True)
-
-    async def _persist_dsl_last_color(self, instance_id: str, mapping: dict[str, str]) -> None:
-        """Expose last ``color_check:`` step outcome on instance Redis hash for UI/debug."""
-        if self.redis_client is None:
-            return
-        full = dict(mapping)
-        full["dsl_last_color_at"] = str(time.time())
-        try:
-            await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=full)
-        except Exception:
-            logger.debug("dsl_scenario: persist dsl_last_color failed", exc_info=True)
-
-    async def _pause_for_while_match_no_iterations_approval(
-        self,
-        *,
-        actions: BotActions,
-        instance_id: str,
-        scenario_key: str,
-        region: str,
-        attempts: int,
-        interval_s: float,
-    ) -> bool:
-        """In approval mode, publish a diagnostic pause before strict while_match retry."""
-        if not click_approval_enabled(instance_id):
-            return True
-
-        if self.redis_client is not None:
-            with suppress(Exception):
-                await self.redis_client.hset(
-                    f"wos:instance:{instance_id}:state",
-                    mapping={
-                        "current_task_region": region,
-                        "current_scenario": scenario_key,
-                    },
-                )
-
-        approval_payload: dict[str, object] = {
-            "type": "diagnostic",
-            "region": region,
-            "diagnostic": "while_match_no_iterations",
-            "attempts": int(attempts),
-            "interval": float(interval_s),
-            "source": {
-                "component": "tasks.dsl_scenario.DslScenarioTask",
-                "note": "while_match matched zero times; approve to retry later, reject to stop",
-            },
-        }
-        attach_preview = getattr(actions, "attach_approval_preview", None)
-        if callable(attach_preview):
-            with suppress(Exception):
-                await asyncio.to_thread(attach_preview, instance_id, approval_payload)
-
-        ok, req_id = await asyncio.to_thread(_require_approval, instance_id, approval_payload)
-        if req_id is not None:
-            with suppress(Exception):
-                _redis().delete(f"wos:ui:click_approval:current:{instance_id}")
-                _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-        if not ok:
-            logger.info(
-                "dsl_scenario: while_match no_iterations rejected — aborting scenario %s",
-                _scen(scenario_key),
-            )
-        return ok
-
-    async def _clear_step_context(self, instance_id: str) -> None:
-        if self.redis_client is None:
-            return
-        with suppress(Exception):
-            await self.redis_client.hset(
-                f"wos:instance:{instance_id}:state",
-                mapping={
-                    "current_scenario": "",
-                    "last_active_scenario": "",
-                    "last_active_scenario_priority": "",
-                    "last_active_scenario_player": "",
-                    "last_active_scenario_step": "",
-                },
-            )
 
     async def _navigate_to_node(
         self,
@@ -712,569 +203,6 @@ class DslScenarioTask:
 
     def estimate_duration(self) -> int:
         return 15
-
-    async def _match_region(
-        self,
-        *,
-        actions: BotActions,
-        area_doc: dict[str, Any],
-        repo_root: Path,
-        instance_id: str,
-        scenario_key: str,
-        step: dict[str, Any],
-        region: str,
-    ) -> dict[str, Any] | None:
-        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
-        if pair is None:
-            logger.warning("dsl_scenario: match region not found in area.json: %s", region)
-            await self._persist_dsl_last_match(
-                instance_id,
-                region=region,
-                threshold=0.9,
-                row=None,
-                detail="region_not_found_in_area",
-            )
-            return None
-        raw_threshold = step.get("threshold")
-        if raw_threshold is None:
-            raw_threshold = pair[1].get("threshold", 0.9)
-        try:
-            threshold = float(raw_threshold)
-        except (TypeError, ValueError):
-            threshold = 0.9
-
-        # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
-        # Historically it always used `findIcon`, which breaks color-only regions (e.g. `isWorkers`).
-        area_action = str(pair[1].get("action") or "").strip()
-        if area_action not in {"exist", "text", "color_check", "findIcon"}:
-            # `click` (and other non-detection actions) cannot be matched; default to `exist`.
-            area_action = "exist"
-
-        rule: dict[str, Any] = {
-            "name": f"dsl.{scenario_key}.{region}.visible",
-            "region": region,
-            "action": area_action,
-            "threshold": threshold,
-        }
-        if area_action == "color_check":
-            # Color label: prefer step override, else inherit from area.json.
-            rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
-        # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
-        excl = self._exclude_match_top_lefts.get(region)
-        if excl:
-            rule["exclude_top_lefts"] = [[x, y] for (x, y) in excl[-6:]]
-            rule["exclude_radius_px"] = 24
-        min_sat = step.get("min_match_saturation")
-        if min_sat is not None:
-            rule["min_match_saturation"] = min_sat
-        image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-        out = await evaluate_overlay_rules_async(
-            image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
-        )
-        row = out.get(str(rule["name"]))
-
-        # Optional ``isRedDot: true|false`` filter — refines ``matched`` based on the
-        # programmatic red-dot detector against the same region's bbox. The standard
-        # match still has to succeed; this only narrows the result, never widens it.
-        red_dot_req = _step_red_dot_requirement(step)
-        if red_dot_req is not None:
-            row = self._apply_red_dot_filter(
-                row=row,
-                region=region,
-                region_def=pair[1],
-                image_bgr=image_bgr,
-                requirement=red_dot_req,
-            )
-
-        if isinstance(row, dict):
-            # Keep last match for subsequent `click:` on the same region.
-            self._last_match_region = region
-            self._last_match_row = row
-            await self._persist_dsl_last_match(
-                instance_id,
-                region=region,
-                threshold=threshold,
-                row=row,
-                detail="",
-            )
-            return row
-        await self._persist_dsl_last_match(
-            instance_id,
-            region=region,
-            threshold=threshold,
-            row=None,
-            detail="no_overlay_row",
-        )
-        if self._last_match_region == region:
-            self._last_match_region = ""
-            self._last_match_row = None
-        return None
-
-    @staticmethod
-    def _apply_red_dot_filter(
-        *,
-        row: dict[str, Any] | None,
-        region: str,
-        region_def: dict[str, Any],
-        image_bgr: Any,
-        requirement: bool,
-    ) -> dict[str, Any]:
-        """Combine the standard ``match:`` row with the red-dot predicate.
-
-        Returns a fresh row that always exposes ``red_dot_required`` and (when
-        the detector ran) ``red_dot_present`` so DSL audit / Redis context lines
-        carry enough info to debug "why didn't this fire".
-        """
-        base: dict[str, Any] = dict(row) if isinstance(row, dict) else {
-            "matched": False,
-            "region": region,
-            "reason": "no_overlay_row",
-        }
-        base["red_dot_required"] = bool(requirement)
-
-        if not bool(region_def.get("has_red_dot")):
-            base["matched"] = False
-            base["reason"] = "red_dot_capability_disabled"
-            return base
-
-        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
-        if bbox is None:
-            base["matched"] = False
-            base["reason"] = "missing_bbox_for_red_dot"
-            return base
-
-        present = has_red_dot_in_bbox_percent(image_bgr, bbox)
-        base["red_dot_present"] = bool(present)
-        if bool(present) != bool(requirement):
-            base["matched"] = False
-            base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
-        return base
-
-    async def _ocr_region(
-        self,
-        *,
-        actions: BotActions,
-        area_doc: dict[str, Any],
-        instance_id: str,
-        dev_w: int,
-        dev_h: int,
-        scenario_key: str,
-        step: dict[str, Any],
-        region: str,
-    ) -> None:
-        """OCR a named region and persist the result to Redis.
-
-        Step shape::
-
-            - ocr: <region_name>
-              store: <field>          # default = region name
-              scope: player|instance  # default = "player"
-                                     # falls back to instance when no player_id
-              type: integer|string    # default = inherits area.json `type`
-              threshold: 0.7          # confidence floor; default = inherits area.json `threshold`
-
-        The decoded value is written to ``wos:player:<player_id>:state`` (player scope) or
-        ``wos:instance:<instance_id>:state`` (instance scope) under ``<store>``, alongside
-        ``<store>_text`` (raw OCR text), ``<store>_confidence`` and ``<store>_at`` for
-        debugging. Low-confidence reads are logged and skipped, never persisted.
-        """
-        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
-        if pair is None or not isinstance(pair[1].get("bbox"), dict):
-            logger.warning(
-                "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
-                region,
-                _scen(scenario_key),
-            )
-            await self._ocr_audit_step(
-                instance_id, region=region, step=step, status="region_not_found"
-            )
-            return
-
-        region_def = pair[1]
-        bbox = region_def["bbox"]
-        try:
-            px = int(round(float(bbox["x"]) / 100.0 * dev_w))
-            py = int(round(float(bbox["y"]) / 100.0 * dev_h))
-            pw = int(round(float(bbox["width"]) / 100.0 * dev_w))
-            ph = int(round(float(bbox["height"]) / 100.0 * dev_h))
-        except (KeyError, TypeError, ValueError):
-            logger.warning(
-                "dsl_scenario: invalid ocr bbox for region %s (scenario=%s)",
-                region,
-                _scen(scenario_key),
-            )
-            await self._ocr_audit_step(
-                instance_id, region=region, step=step, status="invalid_bbox"
-            )
-            return
-        if pw <= 0 or ph <= 0:
-            logger.warning(
-                "dsl_scenario: ocr region has zero size: %s (scenario=%s)",
-                region,
-                _scen(scenario_key),
-            )
-            await self._ocr_audit_step(
-                instance_id, region=region, step=step, status="zero_bbox"
-            )
-            return
-
-        try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-        except Exception:
-            logger.exception(
-                "dsl_scenario: capture_screen_bgr failed for ocr (scenario=%s region=%s)",
-                _scen(scenario_key),
-                region,
-            )
-            await self._ocr_audit_step(
-                instance_id, region=region, step=step, status="capture_failed"
-            )
-            return
-
-        try:
-            result = await self._get_ocr_client().ocr_region(
-                image, Region(px, py, pw, ph)
-            )
-        except Exception:
-            logger.exception(
-                "dsl_scenario: OCR call failed (scenario=%s region=%s)",
-                _scen(scenario_key),
-                region,
-            )
-            await self._ocr_audit_step(
-                instance_id, region=region, step=step, status="ocr_call_failed"
-            )
-            return
-
-        await self._persist_ocr_result(
-            instance_id=instance_id,
-            scenario_key=scenario_key,
-            step=step,
-            region=region,
-            region_def=region_def,
-            result=result,
-        )
-
-    async def _ocr_region_bulk(
-        self,
-        *,
-        actions: BotActions,
-        area_doc: dict[str, Any],
-        instance_id: str,
-        dev_w: int,
-        dev_h: int,
-        scenario_key: str,
-        steps: list[dict[str, Any]],
-    ) -> None:
-        requests: list[tuple[dict[str, Any], str, dict[str, Any], Region]] = []
-
-        for step in steps:
-            region = str(step.get("ocr") or "").strip()
-            if not region:
-                continue
-            pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat())
-            if pair is None or not isinstance(pair[1].get("bbox"), dict):
-                logger.warning(
-                    "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
-                    region,
-                    _scen(scenario_key),
-                )
-                await self._ocr_audit_step(
-                    instance_id, region=region, step=step, status="region_not_found"
-                )
-                continue
-
-            region_def = pair[1]
-            bbox = region_def["bbox"]
-            try:
-                px = int(round(float(bbox["x"]) / 100.0 * dev_w))
-                py = int(round(float(bbox["y"]) / 100.0 * dev_h))
-                pw = int(round(float(bbox["width"]) / 100.0 * dev_w))
-                ph = int(round(float(bbox["height"]) / 100.0 * dev_h))
-            except (KeyError, TypeError, ValueError):
-                logger.warning(
-                    "dsl_scenario: invalid ocr bbox for region %s (scenario=%s)",
-                    region,
-                    _scen(scenario_key),
-                )
-                await self._ocr_audit_step(
-                    instance_id, region=region, step=step, status="invalid_bbox"
-                )
-                continue
-            if pw <= 0 or ph <= 0:
-                logger.warning(
-                    "dsl_scenario: ocr region has zero size: %s (scenario=%s)",
-                    region,
-                    _scen(scenario_key),
-                )
-                await self._ocr_audit_step(
-                    instance_id, region=region, step=step, status="zero_bbox"
-                )
-                continue
-            requests.append((step, region, region_def, Region(px, py, pw, ph)))
-
-        if not requests:
-            return
-
-        try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-        except Exception:
-            logger.exception(
-                "dsl_scenario: capture_screen_bgr failed for bulk ocr "
-                "(scenario=%s regions=%s)",
-                _scen(scenario_key),
-                [region for _step, region, _def, _px in requests],
-            )
-            for step, region, _region_def, _region_px in requests:
-                await self._ocr_audit_step(
-                    instance_id, region=region, step=step, status="capture_failed"
-                )
-            return
-
-        try:
-            results = await self._get_ocr_client().ocr_regions(
-                image,
-                [region_px for _step, _region, _region_def, region_px in requests],
-            )
-        except Exception:
-            logger.exception(
-                "dsl_scenario: bulk OCR call failed (scenario=%s regions=%s)",
-                _scen(scenario_key),
-                [region for _step, region, _def, _px in requests],
-            )
-            for step, region, _region_def, _region_px in requests:
-                await self._ocr_audit_step(
-                    instance_id, region=region, step=step, status="ocr_call_failed"
-                )
-            return
-
-        logger.info(
-            "dsl_scenario: bulk OCR scenario=%s regions=%s",
-            _scen(scenario_key),
-            [region for _step, region, _def, _px in requests],
-        )
-        for (step, region, region_def, _region_px), result in zip(
-            requests, results, strict=False
-        ):
-            await self._persist_ocr_result(
-                instance_id=instance_id,
-                scenario_key=scenario_key,
-                step=step,
-                region=region,
-                region_def=region_def,
-                result=result,
-            )
-
-    def _get_ocr_client(self) -> Any:
-        if self._ocr_client is None:
-            from ocr.client import OcrClient
-
-            self._ocr_client = OcrClient()
-        return self._ocr_client
-
-    async def _ocr_audit_step(
-        self,
-        instance_id: str,
-        *,
-        region: str,
-        step: dict[str, Any],
-        status: str,
-        threshold_s: str = "",
-        confidence_s: str = "",
-        raw_text: str = "",
-        value_s: str = "",
-    ) -> None:
-        planned_store = str(step.get("store") or region).strip()
-        await self._persist_dsl_last_ocr(
-            instance_id,
-            {
-                "dsl_last_ocr_region": region,
-                "dsl_last_ocr_store": planned_store,
-                "dsl_last_ocr_status": status,
-                "dsl_last_ocr_threshold": threshold_s,
-                "dsl_last_ocr_confidence": confidence_s,
-                "dsl_last_ocr_raw_text": raw_text,
-                "dsl_last_ocr_value": value_s,
-            },
-        )
-
-    async def _persist_ocr_result(
-        self,
-        *,
-        instance_id: str,
-        scenario_key: str,
-        step: dict[str, Any],
-        region: str,
-        region_def: dict[str, Any],
-        result: Any,
-    ) -> None:
-        raw_threshold = step.get("threshold")
-        if raw_threshold is None:
-            raw_threshold = region_def.get("threshold")
-        try:
-            threshold = float(raw_threshold) if raw_threshold is not None else 0.0
-        except (TypeError, ValueError):
-            threshold = 0.0
-
-        thr_s = f"{threshold:.6g}"
-        text = (result.text or "").strip()
-        confidence = float(getattr(result, "confidence", 0.0) or 0.0)
-        conf_s = f"{confidence:.4f}"
-        if confidence < threshold:
-            logger.warning(
-                "dsl_scenario: OCR low confidence — skipping store. scenario=%s region=%s "
-                "text=%r confidence=%.3f threshold=%.3f",
-                _scen(scenario_key),
-                region,
-                text,
-                confidence,
-                threshold,
-            )
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="low_confidence",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-            )
-            return
-
-        type_hint = str(step.get("type") or region_def.get("type") or "string").strip().lower()
-        value: str = text
-        if type_hint in {"int", "integer"}:
-            digits = re.sub(r"\D+", "", text)
-            if not digits:
-                logger.warning(
-                    "dsl_scenario: OCR integer cast failed — empty digits. "
-                    "scenario=%s region=%s text=%r",
-                    _scen(scenario_key),
-                    region,
-                    text,
-                )
-                await self._ocr_audit_step(
-                    instance_id,
-                    region=region,
-                    step=step,
-                    status="integer_cast_failed",
-                    threshold_s=thr_s,
-                    confidence_s=conf_s,
-                    raw_text=text,
-                )
-                return
-            value = digits
-
-        store_field = str(step.get("store") or region).strip()
-        if not store_field:
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="empty_store_field",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-            )
-            return
-
-        scope = str(step.get("scope") or "player").strip().lower()
-        if scope not in {"player", "instance"}:
-            logger.warning(
-                "dsl_scenario: unknown ocr scope %r — defaulting to 'player' (scenario=%s)",
-                scope,
-                _scen(scenario_key),
-            )
-            scope = "player"
-
-        if self.redis_client is None:
-            logger.info(
-                "dsl_scenario: OCR result not persisted (no redis client). "
-                "scenario=%s region=%s field=%s value=%s confidence=%.3f",
-                _scen(scenario_key),
-                region,
-                store_field,
-                value,
-                confidence,
-            )
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="no_redis_client",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-                value_s=str(value),
-            )
-            return
-
-        if scope == "player" and self.player_id:
-            redis_key = f"wos:player:{self.player_id}:state"
-        elif scope == "player" and store_field == "player_id" and value:
-            # `who_i_am` is intentionally a device-level probe. Once OCR tells
-            # us the in-game id, let the rest of the scenario (e.g. fetch_player)
-            # continue under that real identity.
-            self.player_id = str(value)
-            redis_key = f"wos:player:{self.player_id}:state"
-        else:
-            redis_key = f"wos:instance:{instance_id}:state"
-
-        mapping: dict[str, str] = {
-            store_field: str(value),
-            f"{store_field}_text": text,
-            f"{store_field}_confidence": f"{confidence:.4f}",
-            f"{store_field}_at": str(time.time()),
-        }
-        try:
-            await self.redis_client.hset(redis_key, mapping=mapping)
-            if store_field == "player_id" and value:
-                await self.redis_client.hset(
-                    f"wos:instance:{instance_id}:state",
-                    mapping={
-                        "active_player": str(self.player_id or value),
-                        "active_player_at": str(time.time()),
-                    },
-                )
-        except Exception:
-            logger.exception(
-                "dsl_scenario: failed to persist OCR result (scenario=%s region=%s key=%s)",
-                _scen(scenario_key),
-                region,
-                redis_key,
-            )
-            await self._ocr_audit_step(
-                instance_id,
-                region=region,
-                step=step,
-                status="redis_write_failed",
-                threshold_s=thr_s,
-                confidence_s=conf_s,
-                raw_text=text,
-                value_s=str(value),
-            )
-            return
-
-        await self._ocr_audit_step(
-            instance_id,
-            region=region,
-            step=step,
-            status="stored",
-            threshold_s=thr_s,
-            confidence_s=conf_s,
-            raw_text=text,
-            value_s=str(value),
-        )
-        logger.info(
-            "dsl_scenario: OCR stored scenario=%s region=%s key=%s field=%s value=%s "
-            "confidence=%.3f",
-            _scen(scenario_key),
-            region,
-            redis_key,
-            store_field,
-            value,
-            confidence,
-        )
 
     async def _run_exec_step(self, name: str, instance_id: str) -> None:
         """Dispatch ``exec: <name>`` to :data:`tasks.dsl_exec.DSL_EXEC_REGISTRY`."""
@@ -1435,11 +363,27 @@ class DslScenarioTask:
         )
         return ok
 
+    def _region_has_search_companion(
+        self,
+        area_doc: dict[str, Any],
+        region: str,
+    ) -> bool:
+        """True if ``<region>_search`` exists in area.json (state-aware lookup)."""
+        if not region:
+            return False
+        return (
+            screen_region_by_name(
+                area_doc, f"{region}_search", state_flat=self._state_flat()
+            )
+            is not None
+        )
+
     async def _tap_region(
         self,
         *,
         actions: BotActions,
         area_doc: dict[str, Any],
+        repo_root: Path,
         instance_id: str,
         dev_w: int,
         dev_h: int,
@@ -1451,7 +395,31 @@ class DslScenarioTask:
             logger.warning("dsl_scenario: region not found in area.json: %s", region)
             return None
 
+        # When a `<region>_search` ROI exists, the static template bbox is just a sample
+        # crop — the icon's real on-screen position is anywhere inside the search ROI.
+        # Run an implicit `match:` first so `_point_for_region_action` taps the found
+        # location instead of the stale bbox center. Skip if the caller already did a
+        # `match:` for this region (the recent `_last_match_row` covers it).
+        already_matched = (
+            self._last_match_region == region and self._last_match_row is not None
+        )
+        if not already_matched and self._region_has_search_companion(area_doc, region):
+            await self._match_region(
+                actions=actions,
+                area_doc=area_doc,
+                repo_root=repo_root,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step={},
+                region=region,
+            )
+            self._implicit_match_for_region = region
+
         pt = self._point_for_region_action(region, pair[1]["bbox"], dev_w, dev_h)
+        # The flag is per-tap; clear after consumption so a subsequent
+        # explicit ``match:`` controls behaviour again.
+        if self._implicit_match_for_region == region:
+            self._implicit_match_for_region = ""
 
         tapped = await asyncio.to_thread(
             actions.tap,
@@ -1501,10 +469,14 @@ class DslScenarioTask:
         # Prefer coordinates from the latest in-scenario overlay probe (`match` / `while_match`).
         # Queue items may carry `tap_x_pct`/`tap_y_pct` from when overlay enqueued `pushScenario`;
         # those can be a different peak or an older frame than the capture used for this click.
+        # For an *implicit* auto-match (search companion + no explicit `match:`), use the engine's
+        # best-found position even if the score didn't clear the threshold — the user explicitly
+        # asked us to find this button, threshold gating only matters when verifying presence.
+        implicit = self._implicit_match_for_region == region
         if (
             self._last_match_row is not None
             and self._last_match_region == region
-            and bool(self._last_match_row.get("matched"))
+            and (implicit or bool(self._last_match_row.get("matched")))
             and self._last_match_row.get("tap_x_pct") is not None
             and self._last_match_row.get("tap_y_pct") is not None
         ):
@@ -1607,6 +579,7 @@ class DslScenarioTask:
                 result = await self._tap_region(
                     actions=actions,
                     area_doc=area_doc,
+                    repo_root=repo_root,
                     instance_id=instance_id,
                     dev_w=dev_w,
                     dev_h=dev_h,
@@ -1851,6 +824,11 @@ class DslScenarioTask:
                 next_run_at=None,
                 metadata={"reason": "missing_scenario_key"},
             )
+
+        # Wipe the previous scenario's `dsl_last_*` audit snapshot so the
+        # click-approvals UI doesn't show stale guard outcomes during the
+        # window between scenario start and our first match/ocr/color step.
+        await self._reset_dsl_audit_state(instance_id)
 
         repo_root = _repo_root()
 
@@ -2694,6 +1672,7 @@ class DslScenarioTask:
                     result = await self._tap_region(
                         actions=actions,
                         area_doc=area_doc,
+                        repo_root=repo_root,
                         instance_id=instance_id,
                         dev_w=dev_w,
                         dev_h=dev_h,
