@@ -1,0 +1,10 @@
+enabled: true
+name: Tap anywhere to exit (blue skin)
+# Popup dismissal — purely UI, no player identity needed.
+device_level: true
+
+steps:
+  - match: tapanywhereyoexit.blue
+    threshold: 0.92
+  - click: tapanywhereyoexit.blue
+  - wait: 2s

@@ -102,6 +102,22 @@ def _render_gamer_panels(g: GamerState) -> None:
                     "food": g.resources.food,
                     "iron": g.resources.iron,
                     "meat": g.resources.meat,
+                    "silver keys": g.resources.silver_keys,
+                    "gold keys": g.resources.gold_keys,
+                    "diamond": g.resources.diamond,
+                }
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.subheader("Events · recruitment")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "free recruitments today": g.events.recruitment.free_recruitments_today,
                 }
             ]
         ),

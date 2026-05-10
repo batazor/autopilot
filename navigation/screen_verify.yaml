@@ -91,3 +91,12 @@ screens:
     rules:
       - match: page.survivor_status
         threshold: 0.85
+
+  hero.recrutment:
+    priority: 44
+    landmarks:
+      - match: isHeroRecruitment
+        threshold: 0.9
+    rules:
+      - match: isHeroRecruitment
+        threshold: 0.9

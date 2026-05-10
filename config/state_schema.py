@@ -34,6 +34,10 @@ class Resources(BaseModel):
     food: int = 0
     iron: int = 0
     meat: int = 0
+    # Hero Recruitment HUD (`key.silver` / `key.gold` / `diamond` regions).
+    silver_keys: int = 0
+    gold_keys: int = 0
+    diamond: int = 0
 
 
 class ExplorationState(BaseModel):
@@ -146,9 +150,16 @@ class FrostyFortune(BaseModel):
     state: dict[str, object] = Field(default_factory=lambda: {"isExist": False})
 
 
+class RecruitmentEvent(BaseModel):
+    """Hero Recruitment screen (`hero.recrutment`): OCR region ``free_recruitments_today``."""
+
+    free_recruitments_today: int = 0
+
+
 class Events(BaseModel):
     tundraAdventure: TundraAdventure = Field(default_factory=TundraAdventure)
     frostyFortune: FrostyFortune = Field(default_factory=FrostyFortune)
+    recruitment: RecruitmentEvent = Field(default_factory=RecruitmentEvent)
 
 
 class TroopState(BaseModel):

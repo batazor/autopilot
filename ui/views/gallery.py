@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
 
@@ -11,6 +12,12 @@ import streamlit as st
 from PIL import Image, ImageDraw
 
 from layout.area_regions import is_auxiliary_overlay_region
+from layout.area_versions import (
+    effective_ocr_for_region,
+    normalize_version_id,
+    resolve_region_with_version,
+    split_versioned_name,
+)
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import list_reference_pngs, references_root
 
@@ -36,59 +43,216 @@ def _load_area_doc_cached(mtime: float) -> dict[str, object]:
         return {}
 
 
-def _load_area_doc() -> dict[str, object]:
-    area_path = Path(__file__).resolve().parents[2] / "area.json"
+def _ocr_to_ref_rel(ocr: str) -> str | None:
+    path = str(ocr or "").replace("\\", "/").strip()
+    if not path:
+        return None
     try:
-        mtime = area_path.stat().st_mtime if area_path.is_file() else 0.0
-    except OSError:
-        mtime = 0.0
-    return _load_area_doc_cached(mtime)
+        return Path(path).relative_to("references").as_posix()
+    except Exception:
+        name = Path(path).name
+        return name if name else None
 
 
-def _index_area(doc: dict[str, object]) -> tuple[dict[str, set[str]], dict[str, str]]:
-    """Return (regions_by_ref_rel, screen_id_by_ref_rel, region_bbox_by_ref_rel) from `area.json`."""
-    regions_by_ref: dict[str, set[str]] = {}
-    screen_id_by_ref: dict[str, str] = {}
-    region_bbox_by_ref: dict[str, list[dict[str, object]]] = {}
+def _declared_version_ids(entry: dict[str, object]) -> set[str]:
+    out: set[str] = set()
+    raw = entry.get("versions")
+    if not isinstance(raw, list):
+        return out
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        vid = normalize_version_id(str(v.get("id") or ""))
+        if vid:
+            out.add(vid)
+    return out
 
+
+def _all_version_ids_from_doc(doc: dict[str, object]) -> list[str]:
+    ids: set[str] = set()
     screens = doc.get("screens") if isinstance(doc, dict) else None
     if not isinstance(screens, list):
-        return regions_by_ref, screen_id_by_ref, region_bbox_by_ref
+        return []
+    for e in screens:
+        if isinstance(e, dict):
+            ids.update(_declared_version_ids(e))
 
+    def sort_key(vid: str) -> tuple[int, str]:
+        tail = vid[1:] if vid.startswith("v") else vid
+        try:
+            return (int(tail), vid)
+        except ValueError:
+            return (9999, vid)
+
+    return sorted(ids, key=sort_key)
+
+
+def _refs_from_screen_entry(entry: dict[str, object]) -> list[tuple[str, str | None]]:
+    """``(ref_rel, auto_active_version)`` — ``None`` means default (v1) screenshot."""
+    out: list[tuple[str, str | None]] = []
+    rel = _ocr_to_ref_rel(str(entry.get("ocr") or ""))
+    if rel:
+        out.append((rel, None))
+    raw = entry.get("versions")
+    if not isinstance(raw, list):
+        return out
+    for v in raw:
+        if not isinstance(v, dict):
+            continue
+        vid = normalize_version_id(str(v.get("id") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        if vid and vr:
+            out.append((vr, vid))
+    return out
+
+
+def _active_version_for_ref(
+    ref_rel: str,
+    entry: dict[str, object],
+    preview_mode: str,
+) -> str | None:
+    if preview_mode == "auto":
+        for r, av in _refs_from_screen_entry(entry):
+            if r == ref_rel:
+                return av
+        return None
+    if preview_mode == "default":
+        return None
+    return preview_mode if preview_mode.startswith("v") else None
+
+
+def _merged_bbox_entries_for_ref(
+    entry: dict[str, object],
+    ref_rel: str,
+    preview_mode: str,
+) -> list[dict[str, object]]:
+    """Collect bbox rows for ``ref_rel`` under ``preview_mode``.
+
+    For **auto** / **default**, keep worker parity: only regions whose
+    ``effective_ocr_for_region`` matches this screenshot path.
+
+    For **forced ``vN``**, skip that filter so ``*_vN`` regions (whose crop lives
+    on ``versions[].ocr``) still appear when viewing the default reference image.
+    Otherwise switching to “Force v2” on ``main_city.png`` hid ``chapter.task_v2``
+    and left only v1 boxes.
+    """
+    known = _declared_version_ids(entry)
+    av = _active_version_for_ref(ref_rel, entry, preview_mode)
+    skip_eff_match = preview_mode not in ("auto", "default")
+    raw_regs = entry.get("regions")
+    if not isinstance(raw_regs, list):
+        return []
+
+    bases: set[str] = set()
+    for r in raw_regs:
+        if not isinstance(r, dict):
+            continue
+        nm = str(r.get("name") or "").strip()
+        if not nm:
+            continue
+        base, _vid = split_versioned_name(nm, known)
+        bases.add(base)
+
+    by_name: dict[str, dict[str, object]] = {}
+    for base in bases:
+        resolved = resolve_region_with_version(entry, base, av)
+        if resolved is None or not isinstance(resolved, dict):
+            continue
+        if not skip_eff_match:
+            eff = effective_ocr_for_region(entry, resolved)
+            eff_rel = _ocr_to_ref_rel(eff)
+            if eff_rel != ref_rel:
+                continue
+        nm = str(resolved.get("name") or "").strip()
+        bb = resolved.get("bbox")
+        if nm and isinstance(bb, dict):
+            by_name[nm] = {"name": nm, "bbox": bb}
+    return list(by_name.values())
+
+
+def _screen_entry_for_ref(doc: dict[str, object], ref_rel: str) -> dict[str, object] | None:
+    screens = doc.get("screens") if isinstance(doc, dict) else None
+    if not isinstance(screens, list):
+        return None
     for e in screens:
         if not isinstance(e, dict):
             continue
-        ocr = str(e.get("ocr") or "").replace("\\", "/").strip()
-        if not ocr:
+        ref_pairs = _refs_from_screen_entry(e)
+        if any(r == ref_rel for r, _ in ref_pairs):
+            return e
+    return None
+
+
+def _display_ref_rel_for_card(
+    doc: dict[str, object],
+    listed_rel: str,
+    preview_mode: str,
+) -> str:
+    """Which ``references/…`` image to show for this gallery row and layout mode."""
+    entry = _screen_entry_for_ref(doc, listed_rel)
+    if entry is None:
+        return listed_rel
+    if preview_mode == "auto":
+        return listed_rel
+    if preview_mode == "default":
+        dr = _ocr_to_ref_rel(str(entry.get("ocr") or ""))
+        return dr if dr else listed_rel
+    vid = normalize_version_id(preview_mode)
+    if not vid:
+        return listed_rel
+    raw = entry.get("versions")
+    if not isinstance(raw, list):
+        return listed_rel
+    for v in raw:
+        if not isinstance(v, dict):
             continue
-        try:
-            rel = Path(ocr).relative_to("references").as_posix()
-        except Exception:
-            rel = Path(ocr).name
+        if normalize_version_id(str(v.get("id") or "")) != vid:
+            continue
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        if vr:
+            return vr
+    return listed_rel
 
-        regs: set[str] = set()
-        bbox_entries: list[dict[str, object]] = []
-        raw_regs = e.get("regions")
-        if isinstance(raw_regs, list):
-            for r in raw_regs:
-                if not isinstance(r, dict):
-                    continue
-                nm = str(r.get("name") or "").strip()
-                if nm:
-                    regs.add(nm)
-                bb = r.get("bbox")
-                if nm and isinstance(bb, dict):
-                    bbox_entries.append({"name": nm, "bbox": bb})
-        if regs:
-            regions_by_ref[rel] = regs
-        if bbox_entries:
-            region_bbox_by_ref[rel] = bbox_entries
 
+def _gallery_slice_for_ref(
+    doc: dict[str, object],
+    listed_rel: str,
+    preview_mode: str,
+) -> tuple[set[str], list[dict[str, object]], str]:
+    """Resolve regions against the **displayed** reference (layout-matched screenshot)."""
+    layout_ref = _display_ref_rel_for_card(doc, listed_rel, preview_mode)
+    regions: set[str] = set()
+    boxes_by_name: dict[str, dict[str, object]] = {}
+    sid_out = ""
+    screens = doc.get("screens") if isinstance(doc, dict) else None
+    if not isinstance(screens, list):
+        return set(), [], ""
+    for e in screens:
+        if not isinstance(e, dict):
+            continue
+        ref_pairs = _refs_from_screen_entry(e)
+        if not any(r == listed_rel for r, _ in ref_pairs):
+            continue
         sid = str(e.get("screen_id") or "").strip()
         if sid:
-            screen_id_by_ref[rel] = sid
+            sid_out = sid
+        for b in _merged_bbox_entries_for_ref(e, layout_ref, preview_mode):
+            nm = str(b.get("name") or "").strip()
+            if nm:
+                regions.add(nm)
+                boxes_by_name[nm] = b
+    return regions, list(boxes_by_name.values()), sid_out
 
-    return regions_by_ref, screen_id_by_ref, region_bbox_by_ref
+
+@st.cache_data(ttl=60)
+def _gallery_slice_cached(
+    mtime: float,
+    ref_rel: str,
+    preview_mode: str,
+) -> tuple[frozenset[str], list[dict[str, object]], str]:
+    doc = _load_area_doc_cached(mtime)
+    regs, boxes, sid = _gallery_slice_for_ref(doc, ref_rel, preview_mode)
+    return frozenset(regs), boxes, sid
 
 
 def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
@@ -138,7 +302,7 @@ def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, in
 
 
 def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes:
-    """Red outlines from ``area.json`` bboxes (native resolution, then same downscale as plain thumb)."""
+    """Red outlines from ``area.json`` bboxes (native resolution, same downscale as thumb)."""
     im = Image.open(BytesIO(png)).convert("RGBA")
     draw = ImageDraw.Draw(im)
     w, h = im.size
@@ -161,9 +325,12 @@ def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes
 st.title("Gallery")
 
 ref_root = references_root()
-
-area_doc = _load_area_doc()
-regions_by_ref, screen_id_by_ref, region_bbox_by_ref = _index_area(area_doc)
+_area_path = Path(__file__).resolve().parents[2] / "area.json"
+try:
+    area_mtime = _area_path.stat().st_mtime if _area_path.is_file() else 0.0
+except OSError:
+    area_mtime = 0.0
+area_doc = _load_area_doc_cached(area_mtime)
 all_regions = _primary_region_names_for_filter(area_doc)
 
 def _qp_get_str(key: str, default: str = "") -> str:
@@ -250,6 +417,16 @@ with flt[0]:
 with flt[1]:
     show_crop = st.toggle("Include `references/crop/`", value=qp_crop)
 
+_ver_labels = OrderedDict(
+    [
+        ("auto", "Auto (match file)"),
+        ("default", "Default (v1)"),
+    ]
+)
+for _vid in _all_version_ids_from_doc(area_doc):
+    _ver_labels[_vid] = f"Force {_vid}"
+_ver_keys = list(_ver_labels.keys())
+
 region_sel = st.multiselect(
     "Filter by regions (from `area.json`)",
     options=all_regions,
@@ -297,13 +474,14 @@ for p in files:
     if ql and ql not in rel.lower():
         continue
     if want_regions:
-        have = regions_by_ref.get(rel, set())
-        if not (want_regions & have):
+        have_f, _, _ = _gallery_slice_cached(area_mtime, rel, "auto")
+        if not (want_regions & set(have_f)):
             continue
     filtered.append(p)
 
 st.caption(
-    f"Showing **{len(filtered)} / {len(files)}** file(s) · root: `{ref_root}` · newest first · "
+    f"Showing **{len(filtered)} / {len(files)}** file(s) · root: `{ref_root}` · "
+    "per-image **Layout** below · region filter uses **Auto** · newest first · "
     "click **Open in Labeling** to annotate."
 )
 
@@ -311,32 +489,69 @@ if not filtered:
     st.info("No PNGs found under `references/` (excluding `temporal/` and `crop/`).")
     st.stop()
 
-def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
+def _render_cards(
+    paths: list[Path],
+    *,
+    key_prefix: str,
+    area_mtime: float,
+    area_doc: dict[str, object],
+    ver_keys: list[str],
+    ver_labels: OrderedDict[str, str],
+) -> None:
     for i, p in enumerate(paths):
         rel = _rel_under_references(p, ref_root)
+        layout_key = f"layout::{key_prefix}::{i}"
+
+        ctl = st.columns([5, 1.4], vertical_alignment="bottom")
+        with ctl[1]:
+            card_ver = st.selectbox(
+                "Layout",
+                options=ver_keys,
+                format_func=lambda k: ver_labels[k],
+                index=0,
+                key=layout_key,
+                help="**Auto**: this gallery file + worker-style regions. "
+                "**Default** / **Force vN**: switch to the matching ``area.json`` "
+                "reference image (``ocr`` / ``versions[].ocr``) and regions.",
+            )
+
+        layout_rel = _display_ref_rel_for_card(area_doc, rel, card_ver)
+        img_path = (ref_root / layout_rel).resolve()
         try:
-            data = p.read_bytes()
+            if img_path.is_file():
+                data = img_path.read_bytes()
+                ts_raw = img_path.stat().st_mtime
+            else:
+                st.caption(f"No file `{layout_rel}` — showing gallery row `{rel}`.")
+                data = p.read_bytes()
+                ts_raw = p.stat().st_mtime
             native_png = data
-            sid = (screen_id_by_ref.get(rel) or "").strip()
-            regs = regions_by_ref.get(rel, set())
-            bbox_regs = region_bbox_by_ref.get(rel, [])
-            extra = []
-            if sid:
-                extra.append(f"page={sid}")
-            if regs:
-                extra.append(f"regions={len(regs)}")
-            extra_txt = (" · " + " · ".join(extra)) if extra else ""
         except OSError as exc:
-            st.error(f"`{rel}`: {exc}")
+            st.error(f"`{rel}` / `{layout_rel}`: {exc}")
             continue
 
-        left, right = st.columns([5, 1.4], vertical_alignment="top")
-        with right:
+        regs_f, bbox_regs, sid = _gallery_slice_cached(area_mtime, rel, card_ver)
+        regs = set(regs_f)
+        extra: list[str] = []
+        if (sid or "").strip():
+            extra.append(f"page={sid.strip()}")
+        if regs:
+            extra.append(f"regions={len(regs)}")
+        if card_ver != "auto":
+            extra.append(f"ver={card_ver}")
+        if layout_rel != rel:
+            extra.append(f"image={layout_rel}")
+        extra_txt = (" · " + " · ".join(extra)) if extra else ""
+
+        cap_rel = f"`{rel}`" if layout_rel == rel else f"gallery `{rel}` · **`{layout_rel}`**"
+
+        body = st.columns([5, 1.4], vertical_alignment="top")
+        with body[1]:
             highlight = st.toggle(
                 "Highlight regions",
                 value=False,
-                key=f"hl::{key_prefix}::{i}::{rel}",
-                help="Draw region rectangles from `area.json` on the full-size image, then scale to the thumb.",
+                key=f"hl::{key_prefix}::{i}",
+                help="Draw `area.json` rectangles on the full image, then scale like the thumb.",
             )
         try:
             if highlight and bbox_regs:
@@ -345,23 +560,23 @@ def _render_cards(paths: list[Path], *, key_prefix: str) -> None:
             else:
                 fitted, native, _disp = png_bytes_fitted(native_png, thumb_max)
         except Exception as exc:
-            st.error(f"`{rel}`: load failed: {exc}")
+            st.error(f"`{layout_rel}`: load failed: {exc}")
             fitted, native, _disp = png_bytes_fitted(native_png, thumb_max)
-        with left:
+        with body[0]:
             if highlight and not bbox_regs:
-                st.caption("No region boxes in `area.json` for this file.")
+                st.caption("No region boxes in `area.json` for this layout.")
             st.image(
                 fitted,
-                caption=f"`{rel}` · {native[0]}×{native[1]}{extra_txt}",
+                caption=f"{cap_rel} · {native[0]}×{native[1]}{extra_txt}",
                 width=thumb_max,
             )
-        with right:
-            ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(p.stat().st_mtime))
+        with body[1]:
+            ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts_raw))
             st.caption(ts)
             st.page_link(
                 "views/labeling.py",
                 label="Open in Labeling",
-                query_params={"ref": rel},
+                query_params={"ref": layout_rel},
                 width="stretch",
             )
         st.divider()
@@ -371,12 +586,27 @@ if group_by == "page (screen_id)":
     groups: dict[str, list[Path]] = {}
     for p in filtered:
         rel = _rel_under_references(p, ref_root)
-        sid = (screen_id_by_ref.get(rel) or "").strip() or "(unassigned)"
-        groups.setdefault(sid, []).append(p)
+        _, _, sid = _gallery_slice_cached(area_mtime, rel, "auto")
+        sid_g = (sid or "").strip() or "(unassigned)"
+        groups.setdefault(sid_g, []).append(p)
 
     for sid in sorted(groups.keys()):
-        with st.expander(f"{sid} · {len(groups[sid])}", expanded=(sid != "(unassigned)")):
-            _render_cards(groups[sid], key_prefix=f"grp::{sid}")
+        with st.expander(f"{sid} · {len(groups[sid])}", expanded=False):
+            _render_cards(
+                groups[sid],
+                key_prefix=f"grp::{sid}",
+                area_mtime=area_mtime,
+                area_doc=area_doc,
+                ver_keys=_ver_keys,
+                ver_labels=_ver_labels,
+            )
 else:
-    _render_cards(filtered, key_prefix="flat")
+    _render_cards(
+        filtered,
+        key_prefix="flat",
+        area_mtime=area_mtime,
+        area_doc=area_doc,
+        ver_keys=_ver_keys,
+        ver_labels=_ver_labels,
+    )
 

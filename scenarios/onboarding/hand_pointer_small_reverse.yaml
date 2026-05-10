@@ -5,6 +5,5 @@ device_level: true
 
 steps:
   - match: hand_pointer_small_reverse
-    threshold: 0.80
-    min_match_saturation: 40
+    threshold: 0.9
   - click: hand_pointer_small_reverse

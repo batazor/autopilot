@@ -28,3 +28,5 @@ edges:
     main_city: [from.survivor_status.to.main_city]
   suggestion_box:
     main_city: [back_button]
+  hero.recrutment:
+    main_city: [back_button]

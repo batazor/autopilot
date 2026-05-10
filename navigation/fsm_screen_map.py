@@ -88,9 +88,10 @@ _TROOPS_RAW: Final[dict[str, set[str]]] = {
 
 # Hub screen ↔ survivor/worker list (Python tap graph; see navigation/edge_taps.yaml).
 _MAIN_CITY_HUB_RAW: Final[dict[str, set[str]]] = {
-    "main_city": {"survivor_status", "suggestion_box"},
+    "main_city": {"survivor_status", "suggestion_box", "hero.recrutment"},
     "survivor_status": {"main_city"},
     "suggestion_box": {"main_city"},
+    "hero.recrutment": {"main_city"},
 }
 
 TUNDRA_ADVENTURE_EDGES: Final[dict[str, frozenset[str]]] = _freeze_adjacency(_TUNDRA_RAW)

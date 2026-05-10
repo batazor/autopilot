@@ -87,7 +87,7 @@ overlay:
   region: hand_pointer_small_reverse
   action: findIcon
   priority: 86_000
-  threshold: 0.90
+  threshold: 0.73
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer_small_reverse
@@ -97,7 +97,7 @@ overlay:
   region: hand_pointer_small
   action: findIcon
   priority: 86_000
-  threshold: 0.80
+  threshold: 0.75
   min_match_saturation: 40
   pushScenario:
     - name: hand_pointer_small
@@ -134,6 +134,28 @@ overlay:
   ttl: 5s
   pushScenario:
     - name: tap_tapanywhereyoexit
+      priority: 76_000
+
+- name: tapanywhereyoexit.purpur.visible
+  region: tapanywhereyoexit.purpur
+  action: findIcon
+  priority: 76_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_tapanywhereyoexit_purpur
+      priority: 76_000
+
+- name: tapanywhereyoexit.blue.visible
+  region: tapanywhereyoexit.blue
+  action: findIcon
+  priority: 76_000
+  threshold: 0.92
+  min_match_saturation: 48
+  ttl: 5s
+  pushScenario:
+    - name: tap_tapanywhereyoexit_blue
       priority: 76_000
 
 - name: upgrade_button.visible

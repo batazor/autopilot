@@ -5,6 +5,6 @@ device_level: true
 
 steps:
   - match: hand_pointer_small
-    threshold: 0.80
+    threshold: 0.75
     min_match_saturation: 40
   - click: hand_pointer_small

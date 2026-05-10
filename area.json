@@ -106,10 +106,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 32.222007722007724,
+            "x": 1.7374517374517375,
             "y": 25.76086956521739,
-            "width": 65.02509652509653,
-            "height": 71.51847826086957,
+            "width": 95.58689189189188,
+            "height": 72.23366304347826,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -141,7 +141,7 @@
       "regions": [
         {
           "name": "hand_pointer_small",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -161,9 +161,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 0.0,
-            "y": 51.891304347826086,
+            "y": 2.9347826086956523,
             "width": 83.25096525096525,
-            "height": 44.94021739130435,
+            "height": 95.7891304347826,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1558,6 +1558,147 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "screen_id": "",
+      "ocr": "references/tapanywhereyoexit.purpur.png",
+      "regions": [
+        {
+          "name": "tapanywhereyoexit.purpur",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.111969111969117,
+            "y": 95.97826086956522,
+            "width": 20.0,
+            "height": 3.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "screen_id": "",
+      "ocr": "references/tapanywhereyoexit.blue.png",
+      "regions": [
+        {
+          "name": "tapanywhereyoexit.blue",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.23552123552124,
+            "y": 88.91304347826087,
+            "width": 7.903474903474904,
+            "height": 3.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "screen_id": "hero.recrutment",
+      "ocr": "references/page.hero.recrutment.png",
+      "regions": [
+        {
+          "name": "key.silver",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.305019305019307,
+            "y": 1.7391304347826086,
+            "width": 12.200772200772201,
+            "height": 2.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "key.gold",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.173745173745175,
+            "y": 1.7391304347826086,
+            "width": 12.3996138996139,
+            "height": 2.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "diamond",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.27413127413128,
+            "y": 1.8478260869565217,
+            "width": 12.6003861003861,
+            "height": 2.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "isHeroRecruitment",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.9034749034749,
+            "y": 1.3043478260869565,
+            "width": 6.0,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "free_recruitments_today",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.59073359073359,
+            "y": 60.21739130434783,
+            "width": 7.399613899613899,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "hero.recrutment.advanced.once",
+          "action": "color_check",
+          "type": "green",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.64864864864865,
+            "y": 63.80434782608695,
+            "width": 7.2007722007721995,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }
