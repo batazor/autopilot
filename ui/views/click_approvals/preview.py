@@ -122,9 +122,9 @@ def render_preview_with_point(
 ) -> None:
     """Render approval snapshot/rolling PNG preview with optional target crosshair.
 
-    When ``client`` is provided, region lookups use the active player's state so screen-version
-    overrides (``cond``-driven ``_vN`` regions) resolve to the right variant for this instance.
-    Without ``client`` they fall back to the default version (the unsuffixed regions).
+    When ``client`` is provided, region lookups use the active player's state so the
+    ``cond``-driven ``versions[V].regions[]`` overrides resolve to the right variant for
+    this instance. Without ``client`` they fall back to the entry's base regions.
     """
     ui = where or st
     state_flat = (
