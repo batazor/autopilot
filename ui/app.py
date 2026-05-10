@@ -51,7 +51,7 @@ fsm_page = st.Page(
     title="Routes",
     url_path="routes",
 )
-settings_page = st.Page(str(_ui_dir / "views" / "settings.py"), title="Settings")
+adb_page = st.Page(str(_ui_dir / "views" / "adb.py"), title="ADB", url_path="adb")
 
 st.navigation(
     {
@@ -64,6 +64,6 @@ st.navigation(
             wiki_analyze_page,
         ],
         "Debug": [click_approvals_page, queue_page, debug_scenarios_page, fsm_page],
-        "Config": [scenarios_page, settings_page],
+        "Config": [scenarios_page, adb_page],
     }
 ).run()

@@ -16,7 +16,6 @@ instances:
     bluestacks_window_title: "emulator-5554"
     # Legacy (ignored): kept for older configs
     capture_window_title: "BlueStacks"
-    google_account: "account1@gmail.com"
 
 tasks:
   arena:

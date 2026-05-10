@@ -17,7 +17,6 @@ class TaskConfig:
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
-    google_account: str
     # Legacy: player_ids are now read from db/devices.yaml via config.devices.
     player_ids: list[str] = field(default_factory=list)
     # Legacy YAML field; screen capture is ADB-only (ignored).
@@ -81,7 +80,6 @@ def load_settings(path: Path | None = None) -> Settings:
         InstanceConfig(
             instance_id=inst["instance_id"],
             bluestacks_window_title=inst["bluestacks_window_title"],
-            google_account=inst["google_account"],
             capture_window_title=inst.get("capture_window_title"),
         )
         for inst in raw["instances"]
