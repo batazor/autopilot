@@ -611,7 +611,7 @@
           }
         },
         {
-          "name": "main_city.to.exploration",
+          "name": "is_new_chapter_v2",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -674,8 +674,8 @@
           "has_red_dot": true
         },
         {
-          "name": "region_v2",
-          "action": "text",
+          "name": "main_city.to.exploration_v2",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
