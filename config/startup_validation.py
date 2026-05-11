@@ -10,10 +10,7 @@ from typing import Any
 import yaml
 
 from analysis.overlay_manifest import default_analyze_yaml_path, load_analyze_yaml
-from analysis.overlay_rules import (
-    optional_push_scenario_tasks,
-    optional_run_scenario_tasks,
-)
+from analysis.overlay_rules import optional_push_scenario_tasks
 
 logger = logging.getLogger(__name__)
 
@@ -183,14 +180,6 @@ def _validate_analyze_manifest(
                 scenario_keys=scenario_keys,
                 source=source,
                 field="pushScenario",
-                value=task.get("dsl_scenario") or task.get("type"),
-            )
-        for task in optional_run_scenario_tasks(rule):
-            _check_scenario(
-                issues,
-                scenario_keys=scenario_keys,
-                source=source,
-                field="runScenario",
                 value=task.get("dsl_scenario") or task.get("type"),
             )
 

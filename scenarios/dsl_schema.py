@@ -9,8 +9,10 @@ existing YAML never silently drops fields the executor still understands.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DSL_ACTION_KEYS: tuple[str, ...] = (
@@ -37,7 +39,16 @@ COMPOSITE_KEYS: tuple[str, ...] = ("cond",)
 class DslStep(BaseModel):
     """One DSL step. Exactly one action key is expected, plus optional ``cond``.
 
-    ``cond`` may also stand alone as a composite block carrying nested ``steps``.
+    Two action-less forms are also valid, matching the runtime executor in
+    ``tasks/dsl_scenario.py``:
+
+    * **Composite ``cond``** — a ``cond`` guard plus nested ``steps``: the
+      group runs when the condition holds, else is skipped wholesale.
+    * **Bare group** — only ``steps`` with no action key and no ``cond``: the
+      runtime simply iterates the inner steps inline (see
+      ``dsl_scenario.py`` grouped-step handler). Useful for inlining a
+      YAML anchor that points to a list of steps.
+
     Unknown keys are preserved (``extra="allow"``).
     """
 
@@ -73,18 +84,20 @@ class DslStep(BaseModel):
     @model_validator(mode="after")
     def _exactly_one_action(self) -> "DslStep":
         present = [k for k in DSL_ACTION_KEYS if self._has(k)]
-        is_composite_cond = (
-            self.cond is not None
+        # Action-less group: must carry ``steps`` (optionally with ``cond``).
+        # The runtime grouped-step handler iterates these inline.
+        is_group = (
+            not present
             and isinstance(self.steps, list)
-            and not present
+            and bool(self.steps)
         )
-        if is_composite_cond:
+        if is_group:
             return self
         if not present:
             raise ValueError(
                 "step must carry exactly one action key "
-                f"(one of {', '.join(DSL_ACTION_KEYS)}) or be a composite "
-                "'cond' block with nested 'steps'"
+                f"(one of {', '.join(DSL_ACTION_KEYS)}) or a non-empty 'steps' "
+                "group (optionally guarded by 'cond')"
             )
         if len(present) > 1:
             raise ValueError(
@@ -106,6 +119,8 @@ class DslStep(BaseModel):
                 return k
         if self.cond is not None and self.steps is not None:
             return "cond"
+        if isinstance(self.steps, list) and self.steps:
+            return "group"
         return ""
 
 
@@ -162,3 +177,43 @@ def _strip_defaults(d: Any) -> Any:
     if isinstance(d, list):
         return [_strip_defaults(x) for x in d]
     return d
+
+
+def resolve_dsl_scenario_yaml_path(repo_root: Path, scenario_key: str) -> Path | None:
+    """First ``scenarios/**/{scenario_key}.yaml`` excluding ``drafts/`` (deterministic)."""
+    key = str(scenario_key or "").strip()
+    if not key:
+        return None
+    scenarios_root = repo_root / "scenarios"
+    if not scenarios_root.is_dir():
+        return None
+    hits: list[Path] = []
+    for p in scenarios_root.rglob(f"{key}.yaml"):
+        rel = p.relative_to(scenarios_root).as_posix()
+        if rel.startswith("drafts/"):
+            continue
+        hits.append(p)
+    if not hits:
+        return None
+    hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
+    return hits[0]
+
+
+def dsl_scenario_yaml_priority(repo_root: Path, scenario_key: str) -> int | None:
+    """Top-level ``priority`` from the scenario YAML file, if set and integral."""
+    path = resolve_dsl_scenario_yaml_path(repo_root, scenario_key)
+    if path is None or not path.is_file():
+        return None
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    p = raw.get("priority")
+    if p is None or isinstance(p, bool):
+        return None
+    try:
+        return int(p)
+    except (TypeError, ValueError):
+        return None

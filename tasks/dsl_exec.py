@@ -667,7 +667,11 @@ async def _exec_scan_event_blocks(ctx: DslExecContext) -> None:
 
     client = OcrClient()
     try:
-        results = await client.ocr_regions(image, pixel_regions)
+        results = await client.ocr_regions(
+            image,
+            pixel_regions,
+            region_ids=[f"event_block_{idx}" for idx, _ in regions],
+        )
     except Exception:
         logger.exception(
             "dsl exec scan_event_blocks: OCR call failed instance=%s",

@@ -27,7 +27,15 @@ from actions.tap import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
-from tasks.dsl_scenario_helpers import _step_red_dot_requirement
+from layout.tab_active_detector import (
+    TAB_ACTIVE_MAX_MEAN_SATURATION,
+    TAB_ACTIVE_MIN_MEAN_VALUE,
+    is_tab_active_in_bbox_percent,
+)
+from tasks.dsl_scenario_helpers import (
+    _step_red_dot_requirement,
+    _step_tab_active_requirement,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +207,7 @@ class DslMatchMixin:
             threshold = 0.9
 
         red_dot_req = _step_red_dot_requirement(step)
+        tab_active_req = _step_tab_active_requirement(step)
 
         # Red-dot-only short-circuit: when the step carries ``isRedDot: true|false``
         # the user is asking "is there a red dot in <region>?" — they do NOT
@@ -213,6 +222,15 @@ class DslMatchMixin:
                 region_def=pair[1],
                 image_bgr=image_bgr,
                 requirement=red_dot_req,
+            )
+        elif tab_active_req is not None:
+            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            row = self._build_tab_active_only_row(
+                region=region,
+                region_def=pair[1],
+                image_bgr=image_bgr,
+                requirement=tab_active_req,
+                step=step,
             )
         else:
             # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
@@ -305,6 +323,67 @@ class DslMatchMixin:
         base["red_dot_present"] = present
         if present != bool(requirement):
             base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
+            return base
+
+        base["matched"] = True
+        try:
+            cx = float(bbox.get("x") or 0.0) + float(bbox.get("width") or 0.0) / 2.0
+            cy = float(bbox.get("y") or 0.0) + float(bbox.get("height") or 0.0) / 2.0
+        except (TypeError, ValueError):
+            cx = cy = 0.0
+        base["tap_x_pct"] = cx
+        base["tap_y_pct"] = cy
+        base["tap_match_x_pct"] = cx
+        base["tap_match_y_pct"] = cy
+        return base
+
+    @staticmethod
+    def _build_tab_active_only_row(
+        *,
+        region: str,
+        region_def: dict[str, Any],
+        image_bgr: Any,
+        requirement: bool,
+        step: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build a match row from the tab_active detector alone (no template match).
+
+        Used by ``match:`` / ``while_match:`` steps that carry ``isTabActive:`` —
+        the row populates ``tap_x_pct`` / ``tap_y_pct`` from the bbox center so a
+        follow-up ``click:`` on the same region still has coords.
+        """
+        base: dict[str, Any] = {
+            "matched": False,
+            "action": "tab_active",
+            "region": region,
+            "tab_active_required": bool(requirement),
+        }
+        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
+        if bbox is None:
+            base["reason"] = "missing_bbox_for_tab_active"
+            return base
+
+        max_s = TAB_ACTIVE_MAX_MEAN_SATURATION
+        min_v = TAB_ACTIVE_MIN_MEAN_VALUE
+        if isinstance(step, dict):
+            with suppress(TypeError, ValueError):
+                if step.get("max_mean_saturation") is not None:
+                    max_s = float(step["max_mean_saturation"])
+            with suppress(TypeError, ValueError):
+                if step.get("min_mean_value") is not None:
+                    min_v = float(step["min_mean_value"])
+
+        active = bool(
+            is_tab_active_in_bbox_percent(
+                image_bgr,
+                bbox,
+                max_mean_saturation=max_s,
+                min_mean_value=min_v,
+            )
+        )
+        base["tab_active"] = active
+        if active != bool(requirement):
+            base["reason"] = "tab_inactive" if requirement else "tab_active_unexpected"
             return base
 
         base["matched"] = True

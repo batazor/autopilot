@@ -786,6 +786,86 @@
           }
         },
         {
+          "name": "mail.tab.wars",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 5.3,
+            "width": 22.2007722007722,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.alliance",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 22.586872586872587,
+            "y": 5.3,
+            "width": 17.3996138996139,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.system",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.reports",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 60.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.starred",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
           "name": "mail_gift",
           "action": "exist",
           "type": "string",
@@ -2309,6 +2389,22 @@
             "y": 37.28260869565217,
             "width": 14.6003861003861,
             "height": 7.900000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "trial.box",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 77.18146718146718,
+            "y": 26.847826086956523,
+            "width": 20.0,
+            "height": 10.0,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

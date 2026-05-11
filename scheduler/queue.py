@@ -14,9 +14,42 @@ from config.loader import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Dynamic ranking knobs (ADR 0001 §"Ranking model"). Defaults are bounded so a
+# single debuff cannot cross a configured 10k YAML priority band.
+RECENT_RUNS_WINDOW_SECONDS = 1800
+RECENT_RUNS_CAP = 3
+W_HOPS = 500
+W_RECENT = 1000
+HOPS_DEBUFF_CAP_HOPS = 5
+UNREACHABLE_DEBUFF = 5000
+HOPS_SENTINEL = 10**9
+
+
 def _queue_key(instance_id: str) -> str:
     iid = str(instance_id or "").strip()
     return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
+
+
+def _recent_runs_key(instance_id: str) -> str:
+    iid = str(instance_id or "").strip() or "unknown"
+    return f"wos:instance:{iid}:recent_runs"
+
+
+@lru_cache(maxsize=1024)
+def _bfs_hops(src: str, dst: str) -> int | None:
+    """Shortest-path hop count over the screen graph, or None if unreachable.
+
+    Process-cached on (src, dst). Topology is loaded once at import; the cache
+    only needs to be cleared if ``screen_graph`` is reloaded — out of scope here.
+    """
+    from navigation.screen_graph import bfs_route
+
+    if not src or not dst:
+        return None
+    path = bfs_route(src, dst)
+    if path is None:
+        return None
+    return max(0, len(path) - 1)
 
 
 def _dup_region_key(region: str | None) -> str:
@@ -60,6 +93,12 @@ class QueueItem:
     tap_match_y_pct: float | None = None
     # Step index to resume from when re-enqueuing after a hand-pointer interruption.
     start_step_index: int = 0
+    # Stable last tie-breaker for ranking — set at schedule() time. Missing on
+    # legacy items defaults to 0.0 (those sort first, harmless for stragglers).
+    created_at: float = 0.0
+    # Computed at pop / peek time. Carries the rank decision through to the
+    # worker / DSL task for preemption checks. ``0`` outside of ranked contexts.
+    effective_priority: int = 0
 
 
 class RedisQueue:
@@ -157,6 +196,7 @@ class RedisQueue:
             body["tap_match_y_pct"] = float(tap_match_y_pct)
         if start_step_index:
             body["start_step_index"] = int(start_step_index)
+        body["created_at"] = time.time()
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
@@ -293,13 +333,31 @@ class RedisQueue:
     def _task_types_requiring_node_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
+        return set(RedisQueue._task_type_to_required_node_cached(fp).keys())
+
+    @staticmethod
+    def _task_type_to_required_node() -> dict[str, str]:
+        """Map ``task_type → required_node`` from cron YAML specs.
+
+        Same source as :meth:`_task_types_requiring_node`; exposed separately for
+        ranking, which needs the node name (not just the gated set).
+        """
+        repo_root = Path(__file__).resolve().parent.parent
+        fp = RedisQueue._cron_specs_fingerprint(repo_root)
+        return RedisQueue._task_type_to_required_node_cached(fp)
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _task_type_to_required_node_cached(
+        fp: tuple[str, tuple[tuple[str, int, int], ...]]
+    ) -> dict[str, str]:
         scenarios_root = Path(fp[0])
         try:
             import yaml
         except Exception:
-            return set()
+            return {}
 
-        out: set[str] = set()
+        out: dict[str, str] = {}
         for rel, _, _ in fp[1]:
             yml = scenarios_root / rel
             try:
@@ -308,13 +366,14 @@ class RedisQueue:
                 continue
             if not isinstance(raw, dict):
                 continue
-            if not str(raw.get("node") or "").strip():
+            node = str(raw.get("node") or "").strip()
+            if not node:
                 continue
             t = str(raw.get("task") or raw.get("task_type") or "").strip()
             if not t:
                 t = yml.stem
             if t:
-                out.add(t)
+                out[t] = node
         return out
 
     @staticmethod
@@ -379,16 +438,25 @@ class RedisQueue:
                 out.add(t)
         return out
 
-    async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
-        import json
-        from contextlib import suppress
+    async def _collect_ranked_due(
+        self, instance_id: str, current_screen: str, now: float
+    ) -> list[
+        tuple[
+            tuple[int, int, int, float, float],
+            str,
+            dict[str, object],
+            dict[str, object],
+        ]
+    ]:
+        """Return post-gate, ranked due items. Shared by pop_due / peek_top_due.
 
-        now = time.time()
-        # Fetch earliest due tasks (score <= now) for players on this instance.
-        # Also allow device-level items with empty player_id ("") which will be
-        # resolved to an active player at execution time.
+        Applies the existing time + instance + player + node + active_player gates
+        from ``pop_due``, then runs ``_rank_candidates`` and returns the sorted list
+        (smallest tuple first — i.e. highest effective_priority).
+        """
+        import json
+
         instance_players = self._players_for_instance(instance_id)
-        # Include players discovered at runtime (OCR'd in-game id written by who_i_am).
         ap = ""
         try:
             raw_ap = await self._redis.hget(
@@ -410,11 +478,8 @@ class RedisQueue:
                 due.append((raw, data))
 
         if not due:
-            return None
+            return []
 
-        # Unknown/none: do not run tasks that were defined with a required `node` in specs.
-        # ``debug: true`` payloads (UI "Run scenario now") bypass this — the user explicitly
-        # chose to run regardless of the current screen state.
         if not str(current_screen or "").strip():
             gated = self._task_types_requiring_node()
             if gated:
@@ -424,13 +489,8 @@ class RedisQueue:
                     or str(x[1].get("task_type") or "") not in gated
                 ]
                 if not due:
-                    return None
+                    return []
 
-        # No active player yet: only run scenarios explicitly marked `device_level: true`
-        # (identity probes, tutorial dismissals, popup taps). Everything else is
-        # player-bound and must wait until ``who_i_am`` populates ``active_player``.
-        # ``debug: true`` payloads bypass this gate too — they already carry the player_id
-        # the UI selected, so there's nothing to wait for.
         if not ap:
             device_level = self._task_types_device_level()
             due = [
@@ -439,23 +499,40 @@ class RedisQueue:
                 or str(x[1].get("task_type") or "") in device_level
             ]
             if not due:
-                return None
+                return []
 
-        due.sort(
-            key=lambda item: (
-                -int(item[1].get("priority", 0)),
-                float(item[1].get("run_at", now)),
-            )
+        recent_counts = await self._read_recent_counts(instance_id, now)
+        ranked = self._rank_candidates(
+            due,
+            current_screen=str(current_screen or "").strip(),
+            recent_counts=recent_counts,
+            now=now,
         )
-        raw, data = due[0]
+        ranked.sort(key=lambda x: x[0])
+        return ranked
+
+    async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
+        from contextlib import suppress
+
+        now = time.time()
+        key = _queue_key(instance_id)
+        ranked = await self._collect_ranked_due(instance_id, current_screen, now)
+        if not ranked:
+            return None
+        _sort_key, raw, data, winner_meta = ranked[0]
         await self._redis.zrem(key, raw)
-        # Keep duplicate index in sync (best-effort).
+        await self._append_recent_run(
+            instance_id=instance_id,
+            task_type=str(data.get("task_type", "")),
+            player_id=str(data.get("player_id", "")),
+            now=now,
+        )
+        self._log_pop_winner(instance_id=instance_id, data=data, meta=winner_meta)
         try:
             pid = str(data.get("player_id", ""))
             ttype = str(data.get("task_type", ""))
             reg_raw = data.get("region")
             reg_s = str(reg_raw).strip() if reg_raw is not None and str(reg_raw).strip() != "" else None
-            # Remove from both: region-sensitive key and ignore-region key.
             with suppress(Exception):
                 await self._redis.srem(
                     _dup_index_key(
@@ -478,6 +555,77 @@ class RedisQueue:
                 )
         except Exception:
             logger.debug("queue idx: srem failed", exc_info=True)
+        return self._build_queue_item(
+            data,
+            default_run_at=now,
+            effective_priority=int(winner_meta.get("effective_priority", 0)),
+        )
+
+    async def explain_top_n(
+        self,
+        instance_id: str,
+        *,
+        current_screen: str = "",
+        n: int = 10,
+    ) -> list[dict[str, object]]:
+        """Top-N due candidates with full effective_priority breakdown.
+
+        Powers the debug command from ADR 0001 §"Debug / operator tools" and
+        the deferred-v2 Streamlit panel. Reuses the same gate + ranking tuple
+        as ``pop_due`` and ``peek_top_due`` without mutating Redis state.
+        """
+        now = time.time()
+        ranked = await self._collect_ranked_due(instance_id, current_screen, now)
+        out: list[dict[str, object]] = []
+        for sort_key, _raw, data, meta in ranked[: max(0, int(n))]:
+            out.append(
+                {
+                    "task_id": str(data.get("task_id") or ""),
+                    "task_type": str(data.get("task_type") or ""),
+                    "player_id": str(data.get("player_id") or ""),
+                    "base_priority": int(meta["base_priority"]),
+                    "effective_priority": int(meta["effective_priority"]),
+                    "graph_debuff": int(meta["graph_debuff"]),
+                    "recent_debuff": int(meta["recent_debuff"]),
+                    "hops": int(meta["hops"]),
+                    "reachable": meta["unreachable_flag"] == 0,
+                    "required_node": str(meta.get("required_node") or ""),
+                    "recent_count": int(meta["recent_count"]),
+                    "run_at": float(data.get("run_at", now)),
+                    "created_at": float(data.get("created_at", 0.0)),
+                    "sort_key": list(sort_key),
+                }
+            )
+        return out
+
+    async def peek_top_due(
+        self, instance_id: str, *, current_screen: str = ""
+    ) -> QueueItem | None:
+        """Return the top due candidate without popping or appending recent_runs.
+
+        Used by cooperative preemption (ADR 0001 §5): the running scenario checks
+        between steps whether a pending task outranks it by ``PREEMPT_MARGIN``.
+        Uses exactly the same gate + ranking tuple as ``pop_due``.
+        """
+        now = time.time()
+        ranked = await self._collect_ranked_due(instance_id, current_screen, now)
+        if not ranked:
+            return None
+        _sort_key, _raw, data, winner_meta = ranked[0]
+        return self._build_queue_item(
+            data,
+            default_run_at=now,
+            effective_priority=int(winner_meta.get("effective_priority", 0)),
+        )
+
+    @staticmethod
+    def _build_queue_item(
+        data: dict[str, object],
+        *,
+        default_run_at: float,
+        effective_priority: int = 0,
+    ) -> QueueItem:
+        """Reconstruct a ``QueueItem`` from a queue payload dict."""
         reg = data.get("region")
         region = str(reg).strip() if reg is not None and str(reg).strip() != "" else None
         tap_x = data.get("tap_x_pct")
@@ -508,13 +656,15 @@ class RedisQueue:
         tap_match_y_pct = float(tmy) if tmy is not None else None
         ssi = data.get("start_step_index")
         start_step_index = int(ssi) if ssi is not None else 0
+        ca = data.get("created_at")
+        created_at = float(ca) if ca is not None else 0.0
         return QueueItem(
             task_id=data["task_id"],  # type: ignore[arg-type]
             player_id=data["player_id"],  # type: ignore[arg-type]
             task_type=data["task_type"],  # type: ignore[arg-type]
             priority=int(data.get("priority", 0)),  # type: ignore[arg-type]
-            run_at=float(data.get("run_at", now)),  # type: ignore[arg-type]
-            instance_id=data["instance_id"],  # type: ignore[arg-type]
+            run_at=float(data.get("run_at", default_run_at)),  # type: ignore[arg-type]
+            instance_id=str(data.get("instance_id") or ""),
             region=region,
             tap_x_pct=tap_x_pct,
             tap_y_pct=tap_y_pct,
@@ -529,6 +679,8 @@ class RedisQueue:
             tap_match_x_pct=tap_match_x_pct,
             tap_match_y_pct=tap_match_y_pct,
             start_step_index=start_step_index,
+            created_at=created_at,
+            effective_priority=effective_priority,
         )
 
     async def peek_all(self) -> list[QueueItem]:
@@ -548,41 +700,7 @@ class RedisQueue:
                 continue
             for raw, score in items:
                 data = json.loads(raw)
-                reg = data.get("region")
-                region = (
-                    str(reg).strip() if reg is not None and str(reg).strip() != "" else None
-                )
-                tap_x = data.get("tap_x_pct")
-                tap_y = data.get("tap_y_pct")
-                tap_x_pct = float(tap_x) if tap_x is not None else None
-                tap_y_pct = float(tap_y) if tap_y is not None else None
-                thr = data.get("threshold")
-                threshold = float(thr) if thr is not None else None
-                sc = data.get("overlay_match_score")
-                if sc is None:
-                    sc = data.get("score")
-                score_val = float(sc) if sc is not None else None
-                sn = data.get("set_node")
-                set_node = str(sn).strip() if sn is not None and str(sn).strip() != "" else None
-                ds = data.get("dsl_scenario")
-                dsl_scenario = str(ds).strip() if ds is not None and str(ds).strip() != "" else None
-                results.append(
-                    QueueItem(
-                        task_id=data["task_id"],
-                        player_id=data["player_id"],
-                        task_type=data["task_type"],
-                        priority=data.get("priority", 0),
-                        run_at=float(data.get("run_at", score)),
-                        instance_id=str(data.get("instance_id") or ""),
-                        region=region,
-                        tap_x_pct=tap_x_pct,
-                        tap_y_pct=tap_y_pct,
-                        threshold=threshold,
-                        score=score_val,
-                        set_node=set_node,
-                        dsl_scenario=dsl_scenario,
-                    )
-                )
+                results.append(self._build_queue_item(data, default_run_at=float(score)))
         return results
 
     async def remove(self, task_id: str) -> None:
@@ -681,3 +799,144 @@ class RedisQueue:
                     )
                 )
         return set()
+
+    async def _read_recent_counts(
+        self, instance_id: str, now: float
+    ) -> dict[tuple[str, str], int]:
+        """ZRANGEBYSCORE recent_runs window → ``{(task_type, player_id): count}``.
+
+        Members are ``"<task_type>|<player_id>|<uuid>"``; the uuid suffix lets
+        multiple events per ``recent_key`` coexist as distinct ZSET members.
+        Failures degrade ranking (returns empty); a metric/log on the failure is
+        the only signal that recent_debuff has been silenced.
+        """
+        try:
+            members = await self._redis.zrangebyscore(
+                _recent_runs_key(instance_id),
+                now - RECENT_RUNS_WINDOW_SECONDS,
+                "+inf",
+            )
+        except Exception:
+            logger.debug("recent_runs read failed; recent_debuff = 0", exc_info=True)
+            return {}
+        counts: dict[tuple[str, str], int] = {}
+        for m in members:
+            s = m.decode() if isinstance(m, bytes) else str(m)
+            parts = s.split("|", 2)
+            if len(parts) < 2:
+                continue
+            key = (parts[0], parts[1])
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
+    async def _append_recent_run(
+        self, *, instance_id: str, task_type: str, player_id: str, now: float
+    ) -> None:
+        """Record an execution-start event for ranking history.
+
+        Pipeline: ZADD <now> "<recent_key>|<uuid>" + ZREMRANGEBYSCORE (prune
+        older than the window) + EXPIRE (a dead worker won't leak garbage).
+        Independent of task success/failure: a broken scenario still
+        accumulates history and sinks under recent_debuff.
+        """
+        import uuid
+
+        member = f"{task_type}|{player_id}|{uuid.uuid4().hex[:8]}"
+        key = _recent_runs_key(instance_id)
+        try:
+            pipe = self._redis.pipeline()
+            pipe.zadd(key, {member: now})
+            pipe.zremrangebyscore(key, "-inf", now - RECENT_RUNS_WINDOW_SECONDS)
+            pipe.expire(key, RECENT_RUNS_WINDOW_SECONDS * 2)
+            await pipe.execute()
+        except Exception:
+            logger.debug("recent_runs append failed", exc_info=True)
+
+    def _rank_candidates(
+        self,
+        due: list[tuple[str, dict[str, object]]],
+        *,
+        current_screen: str,
+        recent_counts: dict[tuple[str, str], int],
+        now: float,
+    ) -> list[tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]]:
+        """Compute the full ranking tuple + metadata for every due candidate.
+
+        Returned tuples are ``(sort_key, raw_payload, parsed_data, meta)`` where
+        ``sort_key`` follows ADR 0001 §"Final sort key":
+        ``(-effective_priority, unreachable_flag, hops, run_at, created_at)``.
+        Caller sorts ascending — smallest tuple runs first.
+
+        Shared by ``pop_due`` and ``peek_top_due`` (cooperative preemption).
+        """
+        required_node_map = self._task_type_to_required_node()
+        out: list[tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]] = []
+        for raw, data in due:
+            base = int(data.get("priority", 0))
+            ttype = str(data.get("task_type", ""))
+            pid = str(data.get("player_id", ""))
+            required_node = required_node_map.get(ttype, "")
+
+            if not required_node or not current_screen:
+                unreachable_flag = 0
+                hops_val = 0
+                graph_debuff = 0
+            else:
+                hops_opt = _bfs_hops(current_screen, required_node)
+                if hops_opt is None:
+                    unreachable_flag = 1
+                    hops_val = HOPS_SENTINEL
+                    graph_debuff = UNREACHABLE_DEBUFF
+                else:
+                    unreachable_flag = 0
+                    hops_val = hops_opt
+                    graph_debuff = W_HOPS * min(hops_opt, HOPS_DEBUFF_CAP_HOPS)
+
+            recent_count = recent_counts.get((ttype, pid), 0)
+            recent_debuff = min(recent_count, RECENT_RUNS_CAP) * W_RECENT
+            effective_priority = base - graph_debuff - recent_debuff
+
+            sort_key: tuple[int, int, int, float, float] = (
+                -effective_priority,
+                unreachable_flag,
+                hops_val,
+                float(data.get("run_at", now)),
+                float(data.get("created_at", 0.0)),
+            )
+            meta = {
+                "base_priority": base,
+                "effective_priority": effective_priority,
+                "graph_debuff": graph_debuff,
+                "recent_debuff": recent_debuff,
+                "hops": hops_val,
+                "unreachable_flag": unreachable_flag,
+                "required_node": required_node,
+                "recent_count": recent_count,
+            }
+            out.append((sort_key, raw, data, meta))
+        return out
+
+    @staticmethod
+    def _log_pop_winner(
+        *, instance_id: str, data: dict[str, object], meta: dict[str, object]
+    ) -> None:
+        logger.info(
+            "queue.pop_due winner instance=%s task_type=%s player=%s "
+            "base=%s effective=%s graph_debuff=%s recent_debuff=%s "
+            "hops=%s reachable=%s required_node=%r recent_count=%s "
+            "run_at=%s created_at=%s task_id=%s",
+            instance_id,
+            data.get("task_type"),
+            data.get("player_id"),
+            meta["base_priority"],
+            meta["effective_priority"],
+            meta["graph_debuff"],
+            meta["recent_debuff"],
+            meta["hops"],
+            meta["unreachable_flag"] == 0,
+            meta["required_node"],
+            meta["recent_count"],
+            data.get("run_at"),
+            data.get("created_at"),
+            data.get("task_id"),
+        )

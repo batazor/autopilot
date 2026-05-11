@@ -67,4 +67,4 @@ Keep BlueStacks running and the device visible in `adb devices` before workers s
 
 ## Streamlit dashboard
 
-The UI reads Redis state and publishes commands on **`wos:ui:command:{instance_id}`** and **`wos:ui:command:scheduler`**. For capture/labeling over **ADB**, run **`uv run wos`** on a machine with the repo and **adb** — the Compose **`ui`** image is optional/lightweight and does not mirror that full setup (see **`ui/Dockerfile`**).
+The UI reads Redis state and publishes commands on **`wos:ui:command:{instance_id}`** and **`wos:ui:command:scheduler`**. For capture/labeling over **ADB**, run **`uv run wos`** on a machine with the repo and **adb**. **`docker compose`** in this repo starts **redis** and **ocr** only; the Streamlit app is not containerised here (see **`ui/Dockerfile`** if you build it elsewhere).

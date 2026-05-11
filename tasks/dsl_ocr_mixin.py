@@ -166,7 +166,7 @@ class DslOcrMixin:
 
         try:
             result = await self._get_ocr_client().ocr_region(
-                image, Region(px, py, pw, ph)
+                image, Region(px, py, pw, ph), region_id=region
             )
         except Exception:
             logger.exception(
@@ -268,6 +268,7 @@ class DslOcrMixin:
             results = await self._get_ocr_client().ocr_regions(
                 image,
                 [region_px for _step, _region, _region_def, region_px in requests],
+                region_ids=[region for _step, region, _region_def, _region_px in requests],
             )
         except Exception:
             logger.exception(

@@ -4,12 +4,15 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from contextlib import suppress
+from pathlib import Path
 from typing import Any
 
 import redis.asyncio as aioredis
 
 from config.loader import get_settings
+from config.redis_health import ping_async_redis_or_exit
 from fsm.machine import PlayerFSM
 from fsm.states import InstanceState
 from scheduler.claims import CooperativeClaims
@@ -33,7 +36,12 @@ class InstanceWorkerRedisMixin:
 
     async def _connect(self) -> None:
         settings = get_settings()
-        self._redis = aioredis.from_url(settings.redis.url)
+        url = settings.redis.url
+        self._redis = aioredis.from_url(
+            url,
+            socket_connect_timeout=5.0,
+        )
+        await ping_async_redis_or_exit(self._redis, url=url)
         self._queue = RedisQueue(self._redis)
         self._claims = CooperativeClaims(self._redis)
         loop = asyncio.get_running_loop()
@@ -303,4 +311,88 @@ class InstanceWorkerRedisMixin:
                 _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
                 "active_player",
                 player_id,
+            )
+
+    async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
+        """Re-bootstrap identity when ``active_player`` is empty so the queue does not stall.
+
+        Startup seeds already enqueue ``who_i_am`` once; this covers cleared Redis state,
+        failed probes, or manual wipes without restarting the worker.
+        """
+        if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
+            return
+        q = self._queue
+        r = self._redis
+        if q is None or r is None:
+            return
+
+        inst = self._cfg.instance_id
+        inst_key = _INST_STATE_KEY_FMT.format(instance_id=inst)
+        try:
+            raw_ap = await r.hget(inst_key, "active_player")
+        except Exception:
+            logger.debug(
+                "identity probe: active_player read failed instance=%s",
+                inst,
+                exc_info=True,
+            )
+            return
+        ap = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
+        if ap:
+            return
+
+        running_key = f"wos:queue:running:{inst}"
+        try:
+            raw_run = await r.get(running_key)
+        except Exception:
+            raw_run = None
+        if raw_run:
+            try:
+                pl = json.loads(
+                    raw_run.decode() if isinstance(raw_run, bytes) else str(raw_run)
+                )
+            except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
+                pl = {}
+            if str(pl.get("task_type") or "").strip() == "who_i_am":
+                return
+
+        try:
+            raw_cs = await r.hget(inst_key, "current_scenario")
+            cs = (raw_cs.decode() if isinstance(raw_cs, bytes) else str(raw_cs or "")).strip()
+        except Exception:
+            cs = ""
+        if cs == "who_i_am":
+            return
+
+        repo_root = Path(__file__).resolve().parent.parent
+        try:
+            from scenarios.dsl_schema import dsl_scenario_yaml_priority
+
+            prio = int(dsl_scenario_yaml_priority(repo_root, "who_i_am") or 82_000)
+        except Exception:
+            prio = 82_000
+
+        run_at = time.time()
+        task_id = f"identity:{inst}:who_i_am:{uuid.uuid4().hex[:8]}"
+        try:
+            ok = await q.schedule(
+                task_id=task_id,
+                player_id="",
+                task_type="who_i_am",
+                priority=prio,
+                run_at=run_at,
+                instance_id=inst,
+                skip_if_duplicate=True,
+                dedup_ignore_region=True,
+            )
+        except Exception:
+            logger.exception(
+                "identity probe: enqueue who_i_am failed instance=%s",
+                inst,
+            )
+            return
+        if ok:
+            logger.info(
+                "identity probe: enqueued who_i_am (active_player empty) instance=%s",
+                inst,
             )

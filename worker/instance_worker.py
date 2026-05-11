@@ -114,7 +114,6 @@ class InstanceWorker(
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
-            # Default: treat unknown task_type as a DSL scenario key.
             return DslScenarioTask(
                 task_id=item.task_id,
                 player_id=item.player_id,
@@ -125,6 +124,7 @@ class InstanceWorker(
                 tap_y_pct=item.tap_y_pct,
                 start_step_index=item.start_step_index,
                 redis_client=self._redis,
+                effective_priority=item.effective_priority or item.priority,
             )
         return factory(  # type: ignore[return-value]
             task_id=item.task_id,

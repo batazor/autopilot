@@ -8,7 +8,7 @@ overlay:
   screens:
   - event.trials
   ttl: 30s
-  runScenario:
+  pushScenario:
   - name: claim_trials
-    priority: 80000
+    priority: 80_000
     ttl: 30s

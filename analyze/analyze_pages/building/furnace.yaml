@@ -9,5 +9,5 @@ overlay:
   screens:
   - furnace
   ttl: 5s
-  runScenario:
+  pushScenario:
   - name: tap_furnace_max_power

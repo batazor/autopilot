@@ -98,10 +98,10 @@ class ScreenDetector:
             return [str(x).strip() for x in contains if str(x).strip()]
         return []
 
-    def _landmark_regions(self) -> tuple[list[Region], list[tuple[ScreenName, list[str], float]]]:
+    def _landmark_regions(self) -> tuple[list[Region], list[tuple[ScreenName, list[str], float, str]]]:
         area_doc = self._load_area_doc()
         all_regions: list[Region] = []
-        region_map: list[tuple[ScreenName, list[str], float]] = []
+        region_map: list[tuple[ScreenName, list[str], float, str]] = []
         for screen_s in screen_verify_screen_names():
             try:
                 screen_name = ScreenName(screen_s)
@@ -136,7 +136,9 @@ class ScreenDetector:
                     threshold = float(threshold_raw) if threshold_raw is not None else 0.8
                 except (TypeError, ValueError):
                     threshold = 0.8
-                region_map.append((screen_name, self._rule_candidates(rule), threshold))
+                region_map.append(
+                    (screen_name, self._rule_candidates(rule), threshold, region_name)
+                )
         return all_regions, region_map
 
     async def _detect_by_match_landmarks(self, image: np.ndarray) -> ScreenName:
@@ -211,17 +213,20 @@ class ScreenDetector:
             return ScreenName.UNKNOWN
         h, w = int(image.shape[0]), int(image.shape[1])
         regions: list[Region] = []
+        region_ids: list[str] = []
         rule_map: list[dict[str, object]] = []
         for rule in switch_rules:
-            region = self._percent_region_for_name(str(rule.get("ocr") or ""))
+            region_name = str(rule.get("ocr") or "")
+            region = self._percent_region_for_name(region_name)
             if region is None:
                 continue
             regions.append(self._to_pixel_region(region, width=w, height=h))
+            region_ids.append(region_name)
             rule_map.append(rule)
         if not regions:
             return ScreenName.UNKNOWN
         try:
-            results = await self._client.ocr_regions(image, regions)
+            results = await self._client.ocr_regions(image, regions, region_ids=region_ids)
         except RetryError as exc:
             root = exc.last_attempt.exception() if exc.last_attempt else exc
             logger.error("OCR failed during screen text switch: %s", root, exc_info=True)
@@ -284,9 +289,10 @@ class ScreenDetector:
             return ScreenName.UNKNOWN
         h, w = int(image.shape[0]), int(image.shape[1])
         all_regions = [self._to_pixel_region(r, width=w, height=h) for r in percent_regions]
+        region_ids = [t[3] for t in region_map]
 
         try:
-            results = await self._client.ocr_regions(image, all_regions)
+            results = await self._client.ocr_regions(image, all_regions, region_ids=region_ids)
         except RetryError as exc:
             # Tenacity wraps the root exception; surface the actual cause for faster diagnosis.
             root = exc.last_attempt.exception() if exc.last_attempt else exc
@@ -298,7 +304,7 @@ class ScreenDetector:
 
         scores: dict[ScreenName, int] = {s: 0 for s in ScreenName}
         for i, result in enumerate(results):
-            screen_name, candidates, threshold = region_map[i]
+            screen_name, candidates, threshold, _region_name = region_map[i]
             if match(result.text, candidates, threshold=threshold):
                 scores[screen_name] += 1
 

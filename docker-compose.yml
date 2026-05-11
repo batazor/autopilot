@@ -34,18 +34,6 @@ services:
       retries: 10
       start_period: 180s
 
-  ui:
-    build:
-      context: .
-      dockerfile: ui/Dockerfile
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./config:/app/config:ro
-    depends_on:
-      - redis
-    restart: unless-stopped
-
 volumes:
   redis_data:
   paddle_model_cache:

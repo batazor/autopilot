@@ -21,7 +21,9 @@ from types import FrameType
 
 import psutil
 
+from config.loader import get_settings
 from config.logging_stdout import setup_stdout_logging
+from config.redis_health import verify_sync_redis_url
 
 _THREAD_NAME = "wos-async-services"
 _HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"
@@ -148,6 +150,7 @@ def ensure_embedded_bot() -> None:
             _ensure_health_watchdog()
             return
         setup_stdout_logging()
+        verify_sync_redis_url(get_settings().redis.url)
 
         import asyncio
 

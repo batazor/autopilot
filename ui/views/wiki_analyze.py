@@ -125,10 +125,6 @@ def _scenario_names_from_key(rule: dict[str, Any], key: str) -> list[str]:
     return uniq
 
 
-def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
-    return _scenario_names_from_key(rule, "pushScenario")
-
-
 def _render_rule(rule: dict[str, Any]) -> None:
     name = str(rule.get("name") or "").strip() or "(unnamed)"
     action = str(rule.get("action") or "").strip() or "(no action)"
@@ -140,11 +136,9 @@ def _render_rule(rule: dict[str, Any]) -> None:
         except ValueError:
             st.caption(f"source: `{src.as_posix()}`")
 
-    for label, key in (("pushScenario", "pushScenario"), ("runScenario", "runScenario")):
-        scenarios = _scenario_names_from_key(rule, key)
-        if not scenarios:
-            continue
-        st.markdown(f"**{label}**")
+    scenarios = _scenario_names_from_key(rule, "pushScenario")
+    if scenarios:
+        st.markdown("**pushScenario**")
         for s in scenarios:
             c1, c2 = st.columns([3, 1], vertical_alignment="center")
             with c1:

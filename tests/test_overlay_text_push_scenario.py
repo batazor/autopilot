@@ -33,7 +33,7 @@ async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> N
     }
 
     class _StubOcr:
-        async def ocr_region(self, _image_bgr: Any, _region_px: Region) -> OCRResult:
+        async def ocr_region(self, _image_bgr: Any, _region_px: Region, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Bunk Beds in Shelter 2", confidence=0.95)
 
     monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())
@@ -70,7 +70,7 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
     }
 
     class _StubOcr:
-        async def ocr_region(self, _image_bgr: Any, _region_px: Region) -> OCRResult:
+        async def ocr_region(self, _image_bgr: Any, _region_px: Region, **_kwargs: Any) -> OCRResult:
             raise AssertionError("OCR must not run when screen gate fails")
 
     monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())
@@ -102,7 +102,7 @@ async def test_overlay_screen_gate_is_case_insensitive(monkeypatch: Any) -> None
     }
 
     class _StubOcr:
-        async def ocr_region(self, _image_bgr: Any, _region_px: Region) -> OCRResult:
+        async def ocr_region(self, _image_bgr: Any, _region_px: Region, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="x", confidence=0.95)
 
     monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())

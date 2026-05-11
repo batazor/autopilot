@@ -21,7 +21,6 @@ from navigation.screen_graph import (
     route_hops_async,
     screen_verify_retry,
     screen_verify_rules,
-    screen_verify_screen_names,
 )
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
@@ -232,7 +231,7 @@ class Navigator:
         if pw <= 0 or ph <= 0:
             return False
         try:
-            result = await self._ocr.ocr_region(image, Region(px, py, pw, ph))
+            result = await self._ocr.ocr_region(image, Region(px, py, pw, ph), region_id=region)
         except Exception:
             logger.debug("Navigator: OCR verify failed for %s", region, exc_info=True)
             return False
@@ -314,24 +313,23 @@ class Navigator:
         attempts: int | None = None,
         interval_seconds: float | None = None,
     ) -> str:
+        # Trusts ScreenDetector: it already covers text_switch + match landmarks +
+        # OCR landmarks. Every screen in screen_verify.yaml that has `rules:` is
+        # also covered by `landmarks:` or `text_switch.cases`, so the historic
+        # post-detector fan-out over `screen_verify_screen_names() × rules` was
+        # pure duplication — ~60 redundant OCRs per attempt.
         default_attempts, default_interval = screen_verify_retry()
         attempts_i = max(1, int(attempts if attempts is not None else default_attempts))
         interval_f = max(
             0.0,
             float(interval_seconds if interval_seconds is not None else default_interval),
         )
-        state_flat = await self._active_player_state_flat(instance_id)
         for attempt in range(1, attempts_i + 1):
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             detected = await self._detector.detect_screen(image)
             if detected != ScreenName.UNKNOWN:
                 await self._write_screen(instance_id, str(detected))
                 return str(detected)
-            for screen in screen_verify_screen_names():
-                for rule in screen_verify_rules(screen):
-                    if await self._verify_rule(image, rule, state_flat=state_flat):
-                        await self._write_screen(instance_id, screen)
-                        return screen
             logger.debug(
                 "Navigator: current screen not detected on %s attempt %d/%d",
                 instance_id,

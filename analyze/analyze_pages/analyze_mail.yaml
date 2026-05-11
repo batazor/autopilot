@@ -6,7 +6,50 @@ overlay:
     min_match_saturation: 48
     screens:
       - mail
-    priority: 70_000
     pushScenario:
       - name: read_mail_gifts
-        priority: 80_000
+
+  - name: mail.tab.wars.has_red_dot
+    region: mail.tab.wars
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: read_mail_gifts
+        ttl: 5m
+
+  - name: mail.tab.alliance.has_red_dot
+    region: mail.tab.alliance
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: read_mail_gifts
+        ttl: 5m
+
+  - name: mail.tab.system.has_red_dot
+    region: mail.tab.system
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: read_mail_gifts
+        ttl: 5m
+
+  - name: mail.tab.reports.has_red_dot
+    region: mail.tab.reports
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: read_mail_gifts
+        ttl: 5m
+
+  - name: mail.tab.starred.has_red_dot
+    region: mail.tab.starred
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: read_mail_gifts
+        ttl: 5m

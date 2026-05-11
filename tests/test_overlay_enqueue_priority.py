@@ -27,7 +27,7 @@ class _Worker(InstanceWorkerOverlayMixin):
 
 
 @pytest.mark.asyncio
-async def test_overlay_enqueue_orders_matched_payloads_by_priority() -> None:
+async def test_overlay_enqueues_all_matched_payloads() -> None:
     worker = _Worker()
 
     await worker._schedule_overlay_matches(
@@ -45,10 +45,11 @@ async def test_overlay_enqueue_orders_matched_payloads_by_priority() -> None:
         }
     )
 
-    assert [c["task_type"] for c in worker._queue.calls] == [
+    # Enqueue order is irrelevant — `RedisQueue.pop_due` sorts by (-priority, run_at).
+    assert {c["task_type"] for c in worker._queue.calls} == {
         "hand_pointer_small",
         "skip_text_button",
-    ]
+    }
     assert all(c.get("dedup_ignore_region") is True for c in worker._queue.calls)
 
 

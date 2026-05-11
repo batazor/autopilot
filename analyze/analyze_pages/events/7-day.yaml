@@ -10,6 +10,6 @@ overlay:
   screens:
   - event.7-day
   ttl: 5s
-  runScenario:
+  pushScenario:
   - name: big_claim_button
   - click: tapanywhereyoexit

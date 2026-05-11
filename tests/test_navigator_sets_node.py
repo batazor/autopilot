@@ -150,7 +150,7 @@ async def test_navigator_verifies_destination_with_ocr_contains(
         return detections.pop(0) if detections else ScreenName.UNKNOWN
 
     class _FakeOcr:
-        async def ocr_region(self, _image: np.ndarray, _region: Any) -> OCRResult:
+        async def ocr_region(self, _image: np.ndarray, _region: Any, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Chief Profile", confidence=0.99)
 
     async def evaluate_overlay_rules_async(

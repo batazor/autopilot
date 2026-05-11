@@ -101,7 +101,7 @@ async def test_ocr_step_persists_integer_to_player_state(
     EXPECTED_PLAYER_ID = "765502864"
 
     class _StubOcrClient:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             captured["region"] = region
             captured["image_shape"] = image.shape
             return OCRResult(region_id="r0", text=REAL_OCR_TEXT, confidence=0.97)
@@ -141,7 +141,7 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
     redis_client = redis_async
 
     class _StubOcrClient:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="ID: 765 502 864", confidence=0.97)
 
     import ocr.client as ocr_client_module
@@ -177,7 +177,7 @@ async def test_ocr_step_skips_persist_below_threshold(
     redis_client = redis_async
 
     class _LowConfStub:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="42", confidence=0.10)
 
     import ocr.client as ocr_client_module
@@ -209,7 +209,7 @@ async def test_device_level_who_i_am_retries_when_identity_not_resolved(
     actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _LowConfStub:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="42", confidence=0.10)
 
     import ocr.client as ocr_client_module
@@ -283,7 +283,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
 
     class _BulkOcrClient:
         async def ocr_regions(
-            self, image: np.ndarray, regions: list[LayoutRegion]
+            self, image: np.ndarray, regions: list[LayoutRegion], **_kwargs: Any
         ) -> list[OCRResult]:
             captured["calls"] += 1
             captured["image_shape"] = image.shape
@@ -858,7 +858,7 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
             captured["flat"] = dict(flat)
 
     class _StubOcrClient:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Lv. 12", confidence=0.97)
 
     import ocr.client as ocr_client_module
@@ -947,7 +947,7 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
             captured["flat"] = dict(flat)
 
     class _StubOcrClient:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Lv. 7", confidence=0.97)
 
     import ocr.client as ocr_client_module
@@ -1040,7 +1040,7 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
             state_store_called = True
 
     class _StubOcrClient:
-        async def ocr_region(self, image: np.ndarray, region: LayoutRegion) -> OCRResult:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="7", confidence=0.97)
 
     import ocr.client as ocr_client_module

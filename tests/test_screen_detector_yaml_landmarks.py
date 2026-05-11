@@ -17,7 +17,7 @@ class _FakeOcrClient:
         self.regions: list[Region] = []
         self.text = "Arena"
 
-    async def ocr_regions(self, _image: np.ndarray, regions: list[Region]) -> list[OCRResult]:
+    async def ocr_regions(self, _image: np.ndarray, regions: list[Region], **_kwargs: Any) -> list[OCRResult]:
         self.regions = regions
         return [
             OCRResult(region_id=f"r{i}", text=self.text, confidence=0.99)

@@ -190,3 +190,17 @@ steps:
             steps:
               - click: button.claim
               - wait: 0.5s
+
+  # ---------------- Final reward box ----------------
+  # Bottom-right ``trial.box`` indicator shows when accumulated day-level
+  # rewards are ready to collect. Same red-dot-as-guard pattern as each day.
+  - while_match: trial.box
+    isRedDot: true
+    max: 1
+    steps:
+      - click: trial.box
+      - wait: 0.8s
+      - while_match: button.claim
+        steps:
+          - click: button.claim
+          - wait: 0.5s

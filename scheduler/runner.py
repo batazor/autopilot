@@ -11,6 +11,7 @@ import redis.asyncio as aioredis
 
 from config.devices import player_ids_for_device_candidates
 from config.loader import get_settings
+from config.redis_health import ping_async_redis_or_exit
 from config.logging_stdout import setup_stdout_logging
 from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
@@ -37,7 +38,9 @@ class SchedulerRunner:
         self._scenario_loader = ScenarioLoader(scenarios_path)
 
     async def _connect(self) -> None:
-        self._redis = aioredis.from_url(self._settings.redis.url)
+        url = self._settings.redis.url
+        self._redis = aioredis.from_url(url, socket_connect_timeout=5.0)
+        await ping_async_redis_or_exit(self._redis, url=url)
         self._queue = RedisQueue(self._redis)
         self._scenario_loader.start_watching()
 

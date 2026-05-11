@@ -8,5 +8,5 @@ overlay:
     ttl: 30s
     pushScenario:
       - name: assign_worker
-        priority: 80000
+        priority: 80_000
         ttl: 1m

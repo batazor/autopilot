@@ -10,4 +10,4 @@ steps:
   - click: isNewPeople
   - wait: 3s
   - click: welcome_in
-  - wait: 1s
+  - wait: 3s

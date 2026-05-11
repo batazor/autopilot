@@ -123,6 +123,7 @@ class InstanceWorkerRollingMixin:
             logger.debug("overlay-after-snapshot skipped (task busy, overlay_analyze_when_busy=false)")
             return
         await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
+        await self._maybe_enqueue_who_i_am_when_active_player_missing()
 
     async def _overlay_tick_now(self, *, reason: str) -> None:
         """Take one screenshot and run overlay analysis immediately."""

@@ -16,6 +16,7 @@ import redis
 
 from actions.tap import BotActions
 from config.loader import get_settings
+from config.redis_health import sync_redis_from_url_or_exit
 from config.logging_stdout import setup_stdout_logging
 from config.startup_validation import assert_startup_configs_valid
 from fsm.states import InstanceState
@@ -66,7 +67,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
     assert_startup_configs_valid()
     settings = get_settings()
     interval = max(1, int(settings.worker.health_check_interval_seconds))
-    r = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    r = sync_redis_from_url_or_exit(settings.redis.url, decode_responses=True)
     ba = BotActions()
 
     logger.info(

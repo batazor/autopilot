@@ -14,7 +14,6 @@ from analysis.overlay_rules import (
     optional_min_match_saturation,
     optional_priority,
     optional_push_scenario_tasks,
-    optional_run_scenario_tasks,
     optional_ttl_seconds,
     overlay_rule_screen_allowlist,
     resolved_search_region_for_findicon,
@@ -24,6 +23,11 @@ from layout.area_versions import effective_ocr_for_region, region_version_of
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
+from layout.tab_active_detector import (
+    TAB_ACTIVE_MAX_MEAN_SATURATION,
+    TAB_ACTIVE_MIN_MEAN_VALUE,
+    tab_activity_stats,
+)
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
@@ -203,6 +207,12 @@ async def evaluate_overlay_rules_async(
         elif rule.get("isRedDot") is False:
             action = "red_dot_absent"
 
+        # YAML may use ``isTabActive: true|false`` to gate on tab highlight state.
+        if rule.get("isTabActive") is True:
+            action = "tab_active"
+        elif rule.get("isTabActive") is False:
+            action = "tab_active_absent"
+
         if action in ("red_dot", "red_dot_absent"):
             want_present = action == "red_dot"
             region_name_rd = str(rule.get("region") or "").strip()
@@ -276,14 +286,97 @@ async def evaluate_overlay_rules_async(
             push_tasks_rd = optional_push_scenario_tasks(rule)
             if push_tasks_rd:
                 hit_rd["pushScenario"] = push_tasks_rd
-            run_tasks_rd = optional_run_scenario_tasks(rule)
-            if run_tasks_rd:
-                hit_rd["runScenario"] = run_tasks_rd
             if set_node_s:
                 hit_rd["set_node"] = set_node_s
             if priority is not None:
                 hit_rd["priority"] = priority
             out[logical_name] = hit_rd
+            continue
+
+        if action in ("tab_active", "tab_active_absent"):
+            want_active = action == "tab_active"
+            region_name_ta = str(rule.get("region") or "").strip()
+            pair_ta = (
+                screen_region_by_name(area_doc, region_name_ta, state_flat=state_flat)
+                if region_name_ta
+                else None
+            )
+            if pair_ta is None:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "unknown_region",
+                    "region": region_name_ta,
+                    "action": "tab_active",
+                    "want_tab_active": want_active,
+                }
+                continue
+            _entry_ta, reg_ta = pair_ta
+            bbox_ta = reg_ta.get("bbox")
+            if not isinstance(bbox_ta, dict):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "missing_bbox",
+                    "region": region_name_ta,
+                    "action": "tab_active",
+                    "want_tab_active": want_active,
+                }
+                continue
+            max_s = float(
+                rule.get("max_mean_saturation", TAB_ACTIVE_MAX_MEAN_SATURATION)
+            )
+            min_v = float(
+                rule.get("min_mean_value", TAB_ACTIVE_MIN_MEAN_VALUE)
+            )
+            hi_ta, wi_ta = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+            region_px_ta = _bbox_percent_to_region_px(bbox_ta, wi_ta, hi_ta)
+            x1, y1, x2, y2 = _region_to_xyxy(region_px_ta)
+            patch_ta = image_bgr[y1:y2, x1:x2]
+            mean_s_ta, mean_v_ta = tab_activity_stats(patch_ta)
+            active_ta = mean_s_ta < max_s and mean_v_ta > min_v
+            matched_ta = active_ta if want_active else not active_ta
+
+            bx = float(bbox_ta.get("x") or 0.0)
+            by = float(bbox_ta.get("y") or 0.0)
+            bw = float(bbox_ta.get("width") or 0.0)
+            bh = float(bbox_ta.get("height") or 0.0)
+            mx_pct_ta = bx + bw / 2.0
+            my_pct_ta = by + bh / 2.0
+            tap_x_pct_ta = mx_pct_ta
+            tap_y_pct_ta = my_pct_ta
+            tap_delta_ta = _tap_region_delta_pct(area_doc, region_name_ta, rule, state_flat=state_flat)
+            if tap_delta_ta is not None:
+                _tap_reg_ta, dx_pct_ta, dy_pct_ta = tap_delta_ta
+                tap_x_pct_ta = mx_pct_ta + dx_pct_ta
+                tap_y_pct_ta = my_pct_ta + dy_pct_ta
+
+            hit_ta: dict[str, Any] = {
+                "matched": matched_ta,
+                "action": "tab_active",
+                "region": region_name_ta,
+                "want_tab_active": want_active,
+                "tab_active": active_ta,
+                "mean_saturation": mean_s_ta,
+                "mean_value": mean_v_ta,
+                "max_mean_saturation": max_s,
+                "min_mean_value": min_v,
+                "tap_x_pct": tap_x_pct_ta,
+                "tap_y_pct": tap_y_pct_ta,
+                "tap_match_x_pct": mx_pct_ta,
+                "tap_match_y_pct": my_pct_ta,
+            }
+            if tap_delta_ta is not None:
+                tap_reg_ta, dx_pct_ta, dy_pct_ta = tap_delta_ta
+                hit_ta["tap_region"] = tap_reg_ta
+                hit_ta["tap_delta_x_pct"] = dx_pct_ta
+                hit_ta["tap_delta_y_pct"] = dy_pct_ta
+            push_tasks_ta = optional_push_scenario_tasks(rule)
+            if push_tasks_ta:
+                hit_ta["pushScenario"] = push_tasks_ta
+            if set_node_s:
+                hit_ta["set_node"] = set_node_s
+            if priority is not None:
+                hit_ta["priority"] = priority
+            out[logical_name] = hit_ta
             continue
 
         if action == "findIcon":
@@ -344,7 +437,6 @@ async def evaluate_overlay_rules_async(
 
             min_sat = optional_min_match_saturation(rule)
             push_tasks = optional_push_scenario_tasks(rule)
-            run_tasks = optional_run_scenario_tasks(rule)
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
@@ -461,8 +553,6 @@ async def evaluate_overlay_rules_async(
                         hit["tap_delta_y_pct"] = dy_pct
                     if push_tasks:
                         hit["pushScenario"] = push_tasks
-                    if run_tasks:
-                        hit["runScenario"] = run_tasks
                     if set_node_s:
                         hit["set_node"] = set_node_s
                     if priority is not None:
@@ -652,9 +742,6 @@ async def evaluate_overlay_rules_async(
             push_tasks = optional_push_scenario_tasks(rule)
             if push_tasks:
                 hit["pushScenario"] = push_tasks
-            run_tasks = optional_run_scenario_tasks(rule)
-            if run_tasks:
-                hit["runScenario"] = run_tasks
             if set_node_s:
                 hit["set_node"] = set_node_s
             if priority is not None:
@@ -690,7 +777,7 @@ async def evaluate_overlay_rules_async(
             region_px = _bbox_percent_to_region_px(bbox, wi, hi)
             ocr = OcrClient()
             try:
-                res = await ocr.ocr_region(image_bgr, region_px)
+                res = await ocr.ocr_region(image_bgr, region_px, region_id=region_name)
             except Exception as e:
                 out[logical_name] = {
                     "matched": False,
@@ -714,7 +801,6 @@ async def evaluate_overlay_rules_async(
                 matched = bool(txt)
 
             push_tasks = optional_push_scenario_tasks(rule)
-            run_tasks = optional_run_scenario_tasks(rule)
             out[logical_name] = {
                 "matched": matched,
                 "action": "text",
@@ -728,8 +814,6 @@ async def evaluate_overlay_rules_async(
             }
             if push_tasks:
                 out[logical_name]["pushScenario"] = push_tasks
-            if run_tasks:
-                out[logical_name]["runScenario"] = run_tasks
             if set_node_s:
                 out[logical_name]["set_node"] = set_node_s
             if priority is not None:

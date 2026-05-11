@@ -17,6 +17,10 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
         priority: 80000
         ttl: 15m
 
+    Per-item ``priority`` is optional: ``worker.instance_worker_overlay`` resolves
+    queue priority as: explicit push entry ``priority`` → scenario YAML top-level
+    ``priority`` for the pushed name → overlay rule ``priority`` → ``80_000``.
+
     Nested form (still supported):
 
     pushScenario:
@@ -74,40 +78,6 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
                 pr2 = None
             out.append({"type": t, "priority": pr2, "ttl": None, "dsl_scenario": None})
 
-    return out
-
-
-def optional_run_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
-    """Inline-execute scenarios on overlay match.
-
-    Same shape as ``pushScenario`` but the worker awaits these in the overlay
-    tick instead of going through the queue:
-
-    runScenario:
-      - name: scan_event_blocks
-      - name: refresh_player_id
-
-    ``priority`` is ignored (execution order matches matched-rule order).
-    Use only for short, cheap scenarios — long ones starve the overlay loop.
-    """
-    out: list[dict[str, Any]] = []
-    rs = rule.get("runScenario")
-    if not isinstance(rs, list):
-        return out
-    for item in rs:
-        if not isinstance(item, dict):
-            continue
-        task = item.get("task")
-        src: dict[str, Any] = task if isinstance(task, dict) else item
-        t = str(src.get("name") or src.get("type") or "").strip()
-        if not t:
-            continue
-        ttl_raw = src.get("ttl")
-        if ttl_raw is None:
-            ttl_raw = src.get("ttl_seconds")
-        ttl = parse_duration_seconds(ttl_raw)
-        dsl = str(src.get("dsl_scenario") or "").strip() or None
-        out.append({"type": t, "ttl": ttl, "dsl_scenario": dsl})
     return out
 
 

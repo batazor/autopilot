@@ -11,6 +11,7 @@ import redis
 import streamlit as st
 
 from config.loader import load_settings
+from config.redis_health import format_redis_unreachable_message
 from scheduler.queue import _dup_index_key
 
 
@@ -180,13 +181,12 @@ def get_redis() -> redis.Redis:
 
 def require_redis_connection() -> redis.Redis:
     """Ping Redis once; on failure show Streamlit error and stop the script run."""
+    settings = load_settings()
     client = get_redis()
     try:
         client.ping()
     except redis.RedisError as exc:
-        st.error(
-            f"Cannot reach Redis ({exc}). Start the server or fix **redis.url** in config."
-        )
+        st.error(format_redis_unreachable_message(settings.redis.url, exc))
         st.stop()
     return client
 

@@ -4,9 +4,9 @@ overlay:
   isRedDot: true
   screens:
   - vip
-  runScenario:
+  pushScenario:
   - name: vip
-    priority: 80000
+    priority: 80_000
     ttl: 5m
 
 - name: page.vip.add.has_red_dot
@@ -14,7 +14,7 @@ overlay:
   isRedDot: true
   screens:
   - vip
-  runScenario:
+  pushScenario:
   - name: vip
-    priority: 80000
+    priority: 80_000
     ttl: 5m
