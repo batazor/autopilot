@@ -14,6 +14,7 @@ from analysis.overlay_rules import (
     optional_min_match_saturation,
     optional_priority,
     optional_push_scenario_tasks,
+    optional_run_scenario_tasks,
     optional_ttl_seconds,
     overlay_rule_screen_allowlist,
     resolved_search_region_for_findicon,
@@ -275,6 +276,9 @@ async def evaluate_overlay_rules_async(
             push_tasks_rd = optional_push_scenario_tasks(rule)
             if push_tasks_rd:
                 hit_rd["pushScenario"] = push_tasks_rd
+            run_tasks_rd = optional_run_scenario_tasks(rule)
+            if run_tasks_rd:
+                hit_rd["runScenario"] = run_tasks_rd
             if set_node_s:
                 hit_rd["set_node"] = set_node_s
             if priority is not None:
@@ -340,6 +344,7 @@ async def evaluate_overlay_rules_async(
 
             min_sat = optional_min_match_saturation(rule)
             push_tasks = optional_push_scenario_tasks(rule)
+            run_tasks = optional_run_scenario_tasks(rule)
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
@@ -456,6 +461,8 @@ async def evaluate_overlay_rules_async(
                         hit["tap_delta_y_pct"] = dy_pct
                     if push_tasks:
                         hit["pushScenario"] = push_tasks
+                    if run_tasks:
+                        hit["runScenario"] = run_tasks
                     if set_node_s:
                         hit["set_node"] = set_node_s
                     if priority is not None:
@@ -645,6 +652,9 @@ async def evaluate_overlay_rules_async(
             push_tasks = optional_push_scenario_tasks(rule)
             if push_tasks:
                 hit["pushScenario"] = push_tasks
+            run_tasks = optional_run_scenario_tasks(rule)
+            if run_tasks:
+                hit["runScenario"] = run_tasks
             if set_node_s:
                 hit["set_node"] = set_node_s
             if priority is not None:
@@ -704,6 +714,7 @@ async def evaluate_overlay_rules_async(
                 matched = bool(txt)
 
             push_tasks = optional_push_scenario_tasks(rule)
+            run_tasks = optional_run_scenario_tasks(rule)
             out[logical_name] = {
                 "matched": matched,
                 "action": "text",
@@ -717,6 +728,8 @@ async def evaluate_overlay_rules_async(
             }
             if push_tasks:
                 out[logical_name]["pushScenario"] = push_tasks
+            if run_tasks:
+                out[logical_name]["runScenario"] = run_tasks
             if set_node_s:
                 out[logical_name]["set_node"] = set_node_s
             if priority is not None:

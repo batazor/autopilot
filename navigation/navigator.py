@@ -14,8 +14,11 @@ from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
+# Side-effect import: registers `event_blocks` resolver with screen_graph
+# so dynamic edges in edge_taps.yaml can resolve at runtime.
+from navigation import event_blocks_resolver  # noqa: F401
 from navigation.screen_graph import (
-    route_hops,
+    route_hops_async,
     screen_verify_retry,
     screen_verify_rules,
     screen_verify_screen_names,
@@ -386,11 +389,17 @@ class Navigator:
                 continue
 
             # Try direct BFS route (src → dst).
-            hop_sequences = route_hops(str(current), str(target))
+            hop_sequences = await route_hops_async(
+                str(current), str(target),
+                instance_id=instance_id, redis_client=self._redis,
+            )
 
             if hop_sequences is None and current != _MAIN_CITY:
                 # No direct route or missing taps: go main_city first, then retry.
-                to_hub = route_hops(str(current), str(_MAIN_CITY))
+                to_hub = await route_hops_async(
+                    str(current), str(_MAIN_CITY),
+                    instance_id=instance_id, redis_client=self._redis,
+                )
                 if to_hub:
                     hr = await self._execute_hops(
                         instance_id, to_hub, from_screen=str(current)
@@ -430,7 +439,10 @@ class Navigator:
 
             if hop_sequences is None:
                 # Already at main_city but no path to target.
-                from_hub = route_hops(str(_MAIN_CITY), str(target))
+                from_hub = await route_hops_async(
+                    str(_MAIN_CITY), str(target),
+                    instance_id=instance_id, redis_client=self._redis,
+                )
                 if from_hub:
                     hr = await self._execute_hops(
                         instance_id, from_hub, from_screen=str(_MAIN_CITY)

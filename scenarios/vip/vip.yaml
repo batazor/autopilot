@@ -1,0 +1,21 @@
+enabled: true
+name: "Claim VIP rewards"
+
+node: vip
+
+# Pushed by ``page.vip.box.has_red_dot`` / ``page.vip.add.has_red_dot``
+# overlays when either claim button on the VIP screen lights up. Also
+# refreshes ``page.vip.level`` in state on each run.
+
+steps:
+  - ocr: page.vip.level
+    type: integer
+    state: page.vip.level
+  - click: page.vip.box
+  - wait: 1s
+  - click: page.vip.add
+  - wait: 1s
+  - while_match: page.vip.increase.use
+    steps:
+      - click: page.vip.increase.use
+      - wait: 0.5s

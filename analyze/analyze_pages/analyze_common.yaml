@@ -144,49 +144,19 @@ overlay:
     - name: tap_claim_all
       priority: 76_000
 
+# OCR-based "Tap anywhere to exit" detector. Color-agnostic — the popup
+# banner's text is identical across the white/purpur/blue/yellow variants,
+# so one fuzzy-text rule replaces the four template-match rules. Tap target
+# is the text region itself (any tap dismisses the popup).
 - name: tapanywhereyoexit.visible
   region: tapanywhereyoexit
-  action: findIcon
+  action: text
+  expected: ["tap anywhere"]
+  threshold: 0.7
   priority: 76_000
-  threshold: 0.92
-  min_match_saturation: 48
   ttl: 5s
-  pushScenario:
+  runScenario:
     - name: tap_tapanywhereyoexit
-      priority: 76_000
-
-- name: tapanywhereyoexit.purpur.visible
-  region: tapanywhereyoexit.purpur
-  action: findIcon
-  priority: 76_000
-  threshold: 0.92
-  min_match_saturation: 48
-  ttl: 5s
-  pushScenario:
-    - name: tap_tapanywhereyoexit_purpur
-      priority: 76_000
-
-- name: tapanywhereyoexit.blue.visible
-  region: tapanywhereyoexit.blue
-  action: findIcon
-  priority: 76_000
-  threshold: 0.92
-  min_match_saturation: 48
-  ttl: 5s
-  pushScenario:
-    - name: tap_tapanywhereyoexit_blue
-      priority: 76_000
-
-- name: tapanywhereyoexit.yellow.visible
-  region: tapanywhereyoexit.yellow
-  action: findIcon
-  priority: 76_000
-  threshold: 0.92
-  min_match_saturation: 48
-  ttl: 5s
-  pushScenario:
-    - name: tap_tapanywhereyoexit_yellow
-      priority: 76_000
 
 - name: upgrade_button.visible
   region: upgrade_button

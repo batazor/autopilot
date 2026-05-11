@@ -11,13 +11,6 @@ overlay:
     - name: building.upgrade
       priority: 80000
 
-- name: building.name.present
-  region: building.name
-  action: text
-  screens:
-    - building
-  ttl: 30s
-
 - name: upgrade_building.visible
   region: upgrade_building
   action: findIcon

@@ -1,0 +1,12 @@
+enabled: true
+name: "Scan event blocks"
+
+node: main_city
+
+# OCR each main_city event slot (block.1..4) and write the resolved screen
+# node into Redis hash `wos:instance:<id>:event_blocks` for downstream dynamic
+# routing. Cheap (~200ms PaddleOCR call), safe to push periodically — the
+# handler itself caps the hash TTL at 30min and overwrites stale entries.
+
+steps:
+  - exec: scan_event_blocks

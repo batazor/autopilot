@@ -1,0 +1,20 @@
+overlay:
+- name: page.vip.box.has_red_dot
+  region: page.vip.box
+  isRedDot: true
+  screens:
+  - vip
+  runScenario:
+  - name: vip
+    priority: 80000
+    ttl: 5m
+
+- name: page.vip.add.has_red_dot
+  region: page.vip.add
+  isRedDot: true
+  screens:
+  - vip
+  runScenario:
+  - name: vip
+    priority: 80000
+    ttl: 5m

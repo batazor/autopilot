@@ -23,23 +23,58 @@ from ocr.fuzzy import match
 logger = logging.getLogger(__name__)
 
 
-class ScreenName(StrEnum):
-    MAIN_CITY = "main_city"
-    BUILDING = "building"
-    ARENA = "arena"
-    TRAINING = "training"
-    GATHERING = "gathering"
-    ALLIANCE = "alliance"
-    EXPLORATION = "exploration"
-    SQUAD_SETTINGS = "squad_settings"
-    CHAT = "chat"
-    MAIL = "mail"
-    CHIEF_PROFILE = "chief_profile"
-    SURVIVOR_STATUS = "survivor_status"
-    SUGGESTION_BOX = "suggestion_box"
-    HERO_RECRUTMENT = "hero.recrutment"
-    TRIALS = "trials"
-    UNKNOWN = "unknown"
+# ScreenName is generated at import time from screen_verify.yaml plus a small
+# list of well-known sentinel/hub screens. Adding a new screen now means
+# editing screen_verify.yaml only — no Python change required.
+#
+# Identifier convention (slug → Python attribute name):
+#   * uppercase the value;
+#   * replace ``.`` with ``_`` (so ``hero.recrutment`` → ``HERO_RECRUTMENT``);
+#   * drop ``-`` and other non-identifier chars (so ``event.7-day`` → ``EVENT_7DAY``).
+#
+# Anything that legitimately needs a stable Python identifier (constants used
+# by ``navigator.py`` / tests) must round-trip through this rule. To audit a
+# breaking rename, grep for ``ScreenName.<NAME>``.
+
+_WELL_KNOWN_SCREEN_VALUES: tuple[str, ...] = (
+    # Sentinel: detector returns UNKNOWN when no match.
+    "unknown",
+    # Hub: used as a routing constant by Navigator (``_MAIN_CITY``).
+    "main_city",
+    # Topology-only screen with no OCR/landmark rules — kept here so callers
+    # still get ``ScreenName.SUGGESTION_BOX``.
+    "suggestion_box",
+)
+
+
+def _value_to_py_ident(value: str) -> str:
+    out = value.upper().replace(".", "_").replace("-", "")
+    # Strip any remaining non-identifier characters defensively (apostrophes,
+    # ampersands etc. — slugs should already be clean, but YAML might drift).
+    return "".join(ch for ch in out if ch.isalnum() or ch == "_")
+
+
+def _build_screen_name_enum() -> type[StrEnum]:
+    """Compose the ScreenName enum from well-known constants + screen_verify.yaml."""
+    members: dict[str, str] = {}
+    seen_values: set[str] = set()
+    for value in _WELL_KNOWN_SCREEN_VALUES:
+        ident = _value_to_py_ident(value)
+        if value not in seen_values and ident:
+            members[ident] = value
+            seen_values.add(value)
+    for value in screen_verify_screen_names():
+        if value in seen_values:
+            continue
+        ident = _value_to_py_ident(value)
+        if not ident or ident in members:
+            continue
+        members[ident] = value
+        seen_values.add(value)
+    return StrEnum("ScreenName", members)
+
+
+ScreenName: type[StrEnum] = _build_screen_name_enum()
 
 
 class ScreenDetector:

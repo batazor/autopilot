@@ -14,8 +14,9 @@ cond: active_player == ""
 # `worker/instance_worker.py`) at priority 82_000 — above routine state-aware
 # overlays (assign_worker / read_mail_gifts / chapter_task_router at 70k–80k)
 # so identity is established before any action is attributed to a player.
-# Stays below tutorial overlays (skip=85_000, hand=86_000) so tutorials still
-# preempt the identity probe.
+# Stays below ``where_i_am`` (83_000) so the current_screen is known before
+# we try to navigate to chief_profile. Stays below tutorial overlays
+# (skip=85_000, hand=86_000) so tutorials still preempt the identity probe.
 node: chief_profile
 
 steps:

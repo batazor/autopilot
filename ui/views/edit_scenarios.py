@@ -48,15 +48,15 @@ STEP_TYPES_FOR_NEW: tuple[str, ...] = (
     "push_scenario",
     "set_node",
     "swipe_direction",
-    "repeat",
+    "loop",
     "cond",
     "if",
     "long_click",
 )
 
-# Only valid inside ``repeat`` / ``while_match`` (raises ``_BreakRepeat`` in the
+# Only valid inside ``loop`` / ``repeat`` / ``while_match`` (raises ``_BreakRepeat`` in the
 # executor; outside a loop the step is a no-op).
-LOOP_PARENT_KINDS = frozenset({"repeat", "while_match"})
+LOOP_PARENT_KINDS = frozenset({"loop", "repeat", "while_match"})
 
 SWIPE_DIRECTIONS = ("up", "down", "left", "right")
 
@@ -196,14 +196,14 @@ def _new_step(step_type: str) -> dict[str, Any]:
         return {"set_node": ""}
     if step_type == "swipe_direction":
         return {"swipe_direction": {"direction": "up", "delta": 400, "duration_ms": 600}}
-    if step_type == "repeat":
-        return {"repeat": {"max": 3, "steps": []}}
+    if step_type == "loop":
+        return {"loop": {"max": 3, "steps": []}}
     if step_type == "cond":
         return {"cond": "", "steps": []}
     if step_type == "if":
         return {"if": ""}
     if step_type == "break":
-        return {"break": "repeat"}
+        return {"break": "loop"}
     return {step_type: ""}
 
 
@@ -350,8 +350,8 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
                 "duration_ms", min_value=50, max_value=5000, value=int(spec.get("duration_ms") or 600), key=pk + "::swt"
             )
         step["swipe_direction"] = {"direction": d, "delta": int(delta), "duration_ms": int(dur)}
-    elif stype == "repeat":
-        spec = step.get("repeat")
+    elif stype in {"loop", "repeat"}:
+        spec = step.get(stype)
         if isinstance(spec, dict):
             cur_max = int(spec.get("max") or 1)
             inner = spec.get("steps")
@@ -361,13 +361,13 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
         else:
             cur_max = int(spec or 1)
             spec = {"max": cur_max, "steps": []}
-            step["repeat"] = spec
+            step[stype] = spec
             inner = spec["steps"]
         spec["max"] = st.number_input(
             "max iterations", min_value=0, max_value=999, value=cur_max, key=pk + "::rmax"
         )
-        st.caption("Inner steps (use `break: repeat` to exit early):")
-        _render_steps_list(inner, path, depth + 1, parent_kind="repeat")
+        st.caption("Inner steps (use `break: loop` to exit early):")
+        _render_steps_list(inner, path, depth + 1, parent_kind=stype)
     elif stype == "cond":
         if not isinstance(step.get("steps"), list):
             step["steps"] = []
@@ -382,7 +382,7 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
         )
     elif stype == "break":
         step["break"] = st.text_input(
-            "label", value=str(step.get("break") or "repeat"), key=pk + "::brk"
+            "label", value=str(step.get("break") or "loop"), key=pk + "::brk"
         )
     else:
         st.warning(f"Unknown step type — raw fields: {list(step.keys())}")
@@ -447,7 +447,7 @@ def _render_steps_list(
 ) -> None:
     """Render a list of steps with reorder/delete controls.
 
-    ``parent_kind`` is the type of the enclosing block (``repeat`` /
+    ``parent_kind`` is the type of the enclosing block (``loop`` / ``repeat`` /
     ``while_match`` / ``cond`` / "" for the scenario root). It controls which
     step types are offered in *Add step* — e.g. ``break`` only inside a loop.
     """

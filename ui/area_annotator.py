@@ -690,6 +690,13 @@ def _render_screen_id_and_ocr_fields(
         sid_index = 0
     _sk = "lbl" if labeling_mode else "std"
     selectbox_key = f"screen_id_{entry_idx}_{_sk}"
+    if selectbox_key in st.session_state:
+        state_screen_id = str(st.session_state.get(selectbox_key, "") or "").strip()
+        if state_screen_id not in sid_opts:
+            st.session_state[selectbox_key] = sid_default if sid_default in sid_opts else ""
+        selectbox_index = None
+    else:
+        selectbox_index = sid_index
 
     suggestion = _node_suggest_for_active_image()
     if suggestion:
@@ -720,7 +727,7 @@ def _render_screen_id_and_ocr_fields(
     screen_id = st.selectbox(
         "Screen ID (node)",
         options=sid_opts,
-        index=sid_index,
+        index=selectbox_index,
         format_func=_format_screen_id_choice,
         key=selectbox_key,
         help=(

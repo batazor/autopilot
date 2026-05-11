@@ -13,7 +13,7 @@ steps:
   - exec: sync_building_name
 
   # Chapter flow may show upgrade taps or a Next button instead — handle both per iteration.
-  - repeat:
+  - loop:
       max: 10
       steps:
         - while_match: upgrade_button
@@ -37,4 +37,10 @@ steps:
           steps:
             - wait: 2s
             - click: build_building_item
+            - wait: 2s
+        - while_match: upgrade_big_button
+          max: 1
+          steps:
+            - wait: 2s
+            - click: upgrade_big_button
             - wait: 2s

@@ -7,7 +7,6 @@ from typing import Any
 
 import streamlit as st
 import yaml
-from streamlit_extras.stoggle import stoggle
 
 from analysis.overlay_manifest import default_analyze_yaml_path
 from analysis.overlay_rules import overlay_rule_screen_allowlist
@@ -38,17 +37,30 @@ def _resolve_includes(manifest_path: Path, include: list[object]) -> list[Path]:
     return out
 
 
+_SOURCE_KEY = "_wiki_source"
+
+
 def _load_analyze_manifest(path: Path) -> tuple[list[Path], list[dict[str, Any]]]:
-    """Returns (loaded_files, merged_overlay_rules)."""
+    """Returns (loaded_files, merged_overlay_rules); each rule carries its source path."""
     if not path.is_file():
         return ([], [])
 
     raw = _load_yaml_dict(path)
     overlay_merged: list[dict[str, Any]] = []
 
+    def _tag(rules: list[Any], src: Path) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for r in rules:
+            if not isinstance(r, dict):
+                continue
+            tagged = dict(r)
+            tagged[_SOURCE_KEY] = src
+            out.append(tagged)
+        return out
+
     ov = raw.get("overlay")
     if isinstance(ov, list):
-        overlay_merged.extend([r for r in ov if isinstance(r, dict)])
+        overlay_merged.extend(_tag(ov, path))
 
     loaded: list[Path] = [path]
 
@@ -61,14 +73,36 @@ def _load_analyze_manifest(path: Path) -> tuple[list[Path], list[dict[str, Any]]
             doc = _load_yaml_dict(inc_path)
             ov2 = doc.get("overlay")
             if isinstance(ov2, list):
-                overlay_merged.extend([r for r in ov2 if isinstance(r, dict)])
+                overlay_merged.extend(_tag(ov2, inc_path))
 
     return (loaded, overlay_merged)
 
 
-def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
-    pu = rule.get("pushScenario")
-    if not isinstance(pu, list):
+def _source_chip_label(path: Path, repo_root: Path, manifest: Path) -> str:
+    """Short, human-readable chip label for a YAML source.
+
+    - manifest itself → ``manifest``
+    - ``analyze_pages/analyze_common.yaml`` → ``common``
+    - ``analyze_pages/events/7-day.yaml`` → ``events/7-day``
+    """
+    if path == manifest:
+        return "manifest"
+    try:
+        rel = path.relative_to(repo_root / "analyze" / "analyze_pages")
+    except ValueError:
+        return path.stem
+    parts = list(rel.parts)
+    parts[-1] = Path(parts[-1]).stem
+    leaf = parts[-1]
+    if leaf.startswith("analyze_"):
+        leaf = leaf[len("analyze_"):]
+    parts[-1] = leaf
+    return "/".join(parts)
+
+
+def _scenario_names_from_key(rule: dict[str, Any], key: str) -> list[str]:
+    pu = rule.get(key)
+    if key == "pushScenario" and not isinstance(pu, list):
         pu = rule.get("pushUsecase")  # backward compat
     if not isinstance(pu, list):
         return []
@@ -82,7 +116,6 @@ def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
         nm = str(src.get("name") or src.get("type") or "").strip()
         if nm:
             out.append(nm)
-    # Deduplicate, keep stable order
     seen: set[str] = set()
     uniq: list[str] = []
     for x in out:
@@ -92,14 +125,26 @@ def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
     return uniq
 
 
+def _push_scenario_names(rule: dict[str, Any]) -> list[str]:
+    return _scenario_names_from_key(rule, "pushScenario")
+
+
 def _render_rule(rule: dict[str, Any]) -> None:
     name = str(rule.get("name") or "").strip() or "(unnamed)"
     action = str(rule.get("action") or "").strip() or "(no action)"
     st.markdown(f"**`{name}`** · `{action}`")
+    src = rule.get(_SOURCE_KEY)
+    if isinstance(src, Path):
+        try:
+            st.caption(f"source: `{src.relative_to(_repo_root()).as_posix()}`")
+        except ValueError:
+            st.caption(f"source: `{src.as_posix()}`")
 
-    scenarios = _push_scenario_names(rule)
-    if scenarios:
-        st.markdown("**pushScenario**")
+    for label, key in (("pushScenario", "pushScenario"), ("runScenario", "runScenario")):
+        scenarios = _scenario_names_from_key(rule, key)
+        if not scenarios:
+            continue
+        st.markdown(f"**{label}**")
         for s in scenarios:
             c1, c2 = st.columns([3, 1], vertical_alignment="center")
             with c1:
@@ -124,17 +169,45 @@ if not overlay_rules:
     st.warning(f"No `overlay` rules loaded from `{analyze_path}`.")
     st.stop()
 
-if loaded_files:
-    stoggle(
-        "Sources",
-        "\n".join(f"- `{p.relative_to(repo_root).as_posix()}`" for p in loaded_files),
+# Chip filter: one chip per source file. Manifest pinned first, then
+# include order. Rule count rendered next to each label so the user can see
+# weight before clicking.
+rule_counts: dict[Path, int] = {}
+for r in overlay_rules:
+    src = r.get(_SOURCE_KEY)
+    if isinstance(src, Path):
+        rule_counts[src] = rule_counts.get(src, 0) + 1
+
+chip_label_to_path: dict[str, Path] = {}
+chip_options: list[str] = []
+for src in loaded_files:
+    base = _source_chip_label(src, repo_root, analyze_path)
+    label = f"{base} · {rule_counts.get(src, 0)}"
+    chip_label_to_path[label] = src
+    chip_options.append(label)
+
+with st.sidebar:
+    st.caption("Sources")
+    selected_chips = st.pills(
+        "Source files",
+        options=chip_options,
+        selection_mode="multi",
+        default=[],
+        label_visibility="collapsed",
+        key="wiki_analyze_sources",
     )
+
+selected_paths: set[Path] = {
+    chip_label_to_path[c] for c in (selected_chips or []) if c in chip_label_to_path
+}
 
 q = st.text_input("Filter (name/action contains)", value="", key="wiki_analyze_filter").strip().lower()
 
 filtered: list[dict[str, Any]] = []
 for r in overlay_rules:
     if not isinstance(r, dict):
+        continue
+    if selected_paths and r.get(_SOURCE_KEY) not in selected_paths:
         continue
     hay = "\n".join(
         [

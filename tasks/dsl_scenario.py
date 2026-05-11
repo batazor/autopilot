@@ -521,7 +521,7 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
     ) -> TaskResult | None:
         if "break" in step:
             tgt = str(step.get("break") or "").strip().lower()
-            if tgt == "repeat":
+            if tgt in {"loop", "repeat"}:
                 raise _BreakRepeat()
             return None
         ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
@@ -767,8 +767,8 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                         if result is not None:
                             return result
             except _BreakRepeat:
-                # ``break: repeat`` doubles as "exit loop" — keeps the existing
-                # break primitive working without inventing a separate keyword.
+                # ``break: loop`` and legacy ``break: repeat`` both exit the
+                # nearest loop-like block.
                 return None
             return None
         if "while_match" in step:
@@ -1567,7 +1567,7 @@ class DslScenarioTask(DslPersistMixin, DslMatchMixin, DslOcrMixin):
                                     metadata=_fin(md, completed=False),
                                 )
                     except _BreakRepeat:
-                        # Stop the nearest repeat and continue with the next outer step.
+                        # Stop the nearest loop-like block and continue with the next outer step.
                         break
                 _trace_row(_resumable_step, step, "ok")
                 continue

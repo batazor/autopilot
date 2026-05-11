@@ -1,0 +1,9 @@
+enabled: true
+name: Tap Furnace max power
+# Pushed inline by the furnace overlay when ``building.furnace.max_power``
+# is visible. Single guarded tap; UI-only, no player identity needed.
+device_level: true
+
+steps:
+  - click: building.furnace.max_power
+  - wait: 1s

@@ -10,3 +10,6 @@ include:
   - analyze_pages/analyze_squad_settings.yaml
   - analyze_pages/analyze_backpack.yaml
   - analyze_pages/analyze_trials.yaml
+  - analyze_pages/analyze_vip.yaml
+  - analyze_pages/events/7-day.yaml
+  - analyze_pages/building/furnace.yaml

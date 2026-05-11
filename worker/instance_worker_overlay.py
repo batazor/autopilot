@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
@@ -8,6 +9,14 @@ from contextlib import suppress
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Cap for inline ``runScenario`` execution. Inline scenarios block the overlay
+# tick (and therefore the worker's main loop), so a hung scenario must not be
+# allowed to halt task processing forever. 5 minutes mirrors the queue-side
+# `task_timeout_seconds` (300) — a runScenario *is* the same DSL scenario as
+# its queued cousin, so giving it the same budget keeps semantics consistent
+# while still bounding any runaway loop.
+_INLINE_RUN_SCENARIO_TIMEOUT_SECONDS = 300.0
 
 
 def _overlay_metric_float(value: object) -> float | None:
@@ -60,14 +69,12 @@ class InstanceWorkerOverlayMixin:
         """Handle matched overlay rules.
 
         Policy: overlay analysis never enqueues tap actions. It may only enqueue DSL scenarios
-        via `pushScenario` (and other non-tap metadata).
+        via `pushScenario` (and other non-tap metadata), or execute them inline via
+        `runScenario` (awaited in the overlay tick — for short, cheap scenarios only).
 
         ``pushScenario`` tasks are always **device-level** (``player_id=""``): they do not require
         a configured player; the worker resolves an active player only when the task needs one.
         """
-        if self._queue is None:
-            return
-
         now = time.time()
         matched_payloads: list[dict[str, object]] = []
         for _name, payload in overlay_results.items():
@@ -79,6 +86,30 @@ class InstanceWorkerOverlayMixin:
 
         matched_payloads.sort(key=_overlay_effective_priority, reverse=True)
 
+        # Inline scenarios first — they're meant to settle state before any queued
+        # follow-up pushScenario tasks pop off the queue.
+        for payload in matched_payloads:
+            rs = payload.get("runScenario")
+            if not isinstance(rs, list):
+                continue
+            for item in rs:
+                if not isinstance(item, dict):
+                    continue
+                key = str(item.get("type") or item.get("name") or "").strip()
+                if not key:
+                    continue
+                try:
+                    await self._run_inline_scenario_from_overlay(payload, key)
+                except Exception:
+                    logger.exception(
+                        "overlay runScenario %s failed inline on %s",
+                        key,
+                        self._cfg.instance_id,
+                    )
+
+        if self._queue is None:
+            return
+
         for payload in matched_payloads:
             try:
                 await self._enqueue_push_scenarios_from_overlay(
@@ -86,6 +117,67 @@ class InstanceWorkerOverlayMixin:
                 )
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
+
+    async def _run_inline_scenario_from_overlay(
+        self, payload: dict[str, object], scenario_key: str
+    ) -> None:
+        """Execute a DSL scenario inline in the overlay tick (no queue)."""
+        from tasks.dsl_scenario import DslScenarioTask
+
+        reg_snap = str(payload.get("region") or "").strip() or ""
+        tap_x_pct = _overlay_metric_float(payload.get("tap_x_pct"))
+        tap_y_pct = _overlay_metric_float(payload.get("tap_y_pct"))
+
+        task = DslScenarioTask(
+            task_id=f"ovl-inline:{self._cfg.instance_id}:{scenario_key}:{uuid.uuid4().hex[:8]}",
+            player_id="",
+            scenario_key=scenario_key,
+            tap_region=reg_snap,
+            tap_x_pct=tap_x_pct,
+            tap_y_pct=tap_y_pct,
+            redis_client=self._redis,
+        )
+        logger.info(
+            "[overlay] %s: runScenario inline %s (region=%s)",
+            self._cfg.instance_id,
+            scenario_key,
+            reg_snap or "-",
+        )
+        try:
+            await asyncio.wait_for(
+                task.execute(self._cfg.instance_id),
+                timeout=_INLINE_RUN_SCENARIO_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            logger.error(
+                "[overlay] %s: runScenario inline %s timed out after %.0fs — "
+                "yielding overlay tick so the queue keeps moving",
+                self._cfg.instance_id,
+                scenario_key,
+                _INLINE_RUN_SCENARIO_TIMEOUT_SECONDS,
+            )
+            try:
+                from ui.notifications import push_ui_notification
+
+                await push_ui_notification(
+                    self._redis,
+                    self._cfg.instance_id,
+                    kind="overlay.runScenario.timeout",
+                    level="warning",
+                    message=(
+                        f"runScenario `{scenario_key}` timed out after "
+                        f"{int(_INLINE_RUN_SCENARIO_TIMEOUT_SECONDS)}s "
+                        f"(region={reg_snap or '-'}). Worker resumed; check "
+                        "the scenario for an unbounded loop."
+                    ),
+                    payload={
+                        "scenario": scenario_key,
+                        "region": reg_snap,
+                        "timeout_seconds": _INLINE_RUN_SCENARIO_TIMEOUT_SECONDS,
+                    },
+                )
+            except Exception:
+                logger.debug("Failed to push runScenario timeout notification", exc_info=True)
 
     async def _enqueue_push_scenarios_from_overlay(
         self,

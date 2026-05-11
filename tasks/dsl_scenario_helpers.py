@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class _BreakRepeat(Exception):
-    """Internal control-flow: break the nearest `repeat:` block."""
+    """Internal control-flow: break the nearest loop-like block."""
 
 
 def _step_red_dot_requirement(step: dict[str, Any]) -> bool | None:
@@ -90,7 +90,7 @@ _COND_TEXT_RE = re.compile(
     r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
 )
 
-# ``repeat`` / ``while_match`` also nest ``steps``; composite blocks use only ``cond`` + ``steps``.
+# ``loop`` / ``repeat`` / ``while_match`` also nest ``steps``; composite blocks use only ``cond`` + ``steps``.
 _DSL_STEP_ACTION_KEYS = frozenset({
     "match",
     "while_match",
@@ -121,6 +121,7 @@ def _dsl_step_summary(step: Any) -> str:
         "exec",
         "wait",
         "repeat",
+        "loop",
     ):
         if key not in step:
             continue
@@ -130,6 +131,8 @@ def _dsl_step_summary(step: Any) -> str:
             return f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
         if key == "repeat":
             return "repeat"
+        if key == "loop":
+            return "loop"
         if key == "swipe_direction":
             return f"swipe:{str(val)[:40]}"
         if key == "push_scenario":

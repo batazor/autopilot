@@ -30,8 +30,11 @@ async def test_missing_navigation_path_is_not_logged_as_error(
 
     monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
 
+    # ARENA has no incoming edge in edge_taps.yaml, so this exercises the
+    # "no route" branch. (BUILDING used to be orphan but main_city → building
+    # was added once chapter_task_router started pushing building.upgrade.)
     with caplog.at_level(logging.INFO, logger="navigation.navigator"):
-        ok = await nav.navigate_to(ScreenName.BUILDING, "bs1")
+        ok = await nav.navigate_to(ScreenName.ARENA, "bs1")
 
     assert ok is False
     assert any("No navigation path" in row.message for row in caplog.records)

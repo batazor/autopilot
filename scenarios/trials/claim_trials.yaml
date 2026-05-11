@@ -1,7 +1,7 @@
 enabled: true
 name: "Claim trials"
 
-node: trials
+node: event.trials
 
 # Pushed when the player lands on the Trials event screen (overlay rule
 # `trials.entered` in analyze_trials.yaml). Walks all 5 days and, for each
@@ -24,34 +24,28 @@ steps:
       - wait: 1s
       - while_match: trial.task.1
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.1
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.2
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.2
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.3
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.3
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
@@ -65,34 +59,28 @@ steps:
       - wait: 1s
       - while_match: trial.task.1
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.1
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.2
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.2
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.3
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.3
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
@@ -106,34 +94,28 @@ steps:
       - wait: 1s
       - while_match: trial.task.1
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.1
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.2
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.2
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.3
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.3
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
@@ -147,12 +129,10 @@ steps:
       - wait: 1s
       - while_match: trial.task.1
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.1
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
@@ -163,18 +143,15 @@ steps:
           - click: trial.task.2
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.3
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.3
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
@@ -188,34 +165,28 @@ steps:
       - wait: 1s
       - while_match: trial.task.1
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.1
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.2
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.2
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s
       - while_match: trial.task.3
         isRedDot: true
-        max: 1
         steps:
           - click: trial.task.3
           - wait: 0.8s
           - while_match: button.claim
-            max: 3
             steps:
               - click: button.claim
               - wait: 0.5s

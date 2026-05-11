@@ -17,8 +17,10 @@ Adding a new screen
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -28,40 +30,107 @@ VerifyRule = dict[str, object]
 VerifyConfig = dict[str, object]
 ScreenVerifyEntry = dict[str, object]
 TextSwitchRule = dict[str, object]
+DynamicEdgeSpec = dict[str, Any]
+"""Per-edge spec for runtime-resolved taps.
+
+YAML shape: ``{ resolver: <name>, target: <str> }``. ``resolver`` selects an
+entry from :data:`EDGE_RESOLVERS`; ``target`` (and any other keys) are passed
+through unchanged for the resolver to interpret. Used when the tap region
+depends on per-instance state (e.g. which main_city event slot currently
+hosts a given event)."""
+
+EdgeResolver = Callable[
+    [DynamicEdgeSpec, str, Any], Awaitable["list[Tap] | None"]
+]
+"""``async (spec, instance_id, redis_client) -> [Tap] | None``.
+
+Returns the tap-region sequence resolved for the current instance, or ``None``
+when the edge is currently unavailable (state stale / target not present).
+A ``None`` return makes :func:`route_taps_async` fail the whole route — the
+caller (Navigator) treats it as a routing failure and retries later."""
 
 # ---------------------------------------------------------------------------
 # Tap registry — loaded from navigation/edge_taps.yaml
 # ---------------------------------------------------------------------------
 
 
-def _load_edge_taps() -> dict[tuple[str, str], list[Tap]]:
+def _load_edge_taps() -> tuple[
+    dict[tuple[str, str], list[Tap]],
+    dict[tuple[str, str], DynamicEdgeSpec],
+]:
+    """Parse edge_taps.yaml into static + dynamic registries.
+
+    Edge value forms:
+    * ``str`` — single static tap region (legacy shorthand).
+    * ``list[str]`` — static tap sequence.
+    * ``dict`` — dynamic edge resolved at runtime via an :data:`EDGE_RESOLVERS`
+      entry; the dict is opaque to the loader and passed through to the
+      resolver as-is.
+    """
     path = Path(__file__).resolve().with_name("edge_taps.yaml")
     if not path.is_file():
-        return {}
+        return {}, {}
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     edges = raw.get("edges", {})
-    result: dict[tuple[str, str], list[Tap]] = {}
+    static: dict[tuple[str, str], list[Tap]] = {}
+    dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
     if not isinstance(edges, dict):
-        return result
+        return static, dynamic
     for src, dsts in edges.items():
         if not isinstance(dsts, dict):
             continue
         for dst, taps in dsts.items():
+            key = (str(src), str(dst))
             if isinstance(taps, list):
-                result[(str(src), str(dst))] = [str(t) for t in taps]
+                static[key] = [str(t) for t in taps]
             elif isinstance(taps, str):
-                result[(str(src), str(dst))] = [taps]
-    return result
+                static[key] = [taps]
+            elif isinstance(taps, dict):
+                dynamic[key] = dict(taps)
+    return static, dynamic
 
 
-EDGE_TAPS: dict[tuple[str, str], list[Tap]] = _load_edge_taps()
+EDGE_TAPS, EDGE_DYNAMIC = _load_edge_taps()
 
 # ---------------------------------------------------------------------------
-# Adjacency graph derived from EDGE_TAPS
+# Adjacency graph derived from BOTH static and dynamic edges.
+# BFS only needs topology; per-edge resolution happens at route-walk time.
 # ---------------------------------------------------------------------------
 _TAPS_GRAPH: dict[str, set[str]] = {}
 for _src, _dst in EDGE_TAPS:
     _TAPS_GRAPH.setdefault(_src, set()).add(_dst)
+for _src, _dst in EDGE_DYNAMIC:
+    _TAPS_GRAPH.setdefault(_src, set()).add(_dst)
+
+
+# ---------------------------------------------------------------------------
+# Resolver registry — populated by call sites that import this module.
+# Decoupled from the resolver implementations themselves so screen_graph stays
+# a pure topology / routing module (no Redis import at module load).
+# ---------------------------------------------------------------------------
+EDGE_RESOLVERS: dict[str, EdgeResolver] = {}
+
+
+def register_edge_resolver(name: str, fn: EdgeResolver) -> None:
+    """Idempotent registration. Late binding lets the resolver live anywhere."""
+    EDGE_RESOLVERS[str(name).strip()] = fn
+
+
+async def _resolve_dynamic_edge(
+    src: str,
+    dst: str,
+    *,
+    instance_id: str,
+    redis_client: Any,
+) -> list[Tap] | None:
+    spec = EDGE_DYNAMIC.get((src, dst))
+    if spec is None:
+        return None
+    name = str(spec.get("resolver") or "").strip()
+    fn = EDGE_RESOLVERS.get(name)
+    if fn is None:
+        return None
+    return await fn(spec, instance_id, redis_client)
 
 
 # ---------------------------------------------------------------------------
@@ -312,11 +381,12 @@ def bfs_route(src: str, dst: str) -> list[str] | None:
 
 
 def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
-    """BFS path from *src* to *dst* resolved to per-hop tap sequences.
+    """BFS path resolved to tap sequences using **static edges only**.
 
-    Returns ``None`` when no path exists in the tap-action graph
-    (either the edge is unknown or tap coordinates are not yet registered).
-    The caller (Navigator) falls back to routing via ``main_city`` in that case.
+    Returns ``None`` when the route would require traversing a dynamic edge
+    — those can't be resolved without an instance context. Async callers
+    should use :func:`route_taps_async` instead. Kept synchronous for tests
+    and tooling that only inspect static topology.
     """
     path = bfs_route(src, dst)
     if path is None:
@@ -331,13 +401,67 @@ def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
 
 
 def route_hops(src: str, dst: str) -> list[tuple[str, list[Tap]]] | None:
-    """BFS path resolved to ``(destination_screen, tap_sequence)`` per hop."""
+    """Static-only variant of :func:`route_hops_async` — see that for full semantics."""
     path = bfs_route(src, dst)
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []
     for a, b in zip(path, path[1:], strict=False):
         taps = EDGE_TAPS.get((a, b))
+        if taps is None:
+            return None
+        result.append((b, list(taps)))
+    return result
+
+
+async def route_taps_async(
+    src: str,
+    dst: str,
+    *,
+    instance_id: str,
+    redis_client: Any,
+) -> list[list[Tap]] | None:
+    """Like :func:`route_taps` but resolves dynamic edges via :data:`EDGE_RESOLVERS`.
+
+    If any hop on the BFS path is a dynamic edge whose resolver returns
+    ``None`` (target not in current per-instance state), the whole route is
+    treated as unavailable and ``None`` is returned. The caller can then
+    fall back / retry after the state refreshes.
+    """
+    path = bfs_route(src, dst)
+    if path is None:
+        return None
+    result: list[list[Tap]] = []
+    for a, b in zip(path, path[1:], strict=False):
+        taps = EDGE_TAPS.get((a, b))
+        if taps is None:
+            taps = await _resolve_dynamic_edge(
+                a, b, instance_id=instance_id, redis_client=redis_client
+            )
+        if taps is None:
+            return None
+        result.append(list(taps))
+    return result
+
+
+async def route_hops_async(
+    src: str,
+    dst: str,
+    *,
+    instance_id: str,
+    redis_client: Any,
+) -> list[tuple[str, list[Tap]]] | None:
+    """Per-hop variant of :func:`route_taps_async`."""
+    path = bfs_route(src, dst)
+    if path is None:
+        return None
+    result: list[tuple[str, list[Tap]]] = []
+    for a, b in zip(path, path[1:], strict=False):
+        taps = EDGE_TAPS.get((a, b))
+        if taps is None:
+            taps = await _resolve_dynamic_edge(
+                a, b, instance_id=instance_id, redis_client=redis_client
+            )
         if taps is None:
             return None
         result.append((b, list(taps)))

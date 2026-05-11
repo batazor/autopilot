@@ -152,3 +152,19 @@ overlay:
   - name: chapter_task_router
     priority: 70000
     ttl: 20s
+
+# Periodic OCR-scan of the four event slots → resolves which screen each
+# block currently leads to. 5min TTL on the pushed scenario throttles the
+# scan to once per 5 min while on main_city (events rotate slowly, so this is
+# plenty fresh). Priority 60000 sits below red-dot reactive scenarios (80000)
+# so claim-walkers preempt a scheduled scan.
+- name: main_city.event_blocks.scan
+  region: is_main_city
+  action: text
+  screens:
+  - main_city
+  ttl: 5m
+  runScenario:
+  - name: scan_event_blocks
+    priority: 60000
+    ttl: 5m

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -8,7 +10,10 @@ from typing import Any
 import yaml
 
 from analysis.overlay_manifest import default_analyze_yaml_path, load_analyze_yaml
-from analysis.overlay_rules import optional_push_scenario_tasks
+from analysis.overlay_rules import (
+    optional_push_scenario_tasks,
+    optional_run_scenario_tasks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +183,14 @@ def _validate_analyze_manifest(
                 scenario_keys=scenario_keys,
                 source=source,
                 field="pushScenario",
+                value=task.get("dsl_scenario") or task.get("type"),
+            )
+        for task in optional_run_scenario_tasks(rule):
+            _check_scenario(
+                issues,
+                scenario_keys=scenario_keys,
+                source=source,
+                field="runScenario",
                 value=task.get("dsl_scenario") or task.get("type"),
             )
 
@@ -406,12 +419,27 @@ def _validate_edge_taps(
                 tap_names = [taps]
             elif isinstance(taps, list):
                 tap_names = taps
+            elif isinstance(taps, dict):
+                # Dynamic edge: resolved at runtime via screen_graph.EDGE_RESOLVERS.
+                # Validate the spec shape but skip region-name checks — taps don't
+                # exist statically.
+                resolver = str(taps.get("resolver") or "").strip()
+                if not resolver:
+                    issues.append(
+                        StartupValidationIssue(
+                            "error",
+                            source,
+                            "dynamic edge spec must include a non-empty `resolver`",
+                        )
+                    )
+                continue
             else:
                 issues.append(
                     StartupValidationIssue(
                         "error",
                         source,
-                        "tap sequence must be a region name or list of region names",
+                        "tap sequence must be a region name, list of region names, "
+                        "or a dynamic edge spec ({resolver, target})",
                     )
                 )
                 continue
@@ -474,7 +502,56 @@ def log_startup_config_validation(repo_root: Path | None = None) -> list[Startup
     return issues
 
 
+_ACK_ENV_VAR = "WOS_VALIDATION_ACK"
+
+
+def _validation_ack_via_env() -> bool:
+    return os.environ.get(_ACK_ENV_VAR, "").strip().lower() in {"1", "true", "yes", "y"}
+
+
+def _prompt_validation_ack(issue_count: int) -> bool:
+    """Block on the TTY until the operator acknowledges the issues.
+
+    Returns True iff the user typed an affirmative (y/yes). On non-TTY stdin
+    or any I/O failure (daemon, redirected stdin, broken terminal) we cannot
+    prompt — return False so the caller raises.
+    """
+    try:
+        if not sys.stdin or not sys.stdin.isatty():
+            return False
+    except (OSError, ValueError):
+        return False
+    prompt = (
+        f"\nstartup validation: {issue_count} issue(s) above. "
+        "Continue anyway? [y/N]: "
+    )
+    try:
+        sys.stderr.write(prompt)
+        sys.stderr.flush()
+        answer = sys.stdin.readline()
+    except (EOFError, KeyboardInterrupt, OSError, ValueError):
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
 def assert_startup_configs_valid(repo_root: Path | None = None) -> None:
     issues = log_startup_config_validation(repo_root)
-    if issues:
-        raise RuntimeError(f"startup config validation failed: {len(issues)} issue(s)")
+    if not issues:
+        return
+
+    if _validation_ack_via_env():
+        logger.warning(
+            "startup config validation: %d issue(s) acknowledged via %s — continuing",
+            len(issues),
+            _ACK_ENV_VAR,
+        )
+        return
+
+    if _prompt_validation_ack(len(issues)):
+        logger.warning(
+            "startup config validation: %d issue(s) acknowledged interactively — continuing",
+            len(issues),
+        )
+        return
+
+    raise RuntimeError(f"startup config validation failed: {len(issues)} issue(s)")

@@ -52,15 +52,13 @@ def _frame_with_red_dot(w: int = 720, h: int = 1280, *, with_dot: bool) -> np.nd
     return img
 
 
-def test_apply_red_dot_filter_keeps_match_when_dot_present() -> None:
+def test_build_red_dot_only_row_matches_when_dot_present() -> None:
     region_def = {
         "name": "mailBox",
         "has_red_dot": True,
         "bbox": {"x": 40.0, "y": 40.0, "width": 20.0, "height": 20.0},
     }
-    row = {"matched": True, "score": 0.95}
-    out = dsl.DslScenarioTask._apply_red_dot_filter(
-        row=row,
+    out = dsl.DslScenarioTask._build_red_dot_only_row(
         region="mailBox",
         region_def=region_def,
         image_bgr=_frame_with_red_dot(with_dot=True),
@@ -69,17 +67,18 @@ def test_apply_red_dot_filter_keeps_match_when_dot_present() -> None:
     assert out["matched"] is True
     assert out["red_dot_present"] is True
     assert out["red_dot_required"] is True
+    # Tap point falls back to bbox center when red-dot path matches.
+    assert out["tap_x_pct"] == 50.0
+    assert out["tap_y_pct"] == 50.0
 
 
-def test_apply_red_dot_filter_invalidates_match_when_dot_absent() -> None:
+def test_build_red_dot_only_row_misses_when_dot_absent() -> None:
     region_def = {
         "name": "mailBox",
         "has_red_dot": True,
         "bbox": {"x": 40.0, "y": 40.0, "width": 20.0, "height": 20.0},
     }
-    row = {"matched": True, "score": 0.95}
-    out = dsl.DslScenarioTask._apply_red_dot_filter(
-        row=row,
+    out = dsl.DslScenarioTask._build_red_dot_only_row(
         region="mailBox",
         region_def=region_def,
         image_bgr=_frame_with_red_dot(with_dot=False),
@@ -90,15 +89,13 @@ def test_apply_red_dot_filter_invalidates_match_when_dot_absent() -> None:
     assert out["reason"] == "red_dot_missing"
 
 
-def test_apply_red_dot_filter_invalidates_when_dot_unexpectedly_present() -> None:
+def test_build_red_dot_only_row_misses_when_dot_unexpectedly_present() -> None:
     region_def = {
         "name": "mailBox",
         "has_red_dot": True,
         "bbox": {"x": 40.0, "y": 40.0, "width": 20.0, "height": 20.0},
     }
-    row = {"matched": True, "score": 0.95}
-    out = dsl.DslScenarioTask._apply_red_dot_filter(
-        row=row,
+    out = dsl.DslScenarioTask._build_red_dot_only_row(
         region="mailBox",
         region_def=region_def,
         image_bgr=_frame_with_red_dot(with_dot=True),
@@ -108,14 +105,12 @@ def test_apply_red_dot_filter_invalidates_when_dot_unexpectedly_present() -> Non
     assert out["reason"] == "red_dot_unexpected"
 
 
-def test_apply_red_dot_filter_errors_without_capability_flag() -> None:
+def test_build_red_dot_only_row_errors_without_capability_flag() -> None:
     region_def = {
         "name": "mailBox",
         "bbox": {"x": 40.0, "y": 40.0, "width": 20.0, "height": 20.0},
     }
-    row = {"matched": True}
-    out = dsl.DslScenarioTask._apply_red_dot_filter(
-        row=row,
+    out = dsl.DslScenarioTask._build_red_dot_only_row(
         region="mailBox",
         region_def=region_def,
         image_bgr=_frame_with_red_dot(with_dot=True),

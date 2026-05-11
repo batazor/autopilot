@@ -127,6 +127,9 @@ def test_production_screen_verify_yaml_contains_building_landmark() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
-    expected = [{"match": "page.building.furniture", "threshold": 0.85}]
+    expected = [
+        {"match": "page.building.furniture", "threshold": 0.85},
+        {"match": "building.upgrade", "threshold": 0.9},
+    ]
     assert landmarks == expected
     assert rules == expected

@@ -31,6 +31,7 @@ class _FakeActions:
         self.capture_count = 0
         self.tapped: list[tuple[str, int, int, str | None]] = []
         self.approval_previews: list[tuple[str, dict[str, object]]] = []
+        self.swipes: list[tuple[str, str, int, int]] = []
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
         assert instance_id == "bs1"
@@ -47,6 +48,12 @@ class _FakeActions:
 
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
         self.tapped.append((instance_id, point.x, point.y, approval_region))
+        return True
+
+    def swipe_direction(
+        self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
+    ) -> bool:
+        self.swipes.append((instance_id, direction, int(delta), int(duration_ms)))
         return True
 
     def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:

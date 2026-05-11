@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
@@ -17,10 +18,14 @@ from actions.tap import BotActions
 from century.api import CenturyAPIError, CenturyClient, PlayerData
 from config.buildings import BuildingDef, get_building_registry
 from config.devices import upsert_device_gamer
+from config.events import match_event_by_ocr
 from config.state_store import get_state_store
 from gift.redeemer import run_gift_code_redeemer
 from gift.scraper import poll_once
+from layout.area_lookup import screen_region_by_name
+from layout.types import Region
 from navigation.navigator import Navigator
+from ocr.client import OcrClient
 from ui.notifications import push_ui_notification
 
 _CODES_PATH = Path("db/giftCodes.yaml")
@@ -586,6 +591,142 @@ async def _exec_gift_code_redeem(ctx: DslExecContext) -> None:
     logger.info("dsl exec gift_code_redeem: started background task")
 
 
+_SCAN_EVENT_BLOCKS_REGIONS: tuple[str, ...] = (
+    "main_city.event.block.1",
+    "main_city.event.block.2",
+    "main_city.event.block.3",
+    "main_city.event.block.4",
+)
+_EVENT_BLOCKS_HASH_TTL_SECONDS = 30 * 60
+
+
+def _load_area_doc() -> dict[str, Any]:
+    path = Path(__file__).resolve().parent.parent / "area.json"
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("dsl exec: failed to load area.json")
+        return {}
+
+
+async def _exec_scan_event_blocks(ctx: DslExecContext) -> None:
+    """OCR the four main_city event-block bboxes and record which event each
+    currently shows in Redis hash ``wos:instance:<id>:event_blocks``.
+
+    Hash entry per block index: ``"<N>" -> "event.<name>"`` (only blocks whose
+    OCR fuzzy-matches an entry in ``config/events.yaml`` are written; chest
+    cooldowns / promo offers leave their slot empty).
+    """
+    area_doc = _load_area_doc()
+    if not area_doc:
+        return
+
+    regions: list[tuple[int, Region]] = []
+    for idx, region_name in enumerate(_SCAN_EVENT_BLOCKS_REGIONS, start=1):
+        pair = screen_region_by_name(area_doc, region_name)
+        if pair is None:
+            continue
+        bbox = pair[1].get("bbox") if isinstance(pair[1], dict) else None
+        if not isinstance(bbox, dict):
+            continue
+        try:
+            x = float(bbox["x"]); y = float(bbox["y"])
+            w = float(bbox["width"]); h = float(bbox["height"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        regions.append((idx, Region(int(round(x)), int(round(y)), int(round(w)), int(round(h)))))
+
+    if not regions:
+        logger.warning("dsl exec scan_event_blocks: no event-block regions resolvable")
+        return
+
+    actions = BotActions()
+    try:
+        image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_event_blocks: capture_screen_bgr failed instance=%s",
+            ctx.instance_id,
+        )
+        return
+
+    H, W = image.shape[:2]
+    # area.json bboxes are in percentage units; convert per-image.
+    pixel_regions = [
+        Region(
+            int(round(r.x / 100.0 * W)),
+            int(round(r.y / 100.0 * H)),
+            int(round(r.w / 100.0 * W)),
+            int(round(r.h / 100.0 * H)),
+        )
+        for _idx, r in regions
+    ]
+
+    client = OcrClient()
+    try:
+        results = await client.ocr_regions(image, pixel_regions)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_event_blocks: OCR call failed instance=%s",
+            ctx.instance_id,
+        )
+        return
+
+    mapping: dict[str, str] = {}
+    for (idx, _r), result in zip(regions, results, strict=False):
+        text = (result.text or "").strip()
+        event = match_event_by_ocr(text)
+        logger.info(
+            "dsl exec scan_event_blocks: instance=%s block=%d ocr=%r resolved=%s",
+            ctx.instance_id,
+            idx,
+            text,
+            event.name if event else "(none)",
+        )
+        if event is not None:
+            mapping[str(idx)] = event.name
+
+    if ctx.redis_client is None:
+        return
+
+    hash_key = f"wos:instance:{ctx.instance_id}:event_blocks"
+    try:
+        # Drop stale entries so an event that vanished from a block doesn't
+        # linger past the next scan; only blocks resolved in this run get
+        # written back.
+        await ctx.redis_client.delete(hash_key)
+        if mapping:
+            await ctx.redis_client.hset(hash_key, mapping=mapping)
+            await ctx.redis_client.expire(hash_key, _EVENT_BLOCKS_HASH_TTL_SECONDS)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_event_blocks: redis write failed key=%s", hash_key
+        )
+
+    # Mirror the per-block resolution into the instance state hash so DSL
+    # `cond:` filters can gate clicks on it (e.g. skip block.2 when it shows
+    # the "1st Purchase" promo). Fields written: `event_blocks.1`..`.4`. Each
+    # scan first HDEL-s all four fields, then HSET-s only the resolved ones.
+    instance_state_key = f"wos:instance:{ctx.instance_id}:state"
+    field_names = [
+        f"event_blocks.{idx}" for idx in range(1, len(_SCAN_EVENT_BLOCKS_REGIONS) + 1)
+    ]
+    try:
+        await ctx.redis_client.hdel(instance_state_key, *field_names)
+        if mapping:
+            await ctx.redis_client.hset(
+                instance_state_key,
+                mapping={f"event_blocks.{idx}": val for idx, val in mapping.items()},
+            )
+    except Exception:
+        logger.exception(
+            "dsl exec scan_event_blocks: instance-state mirror failed key=%s",
+            instance_state_key,
+        )
+
+
 DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "detect_screen": _exec_detect_screen,
     "fetch_player": _exec_fetch_player,
@@ -593,4 +734,5 @@ DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "gift_code_redeem": _exec_gift_code_redeem,
     "sync_building_name": _exec_sync_building_name,
     "sync_hero_unit": _exec_sync_hero_unit,
+    "scan_event_blocks": _exec_scan_event_blocks,
 }

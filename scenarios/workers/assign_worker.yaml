@@ -3,21 +3,18 @@ name: Assign worker (open workers)
 node: survivor_status
 
 steps:
-  # Nudge the worker list up so any partially-clipped "Add" button at the
-  # bottom edge moves into a comfortable tap zone before we start matching.
-  - swipe_direction:
-      direction: up
-      delta: 50
-      duration_ms: 300
-  - wait: 0.3s
-
-  # Player-bound scenario: zero iterations of `while_match` is treated as a
-  # soft failure (re-enqueued ~30s later) so a stale push or screen-settling
-  # lag doesn't yield the slot to chapter_task_router with the work undone.
-  # `retry` controls only the *initial* probe — subsequent probes are
-  # single-shot since lack of a match means clicks are done.
-  - while_match: page.worker.add
-    max: 6
-    steps:
-      - click: page.worker.add
-      - wait: 1s
+  # Walk the worker list: assign every visible "Add", then scroll a little
+  # and probe again so buttons below the fold are reached too.
+  - loop:
+      max: 3
+      steps:
+        - while_match: page.worker.add
+          max: 6
+          steps:
+            - click: page.worker.add
+            - wait: 1s
+        - swipe_direction:
+            direction: up
+            delta: 150
+            duration_ms: 350
+        - wait: 0.3s

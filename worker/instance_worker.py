@@ -51,6 +51,10 @@ _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 # hand=86_000) — those must preempt seeds because navigating to chief_profile while
 # a tutorial is active would tap the tutorial UI instead.
 _STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
+    # ``where_i_am`` first: figure out the current screen before anything
+    # tries to navigate or tap. ``who_i_am`` then takes the established
+    # current_screen as a starting point for its FSM hop to chief_profile
+    # (and its OCR step is what populates ``active_player``).
     ("where_i_am", 83_000),
     ("who_i_am", 82_000),
 )

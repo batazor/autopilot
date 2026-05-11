@@ -198,52 +198,56 @@ class DslMatchMixin:
         except (TypeError, ValueError):
             threshold = 0.9
 
-        # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
-        # Historically it always used `findIcon`, which breaks color-only regions (e.g. `isWorkers`).
-        area_action = str(pair[1].get("action") or "").strip()
-        if area_action not in {"exist", "text", "color_check", "findIcon"}:
-            # `click` (and other non-detection actions) cannot be matched; default to `exist`.
-            area_action = "exist"
-
-        rule: dict[str, Any] = {
-            "name": f"dsl.{scenario_key}.{region}.visible",
-            "region": region,
-            "action": area_action,
-            "threshold": threshold,
-        }
-        if area_action == "color_check":
-            # Color label: prefer step override, else inherit from area.json.
-            rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
-        # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
-        excl = self._exclude_match_top_lefts.get(region)
-        if excl:
-            rule["exclude_top_lefts"] = [[x, y] for (x, y) in excl[-6:]]
-            rule["exclude_radius_px"] = 24
-        min_sat = step.get("min_match_saturation")
-        if min_sat is not None:
-            rule["min_match_saturation"] = min_sat
-        # Lazy import via main module so monkeypatches against
-        # ``tasks.dsl_scenario.evaluate_overlay_rules_async`` apply here too.
-        from tasks import dsl_scenario as _dsl
-
-        image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
-        out = await _dsl.evaluate_overlay_rules_async(
-            image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
-        )
-        row = out.get(str(rule["name"]))
-
-        # Optional ``isRedDot: true|false`` filter — refines ``matched`` based on the
-        # programmatic red-dot detector against the same region's bbox. The standard
-        # match still has to succeed; this only narrows the result, never widens it.
         red_dot_req = _step_red_dot_requirement(step)
+
+        # Red-dot-only short-circuit: when the step carries ``isRedDot: true|false``
+        # the user is asking "is there a red dot in <region>?" — they do NOT
+        # care about template/OCR identity match, so skip the heavy match path
+        # entirely. This avoids stale-crop ``shape_mismatch`` failures and
+        # works on any region with ``has_red_dot: true`` in area.json (no crop
+        # PNG required).
         if red_dot_req is not None:
-            row = self._apply_red_dot_filter(
-                row=row,
+            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            row = self._build_red_dot_only_row(
                 region=region,
                 region_def=pair[1],
                 image_bgr=image_bgr,
                 requirement=red_dot_req,
             )
+        else:
+            # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
+            # Historically it always used `findIcon`, which breaks color-only regions (e.g. `isWorkers`).
+            area_action = str(pair[1].get("action") or "").strip()
+            if area_action not in {"exist", "text", "color_check", "findIcon"}:
+                # `click` (and other non-detection actions) cannot be matched; default to `exist`.
+                area_action = "exist"
+
+            rule: dict[str, Any] = {
+                "name": f"dsl.{scenario_key}.{region}.visible",
+                "region": region,
+                "action": area_action,
+                "threshold": threshold,
+            }
+            if area_action == "color_check":
+                # Color label: prefer step override, else inherit from area.json.
+                rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
+            # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
+            excl = self._exclude_match_top_lefts.get(region)
+            if excl:
+                rule["exclude_top_lefts"] = [[x, y] for (x, y) in excl[-6:]]
+                rule["exclude_radius_px"] = 24
+            min_sat = step.get("min_match_saturation")
+            if min_sat is not None:
+                rule["min_match_saturation"] = min_sat
+            # Lazy import via main module so monkeypatches against
+            # ``tasks.dsl_scenario.evaluate_overlay_rules_async`` apply here too.
+            from tasks import dsl_scenario as _dsl
+
+            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            out = await _dsl.evaluate_overlay_rules_async(
+                image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
+            )
+            row = out.get(str(rule["name"]))
 
         if isinstance(row, dict):
             # Keep last match for subsequent `click:` on the same region.
@@ -270,41 +274,48 @@ class DslMatchMixin:
         return None
 
     @staticmethod
-    def _apply_red_dot_filter(
+    def _build_red_dot_only_row(
         *,
-        row: dict[str, Any] | None,
         region: str,
         region_def: dict[str, Any],
         image_bgr: Any,
         requirement: bool,
     ) -> dict[str, Any]:
-        """Combine the standard ``match:`` row with the red-dot predicate.
+        """Build a match row from the red-dot detector alone (no template match).
 
-        Returns a fresh row that always exposes ``red_dot_required`` and (when
-        the detector ran) ``red_dot_present`` so DSL audit / Redis context lines
-        carry enough info to debug "why didn't this fire".
+        Used by ``match:`` / ``while_match:`` steps that carry ``isRedDot:`` —
+        the row populates ``tap_x_pct`` / ``tap_y_pct`` from the bbox center so
+        a follow-up ``click:`` on the same region still has coords.
         """
-        base: dict[str, Any] = dict(row) if isinstance(row, dict) else {
+        base: dict[str, Any] = {
             "matched": False,
+            "action": "red_dot",
             "region": region,
-            "reason": "no_overlay_row",
+            "red_dot_required": bool(requirement),
         }
-        base["red_dot_required"] = bool(requirement)
-
         if not bool(region_def.get("has_red_dot")):
-            base["matched"] = False
             base["reason"] = "red_dot_capability_disabled"
             return base
-
         bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
         if bbox is None:
-            base["matched"] = False
             base["reason"] = "missing_bbox_for_red_dot"
             return base
 
-        present = has_red_dot_in_bbox_percent(image_bgr, bbox)
-        base["red_dot_present"] = bool(present)
-        if bool(present) != bool(requirement):
-            base["matched"] = False
+        present = bool(has_red_dot_in_bbox_percent(image_bgr, bbox))
+        base["red_dot_present"] = present
+        if present != bool(requirement):
             base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
+            return base
+
+        base["matched"] = True
+        try:
+            cx = float(bbox.get("x") or 0.0) + float(bbox.get("width") or 0.0) / 2.0
+            cy = float(bbox.get("y") or 0.0) + float(bbox.get("height") or 0.0) / 2.0
+        except (TypeError, ValueError):
+            cx = cy = 0.0
+        base["tap_x_pct"] = cx
+        base["tap_y_pct"] = cy
+        base["tap_match_x_pct"] = cx
+        base["tap_match_y_pct"] = cy
         return base
+

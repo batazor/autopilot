@@ -815,6 +815,36 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
+        },
+        {
+          "name": "mail.claim_all",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 65.7915057915058,
+            "y": 95.0,
+            "width": 27.6003861003861,
+            "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mail.delete_all",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.019305019305019,
+            "y": 95.21739130434783,
+            "width": 32.0,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
@@ -1123,13 +1153,13 @@
       "regions": [
         {
           "name": "tapanywhereyoexit",
-          "action": "exist",
+          "action": "text",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 31.42857142857143,
             "y": 90.76086956521739,
-            "width": 7.399613899613899,
+            "width": 25.01158301158301,
             "height": 3.4,
             "rotation": 0.0,
             "original_width": 720,
@@ -1142,10 +1172,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 19.357142857142858,
-            "y": 86.73913043478261,
-            "width": 22.347490347490346,
-            "height": 12.116304347826087,
+            "x": 18.77799227799228,
+            "y": 72.3913043478261,
+            "width": 50.50579150579151,
+            "height": 25.32282608695652,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1485,9 +1515,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 1.698841698841699,
-            "y": 39.56521739130435,
+            "y": 34.67391304347826,
             "width": 61.2007722007722,
-            "height": 4.3999999999999995,
+            "height": 9.064130434782609,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1606,50 +1636,6 @@
             "original_height": 1280
           },
           "overlay_auxiliary": true
-        }
-      ]
-    },
-    {
-      "id": 39,
-      "screen_id": "",
-      "ocr": "references/tapanywhereyoexit.purpur.png",
-      "regions": [
-        {
-          "name": "tapanywhereyoexit.purpur",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 29.111969111969117,
-            "y": 95.97826086956522,
-            "width": 20.0,
-            "height": 3.2,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
-      "id": 40,
-      "screen_id": "",
-      "ocr": "references/tapanywhereyoexit.blue.png",
-      "regions": [
-        {
-          "name": "tapanywhereyoexit.blue",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 31.23552123552124,
-            "y": 88.91304347826087,
-            "width": 7.903474903474904,
-            "height": 3.7,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
         }
       ]
     },
@@ -1943,28 +1929,6 @@
       ]
     },
     {
-      "id": 48,
-      "screen_id": "",
-      "ocr": "references/tapanywhereyoexit.yellow.png",
-      "regions": [
-        {
-          "name": "tapanywhereyoexit.yellow",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 28.339768339768344,
-            "y": 95.97826086956522,
-            "width": 8.200772200772201,
-            "height": 3.3,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
       "id": 49,
       "screen_id": "",
       "ocr": "references/ads.legend_transcend_pack.png",
@@ -2047,7 +2011,7 @@
     },
     {
       "id": 52,
-      "screen_id": "",
+      "screen_id": "main_city",
       "ocr": "references/main_city_vip.png",
       "regions": [
         {
@@ -2087,9 +2051,9 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 87.45173745173746,
+            "x": 87.25868725868726,
             "y": 23.369565217391305,
-            "width": 11.200772200772201,
+            "width": 11.424787644787646,
             "height": 6.9,
             "rotation": 0.0,
             "original_width": 720,
@@ -2103,9 +2067,9 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 87.45173745173746,
+            "x": 87.25868725868726,
             "y": 30.76086956521739,
-            "width": 11.200772200772201,
+            "width": 10.64092664092664,
             "height": 7.000000000000001,
             "rotation": 0.0,
             "original_width": 720,
@@ -2133,7 +2097,7 @@
     },
     {
       "id": 53,
-      "screen_id": "",
+      "screen_id": "backpack",
       "ocr": "references/page.backpack.png",
       "regions": [
         {
@@ -2220,7 +2184,7 @@
     },
     {
       "id": 54,
-      "screen_id": "",
+      "screen_id": "event.trials",
       "ocr": "references/page.trials.png",
       "regions": [
         {
@@ -2350,6 +2314,163 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "screen_id": "vip",
+      "ocr": "references/page.vip.png",
+      "regions": [
+        {
+          "name": "page.vip.box",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 81.46718146718146,
+            "y": 18.26086956521739,
+            "width": 12.0,
+            "height": 6.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.vip.add",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 68.91891891891892,
+            "y": 19.02173913043478,
+            "width": 10.0,
+            "height": 5.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.vip.level",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.15830115830116,
+            "y": 9.673913043478262,
+            "width": 7.0,
+            "height": 3.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "screen_id": "event.7-day",
+      "ocr": "references/event.7-day.png",
+      "regions": [
+        {
+          "name": "event.7-day",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.953667953667956,
+            "y": 44.130434782608695,
+            "width": 13.799227799227799,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "screen_id": "furnace",
+      "ocr": "references/building.furnace.png",
+      "regions": [
+        {
+          "name": "building.furnace.max_power",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.64478764478764,
+            "y": 92.73913043478261,
+            "width": 6.984555984555985,
+            "height": 3.8282608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "building.furnace",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.0849420849420848,
+            "y": 54.67391304347826,
+            "width": 17.6003861003861,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "screen_id": "",
+      "ocr": "references/page.vip.increase.png",
+      "regions": [
+        {
+          "name": "page.vip.increase.use",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.96911196911196,
+            "y": 27.717391304347824,
+            "width": 16.7992277992278,
+            "height": 3.5999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "screen_id": "",
+      "ocr": "references/building.upgrade.png",
+      "regions": [
+        {
+          "name": "building.upgrade",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 20.81081081081081,
+            "y": 91.84782608695652,
+            "width": 60.20077220077219,
+            "height": 2.541304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }
