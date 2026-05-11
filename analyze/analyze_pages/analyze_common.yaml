@@ -5,9 +5,8 @@ overlay:
   priority: 999_000
   threshold: 0.92
   ttl: 5
-  pushScenario:
+  runScenario:
     - name: tap_reconnect_button
-      priority: 999_000
 
 - name: ads_rookie_value_pack.visible
   region: ads_rookie_value_pack
@@ -15,9 +14,8 @@ overlay:
   priority: 90_000
   threshold: 0.9
   ttl: 3
-  pushScenario:
+  runScenario:
     - name: ads_rookie_value_pack
-      priority: 90_000
 
 - name: ads.natalia.visible
   region: ads.natalia
@@ -25,27 +23,24 @@ overlay:
   priority: 90_000
   threshold: 0.9
   ttl: 3
-  pushScenario:
+  runScenario:
     - name: ads_natalia
-      priority: 90_000
 
 - name: ads.info.visible
   region: ads.info
   action: findIcon
   priority: 90_000
   threshold: 0.9
-  pushScenario:
+  runScenario:
     - name: ads_info
-      priority: 90_000
 
 - name: ads.legend_transcend_pack.visible
   region: ads.legend_transcend_pack
   action: findIcon
   priority: 90_000
   threshold: 0.9
-  pushScenario:
+  runScenario:
     - name: tap_ads_legend_transcend_pack
-      priority: 90_000
 
 - name: button.done.visible
   region: button.done
@@ -63,9 +58,8 @@ overlay:
   priority: 85_000
   threshold: 0.95
   ttl: 4
-  pushScenario:
+  runScenario:
     - name: skip_button
-      priority: 85_000
 
 - name: skip_text_button.visible
   region: skip_text_button
@@ -73,9 +67,8 @@ overlay:
   priority: 85_000
   threshold: 0.95
   ttl: 4
-  pushScenario:
+  runScenario:
     - name: skip_text_button
-      priority: 85_000
 
 - name: accept_all_button.visible
   region: accept_all_button
@@ -84,23 +77,14 @@ overlay:
   threshold: 0.92
   min_match_saturation: 48
 
-- name: page.chief_profile.visible
-  region: chief_profile_title
-  action: findIcon
-  threshold: 0.9
-  screens:
-    - none
-  set_node: chief_profile
-
 - name: hand_pointer.visible
   region: hand_pointer
   action: findIcon
   priority: 86_000
   threshold: 0.90
   min_match_saturation: 30
-  pushScenario:
+  runScenario:
     - name: hand_pointer
-      priority: 86_000
 
 - name: hand_pointer_small_reverse.visible
   region: hand_pointer_small_reverse
@@ -108,9 +92,8 @@ overlay:
   priority: 86_000
   threshold: 0.9
   min_match_saturation: 50
-  pushScenario:
+  runScenario:
     - name: hand_pointer_small_reverse
-      priority: 86_000
 
 - name: hand_pointer_small.visible
   region: hand_pointer_small
@@ -118,9 +101,8 @@ overlay:
   priority: 86_000
   threshold: 0.9
   min_match_saturation: 50
-  pushScenario:
+  runScenario:
     - name: hand_pointer_small
-      priority: 86_000
 
 - name: button.claim.visible
   region: button.claim
@@ -129,9 +111,8 @@ overlay:
   threshold: 0.98
   min_match_saturation: 48
   ttl: 1s
-  pushScenario:
+  runScenario:
     - name: tap_claim_button
-      priority: 76_000
 
 - name: claim_all.visible
   region: claim_all
@@ -140,9 +121,8 @@ overlay:
   threshold: 0.92
   min_match_saturation: 48
   ttl: 1s
-  pushScenario:
+  runScenario:
     - name: tap_claim_all
-      priority: 76_000
 
 # OCR-based "Tap anywhere to exit" detector. Color-agnostic — the popup
 # banner's text is identical across the white/purpur/blue/yellow variants,
@@ -189,9 +169,8 @@ overlay:
   threshold: 0.98
   min_match_saturation: 48
   ttl: 5s
-  pushScenario:
+  runScenario:
     - name: tap_confirm_button
-      priority: 88_000
 
 - name: ui.button.confirm_blue.visible
   region: ui.button.confirm_blue
@@ -200,9 +179,8 @@ overlay:
   threshold: 0.92
   min_match_saturation: 48
   ttl: 5s
-  pushScenario:
+  runScenario:
     - name: tap_confirm_blue_button
-      priority: 88_000
 
 - name: dontshowthisagaintoday.visible
   region: dontshowthisagaintoday
@@ -211,9 +189,8 @@ overlay:
   threshold: 0.9
   min_match_saturation: 48
   ttl: 5s
-  pushScenario:
+  runScenario:
     - name: tap_dontshowthisagaintoday
-      priority: 78_000
 
 - name: event.snowstorm.visible
   region: event.snowstorm
@@ -221,14 +198,12 @@ overlay:
   priority: 70_000
   threshold: 0.92
   ttl: 5s
-  pushScenario:
+  runScenario:
     - name: event.snowstorm
-      priority: 70_000
 
 - name: big_claim_button.visible
   region: big_claim_button
   action: findIcon
   threshold: 0.9
-  pushScenario:
+  runScenario:
     - name: big_claim_button
-      priority: 70_000

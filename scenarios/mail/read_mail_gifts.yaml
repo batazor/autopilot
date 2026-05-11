@@ -45,6 +45,7 @@ steps:
 
       - click: mail.claim_all
       - wait: 1s
+      
       - click: mail.delete_all
       - wait: 1s
 

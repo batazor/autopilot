@@ -4,7 +4,7 @@ overlay:
   isRedDot: true
   screens:
   - backpack
-  pushScenario:
+  runScenario:
   - name: click_resources
     priority: 80000
     ttl: 5m
@@ -14,7 +14,7 @@ overlay:
   isRedDot: true
   screens:
   - backpack
-  pushScenario:
+  runScenario:
   - name: click_speedup
     priority: 80000
     ttl: 5m
@@ -24,7 +24,7 @@ overlay:
   isRedDot: true
   screens:
   - backpack
-  pushScenario:
+  runScenario:
   - name: click_bonus
     priority: 80000
     ttl: 5m
@@ -34,7 +34,7 @@ overlay:
   isRedDot: true
   screens:
   - backpack
-  pushScenario:
+  runScenario:
   - name: click_gear
     priority: 80000
     ttl: 5m
@@ -44,7 +44,7 @@ overlay:
   isRedDot: true
   screens:
   - backpack
-  pushScenario:
+  runScenario:
   - name: click_other
     priority: 80000
     ttl: 5m

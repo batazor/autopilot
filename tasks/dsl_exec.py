@@ -23,7 +23,8 @@ from config.state_store import get_state_store
 from gift.redeemer import run_gift_code_redeemer
 from gift.scraper import poll_once
 from layout.area_lookup import screen_region_by_name
-from layout.types import Region
+from layout.red_dot_detector import find_red_dots
+from layout.types import Point, Region
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
 from ui.notifications import push_ui_notification
@@ -727,6 +728,87 @@ async def _exec_scan_event_blocks(ctx: DslExecContext) -> None:
         )
 
 
+# Hard cap so a runaway frame (badge graphics misclassified as red dots) can't
+# spam the device — the bot taps at most this many dots in one ``put_all_red_dots``
+# call. Per-iteration tap count is bounded by what the detector returns; we
+# break early as soon as a fresh frame has zero detections.
+_PUT_ALL_RED_DOTS_MAX_TAPS = 20
+# Cool-down between taps so each tap settles (popups dismiss, screen redraws)
+# before the next frame is captured.
+_PUT_ALL_RED_DOTS_TAP_DELAY_S = 0.4
+# Settling pause after the batch of taps before re-scanning, so the next frame
+# reflects the current UI state and we don't double-tap a stale dot.
+_PUT_ALL_RED_DOTS_RESCAN_DELAY_S = 0.6
+
+
+async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
+    """Tap every red dot the detector finds on the current frame, then re-scan.
+
+    Repeats until either:
+    * a fresh frame returns zero red-dot detections, or
+    * the global ``_PUT_ALL_RED_DOTS_MAX_TAPS`` cap is reached.
+
+    No region/area.json lookup — pure full-screen ``find_red_dots``. Useful as
+    a "drain pending notifications" step at the start of a screen-traversal
+    scenario (e.g. backpack tabs).
+    """
+    actions = BotActions()
+    taps_total = 0
+    iteration = 0
+    while taps_total < _PUT_ALL_RED_DOTS_MAX_TAPS:
+        iteration += 1
+        try:
+            image = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+        except Exception:
+            logger.exception(
+                "dsl exec put_all_red_dots: capture_screen_bgr failed instance=%s",
+                ctx.instance_id,
+            )
+            return
+        hi = int(image.shape[0])
+        dots = find_red_dots(image, image_h_for_norm=hi)
+        if not dots:
+            logger.info(
+                "dsl exec put_all_red_dots: instance=%s done iter=%d taps=%d (no dots)",
+                ctx.instance_id,
+                iteration,
+                taps_total,
+            )
+            return
+        # Tap one dot per iteration so each tap settles before we re-scan; tapping
+        # all detections in a single frame risks tapping into a popup that opened
+        # from the previous tap.
+        dot = dots[0]
+        point = Point(int(round(dot.cx)), int(round(dot.cy)))
+        try:
+            await asyncio.to_thread(actions.tap, ctx.instance_id, point)
+        except Exception:
+            logger.exception(
+                "dsl exec put_all_red_dots: tap failed at (%d,%d) instance=%s",
+                point.x,
+                point.y,
+                ctx.instance_id,
+            )
+            return
+        taps_total += 1
+        logger.info(
+            "dsl exec put_all_red_dots: instance=%s iter=%d tap=(%d,%d) score=%.2f total=%d",
+            ctx.instance_id,
+            iteration,
+            point.x,
+            point.y,
+            dot.score,
+            taps_total,
+        )
+        await asyncio.sleep(_PUT_ALL_RED_DOTS_TAP_DELAY_S)
+        await asyncio.sleep(_PUT_ALL_RED_DOTS_RESCAN_DELAY_S)
+    logger.info(
+        "dsl exec put_all_red_dots: instance=%s reached max-taps cap (%d) — stopping",
+        ctx.instance_id,
+        _PUT_ALL_RED_DOTS_MAX_TAPS,
+    )
+
+
 DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "detect_screen": _exec_detect_screen,
     "fetch_player": _exec_fetch_player,
@@ -735,4 +817,5 @@ DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "sync_building_name": _exec_sync_building_name,
     "sync_hero_unit": _exec_sync_hero_unit,
     "scan_event_blocks": _exec_scan_event_blocks,
+    "put_all_red_dots": _exec_put_all_red_dots,
 }
