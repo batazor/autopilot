@@ -1139,10 +1139,6 @@ class DslScenarioExecuteMixin:
                 approval_payload: dict[str, object] = {
                     "type": "set_node",
                     "set_node": node,
-                    "source": {
-                        "component": "tasks.dsl_scenario.DslScenarioTask",
-                        "note": "DSL set_node step (approval mode)",
-                    },
                 }
                 attach_preview = getattr(actions, "attach_approval_preview", None)
                 if callable(attach_preview):

@@ -14,7 +14,7 @@ edges:
     suggestion_box: [isPostman]
     backpack: [main_city.to.backpack]
     vip: [page.vip]
-    shop: [page.shop]
+    shop: [main_city.to.shop]
     # Tapping the chapter task banner navigates the camera to the active
     # building and opens its panel. Used by `building.upgrade` (node: building)
     # when chapter_task_router has just clicked chapter.task but the overlay

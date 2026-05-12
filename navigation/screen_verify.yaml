@@ -24,7 +24,7 @@ text_switch:
       chief_profile: [chief profile, chief, profile]
       backpack: [backpack]
       vip: [vip]
-      shop: [shop]
+      # `shop` intentionally absent — its title is unreliable; see screens.shop below.
       # Main heroes roster (Power tab); title OCR is e.g. "Heroes Power" — avoid
       # bare "heroes" so we do not collide with "Hall of Heroes" / "Grow your heroes".
       heroes: [heroes power, hero power]
@@ -206,10 +206,18 @@ screens:
         threshold: 0.8
 
   shop:
+    # The shop screen has no reliable title text — page_title OCR is empty or
+    # gets a noisy banner string. Verify by template match against `page.shop`,
+    # whose area.json definition lives on `references/page.shop.png` (the
+    # navbar-side icon was renamed to `main_city.to.shop`, so the name is
+    # now unambiguous). Return path: `shop → main_city: [back_button]` in
+    # `navigation/edge_taps.yaml`.
+    landmarks:
+      - match: page.shop
+        threshold: 0.9
     rules:
-      - ocr: page_title
-        contains: [shop]
-        threshold: 0.8
+      - match: page.shop
+        threshold: 0.9
 
   heroes:
     rules:

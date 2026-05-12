@@ -814,13 +814,27 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
         dot = dots[0]
         point = Point(int(round(dot.cx)), int(round(dot.cy)))
         try:
-            await asyncio.to_thread(actions.tap, ctx.instance_id, point)
+            tapped = bool(
+                await asyncio.to_thread(actions.tap, ctx.instance_id, point)
+            )
         except Exception:
             logger.exception(
                 "dsl exec put_all_red_dots: tap failed at (%d,%d) instance=%s",
                 point.x,
                 point.y,
                 ctx.instance_id,
+            )
+            return
+        # ``actions.tap`` returns ``False`` when the operator rejects the
+        # approval (or the slot is busy). Without this check the loop would
+        # re-capture the same frame, find the same dot, and re-prompt forever
+        # until the global tap cap kicks in. Bail immediately so the operator's
+        # "no" actually stops the sweep.
+        if not tapped:
+            logger.info(
+                "dsl exec put_all_red_dots: instance=%s tap at (%d,%d) "
+                "blocked/rejected — aborting sweep (taps=%d)",
+                ctx.instance_id, point.x, point.y, taps_total,
             )
             return
         taps_total += 1

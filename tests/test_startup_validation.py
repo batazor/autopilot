@@ -62,6 +62,95 @@ overlay:
         assert_startup_configs_valid(tmp_path)
 
 
+def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "analyze" / "analyze_pages").mkdir(parents=True)
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"page.shop","bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text(
+        """
+overlay:
+  - name: page.shop.has_red_dot
+    region: page.shop
+    isRedDot: true
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].source == "analyze:page.shop.has_red_dot"
+    assert "has_red_dot" in issues[0].message
+    assert "page.shop" in issues[0].message
+
+
+def test_startup_validation_accepts_red_dot_rule_when_capability_enabled(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"page.vip","has_red_dot":true,'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text(
+        """
+overlay:
+  - name: page.vip.has_red_dot
+    region: page.vip
+    isRedDot: true
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    assert validate_startup_configs(tmp_path) == []
+
+
+def test_startup_validation_reports_missing_red_dot_capability_on_dsl_step(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"page.shop","bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text(
+        "overlay: []\n", encoding="utf-8"
+    )
+    (tmp_path / "scenarios" / "check_shop_dot.yaml").write_text(
+        """
+name: probe shop dot
+steps:
+  - match: page.shop
+    isRedDot: true
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].source.startswith("scenario:check_shop_dot.yaml")
+    assert "has_red_dot" in issues[0].message
+    assert "page.shop" in issues[0].message
+
+
 def test_startup_validation_reports_missing_edge_tap_region(tmp_path: Path) -> None:
     (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()

@@ -216,10 +216,6 @@ class DslMatchMixin:
             "diagnostic": "while_match_no_iterations",
             "attempts": int(attempts),
             "interval": float(interval_s),
-            "source": {
-                "component": "tasks.dsl_scenario.DslScenarioTask",
-                "note": "while_match matched zero times; approve to retry later, reject to stop",
-            },
         }
         attach_preview = getattr(actions, "attach_approval_preview", None)
         if callable(attach_preview):

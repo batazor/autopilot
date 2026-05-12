@@ -1211,8 +1211,22 @@ def _render_regions_expander(
         # radio's stored value to match — without a `key` Streamlit keeps the
         # widget's previous value across reruns and ignores `index=`, so canvas
         # selections never reach the list.
-        target_idx = _resolve_selected_region_idx(regions)
         radio_key = f"area_region_radio_{_rk}"
+
+        # on_change fires at the start of the rerun caused by the user's click,
+        # before `_resolve_selected_region_idx` runs below. Without it, the
+        # stale name resolves to the OLD idx and the force-assign on the next
+        # line clobbers the radio click before the widget re-renders.
+        def _on_region_radio_change(rkey: str = radio_key) -> None:
+            new_idx = int(st.session_state.get(rkey, 0) or 0)
+            regs_now = current_regions()
+            new_idx = max(0, min(new_idx, len(regs_now) - 1)) if regs_now else 0
+            st.session_state.selected_region_idx = new_idx
+            st.session_state.selected_region_name = _selected_region_name_from_idx(
+                regs_now, new_idx
+            )
+
+        target_idx = _resolve_selected_region_idx(regions)
         st.session_state[radio_key] = target_idx
         r_sel = st.radio(
             "Select region",
@@ -1220,6 +1234,7 @@ def _render_regions_expander(
             format_func=lambda i: names[i],
             horizontal=False,
             key=radio_key,
+            on_change=_on_region_radio_change,
         )
         st.session_state.selected_region_idx = int(r_sel)
         st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))

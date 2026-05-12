@@ -105,7 +105,7 @@ overlay:
   region: main_city.event.block.4
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: click_event_block_4
     priority: 80_000
@@ -115,21 +115,19 @@ overlay:
   region: page.vip
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: click_vip
     priority: 80_000
     ttl: 5m
 
-- name: page.shop.has_red_dot
-  region: page.shop
+- name: main_city.to.shop.has_red_dot
+  region: main_city.to.shop
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: click_shop
-    priority: 80_000
-    ttl: 5m
 
 - name: main_city.to.backpack.has_red_dot
   region: main_city.to.backpack

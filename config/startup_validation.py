@@ -50,6 +50,76 @@ def _area_region_names(area_doc: dict[str, Any]) -> set[str]:
     return out
 
 
+def _area_regions_with_red_dot_capability(area_doc: dict[str, Any]) -> set[str]:
+    """Region names whose area.json definition has ``has_red_dot: true``.
+
+    The overlay engine (`analysis/overlay_engine.py`) and the DSL match path
+    (`tasks/dsl_match_mixin._build_red_dot_only_row`) both short-circuit
+    `isRedDot:` / `action: red_dot` rules to ``red_dot_capability_disabled``
+    when the targeted region lacks this flag. Without a startup check that's
+    a silent runtime no-op: the rule looks healthy in YAML but never fires
+    a tap. The annotator UI is the canonical place to enable the flag.
+    """
+    out: set[str] = set()
+    for screen in area_doc.get("screens") or []:
+        if not isinstance(screen, dict):
+            continue
+        for source in (screen.get("regions"), *(
+            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
+        )):
+            if not isinstance(source, list):
+                continue
+            for reg in source:
+                if not isinstance(reg, dict):
+                    continue
+                if not bool(reg.get("has_red_dot")):
+                    continue
+                name = str(reg.get("name") or "").strip()
+                if name:
+                    out.add(name)
+    return out
+
+
+def _rule_uses_red_dot(rule: dict[str, Any]) -> bool:
+    """Does the overlay rule rely on the red-dot detector?
+
+    Covers both YAML shapes the engine recognises: ``isRedDot: true|false``
+    and the long form ``action: red_dot`` / ``action: red_dot_absent``.
+    """
+    if "isRedDot" in rule and isinstance(rule.get("isRedDot"), bool):
+        return True
+    action = str(rule.get("action") or "").strip().lower()
+    return action in {"red_dot", "red_dot_absent"}
+
+
+def _check_red_dot_capability(
+    issues: list[StartupValidationIssue],
+    *,
+    red_dot_regions: set[str],
+    region_names: set[str],
+    source: str,
+    field: str,
+    value: Any,
+) -> None:
+    """Verify the region targeted by a red-dot rule has the capability flag."""
+    region = str(value or "").strip()
+    if not region:
+        return
+    if region not in region_names:
+        # Already reported by ``_check_region`` — don't double-flag.
+        return
+    if region not in red_dot_regions:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                source,
+                f"{field} {region!r} is used with isRedDot/red_dot but the "
+                "area.json region has no `has_red_dot: true` capability — "
+                "enable it in the annotator or the rule will silently no-op",
+            )
+        )
+
+
 def _scenario_keys(scenarios_root: Path) -> set[str]:
     out: set[str] = set()
     if not scenarios_root.is_dir():
@@ -109,6 +179,7 @@ def _validate_analyze_manifest(
     issues: list[StartupValidationIssue],
     *,
     region_names: set[str],
+    red_dot_regions: set[str],
     scenario_keys: set[str],
 ) -> None:
     manifest_path = default_analyze_yaml_path(repo_root)
@@ -174,6 +245,15 @@ def _validate_analyze_manifest(
             field="search_region",
             value=rule.get("search_region"),
         )
+        if _rule_uses_red_dot(rule):
+            _check_red_dot_capability(
+                issues,
+                red_dot_regions=red_dot_regions,
+                region_names=region_names,
+                source=source,
+                field="region",
+                value=rule.get("region"),
+            )
         for task in optional_push_scenario_tasks(rule):
             _check_scenario(
                 issues,
@@ -193,6 +273,7 @@ def _walk_steps(
     source: str,
     issues: list[StartupValidationIssue],
     region_names: set[str],
+    red_dot_regions: set[str],
     scenario_keys: set[str],
 ) -> None:
     if not isinstance(steps, list):
@@ -210,6 +291,23 @@ def _walk_steps(
                     field=key,
                     value=step.get(key),
                 )
+        # DSL `match:` / `while_match:` with `isRedDot:` go through the
+        # red-dot-only short-circuit in dsl_match_mixin._build_red_dot_only_row,
+        # which silently sets matched=False when the region lacks the
+        # `has_red_dot: true` capability. Catch that mismatch at startup so a
+        # forgotten annotator checkbox shows up loud, not as a phantom
+        # match_guard_failed in queue history.
+        if "isRedDot" in step and isinstance(step.get("isRedDot"), bool):
+            for key in ("match", "while_match"):
+                if key in step:
+                    _check_red_dot_capability(
+                        issues,
+                        red_dot_regions=red_dot_regions,
+                        region_names=region_names,
+                        source=step_source,
+                        field=key,
+                        value=step.get(key),
+                    )
         _check_region(
             issues,
             region_names=region_names,
@@ -252,6 +350,7 @@ def _walk_steps(
                 source=step_source,
                 issues=issues,
                 region_names=region_names,
+                red_dot_regions=red_dot_regions,
                 scenario_keys=scenario_keys,
             )
 
@@ -271,6 +370,7 @@ def _walk_steps(
             source=step_source,
             issues=issues,
             region_names=region_names,
+            red_dot_regions=red_dot_regions,
             scenario_keys=scenario_keys,
         )
 
@@ -306,6 +406,7 @@ def _validate_scenarios(
     issues: list[StartupValidationIssue],
     *,
     region_names: set[str],
+    red_dot_regions: set[str],
     scenario_keys: set[str],
 ) -> None:
     scenarios_root = repo_root / "scenarios"
@@ -357,6 +458,7 @@ def _validate_scenarios(
             source=source,
             issues=issues,
             region_names=region_names,
+            red_dot_regions=red_dot_regions,
             scenario_keys=scenario_keys,
         )
 
@@ -460,6 +562,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         )
 
     region_names = _area_region_names(area_doc)
+    red_dot_regions = _area_regions_with_red_dot_capability(area_doc)
     scenario_keys = _scenario_keys(root / "scenarios")
 
     _validate_edge_taps(root, issues, region_names=region_names)
@@ -467,12 +570,14 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         root,
         issues,
         region_names=region_names,
+        red_dot_regions=red_dot_regions,
         scenario_keys=scenario_keys,
     )
     _validate_scenarios(
         root,
         issues,
         region_names=region_names,
+        red_dot_regions=red_dot_regions,
         scenario_keys=scenario_keys,
     )
     return issues

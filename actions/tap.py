@@ -357,15 +357,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # captured at the start of phase-1's possibly-second-long publish wait.
     # Pop it off the dict so it never gets JSON-serialised into Redis.
     preview_capturer = p.pop("_preview_capturer", None)
-    default_source: dict[str, object] = {
-        "component": "actions.tap.AdbController",
-        "note": "ADB input request (approval mode enabled)",
-    }
-    incoming_src = p.pop("source", None)
-    if isinstance(incoming_src, dict):
-        merged = dict(default_source)
-        merged.update(incoming_src)
-        default_source = merged
+    p.pop("source", None)
     p.update(
         {
             "request_id": req_id,
@@ -373,7 +365,6 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             "created_at": time.time(),
             "status": "waiting",
             "response_key": resp_key,
-            "source": default_source,
             "context": ctx,
         }
     )

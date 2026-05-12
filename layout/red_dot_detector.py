@@ -36,8 +36,16 @@ REFERENCE_IMAGE_HEIGHT = 1280
 """Calibration height for the radius range (pixels)."""
 
 RED_DOT_RADIUS_PX_MIN_AT_REF = 5
-RED_DOT_RADIUS_PX_MAX_AT_REF = 22
-"""Min/max badge radius at ``REFERENCE_IMAGE_HEIGHT``. Scaled per-call."""
+RED_DOT_RADIUS_PX_MAX_AT_REF = 15
+"""Min/max badge radius at ``REFERENCE_IMAGE_HEIGHT``. Scaled per-call.
+
+Real notification badges in the game cluster at 7.8–10 px radius at 1280
+height (measured across 6 main_city_v2 badges + the 1-min speedup tile).
+Two-digit counters ("12", "99") render with a contour radius near 14–14.5
+because the digit overlay stretches the bbox vertically. A ceiling of 15
+gives ~0.5 px headroom over that ceiling while rejecting close-X buttons
+and discount stickers, which sit at r≈16–20 — visually circular and
+saturated red, but semantically buttons, not notifications."""
 
 RED_DOT_MIN_CIRCULARITY = 0.45
 """``4 * pi * area / perimeter**2`` — 1.0 is a perfect circle. Aliasing of
@@ -75,16 +83,17 @@ and icon panels — whose surround S clusters in [62, 147] across the captured
 character avatars rendered against open background) drop to S≈30. The gate at
 45 cleanly separates them."""
 
-# Strong-badge bypass thresholds — applied to the dot's *own* pixels, not its
-# surround. When all four conditions hold, the surround-saturation gate is
-# skipped: the badge identifies itself by its own clean geometry + colour, and
-# the surround sample is irrelevant. Without this bypass, legitimate dots that
-# sit on intentionally desaturated UI (greyed-out / disabled icons, the silver
-# 1-min speedup tile) were rejected even though they were perfect red circles.
-RED_DOT_CLEAN_BYPASS_MIN_MEDIAN_SATURATION = 210
-RED_DOT_CLEAN_BYPASS_MIN_MEDIAN_VALUE = 240
-RED_DOT_CLEAN_BYPASS_MIN_CIRCULARITY = 0.75
-RED_DOT_CLEAN_BYPASS_MIN_FILL_RATIO = 0.60
+RED_DOT_WIDE_SURROUND_RING_PX = 22
+"""Wider-ring fallback radius, in pixels at the reference 720×1280 frame. When
+the immediate surround (4 px) fails the saturation gate, we sample a second
+annulus reaching further out. Rationale: legitimate badges can sit on a small
+desaturated sub-element (e.g. the silver handle of the 1-min speedup tile)
+inside a saturated UI strip (the row of speedup icons next to it). The narrow
+ring catches the silver handle (S≈34); the wider ring crosses into the
+neighbouring saturated icons (S≈226) and confirms the badge is real. A stray
+red on an avatar over open sky still fails at this radius — sky stays at
+S≈30 several dozen pixels out. Scaled per-call with the captured frame
+height, same as the badge radius range."""
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +216,14 @@ def find_red_dots(
         cv2.MORPH_ELLIPSE,
         (2 * RED_DOT_SURROUND_RING_PX + 1, 2 * RED_DOT_SURROUND_RING_PX + 1),
     )
+    wide_ring_px = max(
+        RED_DOT_SURROUND_RING_PX + 4,
+        int(round(RED_DOT_WIDE_SURROUND_RING_PX * float(norm_h) / REFERENCE_IMAGE_HEIGHT)),
+    )
+    wide_ring_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * wide_ring_px + 1, 2 * wide_ring_px + 1),
+    )
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out: list[RedDotDetection] = []
@@ -257,12 +274,27 @@ def find_red_dots(
         # Surround-saturation gate: a real notification badge sits on a
         # saturated UI element (button, icon). Stray reds over washed-out
         # scenery (sky, snow, an avatar's hair) drop to S≈30 and fail.
+        #
+        # Two-stage check: the narrow 4 px ring catches most cases. When the
+        # narrow ring is desaturated, we fall back to a wider ring (~22 px)
+        # to handle the case where the dot sits on a small desaturated
+        # sub-element (e.g. the silver handle of the 1-min speedup tile)
+        # *inside* a saturated UI row. Stray reds over open sky still fail
+        # at the wider radius — sky stays desaturated several dozen pixels
+        # out, while the speedup row picks up neighbouring icons at S≈226.
         dilated = cv2.dilate(cmask, ring_kernel)
         ring = (dilated > 0) & (cmask == 0) & (mask == 0)
         if int(ring.sum()) >= 8:
             ring_s_med = float(np.median(sat_plane[ring]))
             if ring_s_med < RED_DOT_MIN_SURROUND_MEDIAN_SATURATION:
-                continue
+                wide_dilated = cv2.dilate(cmask, wide_ring_kernel)
+                wide_ring = (wide_dilated > 0) & (dilated == 0) & (mask == 0)
+                if int(wide_ring.sum()) >= 8:
+                    wide_s_med = float(np.median(sat_plane[wide_ring]))
+                    if wide_s_med < RED_DOT_MIN_SURROUND_MEDIAN_SATURATION:
+                        continue
+                else:
+                    continue
 
         cx = float(x) + bw / 2.0
         cy = float(y) + bh / 2.0
