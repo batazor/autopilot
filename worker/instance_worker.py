@@ -39,7 +39,11 @@ from worker.instance_worker_screen import (
     InstanceWorkerScreenDetectMixin,
     InstanceWorkerScreenMixin,
 )
-from worker.instance_worker_tasks import InstanceWorkerTasksMixin
+from worker.instance_worker_tasks import (
+    InstanceWorkerTasksMixin,
+    _history_key_for_instance,
+    _running_key_for_instance,
+)
 from worker.instance_worker_ui import InstanceWorkerUiMixin
 
 logger = logging.getLogger(__name__)
@@ -100,7 +104,13 @@ class InstanceWorker(
         self._last_detected_screen_at: float = 0.0
         self._screen_unknown_streak = 0
         self._screen_detector = ScreenDetector()
-        self._overlay_rule_eval_state: dict[str, float] = {}
+        # Per-player TTL state for overlay rules. Outer key = active player id
+        # at evaluation time (``""`` for device-level / pre-identity ticks);
+        # inner = rule logical name → ``time.monotonic()`` of last eval.
+        # Switching ``active_player`` swaps which sub-dict is mutated, so two
+        # accounts on the same emulator don't share cooldowns (e.g. a 5m red-
+        # dot throttle on player A doesn't suppress overlays on player B).
+        self._overlay_rule_eval_state_by_player: dict[str, dict[str, float]] = {}
         # Avoid asyncio default executor shutdown races during app stop/reload.
         self._blocking_pool = concurrent.futures.ThreadPoolExecutor(
             max_workers=4,
@@ -198,6 +208,109 @@ class InstanceWorker(
                 self._cfg.instance_id,
             )
 
+    async def _fail_stuck_running_on_boot(self) -> None:
+        """Fail any task left in the 'running' slot from a previous worker process.
+
+        ``_run_one_queue_item`` pulls a ``QueueItem`` from the sorted set, then
+        publishes ``wos:queue:running:<instance_id>`` (and updates the instance
+        state hash) so the UI can show what's executing. If the worker dies
+        mid-task the running key and state-hash fields outlive the process,
+        and the UI keeps rendering the dead task as still running until the
+        180s TTL expires — meanwhile the underlying ``QueueItem`` is gone
+        (already dequeued) and nothing re-enqueues it.
+
+        Re-enqueueing isn't safe: the running payload doesn't carry full
+        ``QueueItem`` context (``start_step_index``, original ``next_run_at``),
+        and resuming a hand-pointer or DSL scenario from a middle step blind
+        risks acting on the wrong screen state. Instead, mark the task failed
+        in history so the UI shows it ended, and let the normal re-trigger
+        paths (overlay tick, cron, scheduler) push fresh work. The startup
+        overlay tick that runs moments later will re-detect anything still
+        visible on screen.
+        """
+        if self._redis is None:
+            return
+        running_key = _running_key_for_instance(self._cfg.instance_id)
+        try:
+            raw = await self._redis.get(running_key)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("stuck task cleanup at boot: get failed", exc_info=True)
+            return
+        if not raw:
+            return
+
+        import json
+
+        try:
+            txt = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+            data = json.loads(txt)
+        except Exception:
+            logger.debug("stuck task cleanup at boot: payload parse failed", exc_info=True)
+            data = {}
+
+        started_at = float(data.get("started_at") or 0.0)
+        finished_at = float(time.time())
+        row = {
+            "task_id": str(data.get("task_id") or ""),
+            "task_type": str(data.get("task_type") or ""),
+            "scenario": str(data.get("task_type") or ""),
+            "player_id": str(data.get("player_id") or ""),
+            "instance_id": self._cfg.instance_id,
+            "priority": data.get("priority"),
+            "region": str(data.get("region") or ""),
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "duration_s": max(0.0, finished_at - started_at) if started_at else 0.0,
+            "success": False,
+            "error": "worker restarted mid-task",
+            "reason": "worker_restart",
+            "metadata": {},
+        }
+        try:
+            history_key = _history_key_for_instance(self._cfg.instance_id)
+            await self._redis.lpush(history_key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]
+            await self._redis.ltrim(history_key, 0, 49)  # type: ignore[union-attr]
+            await self._redis.expire(history_key, 60 * 60 * 24 * 7)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("stuck task cleanup at boot: history write failed", exc_info=True)
+
+        try:
+            await self._redis.delete(running_key)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("stuck task cleanup at boot: delete failed", exc_info=True)
+
+        state_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
+        try:
+            await self._redis.hset(  # type: ignore[union-attr]
+                state_key,
+                mapping={
+                    "current_task_player": "",
+                    "current_task_started_at": "",
+                    "current_task_region": "",
+                    "current_task_threshold": "",
+                    "current_task_score": "",
+                    "current_task_match_top_left_x": "",
+                    "current_task_match_top_left_y": "",
+                    "current_task_template_w": "",
+                    "current_task_template_h": "",
+                    "current_task_tap_match_x_pct": "",
+                    "current_task_tap_match_y_pct": "",
+                    "current_scenario": "",
+                    "last_overlay_match_threshold": "",
+                    "last_overlay_match_score": "",
+                    "last_overlay_match_region": "",
+                },
+            )
+        except Exception:
+            logger.debug("stuck task cleanup at boot: state hash clear failed", exc_info=True)
+
+        logger.info(
+            "Stuck task: failed orphaned %s (id=%s) for %s at worker boot",
+            row["task_type"] or "?",
+            row["task_id"] or "?",
+            self._cfg.instance_id,
+        )
+
     async def _seed_startup_tasks(self) -> None:
         """Enqueue boot-time DSL scenarios (one per fresh worker run, per device).
 
@@ -273,6 +386,11 @@ class InstanceWorker(
         # Operator can re-approve from the UI if the underlying intent still
         # applies; what we MUST avoid is silent permadeadlock.
         await self._clear_pending_approval_on_boot()
+        # Same idea for a task that was mid-execution when the previous worker
+        # died: the running key + state-hash fields outlive the process, but
+        # the QueueItem is gone. Mark it failed in history and wipe the slot;
+        # overlay tick / cron / scheduler will push fresh work as needed.
+        await self._fail_stuck_running_on_boot()
         logger.info(
             "ADB config for %s: serial=%s adb_executable=%s",
             self._cfg.instance_id,

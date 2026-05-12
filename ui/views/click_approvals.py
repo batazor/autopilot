@@ -20,6 +20,7 @@ import streamlit as st
 from actions.tap import click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
+from ui.adb_query import canonical_serial, live_serials
 from ui.redis_client import require_redis_connection
 from ui.views.click_approvals.chrome import (
     render_header,
@@ -42,12 +43,34 @@ _REPO = Path(__file__).resolve().parents[2]
 _AREA = _REPO / "area.json"
 _ANALYZE = default_analyze_yaml_path(_REPO)
 
-inst_ids = [i.instance_id for i in settings.instances]
-if not inst_ids:
-    st.info("No instances in config.")
+all_instances = list(settings.instances)
+if not all_instances:
+    st.info("No instances in `db/devices.yaml`.")
     st.stop()
 
+# Filter the dropdown to instances whose ADB serial is currently in `device`
+# state. Worker for an offline instance can't capture screens or accept taps,
+# so listing it in this picker would only invite a stale selection.
+_live = live_serials()
+active_instances = [
+    inst for inst in all_instances
+    if canonical_serial(inst.bluestacks_window_title) in _live
+]
+hidden = [inst.instance_id for inst in all_instances if inst not in active_instances]
+
+if not active_instances:
+    st.warning(
+        "No active ADB devices. Open **`/adb`** and click **Refresh** to "
+        "(re)connect emulators."
+    )
+    st.stop()
+
+inst_ids = [i.instance_id for i in active_instances]
 instance_id = st.selectbox("Instance", inst_ids, key="click_approval_instance")
+if hidden:
+    st.caption(
+        "Hidden (offline): " + ", ".join(f"`{h}`" for h in hidden)
+    )
 render_reset_block(client=client)
 
 hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"

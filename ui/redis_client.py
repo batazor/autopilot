@@ -360,6 +360,34 @@ def count_queue_tasks_for_instance(client: redis.Redis, *, instance_id: str) -> 
     return int(client.zcard(_queue_key(instance_id)))
 
 
+def clear_queue_tasks(client: redis.Redis) -> int:
+    """Drop all pending queue items and dedup indexes across instances.
+
+    Returns the count of pending tasks that were removed. Preserves
+    ``wos:queue:history:*`` (so the execution history table stays intact)
+    and ``wos:queue:running:*`` (so an in-flight task can still report
+    completion without orphaning state).
+    """
+    removed_total = 0
+    targets: list[str] = []
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if ":history" in k or ":running" in k:
+            continue
+        try:
+            ktype = str(client.type(k) or "").lower()
+        except redis.RedisError:
+            continue
+        if ktype == "zset":
+            with suppress(redis.RedisError):
+                removed_total += int(client.zcard(k))
+        targets.append(k)
+    if targets:
+        with suppress(redis.RedisError):
+            client.delete(*targets)
+    return removed_total
+
+
 def fetch_next_queue_row_for_instance(
     client: redis.Redis, *, instance_id: str
 ) -> QueueRow | None:

@@ -6,6 +6,7 @@ from typing import Any
 
 import streamlit as st
 
+from actions.tap import click_approval_enabled
 from ui.bot_services import restart_embedded_bot
 from ui.notifications import pop_new_notifications
 from ui.redis_client import get_instance_state
@@ -144,7 +145,11 @@ def render_ui_notifications(inst: str, *, client: Any) -> None:
 
 @st.fragment(run_every=timedelta(seconds=1))
 def render_heartbeat(*, ctx: ClickApprovalsCtx, client: Any) -> None:
-    enabled = str(client.get(ctx.enabled_key) or "").strip().lower() in {"1", "true", "yes", "on"}
+    # Single source of truth: ``click_approval_enabled`` treats a missing
+    # Redis key as ON by default. Re-implementing the check here drifted
+    # to off-by-default and left the worker blocked waiting for a heartbeat
+    # that this fragment refused to write.
+    enabled = click_approval_enabled(ctx.instance_id)
     if enabled:
         client.set(ctx.hb_key, str(time.time()), ex=5)
     else:

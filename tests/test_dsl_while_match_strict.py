@@ -69,7 +69,13 @@ def _claim_pattern() -> np.ndarray:
 
 
 def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
-    """A scenario without ``device_level: true`` — defaults to strict + retry."""
+    """A player-bound scenario opted into strict mode via explicit ``strict: true``.
+
+    Scenario-level default is soft (steps are OR-semantics — zero iterations on
+    a ``while_match`` just moves to the next step). These tests pin the
+    *explicit strict* path: the user can still opt in to "this step MUST have
+    done work" via YAML for rare gate-like steps.
+    """
     (tmp_path / "scenarios" / "workers").mkdir(parents=True)
     (tmp_path / "references" / "crop").mkdir(parents=True)
     (tmp_path / "scenarios" / "workers" / "test_assign.yaml").write_text(
@@ -82,6 +88,7 @@ def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
                         "while_match": "page.worker.add",
                         "threshold": 0.9,
                         "max": 6,
+                        "strict": True,
                         "steps": [
                             {"click": "page.worker.add"},
                             {"wait": 0},
@@ -398,15 +405,25 @@ async def test_device_level_while_match_zero_iterations_returns_success(
     """Device-level scenarios keep legacy 0-iteration silent success."""
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _frame_with_pattern())
-    # Mark the scenario as device_level so legacy semantics apply.
+    # Mark the scenario as device_level so legacy semantics apply.  Also drop
+    # the helper's ``strict: True`` — strict mode runs the approval-pause path
+    # which blocks waiting for a UI response (redis-backed) and would hang.
     yaml_path = tmp_path / "scenarios" / "workers" / "test_assign.yaml"
     raw = yaml.safe_load(yaml_path.read_text())
     raw["device_level"] = True
+    for s in raw.get("steps", []):
+        s.pop("strict", None)
     yaml_path.write_text(yaml.dump(raw), encoding="utf-8")
 
     actions = _FakeActions([blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    real_sleep = dsl.asyncio.sleep
+
+    async def _instant_sleep(_s: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
 
     task = dsl.DslScenarioTask(
         task_id="t1",

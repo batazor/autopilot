@@ -7,8 +7,11 @@ device_level: true
 cond: active_player == ""
 
 # Root `node:` tells the runner to navigate the FSM to `chief_profile`
-# (via screen_graph BFS) before executing `steps`. After steps the bot stays
-# on chief_profile — return to main_city is handled by other rules.
+# (via screen_graph BFS) before executing `steps`. After steps we explicitly
+# push ``check_main_city`` at our own priority so the bot bounces back to
+# main_city immediately — without that, it'd linger on chief_profile until
+# the next 5-min ``check_main_city`` cron tick (priority 10) and all
+# main_city-anchored overlays would starve in the meantime.
 #
 # This scenario is auto-enqueued once per worker boot
 # (see `_STARTUP_SEED_TASKS` / `_seed_startup_tasks` in
@@ -28,5 +31,10 @@ steps:
   - ocr: player_id
   # Century POST /api/player — nickname, stove_level, kid, etc. (requires OCR player_id).
   - exec: fetch_player
-  # Immediately queue a main_city check (don't wait for cron).
-  - push_scenario: check_main_city
+  # Return to main_city right after identity is established. ``priority:
+  # 82_000`` (= our own) so the navigation runs before any lower-priority
+  # work even drains; the cron-default priority on ``check_main_city.yaml``
+  # itself is only 10 (it's a 5-min housekeeping tick).
+  - push_scenario:
+      name: check_main_city
+      priority: 82_000

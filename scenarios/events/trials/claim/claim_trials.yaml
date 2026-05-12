@@ -15,6 +15,19 @@ node: event.trials
 # whole scenario.
 
 steps:
+  # Drain any leftover claim popup from a previous scenario before walking
+  # the day grid. ``strict: false`` makes the normal "no popup pending"
+  # case a silent skip — without it, zero iterations trips the
+  # ``while_match_no_iterations`` abort and the whole scenario exits before
+  # reaching Day 1. The per-day claim guards below already use ``isRedDot``
+  # so they're soft by default; this top-level drain has no state guard so
+  # it must opt out explicitly.
+  - while_match: button.claim
+    strict: false
+    steps:
+      - click: button.claim
+      - wait: 0.5s
+
   # ---------------- Day 1 ----------------
   - while_match: trial.day.1
     isRedDot: true
@@ -194,13 +207,27 @@ steps:
   # ---------------- Final reward box ----------------
   # Bottom-right ``trial.box`` indicator shows when accumulated day-level
   # rewards are ready to collect. Same red-dot-as-guard pattern as each day.
+  #
+  # Two claim sweeps in sequence:
+  #   1. ``isWhiteBorder`` — clicks the **highlighted** claim button (the
+  #      animated white outline). Catches the just-opened popup where the
+  #      reward is actively claimable.
+  #   2. plain ``while_match: button.claim`` — fallback OCR/exist check that
+  #      still fires on non-highlighted claim buttons (chained popups, dimmed
+  #      states). Together they handle both "fresh highlighted" and "still
+  #      claimable but no longer highlighted" cases.
   - while_match: trial.box
     isRedDot: true
     max: 1
     steps:
       - click: trial.box
-      - wait: 0.8s
+      - wait: 2s
       - while_match: button.claim
+        steps:
+          - click: button.claim
+          - wait: 0.5s
+      - while_match: button.claim
+        isWhiteBorder: true
         steps:
           - click: button.claim
           - wait: 0.5s

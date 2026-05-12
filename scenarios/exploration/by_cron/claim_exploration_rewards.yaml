@@ -10,4 +10,13 @@ priority: 52
 
 steps:
   - click: button.claim
-  - wait: 1s
+  - wait: 2s
+  - while_match: big_claim_button
+    steps:
+      - click: big_claim_button
+      - wait: 2s
+      - match: tapanywhereyoexit
+        threshold: 0.92
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 0.5s

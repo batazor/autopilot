@@ -412,9 +412,31 @@ with run_left:
     if scenario_pick_key not in st.session_state:
         st.session_state[scenario_pick_key] = default_index
 
+    # Substring filter sits in front of the selectbox because Streamlit's built-in
+    # dropdown matcher is fuzzy ("claim" matches labels that don't actually contain
+    # the substring), which is misleading for scenario lookup.
+    filter_q = st.text_input(
+        "Filter",
+        key="debug_scenario_filter",
+        placeholder="Substring of path / name / key (case-insensitive)",
+    )
+    q = filter_q.strip().lower()
+    if q:
+        visible_indices = [i for i, lbl in enumerate(labels) if q in lbl.lower()]
+    else:
+        visible_indices = list(range(len(files)))
+
+    if not visible_indices:
+        st.warning(f"No scenarios match `{filter_q}`.")
+        st.stop()
+
+    current_pick_val = st.session_state.get(scenario_pick_key)
+    if not (isinstance(current_pick_val, int) and current_pick_val in visible_indices):
+        st.session_state[scenario_pick_key] = visible_indices[0]
+
     picked_idx = st.selectbox(
         "Scenario",
-        range(len(files)),
+        visible_indices,
         format_func=lambda i: labels[int(i)],
         key=scenario_pick_key,
     )
@@ -498,13 +520,26 @@ start_step_index = st.number_input(
     step=1,
 )
 
-if st.button("Run scenario now", type="primary", width="stretch"):
+if st.button(
+    "Run scenario now",
+    type="primary",
+    width="stretch",
+    help="Preempts the in-flight DSL scenario (cooperative — exits at next step) and enqueues this one at the front.",
+):
     if scenario.steps <= 0:
         st.warning(
             f"`{scenario.key}` has no steps yet. Add at least one step in Scenarios editor, "
             "then run it again."
         )
     else:
+        # Snapshot the in-flight scenario *before* enqueue so the success message
+        # can tell the user what got preempted.
+        preempted_running = fetch_running_queue_row(client, instance_id=inst.instance_id)
+        preempted_label = ""
+        if preempted_running is not None and preempted_running.task_id:
+            preempted_label = (
+                f"{preempted_running.task_type} (task `{preempted_running.task_id}`)"
+            )
         task_id = _enqueue_debug_scenario(
             client,
             instance_id=inst.instance_id,
@@ -536,6 +571,8 @@ if st.button("Run scenario now", type="primary", width="stretch"):
             },
         )
         msg = f"Enqueued `{task_id}` with priority `{int(priority)}`."
+        if preempted_label:
+            msg = f"Preempted {preempted_label}. " + msg
         st.success(msg)
         st.rerun()
 

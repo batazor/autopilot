@@ -674,7 +674,7 @@
               "bbox": {
                 "x": 0.5386100386100386,
                 "y": 78.91956521739131,
-                "width": 10.548262548262548,
+                "width": 11.075289575289576,
                 "height": 4.681521739130435,
                 "rotation": 0.0,
                 "original_width": 720,
@@ -1838,13 +1838,29 @@
           "threshold": 0.9,
           "bbox": {
             "x": 21.003861003861005,
-            "y": 65.43478260869566,
+            "y": 65.8695652173913,
             "width": 10.513513513513514,
-            "height": 2.7717391304347827,
+            "height": 2.356521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "hero.recrutment.advanced.free_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 17.915057915057915,
+            "y": 65.0,
+            "width": 69.70463320463321,
+            "height": 32.15217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -2614,6 +2630,44 @@
             "original_width": 720,
             "original_height": 1280
           }
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "screen_id": "",
+      "ocr": "references/box.gift.png",
+      "regions": [
+        {
+          "name": "box.gift",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.5019305019305,
+            "y": 32.06521739130435,
+            "width": 5.828185328185328,
+            "height": 2.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "box.gift_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.3513513513513513,
+            "y": 5.0,
+            "width": 90.04633204633204,
+            "height": 88.95760869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     }

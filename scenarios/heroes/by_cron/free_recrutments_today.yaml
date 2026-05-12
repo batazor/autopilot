@@ -15,7 +15,7 @@ steps:
   # Guard: only proceed when the free recruit button is currently visible.
   # If the free pull isn't available (already claimed / cooldown), ``match``
   # bails and the click is skipped.
-  - match: hero.recrutment.advanced.free
-    threshold: 0.9
-  - click: hero.recrutment.advanced.free
-  - wait: 5s
+  - while_match: hero.recrutment.advanced.free
+    steps:
+      - click: hero.recrutment.advanced.free
+      - wait: 5s

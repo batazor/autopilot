@@ -9,6 +9,8 @@ import sys
 from io import UnsupportedOperation
 from typing import TextIO
 
+from config.log_context import LogContextFilter
+
 
 def _stdout_for_logs() -> TextIO:
     """Prefer the interpreter's original stdout (fd 1).
@@ -73,13 +75,21 @@ def setup_stdout_logging(level: int = logging.INFO) -> None:
         if s is not None:
             _try_line_buffer(s)
 
-    fmt = "%(levelname)s %(name)s %(message)s"
+    fmt = "%(levelname)s [%(inst)s/%(player)s/%(node)s] %(name)s %(message)s"
     if _should_colorize(stream):
         handler = logging.StreamHandler(stream)
         handler.setFormatter(_AnsiLevelFormatter(fmt=fmt))
         logging.basicConfig(level=level, handlers=[handler], force=True)
     else:
         logging.basicConfig(level=level, format=fmt, stream=stream, force=True)
+
+    # Inject ``inst`` / ``player`` / ``node`` onto every record so the format
+    # string above always has those attrs (Python raises ``KeyError`` if any
+    # placeholder is missing). The filter reads contextvars updated by the
+    # worker at known boundaries; missing values render as ``-``.
+    ctx_filter = LogContextFilter()
+    for h in logging.getLogger().handlers:
+        h.addFilter(ctx_filter)
 
     # Reduce noise from HTTP client internals (OCR service health checks, etc.).
     # Keep warnings/errors visible.

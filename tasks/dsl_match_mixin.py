@@ -32,9 +32,16 @@ from layout.tab_active_detector import (
     TAB_ACTIVE_MIN_MEAN_VALUE,
     is_tab_active_in_bbox_percent,
 )
+from layout.white_border_detector import (
+    WHITE_BORDER_MAX_MEAN_SATURATION,
+    WHITE_BORDER_MIN_MEAN_VALUE,
+    find_white_border_match_in_search_roi,
+    has_white_border_in_bbox_percent,
+)
 from tasks.dsl_scenario_helpers import (
     _step_red_dot_requirement,
     _step_tab_active_requirement,
+    _step_white_border_requirement,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,6 +78,14 @@ class DslMatchMixin:
             sc = row.get("score")
             score_s = "" if sc is None else str(sc)
             matched_s = "1" if bool(row.get("matched")) else "0"
+        # Pre-fill every mode-specific field with "" so a switch between match
+        # modes (e.g. findIcon → white_border on the same region) doesn't leave
+        # zombie values from the previous mode in the Redis hash. Without this,
+        # ``_persist_*`` was effectively merge-only (Redis ``HSET``), so a
+        # red_dot/tab_active/white_border row would persist its own fields but
+        # silently inherit ``top_left`` / ``template_w`` / ``search_region``
+        # from whatever findIcon ran just before — confusing for the approvals
+        # UI and any payload diagnostic.
         mapping = {
             "dsl_last_match_region": region,
             "dsl_last_match_threshold": thr_s,
@@ -78,8 +93,56 @@ class DslMatchMixin:
             "dsl_last_match_matched": matched_s,
             "dsl_last_match_detail": detail_s,
             "dsl_last_match_at": str(time.time()),
+            "dsl_last_match_mode": "",
+            "dsl_last_match_red_dot_present": "",
+            "dsl_last_match_red_dot_required": "",
+            "dsl_last_match_tab_active": "",
+            "dsl_last_match_tab_active_required": "",
+            "dsl_last_match_white_border_present": "",
+            "dsl_last_match_white_border_required": "",
+            "dsl_last_match_top_left_x": "",
+            "dsl_last_match_top_left_y": "",
+            "dsl_last_match_template_w": "",
+            "dsl_last_match_template_h": "",
+            "dsl_last_match_search_region": "",
+            "dsl_last_match_tap_x_pct": "",
+            "dsl_last_match_tap_y_pct": "",
+            "dsl_last_match_tap_match_x_pct": "",
+            "dsl_last_match_tap_match_y_pct": "",
         }
         if isinstance(row, dict):
+            # Persist the *kind* of match so the approvals UI knows whether
+            # to show "live crop vs template" (template match) or a
+            # red-dot / tab-active outcome (state check; template view is
+            # irrelevant). Comes straight from the row builder: findIcon /
+            # red_dot / tab_active / color_check / text.
+            action_s = str(row.get("action") or "").strip()
+            if action_s:
+                mapping["dsl_last_match_mode"] = action_s
+            if "red_dot_present" in row:
+                mapping["dsl_last_match_red_dot_present"] = (
+                    "1" if bool(row.get("red_dot_present")) else "0"
+                )
+            if "red_dot_required" in row:
+                mapping["dsl_last_match_red_dot_required"] = (
+                    "1" if bool(row.get("red_dot_required")) else "0"
+                )
+            if "tab_active" in row:
+                mapping["dsl_last_match_tab_active"] = (
+                    "1" if bool(row.get("tab_active")) else "0"
+                )
+            if "tab_active_required" in row:
+                mapping["dsl_last_match_tab_active_required"] = (
+                    "1" if bool(row.get("tab_active_required")) else "0"
+                )
+            if "white_border_present" in row:
+                mapping["dsl_last_match_white_border_present"] = (
+                    "1" if bool(row.get("white_border_present")) else "0"
+                )
+            if "white_border_required" in row:
+                mapping["dsl_last_match_white_border_required"] = (
+                    "1" if bool(row.get("white_border_required")) else "0"
+                )
             tl = row.get("top_left")
             tw = row.get("template_w")
             th = row.get("template_h")
@@ -208,6 +271,7 @@ class DslMatchMixin:
 
         red_dot_req = _step_red_dot_requirement(step)
         tab_active_req = _step_tab_active_requirement(step)
+        white_border_req = _step_white_border_requirement(step)
 
         # Red-dot-only short-circuit: when the step carries ``isRedDot: true|false``
         # the user is asking "is there a red dot in <region>?" — they do NOT
@@ -230,6 +294,15 @@ class DslMatchMixin:
                 region_def=pair[1],
                 image_bgr=image_bgr,
                 requirement=tab_active_req,
+                step=step,
+            )
+        elif white_border_req is not None:
+            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            row = self._build_white_border_only_row(
+                region=region,
+                region_def=pair[1],
+                image_bgr=image_bgr,
+                requirement=white_border_req,
                 step=step,
             )
         else:
@@ -384,6 +457,125 @@ class DslMatchMixin:
         base["tab_active"] = active
         if active != bool(requirement):
             base["reason"] = "tab_inactive" if requirement else "tab_active_unexpected"
+            return base
+
+        base["matched"] = True
+        try:
+            cx = float(bbox.get("x") or 0.0) + float(bbox.get("width") or 0.0) / 2.0
+            cy = float(bbox.get("y") or 0.0) + float(bbox.get("height") or 0.0) / 2.0
+        except (TypeError, ValueError):
+            cx = cy = 0.0
+        base["tap_x_pct"] = cx
+        base["tap_y_pct"] = cy
+        base["tap_match_x_pct"] = cx
+        base["tap_match_y_pct"] = cy
+        return base
+
+    @staticmethod
+    def _build_white_border_only_row(
+        *,
+        region: str,
+        region_def: dict[str, Any],
+        image_bgr: Any,
+        requirement: bool,
+        step: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Build a match row from the white-border detector alone (no template match).
+
+        Used by ``match:`` / ``while_match:`` steps that carry ``isWhiteBorder:``.
+        Two passes:
+
+        1. **Slide-find** via :func:`find_white_border_match_in_search_roi` —
+           contour-based search for a closed near-white rectangle inside the
+           region's bbox. Handles the case where the labeled bbox is a
+           *search zone* and the highlighted item lives somewhere inside it
+           (e.g., ``button.claim`` in the trial-box popup, where the actual
+           claim button position varies between popups).
+        2. **Halo fallback** via :func:`has_white_border_in_bbox_percent` —
+           tests halo statistics around the labeled bbox itself. Used when
+           the contour pass returns no candidate; this is the path that
+           works for fixed-position icons where the labeled bbox IS the icon
+           (the VIP Point Rewards reward tiles in tests).
+
+        Either pass: ``tap_x_pct`` / ``tap_y_pct`` is set to the found
+        location's center so a follow-up ``click:`` on the same region taps
+        the actual highlighted item, not just the labeled bbox center.
+        """
+        logger.info(
+            "white_border check: region=%s required=%s (entered _build_white_border_only_row)",
+            region, requirement,
+        )
+        base: dict[str, Any] = {
+            "matched": False,
+            "action": "white_border",
+            "region": region,
+            "white_border_required": bool(requirement),
+        }
+        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
+        if bbox is None:
+            logger.info(
+                "white_border check: region=%s aborted — region has no bbox in area.json",
+                region,
+            )
+            base["reason"] = "missing_bbox_for_white_border"
+            return base
+
+        # --- Pass 1: slide-find (contour-based) ---
+        match = find_white_border_match_in_search_roi(image_bgr, bbox)
+        if match is not None:
+            base["white_border_present"] = True
+            x, y, w, h = match["px_rect"]  # type: ignore[index]
+            base["top_left"] = [int(x), int(y)]
+            base["template_w"] = int(w)
+            base["template_h"] = int(h)
+            cx = float(match["cx_pct"])  # type: ignore[arg-type]
+            cy = float(match["cy_pct"])  # type: ignore[arg-type]
+            inner_s = float(match.get("interior_saturation") or 0.0)  # type: ignore[arg-type]
+            logger.info(
+                "white_border slide-find: region=%s contour=(%d,%d,%dx%d) "
+                "center=(%.2f%%,%.2f%%) inner_S=%.0f required=%s",
+                region, int(x), int(y), int(w), int(h),
+                cx, cy, inner_s, requirement,
+            )
+            if not bool(requirement):
+                base["reason"] = "white_border_unexpected"
+                return base
+            base["matched"] = True
+            base["tap_x_pct"] = cx
+            base["tap_y_pct"] = cy
+            base["tap_match_x_pct"] = cx
+            base["tap_match_y_pct"] = cy
+            return base
+
+        # --- Pass 2: halo fallback (existing behavior) ---
+        max_s = WHITE_BORDER_MAX_MEAN_SATURATION
+        min_v = WHITE_BORDER_MIN_MEAN_VALUE
+        if isinstance(step, dict):
+            with suppress(TypeError, ValueError):
+                if step.get("max_mean_saturation") is not None:
+                    max_s = float(step["max_mean_saturation"])
+            with suppress(TypeError, ValueError):
+                if step.get("min_mean_value") is not None:
+                    min_v = float(step["min_mean_value"])
+
+        present = bool(
+            has_white_border_in_bbox_percent(
+                image_bgr,
+                bbox,
+                max_mean_saturation=max_s,
+                min_mean_value=min_v,
+            )
+        )
+        base["white_border_present"] = present
+        logger.info(
+            "white_border halo fallback: region=%s present=%s required=%s "
+            "(slide-find returned no contour candidates)",
+            region, present, requirement,
+        )
+        if present != bool(requirement):
+            base["reason"] = (
+                "white_border_missing" if requirement else "white_border_unexpected"
+            )
             return base
 
         base["matched"] = True

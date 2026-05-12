@@ -4,8 +4,8 @@ name: Tap upgrade big button
 device_level: true
 
 steps:
-  - match: upgrade_big_button
-    threshold: 0.92
-    min_match_saturation: 48
-  - click: upgrade_big_button
-  - wait: 800ms
+  - while_match: upgrade_big_button
+    max: 1
+    steps:
+      - click: upgrade_big_button
+      - wait: 800ms

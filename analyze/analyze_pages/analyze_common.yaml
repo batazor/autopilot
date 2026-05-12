@@ -124,6 +124,16 @@ overlay:
   pushScenario:
     - name: tap_claim_all
 
+- name: box.gift.visible
+  region: box.gift
+  action: findIcon
+  priority: 76_000
+  threshold: 0.9
+  min_match_saturation: 48
+  ttl: 3s
+  pushScenario:
+    - name: tap_box_gift
+
 # OCR-based "Tap anywhere to exit" detector. Color-agnostic — the popup
 # banner's text is identical across the white/purpur/blue/yellow variants,
 # so one fuzzy-text rule replaces the four template-match rules. Tap target

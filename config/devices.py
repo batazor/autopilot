@@ -50,6 +50,12 @@ class DeviceProfile:
 class DeviceEntry:
     name: str
     profiles: tuple[DeviceProfile, ...]
+    adb_serial: str = ""
+
+    @property
+    def effective_serial(self) -> str:
+        """ADB serial for this device — explicit ``adb_serial`` or fall back to ``name``."""
+        return self.adb_serial.strip() or self.name.strip()
 
     def all_player_ids(self) -> list[str]:
         return [pid for p in self.profiles for pid in p.player_ids()]
@@ -79,9 +85,14 @@ class DeviceRegistry:
         return [pid for d in self.devices for pid in d.all_player_ids()]
 
     def player_ids_for_device(self, device_name: str) -> list[str]:
-        """Player IDs registered under *device_name* (bluestacks_window_title / ADB serial)."""
+        """Player IDs registered under *device_name*.
+
+        Matches either ``DeviceEntry.name`` (friendly alias like ``bs1``) or
+        ``DeviceEntry.adb_serial`` / ``effective_serial`` (raw ADB serial like
+        ``127.0.0.1:5555``) so callers can pass whichever form they have.
+        """
         for d in self.devices:
-            if d.name == device_name:
+            if d.name == device_name or d.effective_serial == device_name:
                 return d.all_player_ids()
         return []
 
@@ -106,7 +117,13 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
                 for g in p.get("gamer", [])
             )
             profiles.append(DeviceProfile(email=p["email"], gamers=gamers))
-        devices.append(DeviceEntry(name=d["name"], profiles=tuple(profiles)))
+        devices.append(
+            DeviceEntry(
+                name=d["name"],
+                profiles=tuple(profiles),
+                adb_serial=str(d.get("adb_serial") or "").strip(),
+            )
+        )
     return DeviceRegistry(devices=devices)
 
 

@@ -55,6 +55,32 @@ def _step_red_dot_requirement(step: dict[str, Any]) -> bool | None:
     return None
 
 
+def _step_white_border_requirement(step: dict[str, Any]) -> bool | None:
+    """Read optional ``isWhiteBorder`` predicate on a ``match:`` / ``while_match:`` step.
+
+    Mirrors :func:`_step_red_dot_requirement`: accepts ``isWhiteBorder: true|false``
+    (and snake_case ``is_white_border``, plus the usual string aliases). Returns
+    ``None`` when absent so steps that do not opt in behave exactly as before.
+    """
+    if not isinstance(step, dict):
+        return None
+    if "isWhiteBorder" in step:
+        raw = step.get("isWhiteBorder")
+    elif "is_white_border" in step:
+        raw = step.get("is_white_border")
+    else:
+        return None
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, str):
+        s = raw.strip().lower()
+        if s in {"true", "yes", "y", "1", "on"}:
+            return True
+        if s in {"false", "no", "n", "0", "off"}:
+            return False
+    return None
+
+
 def _step_tab_active_requirement(step: dict[str, Any]) -> bool | None:
     """Read optional ``isTabActive`` predicate on a ``match:`` / ``while_match:`` step.
 

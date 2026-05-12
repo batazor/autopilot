@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,9 @@ import streamlit as st
 import yaml
 
 from analysis.overlay_manifest import default_analyze_yaml_path
-from analysis.overlay_rules import overlay_rule_screen_allowlist
+from analysis.overlay_rules import optional_ttl_seconds, overlay_rule_screen_allowlist
+from config.devices import get_device_registry
+from ui.redis_client import get_redis
 
 
 def _repo_root() -> Path:
@@ -152,6 +155,138 @@ def _render_rule(rule: dict[str, Any]) -> None:
                 )
 
 
+def _humanize_seconds(s: float) -> str:
+    """Compact ``5m 12s`` / ``1h 03m`` / ``42s`` representation."""
+    s = max(0, int(s))
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        m, ss = divmod(s, 60)
+        return f"{m}m {ss:02d}s"
+    h, rem = divmod(s, 3600)
+    m, _ = divmod(rem, 60)
+    return f"{h}h {m:02d}m"
+
+
+def _render_ttl_table(rules: list[dict[str, Any]]) -> None:
+    """Per-rule TTL state for the selected player.
+
+    Overlay rule cooldowns belong to the player whose state the overlay was
+    evaluating against — two accounts on the same emulator have independent
+    timers. The worker keys snapshots by active_player at evaluation time
+    and writes them to ``wos:player:<pid>:overlay_ttl``; this table reads
+    that hash.
+    """
+    try:
+        all_players = sorted(set(get_device_registry().all_player_ids()))
+    except Exception:
+        all_players = []
+    if not all_players:
+        st.caption(
+            "No players in `db/devices.yaml` — TTL is recorded per-player, "
+            "so the table needs at least one configured account to read."
+        )
+        return
+    sel_pid = st.selectbox(
+        "Player",
+        options=all_players,
+        index=0,
+        key="wiki_analyze_ttl_player",
+        help="Overlay TTL state is recorded per-player. The same emulator "
+        "may host several accounts; each gets its own cooldown clock.",
+    )
+    client = None
+    try:
+        client = get_redis()
+    except Exception:
+        st.caption("Redis unreachable — cannot show live TTL state.")
+        return
+    try:
+        raw_ttl = (
+            client.hgetall(f"wos:player:{sel_pid}:overlay_ttl") if client else {}
+        )
+    except Exception:
+        raw_ttl = {}
+    last_eval_at: dict[str, float] = {}
+    for k, v in (raw_ttl or {}).items():
+        ks = k.decode() if isinstance(k, bytes) else str(k)
+        vs = v.decode() if isinstance(v, bytes) else str(v)
+        try:
+            last_eval_at[ks] = float(vs)
+        except (TypeError, ValueError):
+            continue
+
+    now = time.time()
+    rows: list[dict[str, Any]] = []
+    for r in rules:
+        if not isinstance(r, dict):
+            continue
+        nm = str(r.get("name") or "").strip()
+        if not nm:
+            continue
+        ttl_s = optional_ttl_seconds(r)
+        last = last_eval_at.get(nm)
+        if last is None:
+            elapsed_label = "never"
+            if ttl_s is None:
+                state = "ready"
+                next_label = "—"
+            else:
+                state = "ready"
+                next_label = "now"
+        else:
+            elapsed = max(0.0, now - last)
+            elapsed_label = _humanize_seconds(elapsed) + " ago"
+            if ttl_s is None:
+                state = "ready"
+                next_label = "—"
+            elif elapsed >= ttl_s:
+                state = "ready"
+                next_label = "now"
+            else:
+                state = "throttled"
+                next_label = "in " + _humanize_seconds(ttl_s - elapsed)
+        rows.append(
+            {
+                "Rule": nm,
+                "Action": str(r.get("action") or "").strip() or "—",
+                "Screens": ", ".join(overlay_rule_screen_allowlist(r)) or "global",
+                "TTL": _humanize_seconds(ttl_s) if ttl_s is not None else "—",
+                "Last eval": elapsed_label,
+                "Next eval": next_label,
+                "State": state,
+            }
+        )
+    if not rows:
+        st.caption("No overlay rules to display.")
+        return
+
+    # Filter chips: state + name search shared with the main browser below.
+    fc1, fc2 = st.columns([1, 2], vertical_alignment="bottom")
+    with fc1:
+        state_filter = st.pills(
+            "State",
+            options=["all", "ready", "throttled"],
+            selection_mode="single",
+            default="all",
+            key="wiki_analyze_ttl_state_filter",
+        )
+    with fc2:
+        ttl_query = st.text_input(
+            "Rule name contains",
+            value="",
+            key="wiki_analyze_ttl_filter",
+        ).strip().lower()
+
+    if state_filter and state_filter != "all":
+        rows = [r for r in rows if r["State"] == state_filter]
+    if ttl_query:
+        rows = [r for r in rows if ttl_query in r["Rule"].lower()]
+    rows.sort(key=lambda r: (r["State"] != "throttled", r["Rule"]))
+
+    st.dataframe(rows, hide_index=True, width="stretch")
+
+
 st.title("Wiki · Analyze")
 st.caption("Browse `analyze/analyze.yaml` overlay rules as a readable story.")
 
@@ -162,6 +297,9 @@ loaded_files, overlay_rules = _load_analyze_manifest(analyze_path)
 if not overlay_rules:
     st.warning(f"No `overlay` rules loaded from `{analyze_path}`.")
     st.stop()
+
+with st.expander("⏱ Overlay TTL state", expanded=False):
+    _render_ttl_table(overlay_rules)
 
 # Chip filter: one chip per source file. Manifest pinned first, then
 # include order. Rule count rendered next to each label so the user can see

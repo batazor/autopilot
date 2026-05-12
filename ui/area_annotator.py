@@ -164,7 +164,7 @@ class AreaDocDict(TypedDict, total=False):
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AREA_JSON_PATH = REPO_ROOT / "area.json"
 REFERENCES_DIR = REPO_ROOT / "references"
-ACTIONS = ("text", "exist", "color_check", "click")
+ACTIONS = ("exist", "text", "color_check", "click")
 TYPES = ("integer", "string", "boolean")
 COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
@@ -1681,9 +1681,13 @@ def _default_region(orig_w: int, orig_h: int, *, name: str = "region") -> Region
         original_width=orig_w,
         original_height=orig_h,
     )
+    # Default to ``exist`` (template-match) for newly created regions —
+    # that's the action the overwhelming majority of regions in area.json
+    # use (icons, buttons, badges). Operators editing text-class regions
+    # can still switch to ``text`` in the action selector.
     return RegionDict(
         name=name,
-        action="text",
+        action="exist",
         type="string",
         threshold=0.9,
         bbox=bbox,

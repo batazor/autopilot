@@ -45,10 +45,10 @@ overlay:
   isRedDot: true
   screens:
     - main_city
+  ttl: 5m
   pushScenario:
   - name: assign_worker
     priority: 80_000
-    ttl: 1m
 
 - name: isPostman.visible
   region: isPostman
@@ -150,7 +150,6 @@ overlay:
   pushScenario:
   - name: chapter_task_router
     priority: 70_000
-    ttl: 20s
 
 # Periodic OCR-scan of the four event slots → resolves which screen each
 # block currently leads to. 5min TTL on the pushed scenario throttles the
@@ -166,4 +165,3 @@ overlay:
   pushScenario:
   - name: scan_event_blocks
     priority: 70_000
-    ttl: 5m

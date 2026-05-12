@@ -375,11 +375,95 @@ def render_preview_with_point(
     except Exception:
         sought_png = None
 
+    # Match mode: template (findIcon) vs state-check (red_dot / tab_active).
+    # For state checks the "live crop vs template" rendering is misleading —
+    # the comparison wasn't a template match, it was a pixel-stats decision
+    # over the bbox. Show the outcome verb instead ("red-dot found" /
+    # "tab active") and skip the bright-detail-ratio captioning, which only
+    # describes the findIcon path.
+    mode_s = str(ctx0.get("dsl_last_match_mode") or "").strip().lower()
+    matched_s = str(ctx0.get("dsl_last_match_matched") or "").strip()
+
+    def _yes_no(v: str) -> str:
+        return "yes" if v == "1" else ("no" if v == "0" else "?")
+
     with ui.container(border=True):
-        ui.markdown(f"**Region** `{reg_name}` · live crop vs template")
+        if mode_s == "red_dot":
+            present_s = str(ctx0.get("dsl_last_match_red_dot_present") or "").strip()
+            required_s = str(ctx0.get("dsl_last_match_red_dot_required") or "").strip()
+            verdict = "✅ matched" if matched_s == "1" else "❌ no match"
+            req_label = (
+                f" · required `{_yes_no(required_s)}`" if required_s else ""
+            )
+            ui.markdown(
+                f"**Region** `{reg_name}` · red-dot check · "
+                f"found `{_yes_no(present_s)}`{req_label} · {verdict}"
+            )
+        elif mode_s == "tab_active":
+            present_s = str(ctx0.get("dsl_last_match_tab_active") or "").strip()
+            required_s = str(
+                ctx0.get("dsl_last_match_tab_active_required") or ""
+            ).strip()
+            verdict = "✅ matched" if matched_s == "1" else "❌ no match"
+            req_label = (
+                f" · required `{_yes_no(required_s)}`" if required_s else ""
+            )
+            ui.markdown(
+                f"**Region** `{reg_name}` · tab-active check · "
+                f"active `{_yes_no(present_s)}`{req_label} · {verdict}"
+            )
+        elif mode_s == "white_border":
+            present_s = str(
+                ctx0.get("dsl_last_match_white_border_present") or ""
+            ).strip()
+            required_s = str(
+                ctx0.get("dsl_last_match_white_border_required") or ""
+            ).strip()
+            verdict = "✅ matched" if matched_s == "1" else "❌ no match"
+            req_label = (
+                f" · required `{_yes_no(required_s)}`" if required_s else ""
+            )
+            ui.markdown(
+                f"**Region** `{reg_name}` · white-border check · "
+                f"present `{_yes_no(present_s)}`{req_label} · {verdict}"
+            )
+        elif mode_s in {"exist", "text"}:
+            # area.json ``action: exist`` / ``text`` with ``type: string`` is an
+            # OCR check on the bbox, not a template match — "live crop vs
+            # template" is misleading here. Show the OCR verdict + score.
+            score_s = str(ctx0.get("dsl_last_match_score") or "").strip()
+            thr_s = str(ctx0.get("dsl_last_match_threshold") or "").strip()
+            verdict = "✅ matched" if matched_s == "1" else "❌ no match"
+            score_label = f" · score `{score_s}`" if score_s else ""
+            thr_label = f" · threshold `{thr_s}`" if thr_s else ""
+            ui.markdown(
+                f"**Region** `{reg_name}` · OCR text check"
+                f"{score_label}{thr_label} · {verdict}"
+            )
+        elif mode_s == "color_check":
+            score_s = str(ctx0.get("dsl_last_match_score") or "").strip()
+            thr_s = str(ctx0.get("dsl_last_match_threshold") or "").strip()
+            verdict = "✅ matched" if matched_s == "1" else "❌ no match"
+            score_label = f" · score `{score_s}`" if score_s else ""
+            thr_label = f" · threshold `{thr_s}`" if thr_s else ""
+            ui.markdown(
+                f"**Region** `{reg_name}` · color check"
+                f"{score_label}{thr_label} · {verdict}"
+            )
+        else:
+            ui.markdown(f"**Region** `{reg_name}` · live crop vs template")
         tpl_bright = str(ctx0.get("current_task_template_bright_ratio") or "").strip()
         patch_bright = str(ctx0.get("current_task_patch_bright_ratio") or "").strip()
-        if tpl_bright or patch_bright:
+        # Bright-detail-ratio caption is specific to findIcon (template match);
+        # state checks and OCR/colour modes don't compute it.
+        if (tpl_bright or patch_bright) and mode_s not in {
+            "red_dot",
+            "tab_active",
+            "white_border",
+            "exist",
+            "text",
+            "color_check",
+        }:
             ui.caption(
                 "Bright detail ratio · "
                 f"template `{_fmt_ratio(tpl_bright)}` · live `{_fmt_ratio(patch_bright)}`"

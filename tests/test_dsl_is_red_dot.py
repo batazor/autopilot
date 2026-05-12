@@ -271,7 +271,8 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
 
     result = await task.execute("bs1")
 
-    assert result.success is True
+    # Failed guard is reported as ``success=False`` (queue history honesty).
+    assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
     assert actions.tapped == []
     match_row = result.metadata.get("match")
@@ -300,7 +301,7 @@ async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
 
     result = await task.execute("bs1")
 
-    assert result.success is True
+    assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
     assert actions.tapped == []
     match_row = result.metadata.get("match")

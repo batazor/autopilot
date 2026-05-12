@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 
 from analysis.overlay import run_overlay_analysis
+from config.log_context import set_log_context
 from navigation.detector import ScreenName
 
 logger = logging.getLogger(__name__)
@@ -19,13 +20,18 @@ class InstanceWorkerScreenMixin:
     _redis: Any
     _bot_actions: Any
     _screen_detector: Any
-    _overlay_rule_eval_state: dict[str, float]
+    _overlay_rule_eval_state_by_player: dict[str, dict[str, float]]
     _last_current_screen: str | None
     _last_detected_screen: str | None
     _last_detected_screen_at: float
     _screen_unknown_streak: int
 
-    async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
+    async def _schedule_overlay_matches(
+        self,
+        overlay_results: dict[str, object],
+        *,
+        active_player: str | None = None,
+    ) -> None:
         raise NotImplementedError
 
     async def _detect_current_screen_on_frame(self, image_bgr: np.ndarray) -> str | None:
@@ -62,6 +68,13 @@ class InstanceWorkerScreenMixin:
                     active_player = ap or None
 
             self._last_current_screen = current_screen
+            # Update log context so every line emitted from this overlay tick
+            # (and downstream task ticks until refreshed) carries the current
+            # player + FSM node.
+            set_log_context(
+                player=active_player or "",
+                node=current_screen or "",
+            )
 
             # Resolve regions against the active player's state so screen-version `cond`
             # picks the right `_vN` override per account (otherwise the worker would always
@@ -81,17 +94,62 @@ class InstanceWorkerScreenMixin:
                         exc_info=True,
                     )
 
+            # Per-player TTL state: pick (or create) the sub-dict for the
+            # current ``active_player``. Empty string keys "no active player"
+            # — pre-identity / device-level ticks land there.
+            tt_key = (active_player or "").strip()
+            player_state = self._overlay_rule_eval_state_by_player.setdefault(
+                tt_key, {}
+            )
             results = await run_overlay_analysis(
                 image_bgr,
                 repo_root=repo_root,
                 current_screen=current_screen,
-                rule_eval_state=self._overlay_rule_eval_state,
+                rule_eval_state=player_state,
                 state_flat=state_flat,
             )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
             return
-        await self._schedule_overlay_matches(results)
+        # Mirror the in-memory TTL snapshot to Redis (wall-clock seconds) so
+        # the wiki/analyze UI can render "last evaluated" / "next eval in"
+        # per-rule, per-player. ``rule_eval_state`` holds ``time.monotonic()``
+        # values — convert to ``time.time()`` so cross-process readers can
+        # compute absolute "X seconds ago" without sharing the worker clock.
+        await self._persist_overlay_ttl_snapshot(tt_key, player_state)
+        await self._schedule_overlay_matches(results, active_player=active_player)
+
+    async def _persist_overlay_ttl_snapshot(
+        self, player_id: str, player_state: dict[str, float]
+    ) -> None:
+        if self._redis is None or not player_state:
+            return
+        now_wall = time.time()
+        now_mono = time.monotonic()
+        mapping: dict[str, str] = {}
+        for rule_name, mono_ts in player_state.items():
+            try:
+                wall_ts = now_wall - (now_mono - float(mono_ts))
+            except (TypeError, ValueError):
+                continue
+            mapping[str(rule_name)] = f"{wall_ts:.3f}"
+        if not mapping:
+            return
+        # ``player_id`` may be empty when no active_player is set; route those
+        # to a dedicated key so they don't pollute any real player's state.
+        key = (
+            f"wos:player:{player_id}:overlay_ttl"
+            if player_id
+            else f"wos:instance:{self._cfg.instance_id}:overlay_ttl_anon"
+        )
+        try:
+            await self._redis.hset(key, mapping=mapping)
+        except Exception:
+            logger.debug(
+                "overlay TTL snapshot write failed key=%s",
+                key,
+                exc_info=True,
+            )
 
 
 class InstanceWorkerScreenDetectMixin:

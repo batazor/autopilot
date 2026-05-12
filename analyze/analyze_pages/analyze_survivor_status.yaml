@@ -5,8 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - survivor_status
-    ttl: 30s
+    ttl: 1m
     pushScenario:
       - name: assign_worker
         priority: 80_000
-        ttl: 1m

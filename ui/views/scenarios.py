@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -58,6 +59,12 @@ def _rows_to_records(edited: object, fallback: list[dict]) -> list[dict]:
 def _list_scenario_yaml_files(scenarios_dir: Path) -> list[Path]:
     """DSL scenario YAMLs for the main tab (skips ``drafts/`` and root ``cron`` schedules)."""
     return iter_plain_scenario_yaml_files(scenarios_dir)
+
+
+def _scenario_rel_top_folder(rel: str) -> str:
+    """First path segment under ``scenarios/``, or ``(root)`` for YAML at repo root."""
+    parts = Path(rel).parts
+    return parts[0] if len(parts) >= 2 else "(root)"
 
 
 @dataclass
@@ -227,6 +234,39 @@ if not scenario_meta and not cron_meta:
     st.warning("No valid YAML files.")
     st.stop()
 
+_folder_counts: Counter[str] = Counter()
+for _path, rel, *_rest in scenario_meta:
+    _folder_counts[_scenario_rel_top_folder(rel)] += 1
+for path, *_rest in cron_meta:
+    rel_c = path.relative_to(scenarios_dir).as_posix()
+    _folder_counts[_scenario_rel_top_folder(rel_c)] += 1
+
+_pills_labels = [
+    f"{name} · {cnt}"
+    for name, cnt in sorted(
+        _folder_counts.items(),
+        key=lambda kv: (kv[0] == "(root)", kv[0].lower()),
+    )
+]
+_folder_label_to_name: dict[str, str] = {
+    f"{name} · {cnt}": name for name, cnt in _folder_counts.items()
+}
+
+with st.sidebar:
+    st.caption("Folder (under scenarios/)")
+    _folder_pick = st.pills(
+        "Scenario folders",
+        options=_pills_labels,
+        selection_mode="multi",
+        default=[],
+        label_visibility="collapsed",
+        key="scenarios_folder_pills",
+        help="Limit **Scenario files** and **Cron jobs** lists. Empty = all folders.",
+    )
+_selected_folders: set[str] = {
+    _folder_label_to_name[lab] for lab in (_folder_pick or []) if lab in _folder_label_to_name
+}
+
 path_by_file: dict[str, Path] = {}
 path_by_id: dict[str, Path] = {}
 table_rows: list[dict] = []
@@ -266,6 +306,8 @@ with tab_files:
     scenario_meta_filtered: list[tuple[Path, str, str, str, dict]] = []
     for tup in scenario_meta:
         _path, rel, sid, name, _raw = tup
+        if _selected_folders and _scenario_rel_top_folder(rel) not in _selected_folders:
+            continue
         hay = f"{sid}\n{name}\n{rel}".lower()
         if not file_filter or file_filter in hay:
             scenario_meta_filtered.append(tup)
@@ -342,9 +384,19 @@ with tab_cron:
         import re
         import time
 
+        cron_meta_filtered = [
+            (path, cid, name, raw)
+            for path, cid, name, raw in cron_meta
+            if (
+                not _selected_folders
+                or _scenario_rel_top_folder(path.relative_to(scenarios_dir).as_posix())
+                in _selected_folders
+            )
+        ]
+
         cron_path_by_id: dict[str, Path] = {}
         cron_rows: list[dict] = []
-        for path, cid, name, raw in cron_meta:
+        for path, cid, name, raw in cron_meta_filtered:
             cron_path_by_id[cid] = path
             cron_rows.append(
                 {
@@ -388,73 +440,79 @@ with tab_cron:
                     n += 1
             return n
 
-        # Render an explicit table so we can have per-row action buttons (Push).
-        # `st.data_editor` cannot embed buttons inside rows.
-        st.markdown("**Cron specs**")
-        hdr = st.columns([3.2, 1.0, 1.6, 2.0, 1.0, 2.0, 1.1], vertical_alignment="center")
-        hdr[0].markdown("**Name**")
-        hdr[1].markdown("**Enabled**")
-        hdr[2].markdown("**Cron**")
-        hdr[3].markdown("**Task**")
-        hdr[4].markdown("**Prio**")
-        hdr[5].markdown("**File**")
-        hdr[6].markdown("**Push**")
-
-        for row in cron_rows:
-            nm = str(row.get("name") or "")
-            rk = _slug(nm)
-            cols = st.columns([3.2, 1.0, 1.6, 2.0, 1.0, 2.0, 1.1], vertical_alignment="center")
-            cols[0].write(nm)
-            cols[1].checkbox(
-                "enabled",
-                value=bool(row.get("enabled", True)),
-                key=f"cron_enabled_{rk}",
-                label_visibility="collapsed",
+        if not cron_rows:
+            st.warning(
+                "No cron specs in the selected folder(s). "
+                "Clear **Folder** pills in the sidebar to see all."
             )
-            cols[2].code(str(row.get("cron") or ""), language=None)
-            cols[3].code(str(row.get("task") or ""), language=None)
-            cols[4].write(str(row.get("priority") or ""))
-            cols[5].write(str(row.get("file") or ""))
+        else:
+            # Render an explicit table so we can have per-row action buttons (Push).
+            # `st.data_editor` cannot embed buttons inside rows.
+            st.markdown("**Cron specs**")
+            hdr = st.columns([3.2, 1.0, 1.6, 2.0, 1.0, 2.0, 1.1], vertical_alignment="center")
+            hdr[0].markdown("**Name**")
+            hdr[1].markdown("**Enabled**")
+            hdr[2].markdown("**Cron**")
+            hdr[3].markdown("**Task**")
+            hdr[4].markdown("**Prio**")
+            hdr[5].markdown("**File**")
+            hdr[6].markdown("**Push**")
 
-            task_type = str(row.get("task") or "").strip()
-            try:
-                pr = int(str(row.get("priority") or "1"))
-            except ValueError:
-                pr = 1
-            if cols[6].button("Push", key=f"cron_push_{rk}", width="stretch"):
-                if not task_type:
-                    st.error(f"`{nm}` has empty `task`.")
-                else:
-                    n = _push_cron_task_now(task_type=task_type, priority=pr, name=nm)
-                    st.success(f"Enqueued **{n}** queue item(s) for `{task_type}`.")
-
-        b = st.columns([1, 1, 4])
-        with b[0]:
-            save_cron = st.button("Save YAML", type="primary", key="cron_save_yaml")
-        with b[1]:
-            st.caption(" ")
-
-        if save_cron:
-            changed = False
             for row in cron_rows:
                 nm = str(row.get("name") or "")
                 rk = _slug(nm)
-                want = bool(st.session_state.get(f"cron_enabled_{rk}", True))
-                was = bool(row.get("enabled", True))
-                if want != was:
-                    _set_scenario_enabled(cron_path_by_id[nm], want)
-                    changed = True
-            if changed:
-                st.success("Updated `enabled` in cron YAML file(s).")
-            else:
-                st.info("No changes to save.")
-            st.rerun()
+                cols = st.columns([3.2, 1.0, 1.6, 2.0, 1.0, 2.0, 1.1], vertical_alignment="center")
+                cols[0].write(nm)
+                cols[1].checkbox(
+                    "enabled",
+                    value=bool(row.get("enabled", True)),
+                    key=f"cron_enabled_{rk}",
+                    label_visibility="collapsed",
+                )
+                cols[2].code(str(row.get("cron") or ""), language=None)
+                cols[3].code(str(row.get("task") or ""), language=None)
+                cols[4].write(str(row.get("priority") or ""))
+                cols[5].write(str(row.get("file") or ""))
 
-        with st.expander("Raw YAML (cron)", expanded=False):
-            picks = [cid for _, cid, _, _ in cron_meta]
-            pick = st.selectbox("Cron spec", picks, key="cron_yaml_pick")
-            if pick and pick in cron_path_by_id:
-                st.code(cron_path_by_id[pick].read_text(), language="yaml")
+                task_type = str(row.get("task") or "").strip()
+                try:
+                    pr = int(str(row.get("priority") or "1"))
+                except ValueError:
+                    pr = 1
+                if cols[6].button("Push", key=f"cron_push_{rk}", width="stretch"):
+                    if not task_type:
+                        st.error(f"`{nm}` has empty `task`.")
+                    else:
+                        n = _push_cron_task_now(task_type=task_type, priority=pr, name=nm)
+                        st.success(f"Enqueued **{n}** queue item(s) for `{task_type}`.")
+
+            b = st.columns([1, 1, 4])
+            with b[0]:
+                save_cron = st.button("Save YAML", type="primary", key="cron_save_yaml")
+            with b[1]:
+                st.caption(" ")
+
+            if save_cron:
+                changed = False
+                for row in cron_rows:
+                    nm = str(row.get("name") or "")
+                    rk = _slug(nm)
+                    want = bool(st.session_state.get(f"cron_enabled_{rk}", True))
+                    was = bool(row.get("enabled", True))
+                    if want != was:
+                        _set_scenario_enabled(cron_path_by_id[nm], want)
+                        changed = True
+                if changed:
+                    st.success("Updated `enabled` in cron YAML file(s).")
+                else:
+                    st.info("No changes to save.")
+                st.rerun()
+
+            with st.expander("Raw YAML (cron)", expanded=False):
+                picks = [cid for _, cid, _, _ in cron_meta_filtered]
+                pick = st.selectbox("Cron spec", picks, key="cron_yaml_pick")
+                if pick and pick in cron_path_by_id:
+                    st.code(cron_path_by_id[pick].read_text(), language="yaml")
 
 with tab_assign:
     all_players = _all_player_ids(settings)

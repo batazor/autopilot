@@ -4,7 +4,8 @@ name: Tap skip (text screen)
 device_level: true
 
 steps:
-  - match: skip_text_button
-    threshold: 0.95
-  - click: skip_text_button
-  - wait: 2s
+  - while_match: skip_text_button
+    max: 1
+    steps:
+      - click: skip_text_button
+      - wait: 2s

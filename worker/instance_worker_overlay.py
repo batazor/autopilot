@@ -8,6 +8,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from analysis.overlay_duration import parse_duration_seconds
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_priority
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,12 @@ class InstanceWorkerOverlayMixin:
     _redis: Any
     _queue: Any
 
-    async def _schedule_overlay_matches(self, overlay_results: dict[str, object]) -> None:
+    async def _schedule_overlay_matches(
+        self,
+        overlay_results: dict[str, object],
+        *,
+        active_player: str | None = None,
+    ) -> None:
         """Handle matched overlay rules.
 
         Policy: overlay analysis never enqueues tap actions. It may only enqueue DSL scenarios
@@ -41,6 +47,8 @@ class InstanceWorkerOverlayMixin:
 
         ``pushScenario`` tasks are always **device-level** (``player_id=""``): they do not require
         a configured player; the worker resolves an active player only when the task needs one.
+        ``active_player`` (if known at push time) scopes the push-level ``ttl`` self-throttle
+        per-player, so an in-flight scenario for player A doesn't block pushes for player B.
         """
         if self._queue is None:
             return
@@ -52,7 +60,7 @@ class InstanceWorkerOverlayMixin:
                 continue
             try:
                 await self._enqueue_push_scenarios_from_overlay(
-                    payload, player_id="", run_at=now
+                    payload, player_id="", run_at=now, active_player=active_player
                 )
             except Exception:
                 logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
@@ -63,6 +71,7 @@ class InstanceWorkerOverlayMixin:
         *,
         player_id: str,
         run_at: float,
+        active_player: str | None = None,
     ) -> None:
         if self._queue is None:
             return
@@ -160,6 +169,45 @@ class InstanceWorkerOverlayMixin:
                         ).strip()
                         if cur_s == "main_city":
                             continue
+
+                # Push-level ``ttl`` self-throttle (YAML ``pushScenario[].ttl``).
+                # The queue's ``skip_if_duplicate`` only matches items still
+                # *pending* — once a task is popped to run, the next overlay
+                # tick that sees the same trigger (e.g. ``page.worker.add``
+                # while ``assign_worker`` is mid-run) re-enqueues it and the
+                # bot ends up running the scenario back-to-back. SET NX EX
+                # holds a "recently pushed" marker for ``ttl`` seconds so the
+                # repeat push is dropped here, before it reaches the queue.
+                # Scoped per-player (active_player at push time) so a busy
+                # scenario for player A doesn't starve player B.
+                ttl_s = parse_duration_seconds(item.get("ttl"))
+                if ttl_s and ttl_s > 0 and self._redis is not None:
+                    ap_for_key = (active_player or "").strip()
+                    if ap_for_key:
+                        throttle_key = f"wos:player:{ap_for_key}:push_ttl:{t}"
+                    else:
+                        throttle_key = (
+                            f"wos:instance:{self._cfg.instance_id}:push_ttl:{t}"
+                        )
+                    acquired = True
+                    try:
+                        acquired = bool(
+                            await self._redis.set(
+                                throttle_key, "1", nx=True, ex=int(ttl_s)
+                            )
+                        )
+                    except Exception:
+                        logger.debug(
+                            "push_ttl: SET NX EX failed; allowing push",
+                            exc_info=True,
+                        )
+                    if not acquired:
+                        logger.debug(
+                            "push_ttl: throttled key=%s ttl=%ds",
+                            throttle_key,
+                            int(ttl_s),
+                        )
+                        continue
 
                 pr_raw = item.get("priority")
                 if pr_raw is not None:

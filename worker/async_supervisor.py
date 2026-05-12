@@ -12,6 +12,7 @@ import threading
 from config.loader import InstanceConfig, get_settings
 from config.logging_stdout import setup_stdout_logging
 from config.startup_validation import assert_startup_configs_valid
+from config.log_context import set_log_context
 from scheduler.ortools_executor import shutdown_ortools_executor
 from worker.instance_worker import InstanceWorker
 
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 async def _guarded_worker(inst: InstanceConfig) -> None:
+    # contextvar binding lives for this asyncio Task — every log line from
+    # inside this worker (and its child tasks) carries ``inst=<id>``.
+    set_log_context(inst=inst.instance_id)
     delay = get_settings().worker.restart_wait_seconds
     while True:
         try:

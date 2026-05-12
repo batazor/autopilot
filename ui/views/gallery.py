@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from io import BytesIO
 from pathlib import Path
 
@@ -22,7 +22,6 @@ from ui.area_annotator import _format_screen_id_choice, screen_id_select_options
 from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import list_reference_pngs, references_root
-
 
 _AREA_JSON_PATH = Path(__file__).resolve().parents[2] / "area.json"
 
@@ -559,20 +558,57 @@ files = list_reference_pngs(
     exclude_crop=not show_crop,
 )
 
+_version_only_refs = _refs_exclusive_to_versions_cached(area_mtime)
+_node_counts: Counter[str] = Counter()
+for _p in files:
+    _rrel = _rel_under_references(_p, ref_root)
+    if _rrel in _version_only_refs:
+        continue
+    _, _, _sid = _gallery_slice_cached(area_mtime, _rrel, "auto")
+    _nk = (_sid or "").strip() or "(unassigned)"
+    _node_counts[_nk] += 1
+_node_pill_labels = [
+    f"{name} · {cnt}"
+    for name, cnt in sorted(
+        _node_counts.items(),
+        key=lambda kv: (kv[0] == "(unassigned)", kv[0].lower()),
+    )
+]
+_node_label_to_id: dict[str, str] = {
+    f"{name} · {cnt}": name for name, cnt in _node_counts.items()
+}
+
+with st.sidebar:
+    st.caption("Screen ID (node)")
+    _node_pick = st.pills(
+        "Gallery nodes",
+        options=_node_pill_labels,
+        selection_mode="multi",
+        default=[],
+        label_visibility="collapsed",
+        key="gallery_node_pills",
+        help="Limit rows to PNGs tied to these ``area.json`` ``screen_id`` values (Auto layout). "
+        "Empty = all nodes.",
+    )
+_selected_nodes: set[str] = {
+    _node_label_to_id[lab] for lab in (_node_pick or []) if lab in _node_label_to_id
+}
+
 ql = q.strip().lower()
 want_regions = {str(x).strip() for x in (region_sel or []) if str(x).strip()}
-_version_only_refs = _refs_exclusive_to_versions_cached(area_mtime)
 filtered: list[Path] = []
 for p in files:
     rel = _rel_under_references(p, ref_root)
     if rel in _version_only_refs:
         continue
+    have_f, _, sid_line = _gallery_slice_cached(area_mtime, rel, "auto")
+    node_key = (sid_line or "").strip() or "(unassigned)"
+    if _selected_nodes and node_key not in _selected_nodes:
+        continue
     if ql and ql not in rel.lower():
         continue
-    if want_regions:
-        have_f, _, _ = _gallery_slice_cached(area_mtime, rel, "auto")
-        if not (want_regions & set(have_f)):
-            continue
+    if want_regions and not (want_regions & set(have_f)):
+        continue
     filtered.append(p)
 
 st.caption(

@@ -11,12 +11,6 @@ scheduler:
   interval_seconds: 30
   ortools_timeout_seconds: 1.0
 
-instances:
-  - instance_id: "bs1"
-    bluestacks_window_title: "emulator-5554"
-    # Legacy (ignored): kept for older configs
-    capture_window_title: "BlueStacks"
-
 tasks:
   arena:
     cooldown_seconds: 10800

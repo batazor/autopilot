@@ -29,6 +29,9 @@ FROST_WORKERS_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "red_dot_frost_worker
 EVENT_1ST_PURCHASE_FALSE_POSITIVE = (
     REPO_ROOT / "tests" / "fixtures" / "event_block_1st_purchase_false_positive.png"
 )
+WIDENED_BY_COUNTER_FIXTURE = (
+    REPO_ROOT / "tests" / "fixtures" / "red_dot_widened_by_counter.png"
+)
 
 REFERENCE_W = 720
 REFERENCE_H = REFERENCE_IMAGE_HEIGHT
@@ -371,4 +374,49 @@ def test_has_frost_badge_false_on_1st_purchase_event_icon() -> None:
     assert has_frost_badge(patch) is False, (
         "1st Purchase event icon (cyan background + far-away pink) "
         "must not register as a frost badge"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Counter-widened red-dot regression
+# ---------------------------------------------------------------------------
+#
+# Notification badges that carry a multi-character counter (e.g. ``3`` is
+# round, but ``11`` / ``12`` stretches the circle into a horizontal ellipse)
+# used to fail the shape gates: aspect 1.32–1.75 vs ``MAX_ASPECT=1.5`` and
+# circularity ~0.45 vs ``MIN_CIRCULARITY=0.55``. Relaxed both gates to
+# ``MAX_ASPECT=1.9`` / ``MIN_CIRCULARITY=0.45``; the saturation /
+# surround-saturation floors carry the false-positive load instead of shape.
+
+
+def test_find_red_dots_picks_up_counter_widened_badge() -> None:
+    """The wider ``25×19`` badge at the Heroes nav button (bottom-left of the
+    captured main_city frame, around y≈1019) must be detected. Before the
+    shape-gate relaxation it would either fail aspect (>1.5) or — for the
+    two-digit variant — fail circularity (<0.55)."""
+    img = cv2.imread(str(WIDENED_BY_COUNTER_FIXTURE))
+    assert img is not None, f"failed to load fixture: {WIDENED_BY_COUNTER_FIXTURE}"
+    hi = int(img.shape[0])
+    dots = find_red_dots(img, image_h_for_norm=hi)
+    # The wider Heroes-button badge sits around (cx≈66, cy≈1028) with a
+    # bbox ≈ 25×19. ``find_red_dots`` returns sorted-by-score; this dot
+    # appears in the list with radius >= 10 (single-digit badges are ~7-8).
+    widened = [d for d in dots if 9.5 <= d.radius <= 13.0 and 1000 <= d.cy <= 1050]
+    assert widened, (
+        "Counter-widened red-dot near (66, 1028) was not detected; "
+        f"all found dots: {[(round(d.cx), round(d.cy), round(d.radius, 1)) for d in dots]}"
+    )
+
+
+def test_find_red_dots_fixture_keeps_baseline_detection() -> None:
+    """At least the same total dot count as we record at fixture time, so a
+    future tightening of any gate doesn't silently regress the captured
+    frame. The exact count is allowed to grow (additional permissive
+    matches) but must not drop below baseline."""
+    img = cv2.imread(str(WIDENED_BY_COUNTER_FIXTURE))
+    assert img is not None
+    dots = find_red_dots(img, image_h_for_norm=int(img.shape[0]))
+    baseline_count = 5
+    assert len(dots) >= baseline_count, (
+        f"baseline regression: found {len(dots)} dots, expected >= {baseline_count}"
     )

@@ -102,6 +102,53 @@ async def test_overlay_text_enqueue_writes_region_text_to_instance_state(redis_a
 
 
 @pytest.mark.asyncio
+async def test_push_ttl_throttles_repeat_push_per_player(redis_async: object) -> None:
+    """``pushScenario.ttl`` blocks a second push of the same task while the key is alive."""
+    worker = _Worker()
+    worker._redis = redis_async  # type: ignore[assignment]
+
+    results = {
+        "page.worker.add.visible": {
+            "matched": True,
+            "region": "page.worker.add",
+            "pushScenario": [{"name": "assign_worker", "priority": 80_000, "ttl": 300}],
+        },
+    }
+
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    await worker._schedule_overlay_matches(results, active_player="p1")
+
+    assert [c["task_type"] for c in worker._queue.calls] == ["assign_worker"]
+    assert await redis_async.exists("wos:player:p1:push_ttl:assign_worker") == 1  # type: ignore[attr-defined]
+
+    # Different player on the same instance is not blocked by p1's throttle.
+    await worker._schedule_overlay_matches(results, active_player="p2")
+    assert [c["task_type"] for c in worker._queue.calls] == ["assign_worker", "assign_worker"]
+
+
+@pytest.mark.asyncio
+async def test_push_ttl_absent_does_not_throttle(redis_async: object) -> None:
+    worker = _Worker()
+    worker._redis = redis_async  # type: ignore[assignment]
+
+    results = {
+        "skip_text_button.visible": {
+            "matched": True,
+            "region": "skip_text_button",
+            "pushScenario": [{"name": "skip_text_button", "priority": 85_000}],
+        },
+    }
+
+    await worker._schedule_overlay_matches(results, active_player="p1")
+    await worker._schedule_overlay_matches(results, active_player="p1")
+
+    assert [c["task_type"] for c in worker._queue.calls] == [
+        "skip_text_button",
+        "skip_text_button",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_overlay_set_node_writes_current_screen_to_instance_state(redis_async: object) -> None:
     worker = _Worker()
     worker._redis = redis_async  # type: ignore[assignment]

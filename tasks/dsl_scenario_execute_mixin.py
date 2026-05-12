@@ -26,8 +26,6 @@ from tasks.dsl_scenario_helpers import (
     _ocr_store_redis_fields,
     _parse_wait_seconds,
     _read_active_player,
-    _step_red_dot_requirement,
-    _step_tab_active_requirement,
 )
 from ui.notifications import push_ui_notification
 
@@ -466,8 +464,16 @@ class DslScenarioExecuteMixin:
                     )
                     await self._clear_step_context(instance_id)
                     _trace_row(_resumable_step, step, "early_exit", reason="match_guard_failed")
+                    # ``match_guard_failed`` is a *failure* of intent: the
+                    # scenario declared "I need this region present" and it
+                    # wasn't. Marking the task ``success=True`` lumped these
+                    # rows together with real completions in queue history
+                    # (e.g. ``new_chapter`` shows ``reason=match_guard_failed``
+                    # but reads as success). Report it honestly so the UI
+                    # surfaces it as a failure; ``scenario_completed=False``
+                    # in metadata stays as the structural marker.
                     return TaskResult(
-                        success=True,
+                        success=False,
                         next_run_at=None,
                         metadata=_fin(
                             {
@@ -505,22 +511,18 @@ class DslScenarioExecuteMixin:
                 #     interval: 500ms     # also accepts "0.5s" or raw seconds
                 default_attempts = 1 if is_device_level else 5
                 default_interval_s = 0.5
-                default_strict = not is_device_level
-                # A ``while_match`` step carrying ``isRedDot:`` / ``isTabActive:``
-                # is the canonical "if state is on, do X" guard — zero matches
-                # means "state is off, skip cleanly", which is the normal /
-                # expected outcome on every tick where the indicator isn't lit.
-                # Forcing strict here would pop the approval prompt on every
-                # red-dot miss (``claim_trials``, ``claim_vip_rewards``,
-                # ``read_mail_gifts`` per-tab branches, …) so the operator
-                # can't get past the first guard. Treat these as soft guards
-                # by default; YAML can still set ``strict: true`` to override.
-                is_state_check_guard = (
-                    _step_red_dot_requirement(step) is not None
-                    or _step_tab_active_requirement(step) is not None
-                )
-                if is_state_check_guard:
-                    default_strict = False
+                # Scenario ``steps:`` are OR-semantics: each step tries; if a
+                # ``while_match`` finds zero iterations, we just move to the
+                # next step instead of failing the whole scenario. The previous
+                # strict-by-default behavior for player-bound scenarios meant a
+                # missing claim button (popup already closed, wrong screen) would
+                # abort the scenario and pop an approval prompt — but the natural
+                # idiom across our scenarios (``claim_trials``, ``read_mail_gifts``,
+                # ``vip_rewards``, etc.) is "try claim X, then claim Y, then …";
+                # failure of one branch should not prevent the rest from running.
+                # YAML can still set ``strict: true`` to opt into the
+                # "must have done work" check for the rare gate-like step.
+                default_strict = False
                 retry_cfg = step.get("retry")
                 if not isinstance(retry_cfg, dict):
                     retry_cfg = {}

@@ -251,17 +251,56 @@ def fragment_pending_approval_columns(
                     if isinstance(ctx0, dict)
                     else ""
                 )
-                route = f" · `{nav_from}` -> `{nav_to}`" if nav_from or nav_to else ""
+                # Full BFS route (csv) + 1-based destination index of the
+                # current hop. Both come from
+                # ``Navigator._execute_hops`` → ``_tap_region_name``. When
+                # present, render the whole chain with the current
+                # transition emphasised; otherwise fall back to the local
+                # edge for compatibility with non-routed callers.
+                path_csv = (
+                    str(ctx0.get("approval_path") or "").strip()
+                    if isinstance(ctx0, dict)
+                    else ""
+                )
+                try:
+                    hop_idx = (
+                        int(str(ctx0.get("approval_hop_index") or "").strip())
+                        if isinstance(ctx0, dict)
+                        else 0
+                    )
+                except ValueError:
+                    hop_idx = 0
+                path_nodes = [s for s in path_csv.split(",") if s] if path_csv else []
+                if len(path_nodes) >= 2 and 1 <= hop_idx < len(path_nodes):
+                    # Bold the edge ``path[hop_idx-1] → path[hop_idx]`` — that's
+                    # the transition operator is being asked to approve right
+                    # now. Earlier hops are already completed; later hops are
+                    # the planned remainder of the route.
+                    parts: list[str] = []
+                    for i, node in enumerate(path_nodes):
+                        if i == hop_idx - 1 or i == hop_idx:
+                            parts.append(f"**`{node}`**")
+                        else:
+                            parts.append(f"`{node}`")
+                    route_md = " → ".join(parts)
+                else:
+                    route_md = (
+                        f"`{nav_from}` → `{nav_to}`" if nav_from or nav_to else ""
+                    )
+                # For navigation approvals only the route matters; the actual
+                # tap region (e.g. ``from.survivor_status.to.main_city``) is
+                # internal plumbing the operator doesn't need to read. Render
+                # the route alone — the region link still shows up below for
+                # cases where the operator wants to inspect it in Labeling.
+                if route_md:
+                    st.warning(f"Navigation · {route_md}")
                 if reg_disp:
-                    st.warning(f"Navigation click target: `{reg_disp}`{route}")
                     _render_labeling_region_link(
                         ctx=ctx,
                         client=client,
                         inst=inst,
                         reg_name=reg_disp,
                     )
-                elif route:
-                    st.warning(f"Navigation click{route}")
                 _scenario_block()
                 with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
                     st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")

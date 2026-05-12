@@ -12,6 +12,7 @@ import streamlit as st
 from config.loader import load_settings
 from ui.redis_client import (
     QueueHistoryRow,
+    clear_queue_tasks,
     fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
@@ -62,7 +63,7 @@ def _queue_fragment() -> None:
     rows = fetch_queue_rows(client)
     settings = load_settings()
 
-    hdr, refresh_btn = st.columns([5, 1])
+    hdr, clear_btn, refresh_btn = st.columns([4, 1, 1])
     with hdr:
         inst_ids = [i.instance_id for i in settings.instances]
         running_rows = [
@@ -87,6 +88,21 @@ def _queue_fragment() -> None:
             if overdue_n:
                 parts.append(f"**{overdue_n}** overdue")
             st.caption(" · ".join(parts) + " · refreshes every 3 s")
+    with clear_btn:
+        if st.button(
+            "Clear queue",
+            help="Drop all pending tasks across instances (history is preserved).",
+            key="queue_clear_btn",
+            type="primary",
+            disabled=not rows,
+            width="stretch",
+        ):
+            removed = clear_queue_tasks(client)
+            if removed:
+                st.toast(f"Cleared {removed} pending task(s).")
+            else:
+                st.toast("Queue was already empty.")
+            st.rerun()
     with refresh_btn:
         if st.button("🔄", help="Refresh now", key="queue_refresh_btn", width="stretch"):
             st.rerun()

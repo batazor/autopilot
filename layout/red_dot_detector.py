@@ -39,16 +39,23 @@ RED_DOT_RADIUS_PX_MIN_AT_REF = 5
 RED_DOT_RADIUS_PX_MAX_AT_REF = 22
 """Min/max badge radius at ``REFERENCE_IMAGE_HEIGHT``. Scaled per-call."""
 
-RED_DOT_MIN_CIRCULARITY = 0.55
-"""``4 * pi * area / perimeter**2`` — 1.0 is a perfect circle. Aliasing of small
-badges keeps real-world values in the 0.6–0.85 band; 0.55 leaves headroom."""
+RED_DOT_MIN_CIRCULARITY = 0.45
+"""``4 * pi * area / perimeter**2`` — 1.0 is a perfect circle. Aliasing of
+single-digit badges sits in the 0.6–0.85 band; a two-digit counter "11" /
+"12" stretches the badge into a horizontal ellipse whose circularity drops
+to 0.45–0.55. The floor is set so those still pass — false positives from
+non-circular red blobs are filtered by ``RED_DOT_MIN_MEDIAN_SATURATION``
+and ``RED_DOT_MIN_SURROUND_MEDIAN_SATURATION``, not by shape alone."""
 
 RED_DOT_MIN_FILL_RATIO = 0.55
 """Contour area / bbox area. A circle inscribed in a square fills ~78%; the
 bound is loose to absorb digit overlay and 1-px halos."""
 
-RED_DOT_MAX_ASPECT = 1.5
-"""Bbox aspect (max(w,h)/min(w,h)). Real badges are ≈1; banners are ≥3."""
+RED_DOT_MAX_ASPECT = 1.9
+"""Bbox aspect (max(w,h)/min(w,h)). Real badges are ≈1 for a blank dot and
+~1.7 for a two-digit counter ("11" / "12" / "99"). 1.9 gives headroom
+for three-digit counters too without overlapping banner / strip widths
+which sit at ≥3."""
 
 RED_DOT_MIN_MEDIAN_SATURATION = 180
 RED_DOT_MIN_MEDIAN_VALUE = 200

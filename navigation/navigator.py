@@ -105,6 +105,8 @@ class Navigator:
         from_screen: str | None = None,
         to_screen: str | None = None,
         state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
     ) -> bool:
         area_doc = self._load_area_doc()
         tap_variant = f"{region_name}_tap"
@@ -125,6 +127,14 @@ class Navigator:
             approval_context["from_screen"] = from_screen
         if to_screen:
             approval_context["to_screen"] = to_screen
+        # Full path (CSV of screen ids) + 1-based index of the destination
+        # being tapped right now. Both are optional — single-hop / non-route
+        # taps via ``_tap_region_name`` skip them and the approvals UI falls
+        # back to rendering just the local edge as before.
+        if path_csv:
+            approval_context["path"] = path_csv
+        if hop_index is not None:
+            approval_context["hop_index"] = str(hop_index)
         if self._tap_supports_approval_source():
             return bool(
                 self._tap(
@@ -519,7 +529,14 @@ class Navigator:
         dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
         src_screen = str(from_screen or "")
         state_flat = await self._active_player_state_flat(instance_id)
-        for dst_screen, taps in hop_sequences:
+        # Pre-compute the full path so each per-hop approval carries the same
+        # full route and an index of the *destination* of the current hop.
+        # Approvals UI uses this to render the route with the current
+        # transition highlighted (operator sees ``main_city → bold(exploration)
+        # → squad_settings`` rather than just the local edge).
+        full_path: list[str] = [src_screen] + [str(dst) for dst, _ in hop_sequences]
+        path_csv = ",".join(s for s in full_path if s)
+        for hop_idx, (dst_screen, taps) in enumerate(hop_sequences, start=1):
             for point in taps:
                 # Tap steps are always region names (strings).
                 if not self._tap_region_name(
@@ -530,6 +547,8 @@ class Navigator:
                     from_screen=src_screen,
                     to_screen=str(dst_screen),
                     state_flat=state_flat,
+                    path_csv=path_csv,
+                    hop_index=hop_idx,
                 ):
                     logger.info(
                         "Navigator: navigation tap not executed (rejected, blocked, or bad region) "

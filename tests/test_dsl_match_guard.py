@@ -126,6 +126,8 @@ async def test_dsl_match_guard_skips_click_when_region_is_stale(
 
     result = await task.execute("bs1")
 
-    assert result.success is True
+    # Failed guard reports ``success=False`` so queue history surfaces it as
+    # a failure (not a silent ok with ``reason=match_guard_failed``).
+    assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
     assert actions.tapped == []

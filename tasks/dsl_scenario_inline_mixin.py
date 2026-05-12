@@ -786,7 +786,22 @@ class DslScenarioInlineMixin:
         if "wait" in step:
             seconds = _parse_wait_seconds(step.get("wait"))
             if seconds > 0:
-                await asyncio.sleep(seconds)
+                # Chunked sleep so "Run scenario now" can preempt a long ``wait``
+                # without sitting through it. Without this, a multi-second wait
+                # delays cancellation by exactly its duration.
+                chunk = 0.25
+                remaining = seconds
+                while remaining > 0:
+                    step_s = min(chunk, remaining)
+                    await asyncio.sleep(step_s)
+                    remaining -= step_s
+                    if remaining <= 0:
+                        break
+                    ip = await self._inline_preempt_if_needed(
+                        instance_id, scenario_key
+                    )
+                    if ip is not None:
+                        return ip
             return None
         if "push_scenario" in step:
             spec = step.get("push_scenario")

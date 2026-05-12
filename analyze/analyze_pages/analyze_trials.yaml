@@ -11,4 +11,3 @@ overlay:
   pushScenario:
   - name: claim_trials
     priority: 80_000
-    ttl: 30s

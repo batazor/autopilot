@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from config.log_ansi import scenario_log_label
+from config.log_context import set_log_context
 from fsm.states import InstanceState
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.queue import QueueItem
@@ -62,6 +63,11 @@ class InstanceWorkerTasksMixin:
         return await super()._handle_failure(item, error)  # type: ignore[misc]
 
     async def _run_one_queue_item(self, item: QueueItem, task: BaseTask) -> None:
+        # Bind the player to the log context for the duration of this task.
+        # ``inst`` is already bound at supervisor level; ``node`` is refreshed
+        # by the screen detection / overlay analysis loop.
+        if item.player_id:
+            set_log_context(player=item.player_id)
         skip_account = getattr(task, "skip_account_check", False)
         self._task_busy.set()
         started_at = float(time.time())

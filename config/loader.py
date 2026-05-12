@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -17,10 +17,6 @@ class TaskConfig:
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
-    # Legacy: player_ids are now read from db/devices.yaml via config.devices.
-    player_ids: list[str] = field(default_factory=list)
-    # Legacy YAML field; screen capture is ADB-only (ignored).
-    capture_window_title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -76,13 +72,18 @@ def load_settings(path: Path | None = None) -> Settings:
     scheduler_cfg = SchedulerConfig(**raw["scheduler"])
     worker_cfg = WorkerConfig(**raw.get("worker", {}))
 
+    # Each ``db/devices.yaml`` entry maps to one ``InstanceConfig``. Inline
+    # import keeps ``config.devices`` out of the module-level cycle.
+    from config.devices import load_devices as _load_devices
+
+    devices_registry = _load_devices()
     instances = [
         InstanceConfig(
-            instance_id=inst["instance_id"],
-            bluestacks_window_title=inst["bluestacks_window_title"],
-            capture_window_title=inst.get("capture_window_title"),
+            instance_id=d.name,
+            bluestacks_window_title=d.effective_serial,
         )
-        for inst in raw["instances"]
+        for d in devices_registry.devices
+        if d.name.strip()
     ]
     tasks = {tid: TaskConfig(**tcfg) for tid, tcfg in raw["tasks"].items()}
 
