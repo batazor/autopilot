@@ -197,7 +197,14 @@ def fragment_pending_approval_columns(
         )
 
     with col_events:
-        st.subheader("Approvals")
+        st.subheader(
+            "Approvals",
+            help=(
+                "Pending action awaiting approval. Approve to let the bot tap / "
+                "change screen / continue diagnostics; reject to abort. Source: "
+                "Redis click-approval queue."
+            ),
+        )
         req_type = str(payload.get("type") or "").strip().lower()
         ctx0 = payload.get("context")
 
@@ -215,12 +222,10 @@ def fragment_pending_approval_columns(
 
         if req_type == "set_node":
             sn = str(payload.get("set_node") or "").strip()
-            st.caption("Pending **set_node** (needs approval).")
             _scenario_block()
             if sn:
                 st.info(f"Will set **current_screen** to `{sn}`.")
         elif req_type == "diagnostic":
-            st.caption("Pending diagnostic pause (needs approval).")
             _scenario_block()
             diag = str(payload.get("diagnostic") or "").strip()
             reg_disp = str(payload.get("region") or "").strip()
@@ -235,7 +240,7 @@ def fragment_pending_approval_columns(
                 suffix = f" · interval `{interval}s`" if interval else ""
                 st.caption(f"Initial probes `{attempts}`{suffix}")
         else:
-            st.caption("Pending click / ADB input (needs approval).")
+            _scenario_block()
             reg_disp = str(payload.get("region") or "").strip()
             if not reg_disp and isinstance(ctx0, dict):
                 reg_disp = str(ctx0.get("approval_region") or "").strip()
@@ -301,7 +306,6 @@ def fragment_pending_approval_columns(
                         inst=inst,
                         reg_name=reg_disp,
                     )
-                _scenario_block()
                 with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
                     st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
@@ -346,7 +350,6 @@ def fragment_pending_approval_columns(
                     if scr_c:
                         line.append(f"match score `{scr_c}`")
                     st.caption("Overlay · " + " · ".join(line))
-            _scenario_block()
 
         with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")

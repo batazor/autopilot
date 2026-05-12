@@ -21,7 +21,8 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "streamlit>=1.39",
     "streamlit-autorefresh>=1.0",
-    "streamlit-drawable-canvas>=0.9.3",
+    # Local fork — actual install path is controlled by [tool.uv.sources] below.
+    "streamlit-drawable-canvas",
     "st-ant-tree>=0.0.16",
     "pillow>=10.0",
     "streamlit-react-flow>=0.0.3",
@@ -43,14 +44,16 @@ dev = [
 ui = [
     "streamlit>=1.39",
     "streamlit-autorefresh>=1.0",
-    "streamlit-drawable-canvas>=0.9.3",
+    # Local fork — actual install path is controlled by [tool.uv.sources] below.
+    "streamlit-drawable-canvas",
     "st-ant-tree>=0.0.16",
     "pillow>=10.0",
     "streamlit-react-flow>=0.0.3",
 ]
 annotator = [
     "streamlit>=1.39",
-    "streamlit-drawable-canvas>=0.9.3",
+    # Local fork — actual install path is controlled by [tool.uv.sources] below.
+    "streamlit-drawable-canvas",
     "pillow>=10.0",
 ]
 
@@ -64,6 +67,12 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 package = true
+
+[tool.uv.sources]
+# Local fork — adds `wos_active: true` auto-select on the canvas.
+# Rebuild its frontend after edits:
+#   (cd streamlit-plugin/streamlit-drawable-canvas/streamlit_drawable_canvas/frontend && npm run build)
+streamlit-drawable-canvas = { path = "streamlit-plugin/streamlit-drawable-canvas", editable = true }
 
 [tool.hatch.build.targets.wheel]
 packages = [

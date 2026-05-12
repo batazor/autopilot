@@ -228,6 +228,7 @@ steps:
           - wait: 0.5s
       - while_match: button.claim
         isWhiteBorder: true
+        max: 1
         steps:
           - click: button.claim
           - wait: 1s

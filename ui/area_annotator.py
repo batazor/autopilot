@@ -1206,14 +1206,20 @@ def _render_regions_expander(
             return
 
         names = [f"{i}: {regions[i].get('name', '')}" for i in range(len(regions))]
-        cur_idx = int(st.session_state.get("selected_region_idx", -1))
-        idx_init = cur_idx if 0 <= cur_idx < len(regions) else 0
+        # `selected_region_name` is the canonical selection (canvas clicks update
+        # the name; the idx may be stale). Resolve from name, then force the
+        # radio's stored value to match — without a `key` Streamlit keeps the
+        # widget's previous value across reruns and ignores `index=`, so canvas
+        # selections never reach the list.
+        target_idx = _resolve_selected_region_idx(regions)
+        radio_key = f"area_region_radio_{_rk}"
+        st.session_state[radio_key] = target_idx
         r_sel = st.radio(
             "Select region",
             range(len(names)),
             format_func=lambda i: names[i],
-            index=idx_init,
             horizontal=False,
+            key=radio_key,
         )
         st.session_state.selected_region_idx = int(r_sel)
         st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))
@@ -1752,6 +1758,7 @@ def _bbox_to_canvas_rect(
     stroke: str,
     stroke_width: int = 2,
     region_name: str = "",
+    active: bool = False,
 ) -> dict[str, Any]:
     left = bbox["x"] / 100.0 * canvas_w
     top = bbox["y"] / 100.0 * canvas_h
@@ -1779,6 +1786,11 @@ def _bbox_to_canvas_rect(
     rn = str(region_name or "").strip()
     if rn:
         doc["wos_region_name"] = rn
+    if active:
+        # Read by our forked streamlit-drawable-canvas after `loadFromJSON` to
+        # auto-select the matching Fabric object so resize handles appear
+        # without an extra click.
+        doc["wos_active"] = True
     return doc
 
 
@@ -1794,7 +1806,8 @@ def regions_to_initial_drawing(
         if not bbox:
             continue
         aux = bool(reg.get("overlay_auxiliary"))
-        if i == selected_idx:
+        is_selected = i == selected_idx
+        if is_selected:
             stroke = "#22c55e"
         elif aux:
             stroke = "#3b82f6"
@@ -1807,6 +1820,7 @@ def regions_to_initial_drawing(
                 canvas_h,
                 stroke=stroke,
                 region_name=str(reg.get("name") or "").strip(),
+                active=is_selected,
             )
         )
     return {"version": CANVAS_VERSION, "objects": objects}
@@ -1955,6 +1969,27 @@ def _regions_bbox_semantic_sig(regions: list[RegionDict]) -> str:
             ]
         )
     return json.dumps(payload, sort_keys=False, separators=(",", ":"))
+
+
+def _mirror_canvas_selection_into_session(canvas_result: Any) -> None:
+    """Mirror ``canvas_result.active_region_name`` (wos-fork field) into session.
+
+    When the user clicks a rectangle directly on the canvas, the forked
+    ``streamlit-drawable-canvas`` reports the selected region's name; this
+    helper updates ``selected_region_name`` and reruns so the regions radio
+    follows the click. No-op when the field is empty (canvas-side selection
+    is unknown) or already in sync with the session.
+    """
+    if canvas_result is None:
+        return
+    cr_active = (getattr(canvas_result, "active_region_name", "") or "").strip()
+    if not cr_active:
+        return
+    cur_active = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
+    if cr_active == cur_active:
+        return
+    st.session_state.selected_region_name = cr_active
+    st.rerun()
 
 
 def _remember_stale_canvas_sig(sig: str) -> None:
@@ -2548,6 +2583,8 @@ def render_area_annotator_ui(
                                 st.session_state.selected_region_name = prev_sel_name
                             _resolve_selected_region_idx(synced)
 
+                _mirror_canvas_selection_into_session(canvas_result)
+
     else:
         # ----- Standalone: canvas center; regions + save right -----
         with mid_col:
@@ -2623,6 +2660,8 @@ def render_area_annotator_ui(
                             if prev_sel_name:
                                 st.session_state.selected_region_name = prev_sel_name
                             _resolve_selected_region_idx(synced)
+
+                _mirror_canvas_selection_into_session(canvas_result)
 
                 st.caption(
                     "Editing borders: switch to **Move / resize**, click the box, then drag edges or corners. "

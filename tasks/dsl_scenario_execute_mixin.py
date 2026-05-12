@@ -26,6 +26,7 @@ from tasks.dsl_scenario_helpers import (
     _ocr_store_redis_fields,
     _parse_wait_seconds,
     _read_active_player,
+    _read_current_screen,
 )
 from ui.notifications import push_ui_notification
 
@@ -304,6 +305,64 @@ class DslScenarioExecuteMixin:
                     completed=True,
                 ),
             )
+
+        # Pre-flight screen identity gate. When a scenario declares
+        # ``node: <screen>`` it expects ``current_screen`` to be *known* on
+        # entry — even if it doesn't match the target, the navigator needs a
+        # starting point. An empty Redis ``current_screen`` on entry means
+        # ``where_i_am`` hasn't run since the last reset / restart, and
+        # firing the scenario regardless means the navigator does a blind
+        # detect-from-image while the UI shows ``node: —`` (confusing the
+        # operator about whether the bot knows where it is). Defer the
+        # scenario and seed a ``where_i_am`` probe so the next pop has a
+        # resolved screen to anchor against. ``device_level: true``
+        # scenarios opt out — popup dismissals and identity probes
+        # themselves must run regardless of FSM state.
+        if (
+            target_node
+            and self.start_step_index <= 0
+            and not is_device_level
+            and self.redis_client is not None
+        ):
+            cur_screen_at_entry = await _read_current_screen(
+                instance_id, self.redis_client
+            )
+            if not cur_screen_at_entry:
+                with suppress(Exception):
+                    from scheduler.queue import RedisQueue
+                    await RedisQueue(self.redis_client).schedule(
+                        task_id=f"node_gate:where_i_am:{instance_id}:{int(time.time())}",
+                        player_id="",
+                        task_type="where_i_am",
+                        priority=90_000,
+                        run_at=time.time(),
+                        instance_id=instance_id,
+                        skip_if_duplicate=True,
+                    )
+                _trace_row(
+                    0,
+                    {"navigate_to": target_node},
+                    "early_exit",
+                    reason="awaiting_screen_identity",
+                    target=target_node,
+                )
+                logger.info(
+                    "dsl_scenario: deferring %s — current_screen is empty at "
+                    "entry; seeded where_i_am on %s",
+                    _scen(key), instance_id,
+                )
+                return TaskResult(
+                    success=True,
+                    next_run_at=None,
+                    metadata=_fin(
+                        {
+                            "scenario": key,
+                            "reason": "awaiting_screen_identity",
+                            "target_node": target_node,
+                        },
+                        completed=True,
+                    ),
+                )
 
         if target_node and self.start_step_index <= 0:
             nav_ok = await self._navigate_to_node(

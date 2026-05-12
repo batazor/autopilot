@@ -35,6 +35,7 @@ from ui.views.click_approvals.pending import (
     fragment_sync_pending_presence,
 )
 from ui.views.click_approvals.preview import render_preview_with_point
+from ui.views._debug_scenarios_progress import render_active_scenario_progress
 
 settings = load_settings()
 client = require_redis_connection()
@@ -204,6 +205,14 @@ ocr_url = str(getattr(ocr_cfg, "url", "") or "")
 render_header(ctx=_CTX, client=client, ocr_url=ocr_url)
 render_ui_notifications(instance_id, client=client)
 render_heartbeat(ctx=_CTX, client=client)
+# Live progress for the scenario currently running on this instance — pulled
+# from Redis ``current_scenario`` + ``last_active_scenario_step`` so the bar
+# stays visible whether or not there's a pending approval card.
+render_active_scenario_progress(
+    client=client,
+    instance_id=instance_id,
+    repo_root=_REPO,
+)
 st.divider()
 _pending_request()
 st.divider()

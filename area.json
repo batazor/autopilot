@@ -2601,13 +2601,29 @@
           "threshold": 0.9,
           "bbox": {
             "x": 89.76833976833977,
-            "y": 8.369565217391305,
+            "y": 8.804347826086957,
             "width": 5.7992277992278,
-            "height": 3.7,
+            "height": 3.2934782608695654,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "page.vip.increase.close_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.9034749034749,
+            "y": 4.673913043478261,
+            "width": 21.92084942084942,
+            "height": 12.543478260869565,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },

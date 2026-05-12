@@ -786,100 +786,101 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
     all_region_names = _area_region_names(area_doc)
 
-    tab_rule, tab_viz, tab_detectors = st.tabs(["Rule", "Visualization", "Detectors"])
-
-    with tab_rule:
-        fc1, fc2 = st.columns([1.4, 1], vertical_alignment="bottom")
-        with fc1:
-            name_filter = st.text_input(
-                "Filter rule / region / search",
-                value="",
-                key=f"idle_overlay_probe_name_filter::{instance_id}",
-                placeholder="e.g. hand_pointer, button.claim",
-            )
-        with fc2:
-            only_current_node = st.checkbox(
-                "Only rules for current node (+ globals)",
-                value=True,
-                key=f"idle_overlay_probe_only_node::{instance_id}",
-                help=(
-                    "Hide overlay rows whose YAML `screens` gate does not match Redis "
-                    "`current_screen` (first listed screen only). Rows without `screens` "
-                    "stay visible."
-                ),
-            )
-            st.caption(f"`current_screen`: `{current_screen or '—'}`")
-
-        st.caption("Show overlay rules whose action is:")
-        act_cols = st.columns(len(_ACTION_TYPES))
-        action_visible: dict[str, bool] = {}
-        for col, act_name in zip(act_cols, _ACTION_TYPES):
-            with col:
-                action_visible[act_name] = st.checkbox(
-                    act_name,
-                    value=True,
-                    key=f"idle_overlay_probe_act::{instance_id}::{act_name}",
-                )
-
-        q = (name_filter or "").strip().lower()
-        overlay_regions: set[str] = set()
-        visible: list[str] = []
-        for logical in rule_order:
-            payload = results.get(logical)
-            if not isinstance(payload, dict):
-                continue
-            node = str(rule_node.get(logical, "") or "").strip()
-            if (
-                only_current_node
-                and current_screen
-                and node
-                and node.lower() != current_screen.lower()
-            ):
-                continue
-            act_p = str(payload.get("action") or "").strip()
-            if act_p in _ACTION_TYPES and not action_visible.get(act_p, True):
-                continue
-            region_name = str(payload.get("region") or "").strip()
-            sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
-            if region_name:
-                overlay_regions.add(region_name)
-            if q:
-                hay = " ".join([logical, region_name, sr_disp]).lower()
-                if q not in hay:
-                    continue
-            visible.append(f"overlay::{logical}")
-
-        if q:
-            for region_name in all_region_names:
-                if region_name in overlay_regions:
-                    continue
-                if q not in region_name.lower():
-                    continue
-                visible.append(f"area::{region_name}")
-
-        if not visible:
-            st.warning("No overlay rules or area regions match the filters.")
-            return
-
-        def _fmt_rule(ln: str) -> str:
-            if ln.startswith("area::"):
-                reg_name = ln.removeprefix("area::")
-                return f"area.json region · `{reg_name}`"
-            logical = ln.removeprefix("overlay::")
-            pl = results.get(logical)
-            reg = str(pl.get("region") or "") if isinstance(pl, dict) else ""
-            act_disp = str(pl.get("action") or "") if isinstance(pl, dict) else ""
-            suf = f" · `{reg}`" if reg else ""
-            if act_disp:
-                suf += f" · _{act_disp}_"
-            return f"{logical}{suf}"
-
-        sel = st.selectbox(
-            "Overlay rule / area region",
-            visible,
-            key=f"idle_overlay_probe_rule::{instance_id}",
-            format_func=_fmt_rule,
+    # Rule filter + selector stays at the top of the section (full width) —
+    # both the left-column visualization and the right-column tabs need
+    # ``sel``, so we cannot move it inside a tab. Two-column layout follows
+    # once ``sel`` and the derived payload are known.
+    fc1, fc2 = st.columns([1.4, 1], vertical_alignment="bottom")
+    with fc1:
+        name_filter = st.text_input(
+            "Filter rule / region / search",
+            value="",
+            key=f"idle_overlay_probe_name_filter::{instance_id}",
+            placeholder="e.g. hand_pointer, button.claim",
         )
+    with fc2:
+        only_current_node = st.checkbox(
+            "Only rules for current node (+ globals)",
+            value=True,
+            key=f"idle_overlay_probe_only_node::{instance_id}",
+            help=(
+                "Hide overlay rows whose YAML `screens` gate does not match Redis "
+                "`current_screen` (first listed screen only). Rows without `screens` "
+                "stay visible."
+            ),
+        )
+        st.caption(f"`current_screen`: `{current_screen or '—'}`")
+
+    st.caption("Show overlay rules whose action is:")
+    act_cols = st.columns(len(_ACTION_TYPES))
+    action_visible: dict[str, bool] = {}
+    for col, act_name in zip(act_cols, _ACTION_TYPES):
+        with col:
+            action_visible[act_name] = st.checkbox(
+                act_name,
+                value=True,
+                key=f"idle_overlay_probe_act::{instance_id}::{act_name}",
+            )
+
+    q = (name_filter or "").strip().lower()
+    overlay_regions: set[str] = set()
+    visible: list[str] = []
+    for logical in rule_order:
+        payload = results.get(logical)
+        if not isinstance(payload, dict):
+            continue
+        node = str(rule_node.get(logical, "") or "").strip()
+        if (
+            only_current_node
+            and current_screen
+            and node
+            and node.lower() != current_screen.lower()
+        ):
+            continue
+        act_p = str(payload.get("action") or "").strip()
+        if act_p in _ACTION_TYPES and not action_visible.get(act_p, True):
+            continue
+        region_name = str(payload.get("region") or "").strip()
+        sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
+        if region_name:
+            overlay_regions.add(region_name)
+        if q:
+            hay = " ".join([logical, region_name, sr_disp]).lower()
+            if q not in hay:
+                continue
+        visible.append(f"overlay::{logical}")
+
+    if q:
+        for region_name in all_region_names:
+            if region_name in overlay_regions:
+                continue
+            if q not in region_name.lower():
+                continue
+            visible.append(f"area::{region_name}")
+
+    if not visible:
+        st.warning("No overlay rules or area regions match the filters.")
+        return
+
+    def _fmt_rule(ln: str) -> str:
+        if ln.startswith("area::"):
+            reg_name = ln.removeprefix("area::")
+            return f"area.json region · `{reg_name}`"
+        logical = ln.removeprefix("overlay::")
+        pl = results.get(logical)
+        reg = str(pl.get("region") or "") if isinstance(pl, dict) else ""
+        act_disp = str(pl.get("action") or "") if isinstance(pl, dict) else ""
+        suf = f" · `{reg}`" if reg else ""
+        if act_disp:
+            suf += f" · _{act_disp}_"
+        return f"{logical}{suf}"
+
+    sel = st.selectbox(
+        "Overlay rule / area region",
+        visible,
+        key=f"idle_overlay_probe_rule::{instance_id}",
+        format_func=_fmt_rule,
+    )
 
     is_area_region = sel.startswith("area::")
     sel_logical = sel.removeprefix("overlay::")
@@ -887,8 +888,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         area_region = sel.removeprefix("area::")
         pair0 = screen_region_by_name(area_doc, area_region, state_flat=state_flat)
         if pair0 is None:
-            with tab_rule:
-                st.error("Missing area region payload.")
+            st.error("Missing area region payload.")
             return
         entry0, reg0 = pair0
         pay = {
@@ -909,24 +909,16 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     else:
         pay = results.get(sel_logical)
     if not isinstance(pay, dict):
-        with tab_rule:
-            st.error("Missing overlay payload for this rule.")
+        st.error("Missing overlay payload for this rule.")
         return
 
     act = str(pay.get("action") or "").strip()
     nd = "" if is_area_region else str(rule_node.get(sel_logical, "") or "").strip()
 
-    with tab_rule:
-        st.divider()
-        _render_rule_metrics(act=act, pay=pay, instance_id=instance_id, sel=sel)
-        _render_rule_info_line(
-            pay=pay,
-            rule_search_name=rule_search.get(sel_logical, ""),
-            sel_logical=sel_logical,
-            is_area_region=is_area_region,
-            act=act,
-            nd=nd,
-        )
+    st.divider()
+    # Two-column layout: visualization on the left, rule metadata + detectors
+    # on the right (as a 2-tab strip).
+    col_viz, col_meta = st.columns([1, 1], gap="large")
 
     reg_name = str(pay.get("region") or "").strip()
     selected_pair = (
@@ -942,7 +934,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         else None
     )
 
-    with tab_viz:
+    with col_viz:
         st.caption("Toggle which debug layers to draw on the rolling PNG.")
         dl1, dl2, dl3, dl4 = st.columns(4)
         with dl1:
@@ -1121,36 +1113,48 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                     h=h,
                 )
 
-    with tab_detectors:
-        if not reg_name:
-            st.info("Select a rule that has a `region` to run detectors.")
-        elif selected_bbox is None:
-            st.info(
-                f"No `{reg_name}` bbox in area.json — detectors need a labeled bbox."
+    with col_meta:
+        tab_info, tab_detectors = st.tabs(["Rule info", "Detectors"])
+        with tab_info:
+            _render_rule_metrics(act=act, pay=pay, instance_id=instance_id, sel=sel)
+            _render_rule_info_line(
+                pay=pay,
+                rule_search_name=rule_search.get(sel_logical, ""),
+                sel_logical=sel_logical,
+                is_area_region=is_area_region,
+                act=act,
+                nd=nd,
             )
-        else:
-            cap_bits: list[str] = []
-            if reg_name:
-                cap_bits.append(f"region `{reg_name}`")
-            if selected_bbox is not None:
-                bbx = float(selected_bbox.get("x") or 0.0)
-                bby = float(selected_bbox.get("y") or 0.0)
-                bbw = float(selected_bbox.get("width") or 0.0)
-                bbh = float(selected_bbox.get("height") or 0.0)
-                cap_bits.append(
-                    f"bbox `{bbx:.2f}%, {bby:.2f}% · {bbw:.2f}×{bbh:.2f}%`"
+        with tab_detectors:
+            if not reg_name:
+                st.info("Select a rule that has a `region` to run detectors.")
+            elif selected_bbox is None:
+                st.info(
+                    f"No `{reg_name}` bbox in area.json — detectors need a labeled bbox."
                 )
-            st.caption(" · ".join(cap_bits))
-            has_rd_cap = bool(
-                isinstance(selected_reg, dict) and selected_reg.get("has_red_dot")
-            )
-            _run_live_detectors(
-                image_bgr=image_bgr,
-                bbox=selected_bbox,
-                has_red_dot_capability=has_rd_cap,
-                instance_id=instance_id,
-                region_name=reg_name,
-            )
+            else:
+                cap_bits: list[str] = []
+                if reg_name:
+                    cap_bits.append(f"region `{reg_name}`")
+                if selected_bbox is not None:
+                    bbx = float(selected_bbox.get("x") or 0.0)
+                    bby = float(selected_bbox.get("y") or 0.0)
+                    bbw = float(selected_bbox.get("width") or 0.0)
+                    bbh = float(selected_bbox.get("height") or 0.0)
+                    cap_bits.append(
+                        f"bbox `{bbx:.2f}%, {bby:.2f}% · {bbw:.2f}×{bbh:.2f}%`"
+                    )
+                st.caption(" · ".join(cap_bits))
+                has_rd_cap = bool(
+                    isinstance(selected_reg, dict) and selected_reg.get("has_red_dot")
+                )
+                _run_live_detectors(
+                    image_bgr=image_bgr,
+                    bbox=selected_bbox,
+                    has_red_dot_capability=has_rd_cap,
+                    instance_id=instance_id,
+                    region_name=reg_name,
+                )
 
 
 def _render_live_vs_template_crops(

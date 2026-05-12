@@ -222,6 +222,14 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
         _yield_at_step_1,
     )
 
+    # Seed ``current_screen`` so the entry-time screen-identity gate (see
+    # ``DslScenarioExecuteMixin.execute``) lets the scenario proceed to its
+    # first step. Empty ``current_screen`` would otherwise short-circuit
+    # before the preempt-yield logic under test ever runs.
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state", "current_screen", "event.trials"
+    )
+
     task = dsl.DslScenarioTask(
         task_id="t1",
         player_id="p1",

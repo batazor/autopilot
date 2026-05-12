@@ -32,6 +32,7 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
+from ui.views._debug_scenarios_progress import render_step_progress
 from ui.views.click_approvals.chrome import render_ui_notifications
 from ui.views.click_approvals.ctx import ClickApprovalsCtx
 from ui.views.click_approvals.pending import (
@@ -306,23 +307,6 @@ def _render_run_status(
             f"Running {kind}: `{running.task_type}` · player "
             f"`{running.player_id or 'device'}` · started {_rel_time(running.started_at, now)}"
         )
-        # Live step progress — only for the currently selected scenario, otherwise
-        # ``last_active_scenario_step`` belongs to a different task on this instance.
-        if (
-            running.task_type == scenario_key
-            and scenario_total_steps > 0
-            and str(state.get("current_scenario") or "").strip() == scenario_key
-        ):
-            try:
-                step_now = int(state.get("last_active_scenario_step") or 0)
-            except (TypeError, ValueError):
-                step_now = 0
-            step_display = max(0, min(step_now, scenario_total_steps))
-            ratio = step_display / scenario_total_steps if scenario_total_steps > 0 else 0.0
-            st.progress(
-                min(1.0, max(0.0, ratio)),
-                text=f"Step {step_display}/{scenario_total_steps}",
-            )
     else:
         st.success("No task is running on this instance.")
 
@@ -881,6 +865,15 @@ if st.button(
 
 st.divider()
 fragment_sync_pending_presence(inst=inst.instance_id, client=client)
+# Render the progress bar above the approval / screenshot area so it stays
+# in place across both states — operator never loses sight of step X/N,
+# including while a click-approval card is up.
+render_step_progress(
+    client=client,
+    instance_id=inst.instance_id,
+    scenario_key=scenario.key,
+    scenario_total_steps=int(scenario.steps),
+)
 if client.get(ctx.current_key):
     fragment_pending_approval_columns(
         ctx=ctx,
