@@ -75,6 +75,17 @@ and icon panels — whose surround S clusters in [62, 147] across the captured
 character avatars rendered against open background) drop to S≈30. The gate at
 45 cleanly separates them."""
 
+# Strong-badge bypass thresholds — applied to the dot's *own* pixels, not its
+# surround. When all four conditions hold, the surround-saturation gate is
+# skipped: the badge identifies itself by its own clean geometry + colour, and
+# the surround sample is irrelevant. Without this bypass, legitimate dots that
+# sit on intentionally desaturated UI (greyed-out / disabled icons, the silver
+# 1-min speedup tile) were rejected even though they were perfect red circles.
+RED_DOT_CLEAN_BYPASS_MIN_MEDIAN_SATURATION = 210
+RED_DOT_CLEAN_BYPASS_MIN_MEDIAN_VALUE = 240
+RED_DOT_CLEAN_BYPASS_MIN_CIRCULARITY = 0.75
+RED_DOT_CLEAN_BYPASS_MIN_FILL_RATIO = 0.60
+
 
 # ---------------------------------------------------------------------------
 # Winter-event "frost badge" variant

@@ -2,7 +2,9 @@
 
 Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via a separate OCR HTTP service.
 
-<a href="https://discord.gg/G8encVpD9"><img src="https://img.shields.io/badge/Join_our_Discord-%235865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+<p align="center">
+  <a href="https://discord.gg/G8encVpD9"><img src="https://img.shields.io/badge/Join_our_Discord-%235865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
+</p>
 
 ## ✨ Key Features
 
