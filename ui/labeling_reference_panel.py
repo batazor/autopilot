@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 from pathlib import Path
 
@@ -130,12 +131,15 @@ def render_labeling_reference_column(
 
             sel = stored_raw if isinstance(stored_raw, str) else None
             one = _ant_tree_single_value(picked)
-            if one and (ref_root / one).is_file():
-                # When a pending temporal capture is active, the tree still renders with a
-                # non-temporal defaultValue. AntTree will often emit that default on rerun
-                # even without user interaction — do not treat it as an explicit selection.
-                if not is_temporal_sel or one != stored_for_tree:
-                    sel = one
+            # When a pending temporal capture is active, the tree still renders with a
+            # non-temporal defaultValue. AntTree will often emit that default on rerun
+            # even without user interaction — do not treat it as an explicit selection.
+            if (
+                one
+                and (ref_root / one).is_file()
+                and (not is_temporal_sel or one != stored_for_tree)
+            ):
+                sel = one
             if not sel or not (ref_root / sel).is_file():
                 sel = stored_for_tree
             # Only overwrite selection when it is a real file under references/.
@@ -231,10 +235,8 @@ def render_labeling_reference_column(
                         st.session_state[LABELING_REF_TREE_NONCE] = (
                             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
                         )
-                        try:
+                        with contextlib.suppress(Exception):
                             st.query_params["ref"] = new_rel
-                        except Exception:
-                            pass
                         st.rerun()
                     st.error(msg) if not ok else None
                     if not ok:
@@ -333,14 +335,15 @@ def render_labeling_reference_column(
                     "This cannot be undone."
                 )
                 yes_col, no_col = st.columns(2)
-                with yes_col:
-                    with st.container(key=f"labeling-delete-confirm-{labeling_basename_widget_key(sel_out)}"):
-                        if st.button(
-                            "Yes, delete",
-                            key="labeling_delete_yes",
-                            icon=":material/delete_forever:",
-                            width="stretch",
-                        ):
+                with yes_col, st.container(
+                    key=f"labeling-delete-confirm-{labeling_basename_widget_key(sel_out)}"
+                ):
+                    if st.button(
+                        "Yes, delete",
+                        key="labeling_delete_yes",
+                        icon=":material/delete_forever:",
+                        width="stretch",
+                    ):
                             n_entries, n_crops, n_err = delete_reference_completely(
                                 repo_root=ref_root.parent,
                                 ref_root=ref_root,

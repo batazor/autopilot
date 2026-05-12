@@ -493,9 +493,8 @@ def _render_steps_list(
                 _move(steps, idx, -1)
             elif action == "dn":
                 _move(steps, idx, +1)
-            elif action == "rm":
-                if 0 <= idx < len(steps):
-                    steps.pop(idx)
+            elif action == "rm" and 0 <= idx < len(steps):
+                steps.pop(idx)
         st.rerun()
 
 
@@ -717,24 +716,23 @@ st.session_state[_selected_path_key()] = chosen
 if str(st.query_params.get("scenario") or "") != chosen_stem:
     st.query_params["scenario"] = chosen_stem
 
-with top_new:
-    with st.popover("New", width="stretch", help="Create a new scenario YAML."):
-        new_domain = st.selectbox("domain", sorted(DOMAINS_EDITABLE), key="es::newdom")
-        new_key = st.text_input("file key", placeholder="e.g. dismiss_popup", key="es::newkey")
-        if st.button("Create", key="es::newbtn", type="primary", width="stretch"):
-            key = _safe_filename(new_key)
-            new_path = _scenarios_root() / new_domain / f"{key}.yaml"
-            if new_path.exists():
-                st.error(f"already exists: {new_path.relative_to(_scenarios_root())}")
-            elif not new_key.strip():
-                st.error("file key is required")
-            else:
-                new_path.parent.mkdir(parents=True, exist_ok=True)
-                stub = {"name": key.replace("_", " "), "enabled": False, "steps": []}
-                new_path.write_text(yaml.safe_dump(stub, sort_keys=False), encoding="utf-8")
-                st.session_state[_selected_path_key()] = new_path.relative_to(_scenarios_root()).as_posix()
-                st.session_state.pop(_doc_session_key(new_path), None)
-                st.rerun()
+with top_new, st.popover("New", width="stretch", help="Create a new scenario YAML."):
+    new_domain = st.selectbox("domain", sorted(DOMAINS_EDITABLE), key="es::newdom")
+    new_key = st.text_input("file key", placeholder="e.g. dismiss_popup", key="es::newkey")
+    if st.button("Create", key="es::newbtn", type="primary", width="stretch"):
+        key = _safe_filename(new_key)
+        new_path = _scenarios_root() / new_domain / f"{key}.yaml"
+        if new_path.exists():
+            st.error(f"already exists: {new_path.relative_to(_scenarios_root())}")
+        elif not new_key.strip():
+            st.error("file key is required")
+        else:
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            stub = {"name": key.replace("_", " "), "enabled": False, "steps": []}
+            new_path.write_text(yaml.safe_dump(stub, sort_keys=False), encoding="utf-8")
+            st.session_state[_selected_path_key()] = new_path.relative_to(_scenarios_root()).as_posix()
+            st.session_state.pop(_doc_session_key(new_path), None)
+            st.rerun()
 
 with top_run:
     st.link_button(

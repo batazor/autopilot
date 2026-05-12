@@ -183,6 +183,110 @@ def test_require_approval_reaps_stale_pending_request_from_previous_scenario(
     assert current["context"]["scenario"] == "ads_rookie_value_pack"
 
 
+def test_require_approval_reaps_orphan_pending_with_empty_old_scenario(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """A pending approval with empty ``context.scenario`` is an orphan from a
+    previous worker session (or pre-DSL publisher) — when a new task tries to
+    publish, the orphan must be reaped, not preserved as "unknown owner".
+
+    Regression: pre-fix, ``_clear_stale_approval_current`` early-returned on
+    empty ``old_scenario`` and the orphan blocked the next worker forever.
+    """
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={"current_scenario": "tap_reconnect_button"},
+    )
+    r.set(
+        "wos:ui:click_approval:current:bs1",
+        json.dumps(
+            {
+                "request_id": "adb:bs1:orphan",
+                "response_key": "wos:ui:click_approval:response:adb:bs1:orphan",
+                "status": "waiting",
+                "created_at": 1,  # ancient → past the stale threshold
+                "context": {},  # no scenario field — the orphan signature
+            }
+        ),
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 10, "y": 20})
+
+    assert ok is True
+    assert req_id is not None
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == req_id  # new request, not the orphan
+    assert current["context"]["scenario"] == "tap_reconnect_button"
+
+
+def test_clear_stale_approval_preserves_known_owner_when_new_scenario_empty(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """Inverse of the orphan-reap path: if the NEW publisher can't identify
+    itself (``new_context.scenario`` is empty), we must NOT clobber the
+    existing known-owner approval. Tested directly on the helper to isolate
+    the polarity check from ``_require_approval``'s broader publish flow."""
+    r = _RedisProxy(redis_sync)
+    r.set(
+        "wos:ui:click_approval:current:bs1",
+        json.dumps(
+            {
+                "request_id": "adb:bs1:known_owner",
+                "response_key": "wos:ui:click_approval:response:adb:bs1:known_owner",
+                "status": "waiting",
+                "created_at": 1,  # ancient
+                "context": {"scenario": "ads_rookie_value_pack"},
+            }
+        ),
+    )
+    _patch_redis(monkeypatch, r)
+
+    tap._clear_stale_approval_current(
+        instance_id="bs1",
+        current_key="wos:ui:click_approval:current:bs1",
+        new_context={},  # empty new_scenario → can't claim
+    )
+
+    # Original known-owner approval survives unchanged.
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == "adb:bs1:known_owner"
+    assert current["context"]["scenario"] == "ads_rookie_value_pack"
+
+
+def test_clear_stale_approval_preserves_same_scenario_resume(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """Both old and new identify as the same scenario → cooperative-preempt
+    resume case. Don't clobber: the task is re-publishing its OWN approval."""
+    r = _RedisProxy(redis_sync)
+    r.set(
+        "wos:ui:click_approval:current:bs1",
+        json.dumps(
+            {
+                "request_id": "adb:bs1:resume",
+                "response_key": "wos:ui:click_approval:response:adb:bs1:resume",
+                "status": "waiting",
+                "created_at": 1,
+                "context": {"scenario": "ads_rookie_value_pack"},
+            }
+        ),
+    )
+    _patch_redis(monkeypatch, r)
+
+    tap._clear_stale_approval_current(
+        instance_id="bs1",
+        current_key="wos:ui:click_approval:current:bs1",
+        new_context={"scenario": "ads_rookie_value_pack"},
+    )
+
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == "adb:bs1:resume"
+
+
 def test_require_approval_set_node_drops_stale_task_region(
     monkeypatch: Any, redis_sync: Any
 ) -> None:
@@ -209,7 +313,10 @@ def test_require_approval_set_node_drops_stale_task_region(
     assert req_id is not None
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
     assert current["type"] == "set_node"
-    assert current["context"]["current_task_region"] == ""
+    # ``current_task_region`` is dropped because empty for ``set_node`` —
+    # the publisher omits empty-string fields. UI reads via ``.get(k) or ""``
+    # so absence is indistinguishable from empty.
+    assert current["context"].get("current_task_region", "") == ""
     assert current["context"]["current_task_player"] == "765502864"
     assert current["context"]["scenario"] == "ads_rookie_value_pack"
 
@@ -247,7 +354,8 @@ def test_require_approval_navigation_drops_stale_task_region(
 
     assert ok is True
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
-    assert current["context"]["current_task_region"] == ""
+    # ``current_task_region`` is dropped because empty for navigation taps.
+    assert current["context"].get("current_task_region", "") == ""
     assert current["context"]["approval_source"] == "navigation"
     assert current["context"]["approval_from_screen"] == "chief_profile"
     assert current["context"]["approval_to_screen"] == "main_city"
@@ -265,6 +373,101 @@ def test_require_approval_tap_keeps_task_region(monkeypatch: Any, redis_sync: An
     assert ok is True
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
     assert current["context"]["current_task_region"] == "ads_rookie_value_pack"
+
+
+def test_require_approval_context_strips_empty_fields(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """The published ``context`` must not carry the 23+ ``dsl_last_*`` audit
+    keys when the corresponding Redis hash fields are absent. UI consumers
+    read every field via ``ctx.get(k) or ""`` so an absent key behaves the
+    same as ``""`` — and keeping them in the JSON wastes ~1 KB per request
+    for noise. ``"0"`` and other falsy-but-meaningful strings must survive.
+    """
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={
+            "current_screen": "main_city",
+            "current_task_player": "765502864",
+            "current_task_text": "KSA]sgSc",
+            "current_task_confidence": "0.7257",
+            # Real falsy value — must NOT be filtered out.
+            "current_task_patch_bright_ratio": "0",
+            "current_scenario": "read_mail_gifts",
+            # All ``dsl_last_*`` keys are intentionally absent.
+        },
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {
+            "type": "tap",
+            "x": 1,
+            "y": 2,
+            "region": "mail.new",
+            "approval_source": "navigation",
+            "approval_context": {"from_screen": "main_city", "to_screen": "mail"},
+        },
+    )
+    assert ok is True
+    ctx = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")["context"]
+
+    # Populated fields survive.
+    assert ctx["current_screen"] == "main_city"
+    assert ctx["current_task_player"] == "765502864"
+    assert ctx["current_task_text"] == "KSA]sgSc"
+    assert ctx["current_task_confidence"] == "0.7257"
+    assert ctx["scenario"] == "read_mail_gifts"
+    # ``"0"`` is a meaningful value — must NOT be stripped.
+    assert ctx["current_task_patch_bright_ratio"] == "0"
+    # Mirrored approval fields (consumers read these from ctx, not top-level).
+    assert ctx["approval_source"] == "navigation"
+    assert ctx["approval_from_screen"] == "main_city"
+    assert ctx["approval_to_screen"] == "mail"
+    assert ctx["approval_region"] == "mail.new"
+
+    # All these were empty in Redis → must be absent from the published ctx.
+    omitted = [
+        "current_task_region",
+        "current_task_threshold",
+        "current_task_score",
+        "current_task_template_bright_ratio",
+        "current_task_match_top_left_x",
+        "current_task_match_top_left_y",
+        "current_task_template_w",
+        "current_task_template_h",
+        "current_task_tap_match_x_pct",
+        "current_task_tap_match_y_pct",
+        "dsl_last_match_region",
+        "dsl_last_match_threshold",
+        "dsl_last_match_score",
+        "dsl_last_match_matched",
+        "dsl_last_match_detail",
+        "dsl_last_match_at",
+        "dsl_last_match_top_left_x",
+        "dsl_last_match_top_left_y",
+        "dsl_last_match_template_w",
+        "dsl_last_match_template_h",
+        "dsl_last_match_search_region",
+        "dsl_last_match_tap_x_pct",
+        "dsl_last_match_tap_y_pct",
+        "dsl_last_match_tap_match_x_pct",
+        "dsl_last_match_tap_match_y_pct",
+        "dsl_last_ocr_region",
+        "dsl_last_ocr_store",
+        "dsl_last_ocr_status",
+        "dsl_last_ocr_threshold",
+        "dsl_last_ocr_confidence",
+        "dsl_last_ocr_raw_text",
+        "dsl_last_ocr_value",
+        "dsl_last_ocr_at",
+    ]
+    leaked = [k for k in omitted if k in ctx]
+    assert leaked == [], f"empty fields leaked into context: {leaked}"
 
 
 def test_require_approval_tap_uses_dsl_last_match_position_context(
@@ -327,26 +530,79 @@ def test_require_approval_tap_includes_threshold_and_score_context(
 def test_require_approval_tap_falls_back_to_last_overlay_hints(
     monkeypatch: Any, redis_sync: Any
 ) -> None:
+    """Overlay-hint fallback fires only when ``last_overlay_match_region``
+    matches the current task's region — otherwise we'd splice in stale text
+    from an unrelated rule (the bug that surfaced on ``tap_reconnect_button``
+    showing "Appoint Survivor..." text from an earlier ``chapter.task``
+    overlay cycle)."""
     r = _RedisProxy(redis_sync, approve_on_current=True)
     r.set("wos:ui:click_approval:enabled:bs1", "1")
     r.set("wos:ui:click_approval:heartbeat:bs1", "1")
     r.hset(
         "wos:instance:bs1:state",
         mapping={
+            "current_task_region": "chapter.task",
             "current_task_threshold": "",
             "current_task_score": "",
+            "last_overlay_match_region": "chapter.task",
             "last_overlay_match_threshold": "0.92",
             "last_overlay_match_score": "0.951",
         },
     )
     _patch_redis(monkeypatch, r)
 
-    ok, _req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {"type": "tap", "x": 1, "y": 2, "region": "chapter.task"},
+    )
 
     assert ok is True
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
     assert current["context"]["current_task_threshold"] == "0.92"
     assert current["context"]["current_task_score"] == "0.951"
+
+
+def test_require_approval_tap_does_not_borrow_overlay_hints_from_other_region(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """The fix: when the last overlay touched a DIFFERENT region than the
+    current task, its hints must not bleed into the current approval. This
+    is exactly the ``tap_reconnect_button`` case — operator was seeing
+    ``"Appoint 3 Survivor(s) to Iron Mine"`` (from a stale ``chapter.task``
+    overlay) attributed to the reconnect tap."""
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={
+            "current_task_region": "reconnect_button",
+            "current_task_threshold": "",
+            "current_task_text": "",
+            "last_overlay_match_region": "chapter.task",
+            "last_overlay_match_threshold": "0.92",
+            "last_overlay_text": "Appoint 3 Survivor(s) to Iron Mine work role",
+            "last_overlay_confidence": "0.9977",
+        },
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {"type": "tap", "x": 1, "y": 2, "region": "reconnect_button"},
+    )
+
+    assert ok is True
+    ctx = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")["context"]
+    # The stale ``Appoint Survivor`` text from the prior overlay cycle must
+    # NOT leak into this task's context. Empty-field stripping (see
+    # ``test_require_approval_context_strips_empty_fields``) means those
+    # keys are absent rather than empty strings.
+    assert "current_task_text" not in ctx
+    assert "current_task_threshold" not in ctx
+    assert "current_task_confidence" not in ctx
+    # ``approval_region`` still surfaces the actual task region for the UI.
+    assert ctx["approval_region"] == "reconnect_button"
 
 
 def test_require_approval_aborts_on_foreign_request(monkeypatch: Any, redis_sync: Any) -> None:
@@ -359,3 +615,76 @@ def test_require_approval_aborts_on_foreign_request(monkeypatch: Any, redis_sync
 
     assert ok is False
     assert req_id is not None
+
+
+def test_require_approval_calls_preview_capturer_before_publish(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """Caller-attached ``_preview_capturer`` must fire right before the SET so
+    the published payload carries a screenshot from the actual decision moment,
+    not from the pre-publish cache that may be many seconds old when the slot
+    is contended. The callback gets the payload dict and is responsible for
+    mutating ``preview_png_rel`` / ``preview_captured_at``."""
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    _patch_redis(monkeypatch, r)
+
+    fired = {"n": 0}
+
+    def _capture(payload: dict[str, Any]) -> None:
+        fired["n"] += 1
+        payload["preview_png_rel"] = "temporal/fresh.png"
+        payload["preview_captured_at"] = 9999.0
+
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {
+            "type": "tap",
+            "x": 1,
+            "y": 2,
+            "preview_png_rel": "temporal/stale.png",
+            "preview_captured_at": 1.0,
+            "_preview_capturer": _capture,
+        },
+    )
+
+    assert ok is True
+    assert fired["n"] >= 1, "capturer must fire at least once before publish"
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["preview_png_rel"] == "temporal/fresh.png"
+    assert current["preview_captured_at"] == 9999.0
+    # The private callback must NOT leak into the serialised Redis payload.
+    assert "_preview_capturer" not in current
+
+
+def test_require_approval_survives_capturer_exception(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """If the preview-refresh callable raises (e.g. ADB hiccup during the
+    publish wait), the approval flow still publishes — we'd rather have a
+    slightly stale preview than no approval at all."""
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    _patch_redis(monkeypatch, r)
+
+    def _explode(_payload: dict[str, Any]) -> None:
+        raise RuntimeError("ADB unreachable")
+
+    ok, _req_id = tap._require_approval(
+        "bs1",
+        {
+            "type": "tap",
+            "x": 1,
+            "y": 2,
+            "preview_png_rel": "temporal/cached.png",
+            "preview_captured_at": 1.0,
+            "_preview_capturer": _explode,
+        },
+    )
+
+    assert ok is True
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    # Falls back to the originally-cached preview from the caller.
+    assert current["preview_png_rel"] == "temporal/cached.png"

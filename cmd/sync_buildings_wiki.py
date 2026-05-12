@@ -11,7 +11,6 @@ import httpx
 import yaml
 from bs4 import BeautifulSoup, Tag
 
-
 _BASE = "https://www.whiteoutsurvival.wiki"
 _INDEX = f"{_BASE}/buildings/"
 

@@ -3,10 +3,9 @@ overlay:
   region: mail.new
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: read_mail_gifts
-    priority: 80_000
     ttl: 1m
 
 - name: new_chapter.visible
@@ -14,7 +13,7 @@ overlay:
   action: findIcon
   threshold: 0.9
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: new_chapter
     priority: 80_000
@@ -24,7 +23,7 @@ overlay:
   region: chapter.new
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: new_chapter
     priority: 80_000
@@ -35,7 +34,7 @@ overlay:
   action: findIcon
   threshold: 0.92
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: is_new_people
     priority: 80_000
@@ -45,7 +44,7 @@ overlay:
   region: isWorkers
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: assign_worker
     priority: 80_000
@@ -56,7 +55,7 @@ overlay:
   action: findIcon
   threshold: 0.9
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: isPostman
     priority: 80_000
@@ -67,7 +66,7 @@ overlay:
   threshold: 0.98
   isRedDot: true
   screens:
-  - main_city
+    - main_city
   pushScenario:
   - name: claim_exploration_rewards
     ttl: 1m

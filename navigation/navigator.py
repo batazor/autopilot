@@ -13,10 +13,11 @@ from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Region
-from navigation.detector import ScreenDetector, ScreenName
+
 # Side-effect import: registers `event_blocks` resolver with screen_graph
 # so dynamic edges in edge_taps.yaml can resolve at runtime.
 from navigation import event_blocks_resolver  # noqa: F401
+from navigation.detector import ScreenDetector, ScreenName
 from navigation.screen_graph import (
     route_hops_async,
     screen_verify_retry,
@@ -341,6 +342,20 @@ class Navigator:
         return ""
 
     async def navigate_to(self, target: ScreenName, instance_id: str) -> bool:
+        # Track consecutive ``UNKNOWN`` ticks where neither the screen
+        # detector nor the back-button heuristic finds anything actionable.
+        # That state means something opaque (typically a full-screen ad
+        # popup) is overlaying the UI: the navigator alone can't dismiss it,
+        # and looping for the full 10 attempts blocks the worker for ~15s
+        # while the overlay scanner — which would push ``tap_ads_*`` /
+        # ``skip_button`` / etc. — is starved on the same worker thread.
+        # Bailing after a couple of these stuck ticks lets the scenario
+        # fail fast; the queue then runs the higher-priority popup
+        # dismissal, and the natural re-push (identity probe, overlay,
+        # cron) brings the scenario back when the screen is clear.
+        _UNKNOWN_NO_BACK_LIMIT = 2
+        consec_unknown_no_back = 0
+
         for attempt in range(10):
             state_flat = await self._active_player_state_flat(instance_id)
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
@@ -352,14 +367,17 @@ class Navigator:
 
             if current == ScreenName.UNKNOWN:
                 logger.warning(
-                    "Unknown screen on %s attempt %d",
+                    "Navigator: screen not recognized (target=%s, instance=%s, "
+                    "navigate_attempt=%d/10); will tap back if back_button is visible",
+                    target,
                     instance_id,
-                    attempt,
+                    attempt + 1,
                 )
                 await self._write_screen(instance_id, "")
                 img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
                 if await self._ui_back_button_visible(img):
+                    consec_unknown_no_back = 0
                     if not self._tap_region_name(
                         instance_id,
                         "back_button",
@@ -378,13 +396,30 @@ class Navigator:
                         )
                         return False
                 else:
+                    consec_unknown_no_back += 1
                     logger.warning(
-                        "Unknown screen on %s attempt %d — back_button not visible; not tapping",
+                        "Navigator: screen not recognized (target=%s, instance=%s, "
+                        "navigate_attempt=%d/10); back_button not visible — "
+                        "skipping back tap (consec=%d/%d)",
+                        target,
                         instance_id,
-                        attempt,
+                        attempt + 1,
+                        consec_unknown_no_back,
+                        _UNKNOWN_NO_BACK_LIMIT,
                     )
+                    if consec_unknown_no_back >= _UNKNOWN_NO_BACK_LIMIT:
+                        logger.info(
+                            "Navigator: %d consecutive UNKNOWN-no-back ticks for %s "
+                            "(target=%s) — bailing so overlay scanner can dismiss "
+                            "the blocker (ad / popup / loading frame)",
+                            consec_unknown_no_back, instance_id, target,
+                        )
+                        return False
                 await asyncio.sleep(1.5)
                 continue
+            # Recognised some screen (just not the target) — reset the
+            # stuck-UNKNOWN counter; the loop is making progress.
+            consec_unknown_no_back = 0
 
             # Try direct BFS route (src → dst).
             hop_sequences = await route_hops_async(

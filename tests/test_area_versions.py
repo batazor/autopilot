@@ -17,7 +17,6 @@ from layout.area_versions import (
     resolve_region_with_version,
 )
 
-
 # ---- eval_cond ------------------------------------------------------------
 
 

@@ -99,8 +99,12 @@ _COLOR_WORD_ALIASES: dict[str, str] = {
 }
 
 # Simple guard for DSL steps, e.g. ``cond: currentNode != main_city`` (skip when false).
+# LHS is anchored to the known screen tokens — otherwise the regex would
+# greedily capture any ``word op word`` cond (e.g. ``active_player != null``)
+# and route it through screen-cond before text-cond gets a look-in.
 _COND_SCREEN_RE = re.compile(
-    r"^\s*(?P<lhs>[\w]+)\s*(?P<op>==|!=)\s*(?P<rhs>[\w.-]+)\s*$",
+    r"^\s*(?P<lhs>currentNode|current_node|current_screen)\s*(?P<op>==|!=)\s*(?P<rhs>[\w.-]+)\s*$",
+    re.IGNORECASE,
 )
 _COND_SCREEN_LHS = frozenset({"currentnode", "current_node", "current_screen"})
 # RHS tokens that mean Redis ``current_screen`` is unset / overlay ``screens: [none]``.
@@ -115,6 +119,12 @@ _COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
 _COND_TEXT_RE = re.compile(
     r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
 )
+# Bare RHS tokens that mean "field is unset / empty". Lets scenarios write
+# ``cond: active_player != null`` to gate on ``who_i_am`` having completed —
+# the canonical idiom for "this scenario needs a player binding". Without
+# this normalisation the rhs would be the literal string ``"null"`` and the
+# comparison would always succeed when the field holds a real player id.
+_COND_TEXT_EMPTY_TOKENS = frozenset({"null", "nil", "none", "empty"})
 
 # ``loop`` / ``repeat`` / ``while_match`` also nest ``steps``; composite blocks use only ``cond`` + ``steps``.
 _DSL_STEP_ACTION_KEYS = frozenset({
@@ -311,6 +321,13 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
         cur = await _read_instance_state_field(instance_id, lhs, redis_async)
     cur_lc = cur.strip().lower()
     rhs_lc = rhs.strip().lower()
+    # Bare ``null`` / ``none`` / ``nil`` / ``empty`` on the right-hand side
+    # means "the field has no value" — without this normalisation a scenario
+    # writing ``cond: active_player != null`` would compare against the
+    # literal string ``"null"`` and almost always pass, defeating the gate.
+    # Quoted forms (e.g. ``!= "null"``) keep their literal meaning.
+    if rhs_lc in _COND_TEXT_EMPTY_TOKENS and (m.group("rhs") or "").strip()[:1] not in {'"', "'"}:
+        rhs_lc = ""
     if op == "~=":
         parts = [p.strip() for p in rhs_lc.split("|")]
         alts = [p for p in parts if p]
@@ -439,6 +456,79 @@ def _load_area_json(repo_root: Path) -> dict[str, Any]:
     except Exception:
         return {}
     return raw if isinstance(raw, dict) else {}
+
+
+def _collect_ocr_store_targets(steps: Any) -> list[tuple[str, str]]:
+    """Walk a scenario step tree and return every ``ocr:`` store target.
+
+    ``store:`` writes to a Redis hash (player or instance scope, defaulting
+    to player) — it is documented as scenario-step scoped, so the values
+    must NOT persist across runs. This helper enumerates the fields a
+    fresh scenario will overwrite so the runner can ``HDEL`` them up front,
+    eliminating the "stale ``squad_status`` from the previous fight matches
+    the loop's exit cond on iter 0" class of bug.
+
+    Returns a list of ``(scope, field_name)`` pairs. Scope is normalised to
+    ``"player"`` or ``"instance"``. ``state:`` paths (long-lived, written
+    to ``db/state.yaml``) are intentionally NOT included.
+    """
+    out: list[tuple[str, str]] = []
+    if not isinstance(steps, list):
+        return out
+
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+
+        if "ocr" in step:
+            region = str(step.get("ocr") or "").strip()
+            raw_store = step.get("store")
+            raw_state = step.get("state")
+            # Resolve target field — explicit ``store:`` wins, else legacy
+            # default ``store: <region>`` applies (only when ``state:`` is
+            # also absent, matching ``DslOcrMixin._persist_ocr_result``).
+            if raw_store is not None and isinstance(raw_store, str) and raw_store.strip():
+                field = raw_store.strip()
+            elif raw_store is None and raw_state is None and region:
+                field = region
+            else:
+                field = ""
+            if field:
+                scope_raw = step.get("scope")
+                scope = str(scope_raw).strip().lower() if isinstance(scope_raw, str) else "player"
+                if scope not in {"player", "instance"}:
+                    scope = "player"
+                out.append((scope, field))
+
+        # Recurse into nested steps. Both bare ``steps:`` groups and
+        # composite blocks (``loop:`` / ``repeat:`` carrying their own
+        # ``steps:``) need walking — store writes can be deeply nested.
+        nested = step.get("steps")
+        if isinstance(nested, list):
+            out.extend(_collect_ocr_store_targets(nested))
+        for spec_key in ("loop", "repeat"):
+            spec = step.get(spec_key)
+            if isinstance(spec, dict):
+                inner = spec.get("steps")
+                if isinstance(inner, list):
+                    out.extend(_collect_ocr_store_targets(inner))
+
+    return out
+
+
+_OCR_STORE_SIBLING_SUFFIXES: tuple[str, ...] = ("", "_text", "_confidence", "_at")
+"""``DslOcrMixin._persist_ocr_result`` writes 4 fields per ``store:`` target.
+Clearing only the bare field leaves the siblings as orphans — explicitly
+include all four when wiping at scenario start."""
+
+
+def _ocr_store_redis_fields(field: str) -> list[str]:
+    """Expand a store target name into the 4 Redis hash fields written by
+    ``DslOcrMixin._persist_ocr_result``."""
+    base = str(field or "").strip()
+    if not base:
+        return []
+    return [f"{base}{suffix}" for suffix in _OCR_STORE_SIBLING_SUFFIXES]
 
 
 def _parse_wait_seconds(value: object) -> float:

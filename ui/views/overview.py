@@ -186,7 +186,8 @@ def _device_status_cell(row: dict[str, str]) -> str:
     if row.get("paused") == "1":
         return "🔴 paused"
     st_val = (row.get("state") or "").strip().lower()
-    # Heartbeat-based liveness: state can be stale (e.g. restarting stuck) even while worker is alive.
+    # Heartbeat-based liveness: state can be stale (e.g. restarting stuck)
+    # even while worker is alive.
     alive = _is_recent(row.get("last_seen_at") or "", max_age_s=10.0)
     if st_val in {"restarting", "crashed"}:
         return f"{'🟡' if alive else '🔴'} {st_val}{' (alive)' if alive else ''}"
@@ -300,7 +301,8 @@ def _dashboard() -> None:
                         width="stretch",
                     ):
                         push_instance_command(client, inst.instance_id, {"cmd": "resume"})
-                        st.session_state.overview_feedback = f"`{inst.instance_id}`: resume sent to worker."
+                        iid = inst.instance_id
+                        st.session_state.overview_feedback = f"`{iid}`: resume sent to worker."
                         st.rerun()
                 else:
                     if st.button(
@@ -310,7 +312,8 @@ def _dashboard() -> None:
                         width="stretch",
                     ):
                         push_instance_command(client, inst.instance_id, {"cmd": "pause"})
-                        st.session_state.overview_feedback = f"`{inst.instance_id}`: pause sent to worker."
+                        iid = inst.instance_id
+                        st.session_state.overview_feedback = f"`{iid}`: pause sent to worker."
                         st.rerun()
             with r[7]:
                 st.page_link(
@@ -342,7 +345,8 @@ def _dashboard() -> None:
             )
             for device in db_registry.devices:
                 gamers = device.all_gamers()
-                label = f"Players · {device.name} ({len(gamers)} account{'s' if len(gamers) != 1 else ''})"
+                acct = "account" if len(gamers) == 1 else "accounts"
+                label = f"Players · {device.name} ({len(gamers)} {acct})"
                 with st.expander(label, expanded=True):
                     if not gamers:
                         st.info("No players in this device entry.")
@@ -360,9 +364,30 @@ def _dashboard() -> None:
                             )
                 st.divider()
         else:
-            st.info("No players in **db/devices.yaml** — add devices and gamers there.")
+            st.warning(
+                "No player entries in **db/devices.yaml** for these instances. "
+                "Register ADB serials and gamer accounts so the bot can map workers to players."
+            )
+            st.page_link(
+                "views/adb.py",
+                label="Open ADB — edit devices.yaml",
+                help="ADB device list and **db/devices.yaml** editor.",
+                icon="📱",
+            )
     else:
-        st.info("No instances in **config/settings.yaml**.")
+        st.markdown("#### No devices yet")
+        st.write(
+            "There are no **instances** in **config/settings.yaml**. "
+            "Each instance is one emulator window: set **`instance_id`** (short name) and "
+            "**`bluestacks_window_title`** to the **ADB serial** from `adb devices -l`. "
+            "Then add the same serial (or alias) under **db/devices.yaml** with player IDs."
+        )
+        st.page_link(
+            "views/adb.py",
+            label="Open ADB — detect devices & edit config",
+            help="List ADB devices, edit **settings.yaml** instances and **devices.yaml**.",
+            icon="📱",
+        )
 
 
 _dashboard()

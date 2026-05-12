@@ -15,6 +15,20 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+DEFAULT_SCENARIO_PRIORITY = 80_000
+"""Queue priority assigned to any DSL scenario that doesn't carry an explicit
+``priority`` of its own — used uniformly across all three enqueue paths
+(overlay push, cron, hand-pointer resume).
+
+The unification is deliberate: a scenario's importance is a property of the
+work it does, not of how it got scheduled. Treating cron-scheduled scenarios
+as "lower-tier housekeeping by default" routinely starved them under overlay
+load (e.g. ``claim_exploration_rewards`` getting cooperatively preempted on
+its first step every cron tick). Scenarios that intentionally want to defer
+to interactive work still set an explicit lower ``priority`` in their YAML.
+"""
+
+
 DSL_ACTION_KEYS: tuple[str, ...] = (
     "click",
     "long_click",
@@ -74,7 +88,7 @@ class DslStep(BaseModel):
     break_: str | None = Field(default=None, alias="break")
     action: str | None = None
 
-    steps: list["DslStep"] | None = None
+    steps: list[DslStep] | None = None
 
     threshold: float | None = None
     min_match_saturation: int | None = None
@@ -82,7 +96,7 @@ class DslStep(BaseModel):
     min: int | None = None
 
     @model_validator(mode="after")
-    def _exactly_one_action(self) -> "DslStep":
+    def _exactly_one_action(self) -> DslStep:
         present = [k for k in DSL_ACTION_KEYS if self._has(k)]
         # Action-less group: must carry ``steps`` (optionally with ``cond``).
         # The runtime grouped-step handler iterates these inline.

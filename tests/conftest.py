@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import os
-from typing import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator
 
 import pytest
 import redis
@@ -33,10 +34,8 @@ def redis_container() -> Iterator[RedisContainer]:
     try:
         yield c
     finally:
-        try:
+        with contextlib.suppress(Exception):
             c.stop()
-        except Exception:
-            pass
 
 
 @pytest.fixture()
@@ -60,8 +59,6 @@ def redis_sync(redis_container: RedisContainer) -> Iterator[redis.Redis]:
     try:
         yield r
     finally:
-        try:
+        with contextlib.suppress(Exception):
             r.close()
-        except Exception:
-            pass
 

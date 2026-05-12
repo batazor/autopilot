@@ -18,9 +18,48 @@ from layout.area_versions import (
     normalize_version_id,
     resolve_region_with_version,
 )
+from ui.area_annotator import _format_screen_id_choice, screen_id_select_options
 from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import list_reference_pngs, references_root
+
+
+_AREA_JSON_PATH = Path(__file__).resolve().parents[2] / "area.json"
+
+
+
+
+def _set_screen_id_for_ref(ref_rel: str, new_sid: str) -> tuple[bool, str]:
+    """Update ``screen_id`` of the area.json screen entry matching ``ref_rel``.
+
+    Returns ``(ok, message)``. The entry is the one whose ``ocr`` (or any
+    ``versions[].ocr``) resolves to ``ref_rel`` — same lookup used by
+    ``_screen_entry_for_ref``. ``new_sid`` may be empty to unassign.
+    """
+    if not _AREA_JSON_PATH.is_file():
+        return False, "area.json not found"
+    try:
+        doc = json.loads(_AREA_JSON_PATH.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return False, f"parse failed: {exc}"
+    screens = doc.get("screens") if isinstance(doc, dict) else None
+    if not isinstance(screens, list):
+        return False, "area.json has no `screens` list"
+    target = None
+    for e in screens:
+        if not isinstance(e, dict):
+            continue
+        if any(r == ref_rel for r, _ in _refs_from_screen_entry(e)):
+            target = e
+            break
+    if target is None:
+        return False, f"no screen entry references `{ref_rel}`"
+    target["screen_id"] = str(new_sid or "").strip()
+    try:
+        _AREA_JSON_PATH.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        return False, f"write failed: {exc}"
+    return True, ""
 
 
 def _rel_under_references(p: Path, root: Path) -> str:
@@ -650,6 +689,69 @@ def _render_cards(
                 "(``default`` for Auto/Default, or ``vN`` when forcing a version).",
                 width="stretch",
             )
+            # Single selectbox, identical to the annotator's
+            # "Screen ID (node)" — same option source
+            # (``screen_id_select_options``: FSM transitions + ScreenName
+            # enum + EDGE_TAPS endpoints + current value) and the same
+            # formatter (``"" → "None (atypical / not in node graph)"``).
+            # Operator gets type-as-you-search inside the dropdown by
+            # Streamlit's built-in behaviour.
+            #
+            # Edit is permitted ONLY when the entry has a single ``ocr`` (no
+            # ``versions[]``). Multi-ref entries (e.g. main_city + v2 + vip)
+            # share one ``screen_id`` by design — editing here would silently
+            # rebrand all sibling refs. Splitting a versioned entry into
+            # per-ref entries requires copying regions and is reserved for
+            # the annotator UI, which preserves the labelling invariants.
+            _entry_refs = (
+                _refs_from_screen_entry(entry) if isinstance(entry, dict) else []
+            )
+            _multi_ref = len(_entry_refs) > 1
+            try:
+                _sid_opts = screen_id_select_options(area_doc, sid or "")
+            except Exception:
+                _sid_opts = [""]
+            _cur = (sid or "").strip()
+            _sid_idx = _sid_opts.index(_cur) if _cur in _sid_opts else 0
+
+            if _multi_ref:
+                _sibling_count = len(_entry_refs) - 1
+                _sid_help = (
+                    f"Editing locked: this image shares its area.json "
+                    f"entry with {_sibling_count} versioned ref(s) — they "
+                    f"all use the same ``screen_id``. Split the entry via "
+                    f"the annotator UI to assign per-version."
+                )
+            else:
+                _sid_help = (
+                    "Logical game / world node — **not** the PNG "
+                    "filename; several reference images can share one "
+                    "node. Pick **None** until you map this shot."
+                )
+
+            _selected_sid = st.selectbox(
+                "Screen ID (node)",
+                options=_sid_opts,
+                index=_sid_idx,
+                format_func=_format_screen_id_choice,
+                key=f"node::{key_prefix}::{i}",
+                disabled=_multi_ref,
+                help=_sid_help,
+            )
+
+            if not _multi_ref and (_selected_sid or "") != (sid or ""):
+                ok, err = _set_screen_id_for_ref(rel, _selected_sid or "")
+                if ok:
+                    st.toast(
+                        f"`{rel}` → node = "
+                        + (_selected_sid or "(none)"),
+                        icon="✅",
+                    )
+                    _load_area_doc_cached.clear()
+                    _gallery_slice_cached.clear()
+                    st.rerun()
+                else:
+                    st.error(f"Save failed: {err}")
         st.divider()
 
 

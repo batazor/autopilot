@@ -9,8 +9,8 @@ import pandas as pd
 import streamlit as st
 import yaml
 
-from config.devices import load_devices
-from gift.models import GiftCodeDB, RedeemStatus
+from config.devices import DeviceRegistry, load_devices
+from gift.models import GiftCode, GiftCodeDB, RedeemStatus
 from gift.redeemer import run_gift_code_redeemer
 from gift.scraper import poll_once
 
@@ -122,7 +122,11 @@ elif db_error:
 elif not db.codes:
     st.info("No codes in YAML yet.")
 
-def _build_row(code, player_ids, registry) -> dict[str, object]:
+def _build_row(
+    code: GiftCode,
+    player_ids: list[str],
+    registry: DeviceRegistry,
+) -> dict[str, object]:
     api_err = str(code.last_api_err_code) if code.last_api_err_code is not None else "—"
     row: dict[str, object] = {
         "code": code.name,

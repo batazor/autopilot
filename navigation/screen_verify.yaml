@@ -25,6 +25,9 @@ text_switch:
       backpack: [backpack]
       vip: [vip]
       shop: [shop]
+      # Main heroes roster (Power tab); title OCR is e.g. "Heroes Power" — avoid
+      # bare "heroes" so we do not collide with "Hall of Heroes" / "Grow your heroes".
+      heroes: [heroes power, hero power]
       event.trials: [trials, trial]
       event.7-day: [7-day, 7 day, 7days]
       event.first_purchase: [1st purchase, first purchase, t purchase]
@@ -93,6 +96,21 @@ text_switch:
       event.war_preparation: ["war preparation", "war prep"]
 
 screens:
+  # Network "Retry/Reconnect" popup. Listed first so it short-circuits any
+  # other landmark match — if the disconnect overlay is on top of the game,
+  # we want ``current_screen=reconnect`` no matter what's underneath. Without
+  # this entry the rolling detector returns UNKNOWN, ``current_screen`` is
+  # cleared, and the approvals UI shows ``node:—`` while the bot is staring
+  # at the reconnect dialog.
+  reconnect:
+    priority: 100
+    landmarks:
+      - match: reconnect_button
+        threshold: 0.9
+    rules:
+      - match: reconnect_button
+        threshold: 0.9
+
   building:
     priority: 10
     # Current-screen detection landmarks: recognize the building/upgrade screen.
@@ -191,6 +209,12 @@ screens:
     rules:
       - ocr: page_title
         contains: [shop]
+        threshold: 0.8
+
+  heroes:
+    rules:
+      - ocr: page_title
+        contains: [heroes power, hero power]
         threshold: 0.8
 
   event.trials:

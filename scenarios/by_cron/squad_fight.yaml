@@ -40,13 +40,15 @@ steps:
   - wait: 10s
 
   # Poll OCR'ing the status banner each iteration; exit once the text contains
-  # ``victory`` or ``defeat`` (case-insensitive). ``threshold: 0.0`` accepts
-  # low-confidence reads so an empty / mid-animation OCR still writes
-  # ``squad_status`` and the loop's ``until_cond`` re-checks each tick. ``ttl``
-  # is the wall-clock budget; ``max`` is the iteration cap — whichever fires
-  # first stops the loop so a stuck banner can't lock the worker.
+  # ``victory`` or ``defeat`` (case-insensitive). The OCR step inherits the
+  # region's ``threshold: 0.9`` from area.json — mid-animation low-confidence
+  # reads are correctly skipped (no garbage written), and the loop keeps
+  # polling until a stable banner OCR clears the threshold. ``squad_status``
+  # is a ``store:`` field (ephemeral, scenario-scope), so the DSL runner
+  # wipes it from Redis at scenario start — no stale ``"Victory!"`` /
+  # ``"Defeat!"`` from prior runs can short-circuit the loop's exit cond.
   - loop:
-      until_cond: 'squad_status ~= "victory|defeat"'
+      cond: 'squad_status ~= "victory|defeat"'
       steps:
         - ocr: page.squad_settings.status
           store: squad_status

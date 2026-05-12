@@ -138,11 +138,21 @@ def _clear_stale_approval_current(
         if isinstance(old_ctx, dict):
             old_scenario = str(old_ctx.get("scenario") or "").strip()
         new_scenario = str(new_context.get("scenario") or "").strip()
-        if not old_scenario or not new_scenario or old_scenario == new_scenario:
+        # Preserve same-scenario approvals across cooperative-preempt + resume.
+        # ``old_scenario == new_scenario`` (including both-empty) means we're
+        # likely re-publishing for the same task — keep the old one. Empty
+        # ``old_scenario`` with a non-empty ``new_scenario`` is the inverse:
+        # the prior approval is orphaned (worker died before it could write
+        # ``current_scenario``, or pre-DSL publisher), and the new task is
+        # claiming the slot — reap.
+        if old_scenario == new_scenario:
+            return
+        if not new_scenario:
+            # New publisher can't identify itself; don't clobber a known owner.
             return
         _redis().delete(current_key)
         logger.info(
-            "Click approval: cleared stale request for %s (old scenario=%s, new scenario=%s)",
+            "Click approval: cleared stale request for %s (old scenario=%r, new scenario=%s)",
             instance_id,
             old_scenario,
             new_scenario,
@@ -240,30 +250,40 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                     ctx[f"approval_{k}"] = str(v).strip()
             for audit_k in _DSL_APPROVAL_AUDIT_KEYS:
                 ctx[audit_k] = (raw.get(audit_k) or "").strip()
-            if not ctx["current_task_threshold"]:
-                fb = (raw.get("last_overlay_match_threshold") or "").strip()
-                if fb:
-                    ctx["current_task_threshold"] = fb
-            if not ctx["current_task_score"]:
-                fb = (raw.get("last_overlay_match_score") or "").strip()
-                if fb:
-                    ctx["current_task_score"] = fb
-            if not ctx["current_task_text"]:
-                fb = (raw.get("last_overlay_text") or "").strip()
-                if fb:
-                    ctx["current_task_text"] = fb
-            if not ctx["current_task_confidence"]:
-                fb = (raw.get("last_overlay_confidence") or "").strip()
-                if fb:
-                    ctx["current_task_confidence"] = fb
-            if not ctx["current_task_template_bright_ratio"]:
-                fb = (raw.get("last_overlay_template_bright_ratio") or "").strip()
-                if fb:
-                    ctx["current_task_template_bright_ratio"] = fb
-            if not ctx["current_task_patch_bright_ratio"]:
-                fb = (raw.get("last_overlay_patch_bright_ratio") or "").strip()
-                if fb:
-                    ctx["current_task_patch_bright_ratio"] = fb
+            # ``last_overlay_*`` fields are global "most recent overlay match"
+            # snapshots written by the overlay engine — they're NOT scoped to
+            # the currently running task. Only borrow them as fallbacks when
+            # the overlay rule that wrote them matched THIS task's region.
+            # Without this guard, a ``tap_reconnect_button`` approval picks up
+            # stale ``"Appoint Survivor..."`` text from the previous overlay
+            # cycle and the operator gets misleading context.
+            last_overlay_region = (raw.get("last_overlay_match_region") or "").strip()
+            overlay_fb_safe = bool(task_region) and last_overlay_region == task_region
+            if overlay_fb_safe:
+                if not ctx["current_task_threshold"]:
+                    fb = (raw.get("last_overlay_match_threshold") or "").strip()
+                    if fb:
+                        ctx["current_task_threshold"] = fb
+                if not ctx["current_task_score"]:
+                    fb = (raw.get("last_overlay_match_score") or "").strip()
+                    if fb:
+                        ctx["current_task_score"] = fb
+                if not ctx["current_task_text"]:
+                    fb = (raw.get("last_overlay_text") or "").strip()
+                    if fb:
+                        ctx["current_task_text"] = fb
+                if not ctx["current_task_confidence"]:
+                    fb = (raw.get("last_overlay_confidence") or "").strip()
+                    if fb:
+                        ctx["current_task_confidence"] = fb
+                if not ctx["current_task_template_bright_ratio"]:
+                    fb = (raw.get("last_overlay_template_bright_ratio") or "").strip()
+                    if fb:
+                        ctx["current_task_template_bright_ratio"] = fb
+                if not ctx["current_task_patch_bright_ratio"]:
+                    fb = (raw.get("last_overlay_patch_bright_ratio") or "").strip()
+                    if fb:
+                        ctx["current_task_patch_bright_ratio"] = fb
             last_match_region = (raw.get("dsl_last_match_region") or "").strip()
             if last_match_region and last_match_region == task_region:
                 fallback_fields = {
@@ -291,7 +311,21 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         ctx = dict(ctx)
         ctx["approval_region"] = ar_hint
 
+    # Drop empty strings — every Redis hash field is materialized as ``""``
+    # when missing, and pre-populating all 30+ audit keys floods the payload
+    # with noise. UI consumers everywhere read via ``ctx.get(k) or ""`` so
+    # absent and empty are interchangeable. Keep ``"0"`` and other falsy-but-
+    # meaningful strings (e.g. ``current_task_patch_bright_ratio: "0"``).
+    ctx = {k: v for k, v in ctx.items() if not (isinstance(v, str) and v == "")}
+
     p = dict(payload)
+    # ``_preview_capturer`` is a private "refresh this payload's preview"
+    # callback the caller attaches via ``_approval_payload_with_preview``. We
+    # invoke it RIGHT BEFORE serialising for publish so the screenshot the
+    # operator sees matches the screen at decision time — not a stale frame
+    # captured at the start of phase-1's possibly-second-long publish wait.
+    # Pop it off the dict so it never gets JSON-serialised into Redis.
+    preview_capturer = p.pop("_preview_capturer", None)
     default_source: dict[str, object] = {
         "component": "actions.tap.AdbController",
         "note": "ADB input request (approval mode enabled)",
@@ -326,6 +360,18 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # not waiting on the operator — only on the previous request to clear.
     publish_deadline = started_at + _APPROVAL_PUBLISH_WAIT_SECONDS
     while time.time() < publish_deadline:
+        # Refresh preview + created_at on every retry: if the slot was held
+        # for several poll intervals, the cached preview captured at
+        # ``_attach_approval_preview`` time is already drifting. Re-capture so
+        # the published payload always carries a recent screenshot.
+        if callable(preview_capturer):
+            try:
+                preview_capturer(p)
+            except Exception:
+                logger.debug(
+                    "approval preview refresh failed for %s", instance_id, exc_info=True
+                )
+            p["created_at"] = time.time()
         if _redis().set(
             current_key,
             json.dumps(p),
@@ -710,11 +756,17 @@ class AdbController:
         p = dict(payload)
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(p)
+            # Let ``_require_approval`` re-capture the preview right before
+            # serialising for publish — the gap between this initial attach
+            # and the actual SET can stretch into seconds (or longer) when
+            # the approval slot is contended. Popped + invoked there.
+            p["_preview_capturer"] = self._attach_approval_preview
         return p
 
     def attach_approval_preview(self, payload: dict[str, object]) -> None:
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(payload)
+            payload["_preview_capturer"] = self._attach_approval_preview
 
     def _write_png_bytes_atomic(self, *, path: Path, png: bytes, tmp_prefix: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

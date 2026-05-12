@@ -128,10 +128,7 @@ def _deep_almost_equal(
 def _override_matches_base(override: dict[str, Any], base: dict[str, Any]) -> bool:
     """True if a version override is byte-equivalent to its base region (modulo identity)."""
     keys = set(override.keys()) | set(base.keys())
-    for k in keys:
-        if not _deep_almost_equal(override.get(k), base.get(k)):
-            return False
-    return True
+    return all(_deep_almost_equal(override.get(k), base.get(k)) for k in keys)
 
 
 def dedupe_redundant_version_regions(doc: dict[str, Any]) -> int:
@@ -310,7 +307,7 @@ def all_region_names(doc: dict[str, Any]) -> list[str]:
 
     Used by autocompletes (DSL editor, scenario authoring).
     """
-    return sorted({n for n in collect_region_name_counts(doc).keys()})
+    return sorted({n for n in collect_region_name_counts(doc)})
 
 
 __all__ = [

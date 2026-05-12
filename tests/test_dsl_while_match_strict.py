@@ -428,3 +428,103 @@ def _frame_with_pattern() -> np.ndarray:
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     frame[20:30, 20:30] = _claim_pattern()
     return frame
+
+
+def _write_red_dot_guard_scenario(tmp_path: Path) -> None:
+    """A player-bound scenario whose only step is an ``isRedDot:`` guard.
+
+    The point: zero matches must NOT trigger the strict-mode approval pause
+    (``while_match matched zero times``). Red-dot guards are by design
+    "tap iff the indicator is lit"; the off-state is the common case and
+    must skip silently so subsequent steps run.
+    """
+    (tmp_path / "scenarios").mkdir(parents=True)
+    (tmp_path / "scenarios" / "guarded.yaml").write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "guarded",
+                "steps": [
+                    {
+                        "while_match": "page.vip.box",
+                        "isRedDot": True,
+                        "max": 1,
+                        "steps": [{"click": "page.vip.box"}],
+                    },
+                    # Marker step proving the scenario continued past the
+                    # guard rather than pausing for approval.
+                    {"exec": "marker"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text(
+        yaml.dump(
+            {
+                "screens": [
+                    {
+                        "id": 1,
+                        "screen_id": "vip",
+                        "regions": [
+                            {
+                                "name": "page.vip.box",
+                                "action": "exist",
+                                "bbox": {
+                                    "x": 10.0,
+                                    "y": 10.0,
+                                    "width": 5.0,
+                                    "height": 5.0,
+                                },
+                                "has_red_dot": True,
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.asyncio
+async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """Regression: ``while_match: <reg> isRedDot:true max:1`` with no red-dot
+    on screen used to pop the "while_match matched zero times" approval
+    prompt in player-bound scenarios, blocking the operator from getting
+    past the first guard. The strict default is now disabled for state-
+    check guards so the scenario continues to the next step normally."""
+    _write_red_dot_guard_scenario(tmp_path)
+    # Blank frame → red dot detector finds nothing → guard matches 0 times.
+    blank = np.zeros((100, 100, 3), dtype=np.uint8)
+    actions = _FakeActions([blank, blank, blank])
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+
+    marker_fired = {"n": 0}
+
+    async def _marker(_ctx: Any) -> None:
+        marker_fired["n"] += 1
+
+    import tasks.dsl_exec as dsl_exec
+
+    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "marker", _marker)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="guarded",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    # Scenario reached the next step — strict pause did NOT fire.
+    assert marker_fired["n"] == 1
+    # No tap happened (red-dot not present).
+    assert actions.tapped == []

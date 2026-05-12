@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any, TypedDict
 
 import redis
@@ -138,10 +138,7 @@ def _parse_history_row(payload: str) -> QueueHistoryRow | None:
     meta_d: dict[str, Any] = meta_raw if isinstance(meta_raw, dict) else {}
     sc_done = meta_d.get("scenario_completed")
     scenario_completed: bool | None
-    if isinstance(sc_done, bool):
-        scenario_completed = sc_done
-    else:
-        scenario_completed = None
+    scenario_completed = sc_done if isinstance(sc_done, bool) else None
     steps_total: int | None
     try:
         st_raw = meta_d.get("steps_total")

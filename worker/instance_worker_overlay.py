@@ -8,7 +8,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-from scenarios.dsl_schema import dsl_scenario_yaml_priority
+from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_priority
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +166,7 @@ class InstanceWorkerOverlayMixin:
                     try:
                         pr = int(pr_raw)
                     except (TypeError, ValueError):
-                        pr = 80_000
+                        pr = DEFAULT_SCENARIO_PRIORITY
                 else:
                     scen_pr = dsl_scenario_yaml_priority(_REPO_ROOT, t)
                     if scen_pr is not None:
@@ -174,9 +174,9 @@ class InstanceWorkerOverlayMixin:
                     else:
                         rule_pr = payload.get("priority")
                         try:
-                            pr = int(rule_pr) if rule_pr is not None else 80_000
+                            pr = int(rule_pr) if rule_pr is not None else DEFAULT_SCENARIO_PRIORITY
                         except (TypeError, ValueError):
-                            pr = 80_000
+                            pr = DEFAULT_SCENARIO_PRIORITY
 
                 reg_nm = reg_snap
                 threshold = threshold_snap
@@ -228,7 +228,7 @@ class InstanceWorkerOverlayMixin:
             try:
                 pr = int(pr_raw)
             except (TypeError, ValueError):
-                pr = 80_000
+                pr = DEFAULT_SCENARIO_PRIORITY
         else:
             scen_pr = dsl_scenario_yaml_priority(_REPO_ROOT, push_t)
             if scen_pr is not None:
@@ -236,9 +236,9 @@ class InstanceWorkerOverlayMixin:
             else:
                 rule_pr = payload.get("priority")
                 try:
-                    pr = int(rule_pr) if rule_pr is not None else 80_000
+                    pr = int(rule_pr) if rule_pr is not None else DEFAULT_SCENARIO_PRIORITY
                 except (TypeError, ValueError):
-                    pr = 80_000
+                    pr = DEFAULT_SCENARIO_PRIORITY
         reg_nm = reg_snap
         threshold = threshold_snap
         score = score_snap

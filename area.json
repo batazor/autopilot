@@ -7,7 +7,7 @@
   "screens": [
     {
       "id": 1,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/skip_button.png",
       "regions": [
         {
@@ -190,7 +190,7 @@
     },
     {
       "id": 6,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/claim.png",
       "regions": [
         {
@@ -667,9 +667,25 @@
               "has_red_dot": true
             },
             {
+              "name": "chapter.new",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 0.5386100386100386,
+                "y": 78.91956521739131,
+                "width": 10.548262548262548,
+                "height": 4.681521739130435,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "has_red_dot": true
+            },
+            {
               "name": "mail.new",
-              "action": "color_check",
-              "type": "red",
+              "action": "exist",
+              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 86.67953667953668,
@@ -1662,6 +1678,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "ui.button.confirm_blue_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 22.393822393822393,
+            "y": 32.391304347826086,
+            "width": 73.16988416988417,
+            "height": 60.28695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -2528,7 +2560,7 @@
     },
     {
       "id": 58,
-      "screen_id": "",
+      "screen_id": "vip",
       "ocr": "references/page.vip.increase.png",
       "regions": [
         {
@@ -2545,12 +2577,27 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "page.vip.increase.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.76833976833977,
+            "y": 8.369565217391305,
+            "width": 5.7992277992278,
+            "height": 3.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
     {
       "id": 59,
-      "screen_id": "",
+      "screen_id": "building",
       "ocr": "references/building.upgrade.png",
       "regions": [
         {

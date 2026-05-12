@@ -99,7 +99,7 @@ class DslOcrMixin:
             - ocr: <region_name>
               store: <field>          # Redis player/instance hash. Ephemeral —
                                       # used to share data between scenario steps
-                                      # via cond/until_cond text matches.
+                                      # via cond/match text matches.
               state: <dotted.path>    # db/state.yaml dot-path. Long-lived; drives
                                       # arithmetic ``cond`` (e.g.
                                       # ``exploration.state.myPower * 1.2 >= ...``).

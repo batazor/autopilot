@@ -86,15 +86,28 @@ packages = [
 ]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
 ignore = ["ANN401"]
 
+[tool.ruff.lint.per-file-ignores]
+# Re-export helpers and tap/overlay symbols for tests that monkeypatch ``tasks.dsl_scenario``.
+"tasks/dsl_scenario.py" = ["F401"]
+# Tests: relaxed typing and long golden / inline YAML strings.
+"tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501"]
+# Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
+"ui/area_annotator.py" = ["E402"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Upstream RedisContainer still uses @wait_container_is_ready (deprecated) until
+# testcontainers-python 4.15+; silence import-time noise from the vendored module.
+filterwarnings = [
+    "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers.redis",
+]
 markers = [
     "integration: requires external services (OCR backend, ADB, etc.); auto-skipped when unreachable",
 ]

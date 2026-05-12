@@ -100,7 +100,21 @@ def _parse_building_name_level(text: str) -> tuple[BuildingDef, int] | None:
     return building, level
 
 
-async def _resolve_player_id(ctx: DslExecContext) -> str:
+async def _resolve_player_id_for_device_level_exec(ctx: DslExecContext) -> str:
+    """Resolve a player binding for execs called from ``device_level: true``
+    scenarios.
+
+    Device-level scenarios (``who_i_am``, ``building.upgrade`` during
+    tutorial, popup dismissers) are queued with ``player_id=""``. Some of
+    their exec handlers still want to write into a specific player's state
+    once ``who_i_am`` has run and ``active_player`` is set on the instance
+    hash — this helper resolves that binding.
+
+    Player-bound scenarios MUST NOT use this — the implicit identity gate in
+    ``DslScenarioExecuteMixin.execute`` already guarantees ``ctx.player_id``
+    is non-empty there, and reading the helper buys nothing but a stale
+    fallback path.
+    """
     player_id = (ctx.player_id or "").strip()
     if player_id or ctx.redis_client is None:
         return player_id
@@ -233,12 +247,18 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
 
 
 async def _exec_sync_building_name(ctx: DslExecContext) -> None:
-    """Parse OCR'd ``building.name`` text and persist the current building level."""
+    """Parse OCR'd ``building.name`` text and persist the current building level.
+
+    Called from ``building.upgrade.yaml`` which is ``device_level: true``
+    (tutorial-driven flow runs before identity is established). So the
+    ``ctx.player_id`` may be empty here and we fall back to
+    ``active_player`` via :func:`_resolve_player_id_for_device_level_exec`.
+    """
     if ctx.redis_client is None:
         logger.warning("dsl exec sync_building_name: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id(ctx)
+    player_id = await _resolve_player_id_for_device_level_exec(ctx)
     if not player_id:
         logger.warning("dsl exec sync_building_name: empty player_id — skipping")
         return
@@ -323,9 +343,16 @@ async def _exec_sync_hero_unit(ctx: DslExecContext) -> None:
         logger.warning("dsl exec sync_hero_unit: no redis client — skipping")
         return
 
-    player_id = await _resolve_player_id(ctx)
+    # ``sync_hero_unit.yaml`` is NOT ``device_level: true`` so the identity
+    # gate in ``DslScenarioExecuteMixin.execute`` guarantees a non-empty
+    # ``ctx.player_id`` before we get here. The defensive check stays for
+    # robustness — an empty pid here means the gate was bypassed and the
+    # scenario should have been skipped upstream.
+    player_id = (ctx.player_id or "").strip()
     if not player_id:
-        logger.warning("dsl exec sync_hero_unit: empty player_id — skipping")
+        logger.warning(
+            "dsl exec sync_hero_unit: empty player_id — gate bypass? skipping"
+        )
         return
 
     state_key = f"wos:player:{player_id}:state"
@@ -633,8 +660,10 @@ async def _exec_scan_event_blocks(ctx: DslExecContext) -> None:
         if not isinstance(bbox, dict):
             continue
         try:
-            x = float(bbox["x"]); y = float(bbox["y"])
-            w = float(bbox["width"]); h = float(bbox["height"])
+            x = float(bbox["x"])
+            y = float(bbox["y"])
+            w = float(bbox["width"])
+            h = float(bbox["height"])
         except (KeyError, TypeError, ValueError):
             continue
         regions.append((idx, Region(int(round(x)), int(round(y)), int(round(w)), int(round(h)))))

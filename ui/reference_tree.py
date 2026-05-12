@@ -14,7 +14,10 @@ class DirNode:
 
 
 def build_reference_dir_tree(paths: list[Path], root: Path) -> DirNode:
-    """Group PNG paths (absolute or under ``root``) into a directory tree; leaf values are posix paths relative to ``root``."""
+    """Group PNG paths (absolute or under ``root``) into a directory tree.
+
+    Leaf values are posix paths relative to ``root``.
+    """
     tree = DirNode()
 
     for p in paths:

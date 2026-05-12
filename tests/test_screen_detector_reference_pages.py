@@ -18,6 +18,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
         ("chief_profile.png", ScreenName.CHIEF_PROFILE),
         ("mail_page.png", ScreenName.MAIL),
         ("isNewPeople.png", ScreenName.MAIN_CITY),
+        # ``retry_page.png`` is the "Connection lost" popup with the Reconnect
+        # button. Without a ``reconnect`` entry in screen_verify the detector
+        # returned UNKNOWN here and ``current_screen`` got cleared while the
+        # bot was sitting on the dialog — regression guard.
+        ("retry_page.png", ScreenName.RECONNECT),
     ],
 )
 async def test_screen_detector_identifies_reference_pages(

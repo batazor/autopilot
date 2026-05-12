@@ -1,4 +1,5 @@
-"""``loop`` DSL primitive: cond / until_cond / ttl with full step support inside body."""
+"""``loop`` DSL primitive: ``cond`` (exit-when-true) and ``ttl`` with full
+step support inside body."""
 
 from __future__ import annotations
 
@@ -45,17 +46,17 @@ def _write_scenario(tmp_path: Path, body: dict[str, Any]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_loop_until_cond_breaks_when_state_field_matches(
+async def test_loop_cond_breaks_when_state_field_matches(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    """``until_cond`` re-evaluates each iteration; once the instance hash matches, loop exits."""
+    """``cond`` re-evaluates each iteration; once the instance hash matches, loop exits."""
     _write_scenario(
         tmp_path,
         {
             "loop": {
-                "until_cond": 'squad_status ~= "victory|defeat"',
+                "cond": 'squad_status ~= "victory|defeat"',
                 "max": 5,
                 "steps": [{"wait": 0}],
             }
@@ -64,7 +65,7 @@ async def test_loop_until_cond_breaks_when_state_field_matches(
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
 
-    # Pre-seed the field so until_cond is True on the first probe and the loop exits.
+    # Pre-seed the field so cond is True on the first probe and the loop exits.
     await redis_async.hset(  # type: ignore[attr-defined]
         "wos:instance:bs1:state",
         mapping={"squad_status": "Victory!"},
@@ -81,17 +82,19 @@ async def test_loop_until_cond_breaks_when_state_field_matches(
 
 
 @pytest.mark.asyncio
-async def test_loop_cond_continues_until_inner_steps_change_state(
+async def test_loop_cond_breaks_after_inner_step_flips_state(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    """`cond` keeps the loop alive; an inner ``exec`` step flips state and exits."""
+    """``cond`` is the exit condition: an inner ``exec`` step writes the
+    expected value, the next iteration's top-of-loop check matches, and the
+    loop exits. Re-evaluation between iterations is the key behaviour."""
     _write_scenario(
         tmp_path,
         {
             "loop": {
-                "cond": 'progress != "done"',
+                "cond": 'progress == "done"',
                 "max": 10,
                 "steps": [
                     {"exec": "advance_progress"},
@@ -131,7 +134,7 @@ async def test_loop_cond_continues_until_inner_steps_change_state(
     result = await task.execute("bs1")
 
     assert result.success is True
-    # 3 iterations (step1, step2, exec writes "done"; cond False → exit before iter 4).
+    # 3 iterations (step1, step2, exec writes "done"; cond True on iter 4's top check → exit).
     assert iterations["n"] == 3
     final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]
     assert final == "done"
@@ -148,7 +151,7 @@ async def test_loop_max_caps_iteration_count(
         tmp_path,
         {
             "loop": {
-                "until_cond": 'never_set ~= "ok"',  # never matches → loop runs to max
+                "cond": 'never_set ~= "ok"',  # never matches → loop runs to max
                 "max": 4,
                 "steps": [{"exec": "tick"}],
             }

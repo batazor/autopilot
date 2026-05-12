@@ -325,7 +325,7 @@ with tab_merged:
                 # `route_taps` is stricter (requires taps for every hop). We can still expand manually.
                 expanded: list[list[object]] = []
                 ok = True
-                for a, b in zip(path, path[1:]):
+                for a, b in zip(path, path[1:], strict=False):
                     taps = EDGE_TAPS.get((a, b))
                     if taps is None:
                         ok = False
@@ -343,7 +343,7 @@ with tab_merged:
                 )
             else:
                 rows: list[dict[str, object]] = []
-                for i, (a, b) in enumerate(zip(path, path[1:])):
+                for i, (a, b) in enumerate(zip(path, path[1:], strict=False)):
                     taps = hop_taps[i] if i < len(hop_taps) else []
                     rows.append(
                         {

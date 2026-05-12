@@ -44,6 +44,10 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
             {
                 "enabled": True,
                 "name": "Who am I",
+                # Matches production: this scenario bootstraps player identity
+                # itself, so it must run before any ``player_id`` is known and
+                # is exempt from the implicit player-identity gate.
+                "device_level": True,
                 "steps": [
                     {"ocr": "player_id"},
                 ],
@@ -861,8 +865,8 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Lv. 12", confidence=0.97)
 
-    import ocr.client as ocr_client_module
     import config.state_store as state_store_module
+    import ocr.client as ocr_client_module
 
     monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
@@ -950,8 +954,8 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="Lv. 7", confidence=0.97)
 
-    import ocr.client as ocr_client_module
     import config.state_store as state_store_module
+    import ocr.client as ocr_client_module
 
     monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
@@ -1043,8 +1047,8 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
             return OCRResult(region_id="r0", text="7", confidence=0.97)
 
-    import ocr.client as ocr_client_module
     import config.state_store as state_store_module
+    import ocr.client as ocr_client_module
 
     monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)

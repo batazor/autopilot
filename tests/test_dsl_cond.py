@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 import tasks.dsl_scenario as dsl
 
 pytestmark = pytest.mark.integration
@@ -124,7 +125,7 @@ async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: o
 async def test_cond_text_reads_player_state_for_ocr_default_scope(redis_async: object) -> None:
     """OCR ``store:`` writes player-scoped by default — text-cond must read from there.
 
-    Regression: ``squad_fight`` scenario's ``until_cond: squad_status ~= "victory|defeat"``
+    Regression: ``squad_fight`` scenario's loop ``cond: squad_status ~= "victory|defeat"``
     used to always evaluate False because the cond reader only looked at instance state,
     while OCR had written ``squad_status`` to ``wos:player:<pid>:state``.
     """
@@ -218,3 +219,63 @@ async def test_cond_arithmetic_without_state_flat_skips(redis_async: object) -> 
     }
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", redis_async)  # type: ignore[arg-type]
     assert allowed is False
+
+
+# ---------------------------------------------------------------------------
+# ``cond: <field> != null`` — the canonical "wait for who_i_am to complete"
+# gate. Bare ``null`` / ``none`` / ``nil`` / ``empty`` normalise to the empty
+# string on the right-hand side; quoted forms keep their literal meaning.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cond_field_ne_null_true_when_field_is_set(redis_async: object) -> None:
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"active_player": "765502864"},
+    )
+    step = {"cond": "active_player != null"}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is True  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_field_ne_null_false_when_field_is_unset(redis_async: object) -> None:
+    """The ``who_i_am`` gate: every player-bound scenario can use this to
+    short-circuit until identity is resolved."""
+    step = {"cond": "active_player != null"}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", redis_async) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("token", ["null", "none", "nil", "empty", "NULL", "None"])
+async def test_cond_empty_tokens_all_normalise_to_empty(
+    redis_async: object, token: str
+) -> None:
+    """All four bare tokens (case-insensitive) treat the field as empty."""
+    step = {"cond": f"active_player != {token}"}
+    # Field unset → ``!=`` against empty → False (gate engaged).
+    assert await dsl._dsl_cond_allows_step(step, "bs1", redis_async) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_quoted_null_preserves_literal_meaning(redis_async: object) -> None:
+    """``!= "null"`` (with quotes) is a literal string compare — the field
+    value happens to be the four-character word ``"null"``, not an empty cell.
+    Used rarely but the escape hatch must work."""
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"active_player": "null"},
+    )
+    step = {"cond": 'active_player != "null"'}
+    # Literal compare: "null" != "null" → False.
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_field_eq_null_true_when_field_is_unset(redis_async: object) -> None:
+    """The inverse gate: skip a step unless the field is empty — useful for
+    things like ``startup`` scenarios that should only run pre-identity."""
+    step = {"cond": "active_player == null"}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", redis_async) is True  # type: ignore[arg-type]

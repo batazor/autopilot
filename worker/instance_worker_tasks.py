@@ -6,6 +6,7 @@ from typing import Any
 
 from config.log_ansi import scenario_log_label
 from fsm.states import InstanceState
+from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.queue import QueueItem
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
@@ -100,7 +101,7 @@ class InstanceWorkerTasksMixin:
         # If this is a hand-pointer task, capture whatever DSL scenario ran just
         # before it so we can re-enqueue it after the pointer is dismissed.
         _resume_scenario = ""
-        _resume_priority = 80_000
+        _resume_priority = DEFAULT_SCENARIO_PRIORITY
         _resume_player = ""
         _resume_step = 0
         if self._redis is not None and item.task_type in _HAND_POINTER_TASK_TYPES:
@@ -118,9 +119,9 @@ class InstanceWorkerTasksMixin:
                 if _last and _last not in _HAND_POINTER_TASK_TYPES:
                     _resume_scenario = _last
                     try:
-                        _resume_priority = int(_pr_s) if _pr_s else 80_000
+                        _resume_priority = int(_pr_s) if _pr_s else DEFAULT_SCENARIO_PRIORITY
                     except (ValueError, TypeError):
-                        _resume_priority = 80_000
+                        _resume_priority = DEFAULT_SCENARIO_PRIORITY
                     _resume_player = _pid_s
                     try:
                         _resume_step = int(_step_s) if _step_s else 0
@@ -178,8 +179,12 @@ class InstanceWorkerTasksMixin:
                 "current_task_match_top_left_y": "" if item.match_top_left_y is None else str(item.match_top_left_y),
                 "current_task_template_w": "" if item.template_w is None else str(item.template_w),
                 "current_task_template_h": "" if item.template_h is None else str(item.template_h),
-                "current_task_tap_match_x_pct": "" if item.tap_match_x_pct is None else f"{float(item.tap_match_x_pct):.6g}",
-                "current_task_tap_match_y_pct": "" if item.tap_match_y_pct is None else f"{float(item.tap_match_y_pct):.6g}",
+                "current_task_tap_match_x_pct": (
+                    "" if item.tap_match_x_pct is None else f"{float(item.tap_match_x_pct):.6g}"
+                ),
+                "current_task_tap_match_y_pct": (
+                    "" if item.tap_match_y_pct is None else f"{float(item.tap_match_y_pct):.6g}"
+                ),
                 "current_scenario": scenario_for_job,
             },
         )
@@ -229,7 +234,13 @@ class InstanceWorkerTasksMixin:
             _hand_pointer_hit = _task_result is not None and str(
                 (_task_result.metadata or {}).get("reason") or ""
             ) not in ("match_guard_failed", "match_region_not_found")
-            if _resume_scenario and item.task_type in _HAND_POINTER_TASK_TYPES and _hand_pointer_hit and self._queue is not None:
+            _should_resume_hp = (
+                _resume_scenario
+                and item.task_type in _HAND_POINTER_TASK_TYPES
+                and _hand_pointer_hit
+                and self._queue is not None
+            )
+            if _should_resume_hp:
                 try:
                     await self._queue.schedule(
                         task_id=f"resume:{self._cfg.instance_id}:{_resume_scenario}:{int(time.time())}",

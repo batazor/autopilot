@@ -8,6 +8,7 @@ import pytest
 import worker.instance_worker as instance_worker
 from scheduler.queue import QueueItem
 
+
 class _FakeQueue:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []

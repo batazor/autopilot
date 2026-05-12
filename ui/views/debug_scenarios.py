@@ -20,6 +20,7 @@ from actions.tap import click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
+from ui.notifications import push_ui_notification_sync
 from ui.redis_client import (
     bump_dsl_preempt_generation,
     fetch_queue_rows,
@@ -28,7 +29,6 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
-from ui.notifications import push_ui_notification_sync
 from ui.views.click_approvals.chrome import render_ui_notifications
 from ui.views.click_approvals.ctx import ClickApprovalsCtx
 from ui.views.click_approvals.pending import (

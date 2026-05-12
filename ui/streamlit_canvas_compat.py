@@ -20,7 +20,7 @@ def ensure_drawable_canvas_compat() -> None:
     from streamlit.elements.lib.image_utils import image_to_url as _image_to_url_impl
     from streamlit.elements.lib.layout_utils import create_layout_config
 
-    def image_to_url(image, width, clamp, channels, output_format, image_id):  # noqa: ANN001
+    def image_to_url(image, width, clamp, channels, output_format, image_id) -> str:  # noqa: ANN001
         layout_config = create_layout_config(width=width, allow_content_width=True)
         return _image_to_url_impl(
             image,

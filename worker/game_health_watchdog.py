@@ -6,6 +6,7 @@ with the embedded supervisor so checks are not blocked by long DSL tasks.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import signal
 import sys
@@ -16,8 +17,8 @@ import redis
 
 from actions.tap import BotActions
 from config.loader import get_settings
-from config.redis_health import sync_redis_from_url_or_exit
 from config.logging_stdout import setup_stdout_logging
+from config.redis_health import sync_redis_from_url_or_exit
 from config.startup_validation import assert_startup_configs_valid
 from fsm.states import InstanceState
 
@@ -35,17 +36,15 @@ def restart_application_after_health_failure(instance_id: str, r: redis.Redis) -
         r.hset(key, mapping={"state": str(InstanceState.RESTARTING), "last_error": ""})
     except redis.RedisError:
         logger.debug("watchdog: redis hset RESTARTING failed", exc_info=True)
-    try:
+    with contextlib.suppress(redis.RedisError):
         r.delete(lock_key)
-    except redis.RedisError:
-        pass
     try:
         ba.restart_application(instance_id)
         time.sleep(3.0)
         ba.ensure_game_foreground(instance_id)
     except Exception:
         logger.exception("Watchdog: restart_application failed on %s", instance_id)
-        try:
+        with contextlib.suppress(redis.RedisError):
             r.hset(
                 key,
                 mapping={
@@ -53,8 +52,6 @@ def restart_application_after_health_failure(instance_id: str, r: redis.Redis) -
                     "last_error": "restart_application failed (see logs)",
                 },
             )
-        except redis.RedisError:
-            pass
         return
     try:
         r.hset(key, mapping={"state": str(InstanceState.READY), "last_error": ""})

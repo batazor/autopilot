@@ -100,9 +100,9 @@ _claim_block: &claim_block
     steps:
       - click: mail.delete_all
       - wait: 1s
-      - while_match: button.claim
+      - while_match: ui.button.confirm_blue
         steps:
-          - click: button.claim
+          - click: ui.button.confirm_blue
           - wait: 0.5s
 
 steps:

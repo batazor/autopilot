@@ -129,7 +129,7 @@ class VersionDict(TypedDict, total=False):
     """Optional per-version reference PNG (relative to repo root). When set and active in
     annotator, the canvas loads this image instead of the entry's default ``ocr`` — so
     overrides can be drawn against the actually-shifted layout."""
-    regions: list["RegionDict"]
+    regions: list[RegionDict]
     """Override / version-only region entries scoped to this visual variant."""
     removed: list[str]
     """Names of base regions that do not exist in this version."""
@@ -457,13 +457,15 @@ def export_all_region_crops_for_area_doc(
                 progress(min(1.0, done_files / total_files))
             continue
 
-        def _prog_local(frac: float) -> None:
+        def _prog_local(
+            frac: float, *, _done: int = done_files, _n_this: int = n_this
+        ) -> None:
             if progress is None:
                 return
             if total_files <= 0:
                 progress(1.0)
             else:
-                progress(min(1.0, (done_files + frac * n_this) / total_files))
+                progress(min(1.0, (_done + frac * _n_this) / total_files))
 
         try:
             outs = export_region_crops(
@@ -623,7 +625,7 @@ def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[s
     try:
         from navigation.screen_graph import EDGE_TAPS
 
-        for a, b in EDGE_TAPS.keys():
+        for a, b in EDGE_TAPS:
             if a:
                 ids.add(str(a))
             if b:
@@ -1040,10 +1042,12 @@ def _render_versions_block(
             ver_obj = next((v for v in versions if str(v.get("id", "") or "").strip() == sel), None)
             if ver_obj is not None:
                 ver_ocr_cur = str(ver_obj.get("ocr", "") or "").strip()
+                inherit_msg = (
+                    "Reference image: *inherits from default* — pick a PNG in the tree "
+                    "(or take a screenshot), then bind it here."
+                )
                 st.caption(
-                    f"Reference image: `{ver_ocr_cur}`"
-                    if ver_ocr_cur
-                    else "Reference image: *inherits from default* — pick a PNG in the tree (or take a screenshot), then bind it here."
+                    f"Reference image: `{ver_ocr_cur}`" if ver_ocr_cur else inherit_msg
                 )
                 cb1, cb2 = st.columns([2, 1])
                 with cb1:
@@ -1131,19 +1135,18 @@ def _render_versions_block(
                             f"Delete version `{sel}` and all its overrides for this entry?"
                         )
                         c_yes, c_no = st.columns(2)
-                        with c_yes:
-                            with st.container(key=f"version-danger-confirm-{eid}-{sel}"):
-                                if st.button(
-                                    "Yes, delete",
-                                    key=f"version_delete_yes_{eid}_{sel}",
-                                    icon=":material/delete_forever:",
-                                ):
-                                    cur["versions"] = [
-                                        v for v in versions if str(v.get("id", "") or "").strip() != sel
-                                    ]
-                                    st.session_state[state_key] = ACTIVE_VERSION_DEFAULT
-                                    st.session_state[confirm_key] = False
-                                    st.rerun()
+                        with c_yes, st.container(key=f"version-danger-confirm-{eid}-{sel}"):
+                            if st.button(
+                                "Yes, delete",
+                                key=f"version_delete_yes_{eid}_{sel}",
+                                icon=":material/delete_forever:",
+                            ):
+                                cur["versions"] = [
+                                    v for v in versions if str(v.get("id", "") or "").strip() != sel
+                                ]
+                                st.session_state[state_key] = ACTIVE_VERSION_DEFAULT
+                                st.session_state[confirm_key] = False
+                                st.rerun()
                         with c_no:
                             if st.button("Cancel", key=f"version_delete_no_{eid}_{sel}"):
                                 st.session_state[confirm_key] = False
@@ -1965,9 +1968,7 @@ def _should_ignore_stale_canvas_sig(incoming_sig: str, current_sig: str) -> bool
         st.session_state.pop(CANVAS_IGNORE_STALE_BBOX_SIG, None)
         st.session_state.pop(CANVAS_IGNORE_STALE_UNTIL, None)
         return False
-    if incoming_sig == stale_sig and incoming_sig != current_sig:
-        return True
-    return False
+    return bool(incoming_sig == stale_sig and incoming_sig != current_sig)
 
 
 def cap_preview_image_max_side(im: Image.Image, max_side: int) -> Image.Image:

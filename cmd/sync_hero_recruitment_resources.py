@@ -20,6 +20,7 @@ Requires Redis URL from ``config/settings.yaml`` (same as the worker).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import re
 import sys
 import time
@@ -119,10 +120,8 @@ def main() -> None:
     try:
         code = sync_from_instance(r=r, instance_id=str(args.instance_id).strip())
     finally:
-        try:
+        with contextlib.suppress(Exception):
             r.close()
-        except Exception:
-            pass
     raise SystemExit(code)
 
 

@@ -5,17 +5,24 @@ import concurrent.futures
 import logging
 import time
 import uuid
-from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import redis.asyncio as aioredis
 
 from actions.tap import BotActions
 from capture.adb_screencap import DEFAULT_ADB_BIN
-from config.devices import player_ids_for_device, player_ids_for_device_candidates
+# Both functions are imported solely so they live as attributes on the
+# ``worker.instance_worker`` module — ``worker.instance_worker_redis._connect``
+# resolves them via ``getattr(instance_worker, ...)`` (primary +
+# fallback), and the identity-probe / resolve-queue-item-player tests
+# monkeypatch them through the same module. Direct usage in this file is
+# absent, so the F401 silencing keeps a linter sweep from re-removing them.
+from config.devices import (  # noqa: F401 — re-exported for redis/test monkeypatch
+    player_ids_for_device,
+    player_ids_for_device_candidates,
+)
 from config.loader import InstanceConfig, get_settings
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from fsm.states import InstanceState
@@ -162,6 +169,35 @@ class InstanceWorker(
             if task.is_cooperative:
                 await self._claims.release(task.task_type, item.player_id)  # type: ignore[union-attr]
 
+    async def _clear_pending_approval_on_boot(self) -> None:
+        """Drop any leftover pending click-approval slot at worker boot.
+
+        Approvals are stored in a single per-instance Redis slot
+        (``wos:ui:click_approval:current:<instance_id>``). When the worker
+        process dies or is restarted, that slot survives — and on the next
+        boot the new worker would happily block on a request whose owning
+        task is gone. The operator's only recourse would be approving an
+        action the new bot has no context for.
+
+        Reaping the slot at boot favours correctness over preserving stale
+        operator intent: if the underlying screen state still triggers the
+        same action, an overlay tick or scenario step will re-publish a
+        fresh approval moments later.
+        """
+        if self._redis is None:
+            return
+        current_key = f"wos:ui:click_approval:current:{self._cfg.instance_id}"
+        try:
+            removed = await self._redis.delete(current_key)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug("approval cleanup at boot: delete failed", exc_info=True)
+            return
+        if removed:
+            logger.info(
+                "Click approval: reaped pending slot for %s at worker boot",
+                self._cfg.instance_id,
+            )
+
     async def _seed_startup_tasks(self) -> None:
         """Enqueue boot-time DSL scenarios (one per fresh worker run, per device).
 
@@ -230,6 +266,13 @@ class InstanceWorker(
     async def run(self) -> None:
         await self._connect()
         logger.info("Worker started for instance %s", self._cfg.instance_id)
+        # Reap any pending approval from a previous session. After restart we've
+        # forgotten what task owned it (``self.player_id``, in-memory state, all
+        # gone) so the request is effectively orphaned — leaving it in place
+        # would block the new worker on the first ``_require_approval`` call.
+        # Operator can re-approve from the UI if the underlying intent still
+        # applies; what we MUST avoid is silent permadeadlock.
+        await self._clear_pending_approval_on_boot()
         logger.info(
             "ADB config for %s: serial=%s adb_executable=%s",
             self._cfg.instance_id,

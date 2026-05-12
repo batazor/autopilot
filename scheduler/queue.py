@@ -512,7 +512,6 @@ class RedisQueue:
         return ranked
 
     async def pop_due(self, instance_id: str, *, current_screen: str = "") -> QueueItem | None:
-        from contextlib import suppress
 
         now = time.time()
         key = _queue_key(instance_id)
@@ -705,7 +704,6 @@ class RedisQueue:
 
     async def remove(self, task_id: str) -> None:
         import json
-        from contextlib import suppress
 
         async for key in self._redis.scan_iter(match="wos:queue:*"):
             ks = key.decode() if isinstance(key, bytes) else str(key)
@@ -745,7 +743,6 @@ class RedisQueue:
     async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
         """Remove all queued items matching task_type + instance_id. Returns count removed."""
         import json
-        from contextlib import suppress
 
         all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
         removed = 0

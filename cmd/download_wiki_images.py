@@ -9,7 +9,6 @@ import httpx
 import yaml
 from bs4 import BeautifulSoup, Tag
 
-
 _UA = {"User-Agent": "wos-autopilot/0.1"}
 
 

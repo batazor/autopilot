@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
@@ -134,10 +135,8 @@ def get_or_build_pipeline_cache(
 
     area_doc: dict = {}
     if area_path.is_file():
-        try:
+        with contextlib.suppress(json.JSONDecodeError, OSError):
             area_doc = json.loads(area_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            pass
 
     rule_order: list[str] = []
     rule_search: dict[str, str] = {}

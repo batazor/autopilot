@@ -6,13 +6,10 @@ fake redis client and a fake ``peek_top_due`` — no Docker needed.
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import Any
-
 import pytest
 
 from scheduler.queue import QueueItem
-from tasks import dsl_scenario as dsl_mod
+from tasks import dsl_scenario_helpers as dsl_helpers
 from tasks.dsl_scenario import (
     PREEMPT_MARGIN,
     PREEMPT_MAX_YIELDS,
@@ -76,7 +73,7 @@ def _patch_read_current_screen(monkeypatch, screen: str = "main_city") -> None:
     async def fake(instance_id, redis_client):
         return screen
 
-    monkeypatch.setattr(dsl_mod, "_read_current_screen", fake, raising=True)
+    monkeypatch.setattr(dsl_helpers, "_read_current_screen", fake, raising=True)
 
 
 def _top(*, task_type: str, effective_priority: int, task_id: str = "top-1") -> QueueItem:

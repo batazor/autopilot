@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from typing import Any
 
@@ -35,7 +36,7 @@ async def ping_async_redis_or_exit(
     """Ping the async client; on failure close it and raise ``SystemExit`` with guidance."""
     try:
         await asyncio.wait_for(client.ping(), timeout=connect_timeout_s + 2.0)
-    except (RedisError, OSError, TimeoutError, asyncio.TimeoutError) as exc:
+    except (RedisError, OSError, TimeoutError) as exc:
         msg = format_redis_unreachable_message(url, exc)
         logger.critical("%s", " | ".join(msg.splitlines()))
         try:
@@ -62,10 +63,8 @@ def sync_redis_from_url_or_exit(
     except (RedisError, OSError) as exc:
         msg = format_redis_unreachable_message(url, exc)
         logger.critical("%s", " | ".join(msg.splitlines()))
-        try:
+        with contextlib.suppress(Exception):
             client.close(close_connection_pool=True)
-        except Exception:
-            pass
         raise SystemExit(msg) from exc
     return client
 
@@ -84,7 +83,5 @@ def verify_sync_redis_url(url: str) -> None:
         logger.critical("%s", " | ".join(msg.splitlines()))
         raise SystemExit(msg) from exc
     finally:
-        try:
+        with contextlib.suppress(Exception):
             client.close(close_connection_pool=True)
-        except Exception:
-            pass

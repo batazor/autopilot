@@ -11,10 +11,36 @@ steps:
   - ocr: page.vip.level
     type: integer
     state: page.vip.level
-  - click: page.vip.box
-  - wait: 1s
-  - click: page.vip.add
-  - wait: 1s
+
+  # ``page.vip.box`` requires two taps when its red-dot is lit: first tap
+  # opens the reward dialog, second tap actually claims it. The
+  # ``while_match: max: 1`` guard ensures we only do this dance when there
+  # is something to claim — without the red-dot, an unconditional double-tap
+  # would either no-op or interact with an unrelated panel.
+  - while_match: page.vip.box
+    isRedDot: true
+    max: 1
+    steps:
+      - click: page.vip.box
+      - wait: 1s
+      - click: page.vip.box
+      - wait: 1s
+
+  # ``page.vip.add`` only does meaningful work when its red-dot indicator is
+  # lit — otherwise the daily-add timer hasn't refreshed and the tap either
+  # no-ops or spends a free reward token we don't want to consume yet.
+  # ``while_match: max: 1`` is the standard "tap iff red-dot present" guard
+  # (same shape as ``claim_trials`` per-day branches): no abort on miss,
+  # downstream ``page.vip.increase.use`` loop still runs to mop up any
+  # leftover Use-buttons from the earlier ``page.vip.box`` tap.
+  - while_match: page.vip.add
+    isRedDot: true
+    max: 1
+    steps:
+      - click: page.vip.add
+      - wait: 2s
+      - click: page.vip.increase.close
+
   - while_match: page.vip.increase.use
     steps:
       - click: page.vip.increase.use

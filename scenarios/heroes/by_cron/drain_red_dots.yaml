@@ -1,0 +1,25 @@
+enabled: true
+name: "Heroes · drain red dots"
+
+# Temporary blanket sweep: tap every red dot on the heroes screen, whatever it
+# means (new hero unlock, EXP gear, level-up promotion, gift, etc). The
+# ``put_all_red_dots`` exec captures the full frame, taps the first detected
+# red-dot, re-scans, and repeats up to its internal cap of 20 taps. Cheap and
+# coarse — meant to keep the hero panel "quiet" until per-feature scenarios
+# (claim X, promote Y) get written.
+#
+# Every 4h matches the rhythm of ``claim_exploration_rewards`` — frequent
+# enough that fresh notifications don't pile up, infrequent enough that the
+# scan cost is negligible.
+cron: "0 */4 * * *"
+
+# Priority intentionally omitted: inherits ``DEFAULT_SCENARIO_PRIORITY``
+# (80_000) — the same default applied to overlay-pushed scenarios. Cron and
+# overlay are just different enqueue paths; the scenario's importance is the
+# same either way.
+
+# Navigator BFS: main_city → heroes (see edge_taps.yaml line 12).
+node: heroes
+
+steps:
+  - exec: put_all_red_dots

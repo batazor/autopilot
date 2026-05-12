@@ -22,7 +22,6 @@ from config.devices import invalidate_device_registry
 from ui.settings_state import (
     ensure_ui_settings_session_defaults,
     get_ui_adb_bin,
-    get_ui_adb_serial,
 )
 
 ensure_ui_settings_session_defaults()
@@ -110,6 +109,43 @@ def _run_adb(args: list[str], timeout: float = 8.0) -> tuple[int, str, str]:
     )
 
 
+def _device_names_in_yaml(devices_path: Path) -> set[str]:
+    raw = _load_yaml(devices_path)
+    out: set[str] = set()
+    for d in raw.get("devices", []) or []:
+        if isinstance(d, dict):
+            name = str(d.get("name", "") or "").strip()
+            if name:
+                out.add(name)
+    return out
+
+
+def _append_device_stubs(devices_path: Path, serials: list[str]) -> tuple[int, list[str]]:
+    """Append stub device entries (empty gamer lists). Returns (added_count, skipped_serials)."""
+    raw = _load_yaml(devices_path)
+    devices = [d for d in (raw.get("devices", []) or []) if isinstance(d, dict)]
+    existing = {str(d.get("name", "") or "").strip() for d in devices}
+    skipped: list[str] = []
+    added = 0
+    stub_profile: dict[str, Any] = {"email": "", "gamer": []}
+    for serial in serials:
+        s = (serial or "").strip()
+        if not s:
+            continue
+        if s in existing:
+            skipped.append(s)
+            continue
+        devices.append({"name": s, "profiles": [dict(stub_profile)]})
+        existing.add(s)
+        added += 1
+    if added == 0:
+        return 0, skipped
+    raw["devices"] = devices
+    _atomic_write_yaml(devices_path, raw)
+    invalidate_device_registry()
+    return added, skipped
+
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
@@ -152,6 +188,9 @@ with st.expander("Default candidate"):
 
 st.divider()
 st.subheader("Connected devices")
+
+if "adb_devices_yaml_toast" in st.session_state:
+    st.success(st.session_state.pop("adb_devices_yaml_toast"))
 
 c_refresh, c_start, c_kill = st.columns([1, 1, 1])
 with c_refresh:
@@ -196,11 +235,87 @@ else:
         )
     else:
         st.success(f"{len(rows)} device(s) connected")
+        yaml_names = _device_names_in_yaml(_DEVICES_PATH)
+        adb_ready = [r for r in rows if r.get("state") == "device"]
+        missing = [r for r in adb_ready if r["serial"] not in yaml_names]
+
+        rows_display = [
+            {
+                **r,
+                "in_devices_yaml": "yes" if r["serial"] in yaml_names else "no",
+            }
+            for r in rows
+        ]
         st.dataframe(
-            pd.DataFrame(rows),
+            pd.DataFrame(rows_display),
             width="stretch",
             hide_index=True,
         )
+
+        with st.expander(
+            "Add ADB devices to db/devices.yaml",
+            expanded=bool(missing),
+        ):
+            st.caption(
+                "Only serials in **device** state can be added. "
+                "Creates a stub with an empty `gamer` list; set player IDs in the table below."
+            )
+
+            if not adb_ready:
+                st.info(
+                    "No devices in `device` state. "
+                    "Authorize USB debugging or wait until the emulator is fully booted."
+                )
+            elif not missing:
+                st.info(
+                    "Every connected ADB serial in `device` state already has a `name` "
+                    f"in `{_DEVICES_PATH.relative_to(_REPO_ROOT)}`."
+                )
+            else:
+                labels = {
+                    r["serial"]: (
+                        f"{r['serial']} — "
+                        f"{(r.get('model') or r.get('product') or '').strip() or 'no model'}"
+                    )
+                    for r in missing
+                }
+                chosen = st.multiselect(
+                    "Serials to add (not in devices.yaml)",
+                    options=list(labels.keys()),
+                    format_func=lambda sid: labels.get(sid, sid),
+                    key="adb_register_devices_multiselect",
+                )
+                b_sel, b_all = st.columns(2)
+                with b_sel:
+                    if st.button(
+                        "Add selected",
+                        type="primary",
+                        width="stretch",
+                        key="adb_register_devices_selected",
+                    ):
+                        if not chosen:
+                            st.warning("Select at least one serial.")
+                        else:
+                            n_added, _skipped = _append_device_stubs(_DEVICES_PATH, chosen)
+                            st.session_state["adb_devices_yaml_toast"] = (
+                                f"Added {n_added} stub device(s) to "
+                                f"`{_DEVICES_PATH.relative_to(_REPO_ROOT)}`."
+                            )
+                            st.rerun()
+                with b_all:
+                    if st.button(
+                        "Add all missing",
+                        width="stretch",
+                        key="adb_register_devices_all",
+                    ):
+                        serials = [r["serial"] for r in missing]
+                        n_added, _skipped = _append_device_stubs(_DEVICES_PATH, serials)
+                        st.session_state["adb_devices_yaml_toast"] = (
+                            f"Added {n_added} stub device(s) to "
+                            f"`{_DEVICES_PATH.relative_to(_REPO_ROOT)}`."
+                        )
+                        st.rerun()
+
         # Per-device quick test
         with st.expander("Per-device test (`get-state` + `getprop ro.product.model`)"):
             for r in rows:

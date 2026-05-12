@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
-import json
 import base64
+import json
+import re
 import subprocess
 import sys
 import time
-import re
-from urllib.parse import urlencode
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
 import yaml
+
+_SECTION_LABEL: dict[str, str] = {
+    "buildings": "Buildings",
+    "heroes": "Heroes",
+    "items": "Items",
+    "faq": "FAQ",
+}
+_LABEL_TO_SECTION: dict[str, str] = {v: k for k, v in _SECTION_LABEL.items()}
 
 
 def _repo_root() -> Path:
@@ -43,11 +51,18 @@ def _load_index(path: Path) -> dict[str, Any]:
     return _load_index_cached(str(path), stt.st_mtime_ns, stt.st_size)
 
 
+def _render_wiki_link(wiki_url: str) -> None:
+    u = wiki_url.strip()
+    if not u:
+        return
+    st.markdown(f"**Wiki:** [{u}]({u})")
+
+
 def _render_building(building: dict[str, Any]) -> None:
     st.subheader(f"{building.get('name') or '(unnamed)'} · `{building.get('id') or ''}`")
     wiki_url = str(building.get("wiki_url") or "").strip()
     if wiki_url:
-        st.markdown(f"**Wiki:** `{wiki_url}`")
+        _render_wiki_link(wiki_url)
 
     req = building.get("requirements_by_level")
     if isinstance(req, dict) and req:
@@ -92,7 +107,7 @@ def _render_hero(hero: dict[str, Any]) -> None:
     st.subheader(f"{hero.get('name') or '(unnamed)'} · `{hero.get('id') or ''}`")
     wiki_url = str(hero.get("wiki_url") or "").strip()
     if wiki_url:
-        st.markdown(f"**Wiki:** `{wiki_url}`")
+        _render_wiki_link(wiki_url)
 
     meta = []
     for k in ("rarity", "class", "sub_class"):
@@ -131,7 +146,7 @@ def _render_item(item: dict[str, Any]) -> None:
     st.subheader(f"{item.get('name') or '(unnamed)'} · `{item.get('id') or ''}`")
     wiki_url = str(item.get("wiki_url") or "").strip()
     if wiki_url:
-        st.markdown(f"**Wiki:** `{wiki_url}`")
+        _render_wiki_link(wiki_url)
 
     desc = str(item.get("description") or "").strip()
     if desc:
@@ -146,13 +161,19 @@ def _render_item(item: dict[str, Any]) -> None:
                 st.markdown(f"- {s.strip()}")
 
 
-def _select_from_index(index: dict[str, Any], key: str, label: str) -> dict[str, Any] | None:
+def _select_from_index(
+    index: dict[str, Any],
+    key: str,
+    label: str,
+    *,
+    search_query: str,
+) -> dict[str, Any] | None:
     entries = index.get(key)
     if not isinstance(entries, list):
         st.error(f"Invalid index format: `{key}` is not a list.")
         return None
 
-    q = st.text_input("Search", value="", key=f"wiki_db_search_{key}").strip().lower()
+    q = search_query.strip().lower()
     filtered: list[dict[str, Any]] = []
     for e in entries:
         if not isinstance(e, dict):
@@ -177,17 +198,15 @@ def _select_from_index(index: dict[str, Any], key: str, label: str) -> dict[str,
     return selected
 
 
-def _load_entity_file(dir_path: Path, entry: dict[str, Any]) -> dict[str, Any]:
+def _entity_yaml_path(dir_path: Path, entry: dict[str, Any]) -> Path | None:
+    """Resolved path to entity YAML, or None if path cannot be determined."""
     file_rel = str(entry.get("file") or "").strip()
     if not file_rel:
         eid = str(entry.get("id") or "").strip()
         file_rel = f"{eid}.yaml" if eid else ""
     if not file_rel:
-        return {}
-    p = (dir_path / file_rel).resolve()
-    if not p.is_file():
-        return {}
-    return _load_yaml_dict(p)
+        return None
+    return (dir_path / file_rel).resolve()
 
 
 def _get_qparam_str(key: str) -> str:
@@ -201,6 +220,19 @@ def _set_qparam(key: str, value: str) -> None:
     st.rerun()
 
 
+def _page_for_selected_id(
+    filtered: list[dict[str, Any]], selected_id: str, page_size: int, max_page: int
+) -> int:
+    if not selected_id:
+        return 1
+    for i, e in enumerate(filtered):
+        if not isinstance(e, dict):
+            continue
+        if str(e.get("id") or "").strip() == selected_id:
+            return min(max_page, i // page_size + 1)
+    return 1
+
+
 def _render_index_tiles(
     *,
     index: dict[str, Any],
@@ -208,6 +240,7 @@ def _render_index_tiles(
     label: str,
     section_name: str,
     qparam_key: str,
+    search_query: str,
     icon_prefix: str | None = None,
     cols: int = 4,
     page_size: int = 40,
@@ -217,7 +250,7 @@ def _render_index_tiles(
         st.error(f"Invalid index format: `{index_key}` is not a list.")
         return None
 
-    q = st.text_input("Search", value="", key=f"wiki_db_search_tiles_{index_key}").strip().lower()
+    q = search_query.strip().lower()
     filtered: list[dict[str, Any]] = []
     for e in entries:
         if not isinstance(e, dict):
@@ -237,13 +270,15 @@ def _render_index_tiles(
 
     total = len(filtered)
     max_page = max(1, (total + page_size - 1) // page_size)
+    page_default = _page_for_selected_id(filtered, selected_id, page_size, max_page)
+    page_widget_key = f"wiki_db_tiles_page_{index_key}_{selected_id or '__none__'}"
     page = st.number_input(
         "Page",
         min_value=1,
         max_value=max_page,
-        value=min(1 if not selected_id else 1, max_page),
+        value=page_default,
         step=1,
-        key=f"wiki_db_tiles_page_{index_key}",
+        key=page_widget_key,
     )
     start = (int(page) - 1) * page_size
     chunk = filtered[start : start + page_size]
@@ -290,7 +325,8 @@ def _render_index_tiles(
                     continue
 
             # Fallback: text-only tile
-            if st.button(btn_label, use_container_width=True, key=f"tile_{index_key}_{eid}_{start+i}"):
+            tile_key = f"tile_{index_key}_{eid}_{start + i}"
+            if st.button(btn_label, use_container_width=True, key=tile_key):
                 _set_qparam(qparam_key, eid)
 
     if selected_id:
@@ -403,7 +439,11 @@ def _render_faq() -> None:
     with c2:
         if st.button("Sync items", use_container_width=True):
             # items script prints progress N/405, so we can show a real progress bar.
-            _run_script(title="Sync items", script_rel="cmd/sync_items_wiki.py", progress_total_hint=405)
+            _run_script(
+                title="Sync items",
+                script_rel="cmd/sync_items_wiki.py",
+                progress_total_hint=405,
+            )
         if st.button("Download images (all)", use_container_width=True):
             _run_script(
                 title="Download wiki images (all)",
@@ -420,17 +460,12 @@ def _render_faq() -> None:
     st.markdown("**What is `item_icon_XXX` in build costs?**")
     st.write(
         "The wiki often represents resource types as icons in tables. We store the icon filename "
-        "as a stable identifier (e.g. `item_icon_103`) until we add a mapping to canonical resource names."
+        "as a stable identifier (e.g. `item_icon_103`) until we add a mapping to canonical names."
     )
 
     st.markdown("**Local assets**")
     st.write("Downloaded images are stored under `db/assets/wiki/`.")
 
-
-st.title("DB · Wiki reference")
-st.caption("Buildings, heroes, items and FAQ — sourced from whiteoutsurvival.wiki.")
-
-repo = _repo_root()
 
 def _resolve_local_icon(prefix: str, entity_id: str) -> Path | None:
     """Best-effort local icon lookup under db/assets/wiki/<prefix>/<id>/."""
@@ -465,6 +500,7 @@ def _html_escape(s: str) -> str:
         .replace("'", "&#39;")
     )
 
+
 def _get_section() -> str:
     raw = st.query_params.get("section")
     s = raw[0] if isinstance(raw, list) and raw else (raw or "")
@@ -472,38 +508,49 @@ def _get_section() -> str:
     return s or "home"
 
 
-def _set_section(section: str) -> None:
-    st.query_params["section"] = str(section)
-    st.rerun()
+def _url_section_key() -> str:
+    s = _get_section()
+    if s in _SECTION_LABEL:
+        return s
+    return "buildings"
 
 
-section = _get_section()
+st.title("DB · Wiki reference")
+st.caption("Buildings, heroes, items and FAQ — sourced from whiteoutsurvival.wiki.")
 
-if section == "home":
-    st.markdown("### Reference")
-    st.caption("Pick a section.")
+repo = _repo_root()
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        if st.button("Buildings", use_container_width=True):
-            _set_section("buildings")
-    with c2:
-        if st.button("Heroes", use_container_width=True):
-            _set_section("heroes")
-    with c3:
-        if st.button("Items", use_container_width=True):
-            _set_section("items")
-    with c4:
-        if st.button("FAQ", use_container_width=True):
-            _set_section("faq")
+if "wiki_db_panel_radio" not in st.session_state:
+    st.session_state["wiki_db_panel_radio"] = _SECTION_LABEL[_url_section_key()]
 
-    st.divider()
+label_from_url = _SECTION_LABEL[_url_section_key()]
+if st.session_state["wiki_db_panel_radio"] != label_from_url:
+    st.session_state["wiki_db_panel_radio"] = label_from_url
 
-tab_buildings, tab_heroes, tab_items, tab_faq = st.tabs(["Buildings", "Heroes", "Items", "FAQ"])
 
-with tab_buildings:
-    if section not in {"home", "buildings"}:
-        st.caption("Open this tab from the tiles above, or switch `?section=buildings`.")
+def _on_panel_radio_change() -> None:
+    lab = st.session_state.get("wiki_db_panel_radio")
+    if lab and lab in _LABEL_TO_SECTION:
+        st.query_params["section"] = _LABEL_TO_SECTION[lab]
+
+
+st.radio(
+    "Section",
+    options=list(_SECTION_LABEL.values()),
+    horizontal=True,
+    key="wiki_db_panel_radio",
+    on_change=_on_panel_radio_change,
+    label_visibility="collapsed",
+)
+panel = _LABEL_TO_SECTION[st.session_state["wiki_db_panel_radio"]]
+
+if _get_section() == "home":
+    st.caption(
+        "URL has no `section` — showing **Buildings**. "
+        "Use the row above or `?section=heroes` etc."
+    )
+
+if panel == "buildings":
     idx = _load_index(repo / "db" / "buildings" / "index.yaml")
     cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
     with cset1:
@@ -523,12 +570,20 @@ with tab_buildings:
     with cset3:
         st.caption("Tiles are clickable cards (image + text) when an icon is available.")
 
+    q = st.text_input(
+        "Search",
+        value="",
+        key="wiki_db_search_buildings",
+        help="Filters tiles and the list selector below.",
+    ).strip()
+
     sel = _render_index_tiles(
         index=idx,
         index_key="buildings",
         label="Buildings",
         section_name="buildings",
         qparam_key="building",
+        search_query=q,
         icon_prefix="buildings",
         cols=int(cols),
         page_size=int(page_size),
@@ -536,14 +591,22 @@ with tab_buildings:
     st.divider()
     if not sel:
         st.caption("Tip: click a building tile to open its card.")
-        sel = _select_from_index(idx, "buildings", "Building")
+        sel = _select_from_index(idx, "buildings", "Building", search_query=q)
     if sel:
-        building = _load_entity_file(repo / "db" / "buildings", sel)
-        _render_building(building)
+        bdir = repo / "db" / "buildings"
+        ypath = _entity_yaml_path(bdir, sel)
+        if ypath is None:
+            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+        elif not ypath.is_file():
+            st.warning(f"No YAML file at `{ypath}`. Run **Sync buildings** in FAQ.")
+        else:
+            building = _load_yaml_dict(ypath)
+            if not building:
+                st.warning(f"Empty or invalid YAML at `{ypath}`.")
+            else:
+                _render_building(building)
 
-with tab_heroes:
-    if section not in {"home", "heroes"}:
-        st.caption("Open this tab from the tiles above, or switch `?section=heroes`.")
+elif panel == "heroes":
     idx = _load_index(repo / "db" / "heroes" / "index.yaml")
     cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
     with cset1:
@@ -563,12 +626,20 @@ with tab_heroes:
     with cset3:
         st.caption("Tiles are clickable cards (image + text) when an icon is available.")
 
+    q = st.text_input(
+        "Search",
+        value="",
+        key="wiki_db_search_heroes",
+        help="Filters tiles and the list selector below.",
+    ).strip()
+
     sel = _render_index_tiles(
         index=idx,
         index_key="heroes",
         label="Heroes",
         section_name="heroes",
         qparam_key="hero",
+        search_query=q,
         icon_prefix="heroes",
         cols=int(cols),
         page_size=int(page_size),
@@ -576,14 +647,22 @@ with tab_heroes:
     st.divider()
     if not sel:
         st.caption("Tip: click a hero tile to open its card.")
-        sel = _select_from_index(idx, "heroes", "Hero")
+        sel = _select_from_index(idx, "heroes", "Hero", search_query=q)
     if sel:
-        hero = _load_entity_file(repo / "db" / "heroes", sel)
-        _render_hero(hero)
+        hdir = repo / "db" / "heroes"
+        ypath = _entity_yaml_path(hdir, sel)
+        if ypath is None:
+            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+        elif not ypath.is_file():
+            st.warning(f"No YAML file at `{ypath}`. Run **Sync heroes** in FAQ.")
+        else:
+            hero = _load_yaml_dict(ypath)
+            if not hero:
+                st.warning(f"Empty or invalid YAML at `{ypath}`.")
+            else:
+                _render_hero(hero)
 
-with tab_items:
-    if section not in {"home", "items"}:
-        st.caption("Open this tab from the tiles above, or switch `?section=items`.")
+elif panel == "items":
     idx = _load_index(repo / "db" / "items" / "index.yaml")
     cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
     with cset1:
@@ -603,12 +682,20 @@ with tab_items:
     with cset3:
         st.caption("Tiles are clickable cards (image + text).")
 
+    q = st.text_input(
+        "Search",
+        value="",
+        key="wiki_db_search_items",
+        help="Filters tiles and the list selector below.",
+    ).strip()
+
     sel = _render_index_tiles(
         index=idx,
         index_key="items",
         label="Items",
         section_name="items",
         qparam_key="item",
+        search_query=q,
         icon_prefix="items",
         cols=int(cols),
         page_size=int(page_size),
@@ -616,13 +703,21 @@ with tab_items:
     st.divider()
     if not sel:
         st.caption("Tip: click an item tile to open its card.")
-        sel = _select_from_index(idx, "items", "Item")
+        sel = _select_from_index(idx, "items", "Item", search_query=q)
     if sel:
-        item = _load_entity_file(repo / "db" / "items", sel)
-        _render_item(item)
+        idir = repo / "db" / "items"
+        ypath = _entity_yaml_path(idir, sel)
+        if ypath is None:
+            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+        elif not ypath.is_file():
+            st.warning(f"No YAML file at `{ypath}`. Run **Sync items** in FAQ.")
+        else:
+            item = _load_yaml_dict(ypath)
+            if not item:
+                st.warning(f"Empty or invalid YAML at `{ypath}`.")
+            else:
+                _render_item(item)
 
-with tab_faq:
-    if section not in {"home", "faq"}:
-        st.caption("Open this tab from the tiles above, or switch `?section=faq`.")
+else:
     _render_faq()
 

@@ -96,6 +96,25 @@ FROST_BADGE_PINK_MIN_RATIO = 0.002
 Sparkles are sparse but unique — main_city_v2 has 0 such pixels in any sampled
 notification bbox, so even a tiny presence is highly diagnostic."""
 
+FROST_BADGE_PINK_NEAR_CYAN_DILATE_PX = 2
+FROST_BADGE_MIN_PINK_NEAR_CYAN = 5
+"""Co-location gate: at least :data:`FROST_BADGE_MIN_PINK_NEAR_CYAN` pink
+pixels must lie within :data:`FROST_BADGE_PINK_NEAR_CYAN_DILATE_PX` of the
+largest cyan connected component.
+
+Without this gate, the cyan + pink conjunction can mis-fire on event-icon
+crops where the cyan is the *snowy main_city background* and the pink is
+unrelated character detail (hair / dress edges) scattered far from the cyan.
+Real frost badges glue their sparkles to the icy capsule body — the largest
+cyan blob — so requiring at least a handful of pink pixels to land in that
+neighborhood cleanly separates the two.
+
+Numbers from captured frames at the 2px dilation: real
+``red_dot_frost_workers`` has 36 pink pixels next to the blob; the
+"1st Purchase" event icon (the original false positive) has 0. A larger
+dilation (5+ px) starts capturing unrelated background pink and erodes the
+gap. A floor of 5 with 2px dilation leaves wide headroom on both sides."""
+
 
 @dataclass(frozen=True)
 class RedDotDetection:
@@ -236,16 +255,16 @@ def has_frost_badge(patch_bgr: np.ndarray) -> bool:
 
     Statistical, not geometric: the frost overlay smears the badge silhouette
     so contour-based shape rules (used by :func:`find_red_dots`) cannot lock
-    onto it. Instead we require that **both** signature pixel populations
-    cross their floors simultaneously:
+    onto it. Three gates must pass:
 
     * bright icy-cyan ≥ :data:`FROST_BADGE_CYAN_MIN_RATIO` of patch pixels
       (the badge body / halo);
     * magenta sparkles ≥ :data:`FROST_BADGE_PINK_MIN_RATIO` of patch pixels
-      (the snow-particle glitter exclusive to event indicators).
-
-    The conjunction is what makes this safe: a plain blue button or the sky
-    have lots of cyan but ~0 pink, so they do not register.
+      (the snow-particle glitter exclusive to event indicators);
+    * pink sparkles must **co-locate** with the largest cyan blob (the
+      capsule body) — see :data:`FROST_BADGE_MIN_PINK_NEAR_CYAN`. Without
+      this, the cyan+pink conjunction can fire when cyan is the *snowy
+      main_city background* and pink pixels are scattered character detail.
     """
 
     if patch_bgr is None or patch_bgr.ndim != 3 or patch_bgr.size == 0:
@@ -260,8 +279,8 @@ def has_frost_badge(patch_bgr: np.ndarray) -> bool:
 
     cy_lo, cy_hi = FROST_BADGE_CYAN_HUE_RANGE
     cyan = (
-        (H >= cy_lo)
-        & (H <= cy_hi)
+        (cy_lo <= H)
+        & (cy_hi >= H)
         & (S >= FROST_BADGE_CYAN_MIN_SAT)
         & (V >= FROST_BADGE_CYAN_MIN_VAL)
     )
@@ -270,12 +289,28 @@ def has_frost_badge(patch_bgr: np.ndarray) -> bool:
 
     pk_lo, pk_hi = FROST_BADGE_PINK_HUE_RANGE
     pink = (
-        (H >= pk_lo)
-        & (H <= pk_hi)
+        (pk_lo <= H)
+        & (pk_hi >= H)
         & (S >= FROST_BADGE_PINK_MIN_SAT)
         & (V >= FROST_BADGE_PINK_MIN_VAL)
     )
-    return float(pink.sum()) / total >= FROST_BADGE_PINK_MIN_RATIO
+    if float(pink.sum()) / total < FROST_BADGE_PINK_MIN_RATIO:
+        return False
+
+    # Co-location gate: pink sparkles must lie next to the cyan capsule, not
+    # be scattered far from it. The largest cyan connected component is the
+    # capsule body; sparkles are within a few pixels of it.
+    cyan_u8 = cyan.astype(np.uint8) * 255
+    num_cc, labels, stats_cc, _ = cv2.connectedComponentsWithStats(cyan_u8, connectivity=8)
+    if num_cc <= 1:
+        return False
+    largest_idx = 1 + int(stats_cc[1:, cv2.CC_STAT_AREA].argmax())
+    largest_blob_u8 = ((labels == largest_idx).astype(np.uint8)) * 255
+    kernel_side = 2 * FROST_BADGE_PINK_NEAR_CYAN_DILATE_PX + 1
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_side, kernel_side))
+    blob_neighborhood = cv2.dilate(largest_blob_u8, kernel) > 0
+    pink_near_blob = int((pink & blob_neighborhood).sum())
+    return pink_near_blob >= FROST_BADGE_MIN_PINK_NEAR_CYAN
 
 
 def has_red_dot_in_bbox_percent(
@@ -318,6 +353,4 @@ def has_red_dot_in_bbox_percent(
 
     if len(find_red_dots(patch, image_h_for_norm=hi)) > 0:
         return True
-    if accept_frost and has_frost_badge(patch):
-        return True
-    return False
+    return bool(accept_frost and has_frost_badge(patch))

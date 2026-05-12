@@ -11,7 +11,6 @@ import httpx
 import yaml
 from bs4 import BeautifulSoup, Tag
 
-
 _BASE = "https://www.whiteoutsurvival.wiki"
 _INDEX = f"{_BASE}/items/"
 
@@ -141,7 +140,7 @@ def _extract_between_markers(lines: list[str], start: str, end_markers: tuple[st
 def _parse_item_page(html: str) -> dict[str, Any]:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text("\n", strip=True)
-    lines = [ln for ln in (l.strip() for l in text.splitlines()) if ln]
+    lines = [ln for ln in (line.strip() for line in text.splitlines()) if ln]
 
     # Most pages look like:
     #   ## Name
@@ -183,7 +182,14 @@ def _parse_item_page(html: str) -> dict[str, Any]:
     src_chunk = _extract_between_markers(
         lines,
         "Sources",
-        ("#### Tips from Greg", "Tips from Greg", "#### Play the Game", "Play the Game", "#### Our Socials", "Our Socials"),
+        (
+            "#### Tips from Greg",
+            "Tips from Greg",
+            "#### Play the Game",
+            "Play the Game",
+            "#### Our Socials",
+            "Our Socials",
+        ),
     )
     sources: list[str] = []
     for s in src_chunk:

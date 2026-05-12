@@ -3,13 +3,13 @@ from __future__ import annotations
 import re
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import httpx
 import yaml
 from bs4 import BeautifulSoup, Tag
-
 
 _BASE = "https://www.whiteoutsurvival.wiki"
 _INDEX = f"{_BASE}/heroes/"
@@ -314,7 +314,7 @@ def _parse_skills(soup: BeautifulSoup) -> list[dict[str, str]]:
     return out
 
 
-def _iter_section_nodes(start: Tag):
+def _iter_section_nodes(start: Tag) -> Iterator[Any]:
     """Yield nodes after `start` until the next major heading (h2/h3/h4)."""
     for node in start.next_elements:
         if node is start:
@@ -327,7 +327,7 @@ def _iter_section_nodes(start: Tag):
 def _parse_hero_page(html: str) -> dict[str, Any]:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text("\n", strip=True)
-    lines = [ln for ln in (l.strip() for l in text.splitlines()) if ln]
+    lines = [ln for ln in (line.strip() for line in text.splitlines()) if ln]
 
     rarity = _text_after_label(lines, "Rarity")
     hclass = _text_after_label(lines, "Class")

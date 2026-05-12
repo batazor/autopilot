@@ -26,6 +26,9 @@ from layout.red_dot_detector import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAIN_CITY_V2_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "main_city_v2_red_dots.png"
 FROST_WORKERS_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "red_dot_frost_workers.png"
+EVENT_1ST_PURCHASE_FALSE_POSITIVE = (
+    REPO_ROOT / "tests" / "fixtures" / "event_block_1st_purchase_false_positive.png"
+)
 
 REFERENCE_W = 720
 REFERENCE_H = REFERENCE_IMAGE_HEIGHT
@@ -347,3 +350,25 @@ def test_has_frost_badge_false_on_plain_main_city_v2_bboxes() -> None:
         assert has_frost_badge(patch) is False, (
             f"main_city_v2 bbox `{name}` must not register as frost badge"
         )
+
+
+# ---------------------------------------------------------------------------
+# Regression: "1st Purchase" event icon false positive
+# ---------------------------------------------------------------------------
+#
+# The 1st Purchase event icon at ``main_city.event.block.2`` is a character
+# portrait pasted over the snowy city background. Naively, ``has_frost_badge``
+# saw lots of cyan (snow/sky behind the icon) AND a sprinkle of pink pixels
+# (character hair / dress edges) and fired — even though the pink wasn't
+# anywhere near the cyan. The captured patch is preserved as a fixture so
+# future tweaks to the frost detector keep this case quiet.
+
+
+def test_has_frost_badge_false_on_1st_purchase_event_icon() -> None:
+    """Cyan background + pink character detail away from cyan must NOT fire."""
+    patch = cv2.imread(str(EVENT_1ST_PURCHASE_FALSE_POSITIVE))
+    assert patch is not None, f"failed to load fixture: {EVENT_1ST_PURCHASE_FALSE_POSITIVE}"
+    assert has_frost_badge(patch) is False, (
+        "1st Purchase event icon (cyan background + far-away pink) "
+        "must not register as a frost badge"
+    )
