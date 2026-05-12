@@ -7,7 +7,7 @@
   "screens": [
     {
       "id": 1,
-      "screen_id": "building",
+      "screen_id": "",
       "ocr": "references/skip_button.png",
       "regions": [
         {
@@ -82,7 +82,7 @@
     },
     {
       "id": 4,
-      "screen_id": "building",
+      "screen_id": "",
       "ocr": "references/hand_pointer_small_reverse.png",
       "regions": [
         {
@@ -136,7 +136,7 @@
     },
     {
       "id": 5,
-      "screen_id": "building",
+      "screen_id": "",
       "ocr": "references/hand_pointer_small.png",
       "regions": [
         {
@@ -190,7 +190,7 @@
     },
     {
       "id": 6,
-      "screen_id": "building",
+      "screen_id": "",
       "ocr": "references/claim.png",
       "regions": [
         {
