@@ -19,6 +19,7 @@ from contextlib import suppress
 from typing import Any
 
 from config.state_store import get_state_store
+from tasks.dsl_scenario_helpers import _dsl_step_summary
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,42 @@ logger = logging.getLogger(__name__)
 class DslPersistMixin:
     redis_client: Any
     player_id: str | None
+    # Shared trace state owned by ``DslScenarioExecuteMixin._execute`` —
+    # nested handlers in ``DslScenarioInlineMixin`` append to the same list
+    # via :meth:`_append_trace_row`.
+    _steps_trace: list[dict[str, Any]] | None
+
+    def _append_trace_row(
+        self,
+        i: Any,
+        step_obj: Any,
+        status: str,
+        **kw: Any,
+    ) -> None:
+        """Append one row to the active scenario's ``steps_trace``.
+
+        Safe to call from any code path during ``_execute()``. No-op when the
+        trace list isn't initialized (e.g. outside an active ``_execute``).
+        """
+        trace = getattr(self, "_steps_trace", None)
+        if not isinstance(trace, list):
+            return
+        # Allow callers to override the summary (e.g. "iter 0" markers that
+        # don't correspond to a real DSL step dict).
+        summary_override = kw.pop("summary", None)
+        if summary_override is not None:
+            summ = str(summary_override)
+        else:
+            summ = (
+                _dsl_step_summary(step_obj)
+                if isinstance(step_obj, dict)
+                else "(non-dict)"
+            )
+        row: dict[str, Any] = {"i": str(i), "summary": summ, "status": status}
+        for k, v in kw.items():
+            if v is not None:
+                row[k] = v
+        trace.append(row)
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:
         if self.redis_client is None:
@@ -48,6 +85,7 @@ class DslPersistMixin:
                     "last_active_scenario_priority": "",
                     "last_active_scenario_player": "",
                     "last_active_scenario_step": "",
+                    "last_active_scenario_trace": "",
                 },
             )
 

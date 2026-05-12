@@ -22,6 +22,21 @@ def _runtime_error_is_adb_signal_exit(exc: BaseException) -> bool:
     return "ADB failed (exit -" in str(exc)
 
 
+def _runtime_error_is_device_offline(exc: BaseException) -> bool:
+    """True when ADB reports the device isn't currently connected.
+
+    User-flow: emulator closed / USB unplugged / ``adb kill-server`` ran. We
+    don't want the per-second rolling tick to log a fresh traceback every
+    iteration — the cause is the operator's choice, not a fault.
+    """
+    if not isinstance(exc, RuntimeError):
+        return False
+    s = str(exc)
+    return (
+        "device '" in s and "' not found" in s
+    ) or "device not found" in s or "no devices/emulators found" in s
+
+
 class InstanceWorkerRollingMixin:
     _cfg: Any
     _settings: Any
@@ -76,6 +91,21 @@ class InstanceWorkerRollingMixin:
                     self._cfg.instance_id,
                     exc_info=True,
                 )
+            elif _runtime_error_is_device_offline(e):
+                # Emulator off / disconnected — operator action, not a fault.
+                # Log once per ~10 min so the operator stays aware without
+                # drowning stdout in tracebacks at 1 Hz.
+                import time as _t
+
+                last = getattr(self, "_rolling_offline_logged_at", 0.0)
+                now = _t.time()
+                if now - last > 600.0:
+                    logger.info(
+                        "[rolling] %s: device offline (%s) — pausing capture",
+                        self._cfg.instance_id,
+                        self._cfg.bluestacks_window_title,
+                    )
+                    self._rolling_offline_logged_at = now
             else:
                 logger.exception(
                     "[rolling] %s: screenshot failed (exception during capture)",

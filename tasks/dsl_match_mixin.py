@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from actions.tap import BotActions
+from analysis.overlay_rules import resolved_search_region_for_findicon
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
@@ -279,8 +280,16 @@ class DslMatchMixin:
         # entirely. This avoids stale-crop ``shape_mismatch`` failures and
         # works on any region with ``has_red_dot: true`` in area.json (no crop
         # PNG required).
+        # Use the cached framebuffer when ``BotActions`` exposes it — sibling
+        # ``while_match`` / ``match`` probes share the same screen state until a
+        # tap/swipe invalidates the cache, so we'd otherwise re-screencap the
+        # same pixels N times for a multi-region scenario like ``claim_trials``.
+        # Tests that pass a ``_FakeActions`` without the cached helper transparently
+        # fall back to the always-fresh ``capture_screen_bgr``.
+        capture = getattr(actions, "capture_screen_bgr_cached", actions.capture_screen_bgr)
+
         if red_dot_req is not None:
-            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image_bgr = await asyncio.to_thread(capture, instance_id)
             row = self._build_red_dot_only_row(
                 region=region,
                 region_def=pair[1],
@@ -288,7 +297,7 @@ class DslMatchMixin:
                 requirement=red_dot_req,
             )
         elif tab_active_req is not None:
-            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image_bgr = await asyncio.to_thread(capture, instance_id)
             row = self._build_tab_active_only_row(
                 region=region,
                 region_def=pair[1],
@@ -297,13 +306,22 @@ class DslMatchMixin:
                 step=step,
             )
         elif white_border_req is not None:
-            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image_bgr = await asyncio.to_thread(capture, instance_id)
+            # Mirror the findIcon path: when ``{region}_search`` exists on the
+            # same OCR frame, slide-find falls back to that broader bbox if
+            # the primary bbox yields no candidate. Without this, scenarios
+            # like ``claim_trials`` miss highlighted claim buttons whose
+            # position varies between popup layouts.
+            search_bbox = self._resolve_search_sibling_bbox(
+                area_doc, region, pair[0]
+            )
             row = self._build_white_border_only_row(
                 region=region,
                 region_def=pair[1],
                 image_bgr=image_bgr,
                 requirement=white_border_req,
                 step=step,
+                search_bbox=search_bbox,
             )
         else:
             # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
@@ -334,7 +352,7 @@ class DslMatchMixin:
             # ``tasks.dsl_scenario.evaluate_overlay_rules_async`` apply here too.
             from tasks import dsl_scenario as _dsl
 
-            image_bgr = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image_bgr = await asyncio.to_thread(capture, instance_id)
             out = await _dsl.evaluate_overlay_rules_async(
                 image_bgr, area_doc, repo_root, [rule], state_flat=self._state_flat()
             )
@@ -471,6 +489,39 @@ class DslMatchMixin:
         base["tap_match_y_pct"] = cy
         return base
 
+    def _resolve_search_sibling_bbox(
+        self,
+        area_doc: dict[str, Any],
+        region_name: str,
+        primary_entry: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Return the bbox of ``{region_name}_search`` when it exists on the
+        same OCR frame as ``region_name``.
+
+        Same convention as :func:`resolved_search_region_for_findicon`. Returns
+        ``None`` when no sibling is defined, frames don't match, or the sibling
+        lacks a bbox — falling back to the primary region only.
+        """
+        ref_rel = str(primary_entry.get("ocr") or "").strip()
+        if not ref_rel:
+            return None
+        candidate_name = resolved_search_region_for_findicon(
+            area_doc,
+            region_name,
+            ref_rel,
+            {},
+            state_flat=self._state_flat(),
+        )
+        if not candidate_name:
+            return None
+        pair_s = screen_region_by_name(
+            area_doc, candidate_name, state_flat=self._state_flat()
+        )
+        if pair_s is None:
+            return None
+        bbox = pair_s[1].get("bbox")
+        return bbox if isinstance(bbox, dict) else None
+
     @staticmethod
     def _build_white_border_only_row(
         *,
@@ -479,6 +530,7 @@ class DslMatchMixin:
         image_bgr: Any,
         requirement: bool,
         step: dict[str, Any] | None = None,
+        search_bbox: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build a match row from the white-border detector alone (no template match).
 
@@ -491,6 +543,11 @@ class DslMatchMixin:
            *search zone* and the highlighted item lives somewhere inside it
            (e.g., ``button.claim`` in the trial-box popup, where the actual
            claim button position varies between popups).
+
+           If ``search_bbox`` is provided and the primary bbox yields no
+           candidate, slide-find is retried against ``search_bbox``. The
+           caller resolves this from the ``{region}_search`` sibling in
+           ``area.json``, mirroring the findIcon path's auto-resolution.
         2. **Halo fallback** via :func:`has_white_border_in_bbox_percent` —
            tests halo statistics around the labeled bbox itself. Used when
            the contour pass returns no candidate; this is the path that
@@ -521,7 +578,17 @@ class DslMatchMixin:
             return base
 
         # --- Pass 1: slide-find (contour-based) ---
+        # Try the primary bbox first; if it yields no contour candidate, retry
+        # against the ``{region}_search`` sibling's bbox (passed in by the
+        # caller). This mirrors the findIcon path's ``resolved_search_region``
+        # fallback so popups where the highlighted item lives outside the
+        # narrow labeled bbox still match.
         match = find_white_border_match_in_search_roi(image_bgr, bbox)
+        match_source = "primary"
+        if match is None and isinstance(search_bbox, dict):
+            match = find_white_border_match_in_search_roi(image_bgr, search_bbox)
+            if match is not None:
+                match_source = "search_sibling"
         if match is not None:
             base["white_border_present"] = True
             x, y, w, h = match["px_rect"]  # type: ignore[index]
@@ -532,9 +599,9 @@ class DslMatchMixin:
             cy = float(match["cy_pct"])  # type: ignore[arg-type]
             inner_s = float(match.get("interior_saturation") or 0.0)  # type: ignore[arg-type]
             logger.info(
-                "white_border slide-find: region=%s contour=(%d,%d,%dx%d) "
+                "white_border slide-find: region=%s source=%s contour=(%d,%d,%dx%d) "
                 "center=(%.2f%%,%.2f%%) inner_S=%.0f required=%s",
-                region, int(x), int(y), int(w), int(h),
+                region, match_source, int(x), int(y), int(w), int(h),
                 cx, cy, inner_s, requirement,
             )
             if not bool(requirement):
@@ -545,6 +612,7 @@ class DslMatchMixin:
             base["tap_y_pct"] = cy
             base["tap_match_x_pct"] = cx
             base["tap_match_y_pct"] = cy
+            base["search_source"] = match_source
             return base
 
         # --- Pass 2: halo fallback (existing behavior) ---

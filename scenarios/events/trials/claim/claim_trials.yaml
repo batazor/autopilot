@@ -230,4 +230,5 @@ steps:
         isWhiteBorder: true
         steps:
           - click: button.claim
-          - wait: 0.5s
+          - wait: 1s
+          - click: page.vip.increase.close

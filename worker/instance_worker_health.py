@@ -24,10 +24,44 @@ class InstanceWorkerHealthMixin:
 
     def _ensure_whiteout_at_worker_start(self) -> None:
         """Bring Whiteout to foreground and verify process + resumed activity (same as health check)."""
-        from actions.tap import BotActions
+        from actions.tap import AdbController, BotActions, canonical_adb_serial
+        from capture.adb_screencap import DEFAULT_ADB_BIN
 
         ba = BotActions()
         inst = self._cfg.instance_id
+
+        # Pre-flight: if our ADB serial isn't connected right now, skip the
+        # whole startup foreground dance. ``AdbController.__init__`` would
+        # otherwise raise ``device not found`` and spam a startup traceback
+        # every worker reboot, even though ``game_health_watchdog`` will
+        # auto-pause the instance within ``health_check_interval_seconds``.
+        from config.loader import get_settings
+
+        adb_bin = (
+            (get_settings().worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
+        )
+        try:
+            live = {
+                canonical_adb_serial(s) for s in AdbController.list_devices(adb_bin)
+            }
+        except Exception:
+            logger.debug("Startup: adb devices failed for %s", inst, exc_info=True)
+            live = set()
+        if canonical_adb_serial(self._cfg.bluestacks_window_title) not in live:
+            logger.info(
+                "Startup: %s device offline (serial=%s) — self-pausing; "
+                "watchdog auto-resumes when device returns",
+                inst,
+                self._cfg.bluestacks_window_title,
+            )
+            # Flip the same flag the operator pause does so the main loop's
+            # ``while self._ui_paused`` gate stops any queued task from
+            # touching ADB. The async caller in ``run()`` mirrors this to
+            # Redis state so the UI shows "paused (auto)" right away —
+            # otherwise we race the watchdog by up to ``health_check_interval``.
+            self._ui_paused = True
+            return
+
         attempts = 5
         settle_s = 2.5
 

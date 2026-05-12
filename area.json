@@ -2449,10 +2449,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 77.18146718146718,
+            "x": 85.9073359073359,
             "y": 26.847826086956523,
-            "width": 20.0,
-            "height": 10.0,
+            "width": 11.519305019305019,
+            "height": 4.293478260869565,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

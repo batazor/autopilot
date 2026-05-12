@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import timedelta
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -302,10 +303,28 @@ def _queue_fragment() -> None:
                 sel = event.selection.get("rows", [])
                 if sel:
                     h_sel = hist[sel[0]]
+                    # Jump-to-debug: pre-fills the Debug page with this scenario +
+                    # player so the user lands directly on the right context.
+                    debug_scenario = h_sel.scenario or h_sel.task_type
+                    if debug_scenario:
+                        debug_params: dict[str, str] = {"scenario": debug_scenario}
+                        if h_sel.player_id:
+                            debug_params["player"] = h_sel.player_id
+                        st.link_button(
+                            f"🔍 Debug `{debug_scenario}`"
+                            + (f" · player `{h_sel.player_id}`" if h_sel.player_id else ""),
+                            f"/debug_scenarios?{urlencode(debug_params)}",
+                            help="Open the Debug page with this scenario and player pre-selected.",
+                        )
                     if h_sel.steps_trace:
                         with st.expander("DSL step trace", expanded=False):
+                            trace_df = pd.DataFrame(h_sel.steps_trace)
+                            if "i" in trace_df.columns:
+                                # `i` mixes ints (outer step index) and strings
+                                # like "6.0" (nested iter paths); arrow needs one dtype.
+                                trace_df["i"] = trace_df["i"].astype(str)
                             st.dataframe(
-                                pd.DataFrame(h_sel.steps_trace),
+                                trace_df,
                                 hide_index=True,
                                 width="stretch",
                             )

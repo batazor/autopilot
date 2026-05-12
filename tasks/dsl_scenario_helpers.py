@@ -172,6 +172,7 @@ def _dsl_step_summary(step: Any) -> str:
     """Short human-readable label for queue/history step traces."""
     if not isinstance(step, dict):
         return "(invalid)"
+    base: str | None = None
     for key in (
         "click",
         "match",
@@ -190,23 +191,33 @@ def _dsl_step_summary(step: Any) -> str:
         val = step[key]
         if key in ("click", "match", "while_match", "ocr", "set_node"):
             s = str(val).strip()
-            return f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
-        if key == "repeat":
-            return "repeat"
-        if key == "loop":
-            return "loop"
-        if key == "swipe_direction":
-            return f"swipe:{str(val)[:40]}"
-        if key == "push_scenario":
-            return f"push:{str(val)[:40]}"
-        if key == "exec":
-            return f"exec:{str(val)[:40]}"
-        if key == "wait":
-            return f"wait:{str(val)[:24]}"
-    if "steps" in step and isinstance(step.get("steps"), list):
-        return f"group({len(step['steps'])})"
-    extra = [k for k in step if k != "cond"]
-    return ",".join(extra[:5]) or "(empty)"
+            base = f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
+        elif key == "repeat":
+            base = "repeat"
+        elif key == "loop":
+            base = "loop"
+        elif key == "swipe_direction":
+            base = f"swipe:{str(val)[:40]}"
+        elif key == "push_scenario":
+            base = f"push:{str(val)[:40]}"
+        elif key == "exec":
+            base = f"exec:{str(val)[:40]}"
+        elif key == "wait":
+            base = f"wait:{str(val)[:24]}"
+        break
+    if base is None:
+        if "steps" in step and isinstance(step.get("steps"), list):
+            base = f"group({len(step['steps'])})"
+        else:
+            extra = [k for k in step if k != "cond"]
+            base = ",".join(extra[:5]) or "(empty)"
+    # Append truthy guard flags so two otherwise-identical steps with different
+    # guards (e.g. ``while_match: button.claim`` with and without
+    # ``isWhiteBorder``) render distinctly in the trace.
+    guards = [g for g in ("isRedDot", "isWhiteBorder", "isTabActive") if step.get(g)]
+    if guards:
+        base = f"{base} [{','.join(guards)}]"
+    return base
 
 
 def _eval_simple_screen_cond(expr: str, current_screen: str) -> bool:

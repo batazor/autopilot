@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
+import pandas as pd
 import redis
 import streamlit as st
 import yaml
@@ -22,7 +23,9 @@ from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
 from ui.notifications import push_ui_notification_sync
 from ui.redis_client import (
+    QueueHistoryRow,
     bump_dsl_preempt_generation,
+    fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
     get_instance_state,
@@ -39,6 +42,32 @@ from ui.views.click_approvals.preview import render_preview_with_point
 
 DEBUG_PRIORITY_DEFAULT = 1_000_000
 PREVIEW_MAX_SIDE = 360
+HISTORY_FETCH_LIMIT = 50
+
+
+def _last_scenario_redis_key(instance_id: str) -> str:
+    iid = (instance_id or "").strip() or "unknown"
+    return f"wos:ui:debug_scenarios:{iid}:last_scenario"
+
+
+def _load_persisted_last_scenario(client: redis.Redis, instance_id: str) -> str:
+    """Return the most recently picked scenario key for this instance (or '')."""
+    try:
+        raw = client.get(_last_scenario_redis_key(instance_id))
+    except redis.RedisError:
+        return ""
+    if raw is None:
+        return ""
+    return (raw.decode() if isinstance(raw, bytes) else str(raw)).strip()
+
+
+def _save_persisted_last_scenario(client: redis.Redis, instance_id: str, key: str) -> None:
+    """Persist the most recently picked scenario key so it survives navigation/refresh."""
+    if not key:
+        return
+    with suppress(redis.RedisError):
+        # 30 days — long enough to be useful across sessions, short enough to self-clean.
+        client.set(_last_scenario_redis_key(instance_id), key, ex=60 * 60 * 24 * 30)
 
 
 @dataclass(frozen=True)
@@ -259,7 +288,12 @@ def _render_live_screenshot(ctx: ClickApprovalsCtx, inst: str) -> None:
 
 
 @st.fragment(run_every=timedelta(seconds=1))
-def _render_run_status(inst: str, player_id: str, scenario_key: str) -> None:
+def _render_run_status(
+    inst: str,
+    player_id: str,
+    scenario_key: str,
+    scenario_total_steps: int,
+) -> None:
     st.subheader("Run status")
     now = time.time()
     state = get_instance_state(client, inst)
@@ -272,6 +306,23 @@ def _render_run_status(inst: str, player_id: str, scenario_key: str) -> None:
             f"Running {kind}: `{running.task_type}` · player "
             f"`{running.player_id or 'device'}` · started {_rel_time(running.started_at, now)}"
         )
+        # Live step progress — only for the currently selected scenario, otherwise
+        # ``last_active_scenario_step`` belongs to a different task on this instance.
+        if (
+            running.task_type == scenario_key
+            and scenario_total_steps > 0
+            and str(state.get("current_scenario") or "").strip() == scenario_key
+        ):
+            try:
+                step_now = int(state.get("last_active_scenario_step") or 0)
+            except (TypeError, ValueError):
+                step_now = 0
+            step_display = max(0, min(step_now, scenario_total_steps))
+            ratio = step_display / scenario_total_steps if scenario_total_steps > 0 else 0.0
+            st.progress(
+                min(1.0, max(0.0, ratio)),
+                text=f"Step {step_display}/{scenario_total_steps}",
+            )
     else:
         st.success("No task is running on this instance.")
 
@@ -313,6 +364,212 @@ def _render_run_status(inst: str, player_id: str, scenario_key: str) -> None:
             )
 
 
+def _history_steps_summary(h: QueueHistoryRow) -> str:
+    total = h.steps_total
+    trace = h.steps_trace
+    done_full = h.scenario_completed
+    if total is None and not trace:
+        return "—"
+    n = len(trace) if trace else 0
+    mid = f"{n}/{total}" if total is not None else str(n)
+    if done_full is True:
+        return f"{mid} · complete"
+    if done_full is False:
+        return f"{mid} · partial"
+    return mid
+
+
+def _replay_history_row(
+    inst_id: str,
+    scenario_key: str,
+    scenario_total_steps: int,
+    h: QueueHistoryRow,
+) -> str:
+    """Re-enqueue a historical run with its original player/priority/start_step."""
+    payload = h.payload or {}
+    pid = str(payload.get("player_id") or h.player_id or "").strip()
+    try:
+        prio = int(payload.get("priority") or 0)
+    except (TypeError, ValueError):
+        prio = DEBUG_PRIORITY_DEFAULT
+    if prio <= 0:
+        prio = DEBUG_PRIORITY_DEFAULT
+    try:
+        start_step = int(payload.get("start_step_index") or 0)
+    except (TypeError, ValueError):
+        start_step = 0
+    # Scenario may have grown/shrunk since the historical run.
+    if scenario_total_steps > 0:
+        start_step = max(0, min(start_step, scenario_total_steps - 1))
+    task_id = _enqueue_debug_scenario(
+        client,
+        instance_id=inst_id,
+        player_id=pid,
+        scenario_key=scenario_key,
+        priority=prio,
+        start_step_index=start_step,
+    )
+    st.session_state["debug_scenario_last_task_id"] = task_id
+    parts = [f"Replayed `{scenario_key}`", f"task `{task_id}`", f"priority `{prio}`"]
+    if start_step > 0:
+        parts.append(f"step `{start_step}`")
+    if pid:
+        parts.append(f"player `{pid}`")
+    st.toast(" · ".join(parts))
+    return task_id
+
+
+@st.fragment(run_every=timedelta(seconds=3))
+def _render_scenario_history(
+    inst_id: str,
+    scenario_key: str,
+    scenario_total_steps: int,
+) -> None:
+    st.subheader(f"Last run history · `{scenario_key}`")
+    start_step_state_key = f"debug_scenarios_start_step::{scenario_key}"
+    history = fetch_queue_history_rows(
+        client, instance_id=inst_id, limit=HISTORY_FETCH_LIMIT
+    )
+    matching = [
+        h for h in history
+        if (h.scenario or h.task_type) == scenario_key
+    ]
+    if not matching:
+        st.caption(
+            f"No completed runs for `{scenario_key}` on `{inst_id}` "
+            f"in the last {HISTORY_FETCH_LIMIT} entries."
+        )
+        return
+
+    last = matching[0]
+    last_task_id = str(st.session_state.get("debug_scenario_last_task_id") or "").strip()
+    is_my_task = bool(last_task_id) and last.task_id == last_task_id
+
+    started_str = (
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last.started_at))
+        if last.started_at else "—"
+    )
+    finished_str = (
+        time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last.finished_at))
+        if last.finished_at else "—"
+    )
+    status_label = "✅ success" if last.success else "❌ fail"
+    suffix = " · (debug run from this session)" if is_my_task else ""
+
+    hdr_left, hdr_right = st.columns([5, 1], vertical_alignment="center")
+    with hdr_left:
+        st.markdown(
+            f"**{status_label}**{suffix} · player `{last.player_id or 'device'}` · "
+            f"steps {_history_steps_summary(last)} · duration `{last.duration_s:.1f}s`"
+        )
+        st.caption(
+            f"started `{started_str}` · finished `{finished_str}` · "
+            f"task_id `{last.task_id}`"
+        )
+        if last.reason:
+            st.caption(f"reason: `{last.reason}`")
+        if last.error:
+            st.error(last.error)
+    with hdr_right:
+        if st.button(
+            "▶ Replay",
+            key=f"history_replay_last::{last.task_id}",
+            help="Re-enqueue with player / priority / start_step from this run's payload.",
+            width="stretch",
+        ):
+            _replay_history_row(inst_id, scenario_key, scenario_total_steps, last)
+            st.rerun(scope="app")
+
+    if last.steps_trace:
+        with st.expander("DSL step trace", expanded=False):
+            trace_df = pd.DataFrame(last.steps_trace)
+            if "i" in trace_df.columns:
+                # `i` mixes ints and dotted strings (nested iters); pyarrow needs one dtype.
+                trace_df["i"] = trace_df["i"].astype(str)
+            event = st.dataframe(
+                trace_df,
+                hide_index=True,
+                width="stretch",
+                selection_mode="single-row",
+                on_select="rerun",
+                key=f"history_trace_df::{last.task_id}",
+            )
+            sel_rows = []
+            with suppress(AttributeError, KeyError):
+                sel_rows = list(event.selection.get("rows", []))  # type: ignore[union-attr]
+            if sel_rows:
+                row_idx = int(sel_rows[0])
+                sel_row = last.steps_trace[row_idx] if 0 <= row_idx < len(last.steps_trace) else {}
+                raw_i = str(sel_row.get("i") or "")
+                summary = str(sel_row.get("summary") or "")
+                # Only top-level integer indices map to a `start_step_index`; nested
+                # rows like "6.0" come from loop iterations and aren't resumable.
+                if raw_i.isdigit():
+                    step_n = int(raw_i)
+                    if scenario_total_steps and step_n > scenario_total_steps - 1:
+                        st.warning(
+                            f"Step #{step_n} is out of range for current scenario "
+                            f"({scenario_total_steps} steps). The scenario may have changed."
+                        )
+                    else:
+                        if st.button(
+                            f"⤴ Use step #{step_n} as start_step_index"
+                            + (f"  ·  _{summary}_" if summary else ""),
+                            key=f"history_trace_use::{last.task_id}::{row_idx}",
+                            width="stretch",
+                        ):
+                            st.session_state[start_step_state_key] = step_n
+                            st.toast(
+                                f"Start step set to {step_n}. "
+                                "Press 'Run scenario now' above."
+                            )
+                            st.rerun(scope="app")
+                else:
+                    st.caption(
+                        f"Step index `{raw_i}` is a nested loop iteration; "
+                        "jump-to-step supports only top-level steps."
+                    )
+
+    with st.expander("Last run JSON", expanded=True):
+        st.code(
+            json.dumps(last.payload or {}, ensure_ascii=False, indent=2),
+            language="json",
+        )
+
+    if len(matching) > 1:
+        with st.expander(f"Previous runs ({len(matching) - 1})", expanded=False):
+            for h in matching[1:11]:
+                hstarted = (
+                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(h.started_at))
+                    if h.started_at else "—"
+                )
+                icon = "✅" if h.success else "❌"
+                tail = h.reason or h.error or h.task_id
+                if len(tail) > 80:
+                    tail = f"{tail[:77]}..."
+                row_left, row_right = st.columns([5, 1], vertical_alignment="center")
+                with row_left:
+                    st.markdown(
+                        f"{icon} `{hstarted}` · {h.duration_s:.1f}s · "
+                        f"player `{h.player_id or 'device'}` · "
+                        f"steps {_history_steps_summary(h)} · {tail}"
+                    )
+                with row_right:
+                    if st.button(
+                        "▶ Replay",
+                        key=f"history_replay::{h.task_id}",
+                        help="Re-enqueue with this run's player/priority/start_step.",
+                        width="stretch",
+                    ):
+                        _replay_history_row(inst_id, scenario_key, scenario_total_steps, h)
+                        st.rerun(scope="app")
+                with st.expander("JSON", expanded=False):
+                    st.code(
+                        json.dumps(h.payload or {}, ensure_ascii=False, indent=2),
+                        language="json",
+                    )
+
+
 @st.fragment(run_every=timedelta(seconds=1))
 def _render_approval_heartbeat(ctx: ClickApprovalsCtx) -> None:
     enabled = click_approval_enabled(ctx.instance_id)
@@ -340,14 +597,6 @@ if not files:
 
 st.caption("Force one DSL scenario to run next on an instance, ahead of normal queued work.")
 
-target = _scenario_param_path(repo_root, st.query_params.get("scenario"))
-default_index = 0
-if target is not None:
-    for i, sf in enumerate(files):
-        if sf.path.resolve() == target.resolve():
-            default_index = i
-            break
-
 labels = [
     f"{sf.rel_scenarios} · {sf.name} · key={sf.key}"
     for sf in files
@@ -362,6 +611,21 @@ inst_idx = 0
 inst = settings.instances[inst_idx]
 selected_inst_id = st.selectbox("Instance", inst_ids, index=inst_idx)
 inst = next(i for i in settings.instances if i.instance_id == selected_inst_id)
+
+# Default scenario picker: URL `?scenario=…` wins; otherwise fall back to the
+# per-instance last-picked value in Redis so reload / sidebar nav doesn't reset
+# the selection.
+target = _scenario_param_path(repo_root, st.query_params.get("scenario"))
+if target is None:
+    persisted_key = _load_persisted_last_scenario(client, inst.instance_id)
+    if persisted_key:
+        target = _scenario_param_path(repo_root, persisted_key)
+default_index = 0
+if target is not None:
+    for i, sf in enumerate(files):
+        if sf.path.resolve() == target.resolve():
+            default_index = i
+            break
 
 ctx = ClickApprovalsCtx(
     instance_id=inst.instance_id,
@@ -447,6 +711,12 @@ if current_scenario_param != scenario.key:
     st.query_params["scenario"] = scenario.key
     st.session_state["debug_scenario_last_query"] = scenario.key
 
+# Persist last-picked scenario (per instance) so refresh / sidebar nav restores it.
+persist_state_key = f"debug_scenario_persisted::{inst.instance_id}"
+if st.session_state.get(persist_state_key) != scenario.key:
+    _save_persisted_last_scenario(client, inst.instance_id, scenario.key)
+    st.session_state[persist_state_key] = scenario.key
+
 with run_right:
     st.link_button(
         "Open in Scenarios",
@@ -484,12 +754,34 @@ if not player_options:
     )
     st.stop()
 
-player_idx = 0
+# Honor `?player=` so cross-page links (e.g. Queue → Debug) can pre-select the
+# player; fall back to the in-session pick when no URL hint is given.
+player_param_raw = st.query_params.get("player")
+player_param = ""
+if player_param_raw is not None:
+    raw = player_param_raw[0] if isinstance(player_param_raw, list) and player_param_raw else player_param_raw
+    player_param = str(raw or "").strip()
+player_pick_key = f"debug_scenario_player_pick::{inst.instance_id}"
+player_idx_default = 0
+if player_param:
+    for i, (_, pid_opt) in enumerate(player_options):
+        if pid_opt.strip() == player_param:
+            player_idx_default = i
+            break
+if player_pick_key not in st.session_state:
+    st.session_state[player_pick_key] = player_idx_default
+# If the URL says to pre-select a specific player, override the cached pick.
+elif player_param and st.session_state.get(player_pick_key) != player_idx_default:
+    st.session_state[player_pick_key] = player_idx_default
+
+cached_player_idx = st.session_state.get(player_pick_key)
+if not (isinstance(cached_player_idx, int) and 0 <= cached_player_idx < len(player_options)):
+    st.session_state[player_pick_key] = 0
 pid_choice = st.selectbox(
     "Player",
     range(len(player_options)),
-    index=player_idx,
     format_func=lambda i: player_options[int(i)][0],
+    key=player_pick_key,
     help="Known players come from the device config plus the current active player.",
 )
 pid = player_options[int(pid_choice)][1].strip()
@@ -504,20 +796,31 @@ if not active_player and pid and not scenario.device_level:
         "waiting until `who_i_am` or another identity probe writes the active player."
     )
 
+# Use stable session keys so other fragments (history "Replay", trace
+# "Start from here") can pre-fill these inputs before re-render.
+priority_key = "debug_scenarios_priority"
+start_step_key = f"debug_scenarios_start_step::{scenario.key}"
+if priority_key not in st.session_state:
+    st.session_state[priority_key] = DEBUG_PRIORITY_DEFAULT
+max_start = max(0, scenario.steps - 1)
+cached_start = st.session_state.get(start_step_key)
+if not (isinstance(cached_start, int) and 0 <= cached_start <= max_start):
+    st.session_state[start_step_key] = 0
+
 priority = st.number_input(
     "Priority",
     min_value=1,
     max_value=10_000_000,
-    value=DEBUG_PRIORITY_DEFAULT,
     step=10_000,
+    key=priority_key,
     help="Higher than normal overlay/routine priorities, so this runs first among pending tasks.",
 )
 start_step_index = st.number_input(
     "Start step index",
     min_value=0,
-    max_value=max(0, scenario.steps - 1),
-    value=0,
+    max_value=max_start,
     step=1,
+    key=start_step_key,
 )
 
 if st.button(
@@ -592,7 +895,10 @@ else:
     with col_status:
         st.subheader("Approvals")
         st.success("No pending click requests.")
-        _render_run_status(inst.instance_id, pid, scenario.key)
+        _render_run_status(inst.instance_id, pid, scenario.key, int(scenario.steps))
+
+st.divider()
+_render_scenario_history(inst.instance_id, scenario.key, int(scenario.steps))
 
 with st.expander("Raw YAML", expanded=False):
     st.code(scenario.path.read_text(encoding="utf-8"), language="yaml")

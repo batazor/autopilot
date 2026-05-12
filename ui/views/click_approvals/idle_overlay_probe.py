@@ -10,17 +10,47 @@ import streamlit as st
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png
+from layout.red_dot_detector import has_red_dot_in_bbox_percent
+from layout.tab_active_detector import (
+    TAB_ACTIVE_MAX_MEAN_SATURATION,
+    TAB_ACTIVE_MIN_MEAN_VALUE,
+    is_tab_active_in_bbox_percent,
+    tab_activity_stats,
+)
+from layout.template_match import patch_bgr_from_bbox_percent
+from layout.white_border_detector import (
+    WHITE_BORDER_MAX_MEAN_SATURATION,
+    WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS,
+    WHITE_BORDER_MIN_MEAN_VALUE,
+    WHITE_BORDER_MIN_RING_PIXELS,
+    has_white_border_in_bbox_percent,
+    white_border_halo_stats,
+)
 from ui.pipeline.data import (
     clear_pipeline_overlay_cache_entries,
     force_nonce,
     get_or_build_pipeline_cache,
 )
-from ui.pipeline.overlay_viz import annotate_overlay_debug, maybe_downscale_for_ui
+from ui.pipeline.overlay_viz import (
+    annotate_overlay_layers,
+    detector_color,
+    draw_bbox_pct,
+    maybe_downscale_for_ui,
+)
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import get_instance_state
 
 from .common import labeling_query_ref_from_area_ocr
 from .ctx import ClickApprovalsCtx
+
+_ACTION_TYPES: tuple[str, ...] = (
+    "findIcon",
+    "color_check",
+    "text",
+    "red_dot",
+    "tab_active",
+    "white_border",
+)
 
 
 def _fmt_ratio(value: object) -> str:
@@ -140,6 +170,7 @@ def _ensure_fresh_reference_crop(
 
     Re-exports when crop is missing or older than area.json / reference PNG.
     """
+    del region_name
     try:
         ref_path = repo_root / ref_rel
         ref_mtime = float(ref_path.stat().st_mtime) if ref_path.is_file() else 0.0
@@ -168,297 +199,285 @@ def _ensure_fresh_reference_crop(
         return
 
 
-def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
-    """Inspect overlay rule metrics on the rolling PNG."""
-    from .common import active_player_state_flat
+def _coerce_float(value: object) -> float | None:
+    try:
+        if value is None or str(value).strip() == "":
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
-    instance_id = ctx.instance_id
-    # Resolve regions in this panel against the bound player's state — same semantics as the
-    # worker's runtime so v2/v3 overrides surface for accounts whose ``cond`` matches.
-    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
-    st.caption(
-        "Uses the same rolling PNG and overlay evaluation as the worker, "
-        "including Redis **`current_screen`** for YAML **`screens`** rules."
-    )
-    if st.button(
-        "Reload overlay scores",
-        width="stretch",
-        key=f"idle_overlay_probe_reload::{instance_id}",
-        help=(
-            "This panel does not auto-refresh; click after a new rolling PNG "
-            "if scores look stale."
-        ),
-    ):
-        clear_pipeline_overlay_cache_entries(instance_id)
-        st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
-        st.rerun()
 
-    row = get_instance_state(client, instance_id)
-    current_screen = str(row.get("current_screen") or "").strip()
-
-    fc1, fc2 = st.columns([1.4, 1], vertical_alignment="bottom")
-    with fc1:
-        name_filter = st.text_input(
-            "Filter rule / region / search",
-            value="",
-            key=f"idle_overlay_probe_name_filter::{instance_id}",
-            placeholder="e.g. hand_pointer, button.claim",
-        )
-    with fc2:
-        only_current_node = st.checkbox(
-            "Only rules for current node (+ globals)",
-            value=True,
-            key=f"idle_overlay_probe_only_node::{instance_id}",
-            help=(
-                "Hide overlay rows whose YAML `screens` gate does not match Redis `current_screen` "
-                "(first listed screen only). Rows without `screens` stay visible."
-            ),
-        )
-        st.caption(f"`current_screen`: `{current_screen or '—'}`")
-
-    data, rebuilt = get_or_build_pipeline_cache(
-        instance_id,
-        repo_root=ctx.repo_root,
-        area_path=ctx.area_path,
-        analyze_path=ctx.analyze_path,
-        current_screen=current_screen or None,
-    )
-    if rebuilt:
-        st.caption("Overlay recomputed on rolling PNG.")
-    if data is None:
-        from ui.reference_preview import rolling_live_preview_path
-
-        preview_path = rolling_live_preview_path(instance_id)
-        rel = preview_path.relative_to(ctx.repo_root) if preview_path.is_file() else preview_path
-        st.info(
-            f"No rolling preview yet: `{rel}` — start the worker or capture from **Instance**."
-        )
-        return
-
-    results: dict = data["results"]
-    rule_order: list[str] = data["rule_order"]
-    rule_search: dict[str, str] = data["rule_search"]
-    rule_node: dict[str, str] = data["rule_node"]
-    area_doc: dict = data["area_doc"]
-    image_bgr = data["image_bgr"]
-    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
-
-    q = (name_filter or "").strip().lower()
-    overlay_regions: set[str] = set()
-    visible: list[str] = []
-    for logical in rule_order:
-        payload = results.get(logical)
-        if not isinstance(payload, dict):
-            continue
-        node = str(rule_node.get(logical, "") or "").strip()
-        if only_current_node and current_screen and node and node.lower() != current_screen.lower():
-            continue
-        region_name = str(payload.get("region") or "").strip()
-        sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
-        if region_name:
-            overlay_regions.add(region_name)
-        if q:
-            hay = " ".join([logical, region_name, sr_disp]).lower()
-            if q not in hay:
-                continue
-        visible.append(f"overlay::{logical}")
-
-    if q:
-        for region_name in _area_region_names(area_doc):
-            if region_name in overlay_regions:
-                continue
-            if q not in region_name.lower():
-                continue
-            visible.append(f"area::{region_name}")
-
-    if not visible:
-        st.warning("No overlay rules or area regions match the filters.")
-        return
-
-    def _fmt_rule(ln: str) -> str:
-        if ln.startswith("area::"):
-            reg_name = ln.removeprefix("area::")
-            return f"area.json region · `{reg_name}`"
-        logical = ln.removeprefix("overlay::")
-        pl = results.get(logical)
-        reg = str(pl.get("region") or "") if isinstance(pl, dict) else ""
-        suf = f" · `{reg}`" if reg else ""
-        return f"{logical}{suf}"
-
-    sel = st.selectbox(
-        "Overlay rule / area region",
-        visible,
-        key=f"idle_overlay_probe_rule::{instance_id}",
-        format_func=_fmt_rule,
-    )
-
-    is_area_region = sel.startswith("area::")
-    sel_logical = sel.removeprefix("overlay::")
-    if is_area_region:
-        area_region = sel.removeprefix("area::")
-        pair0 = screen_region_by_name(area_doc, area_region, state_flat=state_flat)
-        if pair0 is None:
-            st.error("Missing area region payload.")
-            return
-        entry0, reg0 = pair0
-        pay = {
-            "region": area_region,
-            "action": str(reg0.get("action") or "").strip(),
-            "matched": False,
-            "threshold": reg0.get("threshold"),
-            "_area_ref": str(entry0.get("ocr") or "").strip(),
-            "_area_type": str(reg0.get("type") or "").strip(),
-        }
-        if pay["action"] == "text":
-            _probe_area_region_ocr(
-                pay=pay,
-                image_bgr=image_bgr,
-                reg=reg0,
-                instance_id=instance_id,
-            )
-    else:
-        pay = results.get(sel_logical)
-    if not isinstance(pay, dict):
-        st.error("Missing overlay payload for this rule.")
-        return
-
-    act = str(pay.get("action") or "").strip()
+def _render_metrics_color_check(pay: dict[str, Any]) -> None:
     matched = bool(pay.get("matched"))
-    nd = "" if is_area_region else str(rule_node.get(sel_logical, "") or "").strip()
+    want = str(pay.get("want") or "").strip().lower()
+    dom = str(pay.get("dominant") or "").strip().lower()
+    share_f = _coerce_float(pay.get("share"))
+    thr_f = _coerce_float(pay.get("threshold"))
+    ok_eval = share_f is not None and thr_f is not None
 
-    if act == "color_check":
-        want = str(pay.get("want") or "").strip().lower()
-        dom = str(pay.get("dominant") or "").strip().lower()
-        share_raw = pay.get("share")
-        thr_raw = pay.get("threshold")
-        share_f: float | None = None
-        thr_f: float | None = None
-        try:
-            if share_raw is not None and str(share_raw).strip() != "":
-                share_f = float(share_raw)
-        except (TypeError, ValueError):
-            share_f = None
-        try:
-            if thr_raw is not None and str(thr_raw).strip() != "":
-                thr_f = float(thr_raw)
-        except (TypeError, ValueError):
-            thr_f = None
-        ok_eval = share_f is not None and thr_f is not None
-
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            if not ok_eval:
-                txt = "—"
-                color = "#9aa0a6"
-            else:
-                txt = "yes" if matched else "no"
-                color = "#16a34a" if matched else "#dc2626"
-            st.markdown(
-                f"""
-                <div>
-                  <div style="font-size: 0.85rem; opacity: 0.75;">
-                    dominant == want &amp; share ≥ threshold
-                  </div>
-                  <div style="font-size: 1.75rem; font-weight: 650;
-                              line-height: 1.2; color: {color};">
-                    {txt}
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with m2:
-            st.metric("Dominant", dom or "—")
-        with m3:
-            st.metric("Want", want or "—")
-        with m4:
-            st.metric("Share / threshold", f"{share_f:.3f} / {thr_f:.3f}" if ok_eval else "—")
-    elif act == "text":
-        txt = str(pay.get("text") or "").strip()
-        conf_raw = pay.get("confidence")
-        conf_f: float | None = None
-        try:
-            if conf_raw is not None and str(conf_raw).strip() != "":
-                conf_f = float(conf_raw)
-        except (TypeError, ValueError):
-            conf_f = None
-        m1, m2, m3 = st.columns([1, 1, 2])
-        with m1:
-            st.metric("Matched", "yes" if matched else "no")
-        with m2:
-            st.metric("Confidence", f"{conf_f:.4f}" if conf_f is not None else "—")
-        with m3:
-            st.text_input(
-                "OCR text",
-                value=txt,
-                disabled=True,
-                key=f"ovl_text::{instance_id}::{sel}",
-            )
-    else:
-        score_raw = pay.get("score")
-        thr_raw = pay.get("threshold")
-        score_f: float | None = None
-        thr_f: float | None = None
-        try:
-            if score_raw is not None and str(score_raw).strip() != "":
-                score_f = float(score_raw)
-        except (TypeError, ValueError):
-            score_f = None
-        try:
-            if thr_raw is not None and str(thr_raw).strip() != "":
-                thr_f = float(thr_raw)
-        except (TypeError, ValueError):
-            thr_f = None
-        gap_s = None
-        if score_f is not None and thr_f is not None:
-            gap_s = f"{score_f - thr_f:+.4f}"
-        score_ge_thr = (
-            score_f is not None
-            and thr_f is not None
-            and score_f >= thr_f
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        if not ok_eval:
+            txt = "—"
+            color = "#9aa0a6"
+        else:
+            txt = "yes" if matched else "no"
+            color = "#16a34a" if matched else "#dc2626"
+        st.markdown(
+            f"""
+            <div>
+              <div style="font-size: 0.85rem; opacity: 0.75;">
+                dominant == want &amp; share ≥ threshold
+              </div>
+              <div style="font-size: 1.75rem; font-weight: 650;
+                          line-height: 1.2; color: {color};">
+                {txt}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.metric("Dominant", dom or "—")
+    with m3:
+        st.metric("Want", want or "—")
+    with m4:
+        st.metric(
+            "Share / threshold",
+            f"{share_f:.3f} / {thr_f:.3f}" if ok_eval else "—",
         )
 
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            ok_eval = score_f is not None and thr_f is not None
-            if not ok_eval:
-                fin_txt, fin_color = "—", "#9aa0a6"
-                thr_line = ""
-            else:
-                # ``matched`` is false when post-score gates fail (peak uniqueness, bright detail,
-                # saturation) even if combined score is above ``threshold`` — do not label that as
-                # "below threshold".
-                fin_txt = "yes" if matched else "no"
-                fin_color = "#16a34a" if matched else "#dc2626"
-                thr_yes = "yes" if score_ge_thr else "no"
-                thr_color = "#16a34a" if score_ge_thr else "#dc2626"
-                thr_line = (
-                    f'<div style="font-size: 0.8rem; margin-top: 6px; opacity: 0.9;">'
-                    f'<span style="opacity: 0.75;">score ≥ thr</span> '
-                    f'<span style="font-weight: 650; color: {thr_color};">{thr_yes}</span>'
-                    f"</div>"
-                )
-            st.markdown(
-                f"""
-                <div>
-                  <div style="font-size: 0.85rem; opacity: 0.75;">Matched (after gates)</div>
-                  <div style="font-size: 1.75rem; font-weight: 650;
-                              line-height: 1.2; color: {fin_color};">
-                    {fin_txt}
-                  </div>
-                  {thr_line}
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with m2:
-            st.metric("Score", f"{score_f:.4f}" if score_f is not None else "—")
-        with m3:
-            st.metric("Threshold", f"{thr_f:.4f}" if thr_f is not None else "—")
-        with m4:
-            st.metric("Score − thr", gap_s if gap_s is not None else "—")
 
-    sr_line = str(pay.get("search_region") or rule_search.get(sel_logical, "") or "").strip()
+def _render_metrics_text(pay: dict[str, Any], *, instance_id: str, sel: str) -> None:
+    matched = bool(pay.get("matched"))
+    txt = str(pay.get("text") or "").strip()
+    conf_f = _coerce_float(pay.get("confidence"))
+    m1, m2, m3 = st.columns([1, 1, 2])
+    with m1:
+        st.metric("Matched", "yes" if matched else "no")
+    with m2:
+        st.metric("Confidence", f"{conf_f:.4f}" if conf_f is not None else "—")
+    with m3:
+        st.text_input(
+            "OCR text",
+            value=txt,
+            disabled=True,
+            key=f"ovl_text::{instance_id}::{sel}",
+        )
+
+
+def _render_metrics_red_dot(pay: dict[str, Any]) -> None:
+    matched = bool(pay.get("matched"))
+    want_present = bool(pay.get("want_dot_present"))
+    present = bool(pay.get("red_dot_present"))
+    m1, m2, m3 = st.columns(3)
+    with m1:
+        fin_color = "#16a34a" if matched else "#dc2626"
+        st.markdown(
+            f"""
+            <div>
+              <div style="font-size: 0.85rem; opacity: 0.75;">Matched</div>
+              <div style="font-size: 1.75rem; font-weight: 650;
+                          line-height: 1.2; color: {fin_color};">
+                {"yes" if matched else "no"}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.metric("Red dot present", "yes" if present else "no")
+    with m3:
+        st.metric("Want present", "yes" if want_present else "no")
+
+
+def _render_metrics_tab_active(pay: dict[str, Any]) -> None:
+    matched = bool(pay.get("matched"))
+    want_active = bool(pay.get("want_tab_active"))
+    active = bool(pay.get("tab_active"))
+    s_f = _coerce_float(pay.get("mean_saturation"))
+    v_f = _coerce_float(pay.get("mean_value"))
+    s_max = _coerce_float(pay.get("max_mean_saturation"))
+    v_min = _coerce_float(pay.get("min_mean_value"))
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        fin_color = "#16a34a" if matched else "#dc2626"
+        st.markdown(
+            f"""
+            <div>
+              <div style="font-size: 0.85rem; opacity: 0.75;">Matched</div>
+              <div style="font-size: 1.75rem; font-weight: 650;
+                          line-height: 1.2; color: {fin_color};">
+                {"yes" if matched else "no"}
+              </div>
+              <div style="font-size: 0.8rem; opacity: 0.75; margin-top: 4px;">
+                tab active: {"yes" if active else "no"} · want: {"yes" if want_active else "no"}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.metric(
+            "Mean S / max",
+            f"{s_f:.1f} / {s_max:.0f}"
+            if (s_f is not None and s_max is not None)
+            else "—",
+        )
+    with m3:
+        st.metric(
+            "Mean V / min",
+            f"{v_f:.1f} / {v_min:.0f}"
+            if (v_f is not None and v_min is not None)
+            else "—",
+        )
+    with m4:
+        st.metric("Active", "yes" if active else "no")
+
+
+def _render_metrics_white_border(pay: dict[str, Any]) -> None:
+    matched = bool(pay.get("matched"))
+    want_border = bool(pay.get("want_white_border"))
+    present = bool(pay.get("white_border_present"))
+    halo_s = _coerce_float(pay.get("halo_saturation"))
+    halo_v = _coerce_float(pay.get("halo_value"))
+    excess = _coerce_float(pay.get("interior_saturation_excess"))
+    max_s = _coerce_float(pay.get("max_mean_saturation"))
+    min_v = _coerce_float(pay.get("min_mean_value"))
+    min_ex = _coerce_float(pay.get("min_interior_saturation_excess"))
+    ring_count = pay.get("ring_count")
+    min_ring = pay.get("min_ring_pixels")
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        fin_color = "#16a34a" if matched else "#dc2626"
+        st.markdown(
+            f"""
+            <div>
+              <div style="font-size: 0.85rem; opacity: 0.75;">Matched</div>
+              <div style="font-size: 1.75rem; font-weight: 650;
+                          line-height: 1.2; color: {fin_color};">
+                {"yes" if matched else "no"}
+              </div>
+              <div style="font-size: 0.8rem; opacity: 0.75; margin-top: 4px;">
+                border: {"present" if present else "absent"} · want: {"yes" if want_border else "no"}
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.metric(
+            "Halo S / max",
+            f"{halo_s:.1f} / {max_s:.0f}"
+            if (halo_s is not None and max_s is not None)
+            else "—",
+        )
+    with m3:
+        st.metric(
+            "Halo V / min",
+            f"{halo_v:.1f} / {min_v:.0f}"
+            if (halo_v is not None and min_v is not None)
+            else "—",
+        )
+    with m4:
+        try:
+            ring_str = f"{int(ring_count)} / {int(min_ring)}"
+        except (TypeError, ValueError):
+            ring_str = "—"
+        excess_str = f"{excess:+.1f}" if excess is not None else "—"
+        excess_min = f"≥ {min_ex:.0f}" if min_ex is not None else "—"
+        st.metric(
+            "Inner−halo S / min · ring px / min",
+            f"{excess_str} ({excess_min}) · {ring_str}",
+        )
+
+
+def _render_metrics_score(pay: dict[str, Any]) -> None:
+    matched = bool(pay.get("matched"))
+    score_f = _coerce_float(pay.get("score"))
+    thr_f = _coerce_float(pay.get("threshold"))
+    gap_s: str | None = None
+    if score_f is not None and thr_f is not None:
+        gap_s = f"{score_f - thr_f:+.4f}"
+    score_ge_thr = (
+        score_f is not None and thr_f is not None and score_f >= thr_f
+    )
+
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        ok_eval = score_f is not None and thr_f is not None
+        if not ok_eval:
+            fin_txt, fin_color = "—", "#9aa0a6"
+            thr_line = ""
+        else:
+            # ``matched`` is false when post-score gates fail (peak uniqueness, bright detail,
+            # saturation) even if combined score is above ``threshold`` — do not label that as
+            # "below threshold".
+            fin_txt = "yes" if matched else "no"
+            fin_color = "#16a34a" if matched else "#dc2626"
+            thr_yes = "yes" if score_ge_thr else "no"
+            thr_color = "#16a34a" if score_ge_thr else "#dc2626"
+            thr_line = (
+                f'<div style="font-size: 0.8rem; margin-top: 6px; opacity: 0.9;">'
+                f'<span style="opacity: 0.75;">score ≥ thr</span> '
+                f'<span style="font-weight: 650; color: {thr_color};">{thr_yes}</span>'
+                f"</div>"
+            )
+        st.markdown(
+            f"""
+            <div>
+              <div style="font-size: 0.85rem; opacity: 0.75;">Matched (after gates)</div>
+              <div style="font-size: 1.75rem; font-weight: 650;
+                          line-height: 1.2; color: {fin_color};">
+                {fin_txt}
+              </div>
+              {thr_line}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with m2:
+        st.metric("Score", f"{score_f:.4f}" if score_f is not None else "—")
+    with m3:
+        st.metric("Threshold", f"{thr_f:.4f}" if thr_f is not None else "—")
+    with m4:
+        st.metric("Score − thr", gap_s if gap_s is not None else "—")
+
+
+def _render_rule_metrics(
+    *,
+    act: str,
+    pay: dict[str, Any],
+    instance_id: str,
+    sel: str,
+) -> None:
+    if act == "color_check":
+        _render_metrics_color_check(pay)
+    elif act == "text":
+        _render_metrics_text(pay, instance_id=instance_id, sel=sel)
+    elif act == "red_dot":
+        _render_metrics_red_dot(pay)
+    elif act == "tab_active":
+        _render_metrics_tab_active(pay)
+    elif act == "white_border":
+        _render_metrics_white_border(pay)
+    else:
+        _render_metrics_score(pay)
+
+
+def _render_rule_info_line(
+    *,
+    pay: dict[str, Any],
+    rule_search_name: str,
+    sel_logical: str,
+    is_area_region: bool,
+    act: str,
+    nd: str,
+) -> None:
+    del sel_logical
+    sr_line = str(pay.get("search_region") or rule_search_name or "").strip()
     resolved_line = str(pay.get("resolved_region") or "").strip()
     resolved_ver = str(pay.get("resolved_version") or "").strip()
     region_line = str(pay.get("region") or "").strip()
@@ -491,21 +510,661 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             f"live `{_fmt_ratio(pay.get('patch_bright_ratio'))}`"
         )
 
+
+def _render_detector_block(
+    *,
+    title: str,
+    matched: bool,
+    primary: str,
+    extras: list[tuple[str, str]],
+    caption: str = "",
+) -> None:
+    color = "#16a34a" if matched else "#dc2626"
+    with st.container(border=True):
+        st.markdown(f"**{title}**")
+        cols = st.columns([1.2] + [1] * len(extras))
+        with cols[0]:
+            st.markdown(
+                f"""
+                <div>
+                  <div style="font-size: 0.85rem; opacity: 0.75;">Detector</div>
+                  <div style="font-size: 1.75rem; font-weight: 650;
+                              line-height: 1.2; color: {color};">
+                    {primary}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        for (label, value), col in zip(extras, cols[1:]):
+            with col:
+                st.metric(label, value)
+        if caption:
+            st.caption(caption)
+
+
+def _cached_detector_run(
+    *,
+    image_bgr: Any,
+    bbox: dict[str, Any],
+    instance_id: str,
+    region_name: str,
+) -> dict[str, Any]:
+    """Run all three detectors once per (rolling PNG, region) and memoize.
+
+    Streamlit reruns the whole panel on every widget interaction; without this
+    cache the detectors recompute each time a checkbox is toggled.
+    """
+    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    L, T, R, B = _pct_bbox_to_px_rect(bbox, w, h)
+    digest = "empty"
+    if R > L and B > T:
+        crop = image_bgr[T:B, L:R]
+        if crop.size > 0:
+            digest = hashlib.md5(crop.tobytes()).hexdigest()
+    cache_key = f"idle_detector_probe::{instance_id}::{region_name}::{digest}"
+    cached = st.session_state.get(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    try:
+        red_dot_present = bool(has_red_dot_in_bbox_percent(image_bgr, bbox))
+    except Exception:
+        red_dot_present = False
+
+    try:
+        patch_ta, _ = patch_bgr_from_bbox_percent(image_bgr, bbox)
+        mean_s, mean_v = tab_activity_stats(patch_ta)
+    except Exception:
+        mean_s, mean_v = 0.0, 0.0
+    try:
+        tab_active_present = bool(is_tab_active_in_bbox_percent(image_bgr, bbox))
+    except Exception:
+        tab_active_present = False
+
+    try:
+        halo_s, halo_v, inner_s, ring_count = white_border_halo_stats(image_bgr, bbox)
+    except Exception:
+        halo_s = halo_v = inner_s = 0.0
+        ring_count = 0
+    try:
+        white_border_present = bool(has_white_border_in_bbox_percent(image_bgr, bbox))
+    except Exception:
+        white_border_present = False
+
+    result = {
+        "red_dot_present": red_dot_present,
+        "tab_active": tab_active_present,
+        "mean_saturation": mean_s,
+        "mean_value": mean_v,
+        "white_border": white_border_present,
+        "halo_saturation": halo_s,
+        "halo_value": halo_v,
+        "interior_saturation": inner_s,
+        "ring_count": int(ring_count),
+    }
+    st.session_state[cache_key] = result
+    return result
+
+
+def _run_live_detectors(
+    *,
+    image_bgr: Any,
+    bbox: dict[str, Any],
+    has_red_dot_capability: bool,
+    instance_id: str,
+    region_name: str,
+) -> None:
+    if not isinstance(bbox, dict):
+        st.info("No `bbox` on the selected region — detectors need a labeled box.")
+        return
+
+    metrics = _cached_detector_run(
+        image_bgr=image_bgr,
+        bbox=bbox,
+        instance_id=instance_id,
+        region_name=region_name,
+    )
+    present_rd = bool(metrics["red_dot_present"])
+    if has_red_dot_capability:
+        _render_detector_block(
+            title="isRedDot · red-dot / frost-badge",
+            matched=present_rd,
+            primary="present" if present_rd else "absent",
+            extras=[("has_red_dot capability", "yes")],
+            caption=(
+                "Detector: `layout.red_dot_detector.has_red_dot_in_bbox_percent` "
+                "(accepts the frost-badge variant by default)."
+            ),
+        )
+    else:
+        _render_detector_block(
+            title="isRedDot · red-dot / frost-badge",
+            matched=False,
+            primary="disabled",
+            extras=[("has_red_dot capability", "no")],
+            caption=(
+                "Region has `has_red_dot: false` in area.json — overlay rules with "
+                "`isRedDot:` are skipped, but the detector itself still runs below."
+            ),
+        )
+        _render_detector_block(
+            title="isRedDot · forced run (capability OFF)",
+            matched=present_rd,
+            primary="present" if present_rd else "absent",
+            extras=[],
+            caption="Forced detector run — ignores the area.json capability gate.",
+        )
+
+    mean_s = float(metrics["mean_saturation"])
+    mean_v = float(metrics["mean_value"])
+    active_ta = bool(metrics["tab_active"])
+    _render_detector_block(
+        title="isTabActive · tab-strip highlight",
+        matched=active_ta,
+        primary="active" if active_ta else "inactive",
+        extras=[
+            (
+                f"Mean S (< {TAB_ACTIVE_MAX_MEAN_SATURATION:.0f})",
+                f"{mean_s:.1f}",
+            ),
+            (
+                f"Mean V (> {TAB_ACTIVE_MIN_MEAN_VALUE:.0f})",
+                f"{mean_v:.1f}",
+            ),
+        ],
+        caption=(
+            "Detector: `layout.tab_active_detector.is_tab_active_in_bbox_percent` — "
+            "active iff mean HSV saturation is low **and** mean value is high."
+        ),
+    )
+
+    halo_s = float(metrics["halo_saturation"])
+    halo_v = float(metrics["halo_value"])
+    inner_s = float(metrics["interior_saturation"])
+    ring_count = int(metrics["ring_count"])
+    border_present = bool(metrics["white_border"])
+    excess = inner_s - halo_s
+    _render_detector_block(
+        title="isWhiteBorder · near-white halo",
+        matched=border_present,
+        primary="present" if border_present else "absent",
+        extras=[
+            (
+                f"Halo S (< {WHITE_BORDER_MAX_MEAN_SATURATION:.0f})",
+                f"{halo_s:.1f}",
+            ),
+            (
+                f"Halo V (> {WHITE_BORDER_MIN_MEAN_VALUE:.0f})",
+                f"{halo_v:.1f}",
+            ),
+            (
+                f"Inner−halo S (≥ {WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS:.0f})",
+                f"{excess:+.1f}",
+            ),
+            (
+                f"Ring px (≥ {WHITE_BORDER_MIN_RING_PIXELS})",
+                f"{ring_count}",
+            ),
+        ],
+        caption=(
+            "Detector: `layout.white_border_detector.has_white_border_in_bbox_percent` — "
+            "needs near-white halo **and** a more-colored interior."
+        ),
+    )
+
+
+def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
+    """Inspect overlay rule metrics on the rolling PNG.
+
+    Layout: three tabs inside the parent expander.
+
+    * **Rule** — filters (search, current node, action types), rule selectbox,
+      action-specific metric strip and reason line for the selected rule.
+    * **Visualization** — selective debug-overlay toggles (search ROI, match
+      box, tap marker, area bbox, detector ROIs), optional multi-region
+      bbox layer, the annotated PNG, and live-vs-template crops for the
+      currently-selected region.
+    * **Detectors** — direct runs of ``has_red_dot_in_bbox_percent`` /
+      ``is_tab_active_in_bbox_percent`` / ``has_white_border_in_bbox_percent``
+      on the selected region, with the underlying HSV/halo statistics so
+      threshold tuning is visible.
+    """
+    from .common import active_player_state_flat
+
+    instance_id = ctx.instance_id
+    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
+    st.caption(
+        "Uses the same rolling PNG and overlay evaluation as the worker, "
+        "including Redis **`current_screen`** for YAML **`screens`** rules."
+    )
+    if st.button(
+        "Reload overlay scores",
+        width="stretch",
+        key=f"idle_overlay_probe_reload::{instance_id}",
+        help=(
+            "This panel does not auto-refresh; click after a new rolling PNG "
+            "if scores look stale."
+        ),
+    ):
+        clear_pipeline_overlay_cache_entries(instance_id)
+        st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
+        st.rerun()
+
+    row = get_instance_state(client, instance_id)
+    current_screen = str(row.get("current_screen") or "").strip()
+
+    data, rebuilt = get_or_build_pipeline_cache(
+        instance_id,
+        repo_root=ctx.repo_root,
+        area_path=ctx.area_path,
+        analyze_path=ctx.analyze_path,
+        current_screen=current_screen or None,
+    )
+    if rebuilt:
+        st.caption("Overlay recomputed on rolling PNG.")
+    if data is None:
+        from ui.reference_preview import rolling_live_preview_path
+
+        preview_path = rolling_live_preview_path(instance_id)
+        rel = (
+            preview_path.relative_to(ctx.repo_root)
+            if preview_path.is_file()
+            else preview_path
+        )
+        st.info(
+            f"No rolling preview yet: `{rel}` — start the worker or capture from **Instance**."
+        )
+        return
+
+    results: dict = data["results"]
+    rule_order: list[str] = data["rule_order"]
+    rule_search: dict[str, str] = data["rule_search"]
+    rule_node: dict[str, str] = data["rule_node"]
+    area_doc: dict = data["area_doc"]
+    image_bgr = data["image_bgr"]
+    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    all_region_names = _area_region_names(area_doc)
+
+    tab_rule, tab_viz, tab_detectors = st.tabs(["Rule", "Visualization", "Detectors"])
+
+    with tab_rule:
+        fc1, fc2 = st.columns([1.4, 1], vertical_alignment="bottom")
+        with fc1:
+            name_filter = st.text_input(
+                "Filter rule / region / search",
+                value="",
+                key=f"idle_overlay_probe_name_filter::{instance_id}",
+                placeholder="e.g. hand_pointer, button.claim",
+            )
+        with fc2:
+            only_current_node = st.checkbox(
+                "Only rules for current node (+ globals)",
+                value=True,
+                key=f"idle_overlay_probe_only_node::{instance_id}",
+                help=(
+                    "Hide overlay rows whose YAML `screens` gate does not match Redis "
+                    "`current_screen` (first listed screen only). Rows without `screens` "
+                    "stay visible."
+                ),
+            )
+            st.caption(f"`current_screen`: `{current_screen or '—'}`")
+
+        st.caption("Show overlay rules whose action is:")
+        act_cols = st.columns(len(_ACTION_TYPES))
+        action_visible: dict[str, bool] = {}
+        for col, act_name in zip(act_cols, _ACTION_TYPES):
+            with col:
+                action_visible[act_name] = st.checkbox(
+                    act_name,
+                    value=True,
+                    key=f"idle_overlay_probe_act::{instance_id}::{act_name}",
+                )
+
+        q = (name_filter or "").strip().lower()
+        overlay_regions: set[str] = set()
+        visible: list[str] = []
+        for logical in rule_order:
+            payload = results.get(logical)
+            if not isinstance(payload, dict):
+                continue
+            node = str(rule_node.get(logical, "") or "").strip()
+            if (
+                only_current_node
+                and current_screen
+                and node
+                and node.lower() != current_screen.lower()
+            ):
+                continue
+            act_p = str(payload.get("action") or "").strip()
+            if act_p in _ACTION_TYPES and not action_visible.get(act_p, True):
+                continue
+            region_name = str(payload.get("region") or "").strip()
+            sr_disp = str(payload.get("search_region") or rule_search.get(logical, "") or "")
+            if region_name:
+                overlay_regions.add(region_name)
+            if q:
+                hay = " ".join([logical, region_name, sr_disp]).lower()
+                if q not in hay:
+                    continue
+            visible.append(f"overlay::{logical}")
+
+        if q:
+            for region_name in all_region_names:
+                if region_name in overlay_regions:
+                    continue
+                if q not in region_name.lower():
+                    continue
+                visible.append(f"area::{region_name}")
+
+        if not visible:
+            st.warning("No overlay rules or area regions match the filters.")
+            return
+
+        def _fmt_rule(ln: str) -> str:
+            if ln.startswith("area::"):
+                reg_name = ln.removeprefix("area::")
+                return f"area.json region · `{reg_name}`"
+            logical = ln.removeprefix("overlay::")
+            pl = results.get(logical)
+            reg = str(pl.get("region") or "") if isinstance(pl, dict) else ""
+            act_disp = str(pl.get("action") or "") if isinstance(pl, dict) else ""
+            suf = f" · `{reg}`" if reg else ""
+            if act_disp:
+                suf += f" · _{act_disp}_"
+            return f"{logical}{suf}"
+
+        sel = st.selectbox(
+            "Overlay rule / area region",
+            visible,
+            key=f"idle_overlay_probe_rule::{instance_id}",
+            format_func=_fmt_rule,
+        )
+
+    is_area_region = sel.startswith("area::")
+    sel_logical = sel.removeprefix("overlay::")
+    if is_area_region:
+        area_region = sel.removeprefix("area::")
+        pair0 = screen_region_by_name(area_doc, area_region, state_flat=state_flat)
+        if pair0 is None:
+            with tab_rule:
+                st.error("Missing area region payload.")
+            return
+        entry0, reg0 = pair0
+        pay = {
+            "region": area_region,
+            "action": str(reg0.get("action") or "").strip(),
+            "matched": False,
+            "threshold": reg0.get("threshold"),
+            "_area_ref": str(entry0.get("ocr") or "").strip(),
+            "_area_type": str(reg0.get("type") or "").strip(),
+        }
+        if pay["action"] == "text":
+            _probe_area_region_ocr(
+                pay=pay,
+                image_bgr=image_bgr,
+                reg=reg0,
+                instance_id=instance_id,
+            )
+    else:
+        pay = results.get(sel_logical)
+    if not isinstance(pay, dict):
+        with tab_rule:
+            st.error("Missing overlay payload for this rule.")
+        return
+
+    act = str(pay.get("action") or "").strip()
+    nd = "" if is_area_region else str(rule_node.get(sel_logical, "") or "").strip()
+
+    with tab_rule:
+        st.divider()
+        _render_rule_metrics(act=act, pay=pay, instance_id=instance_id, sel=sel)
+        _render_rule_info_line(
+            pay=pay,
+            rule_search_name=rule_search.get(sel_logical, ""),
+            sel_logical=sel_logical,
+            is_area_region=is_area_region,
+            act=act,
+            nd=nd,
+        )
+
     reg_name = str(pay.get("region") or "").strip()
-    if not reg_name:
-        return
+    selected_pair = (
+        screen_region_by_name(area_doc, reg_name, state_flat=state_flat)
+        if reg_name
+        else None
+    )
+    selected_entry = selected_pair[0] if selected_pair else None
+    selected_reg = selected_pair[1] if selected_pair else None
+    selected_bbox = (
+        selected_reg.get("bbox")
+        if isinstance(selected_reg, dict) and isinstance(selected_reg.get("bbox"), dict)
+        else None
+    )
 
-    pair = screen_region_by_name(area_doc, reg_name, state_flat=state_flat)
-    if pair is None or not isinstance(pair[1].get("bbox"), dict):
-        st.caption(f"No `{reg_name}` bbox in area.json — skipping live vs template crops.")
-        return
-    entry, reg = pair
-    resolved_region = str(reg.get("name") or "").strip() or reg_name
-    ref_rel = effective_ocr_for_region(entry, reg)
-    if not ref_rel:
-        return
+    with tab_viz:
+        st.caption("Toggle which debug layers to draw on the rolling PNG.")
+        dl1, dl2, dl3, dl4 = st.columns(4)
+        with dl1:
+            show_search_roi = st.checkbox(
+                "Search ROI (orange)",
+                value=True,
+                key=f"idle_overlay_probe_show_search_roi::{instance_id}",
+                help="Search region used to find this rule's template.",
+            )
+        with dl2:
+            show_match_box = st.checkbox(
+                "Match box (green/cyan)",
+                value=True,
+                key=f"idle_overlay_probe_show_match_box::{instance_id}",
+                help="Template match — green when matched, cyan when rejected.",
+            )
+        with dl3:
+            show_tap = st.checkbox(
+                "Tap target (red cross)",
+                value=True,
+                key=f"idle_overlay_probe_show_tap::{instance_id}",
+            )
+        with dl4:
+            show_area_bbox = st.checkbox(
+                "area.json bbox (orange)",
+                value=is_area_region,
+                key=f"idle_overlay_probe_show_area_bbox::{instance_id}",
+                help="Source bbox of the rule's region from area.json.",
+            )
 
-    L, T, R, B = _pct_bbox_to_px_rect(reg["bbox"], w, h)
+        st.caption(
+            "Overlay extra detector ROIs on the selected region — see the "
+            "**Detectors** tab for the live result for each."
+        )
+        dd1, dd2, dd3 = st.columns(3)
+        with dd1:
+            show_red_dot_roi = st.checkbox(
+                "red_dot ROI (red)",
+                value=False,
+                key=f"idle_overlay_probe_show_red_dot::{instance_id}",
+            )
+        with dd2:
+            show_tab_active_roi = st.checkbox(
+                "tab_active ROI (green)",
+                value=False,
+                key=f"idle_overlay_probe_show_tab_active::{instance_id}",
+            )
+        with dd3:
+            show_white_border_roi = st.checkbox(
+                "white_border ROI (white)",
+                value=False,
+                key=f"idle_overlay_probe_show_white_border::{instance_id}",
+            )
+
+        extra_regions_pick: list[str] = st.multiselect(
+            "Also draw these area.json region bboxes",
+            options=all_region_names,
+            default=[],
+            key=f"idle_overlay_probe_extra_regions::{instance_id}",
+            help=(
+                "Highlight additional region bboxes from area.json on the debug "
+                "image. Useful to compare neighboring regions or confirm coverage."
+            ),
+        )
+
+        extra_region_bboxes: list[tuple[str, dict[str, Any]]] = []
+        for reg_pick in extra_regions_pick:
+            pair_pick = screen_region_by_name(area_doc, reg_pick, state_flat=state_flat)
+            if pair_pick is None:
+                continue
+            bb_pick = pair_pick[1].get("bbox")
+            if isinstance(bb_pick, dict):
+                extra_region_bboxes.append((reg_pick, bb_pick))
+
+        detector_bboxes: list[tuple[str, dict[str, Any], tuple[int, int, int]]] = []
+        if selected_bbox is not None:
+            if show_red_dot_roi:
+                detector_bboxes.append(
+                    (f"red_dot · {reg_name}", selected_bbox, detector_color("red_dot"))
+                )
+            if show_tab_active_roi:
+                detector_bboxes.append(
+                    (
+                        f"tab_active · {reg_name}",
+                        selected_bbox,
+                        detector_color("tab_active"),
+                    )
+                )
+            if show_white_border_roi:
+                detector_bboxes.append(
+                    (
+                        f"white_border · {reg_name}",
+                        selected_bbox,
+                        detector_color("white_border"),
+                    )
+                )
+
+        try:
+            vis = annotate_overlay_layers(
+                image_bgr,
+                results=results,
+                logical_names=[] if is_area_region else [sel_logical],
+                area_doc=area_doc,
+                rule_search=rule_search,
+                show_search_roi=show_search_roi and not is_area_region,
+                show_match_box=show_match_box and not is_area_region,
+                show_tap=show_tap and not is_area_region,
+                show_area_bbox=show_area_bbox or is_area_region,
+                extra_region_bboxes=extra_region_bboxes,
+                detector_bboxes=detector_bboxes,
+            )
+            # area.json picks have no overlay payload; force-draw their bbox so
+            # the user always sees what they selected even with "area bbox" off.
+            if is_area_region and selected_bbox is not None and not show_area_bbox:
+                draw_bbox_pct(
+                    vis,
+                    selected_bbox,
+                    color=(0, 165, 255),
+                    thickness=3,
+                    label=reg_name,
+                )
+            vis_ui = maybe_downscale_for_ui(vis, max_side=ctx.probe_overlay_max_side)
+            ok_vis, enc_vis = cv2.imencode(".png", vis_ui)
+            if ok_vis:
+                dbg_png = enc_vis.tobytes()
+                fitted_dbg, _native_dbg, _ = png_bytes_fitted(
+                    dbg_png, ctx.probe_overlay_max_side
+                )
+                legend_bits: list[str] = []
+                if not is_area_region:
+                    if show_search_roi:
+                        legend_bits.append("**orange** = `search_region` ROI")
+                    if show_match_box:
+                        legend_bits.append(
+                            "**green** / **cyan** = match box (matched / rejected)"
+                        )
+                    if show_tap:
+                        legend_bits.append("**red cross** = tap target")
+                if show_area_bbox or is_area_region:
+                    legend_bits.append("**orange** = area.json bbox")
+                if extra_region_bboxes:
+                    legend_bits.append("**blue** = extra area regions")
+                if detector_bboxes:
+                    legend_bits.append("**detector ROIs** colored per checkbox")
+                cap = " · ".join(legend_bits) if legend_bits else (
+                    "All debug layers are off — enable a toggle above."
+                )
+                if act == "color_check" and not is_area_region:
+                    cap += " · (`color_check` has no match box / tap marker)"
+                st.image(fitted_dbg, caption=cap, width="stretch")
+        except Exception:
+            st.caption("Could not draw overlay debug on screenshot.")
+
+        if not reg_name:
+            st.caption("Selected rule has no `region` — skipping live vs template crops.")
+        elif selected_pair is None or selected_bbox is None:
+            st.caption(f"No `{reg_name}` bbox in area.json — skipping live vs template crops.")
+        else:
+            resolved_region = (
+                str(selected_reg.get("name") or "").strip() if selected_reg else ""
+            ) or reg_name
+            ref_rel = (
+                effective_ocr_for_region(selected_entry, selected_reg)
+                if selected_entry and selected_reg
+                else ""
+            )
+            if ref_rel:
+                _render_live_vs_template_crops(
+                    ctx=ctx,
+                    image_bgr=image_bgr,
+                    bbox=selected_bbox,
+                    reg_name=reg_name,
+                    resolved_region=resolved_region,
+                    ref_rel=ref_rel,
+                    w=w,
+                    h=h,
+                )
+
+    with tab_detectors:
+        if not reg_name:
+            st.info("Select a rule that has a `region` to run detectors.")
+        elif selected_bbox is None:
+            st.info(
+                f"No `{reg_name}` bbox in area.json — detectors need a labeled bbox."
+            )
+        else:
+            cap_bits: list[str] = []
+            if reg_name:
+                cap_bits.append(f"region `{reg_name}`")
+            if selected_bbox is not None:
+                bbx = float(selected_bbox.get("x") or 0.0)
+                bby = float(selected_bbox.get("y") or 0.0)
+                bbw = float(selected_bbox.get("width") or 0.0)
+                bbh = float(selected_bbox.get("height") or 0.0)
+                cap_bits.append(
+                    f"bbox `{bbx:.2f}%, {bby:.2f}% · {bbw:.2f}×{bbh:.2f}%`"
+                )
+            st.caption(" · ".join(cap_bits))
+            has_rd_cap = bool(
+                isinstance(selected_reg, dict) and selected_reg.get("has_red_dot")
+            )
+            _run_live_detectors(
+                image_bgr=image_bgr,
+                bbox=selected_bbox,
+                has_red_dot_capability=has_rd_cap,
+                instance_id=instance_id,
+                region_name=reg_name,
+            )
+
+
+def _render_live_vs_template_crops(
+    *,
+    ctx: ClickApprovalsCtx,
+    image_bgr: Any,
+    bbox: dict[str, Any],
+    reg_name: str,
+    resolved_region: str,
+    ref_rel: str,
+    w: int,
+    h: int,
+) -> None:
+    L, T, R, B = _pct_bbox_to_px_rect(bbox, w, h)
     pad = 6
     L = max(0, min(w - 1, int(L - pad)))
     T = max(0, min(h - 1, int(T - pad)))
@@ -530,7 +1189,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
             repo_root=ctx.repo_root,
             ref_rel=ref_rel,
             region_name=resolved_region,
-            bbox_pct=reg["bbox"],
+            bbox_pct=bbox,
             crop_path=crop_path,
             area_mtime=area_mtime,
         )
@@ -555,46 +1214,6 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                 query_params={"ref": lbl_ref},
                 width="stretch",
             )
-        draw_dbg = st.checkbox(
-            "Draw search ROI / match box / tap on rolling PNG",
-            value=True,
-            key=f"idle_overlay_probe_draw_regions::{instance_id}",
-            help="Same overlay debug colors (search ROI, match box, tap).",
-        )
-        if draw_dbg:
-            try:
-                if is_area_region:
-                    vis = image_bgr.copy()
-                    cv2.rectangle(vis, (L + pad, T + pad), (R - pad, B - pad), (0, 165, 255), 3)
-                else:
-                    vis = annotate_overlay_debug(
-                        image_bgr,
-                        results,
-                        [sel_logical],
-                        area_doc,
-                        rule_search,
-                    )
-                vis_ui = maybe_downscale_for_ui(vis, max_side=ctx.probe_overlay_max_side)
-                ok_vis, enc_vis = cv2.imencode(".png", vis_ui)
-                if ok_vis:
-                    dbg_png = enc_vis.tobytes()
-                    fitted_dbg, _native_dbg, _ = png_bytes_fitted(
-                        dbg_png, ctx.probe_overlay_max_side
-                    )
-                    cap = (
-                        "**Orange** outline: `search_region` ROI · "
-                        "**Green** / **cyan**: match box (green = final `matched`; cyan = rejected — "
-                        "score below threshold **or** post-score gates, e.g. peak uniqueness) · "
-                        "**Red** cross: tap target"
-                    )
-                    if str(pay.get("action") or "").strip() == "color_check":
-                        cap = (
-                            "**Orange** outline: `search_region` ROI (if any) · "
-                            "(`color_check` has no match box / tap marker)"
-                        )
-                    st.image(fitted_dbg, caption=cap, width="stretch")
-            except Exception:
-                st.caption("Could not draw overlay debug on screenshot.")
 
         c_found, c_sought = st.columns(2, gap="medium", vertical_alignment="top")
         with c_found:

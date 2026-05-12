@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from contextlib import suppress
@@ -19,7 +20,6 @@ from tasks.dsl_scenario_helpers import (
     _BreakRepeat,
     _collect_ocr_store_targets,
     _dsl_cond_allows_step,
-    _dsl_step_summary,
     _enqueue_scenario,
     _load_area_json,
     _load_yaml,
@@ -103,14 +103,13 @@ class DslScenarioExecuteMixin:
             )
         steps_total_n = len(steps)
         steps_trace: list[dict[str, Any]] = []
+        # Expose to nested handlers in ``DslScenarioInlineMixin._run_inline_step``
+        # so they can append rows for clicks, waits, and per-iteration markers
+        # inside ``while_match`` / ``repeat`` containers.
+        self._steps_trace = steps_trace
 
-        def _trace_row(i: int, step_obj: Any, status: str, **kw: Any) -> None:
-            summ = _dsl_step_summary(step_obj) if isinstance(step_obj, dict) else "(non-dict)"
-            row: dict[str, Any] = {"i": i, "summary": summ, "status": status}
-            for k, v in kw.items():
-                if v is not None:
-                    row[k] = v
-            steps_trace.append(row)
+        def _trace_row(i: Any, step_obj: Any, status: str, **kw: Any) -> None:
+            self._append_trace_row(i, step_obj, status, **kw)
 
         def _fin(meta: dict[str, Any], *, completed: bool) -> dict[str, Any]:
             m = dict(meta)
@@ -120,6 +119,27 @@ class DslScenarioExecuteMixin:
             if self.start_step_index:
                 m["resume_from_step_index"] = int(self.start_step_index)
             return m
+
+        # Hydrate ``steps_trace`` from the previous slice when resuming.
+        # Without this, the trace in each TaskResult only reflects the current
+        # invocation — preempt → resume splits the history across two records.
+        # The companion write happens on the preempt-yield return below; final
+        # exits clear the field via ``_clear_step_context``.
+        if self.start_step_index > 0 and self.redis_client is not None:
+            with suppress(Exception):
+                raw_prior = await self.redis_client.hget(
+                    f"wos:instance:{instance_id}:state",
+                    "last_active_scenario_trace",
+                )
+                if raw_prior:
+                    try:
+                        prior = json.loads(raw_prior)
+                    except (ValueError, TypeError):
+                        prior = None
+                    if isinstance(prior, list):
+                        steps_trace.extend(
+                            x for x in prior if isinstance(x, dict)
+                        )
 
         self._preempt_gen_at_start = await self._read_dsl_preempt_gen(instance_id)
 
@@ -136,6 +156,13 @@ class DslScenarioExecuteMixin:
                 logger.debug(
                     "dsl_scenario: scenario skipped by root cond (%s)", cond_s
                 )
+                _trace_row(
+                    0,
+                    {"cond": raw_root_cond},
+                    "early_exit",
+                    reason="scenario_cond_false",
+                    cond=cond_s,
+                )
                 return TaskResult(
                     success=True,
                     next_run_at=None,
@@ -151,6 +178,12 @@ class DslScenarioExecuteMixin:
 
         if await self._preempted_by_new_debug(instance_id):
             await self._clear_step_context(instance_id)
+            _trace_row(
+                0,
+                {"navigate_to": ""},
+                "early_exit",
+                reason="dsl_preempted_debug",
+            )
             return TaskResult(
                 success=False,
                 next_run_at=None,
@@ -197,6 +230,12 @@ class DslScenarioExecuteMixin:
 
         if await self._preempted_by_new_debug(instance_id):
             await self._clear_step_context(instance_id)
+            _trace_row(
+                0,
+                {"navigate_to": ""},
+                "early_exit",
+                reason="dsl_preempted_debug",
+            )
             return TaskResult(
                 success=False,
                 next_run_at=None,
@@ -248,6 +287,12 @@ class DslScenarioExecuteMixin:
                 "(task carries empty player_id; who_i_am hasn't run)",
                 _scen(key),
             )
+            _trace_row(
+                0,
+                {"player_id": ""},
+                "early_exit",
+                reason="awaiting_player_identity",
+            )
             return TaskResult(
                 success=True,
                 next_run_at=None,
@@ -273,6 +318,21 @@ class DslScenarioExecuteMixin:
                         f"wos:instance:{instance_id}:state", "nav_error", ""
                     )
             if not nav_ok:
+                # Capture current_screen BEFORE _clear_step_context wipes it
+                # (the clear here also blanks the screen field via the navigation
+                # error mapping below). Keep this row in the trace so the task
+                # record explains *why* the scenario aborted — without it,
+                # navigation_failed returns produce an empty steps_trace and
+                # the UI shows "0 steps ran" with no hint of what happened.
+                cur_at_fail = ""
+                if self.redis_client is not None:
+                    with suppress(Exception):
+                        cur_at_fail = (
+                            await self.redis_client.hget(
+                                f"wos:instance:{instance_id}:state",
+                                "current_screen",
+                            )
+                        ) or ""
                 await self._clear_step_context(instance_id)
                 if self.redis_client is not None:
                     with suppress(Exception):
@@ -299,6 +359,14 @@ class DslScenarioExecuteMixin:
                             instance_id=instance_id,
                             skip_if_duplicate=True,
                         )
+                _trace_row(
+                    0,
+                    {"navigate_to": target_node},
+                    "early_exit",
+                    reason="navigation_failed",
+                    target=target_node,
+                    current_screen=cur_at_fail,
+                )
                 return TaskResult(
                     success=False,
                     # No baked-in retry: the task drops from queue and re-pushes
@@ -352,10 +420,26 @@ class DslScenarioExecuteMixin:
                     "preempted",
                     reason="preempted_by_higher_priority",
                 )
+                # Persist accumulated trace so the resumed slice can hydrate
+                # the full history into its TaskResult. Written AFTER
+                # ``_clear_step_context`` (which blanks the field) so the row
+                # survives.
+                if self.redis_client is not None:
+                    with suppress(Exception):
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "last_active_scenario_trace",
+                            json.dumps(steps_trace),
+                        )
                 md = dict(preempt_yield.metadata or {})
-                md["resume_from_step_index"] = (
-                    0 if target_node else int(_resumable_step)
-                )
+                # Always resume at the actual yielded step. Previously this
+                # reset to 0 when ``target_node`` was set, which forced the
+                # resumed slice back through the root-node navigation gate —
+                # and when a mid-scenario popup made ``current_screen`` no
+                # longer match the target, the BFS failed and the scenario
+                # died with ``navigation_failed`` even though it had already
+                # entered the target screen earlier.
+                md["resume_from_step_index"] = int(_resumable_step)
                 return TaskResult(
                     success=preempt_yield.success,
                     next_run_at=preempt_yield.next_run_at,
@@ -388,7 +472,7 @@ class DslScenarioExecuteMixin:
                 and not _DSL_STEP_ACTION_KEYS.intersection(step.keys())
             ):
                 await self._write_step_context(instance_id, scenario=key)
-                for inner in grouped:
+                for inner_idx, inner in enumerate(grouped):
                     if not isinstance(inner, dict):
                         continue
                     if not await _dsl_cond_allows_step(
@@ -411,6 +495,7 @@ class DslScenarioExecuteMixin:
                         dev_w=dev_w,
                         dev_h=dev_h,
                         scenario_key=key,
+                        trace_path=f"{_resumable_step}.{inner_idx}",
                     )
                     if result is not None:
                         md = dict(result.metadata or {})
@@ -575,7 +660,11 @@ class DslScenarioExecuteMixin:
                             await asyncio.sleep(attempt_interval_s)
                     if not matched:
                         break
-                    for inner in inner_steps:
+                    iter_path = f"{_resumable_step}.{iterations}"
+                    self._append_trace_row(
+                        iter_path, None, "iter", summary=f"iter {iterations}"
+                    )
+                    for inner_idx, inner in enumerate(inner_steps):
                         if not isinstance(inner, dict):
                             continue
                         result = await self._run_inline_step(
@@ -587,6 +676,7 @@ class DslScenarioExecuteMixin:
                             dev_w=dev_w,
                             dev_h=dev_h,
                             scenario_key=key,
+                            trace_path=f"{iter_path}.{inner_idx}",
                         )
                         if result is not None:
                             inner_result = result
@@ -677,7 +767,7 @@ class DslScenarioExecuteMixin:
                     reg,
                     iterations,
                 )
-                _trace_row(_resumable_step, step, "ok")
+                _trace_row(_resumable_step, step, "ok", iterations=iterations)
                 continue
             if "repeat" in step:
                 await self._write_step_context(instance_id, scenario=key)
@@ -712,7 +802,8 @@ class DslScenarioExecuteMixin:
                         if str(x or "").strip()
                     ]
 
-                for _ in range(max_iters):
+                iter_idx_total = 0
+                for iter_idx in range(max_iters):
                     if await self._preempted_by_new_debug(instance_id):
                         await self._clear_step_context(instance_id)
                         _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
@@ -757,8 +848,13 @@ class DslScenarioExecuteMixin:
                                 break
                         if any_hit:
                             break
+                    iter_path = f"{_resumable_step}.{iter_idx}"
+                    self._append_trace_row(
+                        iter_path, None, "iter", summary=f"iter {iter_idx}"
+                    )
+                    iter_idx_total = iter_idx + 1
                     try:
-                        for inner in inner_steps:
+                        for inner_idx, inner in enumerate(inner_steps):
                             if not isinstance(inner, dict):
                                 continue
                             result = await self._run_inline_step(
@@ -770,6 +866,7 @@ class DslScenarioExecuteMixin:
                                 dev_w=dev_w,
                                 dev_h=dev_h,
                                 scenario_key=key,
+                                trace_path=f"{iter_path}.{inner_idx}",
                             )
                             if result is not None:
                                 md = dict(result.metadata or {})
@@ -787,7 +884,7 @@ class DslScenarioExecuteMixin:
                     except _BreakRepeat:
                         # Stop the nearest loop-like block and continue with the next outer step.
                         break
-                _trace_row(_resumable_step, step, "ok")
+                _trace_row(_resumable_step, step, "ok", iterations=iter_idx_total)
                 continue
             if "loop" in step:
                 # Delegate to the inline implementation: loop guards (`cond` /
@@ -804,6 +901,7 @@ class DslScenarioExecuteMixin:
                     dev_w=dev_w,
                     dev_h=dev_h,
                     scenario_key=key,
+                    trace_path=str(_resumable_step),
                 )
                 if result is not None:
                     md = dict(result.metadata or {})

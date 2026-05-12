@@ -28,6 +28,15 @@ from layout.tab_active_detector import (
     TAB_ACTIVE_MIN_MEAN_VALUE,
     tab_activity_stats,
 )
+from layout.white_border_detector import (
+    WHITE_BORDER_HALO_PX,
+    WHITE_BORDER_MAX_MEAN_SATURATION,
+    WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS,
+    WHITE_BORDER_MIN_MEAN_VALUE,
+    WHITE_BORDER_MIN_RING_PIXELS,
+    has_white_border_in_bbox_percent,
+    white_border_halo_stats,
+)
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
@@ -213,6 +222,12 @@ async def evaluate_overlay_rules_async(
         elif rule.get("isTabActive") is False:
             action = "tab_active_absent"
 
+        # YAML may use ``isWhiteBorder: true|false`` to gate on a near-white halo.
+        if rule.get("isWhiteBorder") is True:
+            action = "white_border"
+        elif rule.get("isWhiteBorder") is False:
+            action = "white_border_absent"
+
         if action in ("red_dot", "red_dot_absent"):
             want_present = action == "red_dot"
             region_name_rd = str(rule.get("region") or "").strip()
@@ -379,6 +394,118 @@ async def evaluate_overlay_rules_async(
             out[logical_name] = hit_ta
             continue
 
+        if action in ("white_border", "white_border_absent"):
+            want_border = action == "white_border"
+            region_name_wb = str(rule.get("region") or "").strip()
+            pair_wb = (
+                screen_region_by_name(area_doc, region_name_wb, state_flat=state_flat)
+                if region_name_wb
+                else None
+            )
+            if pair_wb is None:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "unknown_region",
+                    "region": region_name_wb,
+                    "action": "white_border",
+                    "want_white_border": want_border,
+                }
+                continue
+            _entry_wb, reg_wb = pair_wb
+            bbox_wb = reg_wb.get("bbox")
+            if not isinstance(bbox_wb, dict):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "missing_bbox",
+                    "region": region_name_wb,
+                    "action": "white_border",
+                    "want_white_border": want_border,
+                }
+                continue
+            halo_px = int(rule.get("halo_px", WHITE_BORDER_HALO_PX))
+            max_s_wb = float(
+                rule.get("max_mean_saturation", WHITE_BORDER_MAX_MEAN_SATURATION)
+            )
+            min_v_wb = float(
+                rule.get("min_mean_value", WHITE_BORDER_MIN_MEAN_VALUE)
+            )
+            min_excess_wb = float(
+                rule.get(
+                    "min_interior_saturation_excess",
+                    WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS,
+                )
+            )
+            min_ring_wb = int(
+                rule.get("min_ring_pixels", WHITE_BORDER_MIN_RING_PIXELS)
+            )
+            halo_s_wb, halo_v_wb, inner_s_wb, ring_count_wb = white_border_halo_stats(
+                image_bgr, bbox_wb, halo_px=halo_px
+            )
+            present_wb = bool(
+                has_white_border_in_bbox_percent(
+                    image_bgr,
+                    bbox_wb,
+                    halo_px=halo_px,
+                    max_mean_saturation=max_s_wb,
+                    min_mean_value=min_v_wb,
+                    min_interior_saturation_excess=min_excess_wb,
+                    min_ring_pixels=min_ring_wb,
+                )
+            )
+            matched_wb = present_wb if want_border else not present_wb
+
+            bx = float(bbox_wb.get("x") or 0.0)
+            by = float(bbox_wb.get("y") or 0.0)
+            bw = float(bbox_wb.get("width") or 0.0)
+            bh = float(bbox_wb.get("height") or 0.0)
+            mx_pct_wb = bx + bw / 2.0
+            my_pct_wb = by + bh / 2.0
+            tap_x_pct_wb = mx_pct_wb
+            tap_y_pct_wb = my_pct_wb
+            tap_delta_wb = _tap_region_delta_pct(
+                area_doc, region_name_wb, rule, state_flat=state_flat
+            )
+            if tap_delta_wb is not None:
+                _tap_reg_wb, dx_pct_wb, dy_pct_wb = tap_delta_wb
+                tap_x_pct_wb = mx_pct_wb + dx_pct_wb
+                tap_y_pct_wb = my_pct_wb + dy_pct_wb
+
+            hit_wb: dict[str, Any] = {
+                "matched": matched_wb,
+                "action": "white_border",
+                "region": region_name_wb,
+                "want_white_border": want_border,
+                "white_border_present": present_wb,
+                "halo_saturation": halo_s_wb,
+                "halo_value": halo_v_wb,
+                "interior_saturation": inner_s_wb,
+                "interior_saturation_excess": inner_s_wb - halo_s_wb,
+                "ring_count": int(ring_count_wb),
+                "max_mean_saturation": max_s_wb,
+                "min_mean_value": min_v_wb,
+                "min_interior_saturation_excess": min_excess_wb,
+                "min_ring_pixels": min_ring_wb,
+                "halo_px": halo_px,
+                "tap_x_pct": tap_x_pct_wb,
+                "tap_y_pct": tap_y_pct_wb,
+                "tap_match_x_pct": mx_pct_wb,
+                "tap_match_y_pct": my_pct_wb,
+            }
+            if tap_delta_wb is not None:
+                tap_reg_wb, dx_pct_wb, dy_pct_wb = tap_delta_wb
+                hit_wb["tap_region"] = tap_reg_wb
+                hit_wb["tap_delta_x_pct"] = dx_pct_wb
+                hit_wb["tap_delta_y_pct"] = dy_pct_wb
+            push_tasks_wb = optional_push_scenario_tasks(rule)
+            if push_tasks_wb:
+                hit_wb["pushScenario"] = push_tasks_wb
+            if set_node_s:
+                hit_wb["set_node"] = set_node_s
+            if priority is not None:
+                hit_wb["priority"] = priority
+            out[logical_name] = hit_wb
+            continue
+
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
@@ -404,15 +531,18 @@ async def evaluate_overlay_rules_async(
             crop_path = exported_crop_png(repo_root, ref_rel, resolved_region_name)
             if not crop_path.is_file():
                 # Auto-export crop from the reference screenshot on demand.
+                # Use ``patch_bgr_from_bbox_percent`` — the same floor/ceil rounding
+                # the runtime match path uses — so the auto-exported template is
+                # pixel-identical to the live bbox patch. Mixing ``round()`` here
+                # (via ``_bbox_percent_to_region_px``) with floor/ceil in the live
+                # path drifts by 1px on fractional bboxes and breaks the strict
+                # ``match_crop_1to1_at_bbox_percent`` shape check.
                 try:
                     ref_path = repo_root / ref_rel
                     if ref_path.is_file():
                         ref_img = cv2.imread(str(ref_path))
                         if ref_img is not None:
-                            hr, wr = int(ref_img.shape[0]), int(ref_img.shape[1])
-                            region_px = _bbox_percent_to_region_px(bbox, wr, hr)
-                            x1, y1, x2, y2 = _region_to_xyxy(region_px)
-                            crop = ref_img[y1:y2, x1:x2]
+                            crop, _ = patch_bgr_from_bbox_percent(ref_img, bbox)
                             if crop.size > 0:
                                 crop_path.parent.mkdir(parents=True, exist_ok=True)
                                 cv2.imwrite(str(crop_path), crop)

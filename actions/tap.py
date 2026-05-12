@@ -39,6 +39,23 @@ logger = logging.getLogger(__name__)
 
 _GAME_PACKAGE = "com.gof.global"
 
+
+def canonical_adb_serial(s: str) -> str:
+    """Collapse ``emulator-<N>`` ↔ ``127.0.0.1:<N+1>`` to one form.
+
+    ADB's auto-scan registers an emulator both ways. Callers comparing a
+    configured ``bluestacks_window_title`` against live ``adb devices`` should
+    canonicalise both sides so the two notations match.
+    """
+    s = (s or "").strip()
+    if s.startswith("emulator-"):
+        try:
+            n = int(s.split("-", 1)[1])
+            return f"127.0.0.1:{n + 1}"
+        except (ValueError, IndexError):
+            pass
+    return s
+
 _redis_client: redis.Redis | None = None
 _APPROVAL_POLL_SECONDS = 0.2
 # Approval mode: there is intentionally NO non-decision exit from the wait
@@ -913,6 +930,13 @@ class BotActions:
     def __init__(self) -> None:
         self._settings = get_settings()
         self._controllers: dict[str, AdbController] = {}
+        # Per-instance "last frame" cache.  ``capture_screen_bgr_cached`` returns
+        # this until the next state-changing action (tap/swipe/long_tap/type/…)
+        # invalidates it.  The plain ``capture_screen_bgr`` stays fresh-only so
+        # existing callers that expect a new ADB screencap still get one.
+        # Scope is a single ``BotActions`` instance (one task execution), so the
+        # cache is dropped when the task ends — no leak across scenarios.
+        self._frame_cache: dict[str, np.ndarray] = {}
 
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
@@ -934,12 +958,36 @@ class BotActions:
         pref = (self._settings.worker.adb_executable or "").strip()
         return pref if pref else DEFAULT_ADB_BIN
 
+    def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
+        """Drop the cached framebuffer for ``instance_id`` (or all instances)."""
+        if instance_id is None:
+            self._frame_cache.clear()
+        else:
+            self._frame_cache.pop(instance_id, None)
+
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
         """Framebuffer BGR via ``adb exec-out screencap -p`` (same coordinate space as taps)."""
         img, err = adb_screencap_bgr(self._adb_bin(), self._get_serial(instance_id))
         if img is None:
             raise RuntimeError(err)
+        # Warm the cache so an immediately-following ``..._cached`` call can
+        # reuse this frame.
+        self._frame_cache[instance_id] = img
         return img
+
+    def capture_screen_bgr_cached(self, instance_id: str) -> np.ndarray:
+        """Return the most recent framebuffer if no action has invalidated it.
+
+        DSL match siblings (``while_match``→``while_match``→…) all probe the
+        same screen state when nothing taps in between, so this returns the
+        cached frame across them and skips the ADB screencap.  Any
+        state-changing call (tap/swipe/long_tap/type_text/restart_application/
+        ensure_game_foreground) drops the cache, forcing a fresh capture.
+        """
+        cached = self._frame_cache.get(instance_id)
+        if cached is not None:
+            return cached
+        return self.capture_screen_bgr(instance_id)
 
     def tap(
         self,
@@ -950,6 +998,7 @@ class BotActions:
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
     ) -> bool:
+        self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).tap(
             point,
             approval_region=approval_region,
@@ -971,16 +1020,19 @@ class BotActions:
         end: Point,
         duration_ms: int = 300,
     ) -> bool:
+        self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).swipe(start, end, timedelta(milliseconds=duration_ms))
 
     def swipe_direction(
         self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
     ) -> bool:
+        self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).swipe_direction(
             direction, delta, timedelta(milliseconds=duration_ms)
         )
 
     def long_tap(self, instance_id: str, point: Point, duration_ms: int = 800) -> bool:
+        self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).long_tap(point, timedelta(milliseconds=duration_ms))
 
     def back(self, instance_id: str) -> None:
@@ -990,12 +1042,15 @@ class BotActions:
         logger.debug("BotActions.home(%s): no-op (phone HOME not allowed)", instance_id)
 
     def type_text(self, instance_id: str, text: str) -> bool:
+        self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).type_text(text)
 
     def restart_application(self, instance_id: str) -> None:
+        self.invalidate_frame_cache(instance_id)
         self._controller(instance_id).restart_application()
 
     def ensure_game_foreground(self, instance_id: str) -> None:
+        self.invalidate_frame_cache(instance_id)
         self._controller(instance_id).ensure_game_foreground()
 
     def is_game_foreground(self, instance_id: str) -> bool:

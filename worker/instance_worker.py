@@ -53,6 +53,19 @@ _TASK_REGISTRY: dict[str, type] = {}
 # Redis hash for UI/monitoring.
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
+
+def _is_adb_offline_error(exc: BaseException) -> bool:
+    """``AdbController`` raises ``RuntimeError`` with this shape on offline serials."""
+    if not isinstance(exc, RuntimeError):
+        return False
+    s = str(exc)
+    return (
+        ("not found or not in 'device' state" in s)
+        or ("device '" in s and "' not found" in s)
+        or ("device not found" in s)
+        or ("no devices/emulators found" in s)
+    )
+
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
@@ -172,6 +185,31 @@ class InstanceWorker(
             return None
 
         except Exception as exc:
+            # Mid-task ADB disconnect (BlueStacks killed, USB unplug, …) raises
+            # ``RuntimeError`` from ``AdbController._verify_available``. Treat it
+            # the same as a startup-offline detection: self-pause + clean info
+            # log, no traceback. The watchdog will auto-resume when the device
+            # is back, and the seeded/queued task pops fresh.
+            if _is_adb_offline_error(exc):
+                logger.info(
+                    "Task %s: device offline mid-run — self-pausing (%s)",
+                    item.task_id,
+                    self._cfg.instance_id,
+                )
+                self._ui_paused = True
+                if self._redis is not None:
+                    with suppress(Exception):
+                        await self._redis.hset(  # type: ignore[union-attr]
+                            _INST_STATE_KEY_FMT.format(
+                                instance_id=self._cfg.instance_id
+                            ),
+                            mapping={
+                                "paused": "1",
+                                "auto_paused": "1",
+                                "last_error": "device offline (ADB)",
+                            },
+                        )
+                return None
             logger.exception("Task %s failed: %s", item.task_id, exc)
             return None
 
@@ -416,7 +454,25 @@ class InstanceWorker(
                 logger.exception(
                     "Whiteout foreground check/launch failed for instance %s", self._cfg.instance_id
                 )
-            await self._startup_overlay_tick()
+            # ``_ensure_whiteout_at_worker_start`` sets ``_ui_paused`` when the
+            # device is offline. Mirror that to Redis state so the UI shows
+            # "paused (auto)" without waiting for the watchdog tick, and skip
+            # the overlay capture (which would just throw ``device not found``).
+            # Seeding still runs — the seeded tasks sit in the queue and the
+            # main loop's pause-gate keeps them from popping until watchdog
+            # auto-resumes (device back online).
+            if self._ui_paused and self._redis is not None:
+                with suppress(Exception):
+                    await self._redis.hset(  # type: ignore[union-attr]
+                        _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+                        mapping={
+                            "paused": "1",
+                            "auto_paused": "1",
+                            "last_error": "device offline (ADB)",
+                        },
+                    )
+            if not self._ui_paused:
+                await self._startup_overlay_tick()
             await self._seed_startup_tasks()
             # Legacy: page detect disabled (YAML-only mode).
             self._rolling_snapshot_task = asyncio.create_task(

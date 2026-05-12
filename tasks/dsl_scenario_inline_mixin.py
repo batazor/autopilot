@@ -437,11 +437,13 @@ class DslScenarioInlineMixin:
         dev_w: int,
         dev_h: int,
         scenario_key: str,
+        trace_path: str = "",
     ) -> TaskResult | None:
         if "break" in step:
             tgt = str(step.get("break") or "").strip().lower()
             if tgt in {"loop", "repeat"}:
                 raise _BreakRepeat()
+            self._append_trace_row(trace_path, step, "ok")
             return None
         ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
         if ip is not None:
@@ -470,11 +472,17 @@ class DslScenarioInlineMixin:
             )
             if pair is None:
                 logger.warning("dsl_scenario: unknown region %r for long_click", region)
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="region_not_found"
+                )
                 return None
             _entry, reg = pair
             bbox = reg.get("bbox")
             if not isinstance(bbox, dict):
                 logger.warning("dsl_scenario: missing bbox for long_click region %r", region)
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="bbox_missing"
+                )
                 return None
             pt = self._point_for_region_action(region, bbox, dev_w, dev_h)
             ok = False
@@ -495,6 +503,9 @@ class DslScenarioInlineMixin:
                     _scen(scenario_key),
                 )
                 await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="long_click_not_approved"
+                )
                 return TaskResult(
                     success=False,
                     next_run_at=None,
@@ -502,6 +513,7 @@ class DslScenarioInlineMixin:
                 )
             self._last_tap_region_clicked = region
             await asyncio.sleep(0.4)
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "click" in step:
             region = str(step.get("click") or "").strip()
@@ -518,8 +530,16 @@ class DslScenarioInlineMixin:
                     step=step,
                 )
                 if result is not None:
+                    md = dict(result.metadata or {})
+                    self._append_trace_row(
+                        trace_path,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                    )
                     return result
                 await asyncio.sleep(0.4)
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "repeat" in step:
             spec = step.get("repeat")
@@ -560,7 +580,8 @@ class DslScenarioInlineMixin:
                     if str(x or "").strip()
                 }
 
-            for _ in range(max_iters):
+            iter_total = 0
+            for iter_idx in range(max_iters):
                 self._last_tap_region_clicked = ""
                 if until_match:
                     row = await self._match_region(
@@ -586,9 +607,17 @@ class DslScenarioInlineMixin:
                             region=reg,
                         )
                         if row2 is not None and bool(row2.get("matched")):
+                            self._append_trace_row(
+                                trace_path, step, "ok", iterations=iter_total
+                            )
                             return None
+                iter_path = f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                self._append_trace_row(
+                    iter_path, None, "iter", summary=f"iter {iter_idx}"
+                )
+                iter_total = iter_idx + 1
                 try:
-                    for inner in inner_steps:
+                    for inner_idx, inner in enumerate(inner_steps):
                         if not isinstance(inner, dict):
                             continue
                         result = await self._run_inline_step(
@@ -600,6 +629,7 @@ class DslScenarioInlineMixin:
                             dev_w=dev_w,
                             dev_h=dev_h,
                             scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
                         )
                         if result is not None:
                             return result
@@ -610,9 +640,16 @@ class DslScenarioInlineMixin:
                                 and self._last_tap_region_clicked in stop_click_regs
                             )
                         ):
+                            self._append_trace_row(
+                                trace_path, step, "ok", iterations=iter_total
+                            )
                             return None
                 except _BreakRepeat:
+                    self._append_trace_row(
+                        trace_path, step, "ok", iterations=iter_total
+                    )
                     return None
+            self._append_trace_row(trace_path, step, "ok", iterations=iter_total)
             return None
         if "loop" in step:
             spec = step.get("loop")
@@ -641,8 +678,9 @@ class DslScenarioInlineMixin:
             ttl_s = _parse_wait_seconds(ttl_raw) if ttl_raw is not None else 0.0
             deadline = (time.monotonic() + ttl_s) if ttl_s > 0 else None
 
+            iter_total = 0
             try:
-                for _ in range(max_iters):
+                for iter_idx in range(max_iters):
                     if deadline is not None and time.monotonic() >= deadline:
                         break
                     # ``cond`` is the exit condition: break the moment it
@@ -656,7 +694,14 @@ class DslScenarioInlineMixin:
                     ):
                         break
 
-                    for inner in inner_steps:
+                    iter_path = (
+                        f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                    )
+                    self._append_trace_row(
+                        iter_path, None, "iter", summary=f"iter {iter_idx}"
+                    )
+                    iter_total = iter_idx + 1
+                    for inner_idx, inner in enumerate(inner_steps):
                         if not isinstance(inner, dict):
                             continue
                         # Step-level ``cond:`` is evaluated here so individual
@@ -678,13 +723,18 @@ class DslScenarioInlineMixin:
                             dev_w=dev_w,
                             dev_h=dev_h,
                             scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
                         )
                         if result is not None:
                             return result
             except _BreakRepeat:
                 # ``break: loop`` and legacy ``break: repeat`` both exit the
                 # nearest loop-like block.
+                self._append_trace_row(
+                    trace_path, step, "ok", iterations=iter_total
+                )
                 return None
+            self._append_trace_row(trace_path, step, "ok", iterations=iter_total)
             return None
         if "while_match" in step:
             reg = str(step.get("while_match") or "").strip()
@@ -698,7 +748,7 @@ class DslScenarioInlineMixin:
                 inner_steps = [{"click": reg}]
 
             iterations = 0
-            for _ in range(max_iters):
+            for iter_idx in range(max_iters):
                 row = await self._match_region(
                     actions=actions,
                     area_doc=area_doc,
@@ -710,8 +760,14 @@ class DslScenarioInlineMixin:
                 )
                 if row is None or not bool(row.get("matched")):
                     break
+                iter_path = (
+                    f"{trace_path}.{iter_idx}" if trace_path else str(iter_idx)
+                )
+                self._append_trace_row(
+                    iter_path, None, "iter", summary=f"iter {iter_idx}"
+                )
                 try:
-                    for inner in inner_steps:
+                    for inner_idx, inner in enumerate(inner_steps):
                         if not isinstance(inner, dict):
                             continue
                         result = await self._run_inline_step(
@@ -723,6 +779,7 @@ class DslScenarioInlineMixin:
                             dev_w=dev_w,
                             dev_h=dev_h,
                             scenario_key=scenario_key,
+                            trace_path=f"{iter_path}.{inner_idx}",
                         )
                         if result is not None:
                             return result
@@ -745,6 +802,7 @@ class DslScenarioInlineMixin:
                     reg,
                     iterations,
                 )
+            self._append_trace_row(trace_path, step, "ok", iterations=iterations)
             return None
         if "swipe_direction" in step:
             spec = step.get("swipe_direction")
@@ -776,12 +834,16 @@ class DslScenarioInlineMixin:
                         _scen(scenario_key),
                     )
                     await self._clear_step_context(instance_id)
+                    self._append_trace_row(
+                        trace_path, step, "stopped", reason="swipe_not_approved"
+                    )
                     return TaskResult(
                         success=False,
                         next_run_at=None,
                         metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
                     )
                 await asyncio.sleep(0.4)
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "wait" in step:
             seconds = _parse_wait_seconds(step.get("wait"))
@@ -801,7 +863,15 @@ class DslScenarioInlineMixin:
                         instance_id, scenario_key
                     )
                     if ip is not None:
+                        md = dict(ip.metadata or {})
+                        self._append_trace_row(
+                            trace_path,
+                            step,
+                            "stopped",
+                            reason=str(md.get("reason") or ""),
+                        )
                         return ip
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "push_scenario" in step:
             spec = step.get("push_scenario")
@@ -832,11 +902,13 @@ class DslScenarioInlineMixin:
                     run_at=time.time() + max(0.0, delay_s),
                     skip_if_duplicate=skip_dup,
                 )
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "exec" in step:
             name = str(step.get("exec") or "").strip()
             if name:
                 await self._run_exec_step(name, instance_id)
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "ocr" in step:
             region = str(step.get("ocr") or "").strip()
@@ -851,6 +923,7 @@ class DslScenarioInlineMixin:
                     step=step,
                     region=region,
                 )
+            self._append_trace_row(trace_path, step, "ok")
             return None
         if "match" in step:
             region = str(step.get("match") or "").strip()
@@ -864,6 +937,8 @@ class DslScenarioInlineMixin:
                     step=step,
                     region=region,
                 )
+            self._append_trace_row(trace_path, step, "ok")
             return None
         logger.warning("dsl_scenario: unsupported nested step: %s", step)
+        self._append_trace_row(trace_path, step, "skipped", reason="unsupported")
         return None

@@ -151,9 +151,14 @@ def _red_mask(patch_bgr: np.ndarray) -> np.ndarray:
     if patch_bgr.ndim != 3 or patch_bgr.size == 0:
         return np.zeros((0, 0), dtype=np.uint8)
     hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
-    lo1 = np.array([0, 110, 90], dtype=np.uint8)
+    # V floor at 160 (not 90) so dim red glow inside icons — e.g. the
+    # internal light shining through the trial.box chest slats, V≈100–150 —
+    # drops out of the mask and doesn't merge with overlaid notification
+    # badges under the morphological close. Real badges sit at V≈216–255
+    # (see RED_DOT_MIN_MEDIAN_VALUE) so this floor leaves wide headroom.
+    lo1 = np.array([0, 110, 160], dtype=np.uint8)
     hi1 = np.array([10, 255, 255], dtype=np.uint8)
-    lo2 = np.array([170, 110, 90], dtype=np.uint8)
+    lo2 = np.array([170, 110, 160], dtype=np.uint8)
     hi2 = np.array([179, 255, 255], dtype=np.uint8)
     m1 = cv2.inRange(hsv, lo1, hi1)
     m2 = cv2.inRange(hsv, lo2, hi2)
