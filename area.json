@@ -2686,6 +2686,28 @@
           "overlay_auxiliary": true
         }
       ]
+    },
+    {
+      "id": 61,
+      "screen_id": "building",
+      "ocr": "references/building.upgrading.png",
+      "regions": [
+        {
+          "name": "building.upgrading.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 72.16216216216216,
+            "y": 55.43478260869565,
+            "width": 15.3996138996139,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

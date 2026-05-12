@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import timedelta
+from pathlib import Path
 from urllib.parse import urlencode
 
 import pandas as pd
@@ -17,10 +18,14 @@ from ui.redis_client import (
     fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
+    get_instance_state,
     push_scheduler_command,
     remove_queue_task,
     require_redis_connection,
 )
+from ui.views._debug_scenarios_progress import _load_scenario_step_summaries
+
+_REPO = Path(__file__).resolve().parents[2]
 
 
 def _history_steps_summary(h: QueueHistoryRow) -> str:
@@ -74,6 +79,7 @@ def _queue_fragment() -> None:
         if running_rows:
             with st.expander("Running now (all instances)", expanded=True):
                 for iid, r in running_rows:
+                    inst_state = get_instance_state(client, iid)
                     dur = ""
                     if r.started_at > 0:
                         dur = f" · {_rel_time(r.started_at, now)}"
@@ -83,6 +89,26 @@ def _queue_fragment() -> None:
                         + (f" · region `{r.region}`" if r.region else "")
                         + dur
                     )
+                    active_scenario = str(inst_state.get("current_scenario") or "").strip()
+                    summaries = (
+                        _load_scenario_step_summaries(_REPO, active_scenario)
+                        if active_scenario
+                        else ()
+                    )
+                    total_steps = len(summaries)
+                    try:
+                        step_now = int(inst_state.get("last_active_scenario_step") or 0)
+                    except (TypeError, ValueError):
+                        step_now = 0
+                    step_display = max(0, min(step_now, total_steps)) if total_steps else 0
+                    ratio = step_display / total_steps if total_steps else 0.0
+                    if total_steps > 0:
+                        bar_text = f"{active_scenario} · Step {step_display}/{total_steps}"
+                    elif active_scenario:
+                        bar_text = f"{active_scenario} · running"
+                    else:
+                        bar_text = f"{r.task_type} · running"
+                    st.progress(min(1.0, max(0.0, ratio)), text=bar_text)
         if rows:
             overdue_n = sum(1 for r in rows if r.scheduled_at < now)
             parts = [f"**{len(rows)}** task(s)"]

@@ -1,5 +1,5 @@
 enabled: true
-name: Snowstorm event — tap Go
+name: ❄️ Snowstorm event — tap Go
 
 steps:
   - click: event.snowstorm

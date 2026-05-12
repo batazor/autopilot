@@ -1,5 +1,5 @@
 enabled: true
-name: Assign worker (open workers)
+name: 👷 Assign worker (open workers)
 node: survivor_status
 
 steps:

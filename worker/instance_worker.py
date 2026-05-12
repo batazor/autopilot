@@ -131,9 +131,18 @@ class InstanceWorker(
         )
         self._rolling_snapshot_task: asyncio.Task[None] | None = None
         self._restart_listener_task: asyncio.Task[None] | None = None
+        self._abort_task_listener_task: asyncio.Task[None] | None = None
         self._blocking_executor_live: bool = True
         self._stopping: bool = False
         self._task_registry = _TASK_REGISTRY
+        # Handle of the currently running ``task.execute()`` coroutine, if any.
+        # Set inside ``_execute_task`` so external triggers (watchdog restart,
+        # FSM ``_restart_instance``) can cancel it instead of letting the task
+        # tap on a force-stopped game. ``_task_aborted_for_restart`` is the
+        # flag that distinguishes "we cancelled this for a restart" (translate
+        # to a failed TaskResult) from a worker-shutdown cascade (propagate).
+        self._current_task_handle: asyncio.Task[Any] | None = None
+        self._task_aborted_for_restart: bool = False
 
     # Legacy hook removed: mail gift check will be a DSL scenario when needed.
 
@@ -164,6 +173,7 @@ class InstanceWorker(
         )
 
     async def _execute_task(self, item: QueueItem, task: BaseTask) -> TaskResult | None:
+        inner: asyncio.Task[TaskResult] | None = None
         try:
             if task.is_cooperative:
                 claimed = await self._claims.claim(  # type: ignore[union-attr]
@@ -173,16 +183,42 @@ class InstanceWorker(
                     logger.info("Cooperative task %s already claimed, skipping", task.task_type)
                     return None
 
-            result = await asyncio.wait_for(
-                task.execute(self._cfg.instance_id),
-                timeout=self._settings.worker.task_timeout_seconds,
-            )
+            # Wrap so an external trigger (watchdog/FSM restart) can cancel
+            # this exact coroutine via ``_cancel_current_task`` — otherwise
+            # an in-flight scenario keeps tapping a force-stopped game.
+            inner = asyncio.create_task(task.execute(self._cfg.instance_id))
+            self._current_task_handle = inner
+            try:
+                result = await asyncio.wait_for(
+                    inner,
+                    timeout=self._settings.worker.task_timeout_seconds,
+                )
+            finally:
+                if self._current_task_handle is inner:
+                    self._current_task_handle = None
 
             return result
 
         except TimeoutError:
             logger.error("Task %s timed out on %s", item.task_id, self._cfg.instance_id)
             return None
+
+        except asyncio.CancelledError:
+            # Our cancel (restart) vs. a worker-shutdown cascade. Only the
+            # former should be swallowed and reported as a failed task; the
+            # latter must propagate so ``run()`` can shut down cleanly.
+            if self._task_aborted_for_restart:
+                self._task_aborted_for_restart = False
+                logger.warning(
+                    "Task %s aborted: game restart in progress (%s)",
+                    item.task_id,
+                    self._cfg.instance_id,
+                )
+                return TaskResult(
+                    success=False,
+                    metadata={"reason": "aborted_for_restart"},
+                )
+            raise
 
         except Exception as exc:
             # Mid-task ADB disconnect (BlueStacks killed, USB unplug, …) raises
@@ -216,6 +252,69 @@ class InstanceWorker(
         finally:
             if task.is_cooperative:
                 await self._claims.release(task.task_type, item.player_id)  # type: ignore[union-attr]
+
+    async def _cancel_current_task(self, reason: str) -> bool:
+        """Cancel the in-flight ``task.execute()`` so a restart doesn't tap a dead app.
+
+        Returns True if a cancel was actually issued. Sets
+        ``_task_aborted_for_restart`` so ``_execute_task`` translates the
+        resulting ``CancelledError`` into a failed ``TaskResult`` (rather than
+        propagating as a worker shutdown).
+        """
+        handle = self._current_task_handle
+        if handle is None or handle.done():
+            return False
+        logger.warning(
+            "Aborting current task on %s: %s",
+            self._cfg.instance_id,
+            reason,
+        )
+        self._task_aborted_for_restart = True
+        handle.cancel()
+        return True
+
+    async def _run_abort_task_listener(self) -> None:
+        """Cross-process abort: watchdog publishes here right before force-stop.
+
+        Channel: ``wos:events:abort_task:<instance_id>`` — pubsub so the signal
+        arrives even while the worker is mid-task (the command list at
+        ``wos:ui:command:<iid>`` is only drained between tasks, which is too
+        late for a restart that wants the current scenario killed now).
+        """
+        import json as _json
+
+        client = self._redis
+        if client is None:
+            return
+        channel = f"wos:events:abort_task:{self._cfg.instance_id}"
+        pubsub = client.pubsub()
+        try:
+            await pubsub.subscribe(channel)
+        except Exception:
+            logger.exception("Failed to subscribe to %s", channel)
+            return
+
+        try:
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg is None or msg.get("type") != "message":
+                    continue
+                raw = msg.get("data")
+                if isinstance(raw, bytes):
+                    raw = raw.decode()
+                try:
+                    payload = _json.loads(raw) if raw else {}
+                except _json.JSONDecodeError:
+                    payload = {}
+                reason = str(payload.get("reason") or "external abort request")
+                await self._cancel_current_task(reason)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            with suppress(Exception):
+                await pubsub.unsubscribe(channel)
+            with suppress(Exception):
+                await pubsub.aclose()
 
     async def _clear_pending_approval_on_boot(self) -> None:
         """Drop any leftover pending click-approval slot at worker boot.
@@ -322,6 +421,8 @@ class InstanceWorker(
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
                 mapping={
+                    "current_task_id": "",
+                    "current_task_type": "",
                     "current_task_player": "",
                     "current_task_started_at": "",
                     "current_task_region": "",
@@ -483,6 +584,10 @@ class InstanceWorker(
                 self._run_restart_event_listener(),
                 name=f"restart-events-{self._cfg.instance_id}",
             )
+            self._abort_task_listener_task = asyncio.create_task(
+                self._run_abort_task_listener(),
+                name=f"abort-task-{self._cfg.instance_id}",
+            )
             last_heartbeat = 0.0
 
             try:
@@ -544,6 +649,12 @@ class InstanceWorker(
                 rl.cancel()
                 with suppress(asyncio.CancelledError):
                     await rl
+            al = self._abort_task_listener_task
+            self._abort_task_listener_task = None
+            if al is not None and not al.done():
+                al.cancel()
+                with suppress(asyncio.CancelledError):
+                    await al
             snap = self._rolling_snapshot_task
             self._rolling_snapshot_task = None
             if snap is not None and not snap.done():

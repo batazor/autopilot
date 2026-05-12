@@ -1,5 +1,5 @@
 enabled: true
-name: Tap big claim button
+name: 🎁 Tap big claim button
 # Popup / full-width claim — UI only, no player identity needed.
 device_level: true
 

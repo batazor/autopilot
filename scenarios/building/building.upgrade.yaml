@@ -1,5 +1,5 @@
 enabled: true
-name: Building upgrade (chapter task)
+name: 🏗️ Building upgrade (chapter task)
 
 # Onboarding-only flow that taps tutorial-driven upgrade buttons.  Safe before
 # player identity is known.
@@ -44,3 +44,14 @@ steps:
             - wait: 2s
             - click: upgrade_big_button
             - wait: 2s
+
+  # If the building is now in "upgrading" state, the in-game timer text
+  # gives us the remaining duration. Write a push_ttl marker so the
+  # analyzer (and any other push source) stops re-firing this chapter task
+  # until the upgrade actually finishes. ``type: time`` parses HH:MM:SS to
+  # total seconds; ``throttle_push`` writes the marker key with that TTL.
+  # When the timer is not visible (no active upgrade), OCR fails to parse
+  # and this step is a no-op — normal flow resumes.
+  - ocr: building.upgrading.time
+    type: time
+    throttle_push: building.upgrade

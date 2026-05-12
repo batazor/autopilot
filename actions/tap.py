@@ -69,7 +69,7 @@ _APPROVAL_POLL_SECONDS = 0.2
 _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
 # Redis TTL for the published ``current`` key. Refreshed every iteration so
 # the request never expires while the worker is still polling for a decision.
-_APPROVAL_CURRENT_TTL_SECONDS = 600
+APPROVAL_CURRENT_TTL_SECONDS = 600
 # A previous worker can die while leaving a pending approval in the shared
 # per-instance slot.  Keep active operator decisions untouched, but reap old
 # waiting requests when the running DSL scenario has clearly moved on.
@@ -77,6 +77,20 @@ _APPROVAL_STALE_CURRENT_SECONDS = 120.0
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
 _SWIPE_MIN_DURATION_MS = 900
 _SWIPE_SETTLE_SECONDS = 0.25
+# ±15 % jitter on top of the post-min duration so two identical YAML swipes
+# never land on the exact same wall-clock duration. Keeps the lower bound
+# (``_SWIPE_MIN_DURATION_MS``) honored, just blurs the upper edge.
+_SWIPE_DURATION_JITTER_PCT = 0.15
+# Bezier curve parameters for the multi-point swipe path. The midpoint
+# control is pushed perpendicular to the start→end line by a random
+# fraction of the total swipe length, drawn from this range and signed
+# randomly. 3–8 % is "visible curve, not enough to miss the target".
+_SWIPE_CURVE_OFFSET_PCT_MIN = 0.03
+_SWIPE_CURVE_OFFSET_PCT_MAX = 0.08
+# Number of motionevent segments. 4 → DOWN + 3×MOVE + UP = 5 sampled points
+# along the Bezier. Higher gives smoother curve at the cost of extra ADB
+# round-trips (~80–100 ms each on a local emulator).
+_SWIPE_CURVE_SEGMENTS = 4
 # Copied from ``tasks.dsl_scenario`` Redis audit fields for Click approvals UI.
 _DSL_APPROVAL_AUDIT_KEYS: tuple[str, ...] = (
     "dsl_last_match_region",
@@ -392,7 +406,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         if _redis().set(
             current_key,
             json.dumps(p),
-            ex=_APPROVAL_CURRENT_TTL_SECONDS,
+            ex=APPROVAL_CURRENT_TTL_SECONDS,
             nx=True,
         ):
             break
@@ -429,7 +443,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         # Refresh TTL unconditionally so the request never silently expires —
         # we are committed to waiting for an operator decision, however long.
         try:
-            _redis().expire(current_key, _APPROVAL_CURRENT_TTL_SECONDS)
+            _redis().expire(current_key, APPROVAL_CURRENT_TTL_SECONDS)
         except Exception:
             logger.debug("Failed to refresh current_key TTL", exc_info=True)
 
@@ -449,7 +463,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                     _redis().set(
                         current_key,
                         json.dumps(doc),
-                        ex=_APPROVAL_CURRENT_TTL_SECONDS,
+                        ex=APPROVAL_CURRENT_TTL_SECONDS,
                     )
         except Exception:
             logger.debug("Failed to mark decision timestamps", exc_info=True)
@@ -494,6 +508,9 @@ class AdbController:
         self._instance_id = instance_id
         self._adb_exe = resolved
         self._serial = device_serial
+        # Probed lazily on first curved-swipe attempt. ``None`` = unknown,
+        # ``True``/``False`` cached after the first ``input`` help dump.
+        self._supports_motionevent: bool | None = None
         self._verify_available()
         self.set_brightness(70)
         self.set_heads_up_notifications(enabled=False)
@@ -655,13 +672,118 @@ class AdbController:
             self._refresh_rolling_preview()
         return True
 
+    def _detect_motionevent_support(self) -> bool:
+        """One-shot probe: does this emulator's ``input`` binary expose
+        ``motionevent`` (DOWN/MOVE/UP)? Added in API 26, present on most
+        BlueStacks builds shipping Android 9, missing on legacy 7 images.
+        """
+        if self._supports_motionevent is not None:
+            return self._supports_motionevent
+        try:
+            result = subprocess.run(
+                [self._adb_exe, "-s", self._serial, "shell", "input"],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+            )
+            blob = ((result.stdout or "") + (result.stderr or "")).lower()
+            self._supports_motionevent = "motionevent" in blob
+        except Exception:
+            self._supports_motionevent = False
+        logger.debug(
+            "AdbController: motionevent support on %s = %s",
+            self._serial, self._supports_motionevent,
+        )
+        return self._supports_motionevent
+
+    def _curved_swipe_points(
+        self, x1: int, y1: int, x2: int, y2: int
+    ) -> list[tuple[int, int]]:
+        """Sample a quadratic-Bezier swipe path with ±1 px per-point jitter.
+
+        Control point: midpoint pushed perpendicular to the start→end line
+        by a random fraction of the swipe length. Yields
+        ``_SWIPE_CURVE_SEGMENTS + 1`` points (start + N intermediates + end).
+        Falls back to a 2-point straight path for zero-length swipes.
+        """
+        dx = float(x2 - x1)
+        dy = float(y2 - y1)
+        length = (dx * dx + dy * dy) ** 0.5
+        if length <= 0.0:
+            return [(int(x1), int(y1)), (int(x2), int(y2))]
+        # Unit perpendicular to the swipe direction.
+        perp_x = -dy / length
+        perp_y = dx / length
+        offset_amount = (
+            random.uniform(_SWIPE_CURVE_OFFSET_PCT_MIN, _SWIPE_CURVE_OFFSET_PCT_MAX)
+            * length
+            * random.choice([-1.0, 1.0])
+        )
+        cx = (x1 + x2) / 2.0 + perp_x * offset_amount
+        cy = (y1 + y2) / 2.0 + perp_y * offset_amount
+        pts: list[tuple[int, int]] = []
+        n = _SWIPE_CURVE_SEGMENTS
+        for i in range(n + 1):
+            t = i / n
+            bx = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * x2
+            by = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * y2
+            # ±1 px per-point jitter so even with the same endpoints the
+            # intermediate trail isn't reproducible across runs.
+            bx += random.randint(-1, 1)
+            by += random.randint(-1, 1)
+            pts.append((int(round(bx)), int(round(by))))
+        return pts
+
+    def _dispatch_curved_swipe(
+        self, x1: int, y1: int, x2: int, y2: int, ms: int
+    ) -> bool:
+        """Run the swipe as a DOWN/MOVE.../UP ``input motionevent`` chain.
+
+        Returns ``False`` when motionevent isn't supported or any shell call
+        fails — the caller falls back to a single straight
+        ``input touchscreen swipe``. The touch stays held by Android's
+        InputManager between events so the sequence is one continuous
+        gesture, not multiple distinct swipes.
+        """
+        if not self._detect_motionevent_support():
+            return False
+        pts = self._curved_swipe_points(x1, y1, x2, y2)
+        if len(pts) < 2:
+            return False
+        try:
+            self._shell(
+                "input", "motionevent", "DOWN", str(pts[0][0]), str(pts[0][1])
+            )
+            # Sleep gates the per-segment timing on the python side. Includes
+            # the inherent ADB latency of each subsequent ``_shell`` call
+            # (~80 ms) — the visible gesture ends up slightly longer than
+            # ``ms`` but stays continuous because the touch isn't lifted.
+            seg_sleep = max(0.005, (ms / 1000.0) / max(1, len(pts) - 1))
+            for px, py in pts[1:-1]:
+                time.sleep(seg_sleep)
+                self._shell("input", "motionevent", "MOVE", str(px), str(py))
+            time.sleep(seg_sleep)
+            self._shell(
+                "input", "motionevent", "UP", str(pts[-1][0]), str(pts[-1][1])
+            )
+        except Exception:
+            logger.warning(
+                "curved swipe dispatch failed on %s — falling back to straight swipe",
+                self._serial,
+                exc_info=True,
+            )
+            return False
+        return True
+
     def swipe(
         self,
         start: Point,
         end: Point,
         duration: timedelta = timedelta(milliseconds=300),
     ) -> bool:
-        """Swipe with ±2 px jitter on all coordinates."""
+        """Swipe with ±2 px endpoint jitter, ±15 % duration jitter, and a
+        slight Bezier curve through a perpendicular-offset midpoint.
+        """
         # Important: for "long press" we call swipe(start=end). In that case we must
         # keep start/end identical; otherwise independent jitter turns it into a
         # tiny swipe (1–2 px) which many UIs ignore as a press/hold.
@@ -678,6 +800,16 @@ class AdbController:
         ms = int(duration.total_seconds() * 1000)
         if x1 != x2 or y1 != y2:
             ms = max(ms, _SWIPE_MIN_DURATION_MS)
+            # ±15 % around the (post-min) duration. ``ms`` is recomputed
+            # via ``max`` so the floor still holds — jitter only widens
+            # the upper edge.
+            ms = max(
+                _SWIPE_MIN_DURATION_MS,
+                int(round(ms * random.uniform(
+                    1.0 - _SWIPE_DURATION_JITTER_PCT,
+                    1.0 + _SWIPE_DURATION_JITTER_PCT,
+                ))),
+            )
         is_long_press = x1 == x2 and y1 == y2
         swipe_payload: dict[str, object] = {
             "type": "swipe",
@@ -705,7 +837,8 @@ class AdbController:
             # fails on emulators for press-and-hold at one pixel.
             if is_long_press:
                 self._shell("input", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
-            else:
+            elif not self._dispatch_curved_swipe(x1, y1, x2, y2, ms):
+                # motionevent unsupported or shell failed — straight fallback.
                 self._shell(
                     "input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)
                 )

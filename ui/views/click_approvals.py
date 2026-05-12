@@ -25,6 +25,7 @@ from ui.redis_client import require_redis_connection
 from ui.views.click_approvals.chrome import (
     render_header,
     render_heartbeat,
+    render_node_player_caption,
     render_reset_block,
     render_ui_notifications,
 )
@@ -57,8 +58,6 @@ active_instances = [
     inst for inst in all_instances
     if canonical_serial(inst.bluestacks_window_title) in _live
 ]
-hidden = [inst.instance_id for inst in all_instances if inst not in active_instances]
-
 if not active_instances:
     st.warning(
         "No active ADB devices. Open **`/adb`** and click **Refresh** to "
@@ -68,10 +67,6 @@ if not active_instances:
 
 inst_ids = [i.instance_id for i in active_instances]
 instance_id = st.selectbox("Instance", inst_ids, key="click_approval_instance")
-if hidden:
-    st.caption(
-        "Hidden (offline): " + ", ".join(f"`{h}`" for h in hidden)
-    )
 render_reset_block(client=client)
 
 hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
@@ -128,6 +123,7 @@ def _fragment_idle_screenshot_column(inst: str) -> None:
 
 def _render_idle_approvals_column(inst: str) -> None:
     st.subheader("Approvals")
+    render_node_player_caption(ctx=_CTX, client=client)
     st.success("No pending click requests.")
     st.caption(
         "Clears **current_screen** in Redis (same as unknown / overlay `screens: [none]`). "
@@ -181,12 +177,6 @@ def _pending_request() -> None:
 
     _fragment_pending_approval_columns(inst, curr_key=ck)
 
-
-st.caption(
-    "Toggle approval mode below. **Default ON** when the Redis key is unset — "
-    "worker waits for approve on each ADB input and each DSL **set_node** step "
-    "until you turn this OFF."
-)
 
 enabled_now = click_approval_enabled(instance_id)
 enabled_ui = st.toggle(

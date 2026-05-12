@@ -1,11 +1,10 @@
 enabled: true
-name: Tap tutorial hand pointer
+name: 👆 Tap tutorial hand pointer
 # Tutorial dismissal — purely UI, safe to run before player identity is known.
 device_level: true
 
 steps:
-  - match: hand_pointer
-    # Keep in sync with overlay rule `hand_pointer.visible` (analyze_common.yaml).
-    threshold: 0.80
-    min_match_saturation: 30
-  - click: hand_pointer
+  - while_match: hand_pointer
+    max: 1
+    steps:
+      - click: hand_pointer

@@ -1,5 +1,5 @@
 enabled: true
-name: Tap upgrade big button
+name: ⬆️ Tap upgrade big button
 # Overlay fires when the icon is visible; double template pass reduces false taps.
 device_level: true
 

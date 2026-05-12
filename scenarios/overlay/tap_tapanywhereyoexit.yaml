@@ -1,5 +1,5 @@
 enabled: true
-name: Tap anywhere to exit
+name: ❌ Tap anywhere to exit
 # Above who_i_am (82_000) so this dismisses first with empty active_player; below skip/hand (85–86k).
 priority: 83_000
 # Popup dismissal — purely UI, no player identity needed.

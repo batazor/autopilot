@@ -1,5 +1,5 @@
 enabled: true
-name: Tap gift box
+name: 🎁 Tap gift box
 # Popup dismissal — purely UI, no player identity needed. Some story / hero
 # unlock screens surface a small yellow gift-box icon to claim attached
 # rewards; this scenario taps it as long as it is on screen.

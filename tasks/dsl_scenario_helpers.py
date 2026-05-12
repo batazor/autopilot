@@ -410,6 +410,37 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+_HMS_RE = re.compile(r"(?:(\d{1,3}):)?(\d{1,2}):(\d{2})")
+
+
+def _parse_hms_to_seconds(text: str) -> int | None:
+    """Parse OCR'd time strings like ``"00:01:23"`` / ``"1:23:45"`` /
+    ``"05:30"`` into total seconds. Returns ``None`` when no recognizable
+    H:M:S or M:SS group is found.
+
+    Robust to surrounding noise (whitespace, leading labels, units): scans
+    for the first colon-separated digit group in the string. The seconds
+    field is required to be 2 digits — single-digit "1:2" would otherwise
+    collide with arbitrary numbers like a score "5:3" and produce garbage.
+    """
+    s = (text or "").strip()
+    if not s:
+        return None
+    m = _HMS_RE.search(s)
+    if m is None:
+        return None
+    h_s, m_s, sec_s = m.groups()
+    try:
+        h = int(h_s) if h_s else 0
+        mn = int(m_s)
+        sec = int(sec_s)
+    except (TypeError, ValueError):
+        return None
+    if mn >= 60 or sec >= 60:
+        return None
+    return h * 3600 + mn * 60 + sec
+
+
 async def _enqueue_scenario(
     *,
     redis_async: Any | None,

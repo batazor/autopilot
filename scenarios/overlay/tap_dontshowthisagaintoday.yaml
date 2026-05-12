@@ -1,5 +1,5 @@
 enabled: true
-name: Tap don't show this again today
+name: 🚫 Tap don't show this again today
 # Checkbox / label tap — overlay fires when the strip is visible.
 device_level: true
 

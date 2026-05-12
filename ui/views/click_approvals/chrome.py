@@ -6,7 +6,7 @@ from typing import Any
 
 import streamlit as st
 
-from actions.tap import click_approval_enabled
+from actions.tap import APPROVAL_CURRENT_TTL_SECONDS, click_approval_enabled
 from ui.bot_services import restart_embedded_bot
 from ui.notifications import pop_new_notifications
 from ui.redis_client import get_instance_state
@@ -98,13 +98,22 @@ def _active_player_in_game_id(*, client: Any, inst: str) -> str:
 
 
 @st.fragment(run_every=timedelta(seconds=1))
-def render_header(*, ctx: ClickApprovalsCtx, client: Any, ocr_url: str = "") -> None:
+def render_node_player_caption(*, ctx: ClickApprovalsCtx, client: Any) -> None:
+    """Live ``node / player_id`` caption.
+
+    Rendered inside the Approvals column (not at the top of the page) so the
+    operator reading a pending approval sees the worker's identity context
+    right next to the decision UI instead of scrolling up.
+    """
     row = get_instance_state(client, ctx.instance_id) or {}
     node = str(row.get("current_screen") or "").strip() or "—"
     pid_in_game = _active_player_in_game_id(client=client, inst=ctx.instance_id)
-
-    st.title(f"Click approvals · {ctx.instance_id}")
     st.caption(f"node: `{node}` · player_id: `{pid_in_game}`")
+
+
+@st.fragment(run_every=timedelta(seconds=1))
+def render_header(*, ctx: ClickApprovalsCtx, client: Any, ocr_url: str = "") -> None:
+    st.title(f"Click approvals · {ctx.instance_id}")
     ok, detail = ocr_health_status(ocr_url)
     if not ok and str(ocr_url or "").strip():
         st.warning(
@@ -154,7 +163,15 @@ def render_heartbeat(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         client.set(ctx.hb_key, str(time.time()), ex=5)
     else:
         client.delete(ctx.hb_key)
+    # Keep the pending approval card alive while the page is open, even if
+    # the worker died mid-task and stopped refreshing its own TTL. Reuses
+    # the worker's TTL — no separate UI-mode default.
     has_current = bool(client.get(ctx.current_key))
+    if has_current and enabled:
+        try:
+            client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
+        except Exception:
+            pass
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** (ttl≈5s when ON) · "

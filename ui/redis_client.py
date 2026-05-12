@@ -248,13 +248,61 @@ def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
     return rows
 
 
+def _running_row_from_instance_state(
+    client: redis.Redis, instance_id: str
+) -> RunningQueueRow | None:
+    """Synthesize a RunningQueueRow from ``wos:instance:<iid>:state``.
+
+    The worker publishes ``wos:queue:running:<iid>`` with a 180s TTL and
+    never refreshes it, so long-running tasks (e.g. ``building.upgrade``)
+    vanish from that key while the instance state still shows ``busy``.
+    Treat the state hash as the source of truth in that case so the UI
+    keeps reporting what's active.
+    """
+    try:
+        raw = client.hgetall(f"wos:instance:{instance_id}:state") or {}
+    except redis.RedisError:
+        return None
+    state_map: dict[str, str] = {
+        (k.decode() if isinstance(k, bytes) else str(k)): (
+            v.decode() if isinstance(v, bytes) else (str(v) if v is not None else "")
+        )
+        for k, v in raw.items()
+    }
+    if state_map.get("state", "").strip().lower() != "busy":
+        return None
+    scenario = state_map.get("current_scenario", "").strip()
+    task_id = state_map.get("current_task_id", "").strip()
+    task_type = state_map.get("current_task_type", "").strip() or scenario
+    player = state_map.get("current_task_player", "").strip()
+    if not scenario and not player and not task_id:
+        return None
+    try:
+        started_at = float(state_map.get("current_task_started_at") or 0.0)
+    except (TypeError, ValueError):
+        started_at = 0.0
+    region = state_map.get("current_task_region", "").strip() or None
+    return RunningQueueRow(
+        task_id=task_id or "(running)",
+        player_id=player,
+        task_type=task_type or "(unknown)",
+        priority=0,
+        instance_id=instance_id,
+        started_at=started_at,
+        region=region,
+        payload=None,
+    )
+
+
 def fetch_running_queue_row(
     client: redis.Redis, *, instance_id: str | None = None
 ) -> RunningQueueRow | None:
     key = f"wos:queue:running:{instance_id}" if instance_id else "wos:queue:running"
     raw = client.get(key)
     if not raw:
-        return None
+        # Running key TTL (180s) often outlasts long tasks — fall back to
+        # the per-instance state hash, which the worker keeps current.
+        return _running_row_from_instance_state(client, instance_id) if instance_id else None
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:

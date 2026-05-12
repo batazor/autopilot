@@ -205,6 +205,9 @@ def fragment_pending_approval_columns(
                 "Redis click-approval queue."
             ),
         )
+        from .chrome import render_node_player_caption
+
+        render_node_player_caption(ctx=ctx, client=client)
         req_type = str(payload.get("type") or "").strip().lower()
         ctx0 = payload.get("context")
 

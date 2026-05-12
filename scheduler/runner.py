@@ -174,8 +174,17 @@ class SchedulerRunner:
         interval_s: int,
         now: float,
     ) -> None:
-        """Keep exactly one future queue item for an interval cron spec."""
-        assert self._queue is not None
+        """Publish the cron spec immediately and throttle re-enqueue by interval.
+
+        Every cron-driven scenario lands in the queue with ``run_at=now`` on
+        first sight so a cold-started worker doesn't wait a full ``interval_s``
+        for the first run. A Redis throttle key (TTL=``interval_s``) gates
+        subsequent scheduler ticks (default cadence: 30s) so the same task
+        isn't re-enqueued the moment the worker pops it. ``has_pending_duplicate``
+        + ``_cron_task_running`` cover the inverse: don't enqueue while one is
+        already pending or in flight.
+        """
+        assert self._queue is not None and self._redis is not None
         if await self._cron_task_running(
             instance_id=instance_id,
             player_id=player_id,
@@ -191,7 +200,15 @@ class SchedulerRunner:
         ):
             return
 
-        run_at = now + interval_s
+        throttle_key = (
+            f"wos:scheduler:cron_throttle:{spec_slug}:{instance_id}:{player_id}"
+        )
+        acquired = bool(
+            await self._redis.set(throttle_key, "1", nx=True, ex=int(interval_s))
+        )
+        if not acquired:
+            return
+        run_at = now
         enqueued = await self._queue.schedule(
             task_id=f"cron:{spec_slug}:{player_id}:{int(run_at)}",
             player_id=player_id,

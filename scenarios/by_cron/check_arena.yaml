@@ -1,8 +1,7 @@
-name: "Check Arena"
+name: "⚔️ Check Arena"
 enabled: false
 
 cron: "0 */3 * * *"
-priority: 15
 
 node: arena
 task: arena_check

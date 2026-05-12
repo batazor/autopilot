@@ -140,6 +140,21 @@ class InstanceWorkerOverlayMixin:
             except Exception:
                 logger.debug("overlay enqueue: Redis snapshot failed", exc_info=True)
 
+        # ``time_seconds`` is set by the overlay engine when a rule with
+        # ``action: text`` + ``type: time`` parses its OCR'd value. We treat
+        # its presence as "this is a throttle-only rule" (the operator
+        # detected an active countdown and wants to suppress further pushes
+        # of the named scenario until the timer expires): use the parsed
+        # seconds as the ``ttl`` for every ``pushScenario`` entry, write
+        # the push_ttl marker with that TTL, and skip the actual push.
+        # Other rule types keep the legacy ``pushScenario[].ttl`` semantics.
+        ttl_override_raw = payload.get("time_seconds")
+        ttl_override: int = 0
+        if ttl_override_raw is not None:
+            with suppress(TypeError, ValueError):
+                ttl_override = int(ttl_override_raw)
+        is_time_throttle_rule = ttl_override > 0
+
         pu = payload.get("pushScenario")
         if not isinstance(pu, list):
             # Backward compat
@@ -180,7 +195,15 @@ class InstanceWorkerOverlayMixin:
                 # repeat push is dropped here, before it reaches the queue.
                 # Scoped per-player (active_player at push time) so a busy
                 # scenario for player A doesn't starve player B.
-                ttl_s = parse_duration_seconds(item.get("ttl"))
+                #
+                # ``type: time`` rules override the static ``ttl`` with the
+                # parsed seconds value AND suppress the actual push — the
+                # rule's intent is "block re-runs of this scenario until
+                # the in-game timer expires", not "run it again now".
+                if is_time_throttle_rule:
+                    ttl_s = ttl_override
+                else:
+                    ttl_s = parse_duration_seconds(item.get("ttl"))
                 if ttl_s and ttl_s > 0 and self._redis is not None:
                     ap_for_key = (active_player or "").strip()
                     if ap_for_key:
@@ -189,6 +212,23 @@ class InstanceWorkerOverlayMixin:
                         throttle_key = (
                             f"wos:instance:{self._cfg.instance_id}:push_ttl:{t}"
                         )
+                    if is_time_throttle_rule:
+                        # SET (not NX) — refresh the throttle to the latest
+                        # remaining time on every overlay tick. Otherwise a
+                        # 10-minute "first tick" marker would stay stale
+                        # even after the in-game timer dropped to 30s.
+                        with suppress(Exception):
+                            await self._redis.set(
+                                throttle_key, "1", ex=int(ttl_s)
+                            )
+                            logger.info(
+                                "overlay: time-throttle set scenario=%s ttl=%ds "
+                                "key=%s source_region=%s",
+                                t, int(ttl_s), throttle_key, reg_snap,
+                            )
+                        # Suppress the actual push: the rule's job was just
+                        # to write the throttle marker.
+                        continue
                     acquired = True
                     try:
                         acquired = bool(

@@ -25,6 +25,7 @@ from actions.tap import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
+from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +105,14 @@ class DslOcrMixin:
                                       # arithmetic ``cond`` (e.g.
                                       # ``exploration.state.myPower * 1.2 >= ...``).
               scope: player|instance  # default = "player" (applies to ``store:``)
-              type: integer|string    # default = inherits area.json `type`
+              type: integer|string|time   # default = inherits area.json `type`
+                                          # ``time`` parses HH:MM:SS / MM:SS to total seconds.
+              throttle_push: <scenario>   # optional; with ``type: time`` writes a
+                                          # push_ttl marker (TTL = parsed seconds) so
+                                          # any overlay push or `push_scenario:` for
+                                          # ``<scenario>`` is dropped until the marker
+                                          # expires. Pairs with the chapter-task idiom
+                                          # "building is upgrading → don't re-fire".
               threshold: 0.7          # confidence floor; default = inherits area.json `threshold`
 
         ``store:`` and ``state:`` are independent — set either, both, or neither.
@@ -387,8 +395,89 @@ class DslOcrMixin:
                 )
                 return
             value = digits
+        elif type_hint == "time":
+            seconds = _parse_hms_to_seconds(text)
+            if seconds is None:
+                logger.warning(
+                    "dsl_scenario: store skipped field=%s reason=time_cast_failed "
+                    "value=%r region=%s scenario=%s",
+                    planned_store_field or "?",
+                    text,
+                    region,
+                    scen_label,
+                )
+                await self._ocr_audit_step(
+                    instance_id,
+                    region=region,
+                    step=step,
+                    status="time_cast_failed",
+                    threshold_s=thr_s,
+                    confidence_s=conf_s,
+                    raw_text=text,
+                )
+                return
+            value = str(seconds)
 
-        if not store_redis_field and not state_yaml_path:
+        # Optional ``throttle_push: <scenario>`` writes a push_ttl marker so
+        # subsequent overlay pushes of that scenario (and explicit re-pushes
+        # via ``push_scenario:``) are silently dropped until the marker
+        # expires. Pairs with ``type: time`` for the "building is upgrading,
+        # don't re-fire chapter task until done" idiom (see
+        # ``scenarios/building/building.upgrade.yaml`` ↔
+        # ``analyze/analyze_pages/analyze_building.yaml``). Same key shape
+        # and scope as ``_enqueue_push_scenarios_from_overlay``'s push-level
+        # ttl throttle so a single marker covers both push sources.
+        throttle_target_raw = step.get("throttle_push")
+        throttle_target_name = ""
+        if isinstance(throttle_target_raw, str):
+            throttle_target_name = throttle_target_raw.strip()
+        elif isinstance(throttle_target_raw, dict):
+            throttle_target_name = str(throttle_target_raw.get("name") or "").strip()
+        throttle_written = False
+        if (
+            throttle_target_name
+            and type_hint == "time"
+            and self.redis_client is not None
+        ):
+            try:
+                throttle_seconds = int(value)
+            except (TypeError, ValueError):
+                throttle_seconds = 0
+            if throttle_seconds > 0:
+                scope_pid = (self.player_id or "").strip()
+                if not scope_pid:
+                    with suppress(Exception):
+                        raw_ap = await self.redis_client.hget(
+                            f"wos:instance:{instance_id}:state", "active_player"
+                        )
+                        ap = (
+                            raw_ap.decode()
+                            if isinstance(raw_ap, (bytes, bytearray))
+                            else (raw_ap or "")
+                        )
+                        scope_pid = str(ap).strip()
+                throttle_key = (
+                    f"wos:player:{scope_pid}:push_ttl:{throttle_target_name}"
+                    if scope_pid
+                    else f"wos:instance:{instance_id}:push_ttl:{throttle_target_name}"
+                )
+                with suppress(Exception):
+                    await self.redis_client.set(
+                        throttle_key, "1", ex=int(throttle_seconds)
+                    )
+                    throttle_written = True
+                    logger.info(
+                        "dsl_scenario: throttle_push set scenario=%s ttl=%ds "
+                        "key=%s source_region=%s active_scenario=%s",
+                        throttle_target_name, throttle_seconds, throttle_key,
+                        region, scen_label,
+                    )
+
+        if (
+            not store_redis_field
+            and not state_yaml_path
+            and not throttle_written
+        ):
             logger.warning(
                 "dsl_scenario: persist skipped reason=no_target "
                 "value=%r region=%s scenario=%s — specify `store:` and/or `state:`",
@@ -487,7 +576,11 @@ class DslOcrMixin:
                 )
             else:
                 typed_value: Any = value
-                if type_hint in {"int", "integer"}:
+                # ``time`` was already converted to a seconds string above;
+                # both integer and time types persist as Python ``int`` to
+                # state.yaml so arithmetic ``cond`` (e.g.
+                # ``timer_remaining_s < 300``) works without casts.
+                if type_hint in {"int", "integer", "time"}:
                     with suppress(TypeError, ValueError):
                         typed_value = int(value)
                 try:

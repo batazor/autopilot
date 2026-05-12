@@ -165,7 +165,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 AREA_JSON_PATH = REPO_ROOT / "area.json"
 REFERENCES_DIR = REPO_ROOT / "references"
 ACTIONS = ("exist", "text", "color_check", "click")
-TYPES = ("integer", "string", "boolean")
+TYPES = ("integer", "string", "boolean", "time")
 COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
 # Drawable canvas display size (longer side cap).

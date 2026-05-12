@@ -176,6 +176,8 @@ class InstanceWorkerTasksMixin:
         await self._redis.hset(  # type: ignore[union-attr]
             state_key,
             mapping={
+                "current_task_id": item.task_id,
+                "current_task_type": item.task_type,
                 "current_task_player": item.player_id,
                 "current_task_started_at": str(time.time()),
                 "current_task_region": item.region or "",
@@ -288,6 +290,8 @@ class InstanceWorkerTasksMixin:
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
                 mapping={
+                    "current_task_id": "",
+                    "current_task_type": "",
                     "current_task_player": "",
                     "current_task_started_at": "",
                     "current_task_region": "",

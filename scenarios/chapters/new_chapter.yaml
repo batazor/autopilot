@@ -1,5 +1,5 @@
 enabled: true
-name: "New chapter"
+name: "📖 New chapter"
 
 # The ``chapter.new`` button only exists on the main_city screen.
 # Without ``node:`` the scenario would run wherever the bot happens to be

@@ -20,6 +20,7 @@ import redis
 import streamlit as st
 import yaml
 
+from tasks.dsl_scenario_helpers import _dsl_step_summary
 from ui.redis_client import (
     fetch_running_queue_row,
     get_instance_state,
@@ -66,52 +67,76 @@ def render_step_progress(
 
 
 @lru_cache(maxsize=256)
-def _count_scenario_steps_cached(repo_str: str, key: str, mtime_ns: int) -> int:
-    """Disk-backed step count for a scenario YAML. Cache key includes
-    ``mtime_ns`` so edits invalidate transparently — same trick as
-    :func:`tasks.dsl_scenario_helpers._load_yaml_cached`.
+def _load_scenario_step_summaries_cached(
+    repo_str: str, key: str, mtime_ns: int
+) -> tuple[str, ...]:
+    """Disk-backed top-level step summaries for a scenario YAML. Cache key
+    includes ``mtime_ns`` so edits invalidate transparently — same trick as
+    :func:`tasks.dsl_scenario_helpers._load_yaml_cached`. Returns an empty
+    tuple when the file is missing or malformed.
     """
     repo = Path(repo_str)
     scenarios_root = repo / "scenarios"
     if not scenarios_root.is_dir():
-        return 0
+        return ()
     hits = [
         p for p in scenarios_root.rglob(f"{key}.yaml")
         if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
     ]
     if not hits:
-        return 0
+        return ()
     hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
     try:
         raw = yaml.safe_load(hits[0].read_text(encoding="utf-8")) or {}
     except Exception:
-        return 0
+        return ()
     steps = raw.get("steps") if isinstance(raw, dict) else None
-    return len(steps) if isinstance(steps, list) else 0
+    if not isinstance(steps, list):
+        return ()
+    return tuple(_dsl_step_summary(s) for s in steps)
 
 
-def _count_scenario_steps(repo_root: Path, key: str) -> int:
-    """Stat a scenario by ``key`` and return its top-level step count.
-
-    Returns 0 when the file is missing, malformed, or has no ``steps:`` list.
+def _load_scenario_step_summaries(repo_root: Path, key: str) -> tuple[str, ...]:
+    """Stat a scenario by ``key`` and return one short summary per top-level
+    step. Returns ``()`` when the file is missing, malformed, or has no
+    ``steps:`` list.
     """
     if not key:
-        return 0
+        return ()
     scenarios_root = repo_root / "scenarios"
     if not scenarios_root.is_dir():
-        return 0
+        return ()
     hits = [
         p for p in scenarios_root.rglob(f"{key}.yaml")
         if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
     ]
     if not hits:
-        return 0
+        return ()
     hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
     try:
         st_ns = hits[0].stat().st_mtime_ns
     except OSError:
-        return 0
-    return _count_scenario_steps_cached(str(repo_root), key, st_ns)
+        return ()
+    return _load_scenario_step_summaries_cached(str(repo_root), key, st_ns)
+
+
+def _render_step_list_caption(
+    summaries: tuple[str, ...], current_step: int, is_running: bool
+) -> None:
+    """One-line, light-grey, small-font caption with all top-level step
+    summaries joined by ``·``. The currently-running step is bolded so it
+    stands out within the grey strip. ``current_step`` is 0-based;
+    ``is_running`` controls whether the bold marker is applied.
+    """
+    if not summaries:
+        return
+    parts: list[str] = []
+    for i, summary in enumerate(summaries):
+        if is_running and i == current_step:
+            parts.append(f"**{summary}**")
+        else:
+            parts.append(summary)
+    st.caption(" · ".join(parts))
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -122,7 +147,8 @@ def render_active_scenario_progress(
     repo_root: Path,
 ) -> None:
     """Self-contained progress bar: discovers the currently-running scenario
-    from Redis state and renders its ``Step X/N``.
+    from Redis state and renders its ``Step X/N`` plus a light-grey list of
+    top-level step summaries with the active step highlighted.
 
     Used on pages that don't have a user-selected scenario (e.g. the global
     Click Approvals page), so the operator still sees where the worker is in
@@ -132,7 +158,12 @@ def render_active_scenario_progress(
     state = get_instance_state(client, instance_id)
     running = fetch_running_queue_row(client, instance_id=instance_id)
     active_scenario = str(state.get("current_scenario") or "").strip()
-    total = _count_scenario_steps(repo_root, active_scenario) if active_scenario else 0
+    summaries = (
+        _load_scenario_step_summaries(repo_root, active_scenario)
+        if active_scenario
+        else ()
+    )
+    total = len(summaries)
     is_running = bool(
         running is not None
         and running.task_id

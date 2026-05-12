@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import time
 from datetime import timedelta
+from pathlib import Path
 
 import streamlit as st
 
@@ -14,9 +15,8 @@ from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
     count_queue_tasks_for_instance,
-    fetch_fsm_history,
     fetch_next_queue_row_for_instance,
-    fetch_running_queue_row,
+    fetch_queue_history_rows,
     get_instance_state,
     get_redis,
     push_instance_command,
@@ -24,6 +24,9 @@ from ui.redis_client import (
 )
 from ui.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
 from ui.settings_state import ensure_ui_settings_session_defaults
+from ui.views._debug_scenarios_progress import render_active_scenario_progress
+
+_REPO = Path(__file__).resolve().parents[2]
 
 ensure_embedded_bot()
 
@@ -169,23 +172,18 @@ instance_id = st.selectbox("Instance", choices, index=choices.index(instance_id)
 
 inst_cfg = next(i for i in settings.instances if i.instance_id == instance_id)
 
-# Operator glance: running / queue size / next due.
-running = fetch_running_queue_row(client, instance_id=instance_id)
+# Operator glance: live progress + queue size + next due.
+render_active_scenario_progress(
+    client=client,
+    instance_id=instance_id,
+    repo_root=_REPO,
+)
 queue_n = count_queue_tasks_for_instance(client, instance_id=instance_id)
 next_row = fetch_next_queue_row_for_instance(client, instance_id=instance_id)
-g1, g2, g3 = st.columns(3)
+g1, g2 = st.columns(2)
 with g1:
-    if running is not None and running.task_id:
-        ago_s = ""
-        if running.started_at > 0:
-            ago_s = f" ({int(max(0, time.time() - running.started_at))}s ago)"
-        st.metric("Running now", f"{running.task_type}{ago_s}")
-        st.caption(f"task_id `{running.task_id}` · player `{running.player_id or '—'}`")
-    else:
-        st.metric("Running now", "—")
-with g2:
     st.metric("Queue size", str(queue_n))
-with g3:
+with g2:
     if next_row is not None and next_row.scheduled_at:
         ts = time.strftime("%H:%M:%S", time.localtime(next_row.scheduled_at))
         st.metric("Next due", ts)
@@ -196,55 +194,94 @@ with g3:
 col_left, col_right = st.columns([3, 2], gap="medium")
 
 with col_left:
-    with st.expander("Manual controls", expanded=True):
-        _inst_player_ids = player_ids_for_device(inst_cfg.bluestacks_window_title)
-        if not _inst_player_ids:
-            st.warning(
-                "No **player_ids** for this instance in `db/devices.yaml` — "
-                "run the bot so `fetch_player` populates it."
+    st.subheader("Manual controls")
+    _inst_player_ids = player_ids_for_device(inst_cfg.bluestacks_window_title)
+    if not _inst_player_ids:
+        st.warning(
+            "No **player_ids** for this instance in `db/devices.yaml` — "
+            "run the bot so `fetch_player` populates it."
+        )
+
+    mc_tabs = st.tabs(["🔀 Switch account", "▶ Run task", "🔄 Restart game"])
+
+    with mc_tabs[0]:
+        if _inst_player_ids:
+            player_pick = st.selectbox(
+                "Account",
+                _inst_player_ids,
+                key=f"mc-switch-{instance_id}",
+                help="Worker will switch to this account before the next task.",
             )
-        else:
-            mc1, mc2 = st.columns(2)
-            with mc1:
-                player_pick = st.selectbox("Switch account", _inst_player_ids)
-                if st.button("Queue switch"):
-                    push_instance_command(
-                        client,
-                        instance_id,
-                        {"cmd": "switch_player", "player_id": player_pick},
-                    )
-                    st.success("switch_player queued")
-
-            with mc2:
-                task_types = sorted(settings.tasks.keys())
-                task_pick = st.selectbox("Task type", task_types)
-                task_player = st.selectbox(
-                    "Player for task", _inst_player_ids, key=f"tp-{instance_id}"
+            if st.button("Queue switch", key=f"mc-switch-btn-{instance_id}", width="stretch"):
+                push_instance_command(
+                    client,
+                    instance_id,
+                    {"cmd": "switch_player", "player_id": player_pick},
                 )
-                if st.button("Queue task"):
-                    push_instance_command(
-                        client,
-                        instance_id,
-                        {"cmd": "run_task", "task_type": task_pick, "player_id": task_player},
-                    )
-                    st.success("run_task queued")
+                st.success(f"switch_player → `{player_pick}` queued")
+        else:
+            st.caption("No accounts available for this instance.")
 
-        if st.button("Restart game"):
+    with mc_tabs[1]:
+        if _inst_player_ids:
+            task_types = sorted(settings.tasks.keys())
+            tp1, tp2 = st.columns(2)
+            with tp1:
+                task_pick = st.selectbox(
+                    "Task type",
+                    task_types,
+                    key=f"mc-task-type-{instance_id}",
+                )
+            with tp2:
+                task_player = st.selectbox(
+                    "Player",
+                    _inst_player_ids,
+                    key=f"mc-task-player-{instance_id}",
+                )
+            if st.button("Queue task", key=f"mc-task-btn-{instance_id}", width="stretch"):
+                push_instance_command(
+                    client,
+                    instance_id,
+                    {"cmd": "run_task", "task_type": task_pick, "player_id": task_player},
+                )
+                st.success(f"run_task `{task_pick}` → `{task_player}` queued")
+        else:
+            st.caption("No accounts available — can't queue a task.")
+
+    with mc_tabs[2]:
+        st.caption("Hard-restart the game on this instance.")
+        if st.button(
+            "Restart game",
+            key=f"mc-restart-{instance_id}",
+            type="primary",
+            width="stretch",
+        ):
             push_instance_command(client, instance_id, {"cmd": "restart"})
             st.success("restart queued")
 
-    with st.expander("Node history (per player)", expanded=False):
-        if not _inst_player_ids:
-            st.caption("No players in db/devices.yaml — nothing to show.")
-        for pid in _inst_player_ids:
-            with st.expander(f"Player {pid}"):
-                hist = fetch_fsm_history(client, pid)
-                if not hist:
-                    st.write("No transitions recorded yet.")
-                else:
-                    for entry in hist:
-                        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(entry["ts"]))
-                        st.text(f"{ts}  →  {entry['state']}")
+    st.divider()
+    with st.expander("Scenario history", expanded=False):
+        st.caption(
+            "Last 50 finished scenarios for this instance, grouped by player "
+            "(source: `wos:queue:history:<instance_id>`)."
+        )
+        hist_rows = fetch_queue_history_rows(client, instance_id=instance_id, limit=50)
+        if not hist_rows:
+            st.write("No completed scenarios recorded yet.")
+        else:
+            buckets: dict[str, list] = {}
+            for h in hist_rows:
+                buckets.setdefault(h.player_id or "(device)", []).append(h)
+            for pid, rows in buckets.items():
+                with st.expander(f"Player `{pid}` · {len(rows)} run(s)"):
+                    for h in rows:
+                        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(h.started_at))
+                        mark = "✅" if h.success else "❌"
+                        detail = h.reason or h.error or h.task_id
+                        st.text(
+                            f"{ts}  {mark}  {h.scenario or h.task_type}"
+                            f"  ·  {h.duration_s:.1f}s  ·  {detail}"
+                        )
 
 with col_right:
     _reference_preview_fragment(instance_id)

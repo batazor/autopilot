@@ -1,5 +1,5 @@
 enabled: true
-name: "Dismiss rookie value pack"
+name: "🚫 Dismiss rookie value pack"
 # Ads dismissal — purely UI, no player identity needed.
 device_level: true
 

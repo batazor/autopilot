@@ -1,5 +1,5 @@
 enabled: true
-name: Tap tutorial hand pointer (small reverse)
+name: 👆 Tap tutorial hand pointer (small reverse)
 # Tutorial dismissal — purely UI, safe to run before player identity is known.
 device_level: true
 

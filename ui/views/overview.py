@@ -200,15 +200,43 @@ def _device_status_cell(row: dict[str, str]) -> str:
 
 
 def _task_cell(row: dict[str, str]) -> str:
-    """No task type in Redis — only whether a task is in progress and for how long."""
+    """Active scenario + elapsed time, or ``—`` when nothing is running.
+
+    Reads ``current_scenario`` (falling back to ``current_task_type``) so a
+    glance at the dashboard is enough to know what each worker is doing.
+    """
     st_val = (row.get("state") or "").strip().lower()
     started = (row.get("current_task_started_at") or "").strip()
     if st_val != "busy" and not started:
         return "—"
+    name = (
+        (row.get("current_scenario") or "").strip()
+        or (row.get("current_task_type") or "").strip()
+    )
     elapsed = _elapsed_since(started) if started else None
+    label = f"`{name}`" if name else "busy"
     if elapsed:
-        return f"busy · {elapsed}"
-    return "busy"
+        return f"{label} · {elapsed}"
+    return label
+
+
+def _attention_marker(row: dict[str, str]) -> str:
+    """Inline ⚠️ when ``last_error`` or ``queue_blocked_reason`` is non-empty.
+
+    Returns an empty string when there's nothing to flag, so it can be
+    concatenated into the Status cell unconditionally.
+    """
+    err = (row.get("last_error") or "").strip()
+    blocked = (row.get("queue_blocked_reason") or "").strip()
+    if not err and not blocked:
+        return ""
+    parts: list[str] = []
+    if err:
+        parts.append(f"error: {err}")
+    if blocked:
+        parts.append(f"blocked: {blocked}")
+    tip = " · ".join(parts).replace('"', "'")
+    return f' <span title="{tip}">⚠️</span>'
 
 
 _DEVICES_HELP = (
@@ -285,12 +313,17 @@ def _dashboard() -> None:
             task_c = _task_cell(row)
             paused = row.get("paused") == "1"
 
+            attention = _attention_marker(row)
+
             r = st.columns(_TABLE_COLS, vertical_alignment="center")
             r[0].code(inst.instance_id, language=None)
-            r[1].write(status_cell)
+            if attention:
+                r[1].markdown(status_cell + attention, unsafe_allow_html=True)
+            else:
+                r[1].write(status_cell)
             r[2].write(active)
             r[3].write(node)
-            r[4].write(task_c)
+            r[4].markdown(task_c)
             r[5].write(session_uptime)
             with r[6]:
                 if paused:

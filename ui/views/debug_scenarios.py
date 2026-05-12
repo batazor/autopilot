@@ -17,7 +17,7 @@ import redis
 import streamlit as st
 import yaml
 
-from actions.tap import click_approval_enabled
+from actions.tap import APPROVAL_CURRENT_TTL_SECONDS, click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
@@ -266,13 +266,21 @@ def _active_player_in_game_id(*, client: Any, inst: str) -> str:
 
 @st.fragment(run_every=timedelta(seconds=1))
 def _render_debug_header(inst: str) -> None:
+    st.title(f"Debug · Scenario runner · {inst}")
+
+
+@st.fragment(run_every=timedelta(seconds=1))
+def _render_node_player_caption(inst: str) -> None:
+    """Live ``node / player_id / scenario`` caption.
+
+    Rendered near the Approvals section (not the top of the page) so the
+    operator reading a pending approval sees the worker's identity context
+    without scrolling up.
+    """
     row = get_instance_state(client, inst) or {}
     node = str(row.get("current_screen") or "").strip() or "-"
-    current = str(row.get("current_scenario") or "").strip() or "-"
     pid_in_game = _active_player_in_game_id(client=client, inst=inst)
-
-    st.title(f"Debug · Scenario runner · {inst}")
-    st.caption(f"node: `{node}` · player_id: `{pid_in_game}` · scenario: `{current}`")
+    st.caption(f"node: `{node}` · player_id: `{pid_in_game}`")
 
 
 @st.fragment(run_every=timedelta(seconds=1))
@@ -564,6 +572,14 @@ def _render_approval_heartbeat(ctx: ClickApprovalsCtx) -> None:
         client.set(ctx.enabled_key, "0")
         client.delete(ctx.hb_key)
     has_current = bool(client.get(ctx.current_key))
+    # Keep the pending approval card alive while this page is open, even if
+    # the worker died mid-task and stopped refreshing its own TTL. Mirrors
+    # ``ui/views/click_approvals/chrome.py:render_heartbeat``.
+    if has_current and enabled:
+        try:
+            client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
+        except Exception:
+            pass
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** · "
@@ -875,6 +891,7 @@ render_step_progress(
     scenario_total_steps=int(scenario.steps),
 )
 if client.get(ctx.current_key):
+    _render_node_player_caption(inst.instance_id)
     fragment_pending_approval_columns(
         ctx=ctx,
         client=client,
@@ -887,6 +904,7 @@ else:
         _render_live_screenshot(ctx, inst.instance_id)
     with col_status:
         st.subheader("Approvals")
+        _render_node_player_caption(inst.instance_id)
         st.success("No pending click requests.")
         _render_run_status(inst.instance_id, pid, scenario.key, int(scenario.steps))
 

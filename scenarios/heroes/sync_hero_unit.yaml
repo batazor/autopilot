@@ -1,5 +1,5 @@
 enabled: true
-name: "Sync hero unit"
+name: "🦸 Sync hero unit"
 
 # Snapshot whichever hero card is currently open into ``db/state.yaml`` under
 # ``heroes.entries.<slug>`` (key derived from OCR'd name, e.g. "Bahiti" → "bahiti").

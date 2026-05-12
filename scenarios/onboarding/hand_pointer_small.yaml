@@ -1,10 +1,10 @@
 enabled: true
-name: Tap tutorial hand pointer (small)
+name: 👆 Tap tutorial hand pointer (small)
 # Tutorial dismissal — purely UI, safe to run before player identity is known.
 device_level: true
 
 steps:
-  - match: hand_pointer_small
-    threshold: 0.9
-    min_match_saturation: 50
-  - click: hand_pointer_small
+  - while_match: hand_pointer_small
+    max: 1
+    steps:
+      - click: hand_pointer_small

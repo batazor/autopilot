@@ -894,6 +894,15 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
             _entry, reg = pair
+            # ``type: time`` opts the rule into HH:MM:SS / MM:SS parsing so
+            # downstream consumers can read ``time_seconds`` directly. Rule
+            # ``type:`` wins; otherwise inherit from area.json so a region
+            # tagged once in the annotator (``type: time``) doesn't have to
+            # be repeated in every overlay rule that targets it. Mirrors the
+            # DSL ``ocr`` step's resolution.
+            rule_type = str(
+                rule.get("type") or reg.get("type") or ""
+            ).strip().lower()
             bbox = reg.get("bbox")
             if not isinstance(bbox, dict):
                 out[logical_name] = {
@@ -931,6 +940,22 @@ async def evaluate_overlay_rules_async(
                 matched = bool(txt)
 
             push_tasks = optional_push_scenario_tasks(rule)
+            time_seconds: int | None = None
+            if rule_type == "time":
+                # Lazy import to avoid pulling the DSL stack into the overlay
+                # engine's import graph just for one regex helper.
+                from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+
+                parsed = _parse_hms_to_seconds(txt)
+                if parsed is not None:
+                    time_seconds = int(parsed)
+                    # The presence of a parsed time IS the "matched" signal
+                    # for time rules — a HH:MM:SS countdown is what we OCR'd
+                    # for. Override the earlier ``matched=bool(txt)`` so a
+                    # rule without ``expected:`` still reports matched=False
+                    # when the timer text was unreadable noise.
+                    matched = True
+
             out[logical_name] = {
                 "matched": matched,
                 "action": "text",
@@ -942,6 +967,16 @@ async def evaluate_overlay_rules_async(
                 "fuzzy_threshold": fuzzy_thr,
                 "match": best,
             }
+            if rule_type:
+                out[logical_name]["type"] = rule_type
+            if time_seconds is not None:
+                # Surfaced in the result so the overlay enqueuer can use it
+                # as the dynamic ``ttl`` for any ``pushScenario`` entries —
+                # see ``_enqueue_push_scenarios_from_overlay``. Lets the
+                # operator write ``pushScenario: [{name: ...}]`` and have
+                # the throttle TTL filled from the OCR'd timer (no extra
+                # rule key needed).
+                out[logical_name]["time_seconds"] = time_seconds
             if push_tasks:
                 out[logical_name]["pushScenario"] = push_tasks
             if set_node_s:

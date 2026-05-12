@@ -15,11 +15,16 @@ class InstanceWorkerHealthMixin:
     _stopping: bool
     _blocking_executor_live: bool
     _bot_actions: Any
+    _ui_paused: bool
 
     async def _run_blocking(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
     async def _set_instance_state(self, state: Any, *, error: str = "") -> None:
+        raise NotImplementedError
+
+    async def _cancel_current_task(self, reason: str) -> bool:
+        # Provided by ``InstanceWorker``; declared here so the mixin can call it.
         raise NotImplementedError
 
     def _ensure_whiteout_at_worker_start(self) -> None:
@@ -103,26 +108,82 @@ class InstanceWorkerHealthMixin:
             inst,
         )
 
+    _FOREGROUND_VERIFY_TIMEOUT_S = 20.0
+    _FOREGROUND_VERIFY_INTERVAL_S = 1.0
+    _POST_RESTART_GRACE_S = 10.0
+
     async def _restart_instance(self) -> None:
         from fsm.states import InstanceState
 
         logger.warning("Restarting BlueStacks instance %s", self._cfg.instance_id)
+        # Pause scenarios + analyzers BEFORE the force-stop. The main loop checks
+        # ``_ui_paused`` between tasks (``instance_worker.py``), and the rolling
+        # snapshot loop checks it before each capture (``instance_worker_rolling.py``);
+        # flipping the flag here stops both for the duration of the restart.
+        prev_paused = bool(getattr(self, "_ui_paused", False))
+        self._ui_paused = True
+        # Kill the in-flight scenario before the force-stop: any remaining tap
+        # would land on a dead app / launcher and contaminate state. The
+        # cancelled task is recorded as failed in history via ``_execute_task``
+        # returning ``TaskResult(success=False, reason="aborted_for_restart")``.
+        await self._cancel_current_task("game restart triggered")
+        # Yield so the cancellation actually propagates into ``_execute_task``
+        # before we begin the blocking ADB calls below.
+        await asyncio.sleep(0)
         await self._set_instance_state(InstanceState.RESTARTING)
         await self._redis.delete(f"wos:instance:{self._cfg.instance_id}:lock")
 
         try:
-            self._bot_actions.restart_application(self._cfg.instance_id)
-            await asyncio.sleep(3.0)
-            await self._run_blocking(
-                self._bot_actions.ensure_game_foreground,
-                self._cfg.instance_id,
-            )
-        except Exception:
-            logger.exception("Failed to restart application on %s", self._cfg.instance_id)
-            await self._set_instance_state(
-                InstanceState.CRASHED, error="restart_application failed (see logs)"
-            )
-            return
+            try:
+                self._bot_actions.restart_application(self._cfg.instance_id)
+                await asyncio.sleep(3.0)
+                await self._run_blocking(
+                    self._bot_actions.ensure_game_foreground,
+                    self._cfg.instance_id,
+                )
+            except Exception:
+                logger.exception("Failed to restart application on %s", self._cfg.instance_id)
+                await self._set_instance_state(
+                    InstanceState.CRASHED, error="restart_application failed (see logs)"
+                )
+                return
 
-        await self._set_instance_state(InstanceState.READY)
+            # Poll until the game reports foreground (best-effort, bounded).
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._FOREGROUND_VERIFY_TIMEOUT_S
+            while loop.time() < deadline:
+                try:
+                    is_fg = await self._run_blocking(
+                        self._bot_actions.is_game_foreground,
+                        self._cfg.instance_id,
+                    )
+                except Exception:
+                    logger.debug(
+                        "Restart: is_game_foreground probe failed on %s",
+                        self._cfg.instance_id,
+                        exc_info=True,
+                    )
+                    is_fg = False
+                if is_fg:
+                    break
+                await asyncio.sleep(self._FOREGROUND_VERIFY_INTERVAL_S)
+            else:
+                logger.warning(
+                    "Restart: %s did not return to foreground within %.1fs — resuming anyway",
+                    self._cfg.instance_id,
+                    self._FOREGROUND_VERIFY_TIMEOUT_S,
+                )
+
+            logger.info(
+                "Restart: %s back in foreground — settling for %.0fs before resume",
+                self._cfg.instance_id,
+                self._POST_RESTART_GRACE_S,
+            )
+            await asyncio.sleep(self._POST_RESTART_GRACE_S)
+
+            await self._set_instance_state(InstanceState.READY)
+        finally:
+            # Restore the previous pause state. If the operator had paused us
+            # before the restart event arrived, we don't want to silently resume.
+            self._ui_paused = prev_paused
 

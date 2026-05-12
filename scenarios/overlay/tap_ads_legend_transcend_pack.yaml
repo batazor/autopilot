@@ -1,5 +1,5 @@
 enabled: true
-name: "Dismiss Legend Transcend Pack ad"
+name: "🚫 Dismiss Legend Transcend Pack ad"
 # Popup dismissal — purely UI, no player identity needed.
 device_level: true
 

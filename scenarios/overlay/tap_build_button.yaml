@@ -1,5 +1,5 @@
 enabled: true
-name: Tap build button
+name: 🔨 Tap build button
 # Tutorial-driven tap on the visible build button — overlay only fires when
 # the button is actually present.  Safe before player identity is known.
 device_level: true

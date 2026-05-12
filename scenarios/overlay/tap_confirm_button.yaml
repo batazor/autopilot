@@ -1,5 +1,5 @@
 enabled: true
-name: Tap confirm dialog
+name: ✅ Tap confirm dialog
 # Popup dismissal — purely UI, no player identity needed.
 device_level: true
 

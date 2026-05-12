@@ -70,6 +70,8 @@ class InstanceWorkerRedisMixin:
                 "last_seen_at": str(time.time()),
                 "last_error": "",
                 "nav_error": "",
+                "current_task_id": "",
+                "current_task_type": "",
                 "current_task_player": "",
                 "current_task_started_at": "",
                 "current_task_region": "",

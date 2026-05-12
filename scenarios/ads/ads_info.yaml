@@ -1,5 +1,5 @@
 enabled: true
-name: "Dismiss ads info"
+name: "🚫 Dismiss ads info"
 # Ads dismissal — purely UI, no player identity needed.
 device_level: true
 

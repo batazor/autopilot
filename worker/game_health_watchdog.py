@@ -35,36 +35,114 @@ def _push_instance_command(r: redis.Redis, instance_id: str, cmd: dict[str, obje
         r.lpush(f"wos:ui:command:{instance_id}", json.dumps(cmd))
 
 
+def _publish_abort_task(r: redis.Redis, instance_id: str, reason: str) -> None:
+    """Pubsub: kill the worker's in-flight task immediately.
+
+    The command list at ``wos:ui:command:<iid>`` only drains between tasks,
+    so a slow scenario keeps running while the game is being force-stopped.
+    Pubsub is read by ``InstanceWorker._run_abort_task_listener`` and reaches
+    the worker mid-task.
+    """
+    with contextlib.suppress(redis.RedisError):
+        r.publish(
+            f"wos:events:abort_task:{instance_id}",
+            json.dumps({"reason": reason}),
+        )
+
+
+_FOREGROUND_VERIFY_TIMEOUT_S = 20.0
+_FOREGROUND_VERIFY_INTERVAL_S = 1.0
+_POST_RESTART_GRACE_S = 10.0
+
+
 def restart_application_after_health_failure(instance_id: str, r: redis.Redis) -> None:
-    """Mirror ``InstanceWorkerHealthMixin._restart_instance`` using sync Redis + blocking ADB."""
+    """Mirror ``InstanceWorkerHealthMixin._restart_instance`` using sync Redis + blocking ADB.
+
+    Pauses the worker (scenarios + analyzers gated by ``_ui_paused``) before the
+    restart, waits for the game to come back foreground, gives a fixed grace
+    window for the splash/login to settle, then resumes. Without the pause an
+    in-flight scenario keeps tapping a force-stopped screen and the rolling
+    snapshot loop keeps screencap'ing the launcher.
+    """
     key = _INST_STATE_KEY_FMT.format(instance_id=instance_id)
     lock_key = f"wos:instance:{instance_id}:lock"
     ba = BotActions()
-    try:
-        r.hset(key, mapping={"state": str(InstanceState.RESTARTING), "last_error": ""})
-    except redis.RedisError:
-        logger.debug("watchdog: redis hset RESTARTING failed", exc_info=True)
+
+    # 1a. Kill the in-flight task NOW (pubsub reaches the worker mid-task,
+    # unlike the command list which only drains between tasks).
+    _publish_abort_task(r, instance_id, "watchdog: game not foreground")
+    # 1b. Pause the worker BEFORE touching the game so scenarios/analyzers stop.
+    _push_instance_command(r, instance_id, {"cmd": "pause"})
+    with contextlib.suppress(redis.RedisError):
+        r.hset(
+            key,
+            mapping={
+                "state": str(InstanceState.RESTARTING),
+                "paused": "1",
+                "auto_paused": "1",
+                "last_error": "",
+            },
+        )
+    # Give the worker a moment to drain the pause command and let the
+    # in-flight task observe the cancellation.
+    time.sleep(0.5)
     with contextlib.suppress(redis.RedisError):
         r.delete(lock_key)
+
     try:
-        ba.restart_application(instance_id)
-        time.sleep(3.0)
-        ba.ensure_game_foreground(instance_id)
-    except Exception:
-        logger.exception("Watchdog: restart_application failed on %s", instance_id)
-        with contextlib.suppress(redis.RedisError):
-            r.hset(
-                key,
-                mapping={
-                    "state": str(InstanceState.CRASHED),
-                    "last_error": "restart_application failed (see logs)",
-                },
+        try:
+            ba.restart_application(instance_id)
+            time.sleep(3.0)
+            ba.ensure_game_foreground(instance_id)
+        except Exception:
+            logger.exception("Watchdog: restart_application failed on %s", instance_id)
+            with contextlib.suppress(redis.RedisError):
+                r.hset(
+                    key,
+                    mapping={
+                        "state": str(InstanceState.CRASHED),
+                        "last_error": "restart_application failed (see logs)",
+                    },
+                )
+            return
+
+        # 2. Poll until the game is foreground or we hit the budget.
+        deadline = time.monotonic() + _FOREGROUND_VERIFY_TIMEOUT_S
+        while time.monotonic() < deadline:
+            try:
+                if ba.is_game_foreground(instance_id):
+                    break
+            except Exception:
+                logger.debug(
+                    "Watchdog: is_game_foreground probe failed on %s",
+                    instance_id,
+                    exc_info=True,
+                )
+            time.sleep(_FOREGROUND_VERIFY_INTERVAL_S)
+        else:
+            logger.warning(
+                "Watchdog: %s did not return to foreground within %.1fs — resuming anyway",
+                instance_id,
+                _FOREGROUND_VERIFY_TIMEOUT_S,
             )
-        return
-    try:
-        r.hset(key, mapping={"state": str(InstanceState.READY), "last_error": ""})
-    except redis.RedisError:
-        logger.debug("watchdog: redis hset READY failed", exc_info=True)
+
+        # 3. Splash/login grace so the first scenario tap doesn't land on a loader.
+        logger.info(
+            "Watchdog: %s back in foreground — settling for %.0fs before resume",
+            instance_id,
+            _POST_RESTART_GRACE_S,
+        )
+        time.sleep(_POST_RESTART_GRACE_S)
+
+        with contextlib.suppress(redis.RedisError):
+            r.hset(key, mapping={"state": str(InstanceState.READY), "last_error": ""})
+    finally:
+        # 4. Always resume — even on a crashed path we want to clear the flag we
+        # set in step 1; otherwise the worker would stay paused forever waiting
+        # for someone to send ``{"cmd": "resume"}``.
+        _push_instance_command(r, instance_id, {"cmd": "resume"})
+        with contextlib.suppress(redis.RedisError):
+            r.hset(key, mapping={"paused": "0", "auto_paused": "0"})
 
 
 def run_forever(stop: threading.Event | None = None) -> None:

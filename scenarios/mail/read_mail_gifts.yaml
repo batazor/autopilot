@@ -1,5 +1,5 @@
 enabled: true
-name: "Read mail · claim gifts"
+name: "✉️ Read mail · claim gifts"
 priority: 80_000
 
 # Navigate to Mail screen via FSM graph, then work only inside mail UI.

@@ -1,11 +1,10 @@
-name: Squad fight
+name: ⚔️ Squad fight
 enabled: true
 
 # 12-hour cadence: kicks off the redeploy loop. The scenario re-pushes itself
 # after every Victory, so a single cron tick can trigger many fights — the
 # chain only ends once the squad finally loses.
 cron: "0 */12 * * *"
-priority: 12
 
 # Navigator BFS: main_city → exploration → squad_settings (see edge_taps.yaml).
 node: squad_settings

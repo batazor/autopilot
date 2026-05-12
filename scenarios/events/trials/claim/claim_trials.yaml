@@ -1,5 +1,5 @@
 enabled: true
-name: "Claim trials"
+name: "🏆 Claim trials"
 
 node: event.trials
 
