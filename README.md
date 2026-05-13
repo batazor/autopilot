@@ -189,20 +189,24 @@ The Streamlit app (`uv run wos`) covers gift codes, labeling/YAML scenarios, and
 
 <br/>
 
-### Prerequisites
+### 1️⃣ Prerequisites
 
-| Requirement | Purpose |
-|:-----------|:--------|
-| **Docker Desktop** (macOS/Windows) or Docker Engine + Compose v2 (Linux) | Runs the three services |
-| **BlueStacks 5+** with ADB enabled on the host | The bot drives the emulator |
-| **`adb`** on the host, with the emulator visible in `adb devices` | Container talks to the host's ADB server |
+<div align="center">
+
+| Requirement | Version | Download |
+|:-----------:|:-------:|:--------:|
+| ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) | `compose v2` | **[Get Docker](https://docs.docker.com/get-docker/)** |
+| ![ADB](https://img.shields.io/badge/Android_Platform_Tools-3DDC84?style=flat-square&logo=android&logoColor=white) | latest | **[Download ADB](https://developer.android.com/tools/releases/platform-tools)** |
+| ![BlueStacks](https://img.shields.io/badge/BlueStacks-1F76C9?style=flat-square&logo=bluestacks&logoColor=white) | `5` or newer | **[Download BlueStacks](https://www.bluestacks.com/)** |
+
+</div>
 
 > [!IMPORTANT]
 > Emulator must be **720 × 1280, 320 DPI, English game language** — see [📱 Emulator Configuration](#-emulator-configuration) below.
 
 <br/>
 
-### Run
+### 2️⃣ Run
 
 ```sh
 # Clone the repo (just for the compose files + config templates)
@@ -225,18 +229,6 @@ open http://127.0.0.1:8501
 | `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI. Multi-arch (amd64+arm64). |
 | `ocr` | `ghcr.io/batazor/whiteout-survival-autopilot/ocr:latest` | PaddleOCR HTTP API. amd64 only (no paddlepaddle arm64 wheel for py3.13 yet). |
 | `redis` | `redis:alpine` | Queue + state. |
-
-<details>
-<summary><b>📌 Pin a specific version (recommended for stability)</b></summary>
-<br/>
-
-```sh
-WOS_IMAGE_TAG=v0.1.0 docker compose -f docker-compose.prod.yml up -d
-```
-
-Available tags: `latest` (HEAD of `main`), `sha-<short>` (per commit), `vMAJOR.MINOR.PATCH` (releases), `MAJOR.MINOR` (rolling minor).
-
-</details>
 
 <details>
 <summary><b>🌐 How the container reaches the host's ADB server</b></summary>
