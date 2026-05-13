@@ -225,6 +225,378 @@ screens:
         contains: [heroes power, hero power]
         threshold: 0.8
 
+  page.heroes.ahmose:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Ahmose"]
+        threshold: 0.8
+
+  page.heroes.aisling:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Aisling"]
+        threshold: 0.8
+
+  page.heroes.alonso:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Alonso"]
+        threshold: 0.8
+
+  page.heroes.bahiti:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Bahiti"]
+        threshold: 0.8
+
+  page.heroes.blanchette:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Blanchette"]
+        threshold: 0.8
+
+  page.heroes.bradley:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Bradley"]
+        threshold: 0.8
+
+  page.heroes.cara:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Cara"]
+        threshold: 0.8
+
+  page.heroes.charlie:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Charlie"]
+        threshold: 0.8
+
+  page.heroes.cloris:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Cloris"]
+        threshold: 0.8
+
+  page.heroes.dominic:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Dominic"]
+        threshold: 0.8
+
+  page.heroes.edith:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Edith"]
+        threshold: 0.8
+
+  page.heroes.eleonora:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Eleonora"]
+        threshold: 0.8
+
+  page.heroes.elif:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Elif"]
+        threshold: 0.8
+
+  page.heroes.estrella:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Estrella"]
+        threshold: 0.8
+
+  page.heroes.eugene:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Eugene"]
+        threshold: 0.8
+
+  page.heroes.flint:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Flint"]
+        threshold: 0.8
+
+  page.heroes.flora:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Flora"]
+        threshold: 0.8
+
+  page.heroes.fred:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Fred"]
+        threshold: 0.8
+
+  page.heroes.freya:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Freya"]
+        threshold: 0.8
+
+  page.heroes.gatot:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gatot"]
+        threshold: 0.8
+
+  page.heroes.gina:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gina"]
+        threshold: 0.8
+
+  page.heroes.gisela:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gisela"]
+        threshold: 0.8
+
+  page.heroes.gordon:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gordon"]
+        threshold: 0.8
+
+  page.heroes.greg:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Greg"]
+        threshold: 0.8
+
+  page.heroes.gregory:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gregory"]
+        threshold: 0.8
+
+  page.heroes.gwen:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Gwen"]
+        threshold: 0.8
+
+  page.heroes.hank:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Hank"]
+        threshold: 0.8
+
+  page.heroes.hector:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Hector"]
+        threshold: 0.8
+
+  page.heroes.hendrik:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Hendrik"]
+        threshold: 0.8
+
+  page.heroes.hervor:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Hervor"]
+        threshold: 0.8
+
+  page.heroes.jasser:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Jasser"]
+        threshold: 0.8
+
+  page.heroes.jeronimo:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Jeronimo"]
+        threshold: 0.8
+
+  page.heroes.jessie:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Jessie"]
+        threshold: 0.8
+
+  page.heroes.karol:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Karol"]
+        threshold: 0.8
+
+  page.heroes.ligeia:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Ligeia"]
+        threshold: 0.8
+
+  page.heroes.ling_xue:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Ling Xue"]
+        threshold: 0.8
+
+  page.heroes.lloyd:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Lloyd"]
+        threshold: 0.8
+
+  page.heroes.logan:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Logan"]
+        threshold: 0.8
+
+  page.heroes.lumak_bokan:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Lumak Bokan"]
+        threshold: 0.8
+
+  page.heroes.lynn:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Lynn"]
+        threshold: 0.8
+
+  page.heroes.magnus:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Magnus"]
+        threshold: 0.8
+
+  page.heroes.mia:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Mia"]
+        threshold: 0.8
+
+  page.heroes.molly:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Molly"]
+        threshold: 0.8
+
+  page.heroes.natalia:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Natalia"]
+        threshold: 0.8
+
+  page.heroes.norah:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Norah"]
+        threshold: 0.8
+
+  page.heroes.patrick:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Patrick"]
+        threshold: 0.8
+
+  page.heroes.philly:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Philly"]
+        threshold: 0.8
+
+  page.heroes.reina:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Reina"]
+        threshold: 0.8
+
+  page.heroes.renee:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Renee"]
+        threshold: 0.8
+
+  page.heroes.rufus:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Rufus"]
+        threshold: 0.8
+
+  page.heroes.seigel:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Seigel"]
+        threshold: 0.8
+
+  page.heroes.seo_yoon:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Seo-yoon"]
+        threshold: 0.8
+
+  page.heroes.sergey:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Sergey"]
+        threshold: 0.8
+
+  page.heroes.smith:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Smith"]
+        threshold: 0.8
+
+  page.heroes.sonya:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Sonya"]
+        threshold: 0.8
+
+  page.heroes.ursar:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Ursar"]
+        threshold: 0.8
+
+  page.heroes.viveca:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Viveca"]
+        threshold: 0.8
+
+  page.heroes.vulcanus:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Vulcanus"]
+        threshold: 0.8
+
+  page.heroes.wayne:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Wayne"]
+        threshold: 0.8
+
+  page.heroes.wu_ming:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Wu Ming"]
+        threshold: 0.8
+
+  page.heroes.xura:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Xura"]
+        threshold: 0.8
+
+  page.heroes.zinman:
+    rules:
+      - ocr: page.heroes.unit.name
+        contains: ["Zinman"]
+        threshold: 0.8
+
   event.trials:
     rules:
       - ocr: page_title

@@ -2035,7 +2035,7 @@
     },
     {
       "id": 47,
-      "screen_id": "None",
+      "screen_id": "heroes",
       "ocr": "references/page.heroes.png",
       "regions": [
         {
@@ -2064,6 +2064,246 @@
             "y": 7.282608695652174,
             "width": 93.0,
             "height": 80.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r0c0",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.86100386100386,
+            "y": 15.078260869565218,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r0c1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.91698841698842,
+            "y": 15.078260869565218,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r0c2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.972972972972975,
+            "y": 15.078260869565218,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r0c3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.02702702702703,
+            "y": 15.078260869565218,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r1c0",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.86100386100386,
+            "y": 37.03152173913043,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r1c1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.91698841698842,
+            "y": 37.03152173913043,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r1c2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.972972972972975,
+            "y": 37.03152173913043,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r1c3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.02702702702703,
+            "y": 37.03152173913043,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r2c0",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.86100386100386,
+            "y": 58.98478260869565,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r2c1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.91698841698842,
+            "y": 58.98478260869565,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r2c2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.972972972972975,
+            "y": 58.98478260869565,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r2c3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.02702702702703,
+            "y": 58.98478260869565,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r3c0",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.86100386100386,
+            "y": 80.93804347826087,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r3c1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.91698841698842,
+            "y": 80.93804347826087,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r3c2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 55.972972972972975,
+            "y": 80.93804347826087,
+            "width": 11.111969111969112,
+            "height": 6.25,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "heroes.grid.r3c3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.02702702702703,
+            "y": 80.93804347826087,
+            "width": 11.111969111969112,
+            "height": 6.25,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -2122,11 +2362,89 @@
             "x": 44.16988416988417,
             "y": 75.8695652173913,
             "width": 11.3996138996139,
-            "height": 4.000000000000001,
+            "height": 3.9999999999999996,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "page.heroes.unit.wiki",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.34749034749035,
+            "y": 0.6521739130434783,
+            "width": 9.0,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.heroes.unit.previously_unit",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.277992277992278,
+            "y": 51.73913043478261,
+            "width": 9.200772200772201,
+            "height": 6.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.heroes.unit.next_unit",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.61003861003861,
+            "y": 51.52173913043478,
+            "width": 8.3996138996139,
+            "height": 6.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.heroes.unit.upgrade",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.694980694980696,
+            "y": 84.02173913043478,
+            "width": 33.89959459459459,
+            "height": 2.6728260869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "page.heroes.unit.upgrade_tap",
+          "action": "click",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 67.76061776061776,
+            "y": 82.93478260869566,
+            "width": 6.608108108108107,
+            "height": 2.6728260869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -2831,7 +3149,7 @@
     },
     {
       "id": 64,
-      "screen_id": "",
+      "screen_id": "squad_settings",
       "ocr": "references/page.squad_fight.png",
       "regions": [
         {
@@ -2850,6 +3168,12 @@
           }
         }
       ]
+    },
+    {
+      "id": 65,
+      "screen_id": "heroes",
+      "ocr": "references/page.heroes.3.png",
+      "regions": []
     }
   ]
 }

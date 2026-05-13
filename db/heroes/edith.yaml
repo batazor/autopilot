@@ -157,3 +157,101 @@ skills:
 - name: Fortworks (Lv. 5)
   description: Edith and Mr. Tin are a formidable defensive duo, increasing Defender
     Troop's Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 147
+      defense: 192
+      health: 2889
+      lethality_i: 16.05
+      health_i: 16.05
+      skill_1: Restores 15% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 10% until end of battle.
+    2:
+      power: 163710
+      attack: 250
+      defense: 327
+      health: 4911
+      lethality_i: 32.1
+      health_i: 32.1
+      skill_1: Restores 15% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 10% until end of battle.
+      skill_2: Defender Troop Health +5%
+    3:
+      power: 231120
+      attack: 353
+      defense: 462
+      health: 6933
+      lethality_i: 48.15
+      health_i: 48.15
+      skill_1: Restores 20% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 15% until end of battle.
+      skill_2: Defender Troop Health +5%
+    4:
+      power: 298530
+      attack: 455
+      defense: 597
+      health: 8955
+      lethality_i: 64.2
+      health_i: 64.2
+      skill_1: Restores 20% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 15% until end of battle.
+      skill_2: Defender Troop Health +7.5%
+    5:
+      power: 365940
+      attack: 561
+      defense: 731
+      health: 10978
+      lethality_i: 80.25
+      health_i: 80.25
+      skill_1: Restores 25% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 20% until end of battle.
+      skill_2: Defender Troop Health +7.5%
+    6:
+      power: 433350
+      lethality_i: 96.3
+      health_i: 96.3
+      skill_1: Restores 25% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 20% until end of battle.
+      skill_2: Defender Troop Health +10%
+    7:
+      power: 500760
+      attack: 767
+      defense: 1001
+      health: 15022
+      lethality_i: 112.35
+      health_i: 112.35
+      skill_1: Restores 30% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 25% until end of battle.
+      skill_2: Defender Troop Health +10%
+    8:
+      power: 568170
+      attack: 869
+      defense: 1136
+      health: 17045
+      lethality_i: 128.4
+      health_i: 128.4
+      skill_1: Restores 30% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 25% until end of battle.
+      skill_2: Defender Troop Health +12.5%
+    9:
+      lethality_i: 144.45
+      health_i: 144.45
+      skill_1: Restores 35% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 30% until end of battle.
+      skill_2: Defender Troop Health +12.5%
+    10:
+      power: 722250
+      attack: 1107
+      defense: 1444
+      health: 21667
+      lethality_i: 160.5
+      health_i: 160.5
+      skill_1: Restores 35% of max Health to Mr. Tin when first <50% Health, & increases
+        Defense by 30% until end of battle.
+      skill_2: Defender Troop Health +15%

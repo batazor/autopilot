@@ -127,3 +127,98 @@ skills:
 - name: Invincibles (Lv. 5)
   description: Natalia summons a herd of beasts to join the rally, raising the rallying
     Troops' Lethality by 15%. (maxed)
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 33000
+      attack: 50
+      defense: 66
+      health: 990
+      lethality_i: 5.55
+      health_i: 5.55
+      skill_1: Natalia Damage +10%
+    2:
+      power: 56100
+      attack: 85
+      defense: 112
+      health: 1683
+      lethality_i: 11.1
+      health_i: 11.1
+      skill_1: Natalia Damage +10%
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 79200
+      attack: 121
+      defense: 158
+      health: 2376
+      lethality_i: 16.65
+      health_i: 16.65
+      skill_1: Natalia Damage +15%
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 102300
+      attack: 156
+      defense: 204
+      health: 3069
+      lethality_i: 22.2
+      health_i: 22.2
+      skill_1: Natalia Damage +15%
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 125400
+      attack: 192
+      defense: 250
+      health: 3762
+      lethality_i: 27.75
+      health_i: 27.75
+      skill_1: Natalia Damage +20%
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 148500
+      attack: 227
+      defense: 297
+      health: 4455
+      lethality_i: 33.3
+      health_i: 33.3
+      skill_1: Natalia Damage +20%
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 171600
+      attack: 262
+      defense: 343
+      health: 5148
+      lethality_i: 38.85
+      health_i: 38.85
+      skill_1: Natalia Damage +25%
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 194700
+      attack: 298
+      defense: 389
+      health: 5841
+      lethality_i: 44.4
+      health_i: 44.4
+      skill_1: Natalia Damage +25%
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 217800
+      attack: 333
+      defense: 435
+      health: 6534
+      lethality_i: 49.95
+      health_i: 49.95
+      skill_1: Natalia Damage +30%
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 247500
+      attack: 379
+      defense: 495
+      health: 7425
+      lethality_i: 55.5
+      health_i: 55.5
+      skill_1: Natalia Damage +30%
+      skill_2: Rally Troop Lethality +15%

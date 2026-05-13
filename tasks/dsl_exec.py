@@ -20,12 +20,14 @@ from century.api import CenturyAPIError, CenturyClient, PlayerData
 from config.buildings import BuildingDef, get_building_registry
 from config.devices import upsert_device_gamer
 from config.events import match_event_by_ocr
+from config.heroes import get_hero_registry
 from config.state_store import get_state_store
 from gift.redeemer import run_gift_code_redeemer
 from gift.scraper import poll_once
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import find_red_dots
 from layout.types import Point, Region
+from navigation.hero_grid_search import scan_grid_frame
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
 from ui.notifications import push_ui_notification
@@ -972,6 +974,197 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
     )
 
 
+_HERO_SHARD_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
+_HERO_LEVEL_RE = re.compile(r"[Ll]\s*[Vv]\s*\.?\s*(\d+)")
+_HERO_GRID_POSITIONS_KEY_FMT = "wos:instance:{instance_id}:hero_grid_positions"
+_HERO_GRID_POSITIONS_TTL_SECONDS = 10 * 60
+"""Hero positions in the visible roster — short TTL: the player can re-sort
+the grid (Power → Stars → …) at any moment, and we'd rather force a fresh
+scan than tap a stale cell."""
+
+
+async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
+    """Snapshot every visible hero on the ``heroes`` screen into state.yaml.
+
+    Captures the current frame, runs grayscale NCC against every wiki icon
+    under ``db/assets/wiki/heroes/<id>/``, and for each match writes to
+    ``heroes.entries.<hero_id>``:
+
+    * ``name``: canonical display name from ``db/heroes/index.yaml``.
+    * ``available``: True when the matched cell is rendered in full color
+      (unlocked); False when the card is dimmed and shows a shard counter.
+    * ``shards_current`` / ``shards_required``: parsed from the badge text
+      (``"0/10"``, ``"5/40"``, …) via OCR on locked cells only.
+    * ``last_seen_at`` / ``last_match_score``: when and how confidently the
+      icon was last seen on the grid.
+
+    Existing fields (e.g. ``level`` written by ``sync_hero_unit``) are
+    preserved — we read the current entry, merge, and write the whole dict
+    back, so the two handlers compose without stomping each other.
+    """
+    player_id = (ctx.player_id or "").strip()
+    if not player_id:
+        logger.warning("dsl exec scan_heroes_grid: empty player_id — skipping")
+        return
+
+    actions = BotActions()
+    try:
+        frame = await asyncio.to_thread(actions.capture_screen_bgr, ctx.instance_id)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_heroes_grid: capture failed instance=%s", ctx.instance_id
+        )
+        return
+
+    try:
+        hits = await asyncio.to_thread(scan_grid_frame, frame)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_heroes_grid: scan failed instance=%s", ctx.instance_id
+        )
+        return
+
+    if not hits:
+        logger.info(
+            "dsl exec scan_heroes_grid: no heroes matched on this frame instance=%s",
+            ctx.instance_id,
+        )
+        return
+
+    # Batch-OCR the shard-counter badges on locked cells and the "Lv. X"
+    # badges on unlocked cells in one pass (Lv slot is higher than the
+    # shard slot — see _LV_DY / _BADGE_DY in hero_grid_search). Mixing both
+    # kinds in one call halves the OCR round-trips for a typical grid that
+    # has a few unlocked and a few locked heroes.
+    locked_items = [(hid, match) for hid, match in hits.items() if not match.available]
+    unlocked_items = [(hid, match) for hid, match in hits.items() if match.available]
+    badge_text: dict[str, str] = {}
+    level_text: dict[str, str] = {}
+    regions: list[Region] = []
+    ids: list[str] = []
+    for hid, match in locked_items:
+        regions.append(Region(*match.badge_bbox))
+        ids.append(f"hero_shards_{hid}")
+    for hid, match in unlocked_items:
+        regions.append(Region(*match.level_bbox))
+        ids.append(f"hero_level_{hid}")
+    if regions:
+        try:
+            results = await OcrClient().ocr_regions(frame, regions, region_ids=ids)
+            for (hid, _), result in zip(locked_items, results[: len(locked_items)], strict=False):
+                badge_text[hid] = (result.text or "").strip()
+            for (hid, _), result in zip(unlocked_items, results[len(locked_items) :], strict=False):
+                level_text[hid] = (result.text or "").strip()
+        except Exception:
+            logger.exception(
+                "dsl exec scan_heroes_grid: badge OCR failed instance=%s",
+                ctx.instance_id,
+            )
+
+    registry = get_hero_registry()
+    try:
+        store = get_state_store().get_or_create(player_id)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_heroes_grid: state store init failed player=%s", player_id
+        )
+        return
+
+    snap = store.snapshot()
+    existing_entries = dict(snap.heroes.entries) if snap.heroes.entries else {}
+
+    now = time.time()
+    flat: dict[str, Any] = {}
+    locked_count = 0
+    available_count = 0
+    for hid, match in hits.items():
+        prev = existing_entries.get(hid)
+        entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
+
+        hero_def = registry.by_id(hid)
+        if hero_def is not None:
+            entry["name"] = hero_def.name
+        entry["available"] = bool(match.available)
+        entry["red_dot"] = bool(match.has_red_dot)
+        entry["isUpgradeAvailable"] = bool(match.upgrade_available)
+        entry["last_seen_at"] = now
+        entry["last_match_score"] = round(match.score, 3)
+
+        if match.available:
+            available_count += 1
+            # Stale shard counts on a now-unlocked card are misleading;
+            # drop them so callers don't see "needs 9/10" on a hero that's
+            # already playable.
+            entry.pop("shards_current", None)
+            entry.pop("shards_required", None)
+            text = level_text.get(hid, "")
+            lvl_match = _HERO_LEVEL_RE.search(text)
+            if lvl_match is not None:
+                try:
+                    entry["level"] = int(lvl_match.group(1))
+                except ValueError:
+                    pass
+            else:
+                logger.debug(
+                    "dsl exec scan_heroes_grid: hero=%s level OCR unparsed text=%r",
+                    hid, text,
+                )
+        else:
+            locked_count += 1
+            text = badge_text.get(hid, "")
+            mre = _HERO_SHARD_RE.search(text)
+            if mre is not None:
+                try:
+                    entry["shards_current"] = int(mre.group(1))
+                    entry["shards_required"] = int(mre.group(2))
+                except ValueError:
+                    pass
+            else:
+                logger.debug(
+                    "dsl exec scan_heroes_grid: hero=%s shard OCR unparsed text=%r",
+                    hid, text,
+                )
+
+        flat[f"heroes.entries.{hid}"] = entry
+
+    try:
+        await asyncio.to_thread(store.update_from_flat, flat)
+    except Exception:
+        logger.exception(
+            "dsl exec scan_heroes_grid: persist failed player=%s", player_id
+        )
+        return
+
+    logger.info(
+        "dsl exec scan_heroes_grid: instance=%s player=%s persisted=%d "
+        "available=%d locked=%d",
+        ctx.instance_id, player_id, len(hits), available_count, locked_count,
+    )
+
+    # Publish current hero → cell positions for ``hero_grid`` edge resolver.
+    # Resolver reads this hash to translate ``page.heroes.<id>`` routes into
+    # the matching ``heroes.grid.r{ri}c{ci}`` tap region. We delete and
+    # rewrite so positions vacated by a re-sort drop out cleanly.
+    if ctx.redis_client is not None:
+        pos_key = _HERO_GRID_POSITIONS_KEY_FMT.format(instance_id=ctx.instance_id)
+        mapping = {
+            hid: f"r{match.cell[0]}c{match.cell[1]}"
+            for hid, match in hits.items()
+        }
+        try:
+            await ctx.redis_client.delete(pos_key)
+            if mapping:
+                await ctx.redis_client.hset(pos_key, mapping=mapping)
+                await ctx.redis_client.expire(
+                    pos_key, _HERO_GRID_POSITIONS_TTL_SECONDS
+                )
+        except Exception:
+            logger.exception(
+                "dsl exec scan_heroes_grid: position hash write failed instance=%s",
+                ctx.instance_id,
+            )
+
+
 DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "detect_screen": _exec_detect_screen,
     "fetch_player": _exec_fetch_player,
@@ -980,5 +1173,6 @@ DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "sync_building_name": _exec_sync_building_name,
     "sync_hero_unit": _exec_sync_hero_unit,
     "scan_event_blocks": _exec_scan_event_blocks,
+    "scan_heroes_grid": _exec_scan_heroes_grid,
     "put_all_red_dots": _exec_put_all_red_dots,
 }

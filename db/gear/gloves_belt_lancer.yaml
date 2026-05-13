@@ -1,0 +1,1646 @@
+id: gloves_belt_lancer
+slot: gloves_belt
+troop_class: lancer
+title: Gloves & Belt (Lancer)
+stats:
+- power
+- defense
+- health
+- lanc_health
+tiers:
+- grey
+- green
+- blue
+- purple
+- gold
+source:
+  sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+  gid: 1322869986
+  fetched_at: '2026-05-13'
+levels:
+  0:
+    grey:
+      power: 1000
+      defense: 12
+      health: 60
+      lanc_health: 1.33
+    green:
+      power: 1375
+      defense: 16
+      health: 82
+      lanc_health: 1.83
+    blue:
+      power: 1625
+      defense: 19
+      health: 97
+      lanc_health: 2.16
+    purple:
+      power: 2000
+      defense: 24
+      health: 120
+      lanc_health: 2.66
+    gold:
+      power: 2500
+      defense: 30
+      health: 150
+      lanc_health: 3.33
+  1:
+    grey:
+      power: 1160
+      defense: 13
+      health: 68
+      lanc_health: 1.52
+    green:
+      power: 1595
+      defense: 18
+      health: 94
+      lanc_health: 2.09
+    blue:
+      power: 1885
+      defense: 22
+      health: 111
+      lanc_health: 2.47
+    purple:
+      power: 2320
+      defense: 27
+      health: 136
+      lanc_health: 3.04
+    gold:
+      power: 2900
+      defense: 34
+      health: 171
+      lanc_health: 3.8
+  2:
+    grey:
+      power: 1330
+      defense: 15
+      health: 76
+      lanc_health: 1.7
+    green:
+      power: 1828
+      defense: 20
+      health: 105
+      lanc_health: 2.34
+    blue:
+      power: 2161
+      defense: 24
+      health: 124
+      lanc_health: 2.77
+    purple:
+      power: 2660
+      defense: 30
+      health: 153
+      lanc_health: 3.41
+    gold:
+      power: 3325
+      defense: 38
+      health: 192
+      lanc_health: 4.26
+  3:
+    grey:
+      power: 1510
+      defense: 17
+      health: 85
+      lanc_health: 1.89
+    green:
+      power: 2076
+      defense: 23
+      health: 117
+      lanc_health: 2.6
+    blue:
+      power: 2453
+      defense: 27
+      health: 138
+      lanc_health: 3.07
+    purple:
+      power: 3020
+      defense: 34
+      health: 170
+      lanc_health: 3.78
+    gold:
+      power: 3775
+      defense: 42
+      health: 213
+      lanc_health: 4.73
+  4:
+    grey:
+      power: 1690
+      defense: 18
+      health: 93
+      lanc_health: 2.08
+    green:
+      power: 2323
+      defense: 25
+      health: 128
+      lanc_health: 2.86
+    blue:
+      power: 2746
+      defense: 30
+      health: 152
+      lanc_health: 3.38
+    purple:
+      power: 3380
+      defense: 37
+      health: 187
+      lanc_health: 4.16
+    gold:
+      power: 4225
+      defense: 46
+      health: 234
+      lanc_health: 5.2
+  5:
+    grey:
+      power: 1880
+      defense: 20
+      health: 102
+      lanc_health: 2.26
+    green:
+      power: 2585
+      defense: 28
+      health: 140
+      lanc_health: 3.11
+    blue:
+      power: 3055
+      defense: 33
+      health: 165
+      lanc_health: 3.68
+    purple:
+      power: 3760
+      defense: 40
+      health: 204
+      lanc_health: 4.53
+    gold:
+      power: 4700
+      defense: 51
+      health: 255
+      lanc_health: 5.66
+  6:
+    grey:
+      power: 2070
+      defense: 22
+      health: 110
+      lanc_health: 2.45
+    green:
+      power: 2846
+      defense: 30
+      health: 151
+      lanc_health: 3.37
+    blue:
+      power: 3363
+      defense: 35
+      health: 179
+      lanc_health: 3.98
+    purple:
+      power: 4140
+      defense: 44
+      health: 220
+      lanc_health: 4.9
+    gold:
+      power: 5175
+      defense: 55
+      health: 276
+      lanc_health: 6.13
+  7:
+    grey:
+      power: 2270
+      defense: 23
+      health: 118
+      lanc_health: 2.64
+    green:
+      power: 3121
+      defense: 32
+      health: 163
+      lanc_health: 3.63
+    blue:
+      power: 3688
+      defense: 38
+      health: 193
+      lanc_health: 4.29
+    purple:
+      power: 4540
+      defense: 47
+      health: 237
+      lanc_health: 5.28
+    gold:
+      power: 5675
+      defense: 59
+      health: 297
+      lanc_health: 6.6
+  8:
+    grey:
+      power: 2480
+      defense: 25
+      health: 127
+      lanc_health: 2.82
+    green:
+      power: 3410
+      defense: 34
+      health: 174
+      lanc_health: 3.88
+    blue:
+      power: 4030
+      defense: 41
+      health: 206
+      lanc_health: 4.59
+    purple:
+      power: 4960
+      defense: 50
+      health: 254
+      lanc_health: 5.65
+    gold:
+      power: 6200
+      defense: 63
+      health: 318
+      lanc_health: 7.06
+  9:
+    grey:
+      power: 2700
+      defense: 27
+      health: 135
+      lanc_health: 3.01
+    green:
+      power: 3712
+      defense: 37
+      health: 186
+      lanc_health: 4.14
+    blue:
+      power: 4387
+      defense: 43
+      health: 220
+      lanc_health: 4.89
+    purple:
+      power: 5400
+      defense: 54
+      health: 271
+      lanc_health: 6.02
+    gold:
+      power: 6750
+      defense: 67
+      health: 339
+      lanc_health: 7.53
+  10:
+    grey:
+      power: 2930
+      defense: 28
+      health: 144
+      lanc_health: 3.2
+    green:
+      power: 4028
+      defense: 39
+      health: 198
+      lanc_health: 4.4
+    blue:
+      power: 4761
+      defense: 46
+      health: 234
+      lanc_health: 5.2
+    purple:
+      power: 5860
+      defense: 57
+      health: 288
+      lanc_health: 6.4
+    gold:
+      power: 7325
+      defense: 72
+      health: 360
+      lanc_health: 8.0
+  11:
+    grey:
+      power: 3160
+      defense: 30
+      health: 152
+      lanc_health: 3.38
+    green:
+      power: 4345
+      defense: 41
+      health: 209
+      lanc_health: 4.65
+    blue:
+      power: 5135
+      defense: 49
+      health: 247
+      lanc_health: 5.5
+    purple:
+      power: 6320
+      defense: 60
+      health: 304
+      lanc_health: 6.77
+    gold:
+      power: 7900
+      defense: 76
+      health: 381
+      lanc_health: 8.46
+  12:
+    grey:
+      power: 3400
+      defense: 32
+      health: 160
+      lanc_health: 3.57
+    green:
+      power: 4675
+      defense: 44
+      health: 221
+      lanc_health: 4.91
+    blue:
+      power: 5525
+      defense: 52
+      health: 261
+      lanc_health: 5.8
+    purple:
+      power: 6800
+      defense: 64
+      health: 321
+      lanc_health: 7.14
+    gold:
+      power: 8500
+      defense: 80
+      health: 402
+      lanc_health: 8.93
+  13:
+    grey:
+      power: 3650
+      defense: 33
+      health: 169
+      lanc_health: 3.76
+    green:
+      power: 5018
+      defense: 46
+      health: 232
+      lanc_health: 5.17
+    blue:
+      power: 5931
+      defense: 54
+      health: 274
+      lanc_health: 6.11
+    purple:
+      power: 7300
+      defense: 67
+      health: 338
+      lanc_health: 7.52
+    gold:
+      power: 9125
+      defense: 84
+      health: 423
+      lanc_health: 9.4
+  14:
+    grey:
+      power: 3910
+      defense: 35
+      health: 177
+      lanc_health: 3.94
+    green:
+      power: 5376
+      defense: 48
+      health: 244
+      lanc_health: 5.42
+    blue:
+      power: 6353
+      defense: 57
+      health: 288
+      lanc_health: 6.41
+    purple:
+      power: 7820
+      defense: 70
+      health: 355
+      lanc_health: 7.89
+    gold:
+      power: 9775
+      defense: 88
+      health: 444
+      lanc_health: 9.86
+  15:
+    grey:
+      power: 4170
+      defense: 37
+      health: 186
+      lanc_health: 4.13
+    green:
+      power: 5733
+      defense: 51
+      health: 255
+      lanc_health: 5.68
+    blue:
+      power: 6776
+      defense: 60
+      health: 302
+      lanc_health: 6.71
+    purple:
+      power: 8340
+      defense: 74
+      health: 372
+      lanc_health: 8.26
+    gold:
+      power: 10425
+      defense: 93
+      health: 465
+      lanc_health: 10.33
+  16:
+    grey:
+      power: 4450
+      defense: 38
+      health: 194
+      lanc_health: 4.32
+    green:
+      power: 6118
+      defense: 53
+      health: 267
+      lanc_health: 5.94
+    blue:
+      power: 7231
+      defense: 63
+      health: 315
+      lanc_health: 7.02
+    purple:
+      power: 8900
+      defense: 77
+      health: 388
+      lanc_health: 8.64
+    gold:
+      power: 11125
+      defense: 97
+      health: 486
+      lanc_health: 10.8
+  17:
+    grey:
+      power: 4730
+      defense: 40
+      health: 202
+      lanc_health: 4.5
+    green:
+      power: 6503
+      defense: 55
+      health: 278
+      lanc_health: 6.19
+    blue:
+      power: 7686
+      defense: 65
+      health: 329
+      lanc_health: 7.32
+    purple:
+      power: 9460
+      defense: 80
+      health: 405
+      lanc_health: 9.01
+    gold:
+      power: 11825
+      defense: 101
+      health: 507
+      lanc_health: 11.26
+  18:
+    grey:
+      power: 5030
+      defense: 42
+      health: 211
+      lanc_health: 4.69
+    green:
+      power: 6916
+      defense: 58
+      health: 290
+      lanc_health: 6.45
+    blue:
+      power: 8173
+      defense: 68
+      health: 343
+      lanc_health: 7.62
+    purple:
+      power: 10060
+      defense: 84
+      health: 422
+      lanc_health: 9.38
+    gold:
+      power: 12575
+      defense: 105
+      health: 528
+      lanc_health: 11.73
+  19:
+    grey:
+      power: 5330
+      defense: 43
+      health: 219
+      lanc_health: 4.88
+    green:
+      power: 7328
+      defense: 60
+      health: 301
+      lanc_health: 6.71
+    blue:
+      power: 8661
+      defense: 71
+      health: 356
+      lanc_health: 7.93
+    purple:
+      power: 10660
+      defense: 87
+      health: 439
+      lanc_health: 9.76
+    gold:
+      power: 13325
+      defense: 109
+      health: 549
+      lanc_health: 12.2
+  20:
+    grey:
+      power: 5650
+      defense: 45
+      health: 228
+      lanc_health: 5.06
+    green:
+      power: 7768
+      defense: 62
+      health: 313
+      lanc_health: 6.96
+    blue:
+      power: 9181
+      defense: 74
+      health: 370
+      lanc_health: 8.23
+    purple:
+      power: 11300
+      defense: 91
+      health: 456
+      lanc_health: 10.13
+    gold:
+      power: 14125
+      defense: 114
+      health: 570
+      lanc_health: 12.66
+  21:
+    green:
+      power: 8208
+      defense: 64
+      health: 325
+      lanc_health: 7.22
+    blue:
+      power: 9701
+      defense: 76
+      health: 384
+      lanc_health: 8.53
+    purple:
+      power: 11940
+      defense: 94
+      health: 472
+      lanc_health: 10.5
+    gold:
+      power: 14925
+      defense: 118
+      health: 591
+      lanc_health: 13.13
+  22:
+    green:
+      power: 8676
+      defense: 67
+      health: 336
+      lanc_health: 7.48
+    blue:
+      power: 10253
+      defense: 79
+      health: 397
+      lanc_health: 8.84
+    purple:
+      power: 12620
+      defense: 97
+      health: 489
+      lanc_health: 10.88
+    gold:
+      power: 15775
+      defense: 122
+      health: 612
+      lanc_health: 13.6
+  23:
+    green:
+      power: 9143
+      defense: 69
+      health: 348
+      lanc_health: 7.73
+    blue:
+      power: 10806
+      defense: 82
+      health: 411
+      lanc_health: 9.14
+    purple:
+      power: 13300
+      defense: 101
+      health: 506
+      lanc_health: 11.25
+    gold:
+      power: 16625
+      defense: 126
+      health: 633
+      lanc_health: 14.06
+  24:
+    green:
+      power: 9638
+      defense: 71
+      health: 359
+      lanc_health: 7.99
+    blue:
+      power: 11391
+      defense: 84
+      health: 425
+      lanc_health: 9.44
+    purple:
+      power: 14020
+      defense: 104
+      health: 523
+      lanc_health: 11.62
+    gold:
+      power: 17525
+      defense: 130
+      health: 654
+      lanc_health: 14.53
+  25:
+    green:
+      power: 10147
+      defense: 74
+      health: 371
+      lanc_health: 8.25
+    blue:
+      power: 11992
+      defense: 87
+      health: 438
+      lanc_health: 9.75
+    purple:
+      power: 14760
+      defense: 108
+      health: 540
+      lanc_health: 12.0
+    gold:
+      power: 18450
+      defense: 135
+      health: 675
+      lanc_health: 15.0
+  26:
+    green:
+      power: 10670
+      defense: 76
+      health: 382
+      lanc_health: 8.5
+    blue:
+      power: 12610
+      defense: 90
+      health: 452
+      lanc_health: 10.05
+    purple:
+      power: 15520
+      defense: 111
+      health: 556
+      lanc_health: 12.37
+    gold:
+      power: 19400
+      defense: 139
+      health: 696
+      lanc_health: 15.46
+  27:
+    green:
+      power: 11220
+      defense: 78
+      health: 394
+      lanc_health: 8.76
+    blue:
+      power: 13260
+      defense: 92
+      health: 466
+      lanc_health: 10.35
+    purple:
+      power: 16320
+      defense: 114
+      health: 573
+      lanc_health: 12.74
+    gold:
+      power: 20400
+      defense: 143
+      health: 717
+      lanc_health: 15.93
+  28:
+    green:
+      power: 11783
+      defense: 81
+      health: 405
+      lanc_health: 9.02
+    blue:
+      power: 13926
+      defense: 95
+      health: 479
+      lanc_health: 10.66
+    purple:
+      power: 17140
+      defense: 118
+      health: 590
+      lanc_health: 13.12
+    gold:
+      power: 21425
+      defense: 147
+      health: 738
+      lanc_health: 16.4
+  29:
+    green:
+      power: 12361
+      defense: 83
+      health: 417
+      lanc_health: 9.27
+    blue:
+      power: 14608
+      defense: 98
+      health: 493
+      lanc_health: 10.96
+    purple:
+      power: 17980
+      defense: 121
+      health: 607
+      lanc_health: 13.49
+    gold:
+      power: 22475
+      defense: 151
+      health: 759
+      lanc_health: 16.86
+  30:
+    green:
+      power: 12952
+      defense: 85
+      health: 429
+      lanc_health: 9.53
+    blue:
+      power: 15307
+      defense: 101
+      health: 507
+      lanc_health: 11.26
+    purple:
+      power: 18840
+      defense: 124
+      health: 624
+      lanc_health: 13.86
+    gold:
+      power: 23550
+      defense: 156
+      health: 780
+      lanc_health: 17.33
+  31:
+    green:
+      power: 13571
+      defense: 88
+      health: 440
+      lanc_health: 9.79
+    blue:
+      power: 16038
+      defense: 104
+      health: 520
+      lanc_health: 11.57
+    purple:
+      power: 19740
+      defense: 128
+      health: 640
+      lanc_health: 14.24
+    gold:
+      power: 24675
+      defense: 160
+      health: 801
+      lanc_health: 17.8
+  32:
+    green:
+      power: 14203
+      defense: 90
+      health: 452
+      lanc_health: 10.04
+    blue:
+      power: 16786
+      defense: 106
+      health: 534
+      lanc_health: 11.87
+    purple:
+      power: 20660
+      defense: 131
+      health: 657
+      lanc_health: 14.61
+    gold:
+      power: 25825
+      defense: 164
+      health: 822
+      lanc_health: 18.26
+  33:
+    green:
+      power: 14850
+      defense: 92
+      health: 463
+      lanc_health: 10.3
+    blue:
+      power: 17550
+      defense: 109
+      health: 547
+      lanc_health: 12.17
+    purple:
+      power: 21600
+      defense: 134
+      health: 674
+      lanc_health: 14.98
+    gold:
+      power: 27000
+      defense: 168
+      health: 843
+      lanc_health: 18.73
+  34:
+    green:
+      power: 15523
+      defense: 94
+      health: 475
+      lanc_health: 10.56
+    blue:
+      power: 18346
+      defense: 112
+      health: 561
+      lanc_health: 12.48
+    purple:
+      power: 22580
+      defense: 138
+      health: 691
+      lanc_health: 15.36
+    gold:
+      power: 28225
+      defense: 172
+      health: 864
+      lanc_health: 19.2
+  35:
+    green:
+      power: 16225
+      defense: 97
+      health: 486
+      lanc_health: 10.81
+    blue:
+      power: 19175
+      defense: 115
+      health: 575
+      lanc_health: 12.78
+    purple:
+      power: 23600
+      defense: 141
+      health: 708
+      lanc_health: 15.73
+    gold:
+      power: 29500
+      defense: 177
+      health: 885
+      lanc_health: 19.66
+  36:
+    green:
+      power: 16940
+      defense: 99
+      health: 498
+      lanc_health: 11.07
+    blue:
+      power: 20020
+      defense: 117
+      health: 588
+      lanc_health: 13.08
+    purple:
+      power: 24640
+      defense: 144
+      health: 724
+      lanc_health: 16.1
+    gold:
+      power: 30800
+      defense: 181
+      health: 906
+      lanc_health: 20.13
+  37:
+    green:
+      power: 17682
+      defense: 101
+      health: 509
+      lanc_health: 11.33
+    blue:
+      power: 20897
+      defense: 120
+      health: 602
+      lanc_health: 13.39
+    purple:
+      power: 25720
+      defense: 148
+      health: 741
+      lanc_health: 16.48
+    gold:
+      power: 32150
+      defense: 185
+      health: 927
+      lanc_health: 20.6
+  38:
+    green:
+      power: 18438
+      defense: 104
+      health: 521
+      lanc_health: 11.58
+    blue:
+      power: 21791
+      defense: 123
+      health: 616
+      lanc_health: 13.69
+    purple:
+      power: 26820
+      defense: 151
+      health: 758
+      lanc_health: 16.85
+    gold:
+      power: 33525
+      defense: 189
+      health: 948
+      lanc_health: 21.06
+  39:
+    green:
+      power: 19222
+      defense: 106
+      health: 532
+      lanc_health: 11.84
+    blue:
+      power: 22717
+      defense: 125
+      health: 629
+      lanc_health: 13.99
+    purple:
+      power: 27960
+      defense: 154
+      health: 775
+      lanc_health: 17.22
+    gold:
+      power: 34950
+      defense: 193
+      health: 969
+      lanc_health: 21.53
+  40:
+    green:
+      power: 20033
+      defense: 108
+      health: 544
+      lanc_health: 12.1
+    blue:
+      power: 23676
+      defense: 128
+      health: 643
+      lanc_health: 14.3
+    purple:
+      power: 29140
+      defense: 158
+      health: 792
+      lanc_health: 17.6
+    gold:
+      power: 36425
+      defense: 198
+      health: 990
+      lanc_health: 22.0
+  41:
+    blue:
+      power: 24667
+      defense: 131
+      health: 657
+      lanc_health: 14.6
+    purple:
+      power: 30360
+      defense: 161
+      health: 808
+      lanc_health: 17.97
+    gold:
+      power: 37950
+      defense: 202
+      health: 1011
+      lanc_health: 22.46
+  42:
+    blue:
+      power: 25691
+      defense: 133
+      health: 670
+      lanc_health: 14.9
+    purple:
+      power: 31620
+      defense: 164
+      health: 825
+      lanc_health: 18.34
+    gold:
+      power: 39525
+      defense: 206
+      health: 1032
+      lanc_health: 22.93
+  43:
+    blue:
+      power: 26731
+      defense: 136
+      health: 684
+      lanc_health: 15.21
+    purple:
+      power: 32900
+      defense: 168
+      health: 842
+      lanc_health: 18.72
+    gold:
+      power: 41125
+      defense: 210
+      health: 1053
+      lanc_health: 23.4
+  44:
+    blue:
+      power: 27803
+      defense: 139
+      health: 698
+      lanc_health: 15.51
+    purple:
+      power: 34220
+      defense: 171
+      health: 859
+      lanc_health: 19.09
+    gold:
+      power: 42775
+      defense: 214
+      health: 1074
+      lanc_health: 23.86
+  45:
+    blue:
+      power: 28925
+      defense: 142
+      health: 711
+      lanc_health: 15.81
+    purple:
+      power: 35600
+      defense: 175
+      health: 876
+      lanc_health: 19.46
+    gold:
+      power: 44500
+      defense: 219
+      health: 1095
+      lanc_health: 24.33
+  46:
+    blue:
+      power: 30062
+      defense: 144
+      health: 725
+      lanc_health: 16.12
+    purple:
+      power: 37000
+      defense: 178
+      health: 892
+      lanc_health: 19.84
+    gold:
+      power: 46250
+      defense: 223
+      health: 1116
+      lanc_health: 24.8
+  47:
+    blue:
+      power: 31248
+      defense: 147
+      health: 739
+      lanc_health: 16.42
+    purple:
+      power: 38460
+      defense: 181
+      health: 909
+      lanc_health: 20.21
+    gold:
+      power: 48075
+      defense: 207
+      health: 1137
+      lanc_health: 25.26
+  48:
+    blue:
+      power: 32451
+      defense: 150
+      health: 752
+      lanc_health: 16.72
+    purple:
+      power: 39940
+      defense: 185
+      health: 926
+      lanc_health: 20.58
+    gold:
+      power: 49925
+      defense: 231
+      health: 1158
+      lanc_health: 25.73
+  49:
+    blue:
+      power: 33702
+      defense: 153
+      health: 766
+      lanc_health: 17.03
+    purple:
+      power: 41480
+      defense: 188
+      health: 943
+      lanc_health: 20.96
+    gold:
+      power: 51850
+      defense: 235
+      health: 1179
+      lanc_health: 26.2
+  50:
+    blue:
+      power: 34986
+      defense: 156
+      health: 780
+      lanc_health: 17.33
+    purple:
+      power: 43060
+      defense: 192
+      health: 960
+      lanc_health: 21.33
+    gold:
+      power: 53825
+      defense: 240
+      health: 1200
+      lanc_health: 26.66
+  51:
+    blue:
+      power: 36318
+      defense: 158
+      health: 793
+      lanc_health: 17.63
+    purple:
+      power: 44700
+      defense: 195
+      health: 976
+      lanc_health: 21.7
+    gold:
+      power: 55875
+      defense: 244
+      health: 1221
+      lanc_health: 27.13
+  52:
+    blue:
+      power: 37683
+      defense: 161
+      health: 807
+      lanc_health: 17.94
+    purple:
+      power: 46380
+      defense: 198
+      health: 993
+      lanc_health: 22.08
+    gold:
+      power: 57975
+      defense: 248
+      health: 1242
+      lanc_health: 27.6
+  53:
+    blue:
+      power: 39081
+      defense: 164
+      health: 820
+      lanc_health: 18.24
+    purple:
+      power: 48100
+      defense: 202
+      health: 1010
+      lanc_health: 22.45
+    gold:
+      power: 60125
+      defense: 252
+      health: 1263
+      lanc_health: 28.06
+  54:
+    blue:
+      power: 40527
+      defense: 166
+      health: 834
+      lanc_health: 18.54
+    purple:
+      power: 49880
+      defense: 205
+      health: 1027
+      lanc_health: 22.82
+    gold:
+      power: 62350
+      defense: 256
+      health: 1284
+      lanc_health: 28.53
+  55:
+    blue:
+      power: 42006
+      defense: 169
+      health: 848
+      lanc_health: 18.85
+    purple:
+      power: 51700
+      defense: 208
+      health: 1044
+      lanc_health: 23.2
+    gold:
+      power: 64625
+      defense: 261
+      health: 1305
+      lanc_health: 29.0
+  56:
+    blue:
+      power: 43550
+      defense: 172
+      health: 861
+      lanc_health: 19.15
+    purple:
+      power: 53600
+      defense: 212
+      health: 1060
+      lanc_health: 23.57
+    gold:
+      power: 67000
+      defense: 265
+      health: 1326
+      lanc_health: 29.46
+  57:
+    blue:
+      power: 45110
+      defense: 174
+      health: 875
+      lanc_health: 19.45
+    purple:
+      power: 55520
+      defense: 215
+      health: 1077
+      lanc_health: 23.94
+    gold:
+      power: 69400
+      defense: 269
+      health: 1347
+      lanc_health: 29.93
+  58:
+    blue:
+      power: 46735
+      defense: 177
+      health: 889
+      lanc_health: 19.76
+    purple:
+      power: 57520
+      defense: 218
+      health: 1094
+      lanc_health: 24.32
+    gold:
+      power: 71900
+      defense: 273
+      health: 1368
+      lanc_health: 30.4
+  59:
+    blue:
+      power: 48408
+      defense: 180
+      health: 902
+      lanc_health: 20.06
+    purple:
+      power: 59580
+      defense: 222
+      health: 1111
+      lanc_health: 24.69
+    gold:
+      power: 74475
+      defense: 277
+      health: 1389
+      lanc_health: 30.86
+  60:
+    blue:
+      power: 50115
+      defense: 183
+      health: 916
+      lanc_health: 20.36
+    purple:
+      power: 61680
+      defense: 225
+      health: 1128
+      lanc_health: 25.06
+    gold:
+      power: 77100
+      defense: 282
+      health: 1410
+      lanc_health: 31.33
+  61:
+    purple:
+      power: 63860
+      defense: 228
+      health: 1144
+      lanc_health: 25.44
+    gold:
+      power: 79825
+      defense: 286
+      health: 1431
+      lanc_health: 31.8
+  62:
+    purple:
+      power: 66080
+      defense: 232
+      health: 1161
+      lanc_health: 25.81
+    gold:
+      power: 82600
+      defense: 290
+      health: 1452
+      lanc_health: 32.26
+  63:
+    purple:
+      power: 68380
+      defense: 232
+      health: 1178
+      lanc_health: 26.18
+    gold:
+      power: 85475
+      defense: 294
+      health: 1473
+      lanc_health: 32.73
+  64:
+    purple:
+      power: 70740
+      defense: 238
+      health: 1195
+      lanc_health: 26.56
+    gold:
+      power: 88425
+      defense: 298
+      health: 1494
+      lanc_health: 33.2
+  65:
+    purple:
+      power: 73180
+      defense: 242
+      health: 1212
+      lanc_health: 26.93
+    gold:
+      power: 91475
+      defense: 303
+      health: 1515
+      lanc_health: 33.66
+  66:
+    purple:
+      power: 75680
+      defense: 245
+      health: 1228
+      lanc_health: 27.3
+    gold:
+      power: 94600
+      defense: 307
+      health: 1536
+      lanc_health: 34.13
+  67:
+    purple:
+      power: 78240
+      defense: 248
+      health: 1245
+      lanc_health: 27.68
+    gold:
+      power: 97800
+      defense: 311
+      health: 1557
+      lanc_health: 34.6
+  68:
+    purple:
+      power: 80880
+      defense: 252
+      health: 1262
+      lanc_health: 28.05
+    gold:
+      power: 101100
+      defense: 315
+      health: 1578
+      lanc_health: 35.06
+  69:
+    purple:
+      power: 83600
+      defense: 255
+      health: 1279
+      lanc_health: 28.42
+    gold:
+      power: 104500
+      defense: 319
+      health: 1599
+      lanc_health: 35.53
+  70:
+    purple:
+      power: 86400
+      defense: 259
+      health: 1296
+      lanc_health: 28.8
+    gold:
+      power: 108000
+      defense: 324
+      health: 1620
+      lanc_health: 36.0
+  71:
+    purple:
+      power: 89260
+      defense: 262
+      health: 1312
+      lanc_health: 29.17
+    gold:
+      power: 111575
+      defense: 328
+      health: 1641
+      lanc_health: 36.46
+  72:
+    purple:
+      power: 92220
+      defense: 265
+      health: 1329
+      lanc_health: 29.65
+    gold:
+      power: 115275
+      defense: 332
+      health: 1662
+      lanc_health: 36.93
+  73:
+    purple:
+      power: 95240
+      defense: 269
+      health: 1346
+      lanc_health: 29.92
+    gold:
+      power: 119050
+      defense: 336
+      health: 1683
+      lanc_health: 37.4
+  74:
+    purple:
+      power: 98360
+      defense: 272
+      health: 1363
+      lanc_health: 30.29
+    gold:
+      power: 122950
+      defense: 340
+      health: 1704
+      lanc_health: 37.86
+  75:
+    purple:
+      power: 101560
+      defense: 276
+      health: 1380
+      lanc_health: 30.66
+    gold:
+      power: 126950
+      defense: 345
+      health: 1725
+      lanc_health: 38.33
+  76:
+    purple:
+      power: 104860
+      defense: 279
+      health: 1396
+      lanc_health: 31.04
+    gold:
+      power: 131075
+      defense: 349
+      health: 1746
+      lanc_health: 38.8
+  77:
+    purple:
+      power: 108240
+      defense: 282
+      health: 1413
+      lanc_health: 31.41
+    gold:
+      power: 135300
+      defense: 353
+      health: 1767
+      lanc_health: 39.26
+  78:
+    purple:
+      power: 111720
+      defense: 286
+      health: 1430
+      lanc_health: 31.78
+    gold:
+      power: 139650
+      defense: 357
+      health: 1788
+      lanc_health: 39.73
+  79:
+    purple:
+      power: 115280
+      defense: 289
+      health: 1447
+      lanc_health: 32.16
+    gold:
+      power: 144100
+      defense: 361
+      health: 1809
+      lanc_health: 40.2
+  80:
+    purple:
+      power: 118960
+      defense: 292
+      health: 1464
+      lanc_health: 32.53
+    gold:
+      power: 148700
+      defense: 366
+      health: 1830
+      lanc_health: 40.66
+  81:
+    gold:
+      power: 153425
+      defense: 370
+      health: 1851
+      lanc_health: 41.13
+  82:
+    gold:
+      power: 158250
+      defense: 374
+      health: 1872
+      lanc_health: 41.6
+  83:
+    gold:
+      power: 163225
+      defense: 378
+      health: 1893
+      lanc_health: 42.06
+  84:
+    gold:
+      power: 168350
+      defense: 382
+      health: 1914
+      lanc_health: 42.53
+  85:
+    gold:
+      power: 173600
+      defense: 387
+      health: 1935
+      lanc_health: 43.0
+  86:
+    gold:
+      power: 179000
+      defense: 391
+      health: 1956
+      lanc_health: 43.46
+  87:
+    gold:
+      power: 184525
+      defense: 395
+      health: 1977
+      lanc_health: 43.93
+  88:
+    gold:
+      power: 190225
+      defense: 399
+      health: 1998
+      lanc_health: 44.4
+  89:
+    gold:
+      power: 196075
+      defense: 403
+      health: 2019
+      lanc_health: 44.86
+  90:
+    gold:
+      power: 202075
+      defense: 408
+      health: 2040
+      lanc_health: 45.33
+  91:
+    gold:
+      power: 208225
+      defense: 412
+      health: 2061
+      lanc_health: 45.8
+  92:
+    gold:
+      power: 214550
+      defense: 416
+      health: 2082
+      lanc_health: 46.26
+  93:
+    gold:
+      power: 221050
+      defense: 420
+      health: 2103
+      lanc_health: 46.73
+  94:
+    gold:
+      power: 227725
+      defense: 424
+      health: 2124
+      lanc_health: 47.2
+  95:
+    gold:
+      power: 234575
+      defense: 429
+      health: 2145
+      lanc_health: 47.66
+  96:
+    gold:
+      power: 241625
+      defense: 433
+      health: 2166
+      lanc_health: 48.13
+  97:
+    gold:
+      power: 248825
+      defense: 437
+      health: 2187
+      lanc_health: 48.6
+  98:
+    gold:
+      power: 256250
+      defense: 441
+      health: 2208
+      lanc_health: 49.06
+  99:
+    gold:
+      power: 263850
+      defense: 445
+      health: 2229
+      lanc_health: 49.53
+  100:
+    gold:
+      power: 271675
+      defense: 450
+      health: 2250
+      lanc_health: 50.0

@@ -146,3 +146,98 @@ skills:
 - name: Siege Insight (Lv. 5)
   description: Bradley knows exactly where to place defenses as a sieges expert, increasing
     Defender Troops' Attack by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 231
+      defense: 192
+      health: 1444
+      lethality_m: 16.05
+      health_m: 16.05
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 6% for
+        5s.'
+    2:
+      power: 163710
+      attack: 394
+      defense: 327
+      health: 2455
+      lethality_m: 32.1
+      health_m: 32.1
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 6% for
+        5s.'
+      skill_2: Defender Troop Attack +5%
+    3:
+      power: 231120
+      attack: 558
+      defense: 462
+      health: 3466
+      lethality_m: 48.15
+      health_m: 48.15
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 8% for
+        5s.'
+      skill_2: Defender Troop Attack +5%
+    4:
+      power: 298530
+      attack: 725
+      defense: 597
+      health: 4477
+      lethality_m: 64.2
+      health_m: 64.2
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 8% for
+        5s.'
+      skill_2: Defender Troop Attack +7.5%
+    5:
+      power: 365940
+      attack: 889
+      defense: 731
+      health: 5489
+      lethality_m: 80.25
+      health_m: 80.25
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 10% for
+        5s.'
+      skill_2: Defender Troop Attack +7.5%
+    6:
+      power: 433350
+      lethality_m: 96.3
+      health_m: 96.3
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 10% for
+        5s.'
+      skill_2: Defender Troop Attack +10%
+    7:
+      power: 500760
+      attack: 1216
+      defense: 1001
+      health: 7511
+      lethality_m: 112.35
+      health_m: 112.35
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 12% for
+        5s.'
+      skill_2: Defender Troop Attack +10%
+    8:
+      power: 568170
+      lethality_m: 128.4
+      health_m: 128.4
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 12% for
+        5s.'
+      skill_2: Defender Troop Attack +12.5%
+    9:
+      lethality_m: 144.45
+      health_m: 144.45
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 14% for
+        5s.'
+      skill_2: Defender Troop Attack +12.5%
+    10:
+      power: 722250
+      attack: 1752
+      defense: 1444
+      health: 10833
+      lethality_m: 160.5
+      health_m: 160.5
+      skill_1: '"Destructor" skill boosts Attack Speeds of Heroes/Escorts by 14% for
+        5s.'
+      skill_2: Defender Troop Attack +15%

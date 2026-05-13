@@ -130,3 +130,98 @@ skills:
 - name: Discernment (Lv. 5)
   description: Jeronimo attacks with a sword formation, increasing Rally Troops' attack
     by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 37500
+      attack: 57
+      defense: 75
+      health: 1125
+      lethality_i: 6.25
+      health_i: 6.25
+      skill_1: Jeronimo damage taken -10%
+    2:
+      power: 63750
+      attack: 97
+      defense: 127
+      health: 1912
+      lethality_i: 12.5
+      health_i: 12.5
+      skill_1: Jeronimo damage taken -10%
+      skill_2: Rally Troop Attack +5%
+    3:
+      power: 90000
+      attack: 137
+      defense: 180
+      health: 2700
+      lethality_i: 18.75
+      health_i: 18.75
+      skill_1: Jeronimo damage taken -15%
+      skill_2: Rally Troop Attack +5%
+    4:
+      power: 116250
+      attack: 177
+      defense: 232
+      health: 3487
+      lethality_i: 25.0
+      health_i: 25.0
+      skill_1: Jeronimo damage taken -15%
+      skill_2: Rally Troop Attack +7.5%
+    5:
+      power: 142500
+      attack: 218
+      defense: 285
+      health: 4275
+      lethality_i: 31.25
+      health_i: 31.25
+      skill_1: Jeronimo damage taken -20%
+      skill_2: Rally Troop Attack +7.5%
+    6:
+      power: 168750
+      attack: 258
+      defense: 337
+      health: 5062
+      lethality_i: 37.5
+      health_i: 37.5
+      skill_1: Jeronimo damage taken -20%
+      skill_2: Rally Troop Attack +10%
+    7:
+      power: 195000
+      attack: 298
+      defense: 390
+      health: 5850
+      lethality_i: 43.75
+      health_i: 43.75
+      skill_1: Jeronimo damage taken -25%
+      skill_2: Rally Troop Attack +10%
+    8:
+      power: 221250
+      attack: 338
+      defense: 442
+      health: 6637
+      lethality_i: 50.0
+      health_i: 50.0
+      skill_1: Jeronimo damage taken -25%
+      skill_2: Rally Troop Attack +12.5%
+    9:
+      power: 247500
+      attack: 378
+      defense: 495
+      health: 7425
+      lethality_i: 56.25
+      health_i: 56.25
+      skill_1: Jeronimo damage taken -30%
+      skill_2: Rally Troop Attack +12.5%
+    10:
+      power: 281250
+      attack: 431
+      defense: 562
+      health: 8437
+      lethality_i: 62.5
+      health_i: 62.5
+      skill_1: Jeronimo damage taken -30%
+      skill_2: Rally Troop Attack +15%

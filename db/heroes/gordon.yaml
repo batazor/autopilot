@@ -150,3 +150,101 @@ skills:
 - name: Bio Assault (Lv. 5)
   description: Gordon privileges his allies with special envenomed weaponry, increasing
     Rally Squad's Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 96300
+      attack: 192
+      defense: 192
+      health: 1926
+      lethality_l: 16.05
+      health_l: 16.05
+      skill_1: Gordon Damage Dealt +5% and reduces the Attack of poisoned enemies
+        by 15%.
+    2:
+      power: 163710
+      attack: 327
+      defense: 327
+      health: 3274
+      lethality_l: 32.1
+      health_l: 32.1
+      skill_1: Gordon Damage Dealt +5% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 231120
+      attack: 462
+      defense: 462
+      health: 4622
+      lethality_l: 48.15
+      health_l: 48.15
+      skill_1: Gordon Damage Dealt +10% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 298530
+      attack: 597
+      defense: 597
+      health: 5970
+      lethality_l: 64.2
+      health_l: 64.2
+      skill_1: Gordon Damage Dealt +10% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 365940
+      attack: 731
+      defense: 731
+      health: 7318
+      lethality_l: 80.25
+      health_l: 80.25
+      skill_1: Gordon Damage Dealt +15% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 433350
+      attack: 866
+      defense: 866
+      health: 8667
+      lethality_l: 96.3
+      health_l: 96.3
+      skill_1: Gordon Damage Dealt +15% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 500760
+      lethality_l: 112.35
+      health_l: 112.35
+      skill_1: Gordon Damage Dealt +20% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 568170
+      attack: 1136
+      defense: 1136
+      health: 11363
+      lethality_l: 128.4
+      health_l: 128.4
+      skill_1: Gordon Damage Dealt +20% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      lethality_l: 144.45
+      health_l: 144.45
+      skill_1: Gordon Damage Dealt +25% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 722250
+      attack: 1444
+      defense: 1444
+      health: 14445
+      lethality_l: 160.5
+      health_l: 160.5
+      skill_1: Gordon Damage Dealt +25% and reduces the Attack of poisoned enemies
+        by 15%.
+      skill_2: Rally Troop Lethality +15%

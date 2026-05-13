@@ -144,3 +144,98 @@ skills:
 - name: Steel Discipline (Lv. 5)
   description: Wu Ming puts defender troops under stern tutelage, incresaing Defender
     Troops' Defense by 15% maximum.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 80100
+      attack: 122
+      defense: 160
+      health: 2403
+      lethality_i: 13.35
+      health_i: 13.35
+      skill_1: Wu Ming damage dealt +10%
+    2:
+      power: 136170
+      attack: 208
+      defense: 272
+      health: 4085
+      lethality_i: 26.7
+      health_i: 26.7
+      skill_1: Wu Ming damage dealt +10%
+      skill_2: Defender Troop Defense +5%
+    3:
+      power: 192240
+      attack: 293
+      defense: 384
+      health: 5767
+      lethality_i: 40.05
+      health_i: 40.05
+      skill_1: Wu Ming damage dealt +15%
+      skill_2: Defender Troop Defense +5%
+    4:
+      power: 248310
+      attack: 379
+      defense: 496
+      health: 7449
+      lethality_i: 53.4
+      health_i: 53.4
+      skill_1: Wu Ming damage dealt +15%
+      skill_2: Defender Troop Defense +7.5%
+    5:
+      power: 304380
+      attack: 467
+      defense: 608
+      health: 9131
+      lethality_i: 66.75
+      health_i: 66.75
+      skill_1: Wu Ming damage dealt +20%
+      skill_2: Defender Troop Defense +7.5%
+    6:
+      power: 360450
+      attack: 552
+      defense: 720
+      health: 10813
+      lethality_i: 80.1
+      health_i: 80.1
+      skill_1: Wu Ming damage dealt +20%
+      skill_2: Defender Troop Defense +10%
+    7:
+      power: 416520
+      attack: 638
+      defense: 833
+      health: 12495
+      lethality_i: 93.45
+      health_i: 93.45
+      skill_1: Wu Ming damage dealt +25%
+      skill_2: Defender Troop Defense +10%
+    8:
+      power: 472590
+      attack: 723
+      defense: 945
+      health: 14177
+      lethality_i: 106.8
+      health_i: 106.8
+      skill_1: Wu Ming damage dealt +25%
+      skill_2: Defender Troop Defense +12.5%
+    9:
+      power: 528660
+      attack: 809
+      defense: 1057
+      health: 15859
+      lethality_i: 120.15
+      health_i: 120.15
+      skill_1: Wu Ming damage dealt +30%
+      skill_2: Defender Troop Defense +12.5%
+    10:
+      power: 600750
+      attack: 921
+      defense: 1201
+      health: 18022
+      lethality_i: 133.5
+      health_i: 133.5
+      skill_1: Wu Ming damage dealt +30%
+      skill_2: Defender Troop Defense +15%

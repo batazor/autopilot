@@ -14,6 +14,7 @@ import asyncio
 import logging
 import random
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -137,11 +138,25 @@ class GiftCodeRedeemer:
     # Public entry point
     # ------------------------------------------------------------------
 
-    async def redeem_all(self) -> GiftRedeemSummary:
+    async def redeem_all(
+        self,
+        progress_cb: Callable[[int, int, str], None] | None = None,
+    ) -> GiftRedeemSummary:
         summary = GiftRedeemSummary()
         db = self._load_codes()
         registry = load_devices(self._devices_path)
         all_player_ids = registry.all_player_ids()
+
+        total_work = sum(
+            1
+            for code in db.codes
+            if not code.is_effectively_expired()
+            for pid in all_player_ids
+            if code.needs_redemption(pid)
+        )
+        done = 0
+        if progress_cb is not None:
+            progress_cb(0, total_work, "starting")
 
         for code in db.codes:
             if code.is_effectively_expired():
@@ -160,6 +175,11 @@ class GiftCodeRedeemer:
                     continue
 
                 status, api_ec, api_msg = await self._redeem_one(int(player_id), code.name)
+                done += 1
+                if progress_cb is not None:
+                    gamer = registry.get_gamer(player_id)
+                    nick = gamer.nickname if gamer else player_id
+                    progress_cb(done, total_work, f"{code.name} → {nick}")
                 if api_ec is not None:
                     code.last_api_err_code = api_ec
                     code.last_api_msg = api_msg if api_msg else None
@@ -307,6 +327,7 @@ async def run_gift_code_redeemer(
     codes_path: Path,
     devices_path: Path,
     bot_instance_map: dict[str, str] | None = None,  # unused, kept for compat
+    progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> GiftRedeemSummary:
     redeemer = GiftCodeRedeemer(codes_path, devices_path)
-    return await redeemer.redeem_all()
+    return await redeemer.redeem_all(progress_cb=progress_cb)

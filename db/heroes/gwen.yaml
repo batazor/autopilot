@@ -145,3 +145,108 @@ skills:
 - name: Marauder (Lv. 5)
   description: Gwen use her expertise in offensive tactics, boosting Rally Troops
     Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 66600
+      attack: 159
+      defense: 133
+      health: 999
+      lethality_m: 11.1
+      health_m: 11.1
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 50% damage
+    2:
+      power: 113220
+      attack: 273
+      defense: 226
+      health: 1698
+      lethality_m: 22.2
+      health_m: 22.2
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 50% damage
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 159840
+      attack: 386
+      defense: 319
+      health: 2397
+      lethality_m: 33.3
+      health_m: 33.3
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 55% damage
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 206460
+      attack: 501
+      defense: 412
+      health: 3096
+      lethality_m: 44.4
+      health_m: 44.4
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 55% damage
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 253080
+      attack: 614
+      defense: 506
+      health: 3796
+      lethality_m: 55.5
+      health_m: 55.5
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 60% damage
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 299700
+      attack: 728
+      defense: 599
+      health: 4495
+      lethality_m: 66.6
+      health_m: 66.6
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 60% damage
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 346320
+      attack: 841
+      defense: 692
+      health: 5194
+      lethality_m: 77.7
+      health_m: 77.7
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 65% damage
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 392940
+      attack: 954
+      defense: 785
+      health: 5894
+      lethality_m: 88.8
+      health_m: 88.8
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 65% damage
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 439560
+      attack: 1067
+      defense: 879
+      health: 6593
+      lethality_m: 99.9
+      health_m: 99.9
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 70% damage
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 499500
+      attack: 1212
+      defense: 999
+      health: 7492
+      lethality_m: 111.0
+      health_m: 111.0
+      skill_1: Secondary weapon attack on skill cast (random hero target), dealing
+        Attack * 70% damage
+      skill_2: Rally Troop Lethality +15%

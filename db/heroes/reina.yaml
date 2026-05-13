@@ -126,3 +126,108 @@ skills:
     45% damage with Normal Attack.
 - name: Fiery Invasion (Lv. 5)
   description: Reina's unmatched precision increases Rally Troops' Lethality by15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 55000
+      attack: 111
+      defense: 111
+      health: 1110
+      lethality_l: 9.25
+      health_l: 9.25
+      skill_1: 40% chance of an extra attack dealing Attack * 25% damage alongside
+        a normal attack
+    2:
+      power: 94350
+      attack: 188
+      defense: 188
+      health: 1887
+      lethality_l: 18.5
+      health_l: 18.5
+      skill_1: 40% chance of an extra attack dealing Attack * 25% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 133200
+      attack: 266
+      defense: 266
+      health: 2664
+      lethality_l: 27.75
+      health_l: 27.75
+      skill_1: 40% chance of an extra attack dealing Attack * 30% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 172050
+      attack: 344
+      defense: 344
+      health: 3441
+      lethality_l: 37.0
+      health_l: 37.0
+      skill_1: 40% chance of an extra attack dealing Attack * 30% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 210900
+      attack: 421
+      defense: 421
+      health: 4218
+      lethality_l: 46.25
+      health_l: 46.25
+      skill_1: 40% chance of an extra attack dealing Attack * 35% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 249750
+      attack: 499
+      defense: 499
+      health: 4995
+      lethality_l: 55.5
+      health_l: 55.5
+      skill_1: 40% chance of an extra attack dealing Attack * 35% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 288600
+      attack: 577
+      defense: 577
+      health: 5772
+      lethality_l: 64.75
+      health_l: 64.75
+      skill_1: 40% chance of an extra attack dealing Attack * 40% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 327450
+      attack: 654
+      defense: 654
+      health: 6549
+      lethality_l: 74.0
+      health_l: 74.0
+      skill_1: 40% chance of an extra attack dealing Attack * 40% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 366300
+      attack: 732
+      defense: 732
+      health: 7326
+      lethality_l: 83.25
+      health_l: 83.25
+      skill_1: 40% chance of an extra attack dealing Attack * 45% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 416250
+      attack: 832
+      defense: 832
+      health: 8325
+      lethality_l: 92.5
+      health_l: 92.5
+      skill_1: 40% chance of an extra attack dealing Attack * 45% damage alongside
+        a normal attack
+      skill_2: Rally Troop Lethality +15%

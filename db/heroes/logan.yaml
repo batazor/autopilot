@@ -139,3 +139,98 @@ skills:
 - name: Strong Protection (Lv. 5)
   description: Logan defendsthe city with his migthy fists, increasing Defender Troop
     Defense by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 42000
+      attack: 64
+      defense: 84
+      health: 1260
+      lethality_i: 7.0
+      health_i: 7.0
+      skill_1: Fists of Steel deal +10% more damage
+    2:
+      power: 71400
+      attack: 109
+      defense: 142
+      health: 2142
+      lethality_i: 14.0
+      health_i: 14.0
+      skill_1: Fists of Steel deal +10% more damage
+      skill_2: Defender Troop Defense +5%
+    3:
+      power: 100800
+      attack: 154
+      defense: 201
+      health: 3024
+      lethality_i: 21.0
+      health_i: 21.0
+      skill_1: Fists of Steel deal +15% more damage
+      skill_2: Defender Troop Defense +5%
+    4:
+      power: 130200
+      attack: 198
+      defense: 260
+      health: 3905
+      lethality_i: 28.0
+      health_i: 28.0
+      skill_1: Fists of Steel deal +15% more damage
+      skill_2: Defender Troop Defense +7.5%
+    5:
+      power: 159600
+      attack: 244
+      defense: 319
+      health: 4788
+      lethality_i: 35.0
+      health_i: 35.0
+      skill_1: Fists of Steel deal +20% more damage
+      skill_2: Defender Troop Defense +7.5%
+    6:
+      power: 189000
+      attack: 289
+      defense: 378
+      health: 5670
+      lethality_i: 42.0
+      health_i: 42.0
+      skill_1: Fists of Steel deal +20% more damage
+      skill_2: Defender Troop Defense +10%
+    7:
+      power: 218400
+      attack: 334
+      defense: 436
+      health: 6552
+      lethality_i: 49.0
+      health_i: 49.0
+      skill_1: Fists of Steel deal +25% more damage
+      skill_2: Defender Troop Defense +10%
+    8:
+      power: 247800
+      attack: 379
+      defense: 495
+      health: 7433
+      lethality_i: 56.0
+      health_i: 56.0
+      skill_1: Fists of Steel deal +25% more damage
+      skill_2: Defender Troop Defense +12.5%
+    9:
+      power: 277200
+      attack: 424
+      defense: 554
+      health: 8316
+      lethality_i: 63.0
+      health_i: 63.0
+      skill_1: Fists of Steel deal +30% more damage
+      skill_2: Defender Troop Defense +12.5%
+    10:
+      power: 315000
+      attack: 482
+      defense: 630
+      health: 9450
+      lethality_i: 70.0
+      health_i: 70.0
+      skill_1: Fists of Steel deal +30% more damage
+      skill_2: Defender Troop Defense +15%

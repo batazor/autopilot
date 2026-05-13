@@ -123,3 +123,98 @@ skills:
 - name: First Aid Training (Lv. 5)
   description: Philly imparts her basic first-aid and care techniques, increasing
     Defender Troops' Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 72
+      defense: 72
+      health: 720
+      lethality_l: 6.0
+      health_l: 6.0
+      skill_1: Philly Healing Effects +30%
+    2:
+      power: 61200
+      attack: 122
+      defense: 122
+      health: 1224
+      lethality_l: 12.0
+      health_l: 12.0
+      skill_1: Philly Healing Effects +30%
+      skill_2: Defender Troop Health +5%
+    3:
+      power: 86400
+      attack: 172
+      defense: 172
+      health: 1728
+      lethality_l: 18.0
+      health_l: 18.0
+      skill_1: Philly Healing Effects +40%
+      skill_2: Defender Troop Health +5%
+    4:
+      power: 111600
+      attack: 223
+      defense: 223
+      health: 2232
+      lethality_l: 24.0
+      health_l: 24.0
+      skill_1: Philly Healing Effects +40%
+      skill_2: Defender Troop Health +7.5%
+    5:
+      power: 136800
+      attack: 273
+      defense: 273
+      health: 2736
+      lethality_l: 30.0
+      health_l: 30.0
+      skill_1: Philly Healing Effects +50%
+      skill_2: Defender Troop Health +7.5%
+    6:
+      power: 162000
+      attack: 324
+      defense: 324
+      health: 3240
+      lethality_l: 36.0
+      health_l: 36.0
+      skill_1: Philly Healing Effects +50%
+      skill_2: Defender Troop Health +10%
+    7:
+      power: 187200
+      attack: 374
+      defense: 374
+      health: 3744
+      lethality_l: 42.0
+      health_l: 42.0
+      skill_1: Philly Healing Effects +60%
+      skill_2: Defender Troop Health +10%
+    8:
+      power: 212400
+      attack: 424
+      defense: 424
+      health: 4248
+      lethality_l: 48.0
+      health_l: 48.0
+      skill_1: Philly Healing Effects +60%
+      skill_2: Defender Troop Health +12.5%
+    9:
+      power: 237600
+      attack: 475
+      defense: 475
+      health: 4752
+      lethality_l: 54.0
+      health_l: 54.0
+      skill_1: Philly Healing Effects +70%
+      skill_2: Defender Troop Health +12.5%
+    10:
+      power: 270000
+      attack: 540
+      defense: 540
+      health: 5400
+      lethality_l: 60.0
+      health_l: 60.0
+      skill_1: Philly Healing Effects +70%
+      skill_2: Defender Troop Health +15%

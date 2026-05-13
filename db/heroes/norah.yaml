@@ -139,3 +139,98 @@ skills:
 - name: True Grit (Lv. 5)
   description: Norah inspires other with her courage under fire, boosting Defender
     Troops Deffense by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 66600
+      attack: 133
+      defense: 133
+      health: 1332
+      lethality_l: 11.1
+      health_l: 11.1
+      skill_1: 25% chance of stunning target for 0.6s during Barrage
+    2:
+      power: 113220
+      attack: 226
+      defense: 226
+      health: 2264
+      lethality_l: 22.2
+      health_l: 22.2
+      skill_1: 25% chance of stunning target for 0.6s during Barrage
+      skill_2: Defender Troop Defense +5%
+    3:
+      power: 159840
+      attack: 319
+      defense: 319
+      health: 3196
+      lethality_l: 33.3
+      health_l: 33.3
+      skill_1: 27.5% chance of stunning target for 0.7s during Barrage
+      skill_2: Defender Troop Defense +5%
+    4:
+      power: 206460
+      attack: 412
+      defense: 412
+      health: 4129
+      lethality_l: 44.4
+      health_l: 44.4
+      skill_1: 27.5% chance of stunning target for 0.7s during Barrage
+      skill_2: Defender Troop Defense +7.5%
+    5:
+      power: 253080
+      attack: 506
+      defense: 506
+      health: 5061
+      lethality_l: 55.5
+      health_l: 55.5
+      skill_1: 30% chance of stunning target for 0.8s during Barrage
+      skill_2: Defender Troop Defense +7.5%
+    6:
+      power: 299700
+      attack: 599
+      defense: 599
+      health: 5994
+      lethality_l: 66.6
+      health_l: 66.6
+      skill_1: 30% chance of stunning target for 0.8s during Barrage
+      skill_2: Defender Troop Defense +10%
+    7:
+      power: 346320
+      attack: 692
+      defense: 692
+      health: 6926
+      lethality_l: 77.7
+      health_l: 77.7
+      skill_1: 32.5% chance of stunning target for 0.9s during Barrage
+      skill_2: Defender Troop Defense +10%
+    8:
+      power: 392940
+      attack: 785
+      defense: 785
+      health: 7858
+      lethality_l: 88.8
+      health_l: 88.8
+      skill_1: 32.5% chance of stunning target for 0.9s during Barrage
+      skill_2: Defender Troop Defense +12.5%
+    9:
+      power: 439560
+      attack: 879
+      defense: 879
+      health: 8791
+      lethality_l: 99.9
+      health_l: 99.9
+      skill_1: 35% chance of stunning target for 1s during Barrage
+      skill_2: Defender Troop Defense +12.5%
+    10:
+      power: 499500
+      attack: 999
+      defense: 999
+      health: 9990
+      lethality_l: 111.0
+      health_l: 111.0
+      skill_1: 35% chance of stunning target for 1s during Barrage
+      skill_2: Defender Troop Defense +15%

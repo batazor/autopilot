@@ -1,0 +1,8 @@
+enabled: true
+name: "🦸 Gwen"
+
+# Hero card for Gwen. Opened from the heroes roster; verified via OCR of
+# the hero name on page.heroes.unit. Fill steps in as needed (sync, upgrade, etc.).
+node: page.heroes.gwen
+
+steps: []

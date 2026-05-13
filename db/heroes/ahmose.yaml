@@ -133,3 +133,98 @@ skills:
 - name: Oath of Guardian (Lv. 5)
   description: Ahmose fortifies the city with the resolve of a guardian, increasing
     Defender Troops' Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 55000
+      attack: 85
+      defense: 111
+      health: 1665
+      lethality_i: 9.25
+      health_i: 9.25
+      skill_1: Friendly Troop Attack +30% during Cthuga's Protection for 2.5s
+    2:
+      power: 94350
+      attack: 144
+      defense: 144
+      health: 2830
+      lethality_i: 18.5
+      health_i: 18.5
+      skill_1: Friendly Troop Attack +30% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +5%
+    3:
+      power: 133200
+      attack: 203
+      defense: 266
+      health: 3996
+      lethality_i: 27.75
+      health_i: 27.75
+      skill_1: Friendly Troop Attack +33% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +5%
+    4:
+      power: 172050
+      attack: 262
+      defense: 344
+      health: 5161
+      lethality_i: 37.0
+      health_i: 37.0
+      skill_1: Friendly Troop Attack +33% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +7.5%
+    5:
+      power: 210900
+      attack: 323
+      defense: 421
+      health: 6327
+      lethality_i: 46.25
+      health_i: 46.25
+      skill_1: Friendly Troop Attack +36% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +7.5%
+    6:
+      power: 249750
+      attack: 382
+      defense: 499
+      health: 7492
+      lethality_i: 55.5
+      health_i: 55.5
+      skill_1: Friendly Troop Attack +36% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +10%
+    7:
+      power: 288600
+      attack: 442
+      defense: 577
+      health: 8658
+      lethality_i: 64.75
+      health_i: 64.75
+      skill_1: Friendly Troop Attack +39% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +10%
+    8:
+      power: 327450
+      attack: 501
+      defense: 654
+      health: 9823
+      lethality_i: 74.0
+      health_i: 74.0
+      skill_1: Friendly Troop Attack +39% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +12.5%
+    9:
+      power: 366300
+      attack: 560
+      defense: 732
+      health: 10989
+      lethality_i: 83.25
+      health_i: 83.25
+      skill_1: Friendly Troop Attack +42% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +12.5%
+    10:
+      power: 416250
+      attack: 638
+      defense: 832
+      health: 12487
+      lethality_i: 92.5
+      health_i: 92.5
+      skill_1: Friendly Troop Attack +42% during Cthuga's Protection for 2.5s
+      skill_2: Defender Troop Health +15%

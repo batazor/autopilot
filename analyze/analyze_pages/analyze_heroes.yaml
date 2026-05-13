@@ -1,2 +1,14 @@
-# Heroes screen. Uses only regions already defined in area.json.
-overlay: []
+# Heroes screen overlay rules. Uses only regions already defined in area.json.
+overlay:
+# Periodic grid scan: snapshots hero → cell positions into Redis so the
+# ``hero_grid`` dynamic edge resolver can route ``page.heroes.<id>``. TTL
+# 2min throttles the rescan to twice per visit at most; positions also
+# expire on the Redis side via the handler's 10-min hash TTL.
+- name: heroes.grid.scan
+  region: heroes.recruit
+  action: text
+  screens:
+    - heroes
+  pushScenario:
+  - name: scan_heroes_grid
+    ttl: 2m

@@ -150,3 +150,108 @@ skills:
 - name: Wistful Enchantment (Lv. 5)
   description: Renee boosts morale with her extraordinay talents, incresaing Rally
     Troops' Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 80100
+      attack: 160
+      defense: 160
+      health: 1602
+      lethality_l: 13.35
+      health_l: 13.35
+      skill_1: Attacks have 2% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+    2:
+      power: 136170
+      attack: 272
+      defense: 272
+      health: 2723
+      lethality_l: 26.7
+      health_l: 26.7
+      skill_1: Attacks have 2% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 192240
+      attack: 384
+      defense: 384
+      health: 3844
+      lethality_l: 40.05
+      health_l: 40.05
+      skill_1: Attacks have 3.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 248310
+      attack: 496
+      defense: 496
+      health: 4966
+      lethality_l: 53.4
+      health_l: 53.4
+      skill_1: Attacks have 3.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 304380
+      attack: 608
+      defense: 608
+      health: 6087
+      lethality_l: 66.75
+      health_l: 66.75
+      skill_1: Attacks have 5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 360450
+      attack: 720
+      defense: 720
+      health: 7209
+      lethality_l: 80.1
+      health_l: 80.1
+      skill_1: Attacks have 5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 416520
+      attack: 833
+      defense: 833
+      health: 8330
+      lethality_l: 93.45
+      health_l: 93.45
+      skill_1: Attacks have 6.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 472590
+      attack: 945
+      defense: 945
+      health: 9451
+      lethality_l: 106.8
+      health_l: 106.8
+      skill_1: Attacks have 6.5% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 528660
+      attack: 1057
+      defense: 1057
+      health: 10573
+      lethality_l: 120.15
+      health_l: 120.15
+      skill_1: Attacks have 8% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 600750
+      attack: 1201
+      defense: 1201
+      health: 12015
+      lethality_l: 133.5
+      health_l: 133.5
+      skill_1: Attacks have 8% chance of confusing target for 1s, confused targets
+        attack all surrounding enemies - friend or foe.
+      skill_2: Rally Troop Lethality +15%

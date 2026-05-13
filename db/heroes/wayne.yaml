@@ -142,3 +142,98 @@ skills:
 - name: Offensive Defense (Lv. 5)
   description: Waynes strategic brilliance increases DefenderTroops' Lethality by
     15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 80100
+      attack: 192
+      defense: 160
+      health: 1201
+      lethality_m: 13.35
+      health_m: 13.35
+      skill_1: Attack * 40% damage to random enemy. If escort, 40% chance of knockdown.
+    2:
+      power: 136170
+      attack: 328
+      defense: 272
+      health: 2042
+      lethality_m: 26.7
+      health_m: 26.7
+      skill_1: Attack * 40% damage to random enemy. If escort, 40% chance of knockdown.
+      skill_2: Defender Troop Lethality +5%
+    3:
+      power: 192240
+      attack: 464
+      defense: 384
+      health: 2883
+      lethality_m: 40.05
+      health_m: 40.05
+      skill_1: Attack * 44% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +5%
+    4:
+      power: 248310
+      attack: 603
+      defense: 496
+      health: 3724
+      lethality_m: 53.4
+      health_m: 53.4
+      skill_1: Attack * 44% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +7.5%
+    5:
+      power: 304380
+      attack: 739
+      defense: 608
+      health: 4565
+      lethality_m: 66.75
+      health_m: 66.75
+      skill_1: Attack * 48% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +7.5%
+    6:
+      power: 360450
+      attack: 875
+      defense: 720
+      health: 5406
+      lethality_m: 80.1
+      health_m: 80.1
+      skill_1: Attack * 48% damage to random enemy. If escort, 55% chance of knockdown.
+      skill_2: Defender Troop Lethality +10%
+    7:
+      power: 416520
+      attack: 1011
+      defense: 833
+      health: 6247
+      lethality_m: 93.45
+      health_m: 93.45
+      skill_1: Attack * 52% damage to random enemy. If escort, 85% chance of knockdown.
+      skill_2: Defender Troop Lethality +10%
+    8:
+      power: 472590
+      attack: 1148
+      defense: 945
+      health: 7088
+      lethality_m: 106.8
+      health_m: 106.8
+      skill_1: Attack * 52% damage to random enemy. If escort, 85% chance of knockdown.
+      skill_2: Defender Troop Lethality +12.5%
+    9:
+      power: 528660
+      attack: 1284
+      defense: 1057
+      health: 7929
+      lethality_m: 120.15
+      health_m: 120.15
+      skill_1: Attack * 56% damage to random enemy. If escort, 100% chance of knockdown.
+      skill_2: Defender Troop Lethality +12.5%
+    10:
+      power: 600750
+      attack: 1457
+      defense: 1201
+      health: 9011
+      lethality_m: 133.5
+      health_m: 133.5
+      skill_1: Attack * 56% damage to random enemy. If escort, 100% chance of knockdown.
+      skill_2: Defender Troop Lethality +15%

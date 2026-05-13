@@ -14,9 +14,10 @@ from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.types import Region
 
-# Side-effect import: registers `event_blocks` resolver with screen_graph
-# so dynamic edges in edge_taps.yaml can resolve at runtime.
+# Side-effect imports: register dynamic-edge resolvers with screen_graph
+# so edges in edge_taps.yaml can resolve at runtime.
 from navigation import event_blocks_resolver  # noqa: F401
+from navigation import hero_grid_resolver  # noqa: F401
 from navigation.detector import ScreenDetector, ScreenName
 from navigation.screen_graph import (
     route_hops_async,

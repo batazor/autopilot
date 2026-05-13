@@ -137,3 +137,98 @@ skills:
 - name: Rally of Fate (Lv. 5)
   description: Mia divines the most advantageous moments for an assault, increasing
     Rally Troop Attack by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 42000
+      attack: 84
+      defense: 84
+      health: 840
+      lethality_l: 7.0
+      health_l: 7.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 30%
+    2:
+      power: 71400
+      attack: 142
+      defense: 142
+      health: 1428
+      lethality_l: 14.0
+      health_l: 14.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 30%
+      skill_2: Rally Troop Attack +5%
+    3:
+      power: 100800
+      attack: 201
+      defense: 201
+      health: 2015
+      lethality_l: 21.0
+      health_l: 21.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 60%
+      skill_2: Rally Troop Attack +5%
+    4:
+      power: 130200
+      attack: 260
+      defense: 260
+      health: 2604
+      lethality_l: 28.0
+      health_l: 28.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 60%
+      skill_2: Rally Troop Attack +7.5%
+    5:
+      power: 159600
+      attack: 319
+      defense: 319
+      health: 3192
+      lethality_l: 35.0
+      health_l: 35.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 90%
+      skill_2: Rally Troop Attack +7.5%
+    6:
+      power: 189000
+      attack: 378
+      defense: 378
+      health: 3779
+      lethality_l: 42.0
+      health_l: 42.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 90%
+      skill_2: Rally Troop Attack +10%
+    7:
+      power: 218400
+      attack: 436
+      defense: 436
+      health: 4368
+      lethality_l: 49.0
+      health_l: 49.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 120%
+      skill_2: Rally Troop Attack +10%
+    8:
+      power: 247800
+      attack: 495
+      defense: 495
+      health: 4956
+      lethality_l: 56.0
+      health_l: 56.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 120%
+      skill_2: Rally Troop Attack +12.5%
+    9:
+      power: 277200
+      attack: 554
+      defense: 554
+      health: 5544
+      lethality_l: 63.0
+      health_l: 63.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 150%
+      skill_2: Rally Troop Attack +12.5%
+    10:
+      power: 315000
+      attack: 630
+      defense: 630
+      health: 6300
+      lethality_l: 70.0
+      health_l: 70.0
+      skill_1: Increases upper / lower limits of Mia's fluctuating skills by 150%
+      skill_2: Rally Troop Attack +15%

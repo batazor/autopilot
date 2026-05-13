@@ -82,6 +82,87 @@ def _extract_page_images(html: str) -> list[str]:
     return urls
 
 
+def _normalize_url(url: str) -> str:
+    """Strip protocol and trailing slash so we can match href ↔ wiki_url."""
+    u = (url or "").strip().lower()
+    u = re.sub(r"^https?://", "", u)
+    return u.rstrip("/")
+
+
+def _extract_hero_icons(index_html: str) -> dict[str, str]:
+    """Map normalized hero wiki_url → icon image URL from the heroes index page.
+
+    Heroes index renders each hero as a `pet-card-container` with an
+    `<img class="pet-image">` and an `<a href="…/heroes/<slug>/">`. The
+    `<slug>` in the wiki URL does not always match the db `id` (e.g. Norah
+    lives at `/heroes/gwen/`), so we key by normalized href and let the caller
+    look the db id up via `db/heroes/index.yaml`.
+    """
+    soup = BeautifulSoup(index_html, "html.parser")
+    out: dict[str, str] = {}
+    for card in soup.find_all("div", class_="pet-card-container"):
+        if not isinstance(card, Tag):
+            continue
+        a = card.find("a", href=True)
+        img = card.find("img")
+        if not isinstance(a, Tag) or not isinstance(img, Tag):
+            continue
+        href = (a.get("href") or "").strip()
+        src = (img.get("src") or img.get("data-src") or img.get("data-original") or "").strip()
+        if not href or not src:
+            continue
+        if src.startswith("//"):
+            src = "https:" + src
+        if not src.startswith("http"):
+            continue
+        if not re.search(r"/heroes/[^/]+/?$", href):
+            continue
+        out[_normalize_url(href)] = src
+    return out
+
+
+def _download_hero_icons(client: httpx.Client, repo: Path) -> int:
+    heroes_index = repo / "db" / "heroes" / "index.yaml"
+    if not heroes_index.is_file():
+        print("db/heroes/index.yaml missing — skip heroes icons", file=sys.stderr)
+        return 0
+    idx = _load_yaml(heroes_index)
+    entries = idx.get("heroes") if isinstance(idx.get("heroes"), list) else []
+
+    try:
+        html = client.get("https://www.whiteoutsurvival.wiki/heroes/", headers=_UA).text
+    except Exception as exc:
+        print(f"skip heroes index: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 0
+    icons = _extract_hero_icons(html)
+
+    assets_dir = repo / "db" / "assets" / "wiki" / "heroes"
+    downloaded = 0
+    missing: list[str] = []
+    for it in entries:
+        if not isinstance(it, dict):
+            continue
+        hid = str(it.get("id") or "").strip()
+        url = str(it.get("wiki_url") or "").strip()
+        if not hid or not url:
+            continue
+        src = icons.get(_normalize_url(url))
+        if not src:
+            missing.append(hid)
+            continue
+        m = re.search(r"/([^/]+)$", src)
+        fname = _safe_name(m.group(1) if m else f"{hid}.png")
+        out = assets_dir / hid / fname
+        if out.exists() and out.stat().st_size > 0:
+            continue
+        if _download(client, src, out):
+            downloaded += 1
+
+    if missing:
+        print(f"heroes without icon on index page: {len(missing)} ({', '.join(missing[:5])}…)", file=sys.stderr)
+    return downloaded
+
+
 def main(argv: list[str]) -> int:
     repo = _repo_root()
     assets_dir = repo / "db" / "assets" / "wiki"
@@ -91,6 +172,7 @@ def main(argv: list[str]) -> int:
     mode = (argv[0] if argv else "buildings").strip().lower()
     include_items = mode in {"items", "all"}
     include_buildings = mode in {"buildings", "all"}
+    include_heroes = mode in {"heroes", "all"}
 
     pages: list[tuple[str, str]] = []
 
@@ -114,7 +196,7 @@ def main(argv: list[str]) -> int:
             if url:
                 pages.append((f"items/{iid}", url))
 
-    if not pages:
+    if not pages and not include_heroes:
         print("no pages found to download from", file=sys.stderr)
         return 2
 
@@ -144,6 +226,9 @@ def main(argv: list[str]) -> int:
                     continue
                 if _download(client, src, out):
                     downloaded += 1
+
+        if include_heroes:
+            downloaded += _download_hero_icons(client, repo)
 
     print(f"downloaded {downloaded} images into {assets_dir.relative_to(repo)}")
     return 0

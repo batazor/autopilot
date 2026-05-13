@@ -626,13 +626,18 @@ if not filtered:
 def _render_cards(
     paths: list[Path],
     *,
-    key_prefix: str,
     area_mtime: float,
     area_doc: dict[str, object],
 ) -> None:
-    for i, p in enumerate(paths):
+    for p in paths:
         rel = _rel_under_references(p, ref_root)
-        layout_key = f"layout::{key_prefix}::{i}"
+        # Widget keys are tied to ``rel`` (stable per file), NOT to a
+        # positional index or per-group prefix — otherwise editing a row's
+        # ``screen_id`` reshuffles group membership and Streamlit reuses
+        # widget state by key, cascading the edit onto whichever row now
+        # occupies that index.
+        row_key = rel.replace("/", "::")
+        layout_key = f"layout::{row_key}"
 
         entry = _screen_entry_for_ref(area_doc, rel)
         ver_labels = _layout_ver_labels_for_entry(entry)
@@ -694,7 +699,7 @@ def _render_cards(
             highlight = st.toggle(
                 "Highlight regions",
                 value=False,
-                key=f"hl::{key_prefix}::{i}",
+                key=f"hl::{row_key}",
                 help="Draw `area.json` rectangles on the full image, then scale like the thumb.",
             )
         try:
@@ -726,23 +731,11 @@ def _render_cards(
                 width="stretch",
             )
             # Single selectbox, identical to the annotator's
-            # "Screen ID (node)" — same option source
-            # (``screen_id_select_options``: FSM transitions + ScreenName
-            # enum + EDGE_TAPS endpoints + current value) and the same
-            # formatter (``"" → "None (atypical / not in node graph)"``).
-            # Operator gets type-as-you-search inside the dropdown by
-            # Streamlit's built-in behaviour.
-            #
-            # Edit is permitted ONLY when the entry has a single ``ocr`` (no
-            # ``versions[]``). Multi-ref entries (e.g. main_city + v2 + vip)
-            # share one ``screen_id`` by design — editing here would silently
-            # rebrand all sibling refs. Splitting a versioned entry into
-            # per-ref entries requires copying regions and is reserved for
-            # the annotator UI, which preserves the labelling invariants.
-            _entry_refs = (
-                _refs_from_screen_entry(entry) if isinstance(entry, dict) else []
-            )
-            _multi_ref = len(_entry_refs) > 1
+            # "Screen ID (node)" on the Labels page — same option source
+            # (``screen_id_select_options``) and same formatter
+            # (``"" → "None (atypical / not in node graph)"``). Writes
+            # ``screen_id`` on the entry that owns this row's ref, exactly
+            # like Labels does via ``_render_screen_id_and_ocr_fields``.
             try:
                 _sid_opts = screen_id_select_options(area_doc, sid or "")
             except Exception:
@@ -750,32 +743,20 @@ def _render_cards(
             _cur = (sid or "").strip()
             _sid_idx = _sid_opts.index(_cur) if _cur in _sid_opts else 0
 
-            if _multi_ref:
-                _sibling_count = len(_entry_refs) - 1
-                _sid_help = (
-                    f"Editing locked: this image shares its area.json "
-                    f"entry with {_sibling_count} versioned ref(s) — they "
-                    f"all use the same ``screen_id``. Split the entry via "
-                    f"the annotator UI to assign per-version."
-                )
-            else:
-                _sid_help = (
-                    "Logical game / world node — **not** the PNG "
-                    "filename; several reference images can share one "
-                    "node. Pick **None** until you map this shot."
-                )
-
             _selected_sid = st.selectbox(
                 "Screen ID (node)",
                 options=_sid_opts,
                 index=_sid_idx,
                 format_func=_format_screen_id_choice,
-                key=f"node::{key_prefix}::{i}",
-                disabled=_multi_ref,
-                help=_sid_help,
+                key=f"node::{row_key}",
+                help=(
+                    "Logical game / world node — **not** the PNG filename; "
+                    "several reference images can share one node. "
+                    "Pick **None** until you map this shot."
+                ),
             )
 
-            if not _multi_ref and (_selected_sid or "") != (sid or ""):
+            if (_selected_sid or "") != (sid or ""):
                 ok, err = _set_screen_id_for_ref(rel, _selected_sid or "")
                 if ok:
                     st.toast(
@@ -803,14 +784,12 @@ if group_by == "page (screen_id)":
         with st.expander(f"{sid} · {len(groups[sid])}", expanded=False):
             _render_cards(
                 groups[sid],
-                key_prefix=f"grp::{sid}",
                 area_mtime=area_mtime,
                 area_doc=area_doc,
             )
 else:
     _render_cards(
         filtered,
-        key_prefix="flat",
         area_mtime=area_mtime,
         area_doc=area_doc,
     )

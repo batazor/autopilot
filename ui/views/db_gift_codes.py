@@ -33,10 +33,12 @@ _YES_NO_COLS = ("slot expired", "needs run")
 _ROW_EXPIRED_BG = "background-color: #e0e0e0"
 _CELL_YES_BG = "background-color: #c8e6c9"
 _CELL_NO_BG = "background-color: #ffcdd2"
+_REDEEMED_STATUSES = (RedeemStatus.SUCCESS.value, RedeemStatus.ALREADY_RECEIVED.value)
 
 
 def _style_gift_codes_table(df: pd.DataFrame) -> pd.io.formats.style.Styler:
     cols = list(df.columns)
+    player_cols = [c for c in cols if c.startswith("p:")]
 
     def row_styles(row: pd.Series) -> list[str]:
         n = len(cols)
@@ -49,6 +51,10 @@ def _style_gift_codes_table(df: pd.DataFrame) -> pd.io.formats.style.Styler:
             j = cols.index(name)
             val = str(row.get(name, "")).lower()
             out[j] = _CELL_YES_BG if val == "yes" else _CELL_NO_BG
+        for name in player_cols:
+            val = str(row.get(name, ""))
+            if val.startswith(_REDEEMED_STATUSES):
+                out[cols.index(name)] = _CELL_YES_BG
         return out
 
     return df.style.apply(row_styles, axis=1)
@@ -100,8 +106,19 @@ if run_redeem:
     elif not devices_path.is_file():
         st.error(f"Missing `{devices_path.relative_to(repo)}`")
     else:
-        with st.spinner("Redeeming codes… (may take a while)"):
-            asyncio.run(run_gift_code_redeemer(codes_path, devices_path))
+        pb = st.progress(0.0, text="Preparing…")
+
+        def _on_progress(done: int, total: int, label: str) -> None:
+            if total <= 0:
+                pb.progress(1.0, text="Nothing to redeem")
+                return
+            ratio = min(1.0, max(0.0, done / total))
+            pb.progress(ratio, text=f"Redeeming {done}/{total} · {label}")
+
+        asyncio.run(
+            run_gift_code_redeemer(codes_path, devices_path, progress_cb=_on_progress)
+        )
+        pb.progress(1.0, text="Done")
         st.success("Done.")
         st.rerun()
 

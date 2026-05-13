@@ -134,3 +134,98 @@ skills:
 - name: Iranon’s Determination (Lv. 5)
   description: Lynn stirs the defenders with a nostalgic poem, increasing Defender
     Troops' Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 55000
+      attack: 133
+      defense: 111
+      health: 832
+      lethality_m: 9.25
+      health_m: 9.25
+      skill_1: Lynn Attack +7% after Hymn of Sidrak until end of battle
+    2:
+      power: 94350
+      attack: 227
+      defense: 227
+      health: 1415
+      lethality_m: 18.5
+      health_m: 18.5
+      skill_1: Lynn Attack +7% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +5%
+    3:
+      power: 133200
+      attack: 321
+      defense: 266
+      health: 1998
+      lethality_m: 27.75
+      health_m: 27.75
+      skill_1: Lynn Attack +9% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +5%
+    4:
+      power: 172050
+      attack: 418
+      defense: 344
+      health: 2580
+      lethality_m: 37.0
+      health_m: 37.0
+      skill_1: Lynn Attack +9% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +7.5%
+    5:
+      power: 210900
+      attack: 512
+      defense: 421
+      health: 3163
+      lethality_m: 46.25
+      health_m: 46.25
+      skill_1: Lynn Attack +11% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +7.5%
+    6:
+      power: 249750
+      attack: 606
+      defense: 499
+      health: 3746
+      lethality_m: 55.5
+      health_m: 55.5
+      skill_1: Lynn Attack +11% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +10%
+    7:
+      power: 288600
+      attack: 701
+      defense: 577
+      health: 4329
+      lethality_m: 64.75
+      health_m: 64.75
+      skill_1: Lynn Attack +13% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +10%
+    8:
+      power: 327450
+      attack: 795
+      defense: 654
+      health: 4911
+      lethality_m: 74.0
+      health_m: 74.0
+      skill_1: Lynn Attack +13% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +12.5%
+    9:
+      power: 366300
+      attack: 889
+      defense: 732
+      health: 5494
+      lethality_m: 83.25
+      health_m: 83.25
+      skill_1: Lynn Attack +15% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +12.5%
+    10:
+      power: 416250
+      attack: 1010
+      defense: 832
+      health: 6243
+      lethality_m: 92.5
+      health_m: 92.5
+      skill_1: Lynn Attack +15% after Hymn of Sidrak until end of battle
+      skill_2: Defender Troop Lethality +15%

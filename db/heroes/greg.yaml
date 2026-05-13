@@ -129,3 +129,98 @@ skills:
 - name: Trumpet of Justice (Lv. 5)
   description: Greg mobilizes the army under the banner of justice and belief, increasing
     Rally Troop Health by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 42000
+      attack: 100
+      defense: 84
+      health: 630
+      lethality_m: 7.0
+      health_m: 7.0
+      skill_1: Silences target for 3s, dealing Attack * 220% damage
+    2:
+      power: 71400
+      attack: 172
+      defense: 142
+      health: 1071
+      lethality_m: 14.0
+      health_m: 14.0
+      skill_1: Silences target for 3s, dealing Attack * 220% damage
+      skill_2: Rally Troop Health +5%
+    3:
+      power: 100800
+      attack: 243
+      defense: 201
+      health: 1512
+      lethality_m: 21.0
+      health_m: 21.0
+      skill_1: Silences target for 3.5s, dealing Attack * 240% damage
+      skill_2: Rally Troop Health +5%
+    4:
+      power: 130200
+      attack: 316
+      defense: 260
+      health: 1952
+      lethality_m: 28.0
+      health_m: 28.0
+      skill_1: Silences target for 3.5s, dealing Attack * 240% damage
+      skill_2: Rally Troop Health +7.5%
+    5:
+      power: 159600
+      attack: 387
+      defense: 319
+      health: 2394
+      lethality_m: 35.0
+      health_m: 35.0
+      skill_1: Silences target for 4s, dealing Attack * 260% damage
+      skill_2: Rally Troop Health +7.5%
+    6:
+      power: 189000
+      attack: 459
+      defense: 378
+      health: 2835
+      lethality_m: 42.0
+      health_m: 42.0
+      skill_1: Silences target for 4s, dealing Attack * 260% damage
+      skill_2: Rally Troop Health +10%
+    7:
+      power: 218400
+      attack: 530
+      defense: 436
+      health: 3276
+      lethality_m: 49.0
+      health_m: 49.0
+      skill_1: Silences target for 4.5s, dealing Attack * 280% damage
+      skill_2: Rally Troop Health +10%
+    8:
+      power: 247800
+      attack: 602
+      defense: 495
+      health: 3716
+      lethality_m: 56.0
+      health_m: 56.0
+      skill_1: Silences target for 4.5s, dealing Attack * 280% damage
+      skill_2: Rally Troop Health +12.5%
+    9:
+      power: 277200
+      attack: 673
+      defense: 554
+      health: 4158
+      lethality_m: 63.0
+      health_m: 63.0
+      skill_1: Silences target for 5s, dealing Attack * 300% damage
+      skill_2: Rally Troop Health +12.5%
+    10:
+      power: 315000
+      attack: 764
+      defense: 630
+      health: 4725
+      lethality_m: 70.0
+      health_m: 70.0
+      skill_1: Silences target for 5s, dealing Attack * 300% damage
+      skill_2: Rally Troop Health +15%

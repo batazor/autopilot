@@ -127,3 +127,98 @@ skills:
 - name: Dragonbreath (Lv. 5)
   description: Flint fortifies his flamethrower for city defense, increasing Defense
     Troops' Attack by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 55
+      defense: 72
+      health: 1080
+      lethality_i: 6.0
+      health_i: 6.0
+      skill_1: Flint Attack +8% until end of battle once Incinerator has been triggered
+    2:
+      power: 61200
+      attack: 93
+      defense: 122
+      health: 1836
+      lethality_i: 12.0
+      health_i: 12.0
+      skill_1: Flint Attack +8% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +5%
+    3:
+      power: 86400
+      attack: 132
+      defense: 172
+      health: 2592
+      lethality_i: 18.0
+      health_i: 18.0
+      skill_1: Flint Attack +12% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +5%
+    4:
+      power: 111600
+      attack: 170
+      defense: 223
+      health: 3348
+      lethality_i: 24.0
+      health_i: 24.0
+      skill_1: Flint Attack +12% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +7.5%
+    5:
+      power: 136800
+      attack: 210
+      defense: 273
+      health: 4104
+      lethality_i: 30.0
+      health_i: 30.0
+      skill_1: Flint Attack +16% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +7.5%
+    6:
+      power: 162000
+      attack: 248
+      defense: 324
+      health: 4860
+      lethality_i: 36.0
+      health_i: 36.0
+      skill_1: Flint Attack +16% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +10%
+    7:
+      power: 187200
+      attack: 286
+      defense: 374
+      health: 5616
+      lethality_i: 42.0
+      health_i: 42.0
+      skill_1: Flint Attack +20% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +10%
+    8:
+      power: 212400
+      attack: 325
+      defense: 424
+      health: 6372
+      lethality_i: 48.0
+      health_i: 48.0
+      skill_1: Flint Attack +20% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +12.5%
+    9:
+      power: 237600
+      attack: 363
+      defense: 475
+      health: 7128
+      lethality_i: 54.0
+      health_i: 54.0
+      skill_1: Flint Attack +24% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +12.5%
+    10:
+      power: 270000
+      attack: 414
+      defense: 540
+      health: 8100
+      lethality_i: 60.0
+      health_i: 60.0
+      skill_1: Flint Attack +24% until end of battle once Incinerator has been triggered
+      skill_2: Defender Troop Attack +15%

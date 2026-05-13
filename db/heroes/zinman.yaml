@@ -130,3 +130,98 @@ skills:
 - name: Defend to Attack (Lv. 5)
   description: Zinman constructs an Archer Towers, increasing Defender Troops' Attack
     by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 30000
+      attack: 72
+      defense: 60
+      health: 450
+      lethality_m: 5.0
+      health_m: 5.0
+      skill_1: Zinman Attack +8%
+    2:
+      power: 51000
+      attack: 123
+      defense: 102
+      health: 765
+      lethality_m: 10.0
+      health_m: 10.0
+      skill_1: Zinman Attack +8%
+      skill_2: Defender Troop Attack +5%
+    3:
+      power: 72000
+      attack: 174
+      defense: 144
+      health: 1080
+      lethality_m: 15.0
+      health_m: 15.0
+      skill_1: Zinman Attack +12%
+      skill_2: Defender Troop Attack +5%
+    4:
+      power: 93000
+      attack: 226
+      defense: 186
+      health: 1395
+      lethality_m: 20.0
+      health_m: 20.0
+      skill_1: Zinman Attack +12%
+      skill_2: Defender Troop Attack +7.5%
+    5:
+      power: 114000
+      attack: 277
+      defense: 228
+      health: 1710
+      lethality_m: 25.0
+      health_m: 25.0
+      skill_1: Zinman Attack +16%
+      skill_2: Defender Troop Attack +7.5%
+    6:
+      power: 135000
+      attack: 328
+      defense: 270
+      health: 2025
+      lethality_m: 30.0
+      health_m: 30.0
+      skill_1: Zinman Attack +16%
+      skill_2: Defender Troop Attack +10%
+    7:
+      power: 156000
+      attack: 379
+      defense: 312
+      health: 2340
+      lethality_m: 35.0
+      health_m: 35.0
+      skill_1: Zinman Attack +20%
+      skill_2: Defender Troop Attack +10%
+    8:
+      power: 177000
+      attack: 430
+      defense: 354
+      health: 2655
+      lethality_m: 40.0
+      health_m: 40.0
+      skill_1: Zinman Attack +20%
+      skill_2: Defender Troop Attack +12.5%
+    9:
+      power: 198000
+      attack: 481
+      defense: 396
+      health: 2970
+      lethality_m: 45.0
+      health_m: 45.0
+      skill_1: Zinman Attack +24%
+      skill_2: Defender Troop Attack +12.5%
+    10:
+      power: 225000
+      attack: 546
+      defense: 450
+      health: 3375
+      lethality_m: 50.0
+      health_m: 50.0
+      skill_1: Zinman Attack +24%
+      skill_2: Defender Troop Attack +15%

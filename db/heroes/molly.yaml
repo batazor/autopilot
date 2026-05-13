@@ -133,3 +133,98 @@ skills:
 - name: Snowy Blessing (Lv. 5)
   description: With the blessing of the snow, Defender Troops' Lethality is increased
     by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 30000
+      attack: 60
+      defense: 60
+      health: 600
+      lethality_l: 5.0
+      health_l: 5.0
+      skill_1: Molly damage +10%
+    2:
+      power: 51000
+      attack: 102
+      defense: 102
+      health: 1020
+      lethality_l: 10.0
+      health_l: 10.0
+      skill_1: Molly damage +10%
+      skill_2: Defender Troop Lethality +5%
+    3:
+      power: 72000
+      attack: 144
+      defense: 144
+      health: 1440
+      lethality_l: 15.0
+      health_l: 15.0
+      skill_1: Molly damage +15%
+      skill_2: Defender Troop Lethality +5%
+    4:
+      power: 93000
+      attack: 186
+      defense: 186
+      health: 1860
+      lethality_l: 20.0
+      health_l: 20.0
+      skill_1: Molly damage +15%
+      skill_2: Defender Troop Lethality +7.5%
+    5:
+      power: 114000
+      attack: 228
+      defense: 228
+      health: 2280
+      lethality_l: 25.0
+      health_l: 25.0
+      skill_1: Molly damage +20%
+      skill_2: Defender Troop Lethality +7.5%
+    6:
+      power: 135000
+      attack: 270
+      defense: 270
+      health: 2700
+      lethality_l: 30.0
+      health_l: 30.0
+      skill_1: Molly damage +20%
+      skill_2: Defender Troop Lethality +10%
+    7:
+      power: 156000
+      attack: 312
+      defense: 312
+      health: 3120
+      lethality_l: 35.0
+      health_l: 35.0
+      skill_1: Molly damage +25%
+      skill_2: Defender Troop Lethality +10%
+    8:
+      power: 177000
+      attack: 354
+      defense: 354
+      health: 3540
+      lethality_l: 40.0
+      health_l: 40.0
+      skill_1: Molly damage +25%
+      skill_2: Defender Troop Lethality +12.5%
+    9:
+      power: 198000
+      attack: 396
+      defense: 396
+      health: 3960
+      lethality_l: 45.0
+      health_l: 45.0
+      skill_1: Molly damage +30%
+      skill_2: Defender Troop Lethality +12.5%
+    10:
+      power: 225000
+      attack: 450
+      defense: 450
+      health: 4500
+      lethality_l: 50.0
+      health_l: 50.0
+      skill_1: Molly damage +30%
+      skill_2: Defender Troop Lethality +15%

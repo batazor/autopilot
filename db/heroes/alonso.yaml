@@ -125,3 +125,98 @@ skills:
 - name: Harpoon Enhancement (Lv. 5)
   description: Alonso has made some modifications to your troops' weapons, boosting
     Rally Squad Lethality by 15%.
+levels:
+  source:
+    sheet: 1-PAWwMMDyU1W_nsJPgR_KZpfZmJtWYcBtsWk5X2A19s
+    gid: 780465677
+    fetched_at: '2026-05-13'
+  table:
+    1:
+      power: 36000
+      attack: 86
+      defense: 72
+      health: 540
+      lethality_m: 6.0
+      health_m: 6.0
+      skill_1: Heal weakest hero by 5% with each basic attack
+    2:
+      power: 61200
+      attack: 147
+      defense: 122
+      health: 918
+      lethality_m: 12.0
+      health_m: 12.0
+      skill_1: Heal weakest hero by 5% with each basic attack
+      skill_2: Rally Troop Lethality +5%
+    3:
+      power: 86400
+      attack: 208
+      defense: 172
+      health: 1296
+      lethality_m: 18.0
+      health_m: 18.0
+      skill_1: Heal weakest hero by 7.5% with each basic attack
+      skill_2: Rally Troop Lethality +5%
+    4:
+      power: 111600
+      attack: 271
+      defense: 223
+      health: 1674
+      lethality_m: 24.0
+      health_m: 24.0
+      skill_1: Heal weakest hero by 7.5% with each basic attack
+      skill_2: Rally Troop Lethality +7.5%
+    5:
+      power: 136800
+      attack: 332
+      defense: 273
+      health: 2052
+      lethality_m: 30.0
+      health_m: 30.0
+      skill_1: Heal weakest hero by 10% with each basic attack
+      skill_2: Rally Troop Lethality +7.5%
+    6:
+      power: 162000
+      attack: 393
+      defense: 324
+      health: 2430
+      lethality_m: 36.0
+      health_m: 36.0
+      skill_1: Heal weakest hero by 10% with each basic attack
+      skill_2: Rally Troop Lethality +10%
+    7:
+      power: 187200
+      attack: 454
+      defense: 374
+      health: 2808
+      lethality_m: 42.0
+      health_m: 42.0
+      skill_1: Heal weakest hero by 12.5% with each basic attack
+      skill_2: Rally Troop Lethality +10%
+    8:
+      power: 212400
+      attack: 516
+      defense: 424
+      health: 3186
+      lethality_m: 48.0
+      health_m: 48.0
+      skill_1: Heal weakest hero by 12.5% with each basic attack
+      skill_2: Rally Troop Lethality +12.5%
+    9:
+      power: 237600
+      attack: 577
+      defense: 475
+      health: 3564
+      lethality_m: 54.0
+      health_m: 54.0
+      skill_1: Heal weakest hero by 15% with each basic attack
+      skill_2: Rally Troop Lethality +12.5%
+    10:
+      power: 270000
+      attack: 655
+      defense: 540
+      health: 4050
+      lethality_m: 60.0
+      health_m: 60.0
+      skill_1: Heal weakest hero by 15% with each basic attack
+      skill_2: Rally Troop Lethality +15%

@@ -15,6 +15,7 @@ import yaml
 from century.api import CenturyAPIError, CenturyClient
 from config.buildings import get_building_registry
 from config.devices import load_devices, upsert_device_gamer
+from config.heroes import HeroDef, get_hero_registry
 from config.loader import load_settings
 from config.state_schema import GamerState, StateDB
 from config.state_store import get_state_store
@@ -229,6 +230,149 @@ def _sync_selected_player_from_century(g: GamerState) -> None:
     st.rerun()
 
 
+def _resolve_hero_icon(hero_id: str) -> Path | None:
+    base = _repo_root() / "db" / "assets" / "wiki" / "heroes" / hero_id
+    if not base.is_dir():
+        return None
+    exts = {".png", ".webp", ".jpg", ".jpeg", ".gif"}
+    files = [p for p in base.iterdir() if p.is_file() and p.suffix.lower() in exts]
+    if not files:
+        return None
+    files.sort(key=lambda p: (p.suffix.lower(), p.name.lower()))
+    return files[0]
+
+
+def _format_seen_at(ts: object) -> str:
+    try:
+        seen = float(ts)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    if seen <= 0:
+        return "—"
+    delta = max(0, int(time.time() - seen))
+    if delta < 60:
+        return f"{delta}s ago"
+    if delta < 3600:
+        return f"{delta // 60}m ago"
+    if delta < 86400:
+        return f"{delta // 3600}h ago"
+    return f"{delta // 86400}d ago"
+
+
+def _hero_entries_rows(
+    entries: dict[str, object],
+) -> list[dict[str, object]]:
+    reg = get_hero_registry()
+    rows: list[dict[str, object]] = []
+    for hid, raw in entries.items():
+        if not isinstance(raw, dict):
+            continue
+        hdef: HeroDef | None = reg.by_id(hid)
+        name = str(raw.get("name") or (hdef.name if hdef else hid) or hid)
+        try:
+            level = int(raw.get("level"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            level = 0
+        rows.append(
+            {
+                "id": hid,
+                "hero": name,
+                "level": level,
+                "rarity": (hdef.rarity if hdef else "") or "—",
+                "class": (hdef.hero_class if hdef else "") or "—",
+                "sub_class": (hdef.sub_class if hdef else "") or "—",
+                "seen": _format_seen_at(raw.get("seen_at")),
+            }
+        )
+    rows.sort(key=lambda r: (-(int(r["level"]) if isinstance(r["level"], int) else 0), str(r["hero"]).lower()))
+    return rows
+
+
+def _render_heroes_panel(g: GamerState) -> None:
+    entries_raw = g.heroes.entries or {}
+    entries: dict[str, object] = {
+        str(k): v for k, v in entries_raw.items() if isinstance(v, dict)
+    }
+    reg = get_hero_registry()
+    total_registry = len(reg.heroes)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Seen heroes", len(entries))
+    c2.metric("Heroes in registry", total_registry)
+    c3.metric("Notify", "yes" if g.heroes.isnotify else "no")
+
+    if not entries:
+        st.info(
+            "No hero snapshots yet for this player. Open a hero card in-game "
+            "and run the `sync_hero_unit` scenario — entries land in "
+            "`heroes.entries.<id>` of `db/state.yaml`."
+        )
+    else:
+        rows = _hero_entries_rows(entries)
+
+        show_filter = st.text_input(
+            "Filter (name / id / class)",
+            value="",
+            key=f"player_state_heroes_filter_{g.id}",
+        ).strip().lower()
+
+        visible: list[dict[str, object]] = []
+        for r in rows:
+            hay = " ".join(str(v) for v in r.values()).lower()
+            if show_filter and show_filter not in hay:
+                continue
+            visible.append(r)
+
+        if not visible:
+            st.info("No heroes matched the current filter.")
+        else:
+            st.subheader(f"Owned heroes ({len(visible)}/{len(rows)})")
+            cols_per_row = 4
+            for i in range(0, len(visible), cols_per_row):
+                chunk = visible[i : i + cols_per_row]
+                tiles = st.columns(cols_per_row)
+                for col, row in zip(tiles, chunk):
+                    with col:
+                        icon = _resolve_hero_icon(str(row["id"]))
+                        if icon is not None and icon.is_file():
+                            try:
+                                st.image(str(icon), width=96)
+                            except Exception:
+                                pass
+                        st.markdown(f"**{row['hero']}** · `{row['id']}`")
+                        st.caption(
+                            f"Lv. {row['level']} · {row['rarity']} · "
+                            f"{row['class']} / {row['sub_class']}"
+                        )
+                        st.caption(f"seen: {row['seen']}")
+
+            st.divider()
+            st.markdown("**Table view**")
+            st.dataframe(pd.DataFrame(visible), width="stretch", hide_index=True)
+
+    with st.expander("Heroes not yet seen", expanded=False):
+        seen_ids = set(entries.keys())
+        missing = [h for h in reg.heroes if h.id not in seen_ids]
+        if not missing:
+            st.success("All heroes from the registry have been seen.")
+        else:
+            missing_rows = [
+                {
+                    "id": h.id,
+                    "hero": h.name,
+                    "rarity": h.rarity or "—",
+                    "class": h.hero_class or "—",
+                    "sub_class": h.sub_class or "—",
+                }
+                for h in missing
+            ]
+            missing_rows.sort(key=lambda r: str(r["hero"]).lower())
+            st.dataframe(pd.DataFrame(missing_rows), width="stretch", hide_index=True)
+
+    with st.expander("Raw `heroes.entries`", expanded=False):
+        st.json(entries_raw)
+
+
 def _levels_table_rows(state: dict[str, str]) -> list[dict[str, object]]:
     reg = get_building_registry()
     rows: list[dict[str, object]] = []
@@ -363,10 +507,45 @@ def _live_panel(pid: str) -> None:
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
-tab_redis, tab_yaml = st.tabs(["Redis (live)", "Persisted (state.yaml)"])
+tab_redis, tab_yaml, tab_heroes = st.tabs(
+    ["Redis (live)", "Persisted (state.yaml)", "Heroes"]
+)
 
 with tab_redis:
     _live_panel(effective_pid)
+
+with tab_heroes:
+    st.markdown(f"**File:** `{rel}` · section `gamers[].heroes`")
+    if yaml_err:
+        st.error(f"Cannot parse YAML as `StateDB`: {yaml_err}")
+    elif not state_path.is_file():
+        st.warning(f"Missing `{rel}` — no player heroes to display yet.")
+    elif not db or not db.gamers:
+        st.info("No gamers in `gamers` yet — run scenarios that persist state.")
+    else:
+        ids = [str(g.id) for g in db.gamers]
+        idx_sel = ids.index(effective_pid) if effective_pid in ids else 0
+
+        def _hero_tab_label(g: GamerState) -> str:
+            nick = (g.nickname or "").strip() or "—"
+            return f"{nick} · {g.id}"
+
+        if len(db.gamers) > 1:
+            selected_hero_gamer = st.selectbox(
+                "Player",
+                options=list(db.gamers),
+                index=idx_sel,
+                format_func=_hero_tab_label,
+                key="player_state_selected_heroes",
+            )
+        else:
+            selected_hero_gamer = db.gamers[0]
+
+        st.subheader(
+            f"{(selected_hero_gamer.nickname or '—').strip() or '—'} · "
+            f"`{selected_hero_gamer.id}`"
+        )
+        _render_heroes_panel(selected_hero_gamer)
 
 with tab_yaml:
     st.markdown(f"**File:** `{rel}`")
