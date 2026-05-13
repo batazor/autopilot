@@ -1,0 +1,5 @@
+enabled: false
+name: "Canyon Clash"
+node: event.canyon_clash
+icon: canyon_clash
+steps: []

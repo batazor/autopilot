@@ -95,6 +95,25 @@ red on an avatar over open sky still fails at this radius — sky stays at
 S≈30 several dozen pixels out. Scaled per-call with the captured frame
 height, same as the badge radius range."""
 
+RED_DOT_NESTING_RING_PX = 10
+RED_DOT_MAX_NESTING_RED_RATIO = 0.25
+"""Reject candidates embedded inside a larger red structure.
+
+A real notification badge sits as an isolated red disc on a non-red button or
+icon — its 10-pixel surround contains essentially zero other red pixels. The
+"+5%" / "+12%" booster sticker rendered next to resource counters has a small
+red "+" character inside a red-bordered oval: that inner "+" passes every
+shape and saturation gate, but its 10 px ring is 30–45 % red because the
+outer oval border sits a few pixels away. The same logic kills inner red
+fragments of any larger red UI element (banners, ribbons, frames) that the
+morphological close did not glue to the candidate.
+
+Numbers calibrated at 720×1280: 6 main_city_v2 badges + the 1-min speedup
+tile + the two-digit counter fixture all measure 0 % red in this ring; the
+"+5%" inner "+" inside the ``isWorkers`` region measures 38 % at 8 px and
+42 % at 12 px. A floor at 25 % cleanly separates them. Scaled per-call with
+the captured frame height, same as the badge radius range."""
+
 
 # ---------------------------------------------------------------------------
 # Winter-event "frost badge" variant
@@ -224,6 +243,14 @@ def find_red_dots(
         cv2.MORPH_ELLIPSE,
         (2 * wide_ring_px + 1, 2 * wide_ring_px + 1),
     )
+    nesting_ring_px = max(
+        RED_DOT_SURROUND_RING_PX + 2,
+        int(round(RED_DOT_NESTING_RING_PX * float(norm_h) / REFERENCE_IMAGE_HEIGHT)),
+    )
+    nesting_ring_kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (2 * nesting_ring_px + 1, 2 * nesting_ring_px + 1),
+    )
 
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     out: list[RedDotDetection] = []
@@ -295,6 +322,20 @@ def find_red_dots(
                         continue
                 else:
                     continue
+
+        # Nesting gate: a real notification badge sits as an isolated red disc.
+        # An inner red fragment of a larger red sticker / banner / oval (e.g.
+        # the "+" inside a "+5%" booster pill, or pieces of a discount ribbon
+        # that morph-close did not glue to this candidate) has *other* red mass
+        # a few pixels away. Counting red pixels in the immediate vicinity —
+        # excluding the candidate's own contour — separates the two cleanly.
+        nest_dilated = cv2.dilate(cmask, nesting_ring_kernel)
+        nest_ring = (nest_dilated > 0) & (cmask == 0)
+        nest_area = int(nest_ring.sum())
+        if nest_area >= 8:
+            nest_red = int((nest_ring & (mask > 0)).sum())
+            if nest_red / float(nest_area) > RED_DOT_MAX_NESTING_RED_RATIO:
+                continue
 
         cx = float(x) + bw / 2.0
         cy = float(y) + bh / 2.0

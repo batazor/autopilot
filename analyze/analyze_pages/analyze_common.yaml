@@ -144,7 +144,6 @@ overlay:
   expected: ["tap anywhere"]
   threshold: 0.7
   priority: 83_000
-  ttl: 5s
   pushScenario:
     - name: tap_tapanywhereyoexit
 

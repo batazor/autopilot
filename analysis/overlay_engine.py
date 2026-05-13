@@ -904,7 +904,12 @@ async def evaluate_overlay_rules_async(
                     "region": region_name,
                 }
                 continue
-            _entry, reg = pair
+            entry, reg = pair
+            # Same OCR-frame guard as the findIcon search-fallback: a
+            # ``{region}_search`` sibling on a *different* screen would point
+            # at unrelated pixels, so we anchor on the primary region's
+            # ``effective_ocr_for_region``.
+            ref_rel = effective_ocr_for_region(entry, reg)
             # ``type: time`` opts the rule into HH:MM:SS / MM:SS parsing so
             # downstream consumers can read ``time_seconds`` directly. Rule
             # ``type:`` wins; otherwise inherit from area.json so a region
@@ -940,13 +945,58 @@ async def evaluate_overlay_rules_async(
             conf = float(res.confidence or 0.0)
             matched = False
             best: dict[str, object] | None = None
+            ocr_source = region_name
 
             if expected:
                 thr = float(fuzzy_thr) if fuzzy_thr is not None else float(threshold)
-                m = fuzzy_match(txt, expected, threshold=thr)
+                # ``partial=True``: OCR may pick up sibling labels (multi-line
+                # popups, level badges next to the prompt). Mirrors what an
+                # author writes in ``expected: ["tap anywhere"]`` — they mean
+                # "this phrase appears somewhere in the OCR'd content", not
+                # "the OCR result equals this phrase verbatim".
+                m = fuzzy_match(txt, expected, threshold=thr, partial=True)
                 if m is not None:
                     matched = True
                     best = {"candidate": m.candidate, "score": m.score}
+                else:
+                    # Fallback: same pattern as findIcon's slide-find — when a
+                    # ``{region}_search`` sibling exists on the same OCR frame,
+                    # re-OCR that wider ROI. A popup variant that moved the
+                    # prompt out of the primary bbox (e.g. Patrick hero card
+                    # pushes "Tap anywhere to continue" 5 % lower than the
+                    # Chapter Rewards reference) still gets caught — the wider
+                    # bbox includes both positions, partial-fuzzy filters out
+                    # the surrounding noise.
+                    pair_s = screen_region_by_name(
+                        area_doc, f"{region_name}_search", state_flat=state_flat
+                    )
+                    if pair_s is not None:
+                        entry_s, reg_s = pair_s
+                        if str(entry_s.get("ocr") or "").strip() == ref_rel:
+                            sbbox = reg_s.get("bbox")
+                            if isinstance(sbbox, dict):
+                                sregion_px = _bbox_percent_to_region_px(sbbox, wi, hi)
+                                try:
+                                    sres = await ocr.ocr_region(
+                                        image_bgr,
+                                        sregion_px,
+                                        region_id=f"{region_name}_search",
+                                    )
+                                    stxt = str(sres.text or "").strip()
+                                    sm = fuzzy_match(
+                                        stxt, expected, threshold=thr, partial=True
+                                    )
+                                    if sm is not None:
+                                        matched = True
+                                        best = {
+                                            "candidate": sm.candidate,
+                                            "score": sm.score,
+                                        }
+                                        txt = stxt
+                                        conf = float(sres.confidence or 0.0)
+                                        ocr_source = f"{region_name}_search"
+                                except Exception:
+                                    pass
             else:
                 matched = bool(txt)
 
@@ -977,6 +1027,7 @@ async def evaluate_overlay_rules_async(
                 "expected": expected,
                 "fuzzy_threshold": fuzzy_thr,
                 "match": best,
+                "ocr_source": ocr_source,
             }
             if rule_type:
                 out[logical_name]["type"] = rule_type

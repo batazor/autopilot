@@ -13,7 +13,8 @@ steps:
       - click: big_claim_button
       - wait: 2s
       - match: tapanywhereyoexit
-        threshold: 0.92
+        expected: ["tap anywhere"]
+        threshold: 0.7
         steps:
           - click: tapanywhereyoexit
           - wait: 0.5s

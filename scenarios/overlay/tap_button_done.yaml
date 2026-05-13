@@ -5,7 +5,8 @@ device_level: true
 
 steps:
   - match: button.done
-    threshold: 0.9
+    expected: ["done"]
+    threshold: 0.7
   - click: button.done
   - wait: 1s
   - match: button.claim

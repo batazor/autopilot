@@ -1,0 +1,5 @@
+enabled: false
+name: "Bear Hunt"
+node: event.bear_hunt
+icon: bear_hunt
+steps: []

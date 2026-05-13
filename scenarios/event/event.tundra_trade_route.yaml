@@ -1,0 +1,5 @@
+enabled: false
+name: "Tundra Trade Route"
+node: event.tundra_trade_route
+icon: tundra_trade_route
+steps: []

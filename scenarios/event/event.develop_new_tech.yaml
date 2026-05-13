@@ -1,0 +1,5 @@
+enabled: false
+name: "Develop New Tech"
+node: event.develop_new_tech
+icon: develop_new_tech
+steps: []

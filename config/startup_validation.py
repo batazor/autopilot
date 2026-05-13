@@ -80,6 +80,79 @@ def _area_regions_with_red_dot_capability(area_doc: dict[str, Any]) -> set[str]:
     return out
 
 
+def _area_regions_text_action_with_search_sibling(area_doc: dict[str, Any]) -> set[str]:
+    """Text-action regions whose ``<name>_search`` auxiliary bbox exists.
+
+    These are regions where the overlay engine's ``_search`` fallback path
+    (``analysis/overlay_engine.py`` text branch) is the ONLY thing that catches
+    popup variants which moved the prompt out of the primary bbox. The fallback
+    is only triggered when the rule carries ``expected``; without it the DSL
+    ``match:`` / ``while_match:`` step silently exits with iterations=0 on
+    those popup variants. Catching the missing ``expected`` at startup avoids
+    a phantom success in queue history.
+    """
+    text_regions: set[str] = set()
+    all_regions: set[str] = set()
+    for screen in area_doc.get("screens") or []:
+        if not isinstance(screen, dict):
+            continue
+        for source in (screen.get("regions"), *(
+            v.get("regions") for v in (screen.get("versions") or []) if isinstance(v, dict)
+        )):
+            if not isinstance(source, list):
+                continue
+            for reg in source:
+                if not isinstance(reg, dict):
+                    continue
+                name = str(reg.get("name") or "").strip()
+                if not name:
+                    continue
+                all_regions.add(name)
+                if str(reg.get("action") or "").strip() == "text":
+                    text_regions.add(name)
+    return {r for r in text_regions if f"{r}_search" in all_regions}
+
+
+def _check_text_action_expected_required(
+    issues: list[StartupValidationIssue],
+    *,
+    text_search_regions: set[str],
+    region_names: set[str],
+    source: str,
+    field: str,
+    step: dict[str, Any],
+) -> None:
+    """Flag ``match:``/``while_match:`` on a text+search region with no ``expected:``.
+
+    Without ``expected``, the overlay engine evaluates ``matched = bool(txt)``
+    on the primary bbox alone — the ``_search`` fallback never runs. Popup
+    variants whose text shifted out of the primary bbox then return empty
+    OCR (matched=False) and the step exits as a phantom success.
+    """
+    region = str(step.get(field) or "").strip()
+    if not region or region not in region_names:
+        return
+    if region not in text_search_regions:
+        return
+    expected = step.get("expected")
+    has_expected = (
+        (isinstance(expected, list) and any(str(x).strip() for x in expected))
+        or (isinstance(expected, str) and bool(expected.strip()))
+    )
+    if has_expected:
+        return
+    issues.append(
+        StartupValidationIssue(
+            "error",
+            source,
+            f"{field} {region!r} is a text-action region with a `_search` "
+            "sibling — must carry `expected: [...]` so the overlay engine's "
+            "fuzzy + _search fallback can run; otherwise popup variants "
+            "silently exit with iterations=0",
+        )
+    )
+
+
 def _rule_uses_red_dot(rule: dict[str, Any]) -> bool:
     """Does the overlay rule rely on the red-dot detector?
 
@@ -274,6 +347,7 @@ def _walk_steps(
     issues: list[StartupValidationIssue],
     region_names: set[str],
     red_dot_regions: set[str],
+    text_search_regions: set[str],
     scenario_keys: set[str],
 ) -> None:
     if not isinstance(steps, list):
@@ -308,6 +382,21 @@ def _walk_steps(
                         field=key,
                         value=step.get(key),
                     )
+        # DSL `match:` / `while_match:` on a text-action region that has a
+        # `<name>_search` auxiliary sibling: require `expected:` so the
+        # overlay engine's fuzzy + `_search` fallback path activates. Without
+        # it the step silently exits with iterations=0 on popup variants
+        # that moved the prompt out of the primary bbox.
+        for key in ("match", "while_match"):
+            if key in step:
+                _check_text_action_expected_required(
+                    issues,
+                    text_search_regions=text_search_regions,
+                    region_names=region_names,
+                    source=step_source,
+                    field=key,
+                    step=step,
+                )
         _check_region(
             issues,
             region_names=region_names,
@@ -351,6 +440,7 @@ def _walk_steps(
                 issues=issues,
                 region_names=region_names,
                 red_dot_regions=red_dot_regions,
+                text_search_regions=text_search_regions,
                 scenario_keys=scenario_keys,
             )
 
@@ -371,6 +461,7 @@ def _walk_steps(
             issues=issues,
             region_names=region_names,
             red_dot_regions=red_dot_regions,
+            text_search_regions=text_search_regions,
             scenario_keys=scenario_keys,
         )
 
@@ -407,6 +498,7 @@ def _validate_scenarios(
     *,
     region_names: set[str],
     red_dot_regions: set[str],
+    text_search_regions: set[str],
     scenario_keys: set[str],
 ) -> None:
     scenarios_root = repo_root / "scenarios"
@@ -459,6 +551,7 @@ def _validate_scenarios(
             issues=issues,
             region_names=region_names,
             red_dot_regions=red_dot_regions,
+            text_search_regions=text_search_regions,
             scenario_keys=scenario_keys,
         )
 
@@ -563,6 +656,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
 
     region_names = _area_region_names(area_doc)
     red_dot_regions = _area_regions_with_red_dot_capability(area_doc)
+    text_search_regions = _area_regions_text_action_with_search_sibling(area_doc)
     scenario_keys = _scenario_keys(root / "scenarios")
 
     _validate_edge_taps(root, issues, region_names=region_names)
@@ -578,6 +672,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         issues,
         region_names=region_names,
         red_dot_regions=red_dot_regions,
+        text_search_regions=text_search_regions,
         scenario_keys=scenario_keys,
     )
     return issues

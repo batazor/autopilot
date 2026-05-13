@@ -336,6 +336,23 @@ class DslMatchMixin:
             if area_action == "color_check":
                 # Color label: prefer step override, else inherit from area.json.
                 rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
+            if area_action == "text":
+                # ``expected`` / ``fuzzy_threshold`` on the DSL step gate fuzzy
+                # OCR matching in ``overlay_engine`` and, when set, activate the
+                # ``{region}_search`` fallback for popup variants that moved the
+                # prompt out of the primary bbox (see overlay_engine.py text branch).
+                # Without these, a bare ``while_match: tapanywhereyoexit`` falls
+                # back to ``matched = bool(txt)`` on the primary bbox alone — and
+                # silently exits when that bbox happens to be empty even though
+                # the prompt is plainly visible a few rows lower.
+                expected = step.get("expected")
+                if isinstance(expected, list) and expected:
+                    rule["expected"] = [str(x) for x in expected]
+                elif isinstance(expected, str) and expected.strip():
+                    rule["expected"] = [expected]
+                fuzzy_thr = step.get("fuzzy_threshold")
+                if isinstance(fuzzy_thr, (int, float)):
+                    rule["fuzzy_threshold"] = float(fuzzy_thr)
             # When a region has multiple identical icons (mail list), avoid re-hitting the same one.
             excl = self._exclude_match_top_lefts.get(region)
             if excl:

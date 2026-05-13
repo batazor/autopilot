@@ -13,6 +13,23 @@ _DEFAULT_BASE_SUFFIX = "current_state"
 # Rolling OCR / UI preview captures (not shown in Labeling tree).
 TEMPORAL_SUBDIR = "temporal"
 
+# Event icons (rendered next to scenario names in the UI).
+EVENTS_SUBDIR = "events"
+
+
+def event_icon_abs_path(repo_root: Path, slug: str) -> Path | None:
+    """Resolve a scenario ``icon:`` slug to ``references/events/event.<slug>.png``.
+
+    Returns the path only if the file exists; otherwise ``None``. The slug is
+    matched verbatim (no sanitisation) so a typo just yields a missing icon
+    in the UI rather than a fallback collision.
+    """
+    s = str(slug or "").strip()
+    if not s:
+        return None
+    path = repo_root / "references" / EVENTS_SUBDIR / f"event.{s}.png"
+    return path if path.is_file() else None
+
 
 def rolling_preview_basename(instance_id: str) -> str:
     """Basename (no .png) for the live ADB preview file."""

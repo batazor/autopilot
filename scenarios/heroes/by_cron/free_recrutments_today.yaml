@@ -11,10 +11,31 @@ cron: "0 */5 * * *"
 node: hero.recrutment
 
 steps:
+  # Snapshot HUD counters into state.yaml — same fields the
+  # ``analyze_hero_recruitment.yaml`` overlay + ``sync_hero_recruitment_resources``
+  # CLI populate, but inline here so a cron tick refreshes them without a
+  # separate sync run.
+  - ocr: key.silver
+    type: integer
+    state: resources.silver_keys
+  - ocr: key.gold
+    type: integer
+    state: resources.gold_keys
+  - ocr: diamond
+    type: integer
+    state: resources.diamond
+
   # Guard: only proceed when the free recruit button is currently visible.
   # If the free pull isn't available (already claimed / cooldown), ``match``
   # bails and the click is skipped.
   - while_match: hero.recrutment.advanced.free
     steps:
       - click: hero.recrutment.advanced.free
-      - wait: 5s
+      - wait: 2s
+      - click: hero.recrutment.advanced.free
+      - while_match: tapanywhereyoexit
+        expected: ["tap anywhere"]
+        threshold: 0.7
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 1s

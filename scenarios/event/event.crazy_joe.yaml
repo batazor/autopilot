@@ -1,0 +1,5 @@
+enabled: false
+name: "Crazy Joe"
+node: event.crazy_joe
+icon: crazy_joe
+steps: []

@@ -1,0 +1,5 @@
+enabled: false
+name: "7 Day"
+node: event.7-day
+icon: 7-day
+steps: []

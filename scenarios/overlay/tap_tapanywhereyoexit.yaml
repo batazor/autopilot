@@ -6,7 +6,13 @@ priority: 83_000
 device_level: true
 
 steps:
-  - match: tapanywhereyoexit
-    threshold: 0.92
-  - click: tapanywhereyoexit
-  - wait: 5s
+  # ``expected`` activates fuzzy OCR matching + ``{region}_search`` fallback
+  # in overlay_engine. Popup variants render the prompt at different y%
+  # (Chapter Rewards y=90.76 %, Patrick hero card y≈96 %, Recruit-once
+  # rewards y≈97 %); the wider ``tapanywhereyoexit_search`` bbox covers
+  # them all and partial-fuzzy plucks "tap anywhere" from surrounding
+  # OCR noise (sibling labels, Lv. badges, button captions).
+  - while_match: tapanywhereyoexit
+    expected: ["tap anywhere"]
+    steps:
+      - click: tapanywhereyoexit

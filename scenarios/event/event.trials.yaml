@@ -1,0 +1,5 @@
+enabled: false
+name: "Trials"
+node: event.trials
+icon: trials
+steps: []

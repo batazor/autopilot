@@ -13,6 +13,7 @@ import yaml
 
 from config.devices import player_ids_for_device_candidates
 from config.loader import Settings, load_settings
+from config.reference_naming import event_icon_abs_path
 from scenarios.cron_specs import iter_cron_yaml_files, iter_plain_scenario_yaml_files
 from ui.redis_client import get_player_scenario, require_redis_connection, set_player_scenario
 
@@ -270,14 +271,17 @@ _selected_folders: set[str] = {
 path_by_file: dict[str, Path] = {}
 path_by_id: dict[str, Path] = {}
 table_rows: list[dict] = []
+_repo_root = scenarios_dir.parent
 for path, rel, sid, name, raw in scenario_meta:
     path_by_file[rel] = path
     path_by_id[sid] = path
     steps = raw.get("steps")
     n_steps = len(steps) if isinstance(steps, list) else 0
+    icon_path = event_icon_abs_path(_repo_root, str(raw.get("icon") or ""))
     table_rows.append(
         {
             "id": sid,
+            "icon": str(icon_path) if icon_path is not None else None,
             "name": name,
             "enabled": bool(raw.get("enabled", False)),
             "steps": n_steps,
@@ -316,6 +320,7 @@ with tab_files:
 
     _scenario_column_config = {
         "id": st.column_config.TextColumn("ID", disabled=True, width="small"),
+        "icon": st.column_config.ImageColumn("Icon", help="Event icon from scenario `icon:` slug", width="small"),
         "name": st.column_config.TextColumn("Name", disabled=True),
         "edit": st.column_config.LinkColumn(
             "Edit",
@@ -332,7 +337,7 @@ with tab_files:
         "enabled": st.column_config.CheckboxColumn("Enabled", default=False),
         "steps": st.column_config.NumberColumn("Steps", disabled=True, format="%d", width="small"),
     }
-    _scenario_disabled = ("id", "name", "edit", "debug", "steps")
+    _scenario_disabled = ("id", "icon", "name", "edit", "debug", "steps")
 
     merged_edits: list[dict] = []
     if not scenario_meta_filtered:

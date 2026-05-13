@@ -1270,8 +1270,8 @@
           "bbox": {
             "x": 18.77799227799228,
             "y": 72.3913043478261,
-            "width": 50.50579150579151,
-            "height": 25.32282608695652,
+            "width": 59.0926640926641,
+            "height": 26.842391304347824,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -3173,6 +3173,12 @@
       "id": 65,
       "screen_id": "heroes",
       "ocr": "references/page.heroes.3.png",
+      "regions": []
+    },
+    {
+      "id": 66,
+      "screen_id": "",
+      "ocr": "references/events/event.7-day.png",
       "regions": []
     }
   ]

@@ -153,6 +153,7 @@ class DslScenario(BaseModel):
     cron: str | None = None
     node: str | None = None
     cond: str | None = None
+    icon: str | None = None
     steps: list[DslStep] = Field(default_factory=list)
 
 

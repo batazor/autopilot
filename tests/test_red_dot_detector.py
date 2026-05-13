@@ -32,6 +32,9 @@ EVENT_1ST_PURCHASE_FALSE_POSITIVE = (
 WIDENED_BY_COUNTER_FIXTURE = (
     REPO_ROOT / "tests" / "fixtures" / "red_dot_widened_by_counter.png"
 )
+PLUS5_BOOSTER_PILL_FIXTURE = (
+    REPO_ROOT / "tests" / "fixtures" / "red_dot_plus5_booster_pill.png"
+)
 
 REFERENCE_W = 720
 REFERENCE_H = REFERENCE_IMAGE_HEIGHT
@@ -282,6 +285,21 @@ def test_real_main_city_v2_rejects_pinkish_meat_icon() -> None:
     h, w = img.shape[:2]
     bbox = _bbox_percent(560, 250, 60, 60, frame_w=w, frame_h=h)
     assert has_red_dot_in_bbox_percent(img, bbox) is False
+
+
+def test_plus5_booster_pill_is_not_a_red_dot() -> None:
+    """The "+5%" booster pill rendered next to resource counters has a small
+    red "+" character inside a red-bordered yellow oval. The inner "+" passes
+    every shape and saturation gate (12×12, perfectly circular, saturated red
+    on a non-red background), but a 10 px ring around it lands inside the
+    oval's red border at ≈40 % red density — that nesting gate must keep it
+    out. The fixture is the ``isWorkers`` region crop where this triggered the
+    ``isWorkers.visible`` overlay and pushed an ``assign_worker`` tap onto the
+    booster sticker."""
+    img = cv2.imread(str(PLUS5_BOOSTER_PILL_FIXTURE))
+    assert img is not None, f"failed to load fixture: {PLUS5_BOOSTER_PILL_FIXTURE}"
+    # The fixture is a region crop — pass the full-frame height for radius scaling.
+    assert find_red_dots(img, image_h_for_norm=REFERENCE_H) == []
 
 
 # ---------------------------------------------------------------------------

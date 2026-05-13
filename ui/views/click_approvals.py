@@ -60,9 +60,21 @@ active_instances = [
 ]
 if not active_instances:
     st.warning(
-        "No active ADB devices. Open **`/adb`** and click **Refresh** to "
-        "(re)connect emulators."
+        "No active ADB devices. Click **Refresh** below to re-query `adb devices`, "
+        "or open the **ADB** page to (re)connect emulators."
     )
+    _cols = st.columns([1, 1, 5])
+    with _cols[0]:
+        if st.button("🔄 Refresh", key="click_approval_adb_refresh", width="stretch"):
+            st.rerun()
+    with _cols[1]:
+        st.page_link(
+            "views/adb.py",
+            label="Open ADB",
+            help="ADB device list and reconnect controls.",
+            icon="📱",
+            width="stretch",
+        )
     st.stop()
 
 inst_ids = [i.instance_id for i in active_instances]

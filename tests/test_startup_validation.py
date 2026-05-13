@@ -118,6 +118,84 @@ overlay:
     assert validate_startup_configs(tmp_path) == []
 
 
+def test_startup_validation_reports_missing_expected_on_text_search_region(
+    tmp_path: Path,
+) -> None:
+    """``match:``/``while_match:`` on a text-action region with a ``_search``
+    sibling must carry ``expected:`` — otherwise the overlay engine's
+    ``_search`` fallback never activates and popup variants silently exit with
+    iterations=0 (as observed on ``tap_tapanywhereyoexit`` where the Patrick
+    hero card's prompt rendered 5 % below the Chapter Rewards reference)."""
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"tapanywhereyoexit","action":"text",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}},'
+        '{"name":"tapanywhereyoexit_search",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text(
+        "overlay: []\n", encoding="utf-8"
+    )
+    (tmp_path / "scenarios" / "tap_dismiss.yaml").write_text(
+        """
+name: dismiss popup
+steps:
+  - while_match: tapanywhereyoexit
+    steps:
+      - click: tapanywhereyoexit
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].source.startswith("scenario:tap_dismiss.yaml")
+    assert "tapanywhereyoexit" in issues[0].message
+    assert "expected" in issues[0].message
+    assert "_search" in issues[0].message
+
+
+def test_startup_validation_accepts_text_search_region_with_expected(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"tapanywhereyoexit","action":"text",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}},'
+        '{"name":"tapanywhereyoexit_search",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text(
+        "overlay: []\n", encoding="utf-8"
+    )
+    (tmp_path / "scenarios" / "tap_dismiss.yaml").write_text(
+        """
+name: dismiss popup
+steps:
+  - while_match: tapanywhereyoexit
+    expected: ["tap anywhere"]
+    steps:
+      - click: tapanywhereyoexit
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert issues == []
+
+
 def test_startup_validation_reports_missing_red_dot_capability_on_dsl_step(
     tmp_path: Path,
 ) -> None:

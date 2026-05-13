@@ -10,8 +10,11 @@ from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
+import yaml
 
 from config.loader import load_settings
+from config.reference_naming import event_icon_abs_path
+from scenarios.dsl_schema import resolve_dsl_scenario_yaml_path
 from ui.redis_client import (
     QueueHistoryRow,
     clear_queue_tasks,
@@ -27,6 +30,24 @@ from ui.redis_client import (
 from ui.views._debug_scenarios_progress import _load_scenario_step_summaries
 
 _REPO = Path(__file__).resolve().parents[2]
+
+
+@st.cache_data(ttl=10)
+def _scenario_icon_path(repo_str: str, scenario_key: str) -> str | None:
+    """Resolve scenario ``icon:`` slug → absolute icon path string (or ``None``)."""
+    if not scenario_key:
+        return None
+    repo = Path(repo_str)
+    path = resolve_dsl_scenario_yaml_path(repo, scenario_key)
+    if path is None or not path.is_file():
+        return None
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return None
+    slug = str(raw.get("icon") or "") if isinstance(raw, dict) else ""
+    icon = event_icon_abs_path(repo, slug)
+    return str(icon) if icon is not None else None
 
 
 def _history_steps_summary(h: QueueHistoryRow) -> str:
@@ -109,7 +130,15 @@ def _queue_fragment() -> None:
                         bar_text = f"{active_scenario} · running"
                     else:
                         bar_text = f"{r.task_type} · running"
-                    st.progress(min(1.0, max(0.0, ratio)), text=bar_text)
+                    icon_path = _scenario_icon_path(str(_REPO), active_scenario)
+                    if icon_path:
+                        icon_col, bar_col = st.columns([1, 11])
+                        with icon_col:
+                            st.image(icon_path, width=48)
+                        with bar_col:
+                            st.progress(min(1.0, max(0.0, ratio)), text=bar_text)
+                    else:
+                        st.progress(min(1.0, max(0.0, ratio)), text=bar_text)
         if rows:
             overdue_n = sum(1 for r in rows if r.scheduled_at < now)
             parts = [f"**{len(rows)}** task(s)"]

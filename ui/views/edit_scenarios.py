@@ -21,6 +21,7 @@ import yaml
 from pydantic import ValidationError
 from st_ant_tree import st_ant_tree
 
+from config.reference_naming import event_icon_abs_path
 from config.startup_validation import duplicate_scenario_names
 from navigation.screen_graph import screen_verify_screen_names
 from scenarios.dsl_schema import DSL_ACTION_KEYS, dump_scenario, parse_scenario
@@ -547,6 +548,23 @@ def _render_header_form(doc: dict[str, Any], current_rel: str) -> None:
     )
     if not doc["cond"].strip():
         doc.pop("cond", None)
+
+    ci1, ci2 = st.columns([3, 1])
+    with ci1:
+        doc["icon"] = st.text_input(
+            "icon slug (resolves to references/events/event.<slug>.png)",
+            value=str(doc.get("icon") or ""),
+            key="es::icon",
+            placeholder="e.g. 7-day, first_purchase, snowstorm",
+        )
+        if not doc["icon"].strip():
+            doc.pop("icon", None)
+    with ci2:
+        icon_path = event_icon_abs_path(_repo_root(), str(doc.get("icon") or ""))
+        if icon_path is not None:
+            st.image(str(icon_path), width=64)
+        elif doc.get("icon"):
+            st.caption("⚠️ no file at references/events/")
 
     c3, c4, c5, c6 = st.columns(4)
     with c3:

@@ -1,31 +1,7 @@
 overlay:
-  # OCR HUD on Hero Recruitment (`screens` gate requires Redis current_screen).
-  # Worker snapshots raw text to ``wos:instance:<id>:state``; run ``cmd/sync_hero_recruitment_resources.py``
-  # to parse into ``resources.*`` and ``events.recruitment.free_recruitments_today``.
-  - name: key.silver.hero_recruitment
-    region: key.silver
-    action: text
-    screens:
-      - hero.recrutment
-    ttl: 20s
-
-  - name: key.gold.hero_recruitment
-    region: key.gold
-    action: text
-    screens:
-      - hero.recrutment
-    ttl: 20s
-
-  - name: diamond.hero_recruitment
-    region: diamond
-    action: text
-    screens:
-      - hero.recrutment
-    ttl: 20s
-
-  - name: free_recruitments_today.hero_recruitment
-    region: free_recruitments_today
-    action: text
-    screens:
-      - hero.recrutment
-    ttl: 20s
+- name: hero.recrutment.advanced.free.visible
+  region: hero.recrutment.advanced.free
+  screens:
+    - hero.recrutment
+  pushScenario:
+    - name: free_recrutments_today

@@ -126,7 +126,8 @@ overlay:
   screens:
     - main_city
   pushScenario:
-  - name: click_heroes
+    - name: scan_heroes_grid
+      ttl: 2m
 
 - name: main_city.to.backpack.has_red_dot
   region: main_city.to.backpack
