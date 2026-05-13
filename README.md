@@ -206,23 +206,86 @@ The Streamlit app (`uv run wos`) covers gift codes, labeling/YAML scenarios, and
 
 <br/>
 
-### 2️⃣ Run
+### 2️⃣ Run — pick your platform
+
+<details open>
+<summary><b>🍎 macOS (Docker Desktop)</b></summary>
+<br/>
+
+> **One-time:** Docker Desktop → *Settings → Resources → Network* → check **Enable host networking** (beta). Required so the bot container can talk to the host's ADB on `127.0.0.1:5037`.
 
 ```sh
-# Clone the repo (just for the compose files + config templates)
+# Clone (just for the compose files + config templates)
 git clone https://github.com/batazor/whiteout-survival-autopilot.git
 cd whiteout-survival-autopilot
 
-# Make sure the host's ADB server is up and your emulator is visible
+# Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
 adb devices
 
 # Pull and start: redis + ocr + bot
 docker compose -f docker-compose.prod.yml up -d
 
-# UI on http://127.0.0.1:8501
 open http://127.0.0.1:8501
 ```
+
+</details>
+
+<details>
+<summary><b>🐧 Linux (Docker Engine + Compose v2)</b></summary>
+<br/>
+
+> Native Linux — `network_mode: host` works out of the box; nothing to toggle.
+
+```sh
+# Clone (just for the compose files + config templates)
+git clone https://github.com/batazor/whiteout-survival-autopilot.git
+cd whiteout-survival-autopilot
+
+# Bring up the host's ADB and confirm BlueStacks is visible
+adb start-server
+adb devices
+
+# Pull and start: redis + ocr + bot
+docker compose -f docker-compose.prod.yml up -d
+
+xdg-open http://127.0.0.1:8501
+```
+
+</details>
+
+<details>
+<summary><b>🪟 Windows (Docker Desktop + WSL2)</b></summary>
+<br/>
+
+> **One-time setup:**
+>
+> 1. Docker Desktop → *Settings → Resources → Network* → check **Enable host networking** (beta). Required so the bot container can talk to the host's ADB on `127.0.0.1:5037`.
+> 2. Install [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools), unzip to e.g. `%LOCALAPPDATA%\Android\Sdk\platform-tools\`, and add that folder to your `PATH` (*System Properties → Environment Variables*).
+> 3. In BlueStacks: *Settings → Advanced → Android Debug Bridge* → **Enabled**.
+
+```powershell
+# Clone (just for the compose files + config templates)
+git clone https://github.com/batazor/whiteout-survival-autopilot.git
+cd whiteout-survival-autopilot
+
+# Bring up the host's ADB and confirm BlueStacks is visible
+adb start-server
+adb devices
+
+# Pull and start: redis + ocr + bot
+docker compose -f docker-compose.prod.yml up -d
+
+start http://127.0.0.1:8501
+```
+
+> If your antivirus flags `adb.exe` as PUA — whitelist the Android Platform Tools folder. ADB is a legitimate dev tool but can give root shells, so some scanners treat it as suspicious.
+
+</details>
+
+<br/>
+
+#### Images that get pulled
 
 | Service | Image | Notes |
 |:--------|:------|:------|
@@ -234,18 +297,9 @@ open http://127.0.0.1:8501
 <summary><b>🌐 How the container reaches the host's ADB server</b></summary>
 <br/>
 
-`bot` runs in `network_mode: host` so the container **shares the host's loopback**. That way:
+`bot` runs in `network_mode: host` so the container **shares the host's loopback** — `adb start-server` stays bound to `127.0.0.1:5037` (safe, no LAN exposure) and the container talks to it as `127.0.0.1:5037` from inside. No `adb -a`, no socat sidecar, no `host.docker.internal` indirection.
 
-- `adb start-server` on the host stays bound to `127.0.0.1:5037` (safe — no LAN exposure)
-- The container talks to it as `127.0.0.1:5037` from inside (same `lo` interface)
-- No `adb -a` flag, no socat sidecar, no `host.docker.internal` magic
-
-| Platform | Status |
-|:---------|:-------|
-| **Linux** | ✅ Works out of the box |
-| **Docker Desktop (macOS / Windows)** | ⚠️ Requires *Settings → Resources → Network → **Enable host networking*** (beta). Without it, the bot can reach `redis` / `ocr` but **not** the host's adb server. |
-
-`bot` cannot use Compose-internal DNS names (`redis` / `ocr`) under host-mode, so it talks to them via `127.0.0.1:<port>` on the host (the `redis` and `ocr` services publish to loopback). That's already wired in `docker-compose.prod.yml`.
+Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis` and `ocr` publish to `127.0.0.1:<port>` on the host, and `bot` talks to them via those — already wired in `docker-compose.prod.yml`.
 
 </details>
 
