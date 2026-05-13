@@ -1,0 +1,20 @@
+enabled: true
+name: "📖 Read hero wiki"
+
+# Open the in-game wiki popup from the hero card (top-right book/wiki icon).
+# Fires on any ``page.heroes.<id>`` screen via the overlay rule
+# ``page.heroes.unit.wiki.present`` in ``analyze_page_heroes_unit.yaml``.
+# Steps below are a skeleton — after the wiki popup is open we'll add
+# region annotations for its content and OCR-scrape lore / skills into
+# the hero YAML. For now we just open + close so the toggle is exercised.
+#
+# Intentionally no ``node:`` — overlay-pushed scenarios run on the
+# current screen; an explicit node would force an FSM reroute we don't
+# need (and the 62 per-hero verify rules already pin the screen for us).
+
+steps:
+  - click: page.heroes.unit.wiki
+  - wait: 1s
+  # TODO: snapshot wiki popup → OCR sections → merge into db/heroes/<id>.yaml
+  - click: back_button
+  - wait: 0.5s

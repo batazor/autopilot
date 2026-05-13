@@ -1,0 +1,45 @@
+# Solver-wide defaults. Edited from the UI; read by the (future) scorer.
+# Source priors: deep-research-report.md, sections "Модель scoring" and
+# "Модель OR-Tools CP-SAT и генерация кандидатов".
+
+# Sunkness: how irreversible each kind of investment is (0..1, higher = harder
+# to undo). Drives the replacement_penalty in the score formula.
+sunkness:
+  level_up_pre_drill: 0.35
+  level_up_post_drill: 0.15
+  skill_up: 0.60
+  star_tier_up_specific_shards: 0.80
+  star_tier_up_general_shards: 1.00
+  gear_enhance: 0.55
+  exclusive_widgets: 1.00
+  gems_during_wheel_reserve: 0.95
+
+# Scarcity weights per resource (relative; higher = more valuable to preserve).
+# Drives resource_rarity_penalty so the scorer avoids gem/widget leaks.
+scarcity:
+  hero_xp: 0.30
+  rare_shard: 0.40
+  epic_shard: 0.60
+  mythic_general_shard: 1.00
+  mythic_specific_shard: 0.70
+  epic_expedition_manual: 0.70
+  epic_exploration_manual: 0.60
+  enhancement_xp: 0.40
+  essence_stones: 0.70
+  widget: 1.00
+  gems: 0.95
+
+# Discrete thresholds the scorer treats as step functions rather than linear gain.
+threshold_bonuses:
+  bear_join_skill_5: 2500     # first expedition skill of a joiner reaching L5
+  star_5_skill_cap: 800       # unlocks a new skill level cap
+
+# Time budgets for CP-SAT (handed to scorer, surfaced for tuning).
+solver:
+  online:
+    max_time_in_seconds: 0.30
+    num_search_workers: 3
+  batch:
+    max_time_in_seconds: 5.0
+    num_search_workers: 6
+  random_seed: 42

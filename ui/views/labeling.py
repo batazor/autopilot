@@ -462,26 +462,35 @@ if write_crops:
     if doc is None:
         st.error("No area document loaded.")
     else:
-        prog = st.progress(0)
-        try:
-            written, warns = export_all_region_crops_for_area_doc(
-                doc,
-                repo_root=REPO_ROOT,
-                progress=lambda x: prog.progress(x),
-            )
+        with st.status("Writing region crops…", expanded=True) as status:
+            prog = st.progress(0)
+            try:
+                written, warns = export_all_region_crops_for_area_doc(
+                    doc,
+                    repo_root=REPO_ROOT,
+                    progress=lambda x: prog.progress(x),
+                )
+            except (OSError, ValueError) as e:
+                status.update(label=f"Crop export failed: {e}", state="error")
+                written, warns = [], []
+
             rels = [p.relative_to(REPO_ROOT).as_posix() for p in written]
             if rels:
                 preview = "\n".join(f"- `{p}`" for p in rels[:80])
                 more = f"\n… and **{len(rels) - 80}** more." if len(rels) > 80 else ""
                 st.success(f"Wrote **{len(rels)}** crop(s):\n{preview}{more}")
-            else:
+                status.update(
+                    label=f"Wrote {len(rels)} crop(s) → references/crop/",
+                    state="complete",
+                    expanded=False,
+                )
+            elif not warns:
+                # No writes and no warnings means the export ran but the
+                # area document had no usable bbox-bearing regions.
                 st.warning(
                     "No crops written — check reference PNG paths and non-auxiliary regions."
                 )
+                status.update(label="No crops written", state="error")
             if warns:
                 with st.expander("Warnings", expanded=False):
                     st.markdown("\n".join(f"- {w}" for w in warns))
-        except (OSError, ValueError) as e:
-            st.error(str(e))
-        finally:
-            prog.empty()

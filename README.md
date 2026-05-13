@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="Whiteout Survival autopilot" width="220" />
+</p>
+
 # Whiteout Survival autopilot
 
 Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via a separate OCR HTTP service.

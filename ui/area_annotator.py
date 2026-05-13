@@ -490,24 +490,40 @@ def export_all_region_crops_for_area_doc(
 
 
 def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
-    prog = st.progress(0)
-    try:
-        written, warns = export_all_region_crops_for_area_doc(
-            doc,
-            repo_root=REPO_ROOT,
-            progress=lambda x: prog.progress(x),
-        )
+    """Export every region crop under ``references/crop/``.
+
+    Wrapped in ``st.status`` so the progress bar + result are scoped to
+    one collapsible container — clearer than the previous flat layout
+    that mixed `st.success`/`st.warning`/`st.error` with a top-level
+    progress bar that got `.empty()`'d on completion.
+    """
+    with st.status("Writing region crops…", expanded=True) as status:
+        prog = st.progress(0)
+        try:
+            written, warns = export_all_region_crops_for_area_doc(
+                doc,
+                repo_root=REPO_ROOT,
+                progress=lambda x: prog.progress(x),
+            )
+        except (OSError, ValueError) as e:
+            status.update(label=f"Crop export failed: {e}", state="error")
+            return
+
         if written:
             st.success(f"Wrote {len(written)} crop(s) to `references/crop/`.")
+            status.update(
+                label=f"Crops written: {len(written)} → references/crop/",
+                state="complete",
+                expanded=False,
+            )
         else:
-            st.warning("No crops written - check reference PNG paths and non-auxiliary regions.")
+            st.warning(
+                "No crops written — check reference PNG paths and non-auxiliary regions."
+            )
+            status.update(label="No crops written", state="error")
         if warns:
             with st.expander("Crop export warnings", expanded=False):
                 st.markdown("\n".join(f"- {w}" for w in warns))
-    except (OSError, ValueError) as e:
-        st.error(f"Crop export failed: {e}")
-    finally:
-        prog.empty()
 
 
 def default_area_doc(screens: list[AreaEntryDict] | None = None) -> AreaDocDict:
@@ -1675,23 +1691,31 @@ def _render_regions_expander(
                 disabled=pil_original is None or not ref_rel or bbox_n == 0,
             )
             if btn_crop and pil_original is not None and ref_rel:
-                prog = st.progress(0)
-                try:
-                    outs = export_region_crops(
-                        pil_original,
-                        ref_rel,
-                        regions,
-                        progress=lambda x: prog.progress(x),
-                    )
+                with st.status(
+                    f"Cropping regions for `{ref_rel}` …", expanded=True
+                ) as status:
+                    prog = st.progress(0)
+                    try:
+                        outs = export_region_crops(
+                            pil_original,
+                            ref_rel,
+                            regions,
+                            progress=lambda x: prog.progress(x),
+                        )
+                    except OSError as e:
+                        status.update(label=str(e), state="error")
+                        outs = []
                     rels = [o.relative_to(REPO_ROOT).as_posix() for o in outs]
                     if rels:
                         st.success("Saved:\n" + "\n".join(f"- `{p}`" for p in rels))
-                    else:
+                        status.update(
+                            label=f"Cropped {len(rels)} region(s)",
+                            state="complete",
+                            expanded=False,
+                        )
+                    elif outs is not None:
                         st.warning("No regions with bbox — nothing written.")
-                except OSError as e:
-                    st.error(str(e))
-                finally:
-                    prog.empty()
+                        status.update(label="No regions with bbox", state="error")
 
 
 # -----------------------------------------------------------------------------

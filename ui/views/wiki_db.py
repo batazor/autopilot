@@ -546,79 +546,104 @@ def _render_faq() -> None:
         args: list[str] | None = None,
         progress_total_hint: int | None = None,
     ) -> None:
+        """Run a sync subprocess inside an ``st.status`` container.
+
+        The container's header doubles as the live progress indicator —
+        on completion it paints green and collapses, on failure it stays
+        expanded in red. Progress bar / log / summary widgets live inside
+        the container so each invocation gets its own scoped frame; you
+        can run several syncs in a row without prior output bleeding in.
+        """
         args = args or []
         script = (repo / script_rel).resolve()
         if not script.is_file():
             st.error(f"Script not found: `{script_rel}`")
             return
 
-        st.markdown(f"**{title}**")
-        pb = st.progress(0)
-        log = st.empty()
-        stats = st.empty()
-
         cmd = [sys.executable, str(script), *args]
         started = time.time()
-
         output_lines: list[str] = []
         done = 0
         total = progress_total_hint or 0
         extracted_summary: str = ""
 
-        try:
-            proc = subprocess.Popen(  # noqa: S603
-                cmd,
-                cwd=str(repo),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
+        with st.status(f"{title} — starting…", expanded=True) as status:
+            pb = st.progress(0)
+            log = st.empty()
+            stats = st.empty()
+
+            try:
+                proc = subprocess.Popen(  # noqa: S603
+                    cmd,
+                    cwd=str(repo),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+            except Exception as exc:
+                status.update(
+                    label=f"{title} — failed to start: {type(exc).__name__}: {exc}",
+                    state="error",
+                )
+                return
+
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                if not line:
+                    continue
+                output_lines.append(line)
+                # Keep the last ~200 lines in UI to avoid huge payloads.
+                tail = output_lines[-200:]
+                log.code("\n".join(tail), language="text")
+
+                # Generic progress parser: "progress: 25/405 (ok=...)"
+                m = re.search(r"progress:\s*(\d+)\s*/\s*(\d+)", line)
+                if m:
+                    done = int(m.group(1))
+                    total = int(m.group(2))
+                    if total > 0:
+                        ratio = min(1.0, done / total)
+                        pb.progress(ratio)
+                        status.update(label=f"{title} — {done}/{total}")
+
+                # Summary extractor
+                if line.startswith("updated ") or line.startswith("downloaded "):
+                    extracted_summary = line
+
+            rc = proc.wait()
+            elapsed = time.time() - started
+
+            # Final progress state
+            if total > 0:
+                pb.progress(1.0 if rc == 0 else min(1.0, done / total))
+            else:
+                pb.progress(1.0 if rc == 0 else 0.0)
+
+            summary = extracted_summary or "(no summary line found)"
+            stats.markdown(
+                "\n".join(
+                    [
+                        f"**Result**: `exit_code={rc}` · **elapsed**: `{elapsed:.1f}s`",
+                        f"**Summary**: `{summary}`",
+                        f"**Command**: `{json.dumps(cmd)}`",
+                    ]
+                )
             )
-        except Exception as exc:
-            st.error(f"Failed to start process: {type(exc).__name__}: {exc}")
-            return
 
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            line = line.rstrip("\n")
-            if not line:
-                continue
-            output_lines.append(line)
-            # Keep the last ~200 lines in UI to avoid huge payloads.
-            tail = output_lines[-200:]
-            log.code("\n".join(tail), language="text")
-
-            # Generic progress parser: "progress: 25/405 (ok=...)"
-            m = re.search(r"progress:\s*(\d+)\s*/\s*(\d+)", line)
-            if m:
-                done = int(m.group(1))
-                total = int(m.group(2))
-                if total > 0:
-                    pb.progress(min(1.0, done / total))
-
-            # Summary extractor
-            if line.startswith("updated ") or line.startswith("downloaded "):
-                extracted_summary = line
-
-        rc = proc.wait()
-        elapsed = time.time() - started
-
-        # Final progress state
-        if total > 0:
-            pb.progress(1.0 if rc == 0 else min(1.0, done / total))
-        else:
-            pb.progress(1.0 if rc == 0 else 0.0)
-
-        summary = extracted_summary or "(no summary line found)"
-        stats.markdown(
-            "\n".join(
-                [
-                    f"**Result**: `exit_code={rc}` · **elapsed**: `{elapsed:.1f}s`",
-                    f"**Summary**: `{summary}`",
-                    f"**Command**: `{json.dumps(cmd)}`",
-                ]
-            )
-        )
+            if rc == 0:
+                status.update(
+                    label=f"{title} — done · {elapsed:.1f}s · {summary}",
+                    state="complete",
+                    expanded=False,
+                )
+                st.toast(f"{title} · done in {elapsed:.1f}s", icon="✅")
+            else:
+                status.update(
+                    label=f"{title} — exit_code={rc} · {elapsed:.1f}s",
+                    state="error",
+                )
 
     c1, c2 = st.columns(2)
     with c1:
@@ -715,29 +740,29 @@ st.caption("Buildings, heroes, items and FAQ — sourced from whiteoutsurvival.w
 
 repo = _repo_root()
 
-if "wiki_db_panel_radio" not in st.session_state:
-    st.session_state["wiki_db_panel_radio"] = _SECTION_LABEL[_url_section_key()]
-
-label_from_url = _SECTION_LABEL[_url_section_key()]
-if st.session_state["wiki_db_panel_radio"] != label_from_url:
-    st.session_state["wiki_db_panel_radio"] = label_from_url
-
-
-def _on_panel_radio_change() -> None:
-    lab = st.session_state.get("wiki_db_panel_radio")
-    if lab and lab in _LABEL_TO_SECTION:
-        st.query_params["section"] = _LABEL_TO_SECTION[lab]
+def _on_wiki_db_section_change() -> None:
+    lab = st.session_state.get("wiki_db_section_tabs")
+    key = _LABEL_TO_SECTION.get(lab or "")
+    if key and key != _get_section():
+        st.query_params["section"] = key
 
 
-st.radio(
-    "Section",
-    options=list(_SECTION_LABEL.values()),
-    horizontal=True,
-    key="wiki_db_panel_radio",
-    on_change=_on_panel_radio_change,
-    label_visibility="collapsed",
+# Native ``st.tabs(...)`` with two-way ``?section=`` deep-link (Streamlit
+# 1.57+: ``default=``, ``key=``, ``on_change=``). Pre-render sync writes
+# the URL value into ``session_state`` BEFORE the widget so external URL
+# changes (back/forward, manual edit) drive the active tab — once the
+# widget is touched, ``session_state[key]`` takes precedence over
+# ``default=``.
+_active_section_label = _SECTION_LABEL[_url_section_key()]
+if st.session_state.get("wiki_db_section_tabs") != _active_section_label:
+    st.session_state["wiki_db_section_tabs"] = _active_section_label
+
+tab_buildings, tab_heroes, tab_gear, tab_items, tab_faq = st.tabs(
+    list(_SECTION_LABEL.values()),
+    default=_active_section_label,
+    key="wiki_db_section_tabs",
+    on_change=_on_wiki_db_section_change,
 )
-panel = _LABEL_TO_SECTION[st.session_state["wiki_db_panel_radio"]]
 
 if _get_section() == "home":
     st.caption(
@@ -745,210 +770,215 @@ if _get_section() == "home":
         "Use the row above or `?section=heroes` etc."
     )
 
-if panel == "buildings":
-    idx = _load_index(repo / "db" / "buildings" / "index.yaml")
-    cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
-    with cset1:
-        cols = st.select_slider(
-            "Grid",
-            options=[2, 3, 4, 5],
-            value=3,
-            key="wiki_db_buildings_grid_cols",
-        )
-    with cset2:
-        page_size = st.select_slider(
-            "Page size",
-            options=[18, 24, 36, 48, 60],
-            value=36,
-            key="wiki_db_buildings_grid_page_size",
-        )
-    with cset3:
-        st.caption("Tiles are clickable cards (image + text) when an icon is available.")
-
-    q = st.text_input(
-        "Search",
-        value="",
-        key="wiki_db_search_buildings",
-        help="Filters tiles and the list selector below.",
-    ).strip()
-
-    sel = _render_index_tiles(
-        index=idx,
-        index_key="buildings",
-        label="Buildings",
-        section_name="buildings",
-        qparam_key="building",
-        search_query=q,
-        icon_prefix="buildings",
-        cols=int(cols),
-        page_size=int(page_size),
-    )
-    st.divider()
-    if not sel:
-        st.caption("Tip: click a building tile to open its card.")
-        sel = _select_from_index(idx, "buildings", "Building", search_query=q)
-    if sel:
-        bdir = repo / "db" / "buildings"
-        ypath = _entity_yaml_path(bdir, sel)
-        if ypath is None:
-            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
-        elif not ypath.is_file():
-            st.warning(f"No YAML file at `{ypath}`. Run **Sync buildings** in FAQ.")
-        else:
-            building = _load_yaml_dict(ypath)
-            if not building:
-                st.warning(f"Empty or invalid YAML at `{ypath}`.")
-            else:
-                _render_building(building)
-
-elif panel == "heroes":
-    idx = _load_index(repo / "db" / "heroes" / "index.yaml")
-    cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
-    with cset1:
-        cols = st.select_slider(
-            "Grid",
-            options=[2, 3, 4, 5, 6],
-            value=4,
-            key="wiki_db_heroes_grid_cols",
-        )
-    with cset2:
-        page_size = st.select_slider(
-            "Page size",
-            options=[24, 36, 48, 60, 72, 96],
-            value=48,
-            key="wiki_db_heroes_grid_page_size",
-        )
-    with cset3:
-        st.caption("Tiles are clickable cards (image + text) when an icon is available.")
-
-    q = st.text_input(
-        "Search",
-        value="",
-        key="wiki_db_search_heroes",
-        help="Filters tiles and the list selector below.",
-    ).strip()
-
-    sel = _render_index_tiles(
-        index=idx,
-        index_key="heroes",
-        label="Heroes",
-        section_name="heroes",
-        qparam_key="hero",
-        search_query=q,
-        icon_prefix="heroes",
-        cols=int(cols),
-        page_size=int(page_size),
-    )
-    st.divider()
-    if not sel:
-        st.caption("Tip: click a hero tile to open its card.")
-        sel = _select_from_index(idx, "heroes", "Hero", search_query=q)
-    if sel:
-        hdir = repo / "db" / "heroes"
-        ypath = _entity_yaml_path(hdir, sel)
-        if ypath is None:
-            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
-        elif not ypath.is_file():
-            st.warning(f"No YAML file at `{ypath}`. Run **Sync heroes** in FAQ.")
-        else:
-            hero = _load_yaml_dict(ypath)
-            if not hero:
-                st.warning(f"Empty or invalid YAML at `{ypath}`.")
-            else:
-                _render_hero(hero)
-
-elif panel == "gear":
-    gear_dir = repo / "db" / "gear"
-    if not gear_dir.is_dir():
-        st.warning("No `db/gear/` directory yet. Run **Sync balance sheet** in FAQ.")
-    else:
-        gear_files = sorted(
-            p for p in gear_dir.glob("*.yaml")
-            if p.is_file() and p.name != "enhancement.yaml"
-        )
-        if not gear_files:
-            st.info("No gear files yet. Run **Sync balance sheet** in FAQ.")
-        else:
-            options: list[tuple[str, Path]] = []
-            for p in gear_files:
-                doc = _load_yaml_dict(p)
-                title = str(doc.get("title") or doc.get("id") or p.stem)
-                options.append((title, p))
-            options.append(("Enhancement (shared constants)", gear_dir / "enhancement.yaml"))
-
-            labels = [o[0] for o in options]
-            picked = st.radio(
-                "Gear table",
-                options=labels,
-                horizontal=False,
-                key="wiki_db_gear_radio",
-                label_visibility="collapsed",
+with tab_buildings:
+    if tab_buildings.open:
+        idx = _load_index(repo / "db" / "buildings" / "index.yaml")
+        cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
+        with cset1:
+            cols = st.select_slider(
+                "Grid",
+                options=[2, 3, 4, 5],
+                value=3,
+                key="wiki_db_buildings_grid_cols",
             )
-            target = next(p for label, p in options if label == picked)
-            doc = _load_yaml_dict(target)
-            if not doc:
-                st.warning(f"Empty or invalid YAML at `{target}`.")
-            elif target.name == "enhancement.yaml":
-                _render_enhancement(doc)
+        with cset2:
+            page_size = st.select_slider(
+                "Page size",
+                options=[18, 24, 36, 48, 60],
+                value=36,
+                key="wiki_db_buildings_grid_page_size",
+            )
+        with cset3:
+            st.caption("Tiles are clickable cards (image + text) when an icon is available.")
+
+        q = st.text_input(
+            "Search",
+            value="",
+            key="wiki_db_search_buildings",
+            help="Filters tiles and the list selector below.",
+        ).strip()
+
+        sel = _render_index_tiles(
+            index=idx,
+            index_key="buildings",
+            label="Buildings",
+            section_name="buildings",
+            qparam_key="building",
+            search_query=q,
+            icon_prefix="buildings",
+            cols=int(cols),
+            page_size=int(page_size),
+        )
+        st.divider()
+        if not sel:
+            st.caption("Tip: click a building tile to open its card.")
+            sel = _select_from_index(idx, "buildings", "Building", search_query=q)
+        if sel:
+            bdir = repo / "db" / "buildings"
+            ypath = _entity_yaml_path(bdir, sel)
+            if ypath is None:
+                st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+            elif not ypath.is_file():
+                st.warning(f"No YAML file at `{ypath}`. Run **Sync buildings** in FAQ.")
             else:
-                _render_gear(doc)
+                building = _load_yaml_dict(ypath)
+                if not building:
+                    st.warning(f"Empty or invalid YAML at `{ypath}`.")
+                else:
+                    _render_building(building)
 
-elif panel == "items":
-    idx = _load_index(repo / "db" / "items" / "index.yaml")
-    cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
-    with cset1:
-        cols = st.select_slider(
-            "Grid",
-            options=[2, 3, 4, 5, 6],
-            value=4,
-            key="wiki_db_items_grid_cols",
+with tab_heroes:
+    if tab_heroes.open:
+        idx = _load_index(repo / "db" / "heroes" / "index.yaml")
+        cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
+        with cset1:
+            cols = st.select_slider(
+                "Grid",
+                options=[2, 3, 4, 5, 6],
+                value=4,
+                key="wiki_db_heroes_grid_cols",
+            )
+        with cset2:
+            page_size = st.select_slider(
+                "Page size",
+                options=[24, 36, 48, 60, 72, 96],
+                value=48,
+                key="wiki_db_heroes_grid_page_size",
+            )
+        with cset3:
+            st.caption("Tiles are clickable cards (image + text) when an icon is available.")
+
+        q = st.text_input(
+            "Search",
+            value="",
+            key="wiki_db_search_heroes",
+            help="Filters tiles and the list selector below.",
+        ).strip()
+
+        sel = _render_index_tiles(
+            index=idx,
+            index_key="heroes",
+            label="Heroes",
+            section_name="heroes",
+            qparam_key="hero",
+            search_query=q,
+            icon_prefix="heroes",
+            cols=int(cols),
+            page_size=int(page_size),
         )
-    with cset2:
-        page_size = st.select_slider(
-            "Page size",
-            options=[24, 36, 48, 60, 72, 96],
-            value=48,
-            key="wiki_db_items_grid_page_size",
-        )
-    with cset3:
-        st.caption("Tiles are clickable cards (image + text).")
+        st.divider()
+        if not sel:
+            st.caption("Tip: click a hero tile to open its card.")
+            sel = _select_from_index(idx, "heroes", "Hero", search_query=q)
+        if sel:
+            hdir = repo / "db" / "heroes"
+            ypath = _entity_yaml_path(hdir, sel)
+            if ypath is None:
+                st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+            elif not ypath.is_file():
+                st.warning(f"No YAML file at `{ypath}`. Run **Sync heroes** in FAQ.")
+            else:
+                hero = _load_yaml_dict(ypath)
+                if not hero:
+                    st.warning(f"Empty or invalid YAML at `{ypath}`.")
+                else:
+                    _render_hero(hero)
 
-    q = st.text_input(
-        "Search",
-        value="",
-        key="wiki_db_search_items",
-        help="Filters tiles and the list selector below.",
-    ).strip()
-
-    sel = _render_index_tiles(
-        index=idx,
-        index_key="items",
-        label="Items",
-        section_name="items",
-        qparam_key="item",
-        search_query=q,
-        icon_prefix="items",
-        cols=int(cols),
-        page_size=int(page_size),
-    )
-    st.divider()
-    if not sel:
-        st.caption("Tip: click an item tile to open its card.")
-        sel = _select_from_index(idx, "items", "Item", search_query=q)
-    if sel:
-        idir = repo / "db" / "items"
-        ypath = _entity_yaml_path(idir, sel)
-        if ypath is None:
-            st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
-        elif not ypath.is_file():
-            st.warning(f"No YAML file at `{ypath}`. Run **Sync items** in FAQ.")
+with tab_gear:
+    if tab_gear.open:
+        gear_dir = repo / "db" / "gear"
+        if not gear_dir.is_dir():
+            st.warning("No `db/gear/` directory yet. Run **Sync balance sheet** in FAQ.")
         else:
-            item = _load_yaml_dict(ypath)
-            if not item:
-                st.warning(f"Empty or invalid YAML at `{ypath}`.")
+            gear_files = sorted(
+                p for p in gear_dir.glob("*.yaml")
+                if p.is_file() and p.name != "enhancement.yaml"
+            )
+            if not gear_files:
+                st.info("No gear files yet. Run **Sync balance sheet** in FAQ.")
             else:
-                _render_item(item)
+                options: list[tuple[str, Path]] = []
+                for p in gear_files:
+                    doc = _load_yaml_dict(p)
+                    title = str(doc.get("title") or doc.get("id") or p.stem)
+                    options.append((title, p))
+                options.append(("Enhancement (shared constants)", gear_dir / "enhancement.yaml"))
 
-else:
-    _render_faq()
+                labels = [o[0] for o in options]
+                picked = st.radio(
+                    "Gear table",
+                    options=labels,
+                    horizontal=False,
+                    key="wiki_db_gear_radio",
+                    label_visibility="collapsed",
+                )
+                target = next(p for label, p in options if label == picked)
+                doc = _load_yaml_dict(target)
+                if not doc:
+                    st.warning(f"Empty or invalid YAML at `{target}`.")
+                elif target.name == "enhancement.yaml":
+                    _render_enhancement(doc)
+                else:
+                    _render_gear(doc)
+
+with tab_items:
+    if tab_items.open:
+        idx = _load_index(repo / "db" / "items" / "index.yaml")
+        cset1, cset2, cset3 = st.columns([1, 1, 2], vertical_alignment="center")
+        with cset1:
+            cols = st.select_slider(
+                "Grid",
+                options=[2, 3, 4, 5, 6],
+                value=4,
+                key="wiki_db_items_grid_cols",
+            )
+        with cset2:
+            page_size = st.select_slider(
+                "Page size",
+                options=[24, 36, 48, 60, 72, 96],
+                value=48,
+                key="wiki_db_items_grid_page_size",
+            )
+        with cset3:
+            st.caption("Tiles are clickable cards (image + text).")
+
+        q = st.text_input(
+            "Search",
+            value="",
+            key="wiki_db_search_items",
+            help="Filters tiles and the list selector below.",
+        ).strip()
+
+        sel = _render_index_tiles(
+            index=idx,
+            index_key="items",
+            label="Items",
+            section_name="items",
+            qparam_key="item",
+            search_query=q,
+            icon_prefix="items",
+            cols=int(cols),
+            page_size=int(page_size),
+        )
+        st.divider()
+        if not sel:
+            st.caption("Tip: click an item tile to open its card.")
+            sel = _select_from_index(idx, "items", "Item", search_query=q)
+        if sel:
+            idir = repo / "db" / "items"
+            ypath = _entity_yaml_path(idir, sel)
+            if ypath is None:
+                st.warning("Cannot resolve YAML path for this index entry (missing `id` / `file`).")
+            elif not ypath.is_file():
+                st.warning(f"No YAML file at `{ypath}`. Run **Sync items** in FAQ.")
+            else:
+                item = _load_yaml_dict(ypath)
+                if not item:
+                    st.warning(f"Empty or invalid YAML at `{ypath}`.")
+                else:
+                    _render_item(item)
+
+with tab_faq:
+    if tab_faq.open:
+        _render_faq()
 

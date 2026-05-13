@@ -178,8 +178,19 @@ async def evaluate_overlay_rules_async(
             allowed_lc = {s.lower() for s in allowlist}
             wants_unknown = "none" in allowed_lc
             cur_lc = cur_screen_norm.lower()
+            # Glob support: a pattern that includes ``*`` or ``?`` matches
+            # any screen that fnmatch'es it — used by ``page.heroes.*``
+            # rules so the per-hero screens (62 of them) don't need to be
+            # spelled out one by one.
+            glob_patterns = [p for p in allowed_lc if "*" in p or "?" in p]
             if cur_screen_norm:
-                if cur_lc not in allowed_lc:
+                matched = cur_lc in allowed_lc
+                if not matched and glob_patterns:
+                    import fnmatch
+                    matched = any(
+                        fnmatch.fnmatchcase(cur_lc, pat) for pat in glob_patterns
+                    )
+                if not matched:
                     continue
             else:
                 if not wants_unknown:

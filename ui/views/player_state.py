@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
@@ -183,50 +185,81 @@ def _infer_instance_id_for_player(player_id: str) -> str:
 
 
 def _sync_selected_player_from_century(g: GamerState) -> None:
+    """Pull fresh player data from the Century API and persist it.
+
+    Wrapped in ``st.status`` so the three independent steps (API fetch →
+    state.yaml → devices.yaml) report progress live and a failure in any
+    of them paints the container red without losing the steps that ran
+    before. ``st.toast`` fires on the happy path so the user gets a
+    non-blocking confirmation when the container collapses.
+    """
     fid = int(g.id)
     now = time.time()
-    try:
-        data = asyncio.run(CenturyClient().fetch_player(fid))
-    except CenturyAPIError as exc:
-        st.warning(f"Century API error: {exc}")
-        return
-    except Exception as exc:
-        st.error(f"Century sync failed: {type(exc).__name__}: {exc}")
-        return
 
-    try:
-        store = get_state_store().get_or_create(str(fid), nickname=data.nickname)
-        store.update_from_flat(
-            {
-                "nickname": data.nickname,
-                "kid": data.kid,
-                "avatar": data.avatar_image or "",
-                "buildings.furnace.level": data.stove_level,
-                "buildings.furnace.power": data.stove_lv_content,
-                "buildings.levels.furnace": int(data.stove_level),
-                "century_player_sync_at": float(now),
-            }
-        )
-    except Exception as exc:
-        st.error(f"state.yaml persist failed: {type(exc).__name__}: {exc}")
-        return
-
-    try:
-        iid = _infer_instance_id_for_player(str(fid))
-        if iid:
-            repo = _repo_root()
-            upsert_device_gamer(
-                path=repo / "db" / "devices.yaml",
-                device_name=iid,
-                player_id=str(fid),
-                nickname=data.nickname,
+    with st.status(f"Syncing `{fid}` from Century API…", expanded=True) as status:
+        st.write("Fetching player data…")
+        try:
+            data = asyncio.run(CenturyClient().fetch_player(fid))
+        except CenturyAPIError as exc:
+            status.update(label=f"Century API error: {exc}", state="error")
+            return
+        except Exception as exc:
+            status.update(
+                label=f"Century sync failed: {type(exc).__name__}: {exc}",
+                state="error",
             )
-    except Exception:
-        pass
+            return
+        st.write(
+            f"Got `{data.nickname}` · stove `{data.stove_level}` · KID `{data.kid}`"
+        )
 
-    st.success(
-        f"Synced `{data.nickname}` · stove `{data.stove_level}` · KID `{data.kid}` · fid `{fid}`"
-    )
+        st.write("Persisting to `db/state.yaml`…")
+        try:
+            store = get_state_store().get_or_create(str(fid), nickname=data.nickname)
+            store.update_from_flat(
+                {
+                    "nickname": data.nickname,
+                    "kid": data.kid,
+                    "avatar": data.avatar_image or "",
+                    "buildings.furnace.level": data.stove_level,
+                    "buildings.furnace.power": data.stove_lv_content,
+                    "buildings.levels.furnace": int(data.stove_level),
+                    "century_player_sync_at": float(now),
+                }
+            )
+        except Exception as exc:
+            status.update(
+                label=f"state.yaml persist failed: {type(exc).__name__}: {exc}",
+                state="error",
+            )
+            return
+
+        # ``devices.yaml`` upsert is best-effort — failure here doesn't
+        # invalidate the Century data we just persisted, so we log the
+        # skip but still mark the overall sync complete.
+        try:
+            iid = _infer_instance_id_for_player(str(fid))
+            if iid:
+                repo = _repo_root()
+                upsert_device_gamer(
+                    path=repo / "db" / "devices.yaml",
+                    device_name=iid,
+                    player_id=str(fid),
+                    nickname=data.nickname,
+                )
+                st.write(f"Linked instance `{iid}` ↔ player in `db/devices.yaml`.")
+            else:
+                st.write("No instance currently bound — skipped `devices.yaml`.")
+        except Exception as exc:
+            st.write(f"`devices.yaml` upsert skipped: {type(exc).__name__}: {exc}")
+
+        status.update(
+            label=f"Synced `{data.nickname}` · stove `{data.stove_level}` · "
+            f"KID `{data.kid}` · fid `{fid}`",
+            state="complete",
+            expanded=False,
+        )
+    st.toast(f"Synced `{data.nickname}` from Century", icon="✅")
     st.rerun()
 
 
@@ -240,6 +273,44 @@ def _resolve_hero_icon(hero_id: str) -> Path | None:
         return None
     files.sort(key=lambda p: (p.suffix.lower(), p.name.lower()))
     return files[0]
+
+
+@st.cache_data(ttl=3600)
+def _icon_data_uri(path_str: str) -> str:
+    """Inline a small icon as a base64 data: URI so it survives the
+    cross-page <a href> jump without needing a Streamlit static-files route.
+
+    Argument is a string (not :class:`Path`) so ``@st.cache_data`` can hash
+    it cheaply — same trick :mod:`ui.views.wiki_db` uses."""
+    raw = Path(path_str).read_bytes()
+    b64 = base64.b64encode(raw).decode("ascii")
+    suffix = Path(path_str).suffix.lower().lstrip(".")
+    mime = (
+        "image/png" if suffix == "png"
+        else "image/webp" if suffix == "webp"
+        else "image/gif" if suffix == "gif"
+        else "image/jpeg"
+    )
+    return f"data:{mime};base64,{b64}"
+
+
+def _html_escape(s: str) -> str:
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
+def _wiki_hero_href(hero_id: str) -> str:
+    """Root-relative link to the wiki entry for ``hero_id``.
+
+    Matches the deep-link format ``ui/views/wiki_db.py`` reads in
+    ``_render_index_tiles`` (``qparam_key="hero"``)."""
+    return "/wiki_db?" + urlencode({"section": "heroes", "hero": hero_id})
 
 
 def _format_seen_at(ts: object) -> str:
@@ -262,6 +333,13 @@ def _format_seen_at(ts: object) -> str:
 def _hero_entries_rows(
     entries: dict[str, object],
 ) -> list[dict[str, object]]:
+    """Flatten ``heroes.entries`` into UI rows.
+
+    ``available`` is the discriminator the panel uses to split Owned vs
+    Locked. Default ``True`` keeps legacy entries written by
+    ``sync_hero_unit`` (which doesn't set the flag) showing up under
+    Owned — those were only written for cards the player actually opened.
+    """
     reg = get_hero_registry()
     rows: list[dict[str, object]] = []
     for hid, raw in entries.items():
@@ -273,19 +351,103 @@ def _hero_entries_rows(
             level = int(raw.get("level"))  # type: ignore[arg-type]
         except (TypeError, ValueError):
             level = 0
+        try:
+            shards_cur = int(raw.get("shards_current"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            shards_cur = 0
+        try:
+            shards_req = int(raw.get("shards_required"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            shards_req = 0
+        available = raw.get("available")
+        available_bool = True if available is None else bool(available)
+        seen_ts = raw.get("seen_at")
+        if seen_ts in (None, 0, "0"):
+            seen_ts = raw.get("last_seen_at")
         rows.append(
             {
                 "id": hid,
                 "hero": name,
+                "available": available_bool,
                 "level": level,
+                "shards_current": shards_cur,
+                "shards_required": shards_req,
+                "red_dot": bool(raw.get("red_dot")),
+                "upgrade": bool(raw.get("isUpgradeAvailable")),
                 "rarity": (hdef.rarity if hdef else "") or "—",
                 "class": (hdef.hero_class if hdef else "") or "—",
                 "sub_class": (hdef.sub_class if hdef else "") or "—",
-                "seen": _format_seen_at(raw.get("seen_at")),
+                "seen": _format_seen_at(seen_ts),
             }
         )
-    rows.sort(key=lambda r: (-(int(r["level"]) if isinstance(r["level"], int) else 0), str(r["hero"]).lower()))
     return rows
+
+
+def _shard_progress(row: dict[str, object]) -> float:
+    cur = int(row.get("shards_current") or 0)
+    req = int(row.get("shards_required") or 0)
+    return (cur / req) if req > 0 else 0.0
+
+
+def _render_hero_tiles(
+    rows: list[dict[str, object]],
+    *,
+    locked: bool,
+    cols_per_row: int = 4,
+) -> None:
+    """Render a grid of hero tiles. ``locked`` swaps the caption from
+    level + last-seen to shard progress + lock marker."""
+    for i in range(0, len(rows), cols_per_row):
+        chunk = rows[i : i + cols_per_row]
+        tiles = st.columns(cols_per_row)
+        for col, row in zip(tiles, chunk):
+            with col:
+                hid = str(row["id"])
+                icon = _resolve_hero_icon(hid)
+                href = _wiki_hero_href(hid)
+                if icon is not None and icon.is_file():
+                    # Wrap the avatar in an <a> to /wiki_db so clicking the
+                    # tile opens the wiki card. Image is inlined as a data:
+                    # URI — Streamlit doesn't expose a static-files mount
+                    # for arbitrary repo paths.
+                    data_uri = _icon_data_uri(str(icon))
+                    st.markdown(
+                        f'<a href="{href}" title="Open wiki: {_html_escape(hid)}">'
+                        f'<img src="{data_uri}" width="96" '
+                        f'style="border-radius:8px;display:block" />'
+                        f'</a>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    # No local icon — still expose the wiki link via a tiny
+                    # text fallback so the avatar slot stays clickable.
+                    st.markdown(
+                        f'<a href="{href}">🔗 wiki</a>',
+                        unsafe_allow_html=True,
+                    )
+                tags: list[str] = []
+                if row["red_dot"]:
+                    tags.append(":red[●]")
+                if row["upgrade"]:
+                    tags.append(":green[↑]")
+                tag_str = (" " + " ".join(tags)) if tags else ""
+                st.markdown(f"**{row['hero']}** · `{row['id']}`{tag_str}")
+                if locked:
+                    cur = int(row["shards_current"])
+                    req = int(row["shards_required"])
+                    if req > 0:
+                        st.caption(f"🔒 shards {cur}/{req}")
+                    else:
+                        st.caption("🔒 locked")
+                    st.caption(
+                        f"{row['rarity']} · {row['class']} / {row['sub_class']}"
+                    )
+                else:
+                    st.caption(
+                        f"Lv. {row['level']} · {row['rarity']} · "
+                        f"{row['class']} / {row['sub_class']}"
+                    )
+                    st.caption(f"seen: {row['seen']}")
 
 
 def _render_heroes_panel(g: GamerState) -> None:
@@ -295,11 +457,15 @@ def _render_heroes_panel(g: GamerState) -> None:
     }
     reg = get_hero_registry()
     total_registry = len(reg.heroes)
+    rows_all = _hero_entries_rows(entries)
+    owned_count = sum(1 for r in rows_all if r["available"])
+    locked_count = len(rows_all) - owned_count
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Seen heroes", len(entries))
-    c2.metric("Heroes in registry", total_registry)
-    c3.metric("Notify", "yes" if g.heroes.isnotify else "no")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Owned", owned_count)
+    c2.metric("Locked / collecting", locked_count)
+    c3.metric("In registry", total_registry)
+    c4.metric("Notify", "yes" if g.heroes.isnotify else "no")
 
     if not entries:
         st.info(
@@ -308,47 +474,73 @@ def _render_heroes_panel(g: GamerState) -> None:
             "`heroes.entries.<id>` of `db/state.yaml`."
         )
     else:
-        rows = _hero_entries_rows(entries)
-
         show_filter = st.text_input(
             "Filter (name / id / class)",
             value="",
             key=f"player_state_heroes_filter_{g.id}",
         ).strip().lower()
 
-        visible: list[dict[str, object]] = []
-        for r in rows:
+        def _passes_filter(r: dict[str, object]) -> bool:
+            if not show_filter:
+                return True
             hay = " ".join(str(v) for v in r.values()).lower()
-            if show_filter and show_filter not in hay:
-                continue
-            visible.append(r)
+            return show_filter in hay
 
-        if not visible:
+        owned_rows = sorted(
+            (r for r in rows_all if r["available"]),
+            key=lambda r: (-int(r["level"] or 0), str(r["hero"]).lower()),
+        )
+        locked_rows = sorted(
+            (r for r in rows_all if not r["available"]),
+            # Closest-to-unlock first; ties broken by name.
+            key=lambda r: (-_shard_progress(r), str(r["hero"]).lower()),
+        )
+        owned_visible = [r for r in owned_rows if _passes_filter(r)]
+        locked_visible = [r for r in locked_rows if _passes_filter(r)]
+
+        if not owned_visible and not locked_visible:
             st.info("No heroes matched the current filter.")
-        else:
-            st.subheader(f"Owned heroes ({len(visible)}/{len(rows)})")
-            cols_per_row = 4
-            for i in range(0, len(visible), cols_per_row):
-                chunk = visible[i : i + cols_per_row]
-                tiles = st.columns(cols_per_row)
-                for col, row in zip(tiles, chunk):
-                    with col:
-                        icon = _resolve_hero_icon(str(row["id"]))
-                        if icon is not None and icon.is_file():
-                            try:
-                                st.image(str(icon), width=96)
-                            except Exception:
-                                pass
-                        st.markdown(f"**{row['hero']}** · `{row['id']}`")
-                        st.caption(
-                            f"Lv. {row['level']} · {row['rarity']} · "
-                            f"{row['class']} / {row['sub_class']}"
-                        )
-                        st.caption(f"seen: {row['seen']}")
 
+        if owned_visible:
+            st.subheader(f"Owned heroes ({len(owned_visible)}/{len(owned_rows)})")
+            _render_hero_tiles(owned_visible, locked=False)
             st.divider()
-            st.markdown("**Table view**")
-            st.dataframe(pd.DataFrame(visible), width="stretch", hide_index=True)
+            st.markdown("**Owned · table view**")
+            st.dataframe(
+                pd.DataFrame(owned_visible).drop(
+                    columns=["available", "shards_current", "shards_required"],
+                    errors="ignore",
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+        elif owned_rows:
+            st.caption(
+                f"No owned heroes matched the filter "
+                f"(hiding {len(owned_rows)} owned)."
+            )
+
+        if locked_visible:
+            st.subheader(
+                f"Locked · collecting shards "
+                f"({len(locked_visible)}/{len(locked_rows)})"
+            )
+            _render_hero_tiles(locked_visible, locked=True)
+            st.divider()
+            st.markdown("**Locked · table view**")
+            st.dataframe(
+                pd.DataFrame(locked_visible).drop(
+                    columns=["available", "level", "seen"],
+                    errors="ignore",
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+        elif locked_rows:
+            st.caption(
+                f"No locked heroes matched the filter "
+                f"(hiding {len(locked_rows)} locked)."
+            )
 
     with st.expander("Heroes not yet seen", expanded=False):
         seen_ids = set(entries.keys())
@@ -507,8 +699,47 @@ def _live_panel(pid: str) -> None:
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
+# Two-way ``?tab=`` routing via the native st.tabs API
+# (Streamlit 1.57+ — ``default=``, ``key=``, ``on_change=`` are supported).
+# Deep links like ``/player_state?tab=heroes`` land on the right tab;
+# user clicks fire ``_on_player_state_tab_change`` which echoes the new
+# key back into ``st.query_params`` so the URL stays in sync (incl. for
+# share / refresh / browser back-forward).
+_TAB_LABEL: dict[str, str] = {
+    "redis": "Redis (live)",
+    "yaml": "Persisted (state.yaml)",
+    "heroes": "Heroes",
+}
+_LABEL_TO_TAB: dict[str, str] = {v: k for k, v in _TAB_LABEL.items()}
+
+
+def _query_param_tab() -> str:
+    raw = st.query_params.get("tab")
+    s = raw[0] if isinstance(raw, list) and raw else (raw or "")
+    s = str(s).strip().lower()
+    return s if s in _TAB_LABEL else "redis"
+
+
+def _on_player_state_tab_change() -> None:
+    label = st.session_state.get("player_state_tabs")
+    key = _LABEL_TO_TAB.get(label or "")
+    if key and key != _query_param_tab():
+        st.query_params["tab"] = key
+
+
+# Pull the URL value into session_state BEFORE the widget renders so
+# browser back/forward (and manual ``?tab=`` edits) drive the active
+# tab. ``default=`` alone wouldn't help here — once the widget has been
+# touched, ``session_state[key]`` takes precedence over ``default=``.
+_url_label = _TAB_LABEL[_query_param_tab()]
+if st.session_state.get("player_state_tabs") != _url_label:
+    st.session_state["player_state_tabs"] = _url_label
+
 tab_redis, tab_yaml, tab_heroes = st.tabs(
-    ["Redis (live)", "Persisted (state.yaml)", "Heroes"]
+    list(_TAB_LABEL.values()),
+    default=_url_label,
+    key="player_state_tabs",
+    on_change=_on_player_state_tab_change,
 )
 
 with tab_redis:

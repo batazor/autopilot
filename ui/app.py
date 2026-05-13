@@ -8,11 +8,25 @@ import streamlit as st
 
 from ui.bot_services import ensure_embedded_bot
 
-st.set_page_config(page_title="WOS Bot", layout="wide")
+_ui_dir = Path(__file__).parent
+_logo_path = _ui_dir.parent / "docs" / "logo.png"
+_logo_icon_path = _ui_dir.parent / "docs" / "logo_icon.png"
+
+st.set_page_config(
+    page_title="WOS Bot",
+    layout="wide",
+    page_icon=str(_logo_icon_path if _logo_icon_path.exists() else _logo_path),
+)
+
+if _logo_path.exists():
+    st.logo(
+        str(_logo_path),
+        size="large",
+        icon_image=str(_logo_icon_path) if _logo_icon_path.exists() else None,
+        link="https://github.com/batazor/whiteout-survival-autopilot",
+    )
 
 ensure_embedded_bot()
-
-_ui_dir = Path(__file__).parent
 
 overview = st.Page(str(_ui_dir / "views" / "overview.py"), title="Overview", default=True)
 instance_page = st.Page(str(_ui_dir / "views" / "instance.py"), title="Instance")
@@ -52,6 +66,14 @@ fsm_page = st.Page(
     url_path="routes",
 )
 adb_page = st.Page(str(_ui_dir / "views" / "adb.py"), title="ADB", url_path="adb")
+balance_page = st.Page(
+    str(_ui_dir / "views" / "balance.py"), title="Balance", url_path="balance"
+)
+optimizer_debug_page = st.Page(
+    str(_ui_dir / "views" / "optimizer_debug.py"),
+    title="Optimizer",
+    url_path="optimizer",
+)
 
 st.navigation(
     {
@@ -63,7 +85,13 @@ st.navigation(
             edit_scenarios_page,
             wiki_analyze_page,
         ],
-        "Debug": [click_approvals_page, queue_page, debug_scenarios_page, fsm_page],
-        "Config": [scenarios_page, adb_page],
+        "Debug": [
+            click_approvals_page,
+            queue_page,
+            debug_scenarios_page,
+            fsm_page,
+            optimizer_debug_page,
+        ],
+        "Config": [scenarios_page, adb_page, balance_page],
     }
 ).run()

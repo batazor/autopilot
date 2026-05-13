@@ -1,2 +1,15 @@
 # Heroes — single unit detail page. Uses only regions already defined in area.json.
-overlay: []
+overlay:
+# On any hero card screen (62 distinct ``page.heroes.<id>`` nodes
+# verified by per-hero OCR rules), fire the wiki-reader scenario. The
+# ``page.heroes.*`` glob in ``screens:`` is matched via fnmatch — saves
+# us from listing every hero explicitly. Long TTL because hero wiki
+# content rarely changes per-visit; the bot just needs to scrape it once.
+- name: page.heroes.unit.wiki.present
+  region: page.heroes.unit.wiki
+  action: text
+  screens:
+    - page.heroes.*
+  pushScenario:
+  - name: read_hero_wiki
+    ttl: 24h
