@@ -269,6 +269,12 @@ xdg-open http://127.0.0.1:8501
 git clone https://github.com/batazor/whiteout-survival-autopilot.git
 cd whiteout-survival-autopilot
 
+# Optional but recommended: run the doctor first — it tells you in plain
+# English what is missing or misconfigured, and how to fix it.
+.\scripts\doctor.ps1
+# If blocked by execution policy:
+# powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
+
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
 adb devices
@@ -278,6 +284,8 @@ docker compose -f docker-compose.prod.yml up -d
 
 start http://127.0.0.1:8501
 ```
+
+> `scripts\doctor.ps1` is read-only: it checks Docker / ADB / BlueStacks / open ports and prints `[OK]` / `[FAIL]` / `[WARN]` with concrete fix instructions next to each line. It never installs or starts anything on its own — safe to run any time.
 
 > If your antivirus flags `adb.exe` as PUA — whitelist the Android Platform Tools folder. ADB is a legitimate dev tool but can give root shells, so some scanners treat it as suspicious.
 
