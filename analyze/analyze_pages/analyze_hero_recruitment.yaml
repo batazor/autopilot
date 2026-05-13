@@ -29,20 +29,3 @@ overlay:
     screens:
       - hero.recrutment
     ttl: 20s
-
-  # When the Advanced recruit's "Free" button is on screen (red-dot-free —
-  # template match only, see ``hero.recrutment.advanced.free`` in area.json
-  # for the ``_search`` ROI companion) we push the existing claim scenario.
-  # ``ttl: 1h`` throttles re-evaluation so we don't spam the queue when the
-  # button lingers in view for a few minutes after a refresh; the underlying
-  # cron (``free_recrutments_today.yaml``, every 5h) still acts as a
-  # safety-net catch-up between overlay ticks.
-  - name: hero.recrutment.advanced.free.visible
-    region: hero.recrutment.advanced.free
-    action: findIcon
-    screens:
-      - hero.recrutment
-    threshold: 0.9
-    ttl: 1h
-    pushScenario:
-      - name: free_recrutments_today

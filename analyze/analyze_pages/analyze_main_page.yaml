@@ -16,7 +16,6 @@ overlay:
     - main_city
   pushScenario:
   - name: new_chapter
-    priority: 80_000
     ttl: 15m
 
 - name: chapter.new.has_red_dot
@@ -26,7 +25,6 @@ overlay:
     - main_city
   pushScenario:
   - name: new_chapter
-    priority: 80_000
     ttl: 15m
 
 - name: isNewPeople.visible
@@ -37,7 +35,6 @@ overlay:
     - main_city
   pushScenario:
   - name: is_new_people
-    priority: 80_000
     ttl: 15m
 
 - name: isWorkers.visible
@@ -48,7 +45,6 @@ overlay:
   ttl: 5m
   pushScenario:
   - name: assign_worker
-    priority: 80_000
 
 - name: isPostman.visible
   region: isPostman
@@ -58,7 +54,6 @@ overlay:
     - main_city
   pushScenario:
   - name: isPostman
-    priority: 80_000
     ttl: 5m
 
 - name: main_city.to.exploration.has_reward
@@ -78,7 +73,6 @@ overlay:
   - main_city
   pushScenario:
   - name: click_event_block_1
-    priority: 80_000
     ttl: 5m
 
 - name: main_city.event.block.2.has_red_dot
@@ -88,7 +82,6 @@ overlay:
   - main_city
   pushScenario:
   - name: click_event_block_2
-    priority: 80_000
     ttl: 5m
 
 - name: main_city.event.block.3.has_red_dot
@@ -98,7 +91,6 @@ overlay:
   - main_city
   pushScenario:
   - name: click_event_block_3
-    priority: 80_000
     ttl: 5m
 
 - name: main_city.event.block.4.has_red_dot
@@ -108,7 +100,6 @@ overlay:
     - main_city
   pushScenario:
   - name: click_event_block_4
-    priority: 80_000
     ttl: 5m
 
 - name: page.vip.has_red_dot
@@ -118,7 +109,6 @@ overlay:
     - main_city
   pushScenario:
   - name: click_vip
-    priority: 80_000
     ttl: 5m
 
 - name: main_city.to.shop.has_red_dot
@@ -129,6 +119,15 @@ overlay:
   pushScenario:
   - name: click_shop
 
+- name: main_city.to.heroes.has_red_dot
+  region: main_city.to.heroes
+  isRedDot: true
+  ttl: 5m
+  screens:
+    - main_city
+  pushScenario:
+  - name: click_heroes
+
 - name: main_city.to.backpack.has_red_dot
   region: main_city.to.backpack
   isRedDot: true
@@ -136,7 +135,6 @@ overlay:
   - main_city
   pushScenario:
   - name: click_backpack
-    priority: 80_000
     ttl: 5m
 
 - name: chapter.task.present
@@ -147,7 +145,6 @@ overlay:
   ttl: 30s
   pushScenario:
   - name: chapter_task_router
-    priority: 70_000
 
 # Periodic OCR-scan of the four event slots → resolves which screen each
 # block currently leads to. 5min TTL on the pushed scenario throttles the
@@ -162,4 +159,3 @@ overlay:
   ttl: 5m
   pushScenario:
   - name: scan_event_blocks
-    priority: 70_000

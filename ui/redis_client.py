@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, TypedDict
@@ -400,6 +401,67 @@ def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
                         payload,
                     )
                 return True
+    return False
+
+
+def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
+    """Re-score a queued task to ``time.time()`` so the next scheduler tick picks
+    it up immediately. Also rewrites the in-payload ``run_at`` field so the row
+    is internally consistent. Returns ``True`` if the task was found.
+    """
+    def _is_queue_zset_key(k: str) -> bool:
+        if not k:
+            return False
+        if ":running" in k or ":idx:" in k:
+            return False
+        try:
+            return str(client.type(k) or "").lower() == "zset"
+        except redis.RedisError:
+            return False
+
+    keys: list[str] = []
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if _is_queue_zset_key(k):
+            keys.append(k)
+    now = time.time()
+    for key in keys:
+        payloads = client.zrangebyscore(key, "-inf", "+inf")
+        for payload in payloads:
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if str(data.get("task_id", "")) != task_id:
+                continue
+            data["run_at"] = now
+            new_payload = json.dumps(data, ensure_ascii=False)
+            # ZSET members are byte-exact: rescore = ZREM old + ZADD new.
+            client.zrem(key, payload)
+            client.zadd(key, {new_payload: now})
+            # Keep dedup idx in sync so the re-scored payload still gates duplicate
+            # enqueues. Both the region-specific and region=None idx entries are
+            # rewritten (overlay tasks use ``dedup_ignore_region=True``).
+            iid = str(data.get("instance_id", "") or "").strip() or "unknown"
+            pid = str(data.get("player_id", "") or "")
+            ttype = str(data.get("task_type", "") or "")
+            reg_raw = data.get("region")
+            reg_s = (
+                str(reg_raw).strip()
+                if reg_raw is not None and str(reg_raw).strip() != ""
+                else None
+            )
+            for reg in (reg_s, None):
+                with suppress(Exception):
+                    idx_key = _dup_index_key(
+                        instance_id=iid,
+                        player_id=pid,
+                        task_type=ttype,
+                        region=reg,
+                    )
+                    client.srem(idx_key, payload)
+                    client.sadd(idx_key, new_payload)
+            return True
     return False
 
 

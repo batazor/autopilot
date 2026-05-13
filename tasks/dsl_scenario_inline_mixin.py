@@ -117,8 +117,18 @@ class DslScenarioInlineMixin:
     def estimate_duration(self) -> int:
         return 15
 
-    async def _run_exec_step(self, name: str, instance_id: str) -> None:
-        """Dispatch ``exec: <name>`` to :data:`tasks.dsl_exec.DSL_EXEC_REGISTRY`."""
+    async def _run_exec_step(
+        self,
+        name: str,
+        instance_id: str,
+        args: dict[str, Any] | None = None,
+    ) -> None:
+        """Dispatch ``exec: <name>`` to :data:`tasks.dsl_exec.DSL_EXEC_REGISTRY`.
+
+        Sibling YAML keys on the step (everything besides ``exec`` and ``cond``)
+        flow through as ``ctx.args`` so handlers can accept per-call options
+        (e.g. ``region: page.heroes`` to scope ``put_all_red_dots``).
+        """
         from tasks.dsl_exec import DSL_EXEC_REGISTRY, DslExecContext
 
         fn = DSL_EXEC_REGISTRY.get(name)
@@ -129,6 +139,7 @@ class DslScenarioInlineMixin:
             redis_client=self.redis_client,
             player_id=self.player_id,
             instance_id=instance_id,
+            args=dict(args or {}),
         )
         try:
             await fn(ctx)
@@ -907,7 +918,8 @@ class DslScenarioInlineMixin:
         if "exec" in step:
             name = str(step.get("exec") or "").strip()
             if name:
-                await self._run_exec_step(name, instance_id)
+                args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
+                await self._run_exec_step(name, instance_id, args)
             self._append_trace_row(trace_path, step, "ok")
             return None
         if "ocr" in step:

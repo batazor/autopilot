@@ -22,6 +22,7 @@ from ui.redis_client import (
     push_scheduler_command,
     remove_queue_task,
     require_redis_connection,
+    run_queue_task_now,
 )
 from ui.views._debug_scenarios_progress import _load_scenario_step_summaries
 
@@ -181,17 +182,19 @@ def _queue_fragment() -> None:
             st.info("No tasks match the current filter.")
         else:
             st.markdown("**Queue items**")
-            header = st.columns([0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7])
+            _COL_WIDTHS = [0.55, 0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7]
+            header = st.columns(_COL_WIDTHS)
             header[0].markdown("**Del**")
-            header[1].markdown("**Scheduled**")
-            header[2].markdown("**Player**")
-            header[3].markdown("**Instance**")
-            header[4].markdown("**Task type**")
-            header[5].markdown("**Region**")
-            header[6].markdown("**Pri**")
-            header[7].markdown("**Coop**")
-            header[8].markdown("**Task ID**")
-            header[9].markdown("**Copy**")
+            header[1].markdown("**Run**")
+            header[2].markdown("**Scheduled**")
+            header[3].markdown("**Player**")
+            header[4].markdown("**Instance**")
+            header[5].markdown("**Task type**")
+            header[6].markdown("**Region**")
+            header[7].markdown("**Pri**")
+            header[8].markdown("**Coop**")
+            header[9].markdown("**Task ID**")
+            header[10].markdown("**Copy**")
 
             selected_ids: list[str] = []
             for idx, r in enumerate(rows):
@@ -200,24 +203,35 @@ def _queue_fragment() -> None:
                 scheduled_disp = f"⚠️ {rel}" if overdue else rel
                 k = f"qrow_{idx}_{r.task_id}"
 
-                cols = st.columns([0.55, 1.1, 1.0, 1.0, 1.4, 1.0, 0.7, 0.7, 3.0, 0.7])
+                cols = st.columns(_COL_WIDTHS)
                 if cols[0].checkbox("del", value=False, key=f"{k}_del", label_visibility="collapsed"):
                     selected_ids.append(r.task_id)
-                cols[1].write(scheduled_disp)
-                cols[2].write(r.player_id)
-                cols[3].write(r.instance_id)
-                cols[4].write(r.task_type)
-                cols[5].write(r.region or "")
-                cols[6].write(str(r.priority))
-                cols[7].checkbox(
+                if cols[1].button(
+                    "▶️",
+                    key=f"{k}_run",
+                    help="Re-score this task to now and nudge the scheduler.",
+                ):
+                    if run_queue_task_now(client, r.task_id):
+                        push_scheduler_command(client, {"cmd": "optimize_now"})
+                        st.toast(f"Scheduled {r.task_type} to run now.")
+                    else:
+                        st.toast("Task not found — it may have already been popped.")
+                    st.rerun()
+                cols[2].write(scheduled_disp)
+                cols[3].write(r.player_id)
+                cols[4].write(r.instance_id)
+                cols[5].write(r.task_type)
+                cols[6].write(r.region or "")
+                cols[7].write(str(r.priority))
+                cols[8].checkbox(
                     "coop",
                     value=bool(r.cooperative),
                     disabled=True,
                     key=f"{k}_coop",
                     label_visibility="collapsed",
                 )
-                cols[8].write(r.task_id)
-                if cols[9].button("📋", key=f"{k}_copy", help="Copy row JSON"):
+                cols[9].write(r.task_id)
+                if cols[10].button("📋", key=f"{k}_copy", help="Copy row JSON"):
                     payload = r.payload or {}
                     txt = json.dumps(payload, ensure_ascii=False, indent=2)
                     st.session_state["queue_copy_json"] = txt

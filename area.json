@@ -2035,7 +2035,7 @@
     },
     {
       "id": 47,
-      "screen_id": "heroes",
+      "screen_id": "None",
       "ocr": "references/page.heroes.png",
       "regions": [
         {
@@ -2053,6 +2053,21 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "heroes.grid",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.2432432432432434,
+            "y": 7.282608695652174,
+            "width": 93.0,
+            "height": 80.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
@@ -2785,6 +2800,50 @@
             "y": 0.32608695652173914,
             "width": 20.0,
             "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "screen_id": "shop",
+      "ocr": "references/page.shop.daily_deals.png",
+      "regions": [
+        {
+          "name": "box.free",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.91119691119691,
+            "y": 33.15217391304348,
+            "width": 9.0,
+            "height": 3.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "screen_id": "",
+      "ocr": "references/page.squad_fight.png",
+      "regions": [
+        {
+          "name": "page.squad_fight.auto",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.03088803088804,
+            "y": 65.97826086956522,
+            "width": 7.7992277992278,
+            "height": 3.2,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

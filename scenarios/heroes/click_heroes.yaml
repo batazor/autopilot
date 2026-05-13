@@ -1,0 +1,15 @@
+enabled: true
+name: "🦸 Open Heroes page"
+
+# Navigator BFS: main_city → heroes (see edge_taps.yaml line 12). The BFS
+# itself is what taps ``main_city.to.heroes``; steps below run once the page
+# is open.
+node: heroes
+
+# Pushed by ``main_city.to.heroes.has_red_dot`` when the Heroes button on
+# main_city lights up. Skeleton for now — claim/promote/recruit flows will
+# be filled in as separate overlay-pushed scenarios on the ``heroes`` screen.
+
+steps: []
+  # - exec: put_all_red_dots
+  #   region: heroes.grid

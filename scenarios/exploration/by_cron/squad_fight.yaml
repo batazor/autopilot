@@ -53,16 +53,16 @@ steps:
           store: squad_status
         - wait: 2s
 
-  # Won → tap `next` to dismiss the banner / start the next fight, then re-push
-  # ourselves so the scheduler picks up the next iteration. Lost → fall through
-  # and end (no push, no further taps). The ``~=`` operator is a case-insensitive
-  # substring match, so "Victory!", "VICTORY", and "victory" all hit.
-  - cond: squad_status ~= "victory"
-    steps:
-      - click: page.squad_settings.next
-      - push_scenario: squad_fight
+        # Won → tap `next` to dismiss the banner / start the next fight, then re-push
+        # ourselves so the scheduler picks up the next iteration. Lost → fall through
+        # and end (no push, no further taps). The ``~=`` operator is a case-insensitive
+        # substring match, so "Victory!", "VICTORY", and "victory" all hit.
+        - cond: squad_status ~= "victory"
+          steps:
+            - click: page.squad_settings.next
+            - push_scenario: squad_fight
 
-  - cond: squad_status ~= "defeat"
-    steps:
-      - click: page.squad_settings.status.defeat
-      - wait: 2s
+        - cond: squad_status ~= "defeat"
+          steps:
+            - click: page.squad_settings.status.defeat
+            - wait: 2s

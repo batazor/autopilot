@@ -10,8 +10,9 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from actions.tap import BotActions
@@ -57,6 +58,11 @@ class DslExecContext:
 
     instance_id: str
     """ADB instance id (device)."""
+
+    args: dict[str, Any] = field(default_factory=dict)
+    """Sibling YAML keys on the ``exec:`` step (everything except ``exec`` /
+    ``cond``). Each handler reads what it needs; unknown keys are silently
+    ignored so adding a new arg never breaks older handlers."""
 
 
 def _decode_redis_raw(raw: Any) -> str:
@@ -772,6 +778,13 @@ _PUT_ALL_RED_DOTS_TAP_DELAY_S = 0.4
 # Settling pause after the batch of taps before re-scanning, so the next frame
 # reflects the current UI state and we don't double-tap a stale dot.
 _PUT_ALL_RED_DOTS_RESCAN_DELAY_S = 0.6
+# Per-sweep cycle guard: if a tap reopens the same popup and the detector
+# surfaces the same dot again, we'd loop until the global cap. We treat any
+# two detections within this radius as "the same spot"; after the 2nd tap on
+# that spot the area joins a sweep-local filter and subsequent detections in
+# the radius are skipped before tapping.
+_PUT_ALL_RED_DOTS_DUP_RADIUS_PX = 5
+_PUT_ALL_RED_DOTS_DUP_MAX_HITS = 2
 
 
 async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
@@ -781,13 +794,52 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
     * a fresh frame returns zero red-dot detections, or
     * the global ``_PUT_ALL_RED_DOTS_MAX_TAPS`` cap is reached.
 
-    No region/area.json lookup — pure full-screen ``find_red_dots``. Useful as
-    a "drain pending notifications" step at the start of a screen-traversal
-    scenario (e.g. backpack tabs).
+    Default: full-screen ``find_red_dots``. With ``region: <name>`` on the
+    ``exec:`` step, the search is restricted to that named region from
+    ``area.json`` — useful when a screen has dots outside the panel you want
+    to drain (e.g. the bottom nav bar) and you don't want to chase them.
     """
+    region_name = str((ctx.args or {}).get("region") or "").strip()
+    region_pct: tuple[float, float, float, float] | None = None
+    if region_name:
+        area_doc = _load_area_doc()
+        pair = screen_region_by_name(area_doc, region_name) if area_doc else None
+        bbox = pair[1].get("bbox") if pair and isinstance(pair[1], dict) else None
+        if not isinstance(bbox, dict):
+            logger.warning(
+                "dsl exec put_all_red_dots: region=%r not found in area.json — aborting",
+                region_name,
+            )
+            return
+        try:
+            region_pct = (
+                float(bbox["x"]),
+                float(bbox["y"]),
+                float(bbox["width"]),
+                float(bbox["height"]),
+            )
+        except (KeyError, TypeError, ValueError):
+            logger.warning(
+                "dsl exec put_all_red_dots: region=%r has malformed bbox — aborting",
+                region_name,
+            )
+            return
+
     actions = BotActions()
     taps_total = 0
     iteration = 0
+    # (x, y, hits) — taps within ``_PUT_ALL_RED_DOTS_DUP_RADIUS_PX`` of an entry
+    # increment its ``hits``; once it reaches the cap the (x, y) is appended to
+    # ``filtered_points`` and future detections in the radius are skipped.
+    # Coords are absolute (full-frame) regardless of the region crop.
+    tap_history: list[tuple[int, int, int]] = []
+    filtered_points: list[tuple[int, int]] = []
+    radius_sq = _PUT_ALL_RED_DOTS_DUP_RADIUS_PX * _PUT_ALL_RED_DOTS_DUP_RADIUS_PX
+
+    def _near(ax: int, ay: int, bx: int, by: int) -> bool:
+        dx, dy = ax - bx, ay - by
+        return dx * dx + dy * dy <= radius_sq
+
     while taps_total < _PUT_ALL_RED_DOTS_MAX_TAPS:
         iteration += 1
         try:
@@ -799,7 +851,46 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
             )
             return
         hi = int(image.shape[0])
-        dots = find_red_dots(image, image_h_for_norm=hi)
+        if region_pct is not None:
+            H, W = image.shape[:2]
+            px = max(0, int(round(region_pct[0] / 100.0 * W)))
+            py = max(0, int(round(region_pct[1] / 100.0 * H)))
+            pw = max(0, int(round(region_pct[2] / 100.0 * W)))
+            ph = max(0, int(round(region_pct[3] / 100.0 * H)))
+            px2 = min(W, px + pw)
+            py2 = min(H, py + ph)
+            patch = image[py:py2, px:px2]
+            if patch.size == 0:
+                logger.warning(
+                    "dsl exec put_all_red_dots: region=%r resolved to empty crop "
+                    "(%d,%d %dx%d in %dx%d) — aborting",
+                    region_name, px, py, pw, ph, W, H,
+                )
+                return
+            # ``image_h_for_norm`` stays the full screen height so the radius
+            # bounds match dots seen at full resolution — without this a small
+            # ROI would silently shrink the expected dot size.
+            dots_local = find_red_dots(patch, image_h_for_norm=hi)
+            dots = [
+                SimpleNamespace(
+                    cx=d.cx + px,
+                    cy=d.cy + py,
+                    radius=d.radius,
+                    score=d.score,
+                )
+                for d in dots_local
+            ]
+        else:
+            dots = find_red_dots(image, image_h_for_norm=hi)
+        if filtered_points:
+            dots = [
+                d
+                for d in dots
+                if not any(
+                    _near(int(round(d.cx)), int(round(d.cy)), fx, fy)
+                    for fx, fy in filtered_points
+                )
+            ]
         if not dots:
             logger.info(
                 "dsl exec put_all_red_dots: instance=%s done iter=%d taps=%d (no dots)",
@@ -813,6 +904,31 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
         # from the previous tap.
         dot = dots[0]
         point = Point(int(round(dot.cx)), int(round(dot.cy)))
+        hit_idx = next(
+            (
+                i
+                for i, (hx, hy, _) in enumerate(tap_history)
+                if _near(point.x, point.y, hx, hy)
+            ),
+            None,
+        )
+        if hit_idx is None:
+            tap_history.append((point.x, point.y, 1))
+        else:
+            hx, hy, hits = tap_history[hit_idx]
+            hits += 1
+            tap_history[hit_idx] = (hx, hy, hits)
+            if hits >= _PUT_ALL_RED_DOTS_DUP_MAX_HITS:
+                filtered_points.append((hx, hy))
+                logger.info(
+                    "dsl exec put_all_red_dots: instance=%s point=(%d,%d) "
+                    "tapped %d× within %dpx — filtering area for the rest of this sweep",
+                    ctx.instance_id,
+                    hx,
+                    hy,
+                    hits,
+                    _PUT_ALL_RED_DOTS_DUP_RADIUS_PX,
+                )
         try:
             tapped = bool(
                 await asyncio.to_thread(actions.tap, ctx.instance_id, point)

@@ -1127,7 +1127,8 @@ class DslScenarioExecuteMixin:
                 cmd = str(step.get("exec") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
                 if cmd:
-                    await self._run_exec_step(cmd, instance_id)
+                    args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
+                    await self._run_exec_step(cmd, instance_id, args)
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "set_node" in step:

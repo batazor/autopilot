@@ -1218,7 +1218,15 @@ def _render_regions_expander(
         # stale name resolves to the OLD idx and the force-assign on the next
         # line clobbers the radio click before the widget re-renders.
         def _on_region_radio_change(rkey: str = radio_key) -> None:
-            new_idx = int(st.session_state.get(rkey, 0) or 0)
+            # Streamlit may write either the underlying option (int) or the
+            # `format_func` label (e.g. "1: region") back into session_state
+            # depending on version/path — accept both.
+            raw = st.session_state.get(rkey, 0)
+            if isinstance(raw, str):
+                head = raw.split(":", 1)[0].strip()
+                new_idx = int(head) if head.isdigit() else 0
+            else:
+                new_idx = int(raw or 0)
             regs_now = current_regions()
             new_idx = max(0, min(new_idx, len(regs_now) - 1)) if regs_now else 0
             st.session_state.selected_region_idx = new_idx
@@ -1236,8 +1244,13 @@ def _render_regions_expander(
             key=radio_key,
             on_change=_on_region_radio_change,
         )
-        st.session_state.selected_region_idx = int(r_sel)
-        st.session_state.selected_region_name = _selected_region_name_from_idx(regions, int(r_sel))
+        if isinstance(r_sel, str):
+            head = r_sel.split(":", 1)[0].strip()
+            r_sel_idx = int(head) if head.isdigit() else 0
+        else:
+            r_sel_idx = int(r_sel)
+        st.session_state.selected_region_idx = r_sel_idx
+        st.session_state.selected_region_name = _selected_region_name_from_idx(regions, r_sel_idx)
 
         idx = int(st.session_state.selected_region_idx)
         reg = regions[idx]

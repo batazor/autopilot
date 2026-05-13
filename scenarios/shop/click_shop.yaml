@@ -9,12 +9,21 @@ node: shop
 
 steps:
   - exec: put_all_red_dots
+  - ocr: box.free
+    store: box_free_text
+  - cond: box_free_text == "Free"
+    steps:
+      - click: box.free
+      - wait: 1s
+  
   - while_match: page.shop.warning
     max: 1
     steps:
       - wait: 1s
       - exec: put_all_red_dots
-      - while_match: box.free
+      - ocr: box.free
+        store: box_free_text
+      - cond: box_free_text == "Free"
         steps:
           - click: box.free
           - wait: 1s
