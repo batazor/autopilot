@@ -181,11 +181,11 @@ The Streamlit app (`uv run wos`) covers gift codes, labeling/YAML scenarios, and
 
 <br/>
 
-## 🐳 Quickstart with Docker (no local toolchain)
+## 🛠️ Installation & Setup
 
 > [!TIP]
-> Easiest path if you just want to **run** the bot. Pre-built images live on
-> GitHub Container Registry — no Python / uv / paddleocr install needed.
+> Pre-built images on GitHub Container Registry — no Python / uv / paddleocr install needed.
+> Want to **edit the code**? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev setup.
 
 <br/>
 
@@ -277,110 +277,6 @@ If the bot can't see the emulator: confirm `adb devices` works on the host first
 
 <br/>
 
-## 🛠️ Installation & Setup (build from source)
-
-> [!NOTE]
-> The bot ships as a single Python app run via [uv](https://docs.astral.sh/uv/). UI and worker run in one Streamlit process by default. Use this path if you want to edit code locally.
-
-<br/>
-
-### 1️⃣ Prerequisites
-
-<div align="center">
-
-| Requirement | Version | Download |
-|:-----------:|:-------:|:--------:|
-| ![uv](https://img.shields.io/badge/uv-DE5FE9?style=flat-square&logo=python&logoColor=white) | latest | **[Install uv](https://docs.astral.sh/uv/getting-started/installation/)** |
-| ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) | `3.13` (pinned by `.python-version`) | _auto-installed by uv_ |
-| ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) | `compose v2` | **[Get Docker](https://docs.docker.com/get-docker/)** |
-| ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white) | `7+` | _started via `docker compose`_ |
-| ![ADB](https://img.shields.io/badge/Android_Platform_Tools-3DDC84?style=flat-square&logo=android&logoColor=white) | latest | **[Download ADB](https://developer.android.com/tools/releases/platform-tools)** |
-| ![BlueStacks](https://img.shields.io/badge/BlueStacks-1F76C9?style=flat-square&logo=bluestacks&logoColor=white) | `5` or newer | **[Download BlueStacks](https://www.bluestacks.com/)** |
-
-</div>
-
-<details>
-<summary><b>💡 macOS / Linux / Windows: making sure <code>adb</code> is on PATH</b></summary>
-<br/>
-
-Streamlit (and Cursor) often start with a reduced `PATH`. The UI defaults to `/opt/homebrew/bin/adb` (Homebrew on Apple Silicon); autodiscovery also checks `~/Library/Android/sdk/platform-tools/adb` and `/usr/local/bin/adb`.
-
-Override either of:
-
-- `ANDROID_HOME=/path/to/sdk`
-- `worker.adb_executable: /full/path/to/adb` in `config/settings.yaml`
-
-Verify:
-
-```sh
-adb devices
-```
-
-The serial column must match `bluestacks_window_title` in `config/settings.yaml`.
-
-</details>
-
-<br/>
-
-### 2️⃣ Setup
-
-```sh
-# Clone the repository
-git clone https://github.com/batazor/whiteout-survival-autopilot.git
-cd whiteout-survival-autopilot
-
-# Install Python 3.13 + project deps (from uv.lock)
-uv sync
-
-# Start Redis + PaddleOCR
-docker compose up -d redis ocr
-```
-
-> [!TIP]
-> Edit `config/settings.yaml` (`redis.url`, `ocr.url`, `instances`) and `db/devices.yaml` (players per device) before the first run.
-
-<br/>
-
-### 3️⃣ Running the Bot
-
-```sh
-# UI + worker + scheduler — all in one process
-uv run wos
-```
-
-> [!IMPORTANT]
-> Keep BlueStacks running and the device visible in `adb devices` before the worker starts. Streamlit serves at [http://127.0.0.1:8501](http://127.0.0.1:8501) (override with `WOS_STREAMLIT_PORT=8502`).
-
-<details>
-<summary><b>🔧 Headless mode (separate worker + scheduler processes)</b></summary>
-<br/>
-
-```sh
-uv run wos-bot
-# or
-uv run python -m worker.supervisor
-```
-
-The UI publishes commands on `wos:ui:command:{instance_id}` and `wos:ui:command:scheduler`; both modes read the same Redis state.
-
-</details>
-
-<details>
-<summary><b>🧪 Dev tools</b></summary>
-<br/>
-
-```sh
-uv sync --extra dev
-```
-
-</details>
-
-<br/>
-
----
-
-<br/>
-
 ## 📱 Emulator Configuration
 
 <div align="center">
@@ -410,3 +306,13 @@ uv sync --extra dev
 
 > [!TIP]
 > In the game's settings, disable *Snowfall* and *Day/Night Cycle*, and avoid *Ultra* graphics. This considerably improves performance and visual reliability for the bot.
+
+<br/>
+
+---
+
+<br/>
+
+## 🤝 Contributing
+
+Editing the code? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev workflow (`uv sync`, `uv run wos`, lint, tests, building images locally).
