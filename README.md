@@ -181,10 +181,101 @@ The Streamlit app (`uv run wos`) covers gift codes, labeling/YAML scenarios, and
 
 <br/>
 
-## 🛠️ Installation & Setup
+## 🐳 Quickstart with Docker (no local toolchain)
+
+> [!TIP]
+> Easiest path if you just want to **run** the bot. Pre-built images live on
+> GitHub Container Registry — no Python / uv / paddleocr install needed.
+
+<br/>
+
+### Prerequisites
+
+| Requirement | Purpose |
+|:-----------|:--------|
+| **Docker Desktop** (macOS/Windows) or Docker Engine + Compose v2 (Linux) | Runs the three services |
+| **BlueStacks 5+** with ADB enabled on the host | The bot drives the emulator |
+| **`adb`** on the host, with the emulator visible in `adb devices` | Container talks to the host's ADB server |
+
+> [!IMPORTANT]
+> Emulator must be **720 × 1280, 320 DPI, English game language** — see [📱 Emulator Configuration](#-emulator-configuration) below.
+
+<br/>
+
+### Run
+
+```sh
+# Clone the repo (just for the compose files + config templates)
+git clone https://github.com/batazor/whiteout-survival-autopilot.git
+cd whiteout-survival-autopilot
+
+# Make sure the host's ADB server is up and your emulator is visible
+adb start-server
+adb devices
+
+# Pull and start: redis + ocr + bot
+docker compose -f docker-compose.prod.yml up -d
+
+# UI on http://127.0.0.1:8501
+open http://127.0.0.1:8501
+```
+
+| Service | Image | Notes |
+|:--------|:------|:------|
+| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI. Multi-arch (amd64+arm64). |
+| `ocr` | `ghcr.io/batazor/whiteout-survival-autopilot/ocr:latest` | PaddleOCR HTTP API. amd64 only (no paddlepaddle arm64 wheel for py3.13 yet). |
+| `redis` | `redis:alpine` | Queue + state. |
+
+<details>
+<summary><b>📌 Pin a specific version (recommended for stability)</b></summary>
+<br/>
+
+```sh
+WOS_IMAGE_TAG=v0.1.0 docker compose -f docker-compose.prod.yml up -d
+```
+
+Available tags: `latest` (HEAD of `main`), `sha-<short>` (per commit), `vMAJOR.MINOR.PATCH` (releases), `MAJOR.MINOR` (rolling minor).
+
+</details>
+
+<details>
+<summary><b>🐧 Native Linux notes</b></summary>
+<br/>
+
+`host.docker.internal` resolves on Docker Desktop but not on native Linux Docker. Edit `docker-compose.prod.yml`:
+
+- Remove the `ports:` and `extra_hosts:` blocks under `bot`
+- Uncomment `network_mode: host`
+- Change `ADB_SERVER_SOCKET` to `tcp:127.0.0.1:5037`
+
+Or run with `--network=host` directly: `docker run --rm --network=host ghcr.io/batazor/whiteout-survival-autopilot/bot:latest`.
+
+</details>
+
+<details>
+<summary><b>🔍 Logs & troubleshooting</b></summary>
+<br/>
+
+```sh
+docker compose -f docker-compose.prod.yml logs -f bot     # worker + UI
+docker compose -f docker-compose.prod.yml logs -f ocr     # paddleocr
+docker compose -f docker-compose.prod.yml ps              # status + healthchecks
+```
+
+If the bot can't see the emulator: confirm `adb devices` works on the host first, then check `docker exec wos-bot adb devices` inside the container. The serial in `db/devices.yaml` must match.
+
+</details>
+
+<br/>
+
+---
+
+<br/>
+
+## 🛠️ Installation & Setup (build from source)
 
 > [!NOTE]
-> The bot ships as a single Python app run via [uv](https://docs.astral.sh/uv/). UI and worker run in one Streamlit process by default.
+> The bot ships as a single Python app run via [uv](https://docs.astral.sh/uv/). UI and worker run in one Streamlit process by default. Use this path if you want to edit code locally.
 
 <br/>
 

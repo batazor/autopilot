@@ -1,8 +1,6 @@
-# Pre-built images on GitHub Container Registry (built by .github/workflows/docker.yml).
-# Override the tag via ``WOS_IMAGE_TAG`` (default ``latest``) or set ``WOS_REGISTRY``
-# to point at a fork. To build from local sources instead, uncomment the
-# ``build:`` keys (or ``docker compose build``) — Compose ignores ``image:``
-# when ``build:`` is present.
+# Local development: builds bot + ocr from sources on this checkout.
+# For pre-built images from GHCR, use ``docker-compose.prod.yml`` instead:
+#     docker compose -f docker-compose.prod.yml up -d
 
 services:
   redis:
@@ -23,10 +21,9 @@ services:
       retries: 3
 
   ocr:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/ocr:${WOS_IMAGE_TAG:-latest}
-    # build:
-    #   context: .
-    #   dockerfile: ocr/Dockerfile
+    build:
+      context: .
+      dockerfile: ocr/Dockerfile
     ports:
       # Bind to loopback only — same rationale as redis above; OCR is not
       # designed to face the open internet.
@@ -45,35 +42,6 @@ services:
       timeout: 10s
       retries: 10
       start_period: 180s
-
-  bot:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile.bot
-    depends_on:
-      redis:
-        condition: service_healthy
-      ocr:
-        condition: service_started
-    ports:
-      # Streamlit UI / embedded supervisor. Loopback only — anyone on the
-      # host can drive the bot, so don't expose it on a shared network.
-      - "127.0.0.1:8501:8501"
-    environment:
-      # Talk to the in-network Redis / OCR services by their compose names.
-      WOS_REDIS_URL: redis://redis:6379/0
-      WOS_OCR_URL: http://ocr:8000
-      # Host's ADB server reachable from the container — works with Docker
-      # Desktop (macOS/Windows) out of the box. On native Linux, prefer
-      # ``network_mode: host`` (commented below) and point ADB_SERVER_SOCKET
-      # at ``tcp:127.0.0.1:5037``.
-      ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # Native Linux ADB integration:
-    # network_mode: host
-    restart: unless-stopped
 
 volumes:
   redis_data:

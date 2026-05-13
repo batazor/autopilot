@@ -1,0 +1,82 @@
+# External-user setup — pulls pre-built images from GitHub Container Registry
+# (published by ``.github/workflows/docker.yml`` on every push to ``main`` and
+# every ``v*.*.*`` tag). No local toolchain required.
+#
+# Usage:
+#     docker compose -f docker-compose.prod.yml up -d
+#     open http://127.0.0.1:8501
+#
+# Pinning a version (recommended for stability):
+#     WOS_IMAGE_TAG=v0.1.0 docker compose -f docker-compose.prod.yml up -d
+#
+# Using a fork's images:
+#     WOS_REGISTRY=ghcr.io/your-fork docker compose -f docker-compose.prod.yml up -d
+#
+# Talking to ADB:
+#   * Docker Desktop (macOS/Windows) — works out of the box via
+#     ``host.docker.internal:5037``, provided ``adb start-server`` is running
+#     on the host and BlueStacks' ADB serial appears in ``adb devices``.
+#   * Native Linux — comment ``ports`` + ``extra_hosts`` on ``bot`` and
+#     uncomment ``network_mode: host``; set ``ADB_SERVER_SOCKET=tcp:127.0.0.1:5037``.
+
+services:
+  redis:
+    image: redis:alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ocr:
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/ocr:${WOS_IMAGE_TAG:-latest}
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+    volumes:
+      - paddle_model_cache:/root/.paddleocr
+      - paddlex_model_cache:/root/.paddlex
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      # First boot downloads ~400 MB of paddle models into the volume; bumped
+      # start period covers a cold-cache first run on a slow link.
+      start_period: 240s
+
+  bot:
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
+    depends_on:
+      redis:
+        condition: service_healthy
+      ocr:
+        condition: service_started
+    ports:
+      # Streamlit UI + embedded supervisor. Loopback only — anyone on the
+      # host can drive the bot, so don't expose it on a shared network.
+      - "127.0.0.1:8501:8501"
+    environment:
+      WOS_REDIS_URL: redis://redis:6379/0
+      WOS_OCR_URL: http://ocr:8000
+      # ADB server reachable from inside the container via Docker Desktop's
+      # host-gateway. See header for the Linux variant.
+      ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Native Linux:
+    # network_mode: host
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  paddle_model_cache:
+  paddlex_model_cache:
