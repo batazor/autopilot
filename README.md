@@ -311,20 +311,6 @@ Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis
 
 </details>
 
-<details>
-<summary><b>🔍 Logs & troubleshooting</b></summary>
-<br/>
-
-```sh
-docker compose -f docker-compose.prod.yml logs -f bot     # worker + UI
-docker compose -f docker-compose.prod.yml logs -f ocr     # paddleocr
-docker compose -f docker-compose.prod.yml ps              # status + healthchecks
-```
-
-If the bot can't see the emulator: confirm `adb devices` works on the host first, then check `docker exec wos-bot adb devices` inside the container. The serial in `db/devices.yaml` must match.
-
-</details>
-
 <br/>
 
 ---
@@ -360,6 +346,74 @@ If the bot can't see the emulator: confirm `adb devices` works on the host first
 
 > [!TIP]
 > In the game's settings, disable *Snowfall* and *Day/Night Cycle*, and avoid *Ultra* graphics. This considerably improves performance and visual reliability for the bot.
+
+<br/>
+
+---
+
+<br/>
+
+## 🩺 Troubleshooting
+
+### Self-diagnosis
+
+<details open>
+<summary><b>🪟 Windows — <code>scripts\doctor.ps1</code></b></summary>
+<br/>
+
+Walks every prerequisite (Docker / ADB / BlueStacks / open ports / repo layout) and prints `[OK]` / `[FAIL]` / `[WARN]` with a one-line fix hint next to each result. Read-only — never installs / starts / stops anything. Exits non-zero on any failure so you can chain it: `.\scripts\doctor.ps1 ; if ($LASTEXITCODE -eq 0) { docker compose … }`.
+
+```powershell
+.\scripts\doctor.ps1
+# Blocked by execution policy:
+powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
+```
+
+Typical findings the doctor surfaces:
+- `[FAIL] docker daemon reachable` → Docker Desktop is closed or its WSL2 backend is asleep
+- `[WARN] Host networking enabled (Docker Desktop beta)` → toggle missing in *Settings → Resources → Network*
+- `[FAIL] adb on PATH` → Platform Tools not unzipped to a folder in `PATH`
+- `[FAIL] At least one ADB device is online` → BlueStacks ADB switch off, or `adb kill-server` needs a follow-up `adb start-server`
+
+</details>
+
+<details>
+<summary><b>🍎 macOS / 🐧 Linux — quick checks</b></summary>
+<br/>
+
+```sh
+docker info | grep -i 'server version\|host'      # daemon reachable, host-net mode
+docker compose version --short                    # Compose v2 installed
+adb version && adb devices                        # ADB on PATH + emulator online
+which adb                                         # actual binary used (Streamlit/Cursor PATH can differ)
+```
+
+A native shell doctor for macOS / Linux is on the TODO list — for now the four commands above cover every check the Windows script does.
+
+</details>
+
+<br/>
+
+### Inspecting a running stack
+
+```sh
+docker compose -f docker-compose.prod.yml ps             # service status + healthchecks
+docker compose -f docker-compose.prod.yml logs -f bot    # worker + UI logs
+docker compose -f docker-compose.prod.yml logs -f ocr    # PaddleOCR logs
+docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibility from inside the bot container
+```
+
+<br/>
+
+### Common symptoms
+
+| Symptom | Likely cause | Where to look |
+|:--------|:-------------|:--------------|
+| Bot UI loads, no work runs | All instances `paused=1` / `auto_paused=1` in Redis | `docker compose … logs bot` — the `game_health_watchdog` line shows why. Usually no ADB device online. |
+| `tap_*` scenarios stall on "waiting for approval" | `click_approval` mode left on with the approvals page closed | Open the **Click approvals** page in the Streamlit UI or unset `wos:ui:click_approval:enabled:<inst>` in Redis. |
+| Bot can't see the emulator inside the container | `network_mode: host` not active | Docker Desktop → enable Host networking (see [Installation](#-installation--setup) Windows / macOS tabs). |
+| OCR returns garbage / empty text | Wrong emulator resolution or DPI | Verify [Emulator Configuration](#-emulator-configuration) — must be **720 × 1280 @ 320 DPI, English**. |
+| Startup blocked with `validation acknowledged via WOS_VALIDATION_ACK` prompt | Mismatch between `area.json` / `analyze/*.yaml` / `scenarios/*.yaml` | The error message names the file + key. Set `WOS_VALIDATION_ACK=1` only as a temporary unblock — fix the YAML and remove the env var afterwards. |
 
 <br/>
 
