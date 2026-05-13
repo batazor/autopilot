@@ -10,3 +10,4 @@ node: main_city
 steps:
   - click: main_city.to.backpack
   - wait: 1s
+  - exec: put_all_red_dots
