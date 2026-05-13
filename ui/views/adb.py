@@ -21,8 +21,14 @@ from capture.adb_screencap import DEFAULT_ADB_BIN, resolve_adb_executable
 from config.devices import invalidate_device_registry
 from ui.adb_query import (
     canonical_serial as _canonical_serial,
+)
+from ui.adb_query import (
     dedupe_emulator_aliases as _dedupe_emulator_aliases,
+)
+from ui.adb_query import (
     parse_adb_devices as _parse_adb_devices,
+)
+from ui.adb_query import (
     run_adb as _run_adb,
 )
 from ui.settings_state import (

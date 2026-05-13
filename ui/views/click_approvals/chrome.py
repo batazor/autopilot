@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import time
 from datetime import timedelta
 from typing import Any
@@ -56,7 +57,11 @@ def render_reset_block(*, client: Any) -> None:
         with c2:
             if st.button("Restart bot", type="primary", key="click_approvals_restart_bot_btn"):
                 _clear_click_approval_current_keys(client=client)
-                restart_embedded_bot()
+                try:
+                    restart_embedded_bot()
+                except RuntimeError as exc:
+                    st.error(f"Bot restart failed: {exc}")
+                    st.stop()
                 st.success("Pending approval cleared and bot restart triggered.")
                 st.rerun()
 
@@ -76,7 +81,11 @@ def render_reset_block(*, client: Any) -> None:
                 st.exception(Exception("Failed to clear Redis queue keys (`wos:queue*`)"))
                 st.stop()
             _clear_click_approval_current_keys(client=client)
-            restart_embedded_bot()
+            try:
+                restart_embedded_bot()
+            except RuntimeError as exc:
+                st.error(f"Bot restart failed: {exc}")
+                st.stop()
             st.success("Queue and pending approvals cleared; bot restart triggered.")
             st.rerun()
 
@@ -168,10 +177,8 @@ def render_heartbeat(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     # the worker's TTL — no separate UI-mode default.
     has_current = bool(client.get(ctx.current_key))
     if has_current and enabled:
-        try:
+        with contextlib.suppress(Exception):
             client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
-        except Exception:
-            pass
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** (ttl≈5s when ON) · "

@@ -97,6 +97,8 @@ packages = [
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+# Vendored third-party fork — lint upstream, not us.
+extend-exclude = ["streamlit-plugin/streamlit-drawable-canvas"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]

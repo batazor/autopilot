@@ -576,10 +576,8 @@ def _render_approval_heartbeat(ctx: ClickApprovalsCtx) -> None:
     # the worker died mid-task and stopped refreshing its own TTL. Mirrors
     # ``ui/views/click_approvals/chrome.py:render_heartbeat``.
     if has_current and enabled:
-        try:
+        with suppress(Exception):
             client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
-        except Exception:
-            pass
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** · "
@@ -685,10 +683,11 @@ with run_left:
         placeholder="Substring of path / name / key (case-insensitive)",
     )
     q = filter_q.strip().lower()
-    if q:
-        visible_indices = [i for i, lbl in enumerate(labels) if q in lbl.lower()]
-    else:
-        visible_indices = list(range(len(files)))
+    visible_indices = (
+        [i for i, lbl in enumerate(labels) if q in lbl.lower()]
+        if q
+        else list(range(len(files)))
+    )
 
     if not visible_indices:
         st.warning(f"No scenarios match `{filter_q}`.")
@@ -768,10 +767,11 @@ if player_param:
         if pid_opt.strip() == player_param:
             player_idx_default = i
             break
-if player_pick_key not in st.session_state:
-    st.session_state[player_pick_key] = player_idx_default
-# If the URL says to pre-select a specific player, override the cached pick.
-elif player_param and st.session_state.get(player_pick_key) != player_idx_default:
+if (
+    player_pick_key not in st.session_state
+    or player_param
+    and st.session_state.get(player_pick_key) != player_idx_default
+):
     st.session_state[player_pick_key] = player_idx_default
 
 cached_player_idx = st.session_state.get(player_pick_key)

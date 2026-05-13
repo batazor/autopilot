@@ -169,13 +169,19 @@ def ensure_embedded_bot() -> None:
         _install_shutdown_hooks()
 
 
-def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
-    """Request a clean embedded supervisor shutdown."""
+def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> bool:
+    """Request a clean embedded supervisor shutdown.
+
+    Returns True when the thread is gone (or was never running). Returns False
+    when the thread did not stop within ``join_timeout_s`` — in that case the
+    module-level state is *not* cleared, so a subsequent ``ensure_embedded_bot``
+    will not silently no-op into a half-stopped state.
+    """
     global _started, _stop_event, _thread
     _stop_health_watchdog()
     stop_event, thread = request_embedded_bot_stop()
     if stop_event is None or thread is None:
-        return
+        return True
 
     thread.join(timeout=join_timeout_s)
 
@@ -184,10 +190,11 @@ def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
             logging.getLogger(__name__).warning(
                 "Embedded bot thread did not stop within %.1fs", join_timeout_s
             )
-            return
+            return False
         _started = False
         _stop_event = None
         _thread = None
+        return True
 
 
 def request_embedded_bot_stop() -> tuple[threading.Event | None, threading.Thread | None]:
@@ -208,9 +215,19 @@ def request_embedded_bot_stop() -> tuple[threading.Event | None, threading.Threa
 
 
 def restart_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
-    """Stop and start the embedded async supervisor thread."""
+    """Stop and start the embedded async supervisor thread.
+
+    Raises ``RuntimeError`` if the existing supervisor thread won't stop within
+    ``join_timeout_s``. Calling ``ensure_embedded_bot`` after a failed stop
+    would no-op (``_started`` is still True) and lie to the operator that the
+    bot restarted, so we fail loudly instead.
+    """
     logging.getLogger(__name__).warning("Restarting embedded bot thread")
-    stop_embedded_bot(join_timeout_s=join_timeout_s)
+    if not stop_embedded_bot(join_timeout_s=join_timeout_s):
+        raise RuntimeError(
+            f"Embedded bot thread did not stop within {join_timeout_s:.1f}s; "
+            "refusing to start a duplicate supervisor"
+        )
     ensure_embedded_bot()
 
 

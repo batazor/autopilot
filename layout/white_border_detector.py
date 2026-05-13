@@ -435,6 +435,4 @@ def has_white_border_in_bbox_percent(
         return False
     if halo_v <= float(min_mean_value):
         return False
-    if (inner_s - halo_s) < float(min_interior_saturation_excess):
-        return False
-    return True
+    return (inner_s - halo_s) >= float(min_interior_saturation_excess)

@@ -354,7 +354,7 @@ def _parse_enhancement(rows: list[list[str]]) -> dict[str, Any]:
     # header. Locate header row dynamically so column drift surfaces here.
     mythic_max: dict[int, dict[str, Any]] = {}
     header_row = None
-    for r, row in enumerate(rows):
+    for r, _row in enumerate(rows):
         if (cell(r, 12) or "").lower().startswith("from lv"):
             header_row = r
             break
@@ -378,7 +378,7 @@ def _parse_enhancement(rows: list[list[str]]) -> dict[str, Any]:
     # Section E: weapon widgets — cols 12..13, located after the mythic table.
     weapon_widgets: dict[Any, Any] = {}
     weapon_header_row = None
-    for r, row in enumerate(rows):
+    for r, _row in enumerate(rows):
         if cell(r, 12).lower() == "weapon level":
             weapon_header_row = r
             break

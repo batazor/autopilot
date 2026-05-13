@@ -16,8 +16,10 @@ from layout.types import Region
 
 # Side-effect imports: register dynamic-edge resolvers with screen_graph
 # so edges in edge_taps.yaml can resolve at runtime.
-from navigation import event_blocks_resolver  # noqa: F401
-from navigation import hero_grid_resolver  # noqa: F401
+from navigation import (
+    event_blocks_resolver,  # noqa: F401
+    hero_grid_resolver,  # noqa: F401
+)
 from navigation.detector import ScreenDetector, ScreenName
 from navigation.screen_graph import (
     route_hops_async,

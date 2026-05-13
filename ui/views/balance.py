@@ -22,7 +22,6 @@ from typing import Any
 import streamlit as st
 import yaml
 
-
 _REPO = Path(__file__).resolve().parents[2]
 _BALANCE = _REPO / "config" / "balance"
 _DEFAULTS_PATH = _BALANCE / "defaults.yaml"
@@ -265,11 +264,10 @@ def _render_profiles_tab() -> None:
         index=chosen_idx,
         key="balance_profile_active",
     )
-    if new_active != active:
-        if st.button("Set as active", key="balance_profile_set_active"):
-            doc["active"] = new_active
-            _save(_PROFILES_PATH, _HEADER_PROFILES, doc)
-            st.success(f"Active profile → `{new_active}`")
+    if new_active != active and st.button("Set as active", key="balance_profile_set_active"):
+        doc["active"] = new_active
+        _save(_PROFILES_PATH, _HEADER_PROFILES, doc)
+        st.success(f"Active profile → `{new_active}`")
 
     st.divider()
     for pname, pdata in profiles.items():

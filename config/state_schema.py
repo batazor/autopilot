@@ -38,6 +38,15 @@ class Resources(BaseModel):
     silver_keys: int = 0
     gold_keys: int = 0
     diamond: int = 0
+    # Hero upgrade XP — read by the optimizer's level_up capacity.
+    # OCR'd from the heroes screen (or hand-set for now).
+    hero_xp: int = 0
+
+    # ``extra: allow`` so we can stash manuals / per-rarity shards / event
+    # currencies in ``state.yaml`` without touching the schema each time.
+    # The optimizer pulls them via ``_GLOBAL_RESOURCE_KEYS`` in
+    # ``optimizer/capacities.py``.
+    model_config = {"extra": "allow"}
 
 
 class ExplorationState(BaseModel):

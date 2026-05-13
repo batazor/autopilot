@@ -22,6 +22,7 @@ from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
 from ui.adb_query import canonical_serial, live_serials
 from ui.redis_client import require_redis_connection
+from ui.views._debug_scenarios_progress import render_active_scenario_progress
 from ui.views.click_approvals.chrome import (
     render_header,
     render_heartbeat,
@@ -36,7 +37,6 @@ from ui.views.click_approvals.pending import (
     fragment_sync_pending_presence,
 )
 from ui.views.click_approvals.preview import render_preview_with_point
-from ui.views._debug_scenarios_progress import render_active_scenario_progress
 
 settings = load_settings()
 client = require_redis_connection()

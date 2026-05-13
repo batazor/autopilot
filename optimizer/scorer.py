@@ -19,7 +19,6 @@ of game stats (Power/Attack/etc.) once the executor lands.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from optimizer.candidates import hero_db_entry
 from optimizer.context import BalanceContext

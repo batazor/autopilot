@@ -74,6 +74,11 @@ optimizer_debug_page = st.Page(
     title="Optimizer",
     url_path="optimizer",
 )
+optimizer_playground_page = st.Page(
+    str(_ui_dir / "views" / "optimizer_playground.py"),
+    title="Optimizer playground",
+    url_path="optimizer_playground",
+)
 
 st.navigation(
     {
@@ -91,6 +96,7 @@ st.navigation(
             debug_scenarios_page,
             fsm_page,
             optimizer_debug_page,
+            optimizer_playground_page,
         ],
         "Config": [scenarios_page, adb_page, balance_page],
     }

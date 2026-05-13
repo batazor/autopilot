@@ -36,10 +36,13 @@ threshold_bonuses:
 
 # Time budgets for CP-SAT (handed to scorer, surfaced for tuning).
 solver:
+  # NOTE: ``num_search_workers > 1`` hangs CP-SAT on macOS ortools 9.x in
+  # this venv. Stay single-worker until we verify a multi-worker config
+  # that ships clean; bump on Linux/CI when we get there.
   online:
     max_time_in_seconds: 0.30
-    num_search_workers: 3
+    num_search_workers: 1
   batch:
     max_time_in_seconds: 5.0
-    num_search_workers: 6
+    num_search_workers: 1
   random_seed: 42

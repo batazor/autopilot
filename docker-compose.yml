@@ -3,7 +3,10 @@ services:
     image: redis:alpine
     command: redis-server --appendonly yes
     ports:
-      - "6379:6379"
+      # Bind to loopback only — Redis has no auth here and is only used by the
+      # local worker/scheduler/UI. Exposing 0.0.0.0:6379 on a shared machine or
+      # VPS gives anonymous read/write access to the queue and state.
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     restart: always
@@ -18,7 +21,9 @@ services:
       context: .
       dockerfile: ocr/Dockerfile
     ports:
-      - "8000:8000"
+      # Bind to loopback only — same rationale as redis above; OCR is not
+      # designed to face the open internet.
+      - "127.0.0.1:8000:8000"
     environment:
       # PaddleX checks model host connectivity before loading. The models are cached
       # in the volume below, so skipping this avoids slow/flaky cold starts.

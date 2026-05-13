@@ -17,7 +17,7 @@ The doc lists these rules:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from optimizer.context import BalanceContext

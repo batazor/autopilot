@@ -536,7 +536,7 @@ def _render_detector_block(
                 """,
                 unsafe_allow_html=True,
             )
-        for (label, value), col in zip(extras, cols[1:]):
+        for (label, value), col in zip(extras, cols[1:], strict=False):
             with col:
                 st.metric(label, value)
         if caption:
@@ -814,7 +814,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     st.caption("Show overlay rules whose action is:")
     act_cols = st.columns(len(_ACTION_TYPES))
     action_visible: dict[str, bool] = {}
-    for col, act_name in zip(act_cols, _ACTION_TYPES):
+    for col, act_name in zip(act_cols, _ACTION_TYPES, strict=False):
         with col:
             action_visible[act_name] = st.checkbox(
                 act_name,

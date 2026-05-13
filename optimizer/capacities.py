@@ -96,11 +96,12 @@ def compute_capacities(
     for resource in _GLOBAL_RESOURCE_KEYS:
         caps[resource] = _resolve_global(state_flat, resource)
 
-    # Hero-specific shards: sum across all hero entries we have a count
-    # for, keyed by ``<rarity>_specific_shard`` so it matches the cost
-    # resource the candidate generator emits. The solver will treat
-    # rarity-level shards as a shared pool — fine until we wire per-hero
-    # spendable tracking.
+    # Per-hero shard buckets — match the ``{hero_id}_shard`` resource
+    # the candidate generator emits for ``star_tier_up``. Reading from
+    # ``heroes.entries.<hid>.shards_current`` (populated by
+    # ``scan_heroes_grid`` for locked cards). Unlocked heroes don't have
+    # this badge today, so bucket stays 0 until a dedicated stockpile
+    # tracker lands.
     for key, v in state_flat.items():
         if not isinstance(key, str) or not key.startswith("heroes.entries."):
             continue
@@ -110,13 +111,10 @@ def compute_capacities(
             amount = max(0, int(v))
         except (TypeError, ValueError):
             continue
-        # Need the hero's rarity for the bucket name. Lazily look up.
         hero_id = key.split(".", 3)[2]
-        rarity = _hero_rarity(hero_id)
-        if not rarity:
+        if not hero_id:
             continue
-        bucket = f"{rarity}_specific_shard"
-        caps[bucket] = caps.get(bucket, 0) + amount
+        caps[f"{hero_id}_shard"] = amount
 
     # Apply gems reserve floor: solver only sees spendable gems.
     if "gems" in caps:

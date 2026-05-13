@@ -105,7 +105,7 @@ class _FakeStore:
         self.captured_player_id: str | None = None
         self.captured_flat: dict[str, Any] | None = None
 
-    def get_or_create(self, player_id: str, nickname: str = "") -> "_FakeStore":
+    def get_or_create(self, player_id: str, nickname: str = "") -> _FakeStore:
         self.captured_player_id = player_id
         return self
 

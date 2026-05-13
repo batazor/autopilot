@@ -24,7 +24,17 @@ from __future__ import annotations
 from optimizer.candidates import generate_candidates
 from optimizer.capacities import compute_capacities
 from optimizer.context import BalanceContext, load_balance_context
+from optimizer.dispatcher import (
+    TaskEnvelope,
+    build_envelope,
+    enqueue_envelope,
+    envelope_to_redis_payload,
+    queue_key,
+    scenario_name_for,
+)
 from optimizer.hard_rules import PruneResult, prune_candidates
+from optimizer.history import HistoryEntry, append_entry, load_history, now_ts
+from optimizer.reasons import generate_reasons, rejection_reason
 from optimizer.scorer import ScoreBreakdown, score_candidate
 from optimizer.solver import (
     ORToolsUpgradeOptimizer,
@@ -33,6 +43,12 @@ from optimizer.solver import (
     to_int_score,
 )
 from optimizer.types import Candidate, Cost
+
+# executor depends on the symbols above, so import last to dodge a cycle.
+# ``# isort: split`` tells ruff/isort to treat this as a separate import block
+# and not lift it to the top of the file.
+# isort: split
+from optimizer.executor import PlanStep, apply_command, plan_top_k  # noqa: E402
 
 
 def rank_candidates(
@@ -89,15 +105,30 @@ __all__ = [
     "BalanceContext",
     "Candidate",
     "Cost",
+    "HistoryEntry",
     "ORToolsUpgradeOptimizer",
+    "PlanStep",
     "PruneResult",
     "ScoreBreakdown",
     "SolverResult",
+    "TaskEnvelope",
+    "append_entry",
+    "apply_command",
+    "build_envelope",
     "compute_capacities",
+    "enqueue_envelope",
+    "envelope_to_redis_payload",
     "generate_candidates",
+    "generate_reasons",
     "load_balance_context",
+    "load_history",
+    "now_ts",
+    "plan_top_k",
     "prune_candidates",
+    "queue_key",
     "rank_candidates",
+    "rejection_reason",
+    "scenario_name_for",
     "score_candidate",
     "solve_optimal",
     "solve_with_context",

@@ -147,7 +147,11 @@ if _nav_err_client:
         pass
 
 if st.button("Restart bot", help="Stop and start embedded workers/scheduler"):
-    restart_embedded_bot()
+    try:
+        restart_embedded_bot()
+    except RuntimeError as exc:
+        st.error(f"Bot restart failed: {exc}")
+        st.stop()
     st.success("Bot restart triggered")
     st.rerun()
 

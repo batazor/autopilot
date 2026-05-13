@@ -13,6 +13,7 @@ import redis.asyncio as aioredis
 
 from actions.tap import BotActions
 from capture.adb_screencap import DEFAULT_ADB_BIN
+
 # Both functions are imported solely so they live as attributes on the
 # ``worker.instance_worker`` module — ``worker.instance_worker_redis._connect``
 # resolves them via ``getattr(instance_worker, ...)`` (primary +

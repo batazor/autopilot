@@ -27,10 +27,7 @@ def _frame_with_white_halo(w: int = 200, h: int = 200, *, with_halo: bool) -> np
     Matches the helper in ``test_dsl_is_white_border.py`` so this overlay-rule
     coverage exercises the same shape of evidence the DSL builder uses.
     """
-    if with_halo:
-        bg = (245, 245, 245)
-    else:
-        bg = (220, 200, 50)  # BGR — bright cyan, fails the saturation gate
+    bg = (245, 245, 245) if with_halo else (220, 200, 50)  # BGR — cyan fails the saturation gate
     img = np.full((h, w, 3), bg, dtype=np.uint8)
     cv2.rectangle(img, (70, 70), (130, 130), (160, 50, 130), thickness=-1)
     return img

@@ -215,7 +215,11 @@ def _generate_star_tier_up(
             continue
         raw_rarity = str(hero.get("rarity") or "").strip().lower() or "epic"
         rarity = _RARITY_ALIAS.get(raw_rarity, raw_rarity)
-        resource = f"{rarity}_specific_shard"
+        # Per-hero shard bucket — matches ``heroes.entries.<hid>.shards_current``
+        # in capacities.py. Rarity is preserved in the payload so a future
+        # rule (e.g. ``general_shard_fallback``) can decide when to mix in
+        # the general pool.
+        resource = f"{hid}_shard"
         out.append(
             Candidate(
                 id=f"star_tier_up:{hid}:{progress}->{progress + 1}",

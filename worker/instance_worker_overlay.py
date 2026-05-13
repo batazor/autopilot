@@ -200,10 +200,11 @@ class InstanceWorkerOverlayMixin:
                 # parsed seconds value AND suppress the actual push — the
                 # rule's intent is "block re-runs of this scenario until
                 # the in-game timer expires", not "run it again now".
-                if is_time_throttle_rule:
-                    ttl_s = ttl_override
-                else:
-                    ttl_s = parse_duration_seconds(item.get("ttl"))
+                ttl_s = (
+                    ttl_override
+                    if is_time_throttle_rule
+                    else parse_duration_seconds(item.get("ttl"))
+                )
                 if ttl_s and ttl_s > 0 and self._redis is not None:
                     ap_for_key = (active_player or "").strip()
                     if ap_for_key:

@@ -11,8 +11,8 @@ existing :mod:`optimizer.scorer` returns floats so we scale by
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
 
 from ortools.sat.python import cp_model
 
@@ -85,17 +85,25 @@ class ORToolsUpgradeOptimizer:
         model = cp_model.CpModel()
         x = {c.id: model.NewBoolVar(c.id) for c in candidates}
 
-        # Resource capacities: Σ cost[r] * x ≤ capacity[r] for each r the
-        # caller cares about. Candidates with zero cost on r contribute 0
-        # to the sum (no-op).
-        for resource, capacity in capacities.items():
-            cap = int(max(0, capacity))
-            terms = [
-                int(cost_for(c, resource)) * x[c.id] for c in candidates
+        # Resource capacities: Σ cost[r] * x ≤ capacity[r] for every
+        # resource any candidate touches. Resources missing from
+        # ``capacities`` default to 0 — candidates that need them get
+        # forced to x=0, which is what we want when state has no
+        # inventory tracked (safer to skip than to over-spend).
+        all_resources: set[str] = set(capacities)
+        for c in candidates:
+            for cost in c.costs:
+                all_resources.add(cost.resource)
+        for resource in all_resources:
+            cap = int(max(0, capacities.get(resource, 0)))
+            pairs = [
+                (int(cost_for(c, resource)), x[c.id])
+                for c in candidates
             ]
-            terms = [t for t in terms if t is not None]
-            if terms:
-                model.Add(sum(terms) <= cap)
+            pairs = [(amount, var) for amount, var in pairs if amount > 0]
+            if not pairs:
+                continue
+            model.Add(sum(amount * var for amount, var in pairs) <= cap)
 
         for child_id, parent_id in implications:
             if child_id in x and parent_id in x:

@@ -400,7 +400,7 @@ def _render_hero_tiles(
     for i in range(0, len(rows), cols_per_row):
         chunk = rows[i : i + cols_per_row]
         tiles = st.columns(cols_per_row)
-        for col, row in zip(tiles, chunk):
+        for col, row in zip(tiles, chunk, strict=False):
             with col:
                 hid = str(row["id"])
                 icon = _resolve_hero_icon(hid)

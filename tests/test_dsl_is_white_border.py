@@ -43,10 +43,7 @@ def _frame_with_white_halo(
     bbox is bright + desaturated → detector fires.
     ``with_halo=False``: card background is bright cyan → halo is bright but
     saturated → detector stays quiet (same shape, different colour gates)."""
-    if with_halo:
-        bg = (245, 245, 245)
-    else:
-        bg = (220, 200, 50)  # BGR → bright cyan
+    bg = (245, 245, 245) if with_halo else (220, 200, 50)  # BGR → bright cyan when no halo
     img = np.full((h, w, 3), bg, dtype=np.uint8)
     cv2.rectangle(img, (70, 70), (130, 130), (160, 50, 130), thickness=-1)
     return img

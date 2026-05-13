@@ -134,7 +134,13 @@ def _load_devices_raw(path: Path) -> dict[str, object]:
     return raw if isinstance(raw, dict) else {"devices": []}
 
 
-def _save_devices_raw(path: Path, raw: dict[str, object]) -> None:
+def _save_devices_raw(path: Path, raw: dict[str, object]) -> bool:
+    """Atomically write *raw* to *path*.
+
+    Returns True on successful persist, False if the write failed. Failure is
+    logged but not raised, because callers still need to decide whether to
+    surface an error to the user vs. fall through to a degraded path.
+    """
     try:
         content = yaml.dump(raw, allow_unicode=True, sort_keys=False)
         with tempfile.NamedTemporaryFile(
@@ -143,8 +149,10 @@ def _save_devices_raw(path: Path, raw: dict[str, object]) -> None:
             f.write(content)
             tmp = f.name
         os.replace(tmp, path)
+        return True
     except Exception:
         logger.exception("Failed to persist devices to %s", path)
+        return False
 
 
 def upsert_device_gamer(
@@ -159,62 +167,76 @@ def upsert_device_gamer(
 
     - Creates device if missing.
     - Uses first profile, or creates one with provided email (may be empty).
-    - Returns True when YAML was modified.
+    - Returns True when YAML was modified **and** persisted.
+    - Returns False when nothing changed OR persistence failed.
+
+    The whole load-modify-save cycle runs under ``_devices_file_lock`` so two
+    concurrent upserts can't lose each other's writes via last-writer-wins.
     """
     device_name = (device_name or "").strip()
     player_id = (player_id or "").strip()
     if not device_name or not player_id:
         return False
 
-    raw = _load_devices_raw(path)
-    devices = raw.get("devices")
-    if not isinstance(devices, list):
-        devices = []
-        raw["devices"] = devices
+    with _devices_file_lock:
+        raw = _load_devices_raw(path)
+        devices = raw.get("devices")
+        if not isinstance(devices, list):
+            devices = []
+            raw["devices"] = devices
 
-    # Find or create device entry
-    device: dict[str, object] | None = None
-    for d in devices:
-        if isinstance(d, dict) and str(d.get("name") or "").strip() == device_name:
-            device = d
-            break
-    if device is None:
-        device = {"name": device_name, "profiles": []}
-        devices.append(device)
+        # Match by friendly name OR ADB serial — callers may pass either form
+        # (UI passes `bs1`; runtime sometimes only has `127.0.0.1:5555`).
+        # Without alias matching, the same physical device would get a second
+        # entry under a different key and player→device lookups would split.
+        device: dict[str, object] | None = None
+        for d in devices:
+            if not isinstance(d, dict):
+                continue
+            name = str(d.get("name") or "").strip()
+            serial = str(d.get("adb_serial") or "").strip()
+            if device_name in (name, serial) and (name or serial):
+                device = d
+                break
+        if device is None:
+            device = {"name": device_name, "profiles": []}
+            devices.append(device)
 
-    profiles = device.get("profiles")
-    if not isinstance(profiles, list):
-        profiles = []
-        device["profiles"] = profiles
+        profiles = device.get("profiles")
+        if not isinstance(profiles, list):
+            profiles = []
+            device["profiles"] = profiles
 
-    if not profiles:
-        profiles.append({"email": email, "gamer": []})
+        if not profiles:
+            profiles.append({"email": email, "gamer": []})
 
-    profile0 = profiles[0]
-    if not isinstance(profile0, dict):
-        profile0 = {"email": email, "gamer": []}
-        profiles[0] = profile0
+        profile0 = profiles[0]
+        if not isinstance(profile0, dict):
+            profile0 = {"email": email, "gamer": []}
+            profiles[0] = profile0
 
-    gamers = profile0.get("gamer")
-    if not isinstance(gamers, list):
-        gamers = []
-        profile0["gamer"] = gamers
+        gamers = profile0.get("gamer")
+        if not isinstance(gamers, list):
+            gamers = []
+            profile0["gamer"] = gamers
 
-    # Update existing gamer or append new
-    for g in gamers:
-        if isinstance(g, dict) and str(g.get("id") or "").strip() == player_id:
-            old_nick = str(g.get("nickname") or "")
-            if nickname and nickname != old_nick:
-                g["nickname"] = nickname
-                _save_devices_raw(path, raw)
-                _invalidate()
-                return True
+        # Update existing gamer or append new
+        for g in gamers:
+            if isinstance(g, dict) and str(g.get("id") or "").strip() == player_id:
+                old_nick = str(g.get("nickname") or "")
+                if nickname and nickname != old_nick:
+                    g["nickname"] = nickname
+                    if not _save_devices_raw(path, raw):
+                        return False
+                    _invalidate()
+                    return True
+                return False
+
+        gamers.append({"id": int(player_id), "nickname": nickname or ""})
+        if not _save_devices_raw(path, raw):
             return False
-
-    gamers.append({"id": int(player_id), "nickname": nickname or ""})
-    _save_devices_raw(path, raw)
-    _invalidate()
-    return True
+        _invalidate()
+        return True
 
 
 # ---------------------------------------------------------------------------
@@ -223,6 +245,10 @@ def upsert_device_gamer(
 
 _registry: DeviceRegistry | None = None
 _registry_lock = threading.Lock()
+# Serializes the full ``load → mutate → save`` cycle in ``upsert_device_gamer``
+# so two concurrent upserts can't last-writer-win each other (UI button + DSL
+# fetch_player can race on the same ``db/devices.yaml``).
+_devices_file_lock = threading.Lock()
 
 
 def invalidate_device_registry() -> None:

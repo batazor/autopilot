@@ -38,6 +38,10 @@ class OCRResult:
     region_id: str
     text: str
     confidence: float
+    # Populated when the OCR backend reported a per-region failure (e.g. the
+    # paddle call raised). Callers can use this to distinguish "no text" from
+    # "OCR died" and decide whether to retry / skip / surface to the user.
+    error: str | None = None
 
 
 class OcrClient:
@@ -154,7 +158,9 @@ class OcrClient:
                 pass
             return [r for r in results if r is not None]
 
-        _, buf = cv2.imencode(".png", image)
+        ok, buf = cv2.imencode(".png", image)
+        if not ok or buf is None:
+            raise RuntimeError("cv2.imencode('.png', image) failed")
         image_b64 = base64.b64encode(buf.tobytes()).decode()
 
         region_payloads = [
@@ -179,21 +185,48 @@ class OcrClient:
 
         raw_results = resp.json()
         items = raw_results if isinstance(raw_results, list) else []
-        # Stitch HTTP responses back into the original request order and warm
-        # the cache.  The backend echoes ``region_id`` so we trust the order it
-        # returned (matches our miss-list order).
-        for slot, item in enumerate(items):
-            if not isinstance(item, dict) or slot >= len(miss_indices):
+        # Stitch HTTP responses back by ``region_id``. The backend echoes the
+        # region_id we sent — trusting array order silently mis-attributes
+        # results when the backend reorders, drops, or adds entries, and that
+        # mis-attribution warms the wrong cache key.
+        idx_by_rid: dict[str, int] = {_rid(idx): idx for idx in miss_indices}
+        key_by_rid: dict[str, bytes] = {
+            _rid(miss_indices[pos]): miss_keys[pos] for pos in range(len(miss_indices))
+        }
+        seen_rids: set[str] = set()
+        for item in items:
+            if not isinstance(item, dict):
                 continue
-            idx = miss_indices[slot]
+            rid = str(item.get("region_id") or "").strip()
+            idx = idx_by_rid.get(rid)
+            if idx is None:
+                logger.warning("OCR returned unknown region_id=%r", rid)
+                continue
+            if rid in seen_rids:
+                logger.warning("OCR returned duplicate region_id=%r", rid)
+                continue
+            seen_rids.add(rid)
             text = str(item.get("text") or "")
             conf_raw = item.get("confidence")
             try:
                 conf = float(conf_raw) if conf_raw is not None else 0.0
             except (TypeError, ValueError):
                 conf = 0.0
-            results[idx] = OCRResult(region_id=_rid(idx), text=text, confidence=conf)
-            self._cache_put(miss_keys[slot], text, conf)
+            err_raw = item.get("error")
+            err = str(err_raw) if err_raw else None
+            if err:
+                logger.warning("OCR backend error region_id=%r err=%s", rid, err)
+            results[idx] = OCRResult(
+                region_id=rid, text=text, confidence=conf, error=err
+            )
+            # Don't cache backend errors — caching a transient failure would
+            # mask a recovered backend until the entry's TTL expires.
+            if not err:
+                self._cache_put(key_by_rid[rid], text, conf)
+
+        missing_rids = [rid for rid in idx_by_rid if rid not in seen_rids]
+        if missing_rids:
+            logger.warning("OCR response missing region_ids=%s", missing_rids)
 
         try:
             max_shown = 6

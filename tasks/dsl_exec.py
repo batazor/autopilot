@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -1100,10 +1101,8 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
             text = level_text.get(hid, "")
             lvl_match = _HERO_LEVEL_RE.search(text)
             if lvl_match is not None:
-                try:
+                with contextlib.suppress(ValueError):
                     entry["level"] = int(lvl_match.group(1))
-                except ValueError:
-                    pass
             else:
                 logger.debug(
                     "dsl exec scan_heroes_grid: hero=%s level OCR unparsed text=%r",

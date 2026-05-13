@@ -28,15 +28,6 @@ from layout.tab_active_detector import (
     TAB_ACTIVE_MIN_MEAN_VALUE,
     tab_activity_stats,
 )
-from layout.white_border_detector import (
-    WHITE_BORDER_HALO_PX,
-    WHITE_BORDER_MAX_MEAN_SATURATION,
-    WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS,
-    WHITE_BORDER_MIN_MEAN_VALUE,
-    WHITE_BORDER_MIN_RING_PIXELS,
-    has_white_border_in_bbox_percent,
-    white_border_halo_stats,
-)
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
@@ -46,6 +37,15 @@ from layout.template_match import (
     validate_live_bbox_patch_vs_reference_dims,
 )
 from layout.types import Region
+from layout.white_border_detector import (
+    WHITE_BORDER_HALO_PX,
+    WHITE_BORDER_MAX_MEAN_SATURATION,
+    WHITE_BORDER_MIN_INTERIOR_SATURATION_EXCESS,
+    WHITE_BORDER_MIN_MEAN_VALUE,
+    WHITE_BORDER_MIN_RING_PIXELS,
+    has_white_border_in_bbox_percent,
+    white_border_halo_stats,
+)
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
 

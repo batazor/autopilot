@@ -419,6 +419,8 @@ class SchedulerRunner:
                     priority=task.priority,
                     run_at=now,
                     instance_id=instance_id,
+                    skip_if_duplicate=True,
+                    dedup_ignore_region=True,
                 )
 
         queue_items = await self._queue.peek_all()  # type: ignore[union-attr]

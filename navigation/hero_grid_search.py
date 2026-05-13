@@ -504,7 +504,7 @@ def find_and_tap_hero(
     max_swipes: int = 3,
     swipe_delta: int = _DEFAULT_SWIPE_DELTA,
     swipe_duration_ms: int = _DEFAULT_SWIPE_DURATION_MS,
-    on_scan: "callable[[dict[str, HeroMatch]], None] | None" = None,
+    on_scan: callable[[dict[str, HeroMatch]], None] | None = None,
 ) -> bool:
     """Find ``hero_id`` on the heroes roster and tap its portrait.
 
