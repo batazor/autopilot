@@ -21,6 +21,7 @@ from actions.tap import APPROVAL_CURRENT_TTL_SECONDS, click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
+from scenarios import template_resolver as _tmpl
 from ui.notifications import push_ui_notification_sync
 from ui.redis_client import (
     QueueHistoryRow,
@@ -100,22 +101,20 @@ def _page_url(page_path: str, params: dict[str, str]) -> str:
     return urlunparse((u.scheme, u.netloc, path, "", urlencode(params), ""))
 
 
-def _scenario_param_path(repo_root: Path, raw: object | None) -> Path | None:
+def _scenario_param_key(repo_root: Path, raw: object | None) -> str | None:
+    """Return a concrete scenario key from ``?scenario=…`` if it resolves.
+
+    Goes through the template resolver so query params like
+    ``?scenario=level_up_ahmose`` match the ``level_up_{hero}.yaml`` template.
+    Returns the original key (suitable for picker lookup), not a path.
+    """
     if raw is None:
         return None
     s = raw[0] if isinstance(raw, list) and raw else raw
     s = str(s).strip().replace("\\", "/")
     if not s or "/" in s or s.endswith(".yaml"):
         return None
-    scenarios_root = repo_root / "scenarios"
-    hits = [
-        p for p in scenarios_root.rglob(f"{s}.yaml")
-        if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
-    ]
-    if not hits:
-        return None
-    hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
-    return hits[0]
+    return s if _tmpl.resolve(repo_root, s) is not None else None
 
 
 def _scenario_param_value(raw: object | None) -> str:
@@ -127,16 +126,24 @@ def _scenario_param_value(raw: object | None) -> str:
 
 
 def _list_scenario_files(repo_root: Path) -> list[ScenarioFile]:
+    """All concrete scenarios — literal files plus template-per-hero expansions.
+
+    Templates like ``level_up_{hero}.yaml`` fan out to one entry per hero in
+    ``db/heroes/index.yaml``, with the rendered ``name``/``node`` so the
+    Debug picker shows e.g. ``level_up_ahmose`` (label ``"⬆️ Level up · Ahmose"``).
+    """
     scenarios_root = repo_root / "scenarios"
     if not scenarios_root.is_dir():
         return []
     out: list[ScenarioFile] = []
-    for p in sorted(scenarios_root.rglob("*.yaml")):
-        rel = p.relative_to(scenarios_root).as_posix()
-        if rel.startswith("drafts/"):
-            continue
+    for rk in _tmpl.iter_resolved_keys(repo_root):
         try:
-            raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+            text = rk.path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        rendered = _tmpl.render(text, rk.context)
+        try:
+            raw = yaml.safe_load(rendered) or {}
         except Exception:
             raw = {}
         if not isinstance(raw, dict):
@@ -145,16 +152,17 @@ def _list_scenario_files(repo_root: Path) -> list[ScenarioFile]:
         enabled_raw = raw.get("enabled")
         out.append(
             ScenarioFile(
-                path=p,
-                rel_scenarios=rel,
-                repo_rel=p.relative_to(repo_root).as_posix(),
-                key=p.stem,
-                name=str(raw.get("name") or p.stem),
+                path=rk.path,
+                rel_scenarios=rk.path.relative_to(scenarios_root).as_posix(),
+                repo_rel=rk.path.relative_to(repo_root).as_posix(),
+                key=rk.key,
+                name=str(raw.get("name") or rk.key),
                 enabled=enabled_raw if isinstance(enabled_raw, bool) else None,
                 device_level=raw.get("device_level") is True,
                 steps=len(steps) if isinstance(steps, list) else 0,
             )
         )
+    out.sort(key=lambda sf: (sf.rel_scenarios, sf.key))
     return out
 
 
@@ -612,16 +620,17 @@ inst = next(i for i in settings.instances if i.instance_id == selected_inst_id)
 
 # Default scenario picker: URL `?scenario=…` wins; otherwise fall back to the
 # per-instance last-picked value in Redis so reload / sidebar nav doesn't reset
-# the selection.
-target = _scenario_param_path(repo_root, st.query_params.get("scenario"))
-if target is None:
+# the selection. Match by ``key`` (not path) — template files are shared by
+# many concrete keys, so path equality is ambiguous.
+target_key = _scenario_param_key(repo_root, st.query_params.get("scenario"))
+if target_key is None:
     persisted_key = _load_persisted_last_scenario(client, inst.instance_id)
     if persisted_key:
-        target = _scenario_param_path(repo_root, persisted_key)
+        target_key = _scenario_param_key(repo_root, persisted_key)
 default_index = 0
-if target is not None:
+if target_key is not None:
     for i, sf in enumerate(files):
-        if sf.path.resolve() == target.resolve():
+        if sf.key == target_key:
             default_index = i
             break
 
@@ -660,14 +669,14 @@ with run_left:
     query_sync_key = "debug_scenario_last_query"
     current_scenario_param = _scenario_param_value(st.query_params.get("scenario"))
     last_synced_param = str(st.session_state.get(query_sync_key) or "")
-    if target is not None and current_scenario_param != last_synced_param:
+    if target_key is not None and current_scenario_param != last_synced_param:
         current_pick = st.session_state.get(scenario_pick_key)
         current_sf = (
             files[int(current_pick)]
             if isinstance(current_pick, int) and 0 <= current_pick < len(files)
             else None
         )
-        if current_sf is None or current_sf.path.resolve() != target.resolve():
+        if current_sf is None or current_sf.key != target_key:
             st.session_state[scenario_pick_key] = default_index
         st.session_state[query_sync_key] = current_scenario_param
 
@@ -912,4 +921,16 @@ st.divider()
 _render_scenario_history(inst.instance_id, scenario.key, int(scenario.steps))
 
 with st.expander("Raw YAML", expanded=False):
-    st.code(scenario.path.read_text(encoding="utf-8"), language="yaml")
+    raw_text = scenario.path.read_text(encoding="utf-8")
+    resolved = _tmpl.resolve(repo_root, scenario.key)
+    rendered_text = (
+        _tmpl.render(raw_text, resolved.context)
+        if resolved is not None and resolved.context
+        else raw_text
+    )
+    if resolved is not None and resolved.context:
+        st.caption(
+            f"Rendered from template `{scenario.rel_scenarios}` with "
+            + ", ".join(f"`{k}={v}`" for k, v in sorted(resolved.context.items()))
+        )
+    st.code(rendered_text, language="yaml")

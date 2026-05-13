@@ -155,3 +155,82 @@ async def test_fail_stuck_running_tolerates_malformed_payload(
     row = json.loads(history[0])
     assert row["success"] is False
     assert row["error"] == "worker restarted mid-task"
+
+
+@pytest.mark.asyncio
+async def test_fail_stuck_running_recovers_from_state_hash_after_ttl(
+    redis_async: object,
+) -> None:
+    """Long restart (>180s after crash): running key has TTL'd away, but the
+    state hash still carries ``current_task_*`` / ``current_scenario``. Boot
+    cleanup must synthesize the orphan record from those fields so the task
+    still gets a history entry and the stale hash gets wiped.
+
+    Without this fallback, a worker that crashes and is restarted later than
+    180s silently loses the orphan record entirely and leaves ``busy`` +
+    ``current_task_*`` in the state hash for the UI to render forever.
+    """
+    r = redis_async
+    state_key = "wos:instance:bs1:state"
+    history_key = "wos:queue:history:bs1"
+
+    started_at = time.time() - 600.0  # well past the 180s running-key TTL
+    await r.hset(  # type: ignore[attr-defined]
+        state_key,
+        mapping={
+            "state": "busy",
+            "current_task_id": "ovl:bs1:assign_worker:c0ffee",
+            "current_task_type": "assign_worker",
+            "current_task_player": "765502864",
+            "current_task_started_at": str(started_at),
+            "current_task_region": "page.worker.add",
+            "current_scenario": "assign_worker",
+        },
+    )
+    # No running key — simulates expiry after the 180s TTL.
+    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]
+
+    worker = _make_worker(r)
+    await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
+
+    history_raw = await r.lrange(history_key, 0, -1)  # type: ignore[attr-defined]
+    assert len(history_raw) == 1, "state-hash signal must still produce a history row"
+    row = json.loads(history_raw[0])
+    assert row["task_id"] == "ovl:bs1:assign_worker:c0ffee"
+    assert row["task_type"] == "assign_worker"
+    assert row["player_id"] == "765502864"
+    assert row["region"] == "page.worker.add"
+    assert row["success"] is False
+    assert row["reason"] == "worker_restart"
+    assert row["started_at"] == pytest.approx(started_at, abs=0.01)
+    assert row["duration_s"] >= 600.0
+
+    state = await r.hgetall(state_key)  # type: ignore[attr-defined]
+    for field in (
+        "current_task_id",
+        "current_task_type",
+        "current_task_player",
+        "current_task_started_at",
+        "current_task_region",
+        "current_scenario",
+    ):
+        assert state.get(field, "") == "", f"{field} must be cleared after recovery"
+
+
+@pytest.mark.asyncio
+async def test_fail_stuck_running_skips_state_hash_without_task_breadcrumbs(
+    redis_async: object,
+) -> None:
+    """Clean state hash (state may exist with non-task fields) is not an
+    orphan signal — no history row, no errors."""
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"state": "ready", "active_player": "765502864"},
+    )
+
+    worker = _make_worker(r)
+    await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
+
+    history = await r.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert history == []

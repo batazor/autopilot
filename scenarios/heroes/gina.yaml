@@ -1,8 +1,0 @@
-enabled: true
-name: "🦸 Gina"
-
-# Hero card for Gina. Opened from the heroes roster; verified via OCR of
-# the hero name on page.heroes.unit. Fill steps in as needed (sync, upgrade, etc.).
-node: page.heroes.gina
-
-steps: []

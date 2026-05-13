@@ -13,8 +13,11 @@ from config.devices import player_ids_for_device_candidates
 from config.loader import get_settings
 from config.logging_stdout import setup_stdout_logging
 from config.redis_health import ping_async_redis_or_exit
-from scenarios.cron_specs import iter_cron_yaml_files
-from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+from scenarios.cron_specs import (
+    iter_cron_yaml_files,
+    resolve_cron_priority,
+    resolve_cron_task_type,
+)
 from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scenarios.models import Scenario
@@ -26,24 +29,6 @@ logger = logging.getLogger(__name__)
 
 _SCHEDULER_UI_QUEUE = "wos:ui:command:scheduler"
 _CRON_KEY = "wos:scheduler:cron:last_run"
-
-def resolve_cron_priority(raw: object) -> int:
-    """Coerce a cron YAML ``priority`` to an int, falling back to the unified
-    :data:`scenarios.dsl_schema.DEFAULT_SCENARIO_PRIORITY` when missing.
-
-    Cron has no enqueue-path of its own — it just feeds the same queue as
-    overlay pushes and the per-task DSL constructor, so it shares the same
-    default. Handles three foot-guns of the previous ``int(raw.get("priority")
-    or 1)`` idiom: ``None`` (missing field), ``bool`` (``True``/``False`` are
-    ints in Python — silently passed as 0 or 1), and bad string values. ``0``
-    is a valid explicit priority distinct from "missing" and is preserved.
-    """
-    if raw is None or isinstance(raw, bool):
-        return DEFAULT_SCENARIO_PRIORITY
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return DEFAULT_SCENARIO_PRIORITY
 
 
 class SchedulerRunner:
@@ -253,14 +238,13 @@ class SchedulerRunner:
             if not enabled:
                 continue
             expr = str(raw.get("cron") or "").strip()
-            task_type = str(raw.get("task") or raw.get("task_type") or "").strip()
+            # Single source of truth for both task_type + priority fallbacks
+            # — UI Cron Push uses the same helpers (``scenarios.cron_specs``)
+            # so manual pushes match the scheduled enqueue exactly.
+            task_type = resolve_cron_task_type(raw, yml)
             prio = resolve_cron_priority(raw.get("priority"))
             name = str(raw.get("name") or "").strip() or yml.stem
             when_current_screen = str(raw.get("when_current_screen") or "").strip().lower()
-            if not task_type:
-                # One file per cron job: default queue type is the YAML stem (e.g. `check_main_city.yaml`
-                # → `check_main_city`). Override with explicit `task:` when it must differ from the stem.
-                task_type = yml.stem
             if not expr or not task_type:
                 continue
 

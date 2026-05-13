@@ -33,6 +33,7 @@ from config.reference_naming import (
     rolling_preview_basename,
     temporal_png_abs_path,
 )
+from debug.timeline import record_event_sync
 from layout.types import Point
 
 logger = logging.getLogger(__name__)
@@ -405,6 +406,36 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     else:
         logger.info("ADB input blocked: approval slot busy for %s", instance_id)
         return False, None
+
+    # Approval published — pin it to the task timeline so operators reading by
+    # task_id see the gate that paused the run. ``current_task_id`` was written
+    # by the worker on task start (``instance_worker_tasks.py``); read it now
+    # so a sync timeline producer doesn't have to repeat the whole hash read.
+    _tid: str | None = None
+    try:
+        _tid_raw = _redis().hget(
+            f"wos:instance:{instance_id}:state", "current_task_id"
+        )
+        _tid = (
+            _tid_raw.decode() if isinstance(_tid_raw, bytes) else str(_tid_raw or "")
+        ).strip() or None
+    except Exception:
+        logger.debug(
+            "approval: failed to read current_task_id for timeline", exc_info=True
+        )
+    record_event_sync(
+        _redis(),
+        instance_id,
+        "approval.requested",
+        task_id=_tid,
+        fields={
+            "request_id": req_id,
+            "region": ctx.get("current_task_region") or (ar_hint or None),
+            "scenario": ctx.get("scenario"),
+            "approval_source": approval_source or None,
+            "payload_type": payload_type or None,
+        },
+    )
 
     # Phase 2: wait for an operator decision. There is NO wall-clock timeout
     # AND NO heartbeat-loss abort — the decision is always the operator's.

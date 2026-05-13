@@ -1,29 +1,30 @@
-name: Arena Fight
+name: ⚔️ Arena fight
 
-node: arena_battle
+# Draft — regions are aspirational. Real area.json bindings still TBD.
+# Loop continues until the "tickets exhausted" marker appears or ``max`` is hit.
 
-trigger: arena.state.isTicketsAvailable
+node: arena.battle
 
-priority: 50
+priority: 50_000
 
 steps:
-  - action: loop
-    trigger: arena.state.isTicketsAvailable
-    steps:
-      - click: arena.state.fightButton
-      - wait: 5000ms
-      - action: screenshot
-        analyze:
-          - name: arena.state.resultScreen
-            action: findIcon
-            threshold: 0.7
-            saveAsRegion: false
-          - name: arena.state.isTicketsAvailable
-            action: findIcon
-            threshold: 0.75
-            saveAsRegion: false
-      - if:
-          trigger: arena.state.resultScreen
-          then:
-            - click: arena.state.closeResultButton
-            - wait: 1000ms
+  - loop:
+      max: 10
+      steps:
+        - while_match: arena.fight_button
+          max: 1
+          steps:
+            - click: arena.fight_button
+            - wait: 5s
+
+        # Dismiss result screen if shown.
+        - while_match: arena.result.close
+          max: 1
+          steps:
+            - click: arena.result.close
+            - wait: 1s
+
+        # Out of tickets — exit the outer loop.
+        - match: arena.tickets_empty
+          steps:
+            - break: loop

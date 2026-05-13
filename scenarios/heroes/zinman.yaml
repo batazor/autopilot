@@ -1,8 +1,0 @@
-enabled: true
-name: "🦸 Zinman"
-
-# Hero card for Zinman. Opened from the heroes roster; verified via OCR of
-# the hero name on page.heroes.unit. Fill steps in as needed (sync, upgrade, etc.).
-node: page.heroes.zinman
-
-steps: []

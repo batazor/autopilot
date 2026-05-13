@@ -1,8 +1,0 @@
-enabled: true
-name: "🦸 Hervor"
-
-# Hero card for Hervor. Opened from the heroes roster; verified via OCR of
-# the hero name on page.heroes.unit. Fill steps in as needed (sync, upgrade, etc.).
-node: page.heroes.hervor
-
-steps: []

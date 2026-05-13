@@ -105,8 +105,6 @@ def _source_chip_label(path: Path, repo_root: Path, manifest: Path) -> str:
 
 def _scenario_names_from_key(rule: dict[str, Any], key: str) -> list[str]:
     pu = rule.get(key)
-    if key == "pushScenario" and not isinstance(pu, list):
-        pu = rule.get("pushUsecase")  # backward compat
     if not isinstance(pu, list):
         return []
 

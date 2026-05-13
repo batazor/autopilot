@@ -154,11 +154,18 @@ class InstanceWorker(
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
         if factory is None:
+            # ``optimizer.dispatcher.build_envelope`` sets ``task_type="dsl_scenario"``
+            # as a marker and carries the real key in ``dsl_scenario`` (e.g.
+            # ``level_up_bahiti``). Overlay / cron paths put the key directly
+            # in ``task_type``. Prefer the explicit field when set so the
+            # optimizer's "Queue for bot" button doesn't queue a task that
+            # immediately fails with ``scenario_not_found: dsl_scenario``.
+            scenario_key = (item.dsl_scenario or "").strip() or item.task_type
             return DslScenarioTask(
                 task_id=item.task_id,
                 player_id=item.player_id,
                 priority=item.priority,
-                scenario_key=item.task_type,
+                scenario_key=scenario_key,
                 tap_region=item.region or "",
                 tap_x_pct=item.tap_x_pct,
                 tap_y_pct=item.tap_y_pct,
@@ -357,6 +364,19 @@ class InstanceWorker(
         180s TTL expires — meanwhile the underlying ``QueueItem`` is gone
         (already dequeued) and nothing re-enqueues it.
 
+        Two signals get checked at boot:
+
+        1. ``wos:queue:running:<iid>`` payload — carries the full QueueItem
+           snapshot, but has a 180s TTL.
+        2. ``wos:instance:<iid>:state`` hash fields (``current_task_*`` /
+           ``current_scenario``) — no TTL, so they survive long restarts.
+
+        If only #2 is present (worker died and restart happened more than 180s
+        later, so the running key TTL'd away), synthesize the orphan record
+        from the state hash so the history still gets a ``worker_restart``
+        entry instead of the task vanishing silently. ``_connect`` deliberately
+        leaves those fields alone so this fallback has data to work with.
+
         Re-enqueueing isn't safe: the running payload doesn't carry full
         ``QueueItem`` context (``start_step_index``, original ``next_run_at``),
         and resuming a hand-pointer or DSL scenario from a middle step blind
@@ -369,21 +389,36 @@ class InstanceWorker(
         if self._redis is None:
             return
         running_key = _running_key_for_instance(self._cfg.instance_id)
+        state_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
         try:
             raw = await self._redis.get(running_key)  # type: ignore[union-attr]
         except Exception:
             logger.debug("stuck task cleanup at boot: get failed", exc_info=True)
             return
-        if not raw:
-            return
 
         import json
 
-        try:
-            txt = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
-            data = json.loads(txt)
-        except Exception:
-            logger.debug("stuck task cleanup at boot: payload parse failed", exc_info=True)
+        data: dict[str, Any] | None = None
+        recovered_from = "running_key"
+        if raw:
+            try:
+                txt = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+                data = json.loads(txt)
+            except Exception:
+                logger.debug(
+                    "stuck task cleanup at boot: payload parse failed", exc_info=True
+                )
+                data = {}
+        else:
+            # Running key TTL'd away — fall back to the state hash. Any
+            # ``current_task_*`` / ``current_scenario`` field still set is
+            # evidence of an in-flight task at last shutdown.
+            data = await self._read_orphan_from_state_hash(state_key)
+            if data is None:
+                return
+            recovered_from = "state_hash"
+
+        if not isinstance(data, dict):
             data = {}
 
         started_at = float(data.get("started_at") or 0.0)
@@ -417,7 +452,6 @@ class InstanceWorker(
         except Exception:
             logger.debug("stuck task cleanup at boot: delete failed", exc_info=True)
 
-        state_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
         try:
             await self._redis.hset(  # type: ignore[union-attr]
                 state_key,
@@ -445,11 +479,64 @@ class InstanceWorker(
             logger.debug("stuck task cleanup at boot: state hash clear failed", exc_info=True)
 
         logger.info(
-            "Stuck task: failed orphaned %s (id=%s) for %s at worker boot",
+            "Stuck task: failed orphaned %s (id=%s) for %s at worker boot (via %s)",
             row["task_type"] or "?",
             row["task_id"] or "?",
             self._cfg.instance_id,
+            recovered_from,
         )
+
+    async def _read_orphan_from_state_hash(
+        self, state_key: str
+    ) -> dict[str, Any] | None:
+        """Synthesize an orphan-task payload from the instance state hash.
+
+        Used when ``wos:queue:running:<iid>`` has TTL'd away but the state hash
+        still carries ``current_task_*`` / ``current_scenario`` from a worker
+        that died more than 180s ago. Returns ``None`` when the hash carries
+        no in-flight evidence (legit clean boot).
+        """
+        try:
+            raw_state = await self._redis.hgetall(state_key)  # type: ignore[union-attr]
+        except Exception:
+            logger.debug(
+                "stuck task cleanup at boot: state hash read failed", exc_info=True
+            )
+            return None
+        if not raw_state:
+            return None
+        state_map: dict[str, str] = {}
+        for k, v in raw_state.items():
+            ks = k.decode() if isinstance(k, (bytes, bytearray)) else str(k)
+            vs = (
+                v.decode()
+                if isinstance(v, (bytes, bytearray))
+                else (str(v) if v is not None else "")
+            )
+            state_map[ks] = vs
+
+        task_id = state_map.get("current_task_id", "").strip()
+        task_type = (
+            state_map.get("current_task_type", "").strip()
+            or state_map.get("current_scenario", "").strip()
+        )
+        player_id = state_map.get("current_task_player", "").strip()
+        region = state_map.get("current_task_region", "").strip()
+        # All four empty → nothing to recover, legit clean boot.
+        if not (task_id or task_type or player_id or region):
+            return None
+        try:
+            started_at = float(state_map.get("current_task_started_at") or 0.0)
+        except (TypeError, ValueError):
+            started_at = 0.0
+        return {
+            "task_id": task_id,
+            "task_type": task_type,
+            "player_id": player_id,
+            "region": region,
+            "started_at": started_at,
+            "priority": None,
+        }
 
     async def _seed_startup_tasks(self) -> None:
         """Enqueue boot-time DSL scenarios (one per fresh worker run, per device).

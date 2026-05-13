@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from analysis.overlay_duration import parse_duration_seconds
+from debug.timeline import record_event_async
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_priority
 
 logger = logging.getLogger(__name__)
@@ -156,10 +157,6 @@ class InstanceWorkerOverlayMixin:
         is_time_throttle_rule = ttl_override > 0
 
         pu = payload.get("pushScenario")
-        if not isinstance(pu, list):
-            # Backward compat
-            pu = payload.get("pushUsecase")
-
         if isinstance(pu, list):
             for item in pu:
                 if not isinstance(item, dict):
@@ -227,6 +224,20 @@ class InstanceWorkerOverlayMixin:
                                 "key=%s source_region=%s",
                                 t, int(ttl_s), throttle_key, reg_snap,
                             )
+                        await record_event_async(
+                            self._redis,
+                            self._cfg.instance_id,
+                            "overlay.throttled",
+                            task_id=None,
+                            fields={
+                                "task_type": t,
+                                "throttle_key": throttle_key,
+                                "ttl_s": int(ttl_s),
+                                "source_region": reg_snap,
+                                "player_id": active_player or "",
+                                "kind": "time_throttle",
+                            },
+                        )
                         # Suppress the actual push: the rule's job was just
                         # to write the throttle marker.
                         continue
@@ -247,6 +258,19 @@ class InstanceWorkerOverlayMixin:
                             "push_ttl: throttled key=%s ttl=%ds",
                             throttle_key,
                             int(ttl_s),
+                        )
+                        await record_event_async(
+                            self._redis,
+                            self._cfg.instance_id,
+                            "overlay.throttled",
+                            task_id=None,
+                            fields={
+                                "task_type": t,
+                                "throttle_key": throttle_key,
+                                "ttl_s": int(ttl_s),
+                                "source_region": reg_snap,
+                                "player_id": active_player or "",
+                            },
                         )
                         continue
 
@@ -286,8 +310,25 @@ class InstanceWorkerOverlayMixin:
                 with suppress(TypeError, ValueError):
                     th_i = int(template_h) if template_h is not None else None
 
+                ovl_task_id = (
+                    f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}"
+                )
+                await record_event_async(
+                    self._redis,
+                    self._cfg.instance_id,
+                    "overlay.matched",
+                    task_id=ovl_task_id,
+                    fields={
+                        "task_type": t,
+                        "source_region": reg_snap,
+                        "priority": pr,
+                        "player_id": player_id,
+                        "threshold": threshold,
+                        "score": score,
+                    },
+                )
                 await self._queue.schedule(
-                    task_id=f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}",
+                    task_id=ovl_task_id,
                     player_id=player_id,
                     task_type=t,
                     priority=pr,
@@ -307,43 +348,3 @@ class InstanceWorkerOverlayMixin:
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
                 )
-            return
-
-        push_t = str(payload.get("push_task_type") or "").strip()
-        if not push_t:
-            return
-        pr_raw = payload.get("push_task_priority")
-        if pr_raw is not None:
-            try:
-                pr = int(pr_raw)
-            except (TypeError, ValueError):
-                pr = DEFAULT_SCENARIO_PRIORITY
-        else:
-            scen_pr = dsl_scenario_yaml_priority(_REPO_ROOT, push_t)
-            if scen_pr is not None:
-                pr = scen_pr
-            else:
-                rule_pr = payload.get("priority")
-                try:
-                    pr = int(rule_pr) if rule_pr is not None else DEFAULT_SCENARIO_PRIORITY
-                except (TypeError, ValueError):
-                    pr = DEFAULT_SCENARIO_PRIORITY
-        reg_nm = reg_snap
-        threshold = threshold_snap
-        score = score_snap
-
-        await self._queue.schedule(
-            task_id=f"ovl:{self._cfg.instance_id}:{push_t}:{uuid.uuid4().hex[:8]}",
-            player_id=player_id,
-            task_type=push_t,
-            priority=pr,
-            run_at=run_at,
-            instance_id=self._cfg.instance_id,
-            region=reg_nm,
-            tap_x_pct=tap_x_pct,
-            tap_y_pct=tap_y_pct,
-            threshold=threshold,
-            score=score,
-            skip_if_duplicate=True,
-            dedup_ignore_region=True,
-        )

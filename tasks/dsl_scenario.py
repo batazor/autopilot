@@ -97,6 +97,11 @@ class DslScenarioTask(
     # instead of the static region center when `*_search` is involved.
     _last_match_region: str = field(default="", init=False, repr=False)
     _last_match_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
+    # Same idea as ``_last_match_row`` but for ``ocr:`` steps — set by
+    # ``_ocr_audit_step``, consumed by ``_append_trace_row`` via
+    # ``ocr_row=self._last_ocr_row`` so confidence/value/threshold land in
+    # the trace right next to the failure status.
+    _last_ocr_row: dict[str, Any] | None = field(default=None, init=False, repr=False)
     _last_tap_region_clicked: str = field(default="", init=False, repr=False)
     # Set when ``_tap_region`` ran an implicit auto-match (no explicit ``match:`` in
     # the scenario). Lets ``_point_for_region_action`` use the engine-reported best
@@ -109,3 +114,11 @@ class DslScenarioTask(
     )
     # Snapshot of ``dsl_preempt_gen`` at scenario start; debug UI bumps the counter to exit early.
     _preempt_gen_at_start: int = field(default=0, init=False, repr=False)
+    # Trace timing — seeded by ``DslScenarioExecuteMixin.execute`` so every
+    # appended row carries ``t`` and (for terminal top-level rows)
+    # ``duration_ms``. ``None`` outside an active scenario; the appender
+    # tolerates that and skips the stamp.
+    _scenario_started_at: float | None = field(default=None, init=False, repr=False)
+    _step_start_times: dict[str, float] | None = field(
+        default=None, init=False, repr=False
+    )

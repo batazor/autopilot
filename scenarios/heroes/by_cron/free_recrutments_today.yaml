@@ -33,9 +33,12 @@ steps:
       - click: hero.recrutment.advanced.free
       - wait: 2s
       - click: hero.recrutment.advanced.free
+      - wait: 2s
       - while_match: tapanywhereyoexit
         expected: ["tap anywhere"]
         threshold: 0.7
         steps:
           - click: tapanywhereyoexit
           - wait: 1s
+        else:
+          - ttl: 30m

@@ -10,7 +10,6 @@ import numpy as np
 from analysis.overlay_rules import (
     centers_delta_pct_between_regions,
     optional_expected_texts,
-    optional_fuzzy_threshold,
     optional_min_match_saturation,
     optional_priority,
     optional_push_scenario_tasks,
@@ -894,7 +893,6 @@ async def evaluate_overlay_rules_async(
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
             expected = optional_expected_texts(rule)
-            fuzzy_thr = optional_fuzzy_threshold(rule)
 
             pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
             if pair is None:
@@ -948,13 +946,12 @@ async def evaluate_overlay_rules_async(
             ocr_source = region_name
 
             if expected:
-                thr = float(fuzzy_thr) if fuzzy_thr is not None else float(threshold)
                 # ``partial=True``: OCR may pick up sibling labels (multi-line
                 # popups, level badges next to the prompt). Mirrors what an
                 # author writes in ``expected: ["tap anywhere"]`` — they mean
                 # "this phrase appears somewhere in the OCR'd content", not
                 # "the OCR result equals this phrase verbatim".
-                m = fuzzy_match(txt, expected, threshold=thr, partial=True)
+                m = fuzzy_match(txt, expected, threshold=threshold, partial=True)
                 if m is not None:
                     matched = True
                     best = {"candidate": m.candidate, "score": m.score}
@@ -984,7 +981,7 @@ async def evaluate_overlay_rules_async(
                                     )
                                     stxt = str(sres.text or "").strip()
                                     sm = fuzzy_match(
-                                        stxt, expected, threshold=thr, partial=True
+                                        stxt, expected, threshold=threshold, partial=True
                                     )
                                     if sm is not None:
                                         matched = True
@@ -1025,7 +1022,6 @@ async def evaluate_overlay_rules_async(
                 "confidence": conf,
                 "threshold": threshold,
                 "expected": expected,
-                "fuzzy_threshold": fuzzy_thr,
                 "match": best,
                 "ocr_source": ocr_source,
             }

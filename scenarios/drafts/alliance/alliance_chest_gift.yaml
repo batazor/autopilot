@@ -1,32 +1,34 @@
-name: Alliance Chest Gifts
+name: 🎁 Alliance chest gifts
 
-node: alliance_chest_gift
+# Draft — regions/conds are aspirational. Real area.json bindings still TBD.
+# When promoting out of drafts, set ``enabled: true`` and verify each
+# referenced region exists via the annotator UI.
 
-trigger: alliance.state.isGiftClaimAllButton || alliance.state.isClaimButton
+node: alliance.chest_gift
 
-priority: 20
+priority: 60_000
 
 steps:
-  - if:
-      trigger: alliance.state.isGiftClaimAllButton
-      then:
-        - click: alliance.state.isGiftClaimAllButton
-        - wait: 200ms
-        - click: exploration_claim_confirmation_button
-        - wait: 500ms
-        - click: tap_anywhere_to_exit
-        - wait: 200ms
-  - if:
-      trigger: "!alliance.state.isGiftClaimAllButton && alliance.state.isClaimButton"
-      then:
-        - action: loop
-          trigger: alliance.state.isClaimButton
-          steps:
-            - click: alliance.state.isClaimButton
-            - wait: 400ms
-            - action: screenshot
-              analyze:
-                - name: alliance.state.isClaimButton
-                  action: findIcon
-                  threshold: 0.7
-                  saveAsRegion: true
+  # Bulk path — prefer the single "Claim All" button when shown.
+  - while_match: alliance.chest.claim_all
+    max: 1
+    steps:
+      - click: alliance.chest.claim_all
+      - wait: 200ms
+      - while_match: button.confirm
+        max: 1
+        steps:
+          - click: button.confirm
+          - wait: 500ms
+      - while_match: tapanywhereyoexit
+        max: 1
+        steps:
+          - click: tapanywhereyoexit
+          - wait: 200ms
+
+  # Fallback — drain one-at-a-time claim buttons.
+  - while_match: alliance.chest.claim
+    max: 20
+    steps:
+      - click: alliance.chest.claim
+      - wait: 400ms

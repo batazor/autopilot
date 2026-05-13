@@ -98,6 +98,53 @@ async def test_overlay_tick_debounces_transient_unknown_after_known_screen(redis
 
 
 @pytest.mark.asyncio
+async def test_detect_clears_log_node_during_detect_and_restores_after(
+    redis_async: object,
+) -> None:
+    from config import log_context
+
+    log_context.set_log_context(node="chief_profile")
+    seen_during: list[str] = []
+
+    class _ProbingDetector:
+        calls = 0
+
+        async def detect_screen(self, _image_bgr: np.ndarray) -> ScreenName:
+            self.calls += 1
+            seen_during.append(log_context._node.get())
+            return ScreenName.BUILDING
+
+    worker = _worker(_ProbingDetector(), redis_async)  # type: ignore[arg-type]
+
+    result = await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    assert result == "building"
+    assert seen_during == [""], (
+        "Detector must run with cleared `node` context — otherwise its OCR "
+        "logs inherit the previous tick's screen and read as a desync."
+    )
+    assert log_context._node.get() == "building"
+
+
+@pytest.mark.asyncio
+async def test_detect_clears_log_node_on_unknown(redis_async: object) -> None:
+    from config import log_context
+
+    log_context.set_log_context(node="chief_profile")
+    detector = _FakeDetector(ScreenName.UNKNOWN)
+    worker = _worker(detector, redis_async)
+
+    result = await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    assert result is None
+    assert log_context._node.get() == ""
+
+
+@pytest.mark.asyncio
 async def test_overlay_tick_clears_after_repeated_unknown_frames(redis_async: object) -> None:
     detector = _FakeDetector(
         [

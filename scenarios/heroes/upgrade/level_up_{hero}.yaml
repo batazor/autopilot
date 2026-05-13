@@ -1,0 +1,22 @@
+enabled: true
+name: "⬆️ Level up · ${hero_name}"
+
+# Template rendered by ``scenarios.template_resolver`` for each hero id from
+# ``db/heroes/index.yaml`` (e.g. queue task ``level_up_ahmose`` →
+# ``hero_id=ahmose``). Pushed by the upgrade optimizer
+# (``optimizer/dispatcher.py``).
+
+node: page.heroes.${hero_id}
+
+steps:
+  - while_match: page.heroes.unit.upgrade
+    max: 1
+    steps:
+      - click: page.heroes.unit.upgrade_tap
+      - wait: 0.8s
+      - ocr: page.heroes.unit.name
+        store: page.heroes.unit.name
+      - ocr: page.heroes.unit.level
+        type: integer
+        store: page.heroes.unit.level
+      - exec: sync_hero_unit

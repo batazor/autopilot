@@ -166,6 +166,12 @@ class InstanceWorkerScreenDetectMixin:
     _SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS: float
 
     async def _detect_current_screen_on_frame(self, image_bgr: np.ndarray) -> str | None:
+        # The detector's own OCR/landmark logs would otherwise inherit the
+        # previous tick's `node` from log context and read as if the new
+        # screen had already been confirmed. Clear it for the duration of
+        # detection so those lines render as `[inst/player/-]` — and only
+        # restore once we have a verdict.
+        set_log_context(node="")
         try:
             detected = await self._screen_detector.detect_screen(image_bgr)
         except Exception:
@@ -174,6 +180,7 @@ class InstanceWorkerScreenDetectMixin:
                 self._cfg.instance_id,
                 exc_info=True,
             )
+            set_log_context(node=self._last_detected_screen or "")
             return self._last_detected_screen
 
         if detected != ScreenName.UNKNOWN:
@@ -188,6 +195,7 @@ class InstanceWorkerScreenDetectMixin:
                         "current_screen",
                         detected_s,
                     )
+            set_log_context(node=detected_s)
             return detected_s
 
         self._screen_unknown_streak += 1
@@ -198,6 +206,7 @@ class InstanceWorkerScreenDetectMixin:
             or age >= float(self._SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS)
         )
         if not should_clear:
+            set_log_context(node=self._last_detected_screen or "")
             return self._last_detected_screen
 
         self._last_detected_screen = None

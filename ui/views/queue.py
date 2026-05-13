@@ -10,14 +10,14 @@ from urllib.parse import urlencode
 
 import pandas as pd
 import streamlit as st
-import yaml
 
 from config.loader import load_settings
 from config.reference_naming import event_icon_abs_path
-from scenarios.dsl_schema import resolve_dsl_scenario_yaml_path
+from scenarios import template_resolver as _tmpl
 from ui.redis_client import (
     QueueHistoryRow,
     clear_queue_tasks,
+    fetch_queue_explain_rows,
     fetch_queue_history_rows,
     fetch_queue_rows,
     fetch_running_queue_row,
@@ -34,20 +34,31 @@ _REPO = Path(__file__).resolve().parents[2]
 
 @st.cache_data(ttl=10)
 def _scenario_icon_path(repo_str: str, scenario_key: str) -> str | None:
-    """Resolve scenario ``icon:`` slug → absolute icon path string (or ``None``)."""
+    """Resolve scenario ``icon:`` slug → absolute icon path string (or ``None``).
+
+    Uses the template resolver so template-driven keys (e.g. ``level_up_ahmose``)
+    pick the icon from the rendered template body, not the raw template file.
+    """
     if not scenario_key:
         return None
     repo = Path(repo_str)
-    path = resolve_dsl_scenario_yaml_path(repo, scenario_key)
-    if path is None or not path.is_file():
+    loaded = _tmpl.load_doc(repo, scenario_key)
+    if loaded is None:
         return None
-    try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except Exception:
-        return None
+    _path, raw = loaded
     slug = str(raw.get("icon") or "") if isinstance(raw, dict) else ""
     icon = event_icon_abs_path(repo, slug)
     return str(icon) if icon is not None else None
+
+
+@st.cache_data(ttl=10)
+def _scenario_display_label(repo_str: str, scenario_key: str) -> str:
+    """Rendered ``name:`` for a scenario key; falls back to the key itself.
+
+    Lets the queue UI show ``"⬆️ Level up · Ahmose"`` instead of the raw
+    ``level_up_ahmose`` for template-driven scenarios.
+    """
+    return _tmpl.display_name(Path(repo_str), scenario_key)
 
 
 def _history_steps_summary(h: QueueHistoryRow) -> str:
@@ -105,8 +116,10 @@ def _queue_fragment() -> None:
                     dur = ""
                     if r.started_at > 0:
                         dur = f" · {_rel_time(r.started_at, now)}"
+                    task_type_label = _scenario_display_label(str(_REPO), r.task_type)
                     st.info(
-                        f"**{iid}** · **{r.task_type}** · task_id `{r.task_id}` · "
+                        f"**{iid}** · **{task_type_label}** "
+                        f"(`{r.task_type}`) · task_id `{r.task_id}` · "
                         f"player `{r.player_id or '—'}`"
                         + (f" · region `{r.region}`" if r.region else "")
                         + dur
@@ -124,12 +137,20 @@ def _queue_fragment() -> None:
                         step_now = 0
                     step_display = max(0, min(step_now, total_steps)) if total_steps else 0
                     ratio = step_display / total_steps if total_steps else 0.0
+                    active_label = (
+                        _scenario_display_label(str(_REPO), active_scenario)
+                        if active_scenario
+                        else ""
+                    )
                     if total_steps > 0:
-                        bar_text = f"{active_scenario} · Step {step_display}/{total_steps}"
+                        bar_text = f"{active_label} · Step {step_display}/{total_steps}"
                     elif active_scenario:
-                        bar_text = f"{active_scenario} · running"
+                        bar_text = f"{active_label} · running"
                     else:
-                        bar_text = f"{r.task_type} · running"
+                        bar_text = f"{task_type_label} · running"
+                    nav_target = str(inst_state.get("nav_target") or "").strip()
+                    if nav_target:
+                        bar_text += f" · navigating → {nav_target}"
                     icon_path = _scenario_icon_path(str(_REPO), active_scenario)
                     if icon_path:
                         icon_col, bar_col = st.columns([1, 11])
@@ -282,6 +303,95 @@ def _queue_fragment() -> None:
                     st.warning("None found — tasks may have already been processed.")
                 st.rerun()
 
+    # "Why this order?" — render the same effective_priority breakdown that
+    # ``pop_due`` would have used to pick the next task. Answers the recurring
+    # operator question "task X has higher priority but isn't running" by
+    # showing graph_debuff (wrong screen), recent_debuff (cooled-down repeats),
+    # reachable=False (no path to required_node), etc. Read-only — uses
+    # ``explain_top_n`` so no queue state is mutated.
+    if inst_ids:
+        st.divider()
+        st.subheader(
+            "Why this order?",
+            help=(
+                "Top-10 ranked due candidates per instance with the full "
+                "effective_priority breakdown. ``Effective = base - "
+                "graph_debuff - recent_debuff``; ``Reachable=False`` adds a "
+                "fixed 5000-debuff and pins ``Hops=∞``. The candidate with the "
+                "smallest sort key (highest effective_priority, then closest "
+                "screen, then earliest ``run_at``) is the one ``pop_due`` "
+                "will claim next."
+            ),
+        )
+        explain_tabs = st.tabs(inst_ids) if len(inst_ids) > 1 else None
+        explain_containers = (
+            explain_tabs if explain_tabs is not None else [st.container()]
+        )
+        for tab, iid in zip(explain_containers, inst_ids, strict=False):
+            with tab:
+                inst_state = get_instance_state(client, iid) or {}
+                screen = str(inst_state.get("current_screen") or "").strip()
+                ap = str(inst_state.get("active_player") or "").strip()
+                explain_rows = fetch_queue_explain_rows(
+                    instance_id=iid, current_screen=screen, n=10
+                )
+                st.caption(
+                    f"current_screen: `{screen or '—'}` · active_player: "
+                    f"`{ap or '—'}`"
+                )
+                if not explain_rows:
+                    st.info(
+                        "No due candidates ranked for this instance "
+                        "(either queue is empty / all items are future-scheduled, "
+                        "or every candidate is blocked by the active_player "
+                        "/ device_level / screen gates)."
+                    )
+                    continue
+                explain_data = []
+                for seq, er in enumerate(explain_rows, start=1):
+                    key = str(er.get("task_type") or "")
+                    explain_data.append(
+                        {
+                            "#": seq,
+                            "Scenario": _scenario_display_label(str(_REPO), key),
+                            "Key": key,
+                            "Player": str(er.get("player_id") or "") or "—",
+                            "Base": int(er.get("base_priority") or 0),
+                            "Effective": int(er.get("effective_priority") or 0),
+                            "Graph debuff": int(er.get("graph_debuff") or 0),
+                            "Recent debuff": int(er.get("recent_debuff") or 0),
+                            "Hops": (
+                                "∞" if not bool(er.get("reachable"))
+                                else str(int(er.get("hops") or 0))
+                            ),
+                            "Reachable": "✅" if bool(er.get("reachable")) else "❌",
+                            "Required node": str(er.get("required_node") or "") or "—",
+                            "Recent runs": int(er.get("recent_count") or 0),
+                            "Scheduled": _rel_time(
+                                float(er.get("run_at") or now), now
+                            ),
+                            "task_id": str(er.get("task_id") or ""),
+                        }
+                    )
+                df_explain = pd.DataFrame(explain_data)
+                st.dataframe(
+                    df_explain,
+                    width="stretch",
+                    hide_index=True,
+                    column_config={
+                        "#": st.column_config.NumberColumn(width="small"),
+                        "Base": st.column_config.NumberColumn(width="small"),
+                        "Effective": st.column_config.NumberColumn(width="small"),
+                        "Graph debuff": st.column_config.NumberColumn(width="small"),
+                        "Recent debuff": st.column_config.NumberColumn(width="small"),
+                        "Hops": st.column_config.TextColumn(width="small"),
+                        "Reachable": st.column_config.TextColumn(width="small"),
+                        "Recent runs": st.column_config.NumberColumn(width="small"),
+                        "Scheduled": st.column_config.TextColumn(width="small"),
+                        "Key": st.column_config.TextColumn(width="medium"),
+                    },
+                )
+
     # History — shown at the bottom so current queue stays at top.
     _HISTORY_LIMIT = 50
     if inst_ids:
@@ -341,11 +451,13 @@ def _queue_fragment() -> None:
                     detail = h.reason or h.error or h.task_id
                     if len(detail) > 64:
                         detail = f"{detail[:61]}..."
+                    scen_key = h.scenario or h.task_type
                     hist_data.append({
                         "#": seq,
                         "Started": started_str,
                         "Finished": finished_str,
-                        "Scenario": h.scenario or h.task_type,
+                        "Scenario": _scenario_display_label(str(_REPO), scen_key),
+                        "Key": scen_key,
                         "Player": h.player_id or "—",
                         "Region": h.region or "",
                         "Dur": f"{h.duration_s:.1f}s",
@@ -367,6 +479,7 @@ def _queue_fragment() -> None:
                         "Started": st.column_config.TextColumn(width="small"),
                         "Finished": st.column_config.TextColumn(width="small"),
                         "Steps": st.column_config.TextColumn(width="medium"),
+                        "Key": st.column_config.TextColumn(width="small"),
                     },
                 )
                 sel = event.selection.get("rows", [])

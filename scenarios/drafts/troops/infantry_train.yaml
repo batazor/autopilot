@@ -1,36 +1,38 @@
-name: Train Infantry
+name: 🪖 Train infantry
 
-node: infantry_city_view
+# Draft — regions/conds are aspirational. Real area.json bindings + state
+# fields (``troops_infantry_status``) still TBD.
+#
+# Branches on a cached OCR'd status field:
+#   * "Completed" → collect troops, re-queue self to start the next batch.
+#   * "Idle"      → enter the training UI and start a new batch.
 
-priority: 10
+node: troops.infantry
 
-trigger: troops.infantry.state.isAvailable
+priority: 40_000
 
 steps:
-  - if:
-      trigger: compareText(troops.infantry.state.TextStatus, "Completed")
-      then:
-        - click: troops_get_button
-        - wait: 500ms
-        - action: reset
-          set: troops.infantry.state.TextStatus
-          to: "Idle"
-        - pushUsecase:
-          - trigger: true
-            list:
-              - name: Train Infantry
+  # Branch A — last batch finished.
+  - cond: 'troops_infantry_status ~= "Completed"'
+    steps:
+      - while_match: troops.collect
+        max: 1
+        steps:
+          - click: troops.collect
+          - wait: 500ms
+      - push_scenario: infantry_train
 
-  - if:
-      trigger: compareText(troops.infantry.state.TextStatus, "Idle")
-      then:
-        - click: troops_get_button
-        - wait: 500ms
-        - click: troops.train
-        - wait: 500ms
-        - click: troops_train_start_button
-        - wait: 500ms
-        - click: from_troops_to_main_city
-        - wait: 500ms
-        - action: reset
-          set: troops.infantry.state.TextStatus
-          to: "InProgress"
+  # Branch B — idle queue, start training.
+  - cond: 'troops_infantry_status ~= "Idle"'
+    steps:
+      - while_match: troops.train_entry
+        max: 1
+        steps:
+          - click: troops.train_entry
+          - wait: 500ms
+      - click: troops.train
+      - wait: 500ms
+      - click: troops.train_start
+      - wait: 500ms
+      - click: nav.main_city
+      - wait: 500ms

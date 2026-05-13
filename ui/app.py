@@ -41,6 +41,11 @@ click_approvals_page = st.Page(
     title="Click approvals",
 )
 queue_page = st.Page(str(_ui_dir / "views" / "queue.py"), title="Queue")
+timeline_page = st.Page(
+    str(_ui_dir / "views" / "timeline.py"),
+    title="Timeline",
+    url_path="timeline",
+)
 debug_scenarios_page = st.Page(
     str(_ui_dir / "views" / "debug_scenarios.py"),
     title="Scenario runner",
@@ -93,6 +98,7 @@ st.navigation(
         "Debug": [
             click_approvals_page,
             queue_page,
+            timeline_page,
             debug_scenarios_page,
             fsm_page,
             optimizer_debug_page,

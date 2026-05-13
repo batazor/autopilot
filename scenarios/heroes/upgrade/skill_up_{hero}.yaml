@@ -1,0 +1,25 @@
+enabled: true
+name: "📘 Skill up · ${hero_name}"
+
+# Template rendered by ``scenarios.template_resolver`` for each hero id from
+# ``db/heroes/index.yaml`` (e.g. queue task ``skill_up_ahmose`` →
+# ``hero_id=ahmose``). Pushed by the upgrade optimizer
+# (``optimizer/dispatcher.py``). Steps stay commented until the in-game
+# regions are labelled via the annotator UI.
+
+node: page.heroes.${hero_id}
+
+steps: []
+  # TODO: label the in-game regions, then uncomment.
+  # The optimizer enqueues this scenario with a ``region`` field
+  # naming the target skill slot (e.g. page.heroes.unit.skill_1)
+  # — the click below should resolve through ${region} once the
+  # DSL is wired for param expansion. For now we leave a
+  # placeholder per-slot click commented out.
+  # - click: page.heroes.unit.skill_1
+  # - wait: 0.5s
+  # - click: page.heroes.unit.btn.skill_upgrade
+  # - wait: 0.5s
+  # - click: page.heroes.unit.btn.skill_upgrade.confirm
+  # - wait: 1s
+  # - exec: sync_hero_unit

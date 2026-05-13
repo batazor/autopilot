@@ -21,6 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from optimizer.candidates import hero_db_entry
+from optimizer.capacities import compute_capacities
 from optimizer.context import BalanceContext
 from optimizer.types import Candidate
 
@@ -133,24 +134,9 @@ def _scarcity(ctx: BalanceContext, resource: str) -> float:
         return 0.0
 
 
-_SPENDABLE_KEY_BY_RESOURCE: dict[str, tuple[str, ...]] = {
-    "hero_xp": ("resources.hero_xp", "heroes.hero_xp"),
-    # ``{rarity}_specific_shard`` and ``{rarity}_general_shard`` are not
-    # in the current state schema yet — when scan_heroes_grid (or a
-    # future OCR) starts writing them, list the keys here and the scorer
-    # will pick them up automatically.
-}
-
-
-def _spendable(state_flat: dict[str, object], resource: str) -> int:
-    for key in _SPENDABLE_KEY_BY_RESOURCE.get(resource, ()):
-        v = state_flat.get(key)
-        try:
-            if v is not None:
-                return int(v)
-        except (TypeError, ValueError):
-            continue
-    return 0
+def _spendable(state_flat: dict[str, object], ctx: BalanceContext, resource: str) -> int:
+    """Spendable amount for scoring, using the same resolver as CP-SAT."""
+    return int(compute_capacities(state_flat, ctx).get(resource, 0))
 
 
 def _upgrade_gain(c: Candidate) -> float:
@@ -236,7 +222,7 @@ def score_candidate(
     rarity_total = 0.0
     for cost in c.costs:
         sc = _scarcity(ctx, cost.resource)
-        spendable = _spendable(state_flat, cost.resource)
+        spendable = _spendable(state_flat, ctx, cost.resource)
         # When spendable is unknown / zero we still want to penalise high
         # costs — denominator clamps at 1 so the term stays finite.
         denom = max(1.0, float(spendable))

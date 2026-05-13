@@ -7,13 +7,6 @@ import yaml
 
 
 @dataclass(frozen=True)
-class TaskConfig:
-    cooldown_seconds: int
-    max_attempts: int
-    timeout_seconds: int
-
-
-@dataclass(frozen=True)
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
@@ -29,7 +22,6 @@ class RedisConfig:
 class OcrConfig:
     url: str
     timeout_seconds: int = 10
-    fuzzy_threshold: float = 0.80
 
 
 @dataclass(frozen=True)
@@ -59,7 +51,6 @@ class Settings:
     scheduler: SchedulerConfig
     worker: WorkerConfig
     instances: list[InstanceConfig]
-    tasks: dict[str, TaskConfig]
 
 
 def load_settings(path: Path | None = None) -> Settings:
@@ -85,7 +76,6 @@ def load_settings(path: Path | None = None) -> Settings:
         for d in devices_registry.devices
         if d.name.strip()
     ]
-    tasks = {tid: TaskConfig(**tcfg) for tid, tcfg in raw["tasks"].items()}
 
     return Settings(
         redis=redis_cfg,
@@ -93,7 +83,6 @@ def load_settings(path: Path | None = None) -> Settings:
         scheduler=scheduler_cfg,
         worker=worker_cfg,
         instances=instances,
-        tasks=tasks,
     )
 
 

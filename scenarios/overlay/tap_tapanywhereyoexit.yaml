@@ -14,5 +14,6 @@ steps:
   # OCR noise (sibling labels, Lv. badges, button captions).
   - while_match: tapanywhereyoexit
     expected: ["tap anywhere"]
+    threshold: 0.7
     steps:
       - click: tapanywhereyoexit

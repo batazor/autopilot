@@ -8,6 +8,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from contextlib import suppress
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -89,12 +91,31 @@ class DslScenarioInlineMixin:
             return True
 
         await self._write_step_context(instance_id, scenario=scenario_key)
+        # Surface the navigation target so the UI progress bar can render
+        # "navigating → <screen>" while the BFS-driven hops run — without
+        # this, the operator just sees "Step 0/N" for the whole nav phase.
+        if self.redis_client is not None:
+            with suppress(Exception):
+                await self.redis_client.hset(
+                    f"wos:instance:{instance_id}:state",
+                    "nav_target",
+                    str(target),
+                )
         navigator = Navigator(
             actions.capture_screen_bgr,
             actions.tap,
             redis_client=self.redis_client,
         )
-        ok = await navigator.navigate_to(target, instance_id)
+        try:
+            ok = await navigator.navigate_to(target, instance_id)
+        finally:
+            if self.redis_client is not None:
+                with suppress(Exception):
+                    await self.redis_client.hset(
+                        f"wos:instance:{instance_id}:state",
+                        "nav_target",
+                        "",
+                    )
         if not ok:
             logger.warning(
                 "dsl_scenario: navigation to %s failed (scenario=%s instance=%s)",
@@ -524,7 +545,9 @@ class DslScenarioInlineMixin:
                 )
             self._last_tap_region_clicked = region
             await asyncio.sleep(0.4)
-            self._append_trace_row(trace_path, step, "ok")
+            self._append_trace_row(
+                trace_path, step, "ok", match_row=self._last_match_row
+            )
             return None
         if "click" in step:
             region = str(step.get("click") or "").strip()
@@ -547,10 +570,13 @@ class DslScenarioInlineMixin:
                         step,
                         "stopped",
                         reason=str(md.get("reason") or ""),
+                        match_row=self._last_match_row,
                     )
                     return result
                 await asyncio.sleep(0.4)
-            self._append_trace_row(trace_path, step, "ok")
+            self._append_trace_row(
+                trace_path, step, "ok", match_row=self._last_match_row
+            )
             return None
         if "repeat" in step:
             spec = step.get("repeat")
@@ -799,6 +825,37 @@ class DslScenarioInlineMixin:
                     raise
                 iterations += 1
 
+            # ``else:`` — fallback steps for the no-iterations case (icon
+            # never matched). Runs only when the loop completed without any
+            # successful probe; ignored if the loop ran at least once.
+            else_steps = step.get("else")
+            if (
+                iterations == 0
+                and isinstance(else_steps, list)
+                and else_steps
+            ):
+                for else_idx, else_step in enumerate(else_steps):
+                    if not isinstance(else_step, dict):
+                        continue
+                    branch_path = (
+                        f"{trace_path}.else.{else_idx}"
+                        if trace_path
+                        else f"else.{else_idx}"
+                    )
+                    result = await self._run_inline_step(
+                        else_step,
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                        trace_path=branch_path,
+                    )
+                    if result is not None:
+                        return result
+
             if iterations:
                 logger.info(
                     "dsl_scenario: nested while_match done scenario=%s region=%s iterations=%d",
@@ -856,6 +913,24 @@ class DslScenarioInlineMixin:
                 await asyncio.sleep(0.4)
             self._append_trace_row(trace_path, step, "ok")
             return None
+        if "ttl" in step:
+            # Exit the scenario early with a delayed reschedule. Used inside
+            # ``while_match.else`` to back off when an expected popup never
+            # appeared, so the worker doesn't churn re-running the same probe.
+            ttl_s = max(0.0, _parse_wait_seconds(step.get("ttl")))
+            await self._clear_step_context(instance_id)
+            self._append_trace_row(
+                trace_path, step, "early_exit", reason="ttl", ttl_s=ttl_s
+            )
+            return TaskResult(
+                success=True,
+                next_run_at=datetime.now() + timedelta(seconds=ttl_s),
+                metadata={
+                    "scenario": scenario_key,
+                    "reason": "ttl_exit",
+                    "ttl_s": ttl_s,
+                },
+            )
         if "wait" in step:
             seconds = _parse_wait_seconds(step.get("wait"))
             if seconds > 0:
@@ -935,12 +1010,16 @@ class DslScenarioInlineMixin:
                     step=step,
                     region=region,
                 )
-            self._append_trace_row(trace_path, step, "ok")
+            self._append_trace_row(
+                trace_path, step, "ok", ocr_row=self._last_ocr_row
+            )
             return None
         if "match" in step:
             region = str(step.get("match") or "").strip()
+            matched = False
+            row: dict[str, Any] | None = None
             if region:
-                await self._match_region(
+                row = await self._match_region(
                     actions=actions,
                     area_doc=area_doc,
                     repo_root=repo_root,
@@ -949,7 +1028,39 @@ class DslScenarioInlineMixin:
                     step=step,
                     region=region,
                 )
-            self._append_trace_row(trace_path, step, "ok")
+                matched = bool(row and row.get("matched"))
+            # ``match + steps`` = guarded block: run ``steps`` only when the
+            # probe succeeded. Miss falls through to ``else`` (if present) and
+            # then to the next sibling step — no abort. This is the soft-gate
+            # form, distinct from bare ``match:`` (still a hard gate in the
+            # top-level executor).
+            branch_steps = step.get("steps") if matched else step.get("else")
+            branch_label = "steps" if matched else "else"
+            if isinstance(branch_steps, list) and branch_steps:
+                for inner_idx, inner in enumerate(branch_steps):
+                    if not isinstance(inner, dict):
+                        continue
+                    inner_path = (
+                        f"{trace_path}.{branch_label}.{inner_idx}"
+                        if trace_path
+                        else f"{branch_label}.{inner_idx}"
+                    )
+                    result = await self._run_inline_step(
+                        inner,
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        scenario_key=scenario_key,
+                        trace_path=inner_path,
+                    )
+                    if result is not None:
+                        return result
+            self._append_trace_row(
+                trace_path, step, "ok", matched=matched, match_row=row
+            )
             return None
         logger.warning("dsl_scenario: unsupported nested step: %s", step)
         self._append_trace_row(trace_path, step, "skipped", reason="unsupported")

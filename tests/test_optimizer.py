@@ -201,6 +201,35 @@ def test_bear_threshold_bonus_applies_to_joiner_only(ctx):
     assert br_bahiti.threshold_bonus == 0, "core hero (no joiner tag) should not"
 
 
+def test_score_resource_penalty_uses_capacity_resolver_for_manuals(ctx):
+    """Manual spendable amounts must match solver capacities, not scorer-local keys."""
+    low_manual_state = {
+        "heroes.entries.jasser.available": True,
+        "heroes.entries.jasser.level": 5,
+        "heroes.entries.jasser.star_progress": 30,
+        "heroes.entries.jasser.skills.expedition.1": 4,
+        "chief.furnace_level": 25,
+        "resources.epic_expedition_manual": 16,
+    }
+    high_manual_state = dict(low_manual_state)
+    high_manual_state["resources.epic_expedition_manual"] = 160
+
+    cands = generate_candidates(low_manual_state, ctx)
+    skill = next(
+        c for c in cands
+        if c.action == "skill_up"
+        and c.hero_id == "jasser"
+        and c.payload.get("track") == "expedition"
+        and c.payload.get("slot") == 1
+        and c.payload.get("to_level") == 5
+    )
+    low = score_candidate(skill, ctx, low_manual_state, server_age_days=10)
+    high = score_candidate(skill, ctx, high_manual_state, server_age_days=10)
+
+    assert high.resource_rarity_penalty < low.resource_rarity_penalty
+    assert high.final_score > low.final_score
+
+
 def test_rank_candidates_sorted_desc(ctx, basic_state):
     ranked = rank_candidates(basic_state, ctx, server_age_days=10)
     scores = [br.final_score for _, br in ranked]
@@ -417,22 +446,22 @@ def test_enqueue_envelope_writes_to_queue_key(ctx, basic_state):
 
 
 def test_generated_scenarios_exist_for_every_action(ctx, basic_state):
-    """Smoke: every scenario the dispatcher might name must be on disk."""
+    """Smoke: every scenario the dispatcher might name must resolve.
+
+    Resolution covers both literal files and ``{hero}``-template files under
+    ``scenarios/heroes/upgrade/`` (see ``scenarios.template_resolver``).
+    """
     from pathlib import Path
 
     from optimizer import build_envelope
+    from scenarios import template_resolver as _tmpl
 
-    upgrade_dir = (
-        Path(__file__).resolve().parents[1]
-        / "scenarios"
-        / "heroes"
-        / "upgrade"
-    )
+    repo_root = Path(__file__).resolve().parents[1]
     cands = generate_candidates(basic_state, ctx)
     for c in cands:
         env = build_envelope(c, player_id="42", instance_id="bs1")
-        scen = upgrade_dir / f"{env.dsl_scenario}.yaml"
-        assert scen.is_file(), f"missing scenario file: {scen}"
+        resolved = _tmpl.resolve(repo_root, env.dsl_scenario)
+        assert resolved is not None, f"no scenario resolves for: {env.dsl_scenario}"
 
 
 def test_history_round_trip(tmp_path):

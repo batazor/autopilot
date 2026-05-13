@@ -30,10 +30,29 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
 logger = logging.getLogger(__name__)
 
 
+def _safe_float_or_none(s: str) -> float | None:
+    """Best-effort parse of the stringified floats used by ``_ocr_audit_step``.
+
+    Returns ``None`` for empty / unparseable strings so trace consumers can
+    tell "no value" from "value 0.0".
+    """
+    if not s:
+        return None
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return None
+
+
 class DslOcrMixin:
     redis_client: Any
     player_id: str | None
     _ocr_client: Any
+    # Snapshot of the latest ``ocr:`` step result so ``_append_trace_row``
+    # can flatten it into the trace via ``ocr_row=self._last_ocr_row``. Set
+    # by ``_ocr_audit_step`` (the universal exit point — both failure paths
+    # and ``stored`` go through it).
+    _last_ocr_row: dict[str, Any] | None
 
     def _state_flat(self) -> dict[str, Any] | None: ...  # provided by host
 
@@ -68,6 +87,19 @@ class DslOcrMixin:
         value_s: str = "",
     ) -> None:
         planned_store = str(step.get("store") or region).strip()
+        # Cache the result for ``_append_trace_row`` consumers (inline mixin
+        # passes this as ``ocr_row=`` so the trace shows confidence/value/text
+        # right next to the failure status). Every ocr exit funnels through
+        # here so this snapshot is always the latest one.
+        self._last_ocr_row = {
+            "region": region,
+            "store": planned_store,
+            "status": status,
+            "threshold": _safe_float_or_none(threshold_s),
+            "confidence": _safe_float_or_none(confidence_s),
+            "text": raw_text,
+            "value": value_s,
+        }
         await self._persist_dsl_last_ocr(
             instance_id,
             {
@@ -119,6 +151,10 @@ class DslOcrMixin:
         If neither is given, the legacy default ``store: <region_name>`` is used.
         Low-confidence reads are logged and skipped, never persisted to either side.
         """
+        # Discard any prior step's snapshot so the inline-mixin trace appender
+        # doesn't paint this row with stale values when the OCR call bails on
+        # an early gate (``region_not_found`` / ``invalid_bbox`` / etc.).
+        self._last_ocr_row = None
         pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning(

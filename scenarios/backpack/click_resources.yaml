@@ -9,7 +9,7 @@ node: backpack
 
 steps:
   - click: page.backpack.resources
-  - wait: 1s
+  - wait: 2s
   # Drain pending red-dot claim popups on the newly-opened tab. Hard-capped
   # at 20 taps in the exec handler to avoid runaway scans.
   - exec: put_all_red_dots

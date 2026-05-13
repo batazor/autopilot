@@ -4,14 +4,15 @@ The optimizer chooses *what* the bot should do; the dispatcher names the
 scenario file that knows *how*, and bundles the parameters the scheduler
 needs (instance, player, scenario, region for skill slot).
 
-Scenario naming matches :mod:`cmd.generate_upgrade_scenarios`:
+Scenario naming feeds the template resolver in
+:mod:`scenarios.template_resolver`:
 
 * ``level_up:bahiti:5→6``               → ``level_up_bahiti``
 * ``star_tier_up:bahiti:4→5``           → ``star_tier_up_bahiti``
 * ``skill_up:bahiti:expedition.1:0→1``  → ``skill_up_bahiti`` + region hint
 
-These map 1:1 to ``scenarios/heroes/upgrade/<scenario>.yaml`` with node
-``page.heroes.<hero_id>``.
+These resolve through the ``scenarios/heroes/upgrade/{action}_{hero}.yaml``
+templates with node ``page.heroes.<hero_id>``.
 """
 
 from __future__ import annotations

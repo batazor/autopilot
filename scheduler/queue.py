@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import time
-from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -11,6 +10,7 @@ import redis.asyncio as aioredis
 
 from config.devices import player_ids_for_device_candidates
 from config.loader import get_settings
+from debug.timeline import record_event_async
 
 logger = logging.getLogger(__name__)
 
@@ -50,17 +50,6 @@ def _bfs_hops(src: str, dst: str) -> int | None:
     if path is None:
         return None
     return max(0, len(path) - 1)
-
-
-def _dup_region_key(region: str | None) -> str:
-    return str(region).strip() if region else ""
-
-
-def _dup_index_key(*, instance_id: str, player_id: str, task_type: str, region: str | None) -> str:
-    iid = str(instance_id or "").strip() or "unknown"
-    reg = _dup_region_key(region)
-    pid = str(player_id or "").strip()
-    return f"wos:queue:idx:{iid}:{task_type}:{reg}:{pid}"
 
 
 @dataclass(frozen=True)
@@ -155,6 +144,18 @@ class RedisQueue:
                 task_type,
                 region,
             )
+            await record_event_async(
+                self._redis,
+                instance_id,
+                "queue.duplicate_skipped",
+                task_id=task_id,
+                fields={
+                    "task_type": task_type,
+                    "player_id": player_id,
+                    "region": region,
+                    "ignore_region": dedup_ignore_region,
+                },
+            )
             return False
 
         body: dict[str, object] = {
@@ -201,20 +202,20 @@ class RedisQueue:
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
         await self._redis.zadd(qk, {payload: run_at})
-        # Duplicate index (fast skip_if_duplicate): track payloads per signature.
-        try:
-            idx_region = None if dedup_ignore_region else region
-            await self._redis.sadd(
-                _dup_index_key(
-                    instance_id=instance_id,
-                    player_id=player_id,
-                    task_type=task_type,
-                    region=idx_region,
-                ),
-                payload,
-            )
-        except Exception:
-            logger.debug("queue idx: sadd failed", exc_info=True)
+        await record_event_async(
+            self._redis,
+            instance_id,
+            "queue.enqueued",
+            task_id=task_id,
+            fields={
+                "task_type": task_type,
+                "player_id": player_id,
+                "priority": priority,
+                "run_at": run_at,
+                "region": region,
+                "start_step_index": int(start_step_index) if start_step_index else 0,
+            },
+        )
         return True
 
     async def has_pending_duplicate(
@@ -516,49 +517,48 @@ class RedisQueue:
         now = time.time()
         key = _queue_key(instance_id)
         ranked = await self._collect_ranked_due(instance_id, current_screen, now)
-        if not ranked:
-            return None
-        _sort_key, raw, data, winner_meta = ranked[0]
-        await self._redis.zrem(key, raw)
-        await self._append_recent_run(
-            instance_id=instance_id,
-            task_type=str(data.get("task_type", "")),
-            player_id=str(data.get("player_id", "")),
-            now=now,
-        )
-        self._log_pop_winner(instance_id=instance_id, data=data, meta=winner_meta)
-        try:
-            pid = str(data.get("player_id", ""))
-            ttype = str(data.get("task_type", ""))
-            reg_raw = data.get("region")
-            reg_s = str(reg_raw).strip() if reg_raw is not None and str(reg_raw).strip() != "" else None
-            with suppress(Exception):
-                await self._redis.srem(
-                    _dup_index_key(
-                        instance_id=instance_id,
-                        player_id=pid,
-                        task_type=ttype,
-                        region=reg_s,
+        # Atomic claim via ZREM: the return value tells us whether *this* call
+        # actually removed the member. Two workers racing on the same instance
+        # queue can both read the same top candidate; only one's ZREM returns
+        # 1, the other gets 0 and must fall through to the next ranked item.
+        # Without this guard the loser used to return the same QueueItem,
+        # produce a double execution, and pollute recent_runs.
+        for _sort_key, raw, data, winner_meta in ranked:
+            try:
+                claimed_n = int(await self._redis.zrem(key, raw))
+            except (TypeError, ValueError):
+                claimed_n = 0
+            if claimed_n != 1:
+                continue
+            await self._append_recent_run(
+                instance_id=instance_id,
+                task_type=str(data.get("task_type", "")),
+                player_id=str(data.get("player_id", "")),
+                now=now,
+            )
+            self._log_pop_winner(instance_id=instance_id, data=data, meta=winner_meta)
+            await record_event_async(
+                self._redis,
+                instance_id,
+                "queue.popped",
+                task_id=str(data.get("task_id") or ""),
+                fields={
+                    "task_type": str(data.get("task_type") or ""),
+                    "player_id": str(data.get("player_id") or ""),
+                    "priority": int(data.get("priority", 0) or 0),
+                    "effective_priority": int(
+                        winner_meta.get("effective_priority", 0)
                     ),
-                    raw,
-                )
-            with suppress(Exception):
-                await self._redis.srem(
-                    _dup_index_key(
-                        instance_id=instance_id,
-                        player_id=pid,
-                        task_type=ttype,
-                        region=None,
-                    ),
-                    raw,
-                )
-        except Exception:
-            logger.debug("queue idx: srem failed", exc_info=True)
-        return self._build_queue_item(
-            data,
-            default_run_at=now,
-            effective_priority=int(winner_meta.get("effective_priority", 0)),
-        )
+                    "region": data.get("region"),
+                    "hops": int(winner_meta.get("hops", 0)),
+                },
+            )
+            return self._build_queue_item(
+                data,
+                default_run_at=now,
+                effective_priority=int(winner_meta.get("effective_priority", 0)),
+            )
+        return None
 
     async def explain_top_n(
         self,
@@ -714,30 +714,6 @@ class RedisQueue:
                 data = json.loads(raw)
                 if data["task_id"] == task_id:
                     await self._redis.zrem(ks, raw)
-                    # Best-effort idx cleanup (both keys).
-                    iid = str(data.get("instance_id") or "").strip() or "unknown"
-                    pid = str(data.get("player_id") or "")
-                    ttype = str(data.get("task_type") or "")
-                    reg_raw = data.get("region")
-                    reg_s = (
-                        str(reg_raw).strip()
-                        if reg_raw is not None and str(reg_raw).strip() != ""
-                        else None
-                    )
-                    with suppress(Exception):
-                        await self._redis.srem(
-                            _dup_index_key(
-                                instance_id=iid, player_id=pid, task_type=ttype, region=reg_s
-                            ),
-                            raw,
-                        )
-                    with suppress(Exception):
-                        await self._redis.srem(
-                            _dup_index_key(
-                                instance_id=iid, player_id=pid, task_type=ttype, region=None
-                            ),
-                            raw,
-                        )
                     return
 
     async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
@@ -756,33 +732,6 @@ class RedisQueue:
                 and str(data.get("instance_id") or "") == instance_id
             ):
                 await self._redis.zrem(_queue_key(instance_id), raw)
-                pid = str(data.get("player_id") or "")
-                reg_raw = data.get("region")
-                reg_s = (
-                    str(reg_raw).strip()
-                    if reg_raw is not None and str(reg_raw).strip() != ""
-                    else None
-                )
-                with suppress(Exception):
-                    await self._redis.srem(
-                        _dup_index_key(
-                            instance_id=instance_id,
-                            player_id=pid,
-                            task_type=task_type,
-                            region=reg_s,
-                        ),
-                        raw,
-                    )
-                with suppress(Exception):
-                    await self._redis.srem(
-                        _dup_index_key(
-                            instance_id=instance_id,
-                            player_id=pid,
-                            task_type=task_type,
-                            region=None,
-                        ),
-                        raw,
-                    )
                 removed += 1
         return removed
 

@@ -51,7 +51,6 @@ STEP_TYPES_FOR_NEW: tuple[str, ...] = (
     "swipe_direction",
     "loop",
     "cond",
-    "if",
     "long_click",
 )
 
@@ -201,8 +200,6 @@ def _new_step(step_type: str) -> dict[str, Any]:
         return {"loop": {"max": 3, "steps": []}}
     if step_type == "cond":
         return {"cond": "", "steps": []}
-    if step_type == "if":
-        return {"if": ""}
     if step_type == "break":
         return {"break": "loop"}
     return {step_type: ""}
@@ -374,13 +371,6 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
             step["steps"] = []
         st.caption("Composite cond block. Inner steps run only if guard above is true.")
         _render_steps_list(step["steps"], path, depth + 1, parent_kind="cond")
-    elif stype == "if":
-        step["if"] = st.text_input(
-            "expression",
-            value=str(step.get("if") or ""),
-            key=pk + "::if",
-            placeholder='e.g. resource.food.amount < 1000',
-        )
     elif stype == "break":
         step["break"] = st.text_input(
             "label", value=str(step.get("break") or "loop"), key=pk + "::brk"

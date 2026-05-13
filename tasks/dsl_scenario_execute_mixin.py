@@ -8,13 +8,14 @@ import logging
 import time
 from contextlib import suppress
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from actions.tap import _redis, _require_approval
 from config.log_ansi import scenario_log_label as _scen
+from debug.timeline import record_event_async
 from layout.area_lookup import screen_region_by_name
 from tasks.base import TaskResult
+from scenarios import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import (
     _DSL_STEP_ACTION_KEYS,
     _BreakRepeat,
@@ -22,7 +23,6 @@ from tasks.dsl_scenario_helpers import (
     _dsl_cond_allows_step,
     _enqueue_scenario,
     _load_area_json,
-    _load_yaml,
     _ocr_store_redis_fields,
     _parse_wait_seconds,
     _read_active_player,
@@ -58,7 +58,10 @@ class DslScenarioExecuteMixin:
 
         repo_root = _dsl_proxy._repo_root()
 
-        # Resolve scenario by key: search recursively under `scenarios/`, excluding drafts.
+        # Resolve scenario by key. Literal ``scenarios/**/{key}.yaml`` wins;
+        # falls back to template files like ``level_up_{hero}.yaml`` whose
+        # filename placeholder is matched against the key and substituted into
+        # the body before YAML parse (see ``scenarios.template_resolver``).
         scenarios_root = repo_root / "scenarios"
         if not scenarios_root.is_dir():
             return TaskResult(
@@ -67,15 +70,8 @@ class DslScenarioExecuteMixin:
                 metadata={"reason": "scenario_root_missing", "path": str(scenarios_root)},
             )
 
-        hits: list[Path] = []
-        for p in scenarios_root.rglob(f"{key}.yaml"):
-            rel = p.relative_to(scenarios_root).as_posix()
-            # Exclude drafts (never execute).
-            if rel.startswith("drafts/"):
-                continue
-            hits.append(p)
-
-        if not hits:
+        loaded = _tmpl.load_doc(repo_root, key)
+        if loaded is None:
             await push_ui_notification(
                 self.redis_client,
                 instance_id,
@@ -90,11 +86,7 @@ class DslScenarioExecuteMixin:
                 next_run_at=None,
                 metadata={"reason": "scenario_not_found", "key": key},
             )
-        # Deterministic: prefer shorter relative path, then lexicographic.
-        hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
-        path = hits[0]
-
-        doc = _load_yaml(path)
+        path, doc = loaded
         steps = doc.get("steps")
         if not isinstance(steps, list):
             return TaskResult(
@@ -102,15 +94,103 @@ class DslScenarioExecuteMixin:
                 next_run_at=None,
                 metadata={"reason": "invalid_steps", "path": str(path)},
             )
+        # Pre-flight gate: walk the step tree and reject scenarios with
+        # well-defined typos (e.g. ``ocr: ... scope: instnace``) before any
+        # tap fires. The runtime used to fall back to ``scope=player`` with
+        # a warning and continue — silently writing to the wrong key and
+        # leaving the cleanup walk targeting the wrong scope on the next
+        # boot. See ``scenarios.dsl_schema.validate_dsl_steps``.
+        from scenarios.dsl_schema import validate_dsl_steps
+
+        validation_errors = validate_dsl_steps(steps)
+        if validation_errors:
+            logger.error(
+                "dsl_scenario: %s rejected at start with %d validation error(s): %s",
+                _scen(key),
+                len(validation_errors),
+                "; ".join(validation_errors),
+            )
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={
+                    "scenario": key,
+                    "reason": "scenario_invalid",
+                    "errors": validation_errors,
+                    "path": str(path),
+                },
+            )
         steps_total_n = len(steps)
         steps_trace: list[dict[str, Any]] = []
         # Expose to nested handlers in ``DslScenarioInlineMixin._run_inline_step``
         # so they can append rows for clicks, waits, and per-iteration markers
         # inside ``while_match`` / ``repeat`` containers.
         self._steps_trace = steps_trace
+        # Seed scenario-relative timing for ``_append_trace_row`` — every row
+        # gets a ``t`` (seconds from scenario start) and terminal top-level
+        # rows additionally get ``duration_ms``. See ``DslPersistMixin``.
+        self._scenario_started_at = time.time()
+        self._step_start_times = {}
+
+        # Capture the top-level step indices we've already emitted a
+        # ``dsl.step`` event for so a multi-row terminal step (e.g.
+        # ``_trace_row(_resumable_step, ..., "ok")`` followed by an inner
+        # error branch in the same step) doesn't fire twice. Iteration
+        # markers (``"iter N"`` summaries) and nested ``X.Y`` rows are
+        # skipped entirely — they're inner-loop noise.
+        self._dsl_step_events_emitted: set[Any] = set()
+
+        async def _emit_dsl_step(i: Any, step_obj: Any, status: str, **kw: Any) -> None:
+            # Only top-level resumable indices (int / int-ish). Nested rows
+            # like ``"3.0"`` / ``"3.0.1"`` (per-iter, per-inner-step) are
+            # skipped — top-level coverage already names what's running.
+            if isinstance(i, str) and "." in i:
+                return
+            if i in self._dsl_step_events_emitted and status == "ok":
+                # ``ok`` is the most common bulk emit; allow only one per
+                # top-level step. ``stopped`` / ``early_exit`` are terminal
+                # and always interesting.
+                return
+            self._dsl_step_events_emitted.add(i)
+            summary = ""
+            try:
+                from tasks.dsl_scenario_helpers import _dsl_step_summary
+                summary = _dsl_step_summary(step_obj) if isinstance(step_obj, dict) else ""
+            except Exception:
+                summary = ""
+            payload_fields: dict[str, Any] = {
+                "scenario": key,
+                "step_index": str(i),
+                "status": status,
+                "summary": summary or None,
+            }
+            # Surface a few high-signal kwargs to the timeline without
+            # bloating it with every trace_row arg.
+            for surface_key in (
+                "reason",
+                "iterations",
+                "branch",
+                "matched",
+                "ttl_s",
+                "cond",
+            ):
+                if surface_key in kw and kw[surface_key] is not None:
+                    payload_fields[surface_key] = kw[surface_key]
+            await record_event_async(
+                self.redis_client,
+                instance_id,
+                "dsl.step",
+                task_id=getattr(self, "task_id", None),
+                fields=payload_fields,
+            )
 
         def _trace_row(i: Any, step_obj: Any, status: str, **kw: Any) -> None:
             self._append_trace_row(i, step_obj, status, **kw)
+            # The trace row is purely synchronous (in-memory list); fire-and-
+            # forget the timeline event so the producer hot path isn't
+            # awaiting a Redis round-trip on every step.
+            with suppress(Exception):
+                asyncio.create_task(_emit_dsl_step(i, step_obj, status, **kw))
 
         def _fin(meta: dict[str, Any], *, completed: bool) -> dict[str, Any]:
             m = dict(meta)
@@ -583,6 +663,58 @@ class DslScenarioExecuteMixin:
                     step=step,
                     region=reg,
                 )
+                # ``match + steps`` = guarded block: matched → run ``steps``,
+                # miss → run ``else`` (if any) and continue. The presence of
+                # ``steps:`` is the explicit opt-in to soft semantics; bare
+                # ``match:`` keeps its historical hard-gate behavior (abort
+                # the scenario on miss) so existing gate-style usages stand.
+                inner_steps = step.get("steps")
+                else_steps = step.get("else")
+                has_guarded_block = (
+                    isinstance(inner_steps, list) and bool(inner_steps)
+                ) or (isinstance(else_steps, list) and bool(else_steps))
+                if has_guarded_block:
+                    matched = bool(row.get("matched")) if row else False
+                    branch_steps = inner_steps if matched else else_steps
+                    branch_label = "steps" if matched else "else"
+                    if isinstance(branch_steps, list) and branch_steps:
+                        for inner_idx, inner in enumerate(branch_steps):
+                            if not isinstance(inner, dict):
+                                continue
+                            result = await self._run_inline_step(
+                                inner,
+                                actions=actions,
+                                area_doc=area_doc,
+                                repo_root=repo_root,
+                                instance_id=instance_id,
+                                dev_w=dev_w,
+                                dev_h=dev_h,
+                                scenario_key=key,
+                                trace_path=(
+                                    f"{_resumable_step}.{branch_label}.{inner_idx}"
+                                ),
+                            )
+                            if result is not None:
+                                md = dict(result.metadata or {})
+                                _trace_row(
+                                    _resumable_step,
+                                    step,
+                                    "stopped",
+                                    reason=str(md.get("reason") or ""),
+                                )
+                                return TaskResult(
+                                    success=result.success,
+                                    next_run_at=result.next_run_at,
+                                    metadata=_fin(md, completed=False),
+                                )
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "ok",
+                        matched=matched,
+                        branch=branch_label,
+                    )
+                    continue
                 if row is None:
                     await self._clear_step_context(instance_id)
                     _trace_row(_resumable_step, step, "early_exit", reason="match_region_not_found")
@@ -757,6 +889,54 @@ class DslScenarioExecuteMixin:
                         next_run_at=inner_result.next_run_at,
                         metadata=_fin(md, completed=False),
                     )
+
+                # ``else:`` — explicit fallback for the no-iterations case.
+                # When provided, it bypasses the strict-reschedule path: the
+                # scenario has declared how it wants to handle "icon never
+                # appeared" itself (e.g. set a TTL, push another scenario).
+                else_steps = step.get("else")
+                if (
+                    iterations == 0
+                    and isinstance(else_steps, list)
+                    and else_steps
+                ):
+                    else_result: TaskResult | None = None
+                    for else_idx, else_step in enumerate(else_steps):
+                        if not isinstance(else_step, dict):
+                            continue
+                        else_result = await self._run_inline_step(
+                            else_step,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                            trace_path=f"{_resumable_step}.else.{else_idx}",
+                        )
+                        if else_result is not None:
+                            break
+                    if else_result is not None:
+                        md = dict(else_result.metadata or {})
+                        _trace_row(
+                            _resumable_step,
+                            step,
+                            "stopped",
+                            reason=str(md.get("reason") or "else_stop"),
+                        )
+                        return TaskResult(
+                            success=else_result.success,
+                            next_run_at=else_result.next_run_at,
+                            metadata=_fin(md, completed=False),
+                        )
+                    logger.info(
+                        "dsl_scenario: while_match else-branch ran scenario=%s region=%s",
+                        _scen(key),
+                        reg,
+                    )
+                    _trace_row(_resumable_step, step, "ok", iterations=0, branch="else")
+                    continue
 
                 if iterations == 0 and strict:
                     # Strict mode: zero iterations after initial-probe retries
@@ -1121,7 +1301,13 @@ class DslScenarioExecuteMixin:
                                 completed=False,
                             ),
                         )
-                _trace_row(_resumable_step, step, "ok")
+                # ``_ocr_audit_step`` set ``self._last_ocr_row`` on the way out
+                # — pass it through so the trace shows confidence/value/text.
+                # On bulk OCR this reflects the last region; that's acceptable
+                # for a single trace row covering a sibling chain.
+                _trace_row(
+                    _resumable_step, step, "ok", ocr_row=self._last_ocr_row
+                )
                 continue
             if "exec" in step:
                 cmd = str(step.get("exec") or "").strip()
@@ -1231,6 +1417,7 @@ class DslScenarioExecuteMixin:
                             step,
                             "stopped",
                             reason=str(md.get("reason") or ""),
+                            match_row=self._last_match_row,
                         )
                         return TaskResult(
                             success=result.success,
@@ -1238,7 +1425,9 @@ class DslScenarioExecuteMixin:
                             metadata=_fin(md, completed=False),
                         )
                     await asyncio.sleep(0.4)
-                _trace_row(_resumable_step, step, "ok")
+                _trace_row(
+                    _resumable_step, step, "ok", match_row=self._last_match_row
+                )
                 continue
             if "long_click" in step:
                 reg = str(step.get("long_click") or "").strip()
@@ -1298,6 +1487,27 @@ class DslScenarioExecuteMixin:
                 await asyncio.sleep(0.4)
                 _trace_row(_resumable_step, step, "ok")
                 continue
+            if "ttl" in step:
+                # Exit early, reschedule self for ``now + ttl``. Same semantic
+                # as the inline handler — mostly used inside ``while_match.else``,
+                # but accepted at top level too for the "skip this tick" idiom.
+                ttl_s = max(0.0, _parse_wait_seconds(step.get("ttl")))
+                await self._clear_step_context(instance_id)
+                _trace_row(
+                    _resumable_step, step, "early_exit", reason="ttl", ttl_s=ttl_s
+                )
+                return TaskResult(
+                    success=True,
+                    next_run_at=datetime.now() + timedelta(seconds=ttl_s),
+                    metadata=_fin(
+                        {
+                            "scenario": key,
+                            "reason": "ttl_exit",
+                            "ttl_s": ttl_s,
+                        },
+                        completed=False,
+                    ),
+                )
             if "wait" in step:
                 # Supports "1200ms" (string) or seconds (number).
                 w = step.get("wait")

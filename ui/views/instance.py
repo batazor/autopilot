@@ -12,6 +12,7 @@ import streamlit as st
 from config.devices import player_ids_for_device
 from config.loader import load_settings
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
+from ui.scenario_keys import runnable_scenario_keys
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
     count_queue_tasks_for_instance,
@@ -228,27 +229,44 @@ with col_left:
 
     with mc_tabs[1]:
         if _inst_player_ids:
-            task_types = sorted(settings.tasks.keys())
-            tp1, tp2 = st.columns(2)
-            with tp1:
-                task_pick = st.selectbox(
-                    "Task type",
-                    task_types,
-                    key=f"mc-task-type-{instance_id}",
+            task_types = list(runnable_scenario_keys(str(_REPO / "scenarios")))
+            if not task_types:
+                st.caption(
+                    "No runnable scenarios found under `scenarios/` "
+                    "(excluding drafts/ and `{hero}` templates)."
                 )
-            with tp2:
-                task_player = st.selectbox(
-                    "Player",
-                    _inst_player_ids,
-                    key=f"mc-task-player-{instance_id}",
-                )
-            if st.button("Queue task", key=f"mc-task-btn-{instance_id}", width="stretch"):
-                push_instance_command(
-                    client,
-                    instance_id,
-                    {"cmd": "run_task", "task_type": task_pick, "player_id": task_player},
-                )
-                st.success(f"run_task `{task_pick}` → `{task_player}` queued")
+            else:
+                tp1, tp2 = st.columns(2)
+                with tp1:
+                    task_pick = st.selectbox(
+                        "Task type",
+                        task_types,
+                        key=f"mc-task-type-{instance_id}",
+                        help=(
+                            "DSL scenario keys (filename without ``.yaml``). "
+                            "Hero-templated scenarios are launched per-hero "
+                            "from the Debug Runner page instead."
+                        ),
+                    )
+                with tp2:
+                    task_player = st.selectbox(
+                        "Player",
+                        _inst_player_ids,
+                        key=f"mc-task-player-{instance_id}",
+                    )
+                if st.button(
+                    "Queue task", key=f"mc-task-btn-{instance_id}", width="stretch"
+                ):
+                    push_instance_command(
+                        client,
+                        instance_id,
+                        {
+                            "cmd": "run_task",
+                            "task_type": task_pick,
+                            "player_id": task_player,
+                        },
+                    )
+                    st.success(f"run_task `{task_pick}` → `{task_player}` queued")
         else:
             st.caption("No accounts available — can't queue a task.")
 

@@ -1,8 +1,0 @@
-enabled: true
-name: "🦸 Seo-yoon"
-
-# Hero card for Seo-yoon. Opened from the heroes roster; verified via OCR of
-# the hero name on page.heroes.unit. Fill steps in as needed (sync, upgrade, etc.).
-node: page.heroes.seo_yoon
-
-steps: []

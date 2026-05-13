@@ -27,18 +27,10 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
       - task:
           name: is_new_people
           priority: 80000
-
-    Backward compatible form:
-    - pushUsecase: [...]
-    - push_task_type / push_task_priority (flat)
     """
     out: list[dict[str, Any]] = []
 
     pu = rule.get("pushScenario")
-    if not isinstance(pu, list):
-        # Backward compat
-        pu = rule.get("pushUsecase")
-
     if isinstance(pu, list):
         for item in pu:
             if not isinstance(item, dict):
@@ -59,24 +51,9 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
                 pr = int(pr_raw) if pr_raw is not None else None
             except (TypeError, ValueError):
                 pr = None
-            ttl_raw = src.get("ttl")
-            if ttl_raw is None:
-                ttl_raw = src.get("ttl_seconds")  # backward compat
-            ttl = parse_duration_seconds(ttl_raw)
+            ttl = parse_duration_seconds(src.get("ttl"))
             dsl = str(src.get("dsl_scenario") or "").strip() or None
             out.append({"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl})
-
-    # Flat fallback
-    if not out:
-        t = str(rule.get("push_task_type") or "").strip()
-        if t:
-            pr_raw = rule.get("push_task_priority")
-            pr2: int | None
-            try:
-                pr2 = int(pr_raw) if pr_raw is not None else None
-            except (TypeError, ValueError):
-                pr2 = None
-            out.append({"type": t, "priority": pr2, "ttl": None, "dsl_scenario": None})
 
     return out
 
@@ -84,16 +61,6 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
 def optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
     """YAML ``min_match_saturation`` (0–255): reject match if mean HSV S is below."""
     v = rule.get("min_match_saturation")
-    if v is None or isinstance(v, bool):
-        return None
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def optional_fuzzy_threshold(rule: dict[str, Any]) -> float | None:
-    v = rule.get("fuzzy_threshold")
     if v is None or isinstance(v, bool):
         return None
     try:

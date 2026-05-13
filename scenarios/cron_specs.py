@@ -10,6 +10,49 @@ from pathlib import Path
 
 import yaml
 
+from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+
+
+def resolve_cron_priority(raw: object) -> int:
+    """Coerce a cron YAML ``priority`` to an int, falling back to the unified
+    :data:`scenarios.dsl_schema.DEFAULT_SCENARIO_PRIORITY` when missing.
+
+    Cron has no enqueue-path of its own — it just feeds the same queue as
+    overlay pushes and the per-task DSL constructor, so it shares the same
+    default. Handles three foot-guns of the previous ``int(raw.get("priority")
+    or 1)`` idiom: ``None`` (missing field), ``bool`` (``True``/``False`` are
+    ints in Python — silently passed as 0 or 1), and bad string values. ``0``
+    is a valid explicit priority distinct from "missing" and is preserved.
+    """
+    if raw is None or isinstance(raw, bool):
+        return DEFAULT_SCENARIO_PRIORITY
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return DEFAULT_SCENARIO_PRIORITY
+
+
+def resolve_cron_task_type(raw: dict[str, object], path: Path) -> str:
+    """Effective ``task_type`` for a cron YAML — same convention the scheduler uses.
+
+    Resolution order (single source of truth between scheduler and UI):
+
+    1. Explicit ``task:`` on the YAML root (preferred — the override knob).
+    2. Legacy ``task_type:`` alias.
+    3. The YAML file stem (``check_main_city.yaml`` → ``check_main_city``).
+
+    The stem fallback is what most cron YAMLs in the repo rely on — they
+    declare ``cron:`` and steps but no explicit ``task:``. Without this
+    helper, the UI's Cron Push panel rendered an empty ``Task`` cell and
+    refused to enqueue, while the scheduler (which does its own fallback)
+    happily ran the same file every minute. The two paths must agree.
+    """
+    for k in ("task", "task_type"):
+        v = raw.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return path.stem
+
 
 def _is_under_drafts(rel_parts: tuple[str, ...]) -> bool:
     return any(p.lower() == "drafts" for p in rel_parts)

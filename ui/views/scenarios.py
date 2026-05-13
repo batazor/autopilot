@@ -14,7 +14,12 @@ import yaml
 from config.devices import player_ids_for_device_candidates
 from config.loader import Settings, load_settings
 from config.reference_naming import event_icon_abs_path
-from scenarios.cron_specs import iter_cron_yaml_files, iter_plain_scenario_yaml_files
+from scenarios.cron_specs import (
+    iter_cron_yaml_files,
+    iter_plain_scenario_yaml_files,
+    resolve_cron_priority,
+    resolve_cron_task_type,
+)
 from ui.redis_client import get_player_scenario, require_redis_connection, set_player_scenario
 
 
@@ -403,13 +408,23 @@ with tab_cron:
         cron_rows: list[dict] = []
         for path, cid, name, raw in cron_meta_filtered:
             cron_path_by_id[cid] = path
+            # Resolve via the same helpers the scheduler uses so the table
+            # mirrors what would actually run — most cron YAMLs rely on the
+            # stem fallback for ``task`` and the unified default for
+            # ``priority`` (no explicit fields).
+            resolved_task = resolve_cron_task_type(raw, path)
+            resolved_priority = resolve_cron_priority(raw.get("priority"))
             cron_rows.append(
                 {
                     "name": name,
                     "enabled": bool(raw.get("enabled", True)),
                     "cron": str(raw.get("cron", "")),
-                    "task": str(raw.get("task", raw.get("task_type", ""))),
-                    "priority": "" if raw.get("priority") is None else str(raw.get("priority")),
+                    "task": resolved_task,
+                    "task_explicit": isinstance(raw.get("task") or raw.get("task_type"), str)
+                    and bool(str(raw.get("task") or raw.get("task_type") or "").strip()),
+                    "priority": resolved_priority,
+                    "priority_explicit": raw.get("priority") is not None
+                    and not isinstance(raw.get("priority"), bool),
                     "file": path.relative_to(scenarios_dir).as_posix(),
                 }
             )
@@ -475,21 +490,35 @@ with tab_cron:
                     label_visibility="collapsed",
                 )
                 cols[2].code(str(row.get("cron") or ""), language=None)
-                cols[3].code(str(row.get("task") or ""), language=None)
-                cols[4].write(str(row.get("priority") or ""))
+                # Task / priority columns reflect the *effective* values the
+                # scheduler will use — annotate fallbacks with " (stem)" /
+                # " (default)" so the operator can tell where the value came
+                # from without opening the YAML.
+                task_type = str(row.get("task") or "").strip()
+                task_explicit = bool(row.get("task_explicit"))
+                task_label = task_type if task_explicit else f"{task_type} (stem)"
+                cols[3].code(task_label, language=None)
+                priority_value = resolve_cron_priority(row.get("priority"))
+                priority_explicit = bool(row.get("priority_explicit"))
+                priority_label = (
+                    str(priority_value)
+                    if priority_explicit
+                    else f"{priority_value} (default)"
+                )
+                cols[4].write(priority_label)
                 cols[5].write(str(row.get("file") or ""))
 
-                task_type = str(row.get("task") or "").strip()
-                try:
-                    pr = int(str(row.get("priority") or "1"))
-                except ValueError:
-                    pr = 1
                 if cols[6].button("Push", key=f"cron_push_{rk}", width="stretch"):
                     if not task_type:
-                        st.error(f"`{nm}` has empty `task`.")
+                        st.error(f"`{nm}` has no resolvable `task` or file stem.")
                     else:
-                        n = _push_cron_task_now(task_type=task_type, priority=pr, name=nm)
-                        st.success(f"Enqueued **{n}** queue item(s) for `{task_type}`.")
+                        n = _push_cron_task_now(
+                            task_type=task_type, priority=priority_value, name=nm
+                        )
+                        st.success(
+                            f"Enqueued **{n}** queue item(s) for `{task_type}` "
+                            f"at priority `{priority_value}`."
+                        )
 
             b = st.columns([1, 1, 4])
             with b[0]:

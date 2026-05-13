@@ -5,49 +5,10 @@ redis:
 ocr:
   url: "http://localhost:8000"
   timeout_seconds: 10
-  fuzzy_threshold: 0.80
 
 scheduler:
   interval_seconds: 30
   ortools_timeout_seconds: 1.0
-
-tasks:
-  arena:
-    cooldown_seconds: 10800
-    max_attempts: 3
-    timeout_seconds: 120
-  training:
-    cooldown_seconds: 1800
-    max_attempts: 3
-    timeout_seconds: 60
-  gathering:
-    cooldown_seconds: 7200
-    max_attempts: 2
-    timeout_seconds: 90
-  daily_checkin:
-    cooldown_seconds: 86400
-    max_attempts: 1
-    timeout_seconds: 60
-  defend_ally:
-    cooldown_seconds: 600
-    max_attempts: 5
-    timeout_seconds: 30
-  beast:
-    cooldown_seconds: 3600
-    max_attempts: 3
-    timeout_seconds: 180
-  overlay_tap:
-    cooldown_seconds: 1
-    max_attempts: 50
-    timeout_seconds: 30
-  mail:
-    cooldown_seconds: 3600
-    max_attempts: 3
-    timeout_seconds: 90
-  mail_gift_check:
-    cooldown_seconds: 15
-    max_attempts: 10
-    timeout_seconds: 10
 
 worker:
   # adb path for worker (screencap rolling preview, taps, shell); align with UI adb override when needed.

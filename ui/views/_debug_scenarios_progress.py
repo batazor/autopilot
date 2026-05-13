@@ -13,13 +13,12 @@ as a script" hint to readers.
 from __future__ import annotations
 
 from datetime import timedelta
-from functools import lru_cache
 from pathlib import Path
 
 import redis
 import streamlit as st
-import yaml
 
+from scenarios import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import _dsl_step_summary
 from ui.redis_client import (
     fetch_running_queue_row,
@@ -63,61 +62,33 @@ def render_step_progress(
             text += " · idle"
     else:
         text = "no steps"
+    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
+    if nav_target:
+        text += f" · navigating → {nav_target}"
     st.progress(min(1.0, max(0.0, ratio)), text=text)
 
 
-@lru_cache(maxsize=256)
-def _load_scenario_step_summaries_cached(
-    repo_str: str, key: str, mtime_ns: int
-) -> tuple[str, ...]:
-    """Disk-backed top-level step summaries for a scenario YAML. Cache key
-    includes ``mtime_ns`` so edits invalidate transparently — same trick as
-    :func:`tasks.dsl_scenario_helpers._load_yaml_cached`. Returns an empty
-    tuple when the file is missing or malformed.
+def _load_scenario_step_summaries(repo_root: Path, key: str) -> tuple[str, ...]:
+    """One short summary per top-level step of the scenario for ``key``.
+
+    Goes through ``template_resolver.load_doc`` so template-driven keys like
+    ``level_up_ahmose`` are rendered (with ``${hero_name}`` substituted)
+    before steps are extracted — otherwise the function would not find
+    ``level_up_ahmose.yaml`` on disk and returns ``()``.
+
+    Returns ``()`` when the scenario is missing, malformed, or has no
+    ``steps:`` list. Underlying ``load_doc`` already caches by ``mtime``.
     """
-    repo = Path(repo_str)
-    scenarios_root = repo / "scenarios"
-    if not scenarios_root.is_dir():
+    if not key:
         return ()
-    hits = [
-        p for p in scenarios_root.rglob(f"{key}.yaml")
-        if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
-    ]
-    if not hits:
+    loaded = _tmpl.load_doc(repo_root, key)
+    if loaded is None:
         return ()
-    hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
-    try:
-        raw = yaml.safe_load(hits[0].read_text(encoding="utf-8")) or {}
-    except Exception:
-        return ()
+    _path, raw = loaded
     steps = raw.get("steps") if isinstance(raw, dict) else None
     if not isinstance(steps, list):
         return ()
     return tuple(_dsl_step_summary(s) for s in steps)
-
-
-def _load_scenario_step_summaries(repo_root: Path, key: str) -> tuple[str, ...]:
-    """Stat a scenario by ``key`` and return one short summary per top-level
-    step. Returns ``()`` when the file is missing, malformed, or has no
-    ``steps:`` list.
-    """
-    if not key:
-        return ()
-    scenarios_root = repo_root / "scenarios"
-    if not scenarios_root.is_dir():
-        return ()
-    hits = [
-        p for p in scenarios_root.rglob(f"{key}.yaml")
-        if not p.relative_to(scenarios_root).as_posix().startswith("drafts/")
-    ]
-    if not hits:
-        return ()
-    hits.sort(key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
-    try:
-        st_ns = hits[0].stat().st_mtime_ns
-    except OSError:
-        return ()
-    return _load_scenario_step_summaries_cached(str(repo_root), key, st_ns)
 
 
 def _render_step_list_caption(
@@ -186,4 +157,7 @@ def render_active_scenario_progress(
         text = f"{active_scenario} · running"
     else:
         text = "no active scenario"
+    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
+    if nav_target:
+        text += f" · navigating → {nav_target}"
     st.progress(min(1.0, max(0.0, ratio)), text=text)

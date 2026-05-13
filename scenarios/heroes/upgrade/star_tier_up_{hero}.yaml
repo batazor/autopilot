@@ -1,0 +1,18 @@
+enabled: true
+name: "⭐ Star tier up · ${hero_name}"
+
+# Template rendered by ``scenarios.template_resolver`` for each hero id from
+# ``db/heroes/index.yaml`` (e.g. queue task ``star_tier_up_ahmose`` →
+# ``hero_id=ahmose``). Pushed by the upgrade optimizer
+# (``optimizer/dispatcher.py``). Steps stay commented until the in-game
+# regions are labelled via the annotator UI.
+
+node: page.heroes.${hero_id}
+
+steps: []
+  # TODO: label the in-game regions, then uncomment.
+  # - click: page.heroes.unit.btn.star_up
+  # - wait: 0.5s
+  # - click: page.heroes.unit.btn.star_up.confirm
+  # - wait: 1s
+  # - exec: sync_hero_unit

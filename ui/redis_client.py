@@ -13,7 +13,6 @@ import streamlit as st
 
 from config.loader import load_settings
 from config.redis_health import format_redis_unreachable_message
-from scheduler.queue import _dup_index_key
 
 
 @dataclass(frozen=True)
@@ -187,6 +186,48 @@ def require_redis_connection() -> redis.Redis:
         st.error(format_redis_unreachable_message(settings.redis.url, exc))
         st.stop()
     return client
+
+
+def fetch_queue_explain_rows(
+    *,
+    instance_id: str,
+    current_screen: str = "",
+    n: int = 10,
+    redis_url: str | None = None,
+) -> list[dict[str, Any]]:
+    """Top-N ranked due candidates with the full ``effective_priority`` breakdown.
+
+    Sync wrapper around :meth:`scheduler.queue.RedisQueue.explain_top_n` for
+    Streamlit — opens a short-lived async client per call (the page already
+    refreshes on a fragment timer, so a fresh connection costs nothing on top
+    of that cadence). Mirrors ``scripts/queue_explain.py``: read-only, no
+    mutation, safe against a live system.
+
+    Returns ``[]`` on any failure so the UI can show "no candidates" instead
+    of crashing the fragment.
+    """
+    import asyncio
+
+    import redis.asyncio as aioredis
+
+    from scheduler.queue import RedisQueue
+
+    url = redis_url or load_settings().redis.url
+
+    async def _run() -> list[dict[str, Any]]:
+        aclient = aioredis.from_url(url, decode_responses=True)
+        try:
+            q = RedisQueue(aclient)
+            return await q.explain_top_n(
+                instance_id, current_screen=current_screen, n=n
+            )
+        finally:
+            await aclient.aclose()
+
+    try:
+        return asyncio.run(_run())
+    except Exception:
+        return []
 
 
 def count_queue_tasks(client: redis.Redis) -> int:
@@ -368,38 +409,6 @@ def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
                 continue
             if str(data.get("task_id", "")) == task_id:
                 client.zrem(key, payload)
-                # Match ``RedisQueue.remove`` / ``pop_due``: overlay tasks use
-                # ``dedup_ignore_region=True`` → index under ``region=None``; UI must
-                # remove both region-specific and ignore-region idx entries.
-                iid = str(data.get("instance_id", "") or "").strip() or "unknown"
-                pid = str(data.get("player_id", "") or "")
-                ttype = str(data.get("task_type", "") or "")
-                reg_raw = data.get("region")
-                reg_s = (
-                    str(reg_raw).strip()
-                    if reg_raw is not None and str(reg_raw).strip() != ""
-                    else None
-                )
-                with suppress(Exception):
-                    client.srem(
-                        _dup_index_key(
-                            instance_id=iid,
-                            player_id=pid,
-                            task_type=ttype,
-                            region=reg_s,
-                        ),
-                        payload,
-                    )
-                with suppress(Exception):
-                    client.srem(
-                        _dup_index_key(
-                            instance_id=iid,
-                            player_id=pid,
-                            task_type=ttype,
-                            region=None,
-                        ),
-                        payload,
-                    )
                 return True
     return False
 
@@ -439,28 +448,6 @@ def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
             # ZSET members are byte-exact: rescore = ZREM old + ZADD new.
             client.zrem(key, payload)
             client.zadd(key, {new_payload: now})
-            # Keep dedup idx in sync so the re-scored payload still gates duplicate
-            # enqueues. Both the region-specific and region=None idx entries are
-            # rewritten (overlay tasks use ``dedup_ignore_region=True``).
-            iid = str(data.get("instance_id", "") or "").strip() or "unknown"
-            pid = str(data.get("player_id", "") or "")
-            ttype = str(data.get("task_type", "") or "")
-            reg_raw = data.get("region")
-            reg_s = (
-                str(reg_raw).strip()
-                if reg_raw is not None and str(reg_raw).strip() != ""
-                else None
-            )
-            for reg in (reg_s, None):
-                with suppress(Exception):
-                    idx_key = _dup_index_key(
-                        instance_id=iid,
-                        player_id=pid,
-                        task_type=ttype,
-                        region=reg,
-                    )
-                    client.srem(idx_key, payload)
-                    client.sadd(idx_key, new_payload)
             return True
     return False
 
@@ -471,12 +458,16 @@ def count_queue_tasks_for_instance(client: redis.Redis, *, instance_id: str) -> 
 
 
 def clear_queue_tasks(client: redis.Redis) -> int:
-    """Drop all pending queue items and dedup indexes across instances.
+    """Drop all pending queue items across instances.
 
     Returns the count of pending tasks that were removed. Preserves
     ``wos:queue:history:*`` (so the execution history table stays intact)
     and ``wos:queue:running:*`` (so an in-flight task can still report
     completion without orphaning state).
+
+    Also wipes any legacy ``wos:queue:idx:*`` SETs from the deprecated dedup
+    index — those are no longer written but may linger in long-lived Redis
+    instances. They get blanket-deleted along with the ZSET queues.
     """
     removed_total = 0
     targets: list[str] = []

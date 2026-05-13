@@ -1,0 +1,11 @@
+enabled: true
+name: "🦸 ${hero_name}"
+
+# Template rendered by ``scenarios.template_resolver`` when a queue task
+# requests ``dsl_scenario`` equal to a known hero id from
+# ``db/heroes/index.yaml`` (e.g. ``ahmose``). Opened from the heroes roster;
+# verified via OCR of the hero name on ``page.heroes.unit``.
+
+node: page.heroes.${hero_id}
+
+steps: []

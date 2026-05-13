@@ -600,6 +600,12 @@ def _ocr_store_redis_fields(field: str) -> list[str]:
 
 
 def _parse_wait_seconds(value: object) -> float:
+    """Parse a duration string into seconds.
+
+    Accepted forms: raw number (seconds), ``"500ms"``, ``"30s"``, ``"15m"``,
+    ``"2h"``. Order of suffix checks matters — ``ms`` must be checked before
+    ``s``, and ``m``/``h`` are checked last so they don't shadow them.
+    """
     if isinstance(value, (int, float)):
         return float(value)
     s = str(value or "").strip().lower()
@@ -607,4 +613,8 @@ def _parse_wait_seconds(value: object) -> float:
         return float(s[:-2].strip()) / 1000.0
     if s.endswith("s"):
         return float(s[:-1].strip())
+    if s.endswith("m"):
+        return float(s[:-1].strip()) * 60.0
+    if s.endswith("h"):
+        return float(s[:-1].strip()) * 3600.0
     return 0.0

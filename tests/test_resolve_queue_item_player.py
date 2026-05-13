@@ -10,6 +10,7 @@ Cases:
 """
 from __future__ import annotations
 
+from dataclasses import fields as dataclass_fields
 from types import SimpleNamespace
 from typing import Any
 
@@ -119,3 +120,40 @@ async def test_item_with_player_id_returned_unchanged() -> None:
         _worker("999000000"), item
     )
     assert resolved.player_id == "111222333"
+
+
+@pytest.mark.asyncio
+async def test_resolve_preserves_ranking_fields() -> None:
+    """Resolve must carry ``created_at`` + ``effective_priority`` through.
+
+    ``effective_priority`` is the rank-time score that DslScenarioTask uses for
+    preemption comparisons (``instance_worker.py:167``); ``created_at`` is the
+    stable tie-breaker (``scheduler/queue.py:98``). A naive field-by-field
+    QueueItem rebuild dropped both, so a resolved device-level task got compared
+    by raw ``priority`` against ranked competitors — losing preemption it should
+    have won. Lock the invariant: every non-player field passes through verbatim.
+    """
+    item = QueueItem(
+        task_id="t1",
+        player_id="",
+        task_type="read_mail_gifts",
+        priority=10,
+        run_at=1.0,
+        instance_id="bs1",
+        created_at=1234567.5,
+        effective_priority=42_000,
+    )
+    resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
+        _worker("765502864"), item
+    )
+    assert resolved.player_id == "765502864"
+    assert resolved.created_at == 1234567.5
+    assert resolved.effective_priority == 42_000
+    # Every other field also survives — guards against future field additions
+    # silently regressing back to a manual copy.
+    for f in dataclass_fields(QueueItem):
+        if f.name == "player_id":
+            continue
+        assert getattr(resolved, f.name) == getattr(item, f.name), (
+            f"field {f.name} not preserved across resolve"
+        )

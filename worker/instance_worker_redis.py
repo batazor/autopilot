@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import time
@@ -60,6 +61,12 @@ class InstanceWorkerRedisMixin:
             self._player_fsms[player_id] = fsm
 
         inst_key = _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id)
+        # ``current_task_*`` / ``current_scenario`` / ``last_overlay_match_*``
+        # are deliberately NOT reset here — they're the only breadcrumbs left
+        # of a task that was in flight when the previous worker died, and
+        # ``_fail_stuck_running_on_boot`` reads them to write a history entry
+        # when ``wos:queue:running:<iid>`` has already TTL'd away (restart
+        # more than 180s after the crash). The boot cleanup wipes them after.
         await self._redis.hset(
             inst_key,
             mapping={
@@ -70,18 +77,8 @@ class InstanceWorkerRedisMixin:
                 "last_seen_at": str(time.time()),
                 "last_error": "",
                 "nav_error": "",
-                "current_task_id": "",
-                "current_task_type": "",
-                "current_task_player": "",
-                "current_task_started_at": "",
-                "current_task_region": "",
-                "current_task_threshold": "",
-                "current_task_score": "",
-                "last_overlay_match_threshold": "",
-                "last_overlay_match_score": "",
-                "last_overlay_match_region": "",
+                "nav_target": "",
                 "current_screen": "",
-                "current_scenario": "",
             },
         )
 
@@ -221,28 +218,14 @@ class InstanceWorkerRedisMixin:
             if not resolved:
                 return item
 
-        return QueueItem(
-            task_id=item.task_id,
-            player_id=resolved,
-            task_type=item.task_type,
-            priority=item.priority,
-            run_at=item.run_at,
-            instance_id=item.instance_id,
-            region=item.region,
-            tap_x_pct=item.tap_x_pct,
-            tap_y_pct=item.tap_y_pct,
-            threshold=item.threshold,
-            score=item.score,
-            set_node=item.set_node,
-            dsl_scenario=item.dsl_scenario,
-            match_top_left_x=item.match_top_left_x,
-            match_top_left_y=item.match_top_left_y,
-            template_w=item.template_w,
-            template_h=item.template_h,
-            tap_match_x_pct=item.tap_match_x_pct,
-            tap_match_y_pct=item.tap_match_y_pct,
-            start_step_index=item.start_step_index,
-        )
+        # ``replace`` preserves all other fields verbatim — notably
+        # ``created_at`` (tie-breaker for ranking) and ``effective_priority``
+        # (carried through to DslScenarioTask for preemption comparisons in
+        # ``instance_worker.py``). Hand-listed field copies dropped these
+        # silently because their dataclass defaults (0.0 / 0) made the bug
+        # invisible until a high-priority overlay tried to preempt a resolved
+        # device-level task and lost the comparison.
+        return dataclasses.replace(item, player_id=resolved)
 
     async def _run_restart_event_listener(self) -> None:
         """React to FSM ``game_closed`` — same channel as ``PlayerFSM._publish_restart_signal``."""

@@ -6,6 +6,7 @@ from typing import Any
 
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
+from debug.timeline import record_event_async
 from fsm.states import InstanceState
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.queue import QueueItem
@@ -204,6 +205,21 @@ class InstanceWorkerTasksMixin:
             item.player_id,
             item.priority,
         )
+        await record_event_async(
+            self._redis,
+            self._cfg.instance_id,
+            "task.started",
+            task_id=item.task_id,
+            fields={
+                "task_type": item.task_type,
+                "player_id": item.player_id,
+                "priority": item.priority,
+                "effective_priority": item.effective_priority,
+                "region": item.region,
+                "scenario": scenario_for_job or None,
+                "started_at": started_at,
+            },
+        )
         _task_result: TaskResult | None = None
         _task_error = ""
         try:
@@ -227,11 +243,55 @@ class InstanceWorkerTasksMixin:
             await self._set_instance_state(InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}")
             await self._handle_failure(item, exc)
         finally:
+            _finished_at = float(time.time())
+            # Emit terminal event: failure → task.failed, preempted reason →
+            # task.preempted, otherwise task.finished. Single event per task
+            # so the UI rendering can rely on a clean end marker.
+            _metadata = (
+                (_task_result.metadata or {}) if _task_result is not None else {}
+            )
+            _reason = str(_metadata.get("reason") or "")
+            if _task_error:
+                _terminal_event = "task.failed"
+            elif _reason == "preempted_by_higher_priority" or _metadata.get(
+                "preempted"
+            ):
+                _terminal_event = "task.preempted"
+            else:
+                _terminal_event = "task.finished"
+            await record_event_async(
+                self._redis,
+                self._cfg.instance_id,
+                _terminal_event,
+                task_id=item.task_id,
+                fields={
+                    "task_type": item.task_type,
+                    "player_id": item.player_id,
+                    "duration_s": max(0.0, _finished_at - started_at),
+                    "success": (
+                        bool(getattr(_task_result, "success", False))
+                        if _task_result is not None
+                        else False
+                    ),
+                    "reason": _reason or None,
+                    "preempted_by": _metadata.get("preempted_by"),
+                    "preempted_by_priority": _metadata.get(
+                        "preempted_by_priority"
+                    ),
+                    "next_run_at": (
+                        getattr(_task_result, "next_run_at", None).timestamp()
+                        if _task_result is not None
+                        and getattr(_task_result, "next_run_at", None) is not None
+                        else None
+                    ),
+                    "error": _task_error or None,
+                },
+            )
             await self._record_task_history(
                 item=item,
                 task=task,
                 started_at=started_at,
-                finished_at=float(time.time()),
+                finished_at=_finished_at,
                 result=_task_result,
                 error=_task_error,
             )
