@@ -12,12 +12,28 @@
 # Using a fork's images:
 #     WOS_REGISTRY=ghcr.io/your-fork docker compose -f docker-compose.prod.yml up -d
 #
-# Talking to ADB:
-#   * Docker Desktop (macOS/Windows) — works out of the box via
-#     ``host.docker.internal:5037``, provided ``adb start-server`` is running
-#     on the host and BlueStacks' ADB serial appears in ``adb devices``.
-#   * Native Linux — comment ``ports`` + ``extra_hosts`` on ``bot`` and
-#     uncomment ``network_mode: host``; set ``ADB_SERVER_SOCKET=tcp:127.0.0.1:5037``.
+# === ADB / network model ===
+# ``bot`` runs in ``network_mode: host`` so the container shares the host's
+# loopback. That way the host's ``adb start-server`` (bound to 127.0.0.1:5037
+# by default — safe) is reachable as ``127.0.0.1:5037`` from inside the
+# container, **without** exposing ADB on the host's external interfaces via
+# ``adb -a``.
+#
+# Side effects of host-mode that this file already accounts for:
+#   * ``bot`` cannot use the Compose-internal DNS names (``redis`` / ``ocr``)
+#     for the other services — host-mode bot has no Compose network attached.
+#     ``redis`` and ``ocr`` publish to ``127.0.0.1:<port>`` on the host, and
+#     ``bot`` talks to them via that.
+#   * ``bot`` has no ``ports:`` block — Streamlit binds straight onto the
+#     host's ``:8501``.
+#
+# Platform support:
+#   * **Linux** — ``network_mode: host`` is fully supported out of the box.
+#   * **Docker Desktop (macOS/Windows)** — works only with the **Host
+#     networking** beta enabled: Settings → Resources → Network → "Enable
+#     host networking". Without it, the bot can reach ``ocr`` / ``redis`` on
+#     loopback but **not** the host's adb server. Older Docker Desktops fall
+#     back to the bridge-network behaviour described in the comments below.
 
 services:
   redis:
@@ -55,25 +71,26 @@ services:
 
   bot:
     image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
+    # host-mode: shared loopback with the host so ``adb`` and the
+    # ``127.0.0.1:5037`` server are reachable without ``adb -a`` (which would
+    # expose ADB on every interface, including LAN). See header for the
+    # Docker Desktop caveat — needs the "Host networking" beta toggle.
+    network_mode: host
+    # Compose's depends_on still works across networking modes, but the bot
+    # connects to redis / ocr by host-published port, not by Compose DNS.
     depends_on:
       redis:
         condition: service_healthy
       ocr:
         condition: service_started
-    ports:
-      # Streamlit UI + embedded supervisor. Loopback only — anyone on the
-      # host can drive the bot, so don't expose it on a shared network.
-      - "127.0.0.1:8501:8501"
     environment:
-      WOS_REDIS_URL: redis://redis:6379/0
-      WOS_OCR_URL: http://ocr:8000
-      # ADB server reachable from inside the container via Docker Desktop's
-      # host-gateway. See header for the Linux variant.
-      ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # Native Linux:
-    # network_mode: host
+      # host-mode → talk to the published ports on the host's loopback rather
+      # than the Compose-network hostnames.
+      WOS_REDIS_URL: redis://127.0.0.1:6379/0
+      WOS_OCR_URL: http://127.0.0.1:8000
+      # Host's adb server, untouched (default loopback bind is fine because
+      # the container shares the host's lo).
+      ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
     restart: unless-stopped
 
 volumes:

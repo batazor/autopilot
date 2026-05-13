@@ -239,16 +239,21 @@ Available tags: `latest` (HEAD of `main`), `sha-<short>` (per commit), `vMAJOR.M
 </details>
 
 <details>
-<summary><b>🐧 Native Linux notes</b></summary>
+<summary><b>🌐 How the container reaches the host's ADB server</b></summary>
 <br/>
 
-`host.docker.internal` resolves on Docker Desktop but not on native Linux Docker. Edit `docker-compose.prod.yml`:
+`bot` runs in `network_mode: host` so the container **shares the host's loopback**. That way:
 
-- Remove the `ports:` and `extra_hosts:` blocks under `bot`
-- Uncomment `network_mode: host`
-- Change `ADB_SERVER_SOCKET` to `tcp:127.0.0.1:5037`
+- `adb start-server` on the host stays bound to `127.0.0.1:5037` (safe — no LAN exposure)
+- The container talks to it as `127.0.0.1:5037` from inside (same `lo` interface)
+- No `adb -a` flag, no socat sidecar, no `host.docker.internal` magic
 
-Or run with `--network=host` directly: `docker run --rm --network=host ghcr.io/batazor/whiteout-survival-autopilot/bot:latest`.
+| Platform | Status |
+|:---------|:-------|
+| **Linux** | ✅ Works out of the box |
+| **Docker Desktop (macOS / Windows)** | ⚠️ Requires *Settings → Resources → Network → **Enable host networking*** (beta). Without it, the bot can reach `redis` / `ocr` but **not** the host's adb server. |
+
+`bot` cannot use Compose-internal DNS names (`redis` / `ocr`) under host-mode, so it talks to them via `127.0.0.1:<port>` on the host (the `redis` and `ocr` services publish to loopback). That's already wired in `docker-compose.prod.yml`.
 
 </details>
 
