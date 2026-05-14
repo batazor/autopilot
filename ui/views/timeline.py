@@ -25,7 +25,6 @@ from config.loader import load_settings
 from debug.timeline import EVENT_TYPES, read_timeline
 from ui.redis_client import require_redis_connection
 
-
 _DEFAULT_LIMIT = 500
 
 

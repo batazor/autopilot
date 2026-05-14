@@ -58,6 +58,67 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
 
 
 @pytest.mark.asyncio
+async def test_navigate_to_persists_intermediate_screen_identity(
+    monkeypatch: Any,
+    redis_async: object,
+) -> None:
+    """``navigate_to`` must write ``current_screen`` for any recognised
+    screen, not only the target.
+
+    Regression: previously the only writes happened on ``current == target``
+    and ``current == UNKNOWN``. A single transient UNKNOWN tick blanked
+    ``current_screen``, and every later iteration that recognised the real
+    screen silently left the empty value in Redis. The approvals UI then
+    rendered "no identity" while the device was plainly on a known page
+    (e.g. ``from_screen: heroes`` in the approval payload but
+    ``current_screen=""`` in the state hash).
+    """
+    redis = redis_async
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def tap(_instance_id: str, point: Any, **kw: Any) -> bool:
+        del point, kw
+        return False
+
+    async def detect_survivor(_image: np.ndarray) -> ScreenName:
+        return ScreenName.SURVIVOR_STATUS
+
+    nav = Navigator(capture, tap, redis_client=redis)
+    monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
+    monkeypatch.setattr(
+        nav,
+        "_load_area_doc",
+        lambda: {
+            "screens": [
+                {
+                    "id": 1,
+                    "regions": [
+                        {
+                            "name": "from.survivor_status.to.main_city",
+                            "bbox": {"x": 10.0, "y": 10.0, "width": 5.0, "height": 5.0},
+                            "action": "exist",
+                        },
+                    ],
+                },
+            ],
+        },
+    )
+
+    # Seed an empty current_screen the way a prior UNKNOWN tick would have.
+    await redis.hset("wos:instance:bs1:state", "current_screen", "")
+
+    await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
+
+    current = await redis.hget("wos:instance:bs1:state", "current_screen")
+    current_s = current.decode() if isinstance(current, bytes) else str(current or "")
+    assert current_s == "survivor_status", (
+        f"expected current_screen='survivor_status', got {current_s!r}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
     monkeypatch: Any,
     redis_async: object,

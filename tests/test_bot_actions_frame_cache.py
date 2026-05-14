@@ -126,3 +126,70 @@ def test_explicit_capture_warms_cache(actions_with_stub: tuple[BotActions, list[
     # Immediate cached call returns the same frame without re-capturing.
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
+
+
+def test_max_age_ms_recaptures_when_cache_too_old(
+    actions_with_stub: tuple[BotActions, list[int]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``max_age_ms`` invalidates the cached frame when it's older than the gate.
+
+    OCR reads of countdowns/timers opt into this so a 300-ms-old frame doesn't
+    serve a stale seconds value. ``None`` (default) keeps the old
+    tap-invalidation-only behavior — that path is covered by the other tests.
+    """
+    bot, counter = actions_with_stub
+    fake_now = [1000.0]
+
+    def _now() -> float:
+        return fake_now[0]
+
+    monkeypatch.setattr(tap_module.time, "monotonic", _now)
+
+    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
+    assert counter[0] == 1
+
+    # 200 ms later — within the gate, no fresh capture.
+    fake_now[0] += 0.2
+    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
+    assert counter[0] == 1
+
+    # 400 ms past the original capture — beyond the gate, re-capture.
+    fake_now[0] += 0.2
+    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
+    assert counter[0] == 2
+
+    # A caller without ``max_age_ms`` still serves the freshly-cached frame.
+    fake_now[0] += 60.0
+    bot.capture_screen_bgr_cached("bs1")
+    assert counter[0] == 2
+
+
+def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
+    actions_with_stub: tuple[BotActions, list[int]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Aging is per-call, not stored on the cache entry.
+
+    A ``match`` caller (no ``max_age_ms``) and a later ``ocr`` caller
+    (``max_age_ms=300``) share the same cache key — the age check is applied
+    at read time so the ``match`` call must keep working even when the entry
+    has aged out of an OCR caller's gate.
+    """
+    bot, counter = actions_with_stub
+    fake_now = [1000.0]
+
+    def _now() -> float:
+        return fake_now[0]
+
+    monkeypatch.setattr(tap_module.time, "monotonic", _now)
+
+    bot.capture_screen_bgr_cached("bs1")
+    assert counter[0] == 1
+
+    fake_now[0] += 10.0  # well past any OCR-style max_age
+    bot.capture_screen_bgr_cached("bs1")  # match-style call, no gate
+    assert counter[0] == 1
+
+    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)  # ocr-style call
+    assert counter[0] == 2

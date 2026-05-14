@@ -248,8 +248,16 @@ class InstanceWorkerScreenDetectMixin:
         # detection so those lines render as `[inst/player/-]` — and only
         # restore once we have a verdict.
         set_log_context(node="")
+        # Sticky hint: when we know what we were on last tick, the detector
+        # first checks ONLY that screen's verify rules. On the steady-state
+        # case where the bot dwells on one screen for many ticks this skips
+        # the full multi-screen scan; on a miss the detector falls back to
+        # the global pipeline so worst-case cost is unchanged.
+        sticky_hint = self._last_detected_screen or None
         try:
-            detected = await self._screen_detector.detect_screen(image_bgr)
+            detected = await self._screen_detector.detect_screen(
+                image_bgr, hint=sticky_hint
+            )
         except Exception:
             logger.debug(
                 "Screen detect failed for %s",

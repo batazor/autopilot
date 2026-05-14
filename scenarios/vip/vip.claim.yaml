@@ -39,7 +39,11 @@ steps:
     steps:
       - click: page.vip.add
       - wait: 2s
-      - click: page.vip.increase.close
+      - while_match: page.vip.increase.use
+        steps:
+          - click: page.vip.increase.use
+          - wait: 0.5s
+          - click: page.vip.increase.close
 
   - while_match: page.vip.unlock
     isRedDot: true
@@ -47,9 +51,8 @@ steps:
     steps:
       - click: page.vip.unlock
       - wait: 2s
-      - click: page.vip.increase.close
-
-  - while_match: page.vip.increase.use
-    steps:
-      - click: page.vip.increase.use
-      - wait: 0.5s
+      - while_match: page.vip.increase.use
+        steps:
+          - click: page.vip.increase.use
+          - wait: 0.5s
+          - click: page.vip.increase.close

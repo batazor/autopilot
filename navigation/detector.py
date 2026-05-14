@@ -81,6 +81,11 @@ class ScreenDetector:
     def __init__(self) -> None:
         self._client = OcrClient()
         self._area_doc: dict[str, object] | None = None
+        # Set to True by ``detect_screen`` when the sticky path confirmed the
+        # caller's ``hint``; reset to False when the full pipeline runs. Used
+        # by tests + the worker's logs to distinguish "verified what we
+        # thought we were on" from "did the global scan".
+        self.last_used_sticky_verify: bool = False
 
     def _load_area_doc(self) -> dict[str, object]:
         if self._area_doc is not None:
@@ -275,7 +280,209 @@ class ScreenDetector:
                     return screen
         return ScreenName.UNKNOWN
 
-    async def detect_screen(self, image: np.ndarray) -> ScreenName:
+    async def _verify_screen(self, image: np.ndarray, screen: ScreenName) -> bool:
+        """Sticky check: does this frame still satisfy ``screen``'s own rules?
+
+        Runs ONLY the rules attached to ``screen`` in
+        ``navigation/screen_verify.yaml`` — landmark templates first
+        (cheapest: in-process ``cv2.matchTemplate``), then text_switch
+        entries whose ``cases`` mention this screen (one OCR region per
+        rule), then OCR landmarks (one OCR region per rule + fuzzy match).
+        Short-circuits at the first hit.
+
+        Big win on the steady-state case where the bot dwells on one
+        screen for many ticks: skips the full multi-screen scan that
+        otherwise builds rules across all ~11 landmark sets and ~100
+        text_switch cases per frame.
+        """
+        name_s = str(screen)
+        landmarks = screen_landmark_rules(name_s)
+
+        template_landmarks: list[dict[str, object]] = []
+        ocr_landmarks: list[dict[str, object]] = []
+        for rule in landmarks:
+            if str(rule.get("match") or "").strip():
+                template_landmarks.append(rule)
+            elif str(rule.get("ocr") or "").strip():
+                ocr_landmarks.append(rule)
+
+        if template_landmarks:
+            overlay_rules: list[dict[str, object]] = []
+            for rule in template_landmarks:
+                region_name = str(rule.get("match") or "").strip()
+                if not region_name:
+                    continue
+                overlay_rule: dict[str, object] = {
+                    "name": f"screen_detector.verify.{name_s}.{region_name}",
+                    "action": "findIcon",
+                    "region": region_name,
+                    "threshold": rule.get("threshold", 0.9),
+                }
+                min_sat = rule.get("min_match_saturation")
+                if min_sat is not None:
+                    overlay_rule["min_match_saturation"] = min_sat
+                overlay_rules.append(overlay_rule)
+            if overlay_rules:
+                try:
+                    out = await evaluate_overlay_rules_async(
+                        image,
+                        self._load_area_doc(),
+                        Path(__file__).resolve().parent.parent,
+                        overlay_rules,
+                    )
+                except Exception:
+                    logger.debug(
+                        "ScreenDetector._verify_screen: template match failed",
+                        exc_info=True,
+                    )
+                    out = {}
+                for rule in overlay_rules:
+                    row = out.get(str(rule["name"]))
+                    if isinstance(row, dict) and row.get("matched"):
+                        return True
+
+        relevant_switch_rules = [
+            tsr
+            for tsr in screen_text_switch_rules()
+            if isinstance(tsr.get("cases"), dict) and name_s in tsr["cases"]
+        ]
+        if relevant_switch_rules:
+            h, w = int(image.shape[0]), int(image.shape[1])
+            regions: list[Region] = []
+            region_ids: list[str] = []
+            rules_used: list[dict[str, object]] = []
+            for rule in relevant_switch_rules:
+                region_name = str(rule.get("ocr") or "")
+                region = self._percent_region_for_name(region_name)
+                if region is None:
+                    continue
+                regions.append(self._to_pixel_region(region, width=w, height=h))
+                region_ids.append(region_name)
+                rules_used.append(rule)
+            if regions:
+                try:
+                    results = await self._client.ocr_regions(
+                        image, regions, region_ids=region_ids
+                    )
+                except (RetryError, Exception):
+                    logger.debug(
+                        "ScreenDetector._verify_screen: text_switch OCR failed",
+                        exc_info=True,
+                    )
+                    results = []
+                for result, rule in zip(results, rules_used, strict=False):
+                    cases = rule.get("cases") or {}
+                    candidates_raw = cases.get(name_s) if isinstance(cases, dict) else None
+                    if not isinstance(candidates_raw, list):
+                        continue
+                    candidates = [
+                        str(x).strip() for x in candidates_raw if str(x).strip()
+                    ]
+                    if not candidates:
+                        continue
+                    threshold_raw = rule.get("threshold")
+                    try:
+                        threshold = (
+                            float(threshold_raw) if threshold_raw is not None else 0.8
+                        )
+                    except (TypeError, ValueError):
+                        threshold = 0.8
+                    text_lc = str(result.text or "").strip().lower()
+                    if any(c.lower() in text_lc for c in candidates):
+                        return True
+                    if match(result.text, candidates, threshold=threshold):
+                        return True
+
+        if ocr_landmarks:
+            h, w = int(image.shape[0]), int(image.shape[1])
+            regions = []
+            region_ids = []
+            rules_used = []
+            for rule in ocr_landmarks:
+                region_name = str(rule.get("ocr") or "").strip()
+                if not region_name:
+                    continue
+                region = self._percent_region_for_name(region_name)
+                if region is None:
+                    continue
+                regions.append(self._to_pixel_region(region, width=w, height=h))
+                region_ids.append(region_name)
+                rules_used.append(rule)
+            if regions:
+                try:
+                    results = await self._client.ocr_regions(
+                        image, regions, region_ids=region_ids
+                    )
+                except (RetryError, Exception):
+                    logger.debug(
+                        "ScreenDetector._verify_screen: OCR landmarks failed",
+                        exc_info=True,
+                    )
+                    results = []
+                for result, rule in zip(results, rules_used, strict=False):
+                    candidates = self._rule_candidates(rule)
+                    if not candidates:
+                        continue
+                    threshold_raw = rule.get("threshold")
+                    try:
+                        threshold = (
+                            float(threshold_raw) if threshold_raw is not None else 0.8
+                        )
+                    except (TypeError, ValueError):
+                        threshold = 0.8
+                    if match(result.text, candidates, threshold=threshold):
+                        return True
+
+        return False
+
+    async def detect_screen(
+        self,
+        image: np.ndarray,
+        *,
+        hint: "ScreenName | str | None" = None,
+    ) -> ScreenName:
+        """Identify the current screen on ``image``.
+
+        ``hint`` (sticky path): when set, run only the rules attached to
+        that screen first; if any of them fires, return ``hint`` without
+        touching the other ~100+ rules. Falls through to the full pipeline
+        on miss, so the worst case is the historical cost. The caller in
+        the worker passes its remembered ``_last_detected_screen`` so a
+        bot that dwells on one screen for many ticks avoids the global
+        scan every frame.
+        """
+        self.last_used_sticky_verify = False
+        if hint:
+            try:
+                hint_name = (
+                    hint if isinstance(hint, ScreenName) else ScreenName(str(hint))
+                )
+            except ValueError:
+                hint_name = None
+            # main_city is a hub: many transient screens (popups, modals,
+            # mail/shop/event overlays) are drawn ON TOP of it while main_city's
+            # own landmarks remain visible underneath. Sticky-verifying with
+            # hint=main_city therefore confirms the hub even when the actual
+            # active screen is the overlay — masking the real state. Always run
+            # the full pipeline for this hint so overlays win.
+            if (
+                hint_name is not None
+                and hint_name != ScreenName.UNKNOWN
+                and hint_name != ScreenName.MAIN_CITY
+            ):
+                try:
+                    verified = await self._verify_screen(image, hint_name)
+                except Exception:
+                    logger.debug(
+                        "ScreenDetector: sticky verify for %s raised — falling back",
+                        hint_name,
+                        exc_info=True,
+                    )
+                    verified = False
+                if verified:
+                    self.last_used_sticky_verify = True
+                    return hint_name
+
         switched = await self._detect_by_text_switch(image)
         if switched != ScreenName.UNKNOWN:
             return switched

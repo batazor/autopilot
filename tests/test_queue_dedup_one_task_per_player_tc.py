@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -128,3 +129,125 @@ async def test_has_pending_duplicate_scans_queue_zset_directly(
         )
         is True
     )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_schedule_concurrent_dedup_atomic(redis_async: object) -> None:
+    """Concurrent ``schedule(skip_if_duplicate=True)`` calls only enqueue once.
+
+    Locks in the atomic ``_DEDUP_ZADD_LUA`` guard: the previous code did
+    ``has_pending_duplicate()`` and ``zadd()`` in two separate round-trips,
+    so two producers (rolling overlay tick + after-task overlay tick) could
+    both pass the scan and both write the same logical scenario. With the
+    Lua-serialized check, Redis itself is the synchronization point.
+    """
+    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+
+    async def _enqueue(task_id: str) -> bool:
+        return await queue.schedule(
+            task_id=task_id,
+            player_id="p1",
+            task_type="claim_exploration_rewards",
+            priority=80_000,
+            run_at=1.0,
+            instance_id="bs1",
+            region="main_city.to.exploration",
+            skip_if_duplicate=True,
+            dedup_ignore_region=True,
+        )
+
+    results = await asyncio.gather(*[_enqueue(f"t{i}") for i in range(8)])
+    assert results.count(True) == 1, f"exactly one winner expected, got {results}"
+    assert results.count(False) == 7
+
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert len(items) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_schedule_cross_player_same_task_type_does_not_dedup(
+    redis_async: object,
+) -> None:
+    """Same ``task_type`` for two different players coexists in the queue.
+
+    Player streams on a single instance are independent — an in-flight
+    ``assign_worker`` for player A must not block enqueueing the same
+    ``task_type`` for player B. The previous broad scan over-blocked here
+    (Phase 1 matched any ``data.player_id``); the single-pass guard fixes it.
+    """
+    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+
+    ok_a = await queue.schedule(
+        task_id="a1",
+        player_id="A",
+        task_type="assign_worker",
+        priority=80_000,
+        run_at=1.0,
+        instance_id="bs1",
+        region="isWorkers",
+        skip_if_duplicate=True,
+        dedup_ignore_region=True,
+    )
+    ok_b = await queue.schedule(
+        task_id="b1",
+        player_id="B",
+        task_type="assign_worker",
+        priority=80_000,
+        run_at=2.0,
+        instance_id="bs1",
+        region="isWorkers",
+        skip_if_duplicate=True,
+        dedup_ignore_region=True,
+    )
+    assert ok_a is True
+    assert ok_b is True
+
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert len(items) == 2
+    pids = sorted(json.loads(it)["player_id"] for it in items)
+    assert pids == ["A", "B"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_schedule_device_level_blocks_subsequent_player_enqueue(
+    redis_async: object,
+) -> None:
+    """A device-level (``player_id=""``) item in flight blocks player-bound enqueues.
+
+    Device-level scenarios (e.g. ``who_i_am`` identity probe) are mutually
+    exclusive with player-bound work on the same ``(instance, task_type)`` —
+    that's the only case where the dedup intentionally crosses player streams.
+    """
+    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+
+    ok_device = await queue.schedule(
+        task_id="dev1",
+        player_id="",
+        task_type="who_i_am",
+        priority=90_000,
+        run_at=1.0,
+        instance_id="bs1",
+        region=None,
+        skip_if_duplicate=True,
+        dedup_ignore_region=True,
+    )
+    ok_player = await queue.schedule(
+        task_id="p1",
+        player_id="A",
+        task_type="who_i_am",
+        priority=90_000,
+        run_at=2.0,
+        instance_id="bs1",
+        region=None,
+        skip_if_duplicate=True,
+        dedup_ignore_region=True,
+    )
+    assert ok_device is True
+    assert ok_player is False
+
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert len(items) == 1
+    assert json.loads(items[0])["player_id"] == ""

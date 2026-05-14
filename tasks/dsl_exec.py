@@ -1032,18 +1032,20 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
         )
         return
 
-    # Batch-OCR the shard-counter badges on locked cells and the "Lv. X"
+    # Batch-OCR the shard-counter badges on every cell plus the "Lv. X"
     # badges on unlocked cells in one pass (Lv slot is higher than the
-    # shard slot — see _LV_DY / _BADGE_DY in hero_grid_search). Mixing both
-    # kinds in one call halves the OCR round-trips for a typical grid that
-    # has a few unlocked and a few locked heroes.
-    locked_items = [(hid, match) for hid, match in hits.items() if not match.available]
+    # shard slot — see _LV_DY / _BADGE_DY in hero_grid_search). The badge
+    # slot is OCR'd for unlocked cells too because the "Recruit / N/N"
+    # ready-to-recruit state renders a fully-colored card (so ``available``
+    # reads True) but keeps an "N/N" counter where "Lv. X" would normally
+    # sit — the level row reads "Recruit" instead, so falling back to the
+    # badge OCR is the only way to capture shard fullness in that state.
     unlocked_items = [(hid, match) for hid, match in hits.items() if match.available]
     badge_text: dict[str, str] = {}
     level_text: dict[str, str] = {}
     regions: list[Region] = []
     ids: list[str] = []
-    for hid, match in locked_items:
+    for hid, match in hits.items():
         regions.append(Region(*match.badge_bbox))
         ids.append(f"hero_shards_{hid}")
     for hid, match in unlocked_items:
@@ -1052,9 +1054,10 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     if regions:
         try:
             results = await OcrClient().ocr_regions(frame, regions, region_ids=ids)
-            for (hid, _), result in zip(locked_items, results[: len(locked_items)], strict=False):
+            n_badges = len(hits)
+            for (hid, _), result in zip(hits.items(), results[:n_badges], strict=False):
                 badge_text[hid] = (result.text or "").strip()
-            for (hid, _), result in zip(unlocked_items, results[len(locked_items) :], strict=False):
+            for (hid, _), result in zip(unlocked_items, results[n_badges:], strict=False):
                 level_text[hid] = (result.text or "").strip()
         except Exception:
             logger.exception(
@@ -1078,6 +1081,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     flat: dict[str, Any] = {}
     locked_count = 0
     available_count = 0
+    recruit_ready_heroes: list[str] = []
     for hid, match in hits.items():
         prev = existing_entries.get(hid)
         entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
@@ -1093,21 +1097,36 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
 
         if match.available:
             available_count += 1
-            # Stale shard counts on a now-unlocked card are misleading;
-            # drop them so callers don't see "needs 9/10" on a hero that's
-            # already playable.
-            entry.pop("shards_current", None)
-            entry.pop("shards_required", None)
             text = level_text.get(hid, "")
             lvl_match = _HERO_LEVEL_RE.search(text)
             if lvl_match is not None:
                 with contextlib.suppress(ValueError):
                     entry["level"] = int(lvl_match.group(1))
+                # Confidently playable hero: stale shard counts from a
+                # past locked snapshot are misleading; drop them so
+                # callers don't see "needs 9/10" on a hero that's
+                # already recruited.
+                entry.pop("shards_current", None)
+                entry.pop("shards_required", None)
             else:
-                logger.debug(
-                    "dsl exec scan_heroes_grid: hero=%s level OCR unparsed text=%r",
-                    hid, text,
-                )
+                # Level slot didn't parse — could be a transient OCR
+                # miss, or the "Recruit / N/N" ready-to-recruit state
+                # where the level row shows "Recruit" instead of "Lv".
+                # Fall through to the badge OCR and preserve shards if
+                # an "N/N" reading is present.
+                shard_text_v = badge_text.get(hid, "")
+                shard_match = _HERO_SHARD_RE.search(shard_text_v)
+                if shard_match is not None:
+                    try:
+                        entry["shards_current"] = int(shard_match.group(1))
+                        entry["shards_required"] = int(shard_match.group(2))
+                    except ValueError:
+                        pass
+                else:
+                    logger.debug(
+                        "dsl exec scan_heroes_grid: hero=%s level OCR unparsed text=%r",
+                        hid, text,
+                    )
         else:
             locked_count += 1
             text = badge_text.get(hid, "")
@@ -1123,6 +1142,13 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
                     "dsl exec scan_heroes_grid: hero=%s shard OCR unparsed text=%r",
                     hid, text,
                 )
+
+        # Shards full to the cap = "Recruit / N/N" state — the hero card
+        # is one tap on the Recruit button away from being claimed.
+        cur = entry.get("shards_current")
+        req = entry.get("shards_required")
+        if isinstance(cur, int) and isinstance(req, int) and req > 0 and cur >= req:
+            recruit_ready_heroes.append(hid)
 
         flat[f"heroes.entries.{hid}"] = entry
 
@@ -1199,6 +1225,40 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
             "dsl exec scan_heroes_grid: red-dot analyzer instance=%s player=%s "
             "candidates=%d pushed=%d",
             ctx.instance_id, player_id, len(red_dot_heroes), len(pushed),
+        )
+
+    # Recruit-ready analyzer: hero cards in the "Recruit / N/N" state (shards
+    # collected to the cap, hero not yet claimed) get the ``<hero_id>.recruit``
+    # scenario pushed. Template ``scenarios/heroes/{hero}.recruit.yaml`` is
+    # rendered by ``scenarios.template_resolver`` to that hero's recruitment
+    # flow. ``skip_if_duplicate`` collapses repeat scans on the same N/N card.
+    pushed_recruits: list[str] = []
+    for hid in recruit_ready_heroes:
+        try:
+            ok = await _enqueue_scenario(
+                redis_async=ctx.redis_client,
+                instance_id=ctx.instance_id,
+                player_id=player_id,
+                scenario=f"{hid}.recruit",
+                priority=DEFAULT_SCENARIO_PRIORITY,
+                run_at=time.time(),
+                skip_if_duplicate=True,
+            )
+        except Exception:
+            logger.exception(
+                "dsl exec scan_heroes_grid: enqueue recruit scenario failed "
+                "instance=%s hero=%s",
+                ctx.instance_id, hid,
+            )
+            continue
+        if ok:
+            pushed_recruits.append(hid)
+    if recruit_ready_heroes:
+        logger.info(
+            "dsl exec scan_heroes_grid: recruit-ready analyzer instance=%s "
+            "player=%s candidates=%d pushed=%d",
+            ctx.instance_id, player_id,
+            len(recruit_ready_heroes), len(pushed_recruits),
         )
 
 

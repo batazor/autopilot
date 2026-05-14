@@ -69,6 +69,24 @@ def optional_min_match_saturation(rule: dict[str, Any]) -> float | None:
         return None
 
 
+def optional_prefer_primary_bbox(rule: dict[str, Any]) -> bool:
+    """YAML ``prefer_primary_bbox`` (findIcon-only): try cheap 1:1 match at the
+    primary bbox before the sliding search inside ``search_region``.
+
+    Off by default. Use only when the icon position is essentially fixed and
+    ``search_region`` is just a small tolerance band around it — turning it on
+    for grid/list scans (where the icon really moves) would short-circuit the
+    sliding search at the wrong location whenever the primary bbox happens to
+    correlate with the template.
+    """
+    v = rule.get("prefer_primary_bbox")
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
 def optional_priority(rule: dict[str, Any]) -> int | None:
     v = rule.get("priority")
     if v is None or isinstance(v, bool):

@@ -24,6 +24,8 @@ import psutil
 from config.loader import get_settings
 from config.logging_stdout import setup_stdout_logging
 from config.redis_health import verify_sync_redis_url
+from config.state_store import register_on_save
+from scheduler.wake import wake_scheduler
 
 _THREAD_NAME = "wos-async-services"
 _HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"
@@ -36,6 +38,39 @@ _health_proc: subprocess.Popen[bytes] | None = None
 _known_health_watchdog_pid: int | None = None
 _hooks_installed = False
 _previous_signal_handlers: dict[int, signal.Handlers] = {}
+
+
+_state_wake_registered = False
+
+
+def _register_state_save_wake() -> None:
+    """Publish a scheduler wake whenever state.yaml is persisted.
+
+    Idempotent — the state_store registry already dedups, and we guard here
+    too so repeated ``ensure_embedded_bot`` calls don't construct extra
+    Redis clients."""
+    global _state_wake_registered  # noqa: PLW0603
+    if _state_wake_registered:
+        return
+    try:
+        import redis as _redis_sync
+
+        url = get_settings().redis.url
+        client = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "state-save wake registration skipped", exc_info=True
+        )
+        return
+
+    def _wake() -> None:
+        try:
+            wake_scheduler(client, {"cmd": "wake", "reason": "state_saved"})
+        except Exception:
+            logging.getLogger(__name__).debug("state-save wake failed", exc_info=True)
+
+    register_on_save(_wake)
+    _state_wake_registered = True
 
 
 def _existing_supervisor_thread() -> threading.Thread | None:
@@ -151,6 +186,7 @@ def ensure_embedded_bot() -> None:
             return
         setup_stdout_logging()
         verify_sync_redis_url(get_settings().redis.url)
+        _register_state_save_wake()
 
         import asyncio
 

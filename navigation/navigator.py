@@ -589,6 +589,18 @@ class Navigator:
             # stuck-UNKNOWN counter; the loop is making progress.
             consec_unknown_no_back = 0
 
+            # Persist the live identity even on intermediate hops. Without
+            # this, ``current_screen`` only gets a fresh write when the
+            # target is reached or detection returns UNKNOWN — so a single
+            # transient UNKNOWN tick blanks the field, and every subsequent
+            # iteration that recognises the real screen silently leaves the
+            # empty value in Redis. The approvals UI, overlay router, and
+            # any consumer that reads ``current_screen`` would see "no
+            # identity" while the device is plainly on a known page (e.g.
+            # an approval-blocked tap on the heroes roster shows the
+            # ``"from_screen": "heroes"`` payload but ``current_screen=""``).
+            await self._write_screen(instance_id, str(current))
+
             # Try direct BFS route (src → dst).
             hop_sequences = await route_hops_async(
                 str(current), str(target),
@@ -606,7 +618,10 @@ class Navigator:
                         instance_id, to_hub, from_screen=str(current)
                     )
                     if hr == "tap_failed":
-                        await self._write_screen(instance_id, "")
+                        # The tap was rejected (approval blocked, missing
+                        # region, …) — the device didn't move, so the
+                        # ``current`` identity we wrote a few lines above
+                        # still holds. Don't wipe it here.
                         return False
                 else:
                     logger.warning(
@@ -651,7 +666,8 @@ class Navigator:
                     if hr == "ok":
                         return True
                     if hr == "tap_failed":
-                        await self._write_screen(instance_id, "")
+                        # Tap rejected; the previous ``_write_screen``
+                        # (intermediate identity) still reflects reality.
                         return False
                 else:
                     logger.info(
@@ -668,7 +684,8 @@ class Navigator:
             if hr == "ok":
                 return True
             if hr == "tap_failed":
-                await self._write_screen(instance_id, "")
+                # Tap rejected; the previous ``_write_screen``
+                # (intermediate identity) still reflects reality.
                 return False
 
         logger.error("Failed to navigate to %s after 10 attempts", target)

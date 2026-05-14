@@ -15,9 +15,16 @@ class _FakeDetector:
     def __init__(self, detected: ScreenName | list[ScreenName]) -> None:
         self.detected = detected
         self.calls = 0
+        self.hints_seen: list[object] = []
 
-    async def detect_screen(self, _image_bgr: np.ndarray) -> ScreenName:
+    async def detect_screen(
+        self,
+        _image_bgr: np.ndarray,
+        *,
+        hint: object = None,
+    ) -> ScreenName:
         self.calls += 1
+        self.hints_seen.append(hint)
         if isinstance(self.detected, list):
             return self.detected.pop(0) if self.detected else ScreenName.UNKNOWN
         return self.detected
@@ -110,7 +117,9 @@ async def test_detect_clears_log_node_during_detect_and_restores_after(
     class _ProbingDetector:
         calls = 0
 
-        async def detect_screen(self, _image_bgr: np.ndarray) -> ScreenName:
+        async def detect_screen(
+            self, _image_bgr: np.ndarray, *, hint: object = None
+        ) -> ScreenName:
             self.calls += 1
             seen_during.append(log_context._node.get())
             return ScreenName.BUILDING

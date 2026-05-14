@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,29 @@ logger = logging.getLogger(__name__)
 _STATE_PATH = Path(__file__).parent.parent / "db" / "state.yaml"
 # sentinel for getattr default — distinguishes "attr is None" from "attr missing"
 _MISSING = object()
+
+_on_save_callbacks: list[Callable[[], None]] = []
+_on_save_lock = threading.Lock()
+
+
+def register_on_save(callback: Callable[[], None]) -> None:
+    """Register a no-arg callback invoked after every persistent state save.
+
+    Idempotent — registering the same callable twice keeps a single entry.
+    """
+    with _on_save_lock:
+        if callback not in _on_save_callbacks:
+            _on_save_callbacks.append(callback)
+
+
+def _fire_on_save_callbacks() -> None:
+    with _on_save_lock:
+        callbacks = list(_on_save_callbacks)
+    for cb in callbacks:
+        try:
+            cb()
+        except Exception:
+            logger.debug("state_store on_save callback failed", exc_info=True)
 
 
 def _flatten(obj: Any, prefix: str, out: dict[str, Any]) -> None:
@@ -169,6 +193,8 @@ def _save_state_db(db: StateDB, path: Path) -> None:
         os.replace(tmp, path)
     except Exception:
         logger.exception("Failed to persist state to %s", path)
+        return
+    _fire_on_save_callbacks()
 
 
 _global_store: StateStore | None = None

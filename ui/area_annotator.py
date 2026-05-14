@@ -52,6 +52,7 @@ from ui.keys import (
     ANNOT_LABELING_REF,
     AREA_DELETE_REGION_PENDING_PREFIX,
     AREA_DOC,
+    CANVAS_LAST_ACTIVE_REGION,
     CANVAS_LAST_SIG,
     CANVAS_REV,
     ENTRY_IDX,
@@ -2029,14 +2030,21 @@ def _mirror_canvas_selection_into_session(canvas_result: Any) -> None:
     When the user clicks a rectangle directly on the canvas, the forked
     ``streamlit-drawable-canvas`` reports the selected region's name; this
     helper updates ``selected_region_name`` and reruns so the regions radio
-    follows the click. No-op when the field is empty (canvas-side selection
-    is unknown) or already in sync with the session.
+    follows the click. Only reacts to *changes* on the canvas side — the
+    frontend keeps its last `active_region_name` across reruns even when
+    the user picks something elsewhere (radio, Add region), and mirroring
+    on every mismatch would silently revert those picks back to the stale
+    canvas value (state "jumps" between regions).
     """
     if canvas_result is None:
         return
     cr_active = (getattr(canvas_result, "active_region_name", "") or "").strip()
     if not cr_active:
         return
+    last_seen = str(st.session_state.get(CANVAS_LAST_ACTIVE_REGION) or "").strip()
+    if cr_active == last_seen:
+        return
+    st.session_state[CANVAS_LAST_ACTIVE_REGION] = cr_active
     cur_active = str(st.session_state.get(SELECTED_REGION_NAME) or "").strip()
     if cr_active == cur_active:
         return
@@ -2109,6 +2117,8 @@ def init_session() -> None:
         st.session_state.canvas_rev = 0
     if CANVAS_LAST_SIG not in st.session_state:
         st.session_state.last_canvas_sig = ""
+    if CANVAS_LAST_ACTIVE_REGION not in st.session_state:
+        st.session_state[CANVAS_LAST_ACTIVE_REGION] = ""
 
 
 def _selected_region_name_from_idx(regions: list[RegionDict], idx: int) -> str:

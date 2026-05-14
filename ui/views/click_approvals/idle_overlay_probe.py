@@ -157,6 +157,104 @@ def _probe_area_region_ocr(
     pay["matched"] = bool(txt) and conf >= thr
 
 
+_EXIST_PROBE_FIELDS: tuple[str, ...] = (
+    "matched",
+    "score",
+    "score_ncc",
+    "score_ncc_second",
+    "score_color",
+    "threshold",
+    "search_region",
+    "resolved_region",
+    "resolved_version",
+    "reason",
+    "detail",
+    "template_bright_ratio",
+    "patch_bright_ratio",
+    "mean_saturation",
+    "top_left",
+    "template_w",
+    "template_h",
+)
+
+
+def _probe_area_region_exist(
+    *,
+    pay: dict[str, Any],
+    image_bgr: Any,
+    area_doc: dict[str, Any],
+    repo_root: Any,
+    region_name: str,
+    state_flat: dict[str, Any] | None,
+    instance_id: str,
+    current_screen: str | None,
+) -> None:
+    """Run findIcon match for an area-region with ``action: exist`` and merge
+    the engine row into ``pay`` so the score / threshold strip lights up.
+
+    Uses the same ``evaluate_overlay_rules_async`` the worker uses — the engine
+    converts ``exist`` to ``findIcon`` internally, applies the ``{region}_search``
+    fallback, bright-detail and saturation gates — so the probe verdict matches
+    what a DSL ``match:`` step would see.
+    """
+    bbox = None
+    pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+    if pair is not None:
+        bbox = pair[1].get("bbox")
+    if not isinstance(bbox, dict):
+        return
+
+    h, w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    L, T, R, B = _pct_bbox_to_px_rect(bbox, w, h)
+    if R <= L or B <= T:
+        return
+    crop = image_bgr[T:B, L:R]
+    if crop.size <= 0:
+        return
+
+    digest = hashlib.md5(crop.tobytes()).hexdigest()
+    cache_key = f"idle_exist_probe::{instance_id}::{region_name}::{digest}"
+    cached = st.session_state.get(cache_key)
+    if cached is None:
+        try:
+            threshold = float(pay.get("threshold") or 0.9)
+        except (TypeError, ValueError):
+            threshold = 0.9
+        rule = {
+            "name": f"probe.area.{region_name}",
+            "region": region_name,
+            "action": "exist",
+            "threshold": threshold,
+        }
+        try:
+            from tasks import dsl_scenario as _dsl
+
+            out = asyncio.run(
+                _dsl.evaluate_overlay_rules_async(
+                    image_bgr,
+                    area_doc,
+                    repo_root,
+                    [rule],
+                    current_screen=current_screen,
+                    state_flat=state_flat,
+                )
+            )
+            row = out.get(str(rule["name"]))
+            cached = {"ok": True, "row": row if isinstance(row, dict) else {}}
+        except Exception as exc:  # noqa: BLE001
+            cached = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        st.session_state[cache_key] = cached
+
+    if not cached.get("ok"):
+        pay["reason"] = f"exist_probe_failed: {cached.get('error', '')}"
+        return
+
+    row = cached.get("row") or {}
+    for k in _EXIST_PROBE_FIELDS:
+        if k in row:
+            pay[k] = row[k]
+
+
 def _ensure_fresh_reference_crop(
     *,
     repo_root: Any,
@@ -905,6 +1003,17 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
                 image_bgr=image_bgr,
                 reg=reg0,
                 instance_id=instance_id,
+            )
+        elif pay["action"] == "exist":
+            _probe_area_region_exist(
+                pay=pay,
+                image_bgr=image_bgr,
+                area_doc=area_doc,
+                repo_root=ctx.repo_root,
+                region_name=area_region,
+                state_flat=state_flat,
+                instance_id=instance_id,
+                current_screen=current_screen or None,
             )
     else:
         pay = results.get(sel_logical)

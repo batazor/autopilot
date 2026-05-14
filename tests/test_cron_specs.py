@@ -96,6 +96,8 @@ def test_ui_and_scheduler_share_resolvers() -> None:
 
     from scenarios.cron_specs import (
         resolve_cron_priority as cs_prio,
+    )
+    from scenarios.cron_specs import (
         resolve_cron_task_type as cs_task,
     )
     from scheduler.runner import resolve_cron_priority as sr_prio

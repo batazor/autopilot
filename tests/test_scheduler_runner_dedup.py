@@ -1,39 +1,34 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import redis.asyncio as aioredis
 
+from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner
 
 
-class _FakeQueue:
-    def __init__(self) -> None:
-        self.calls: list[dict[str, Any]] = []
-
-    async def schedule(self, **kwargs: Any) -> bool:
-        self.calls.append(kwargs)
-        return True
-
-    async def peek_all(self) -> list[dict[str, Any]]:
-        return []
-
-
-@pytest.mark.asyncio
-async def test_scheduler_does_not_enqueue_duplicate_assignments(
+def _wire_runner(
+    runner: SchedulerRunner,
+    *,
+    redis_client: aioredis.Redis,
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Regression: ``SchedulerRunner._run_once`` must enqueue optimizer-assigned
-    tasks with ``skip_if_duplicate=True`` and ``dedup_ignore_region=True``.
+    tasks: list[SimpleNamespace],
+) -> RedisQueue:
+    """Bind real Redis + ``RedisQueue`` and stub the I/O-heavy seams.
 
-    Without those flags, repeated scheduler ticks accumulate duplicates of the
-    same logical task in the queue when the worker has not popped them yet.
+    The optimizer, scenario loader, and player-state lookups are replaced
+    with deterministic stubs so the test focuses on the enqueue gate
+    (pending dedup + running-task dedup). The queue side is the real
+    ``RedisQueue`` against the testcontainer Redis — exercises payload
+    serialization, dedup ZADD script, and ``peek_all`` end-to-end.
     """
-
-    runner = SchedulerRunner()
-    runner._queue = _FakeQueue()  # type: ignore[assignment]
-    runner._redis = SimpleNamespace()  # type: ignore[assignment]
+    queue = RedisQueue(redis_client)
+    runner._queue = queue  # type: ignore[assignment]
+    runner._redis = redis_client  # type: ignore[assignment]
 
     async def _no_cron() -> None:
         return None
@@ -44,34 +39,156 @@ async def test_scheduler_does_not_enqueue_duplicate_assignments(
     async def _player_instance_map() -> dict[str, str]:
         return {"p1": "bs1"}
 
-    runner._run_cron_specs = _no_cron  # type: ignore[assignment]
-    runner._load_player_states = _player_states  # type: ignore[assignment]
-    runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]
-
-    monkeypatch.setattr(runner._scenario_loader, "load_all", lambda: [])
-
     async def _active_scenario_id(player_id: str) -> str | None:
         return None
 
+    runner._run_cron_specs = _no_cron  # type: ignore[assignment]
+    runner._load_player_states = _player_states  # type: ignore[assignment]
+    runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]
     runner._active_scenario_id = _active_scenario_id  # type: ignore[assignment]
 
-    fake_task = SimpleNamespace(
-        task_id="t1",
-        task_type="check_main_city",
-        priority=10,
-    )
+    monkeypatch.setattr(runner._scenario_loader, "load_all", lambda: [])
 
     async def _fake_executor(_loop: Any, _func: Any, _inp: Any) -> dict[str, list[Any]]:
-        return {"p1": [fake_task]}
+        return {"p1": list(tasks)}
 
     monkeypatch.setattr("scheduler.runner.run_in_ortools_executor", _fake_executor)
+    return queue
+
+
+@pytest.mark.asyncio
+async def test_scheduler_enqueues_optimizer_assignments(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: aioredis.Redis,
+) -> None:
+    """Happy path: optimizer assigns a task → ``_run_once`` lands it in Redis
+    under ``wos:queue:bs1`` with the expected fields."""
+    runner = SchedulerRunner()
+    queue = _wire_runner(
+        runner,
+        redis_client=redis_async,
+        monkeypatch=monkeypatch,
+        tasks=[
+            SimpleNamespace(task_id="t1", task_type="check_main_city", priority=10),
+        ],
+    )
 
     await runner._run_once()
 
-    assert len(runner._queue.calls) == 1, runner._queue.calls  # type: ignore[union-attr]
-    call = runner._queue.calls[0]  # type: ignore[union-attr]
-    assert call["skip_if_duplicate"] is True
-    assert call["dedup_ignore_region"] is True
-    assert call["task_id"] == "t1"
-    assert call["player_id"] == "p1"
-    assert call["instance_id"] == "bs1"
+    items = await queue.peek_all()
+    assert len(items) == 1
+    item = items[0]
+    assert item.task_id == "t1"
+    assert item.task_type == "check_main_city"
+    assert item.player_id == "p1"
+    assert item.instance_id == "bs1"
+    assert item.priority == 10
+
+
+@pytest.mark.asyncio
+async def test_scheduler_dedups_pending_duplicate_across_ticks(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: aioredis.Redis,
+) -> None:
+    """Repeated ticks with the same optimizer output don't pile up duplicates
+    in the pending queue. This is the ``skip_if_duplicate`` half of the gate:
+    once an item is queued and not yet popped, the next tick is a no-op."""
+    runner = SchedulerRunner()
+    queue = _wire_runner(
+        runner,
+        redis_client=redis_async,
+        monkeypatch=monkeypatch,
+        tasks=[
+            SimpleNamespace(task_id="t1", task_type="check_main_city", priority=10),
+        ],
+    )
+
+    await runner._run_once()
+    await runner._run_once()
+    await runner._run_once()
+
+    items = await queue.peek_all()
+    assert len(items) == 1, [(i.task_id, i.task_type) for i in items]
+
+
+@pytest.mark.asyncio
+async def test_scheduler_skips_enqueue_when_task_already_running(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: aioredis.Redis,
+) -> None:
+    """``skip_if_duplicate`` only looks at the pending queue. Once the worker
+    pops a long-running item the queue is empty and a fresh scheduler tick
+    would enqueue a second copy. ``_run_once`` must also consult the
+    per-instance running key (``wos:queue:running:{instance_id}``) and skip
+    matching tasks that are already in flight.
+    """
+    # Simulate the running key that ``worker/instance_worker_tasks.py`` writes
+    # the moment it pops a task — same payload shape, same TTL semantics.
+    await redis_async.set(
+        "wos:queue:running:bs1",
+        json.dumps(
+            {
+                "task_id": "in-flight",
+                "task_type": "claim_trials",
+                "player_id": "p1",
+                "instance_id": "bs1",
+            }
+        ),
+        ex=180,
+    )
+
+    runner = SchedulerRunner()
+    queue = _wire_runner(
+        runner,
+        redis_client=redis_async,
+        monkeypatch=monkeypatch,
+        tasks=[
+            SimpleNamespace(task_id="t-running", task_type="claim_trials", priority=10),
+            SimpleNamespace(task_id="t-other", task_type="check_main_city", priority=10),
+        ],
+    )
+
+    await runner._run_once()
+
+    # ``claim_trials`` is skipped (running on bs1 for p1); ``check_main_city``
+    # is still enqueued because its task_type doesn't match.
+    items = await queue.peek_all()
+    queued_types = sorted(i.task_type for i in items)
+    assert queued_types == ["check_main_city"], [(i.task_id, i.task_type) for i in items]
+
+
+@pytest.mark.asyncio
+async def test_scheduler_does_not_skip_when_running_task_is_different_type(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: aioredis.Redis,
+) -> None:
+    """Running-task gate must match by ``task_type``. A different running task
+    on the same instance shouldn't block unrelated assignments."""
+    await redis_async.set(
+        "wos:queue:running:bs1",
+        json.dumps(
+            {
+                "task_id": "in-flight",
+                "task_type": "claim_trials",
+                "player_id": "p1",
+                "instance_id": "bs1",
+            }
+        ),
+        ex=180,
+    )
+
+    runner = SchedulerRunner()
+    queue = _wire_runner(
+        runner,
+        redis_client=redis_async,
+        monkeypatch=monkeypatch,
+        tasks=[
+            SimpleNamespace(task_id="t-other", task_type="check_main_city", priority=10),
+        ],
+    )
+
+    await runner._run_once()
+
+    items = await queue.peek_all()
+    assert len(items) == 1
+    assert items[0].task_type == "check_main_city"

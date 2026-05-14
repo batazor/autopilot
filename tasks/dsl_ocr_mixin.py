@@ -25,9 +25,19 @@ from actions.tap import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
+from ocr.preprocess import resolve_preprocess
 from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
 
 logger = logging.getLogger(__name__)
+
+# OCR may reuse a recent framebuffer instead of issuing a fresh ADB screencap
+# when sibling ``match`` / ``while_match`` steps just warmed the per-instance
+# cache. Capped at 300 ms so timer/countdown reads still see a fresh frame —
+# longer than that and a HH:MM:SS region could drift by a full second.
+# Explicit ``wait:`` steps additionally invalidate the cache (see the
+# ``dsl_scenario_*_mixin`` wait paths), so a deliberate pause never serves
+# the OCR a pre-pause frame.
+_OCR_FRAME_CACHE_MAX_AGE_MS: float = 300.0
 
 
 def _safe_float_or_none(s: str) -> float | None:
@@ -73,6 +83,20 @@ class DslOcrMixin:
 
             self._ocr_client = OcrClient()
         return self._ocr_client
+
+    @staticmethod
+    def _cached_capture(actions: BotActions, instance_id: str) -> Any:
+        """Capture via ``capture_screen_bgr_cached`` with the OCR staleness gate.
+
+        Test fakes that predate the cache helper still expose only
+        ``capture_screen_bgr`` — fall back transparently so unit tests aren't
+        forced to mock the cached entry point. Production ``BotActions`` always
+        provides both.
+        """
+        cached_capture = getattr(actions, "capture_screen_bgr_cached", None)
+        if cached_capture is None:
+            return actions.capture_screen_bgr(instance_id)
+        return cached_capture(instance_id, max_age_ms=_OCR_FRAME_CACHE_MAX_AGE_MS)
 
     async def _ocr_audit_step(
         self,
@@ -196,7 +220,9 @@ class DslOcrMixin:
             return
 
         try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image = await asyncio.to_thread(
+                self._cached_capture, actions, instance_id
+            )
         except Exception:
             logger.exception(
                 "dsl_scenario: capture_screen_bgr failed for ocr (scenario=%s region=%s)",
@@ -208,9 +234,23 @@ class DslOcrMixin:
             )
             return
 
+        # ``preprocess:`` selects the backend pipeline. Step wins, then
+        # area.json region, then a ``type:``-derived default
+        # (``time`` / ``int`` / ``integer`` → ``fast_line``, paddle skips
+        # detection on the single-line crop). Explicit value disables the
+        # default — set ``preprocess: enhance`` on a ``type: time`` region
+        # to force the full pipeline if fast_line ever misreads it.
+        preprocess = resolve_preprocess(
+            explicit=step.get("preprocess") or region_def.get("preprocess"),
+            type_hint=step.get("type") or region_def.get("type"),
+        )
+
         try:
             result = await self._get_ocr_client().ocr_region(
-                image, Region(px, py, pw, ph), region_id=region
+                image,
+                Region(px, py, pw, ph),
+                region_id=region,
+                preprocess=preprocess,
             )
         except Exception:
             logger.exception(
@@ -294,7 +334,9 @@ class DslOcrMixin:
             return
 
         try:
-            image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+            image = await asyncio.to_thread(
+                self._cached_capture, actions, instance_id
+            )
         except Exception:
             logger.exception(
                 "dsl_scenario: capture_screen_bgr failed for bulk ocr "
@@ -308,11 +350,24 @@ class DslOcrMixin:
                 )
             return
 
+        # Per-step ``preprocess:`` resolution mirrors the single-region path:
+        # step wins over the area.json region, then ``type:`` auto-derives
+        # ``fast_line`` for timer / integer regions. The whole list is only
+        # forwarded when at least one entry is non-empty, so a backend that
+        # predates the field doesn't see an unknown key on every batch.
+        bulk_preprocess: list[str | None] = [
+            resolve_preprocess(
+                explicit=step.get("preprocess") or region_def.get("preprocess"),
+                type_hint=step.get("type") or region_def.get("type"),
+            )
+            for step, _region, region_def, _region_px in requests
+        ]
         try:
             results = await self._get_ocr_client().ocr_regions(
                 image,
                 [region_px for _step, _region, _region_def, region_px in requests],
                 region_ids=[region for _step, region, _region_def, _region_px in requests],
+                region_preprocess=bulk_preprocess if any(bulk_preprocess) else None,
             )
         except Exception:
             logger.exception(

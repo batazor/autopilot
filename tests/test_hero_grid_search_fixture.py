@@ -8,6 +8,12 @@ captured different states of the heroes roster:
 * ``page_heroes_3_unlocked.png`` — same roster after the player
   re-sorted the grid: ``bahiti`` / ``molly`` / ``sergey`` line up across
   row 0, each with a red-dot; only ``sergey`` carries an upgrade arrow.
+* ``page_heroes_ready_to_recruit.png`` — five unlocked heroes plus
+  ``cloris`` in the "Recruit / 10/10" transition state: shards collected
+  to the cap but the hero hasn't been claimed yet. The card is rendered
+  in full color (so ``available`` reads True), distinguished from a
+  fully-recruited hero only by the level slot showing "Recruit" instead
+  of "Lv. N".
 
 The second fixture also exercises the re-sort path — heroes that owned
 different ``(row, col)`` slots in the first frame now sit elsewhere, so a
@@ -62,9 +68,24 @@ _FRAME_3_UNLOCKED: dict[str, dict] = {
     "gina":        {"cell": (2, 2), "xy": (443, 795), "available": False, "has_red_dot": False, "upgrade": False},
     "jessie":      {"cell": (2, 3), "xy": (609, 795), "available": False, "has_red_dot": False, "upgrade": False},
 }
+_FRAME_READY_TO_RECRUIT: dict[str, dict] = {
+    "cloris":      {"cell": (0, 0), "xy": (111, 233), "available": True,  "has_red_dot": False, "upgrade": False},
+    "bahiti":      {"cell": (0, 1), "xy": (277, 233), "available": True,  "has_red_dot": True,  "upgrade": False},
+    "molly":       {"cell": (0, 2), "xy": (443, 233), "available": True,  "has_red_dot": True,  "upgrade": False},
+    "patrick":     {"cell": (0, 3), "xy": (609, 233), "available": True,  "has_red_dot": True,  "upgrade": True},
+    "sergey":      {"cell": (1, 0), "xy": (111, 514), "available": True,  "has_red_dot": True,  "upgrade": True},
+    "jeronimo":    {"cell": (1, 1), "xy": (277, 514), "available": False, "has_red_dot": False, "upgrade": False},
+    "natalia":     {"cell": (1, 2), "xy": (443, 514), "available": False, "has_red_dot": False, "upgrade": False},
+    "zinman":      {"cell": (1, 3), "xy": (609, 514), "available": False, "has_red_dot": False, "upgrade": False},
+    "ling_xue":    {"cell": (2, 0), "xy": (111, 795), "available": False, "has_red_dot": False, "upgrade": False},
+    "lumak_bokan": {"cell": (2, 1), "xy": (277, 795), "available": False, "has_red_dot": False, "upgrade": False},
+    "jasser":      {"cell": (2, 2), "xy": (443, 795), "available": False, "has_red_dot": False, "upgrade": False},
+    "seo_yoon":    {"cell": (2, 3), "xy": (609, 795), "available": False, "has_red_dot": False, "upgrade": False},
+}
 _FRAMES: dict[str, tuple[str, dict[str, dict]]] = {
     "frame_2_unlocked": ("page_heroes.png", _FRAME_2_UNLOCKED),
     "frame_3_unlocked": ("page_heroes_3_unlocked.png", _FRAME_3_UNLOCKED),
+    "frame_ready_to_recruit": ("page_heroes_ready_to_recruit.png", _FRAME_READY_TO_RECRUIT),
 }
 
 _MIN_SCORE = 0.85

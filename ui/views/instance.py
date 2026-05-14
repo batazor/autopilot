@@ -12,7 +12,6 @@ import streamlit as st
 from config.devices import player_ids_for_device
 from config.loader import load_settings
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
-from ui.scenario_keys import runnable_scenario_keys
 from ui.preview_display import png_bytes_fitted
 from ui.redis_client import (
     count_queue_tasks_for_instance,
@@ -24,6 +23,7 @@ from ui.redis_client import (
     require_redis_connection,
 )
 from ui.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
+from ui.scenario_keys import runnable_scenario_keys
 from ui.settings_state import ensure_ui_settings_session_defaults
 from ui.views._debug_scenarios_progress import render_active_scenario_progress
 
@@ -35,7 +35,15 @@ _PREVIEW_REFRESH_SEC = max(
     0.5,
     float(load_settings().worker.device_reference_snapshot_interval_seconds),
 )
-_STALE_PREVIEW_AFTER_SEC = max(12.0, _PREVIEW_REFRESH_SEC * 3)
+# Account for the busy-cadence too: during a long task the rolling preview
+# only updates every ``device_reference_snapshot_busy_interval_seconds``, so
+# the stale threshold has to cover *that* cadence to avoid spurious
+# "preview stale" warnings while the bot is just slowly snapshotting.
+_PREVIEW_REFRESH_BUSY_SEC = max(
+    _PREVIEW_REFRESH_SEC,
+    float(load_settings().worker.device_reference_snapshot_busy_interval_seconds),
+)
+_STALE_PREVIEW_AFTER_SEC = max(12.0, _PREVIEW_REFRESH_BUSY_SEC * 3)
 _PREVIEW_CACHE_KEY = "_instance_preview_cache"
 
 

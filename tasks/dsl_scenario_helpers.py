@@ -10,7 +10,6 @@ External callers should still import ``DslScenarioTask`` from
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from functools import lru_cache
@@ -160,6 +159,8 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "loop",
     "push_scenario",
     "swipe_direction",
+    "tap",
+    "swipe",
     "ocr",
     "exec",
     "set_node",
@@ -180,6 +181,8 @@ def _dsl_step_summary(step: Any) -> str:
         "ocr",
         "set_node",
         "swipe_direction",
+        "tap",
+        "swipe",
         "push_scenario",
         "exec",
         "wait",
@@ -198,6 +201,13 @@ def _dsl_step_summary(step: Any) -> str:
             base = "loop"
         elif key == "swipe_direction":
             base = f"swipe:{str(val)[:40]}"
+        elif key == "tap" and isinstance(val, dict):
+            base = f"tap:{val.get('x_pct')},{val.get('y_pct')}"
+        elif key == "swipe" and isinstance(val, dict):
+            base = (
+                f"swipe:{val.get('x1_pct')},{val.get('y1_pct')}"
+                f"→{val.get('x2_pct')},{val.get('y2_pct')}"
+            )
         elif key == "push_scenario":
             base = f"push:{str(val)[:40]}"
         elif key == "exec":
@@ -451,7 +461,17 @@ async def _enqueue_scenario(
     run_at: float,
     skip_if_duplicate: bool,
 ) -> bool:
-    """Enqueue a DSL scenario as a queue item (task_type = scenario key)."""
+    """Enqueue a DSL scenario as a queue item (task_type = scenario key).
+
+    Thin shim over :meth:`scheduler.queue.RedisQueue.schedule` so DSL
+    ``push_scenario`` and exec analyzers share the same atomic dedup
+    (Lua ZADD), ``created_at`` tie-breaker, and ``queue.enqueued`` /
+    ``queue.duplicate_skipped`` timeline events as every other enqueue
+    path. A previous hand-rolled implementation did ``ZRANGEBYSCORE`` +
+    ``ZADD`` non-atomically, missed the ``created_at`` field, and treated
+    a queued device-level item (``player_id=""``) as non-duplicate for a
+    player-bound push — which let two equivalent scenarios pile up.
+    """
     if redis_async is None:
         return False
     scenario = str(scenario or "").strip()
@@ -460,40 +480,24 @@ async def _enqueue_scenario(
     if not scenario or not player_id or not instance_id:
         return False
 
-    # Optional duplicate guard: same (player, task_type) already queued.
-    if skip_if_duplicate:
-        try:
-            items = await redis_async.zrangebyscore(
-                f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown",
-                "-inf",
-                "+inf",
-            )
-            for raw in items:
-                try:
-                    payload = raw.decode() if isinstance(raw, bytes) else str(raw)
-                    doc = json.loads(payload)
-                    if (
-                        str(doc.get("player_id") or "") == player_id
-                        and str(doc.get("task_type") or "") == scenario
-                    ):
-                        return False
-                except Exception:
-                    continue
-        except Exception:
-            # If we can't check, still allow enqueue.
-            pass
+    # Lazy import: ``scheduler.queue`` pulls in ``config.loader`` /
+    # ``navigation.screen_graph`` which we don't want to evaluate at
+    # ``tasks.*`` import time.
+    from scheduler.queue import RedisQueue
 
-    body: dict[str, object] = {
-        "task_id": f"dsl:push:{scenario}:{player_id}:{int(run_at)}",
-        "player_id": player_id,
-        "task_type": scenario,
-        "priority": int(priority),
-        "run_at": float(run_at),
-        "instance_id": instance_id,
-    }
-    qkey = f"wos:queue:{instance_id}" if instance_id else "wos:queue:unknown"
-    await redis_async.zadd(qkey, {json.dumps(body): float(run_at)})
-    return True
+    queue = RedisQueue(redis_async)
+    return await queue.schedule(
+        task_id=f"dsl:push:{scenario}:{player_id}:{int(run_at)}",
+        player_id=player_id,
+        task_type=scenario,
+        priority=int(priority),
+        run_at=float(run_at),
+        instance_id=instance_id,
+        skip_if_duplicate=skip_if_duplicate,
+        # Existing helper dedups by (instance_id, player_id, task_type) only;
+        # preserve that — there's no region context on a DSL ``push_scenario``.
+        dedup_ignore_region=True,
+    )
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:

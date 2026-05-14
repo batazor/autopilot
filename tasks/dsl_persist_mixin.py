@@ -57,10 +57,8 @@ def _trace_enrich_with_match_row(row: dict[str, Any], match_row: dict[str, Any])
         row.setdefault("matched", bool(match_row.get("matched")))
     tl = match_row.get("top_left")
     if isinstance(tl, (list, tuple)) and len(tl) >= 2:
-        try:
+        with suppress(TypeError, ValueError):
             row.setdefault("top_left", [int(float(tl[0])), int(float(tl[1]))])
-        except (TypeError, ValueError):
-            pass
     for k in (
         "template_w",
         "template_h",

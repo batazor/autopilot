@@ -51,18 +51,47 @@ def _append_token(
     items.append((key, s, conf))
 
 
+def _is_nonempty(value: object) -> bool:
+    """Truthiness check that tolerates numpy arrays.
+
+    PaddleOCR v3 returns ``dt_polys`` / ``rec_polys`` / ``rec_boxes`` as
+    numpy arrays. ``bool(np.array([]))`` raises ``"The truth value of an
+    empty array is ambiguous"`` — so plain ``if value:`` / ``a or b`` chains
+    break the moment a crop has no detected text.
+    """
+    if value is None:
+        return False
+    if isinstance(value, np.ndarray):
+        return value.size > 0
+    try:
+        return bool(value)
+    except ValueError:
+        return False
+
+
+def _coerce_list(value: object) -> list[object]:
+    """``list(value)`` when ``value`` is iterable, else ``[]`` — never raises."""
+    if value is None:
+        return []
+    if isinstance(value, np.ndarray):
+        return list(value) if value.size > 0 else []
+    try:
+        return list(value)  # type: ignore[arg-type]
+    except TypeError:
+        return []
+
+
 def _tokens_from_dict(ocr_dict: dict[str, Any]) -> list[_TOKEN]:
     items: list[_TOKEN] = []
-    texts = list(ocr_dict.get("rec_texts") or [])
-    scores = list(ocr_dict.get("rec_scores") or [])
-    polys = (
-        ocr_dict.get("dt_polys")
-        or ocr_dict.get("rec_polys")
-        or ocr_dict.get("rec_boxes")
-        or ocr_dict.get("polys")
-        or ocr_dict.get("dt_boxes")
-    )
-    if polys is not None and len(polys) == len(texts):
+    texts = _coerce_list(ocr_dict.get("rec_texts"))
+    scores = _coerce_list(ocr_dict.get("rec_scores"))
+    polys: object = None
+    for key in ("dt_polys", "rec_polys", "rec_boxes", "polys", "dt_boxes"):
+        candidate = ocr_dict.get(key)
+        if _is_nonempty(candidate):
+            polys = candidate
+            break
+    if polys is not None and len(polys) == len(texts):  # type: ignore[arg-type]
         for i, (poly, text, score) in enumerate(zip(polys, texts, scores, strict=False)):
             _append_token(items, poly, text, score, fallback_index=i)
     else:
@@ -129,6 +158,42 @@ def _collect_tokens(ocr_out: object) -> list[_TOKEN]:
             items.extend(got)
 
     return items
+
+
+def normalize_rec_only_output(ocr_out: object) -> object:
+    """Reshape ``paddle.ocr(crop, det=False)`` output for ``extract_text_confidence``.
+
+    Detection-off output varies across PaddleOCR versions / wrappers:
+
+    * ``[[("text", conf), ...]]`` — page-wrapped list of rec tuples (most common).
+    * ``[("text", conf), ...]`` — flat rec list (some 3.x paths).
+    * ``{"rec_texts": [...], "rec_scores": [...]}`` — paddlex-style dict.
+
+    :func:`extract_text_confidence` already handles the dict form natively
+    (via ``rec_texts`` / ``rec_scores`` keys); reshape the list variants
+    into that dict so the extractor never has to special-case the
+    ``det=False`` path. Unknown shapes pass through verbatim — extractor
+    falls back to ``""`` / ``0.0`` rather than raising.
+    """
+    if isinstance(ocr_out, dict):
+        return ocr_out
+    if not isinstance(ocr_out, list):
+        return ocr_out
+
+    items: object = ocr_out
+    # Unwrap one layer when paddle returns [[ (t, c), ... ]] for a single page.
+    if items and isinstance(items[0], list):
+        items = items[0]
+    if not isinstance(items, list):
+        return ocr_out
+
+    rec_texts: list[object] = []
+    rec_scores: list[object] = []
+    for entry in items:
+        if isinstance(entry, (list, tuple)) and len(entry) >= 2:
+            rec_texts.append(entry[0])
+            rec_scores.append(entry[1])
+    return {"rec_texts": rec_texts, "rec_scores": rec_scores}
 
 
 def extract_text_confidence(ocr_out: object) -> tuple[str, float]:

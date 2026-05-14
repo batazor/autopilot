@@ -11,6 +11,7 @@ from analysis.overlay_rules import (
     centers_delta_pct_between_regions,
     optional_expected_texts,
     optional_min_match_saturation,
+    optional_prefer_primary_bbox,
     optional_priority,
     optional_push_scenario_tasks,
     optional_ttl_seconds,
@@ -47,6 +48,38 @@ from layout.white_border_detector import (
 )
 from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
+from ocr.preprocess import resolve_preprocess
+
+
+# Cap entry count; PNG crops are small (typically <10 KB each), so the upper
+# bound on memory is well under 10 MB even when full. Sized to comfortably
+# cover the active overlay rule fleet (~hundreds of distinct crops).
+_TEMPLATE_CACHE_MAX = 512
+_template_cache: dict[tuple[str, int], np.ndarray] = {}
+
+
+def _load_template_cached(path: Path) -> np.ndarray | None:
+    """Decode a PNG template once, then reuse — invalidates on mtime change.
+
+    Returned arrays are shared; callers must treat them as read-only (template
+    match routines only sample, never mutate).
+    """
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    key = (str(path), mtime_ns)
+    tpl = _template_cache.get(key)
+    if tpl is not None:
+        return tpl
+    tpl = cv2.imread(str(path))
+    if tpl is None:
+        return None
+    if len(_template_cache) >= _TEMPLATE_CACHE_MAX:
+        for old_key in list(_template_cache.keys())[: _TEMPLATE_CACHE_MAX // 4]:
+            _template_cache.pop(old_key, None)
+    _template_cache[key] = tpl
+    return tpl
 
 
 def _apply_min_saturation_gate(
@@ -164,6 +197,12 @@ async def evaluate_overlay_rules_async(
     out: dict[str, Any] = {}
     now_mono = time.monotonic()
     cur_screen_norm = (current_screen or "").strip()
+    # ``action: text`` rules defer their OCR to a batched pass below — one
+    # ``ocr_regions`` call covers every primary bbox in this tick, plus a
+    # second batch for any ``{region}_search`` fallbacks that didn't match
+    # against the primary OCR text. Replaces 130+ sequential HTTP calls on
+    # ``screen_verify.yaml`` with at most 2 round-trips.
+    pending_text_rules: list[dict[str, Any]] = []
     for rule in overlay_rules:
         if not isinstance(rule, dict):
             continue
@@ -567,7 +606,7 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
-            tpl = cv2.imread(str(crop_path))
+            tpl = _load_template_cached(crop_path)
             if tpl is None:
                 out[logical_name] = {
                     "matched": False,
@@ -628,14 +667,35 @@ async def evaluate_overlay_rules_async(
                         excl_r = int(rule.get("exclude_radius_px") or 0)
                     except (TypeError, ValueError):
                         excl_r = 0
-                    res = match_template_in_search_roi_bbox_percent(
-                        image_bgr,
-                        tpl,
-                        search_bbox,
-                        exclude_top_lefts=excl_pts or None,
-                        exclude_radius_px=excl_r,
-                        primary_bbox_percent=bbox,
-                    )
+
+                    res = None
+                    if optional_prefer_primary_bbox(rule):
+                        try:
+                            cand = match_crop_1to1_at_bbox_percent(image_bgr, tpl, bbox)
+                        except ValueError:
+                            cand = None
+                        if cand is not None and cand["score"] >= threshold:
+                            tl_cand = (int(cand["top_left"][0]), int(cand["top_left"][1]))
+                            ok_b, _tb, _pb, _bf = _apply_bright_detail_gate(
+                                image_bgr, tpl, tl_cand
+                            )
+                            ok_s = True
+                            if ok_b and min_sat is not None:
+                                ok_s, _ms, _sf = _apply_min_saturation_gate(
+                                    image_bgr, tl_cand, tw_tpl, th_tpl, min_sat
+                                )
+                            if ok_b and ok_s:
+                                res = cand
+
+                    if res is None:
+                        res = match_template_in_search_roi_bbox_percent(
+                            image_bgr,
+                            tpl,
+                            search_bbox,
+                            exclude_top_lefts=excl_pts or None,
+                            exclude_radius_px=excl_r,
+                            primary_bbox_percent=bbox,
+                        )
                     cx_px = res["top_left"][0] + tw_tpl / 2.0
                     cy_px = res["top_left"][1] + th_tpl / 2.0
                     mx_pct = 100.0 * cx_px / wi
@@ -928,121 +988,245 @@ async def evaluate_overlay_rules_async(
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             region_px = _bbox_percent_to_region_px(bbox, wi, hi)
-            ocr = OcrClient()
-            try:
-                res = await ocr.ocr_region(image_bgr, region_px, region_id=region_name)
-            except Exception as e:
-                out[logical_name] = {
-                    "matched": False,
-                    "reason": "ocr_failed",
-                    "detail": str(e),
+            # ``preprocess`` selects the backend pipeline (``enhance``,
+            # ``fast_line``, …). Explicit on the rule wins, otherwise inherit
+            # from the area.json region. When nothing is set, the resolver
+            # auto-derives ``fast_line`` for ``type: time`` / ``type: integer``
+            # regions so countdown / stat reads skip paddle's detection model.
+            # ``type: string`` and missing types stay on the full pipeline.
+            preprocess = resolve_preprocess(
+                explicit=rule.get("preprocess") or reg.get("preprocess"),
+                type_hint=rule_type,
+            )
+            pending_text_rules.append(
+                {
+                    "logical_name": logical_name,
+                    "region_name": region_name,
+                    "region_px": region_px,
+                    "ref_rel": ref_rel,
+                    "rule_type": rule_type,
+                    "expected": expected,
+                    "threshold": threshold,
+                    "preprocess": preprocess,
+                    "push_tasks": optional_push_scenario_tasks(rule),
+                    "set_node_s": set_node_s,
+                    "priority": priority,
                 }
-                continue
-
-            txt = str(res.text or "").strip()
-            conf = float(res.confidence or 0.0)
-            matched = False
-            best: dict[str, object] | None = None
-            ocr_source = region_name
-
-            if expected:
-                # ``partial=True``: OCR may pick up sibling labels (multi-line
-                # popups, level badges next to the prompt). Mirrors what an
-                # author writes in ``expected: ["tap anywhere"]`` — they mean
-                # "this phrase appears somewhere in the OCR'd content", not
-                # "the OCR result equals this phrase verbatim".
-                m = fuzzy_match(txt, expected, threshold=threshold, partial=True)
-                if m is not None:
-                    matched = True
-                    best = {"candidate": m.candidate, "score": m.score}
-                else:
-                    # Fallback: same pattern as findIcon's slide-find — when a
-                    # ``{region}_search`` sibling exists on the same OCR frame,
-                    # re-OCR that wider ROI. A popup variant that moved the
-                    # prompt out of the primary bbox (e.g. Patrick hero card
-                    # pushes "Tap anywhere to continue" 5 % lower than the
-                    # Chapter Rewards reference) still gets caught — the wider
-                    # bbox includes both positions, partial-fuzzy filters out
-                    # the surrounding noise.
-                    pair_s = screen_region_by_name(
-                        area_doc, f"{region_name}_search", state_flat=state_flat
-                    )
-                    if pair_s is not None:
-                        entry_s, reg_s = pair_s
-                        if str(entry_s.get("ocr") or "").strip() == ref_rel:
-                            sbbox = reg_s.get("bbox")
-                            if isinstance(sbbox, dict):
-                                sregion_px = _bbox_percent_to_region_px(sbbox, wi, hi)
-                                try:
-                                    sres = await ocr.ocr_region(
-                                        image_bgr,
-                                        sregion_px,
-                                        region_id=f"{region_name}_search",
-                                    )
-                                    stxt = str(sres.text or "").strip()
-                                    sm = fuzzy_match(
-                                        stxt, expected, threshold=threshold, partial=True
-                                    )
-                                    if sm is not None:
-                                        matched = True
-                                        best = {
-                                            "candidate": sm.candidate,
-                                            "score": sm.score,
-                                        }
-                                        txt = stxt
-                                        conf = float(sres.confidence or 0.0)
-                                        ocr_source = f"{region_name}_search"
-                                except Exception:
-                                    pass
-            else:
-                matched = bool(txt)
-
-            push_tasks = optional_push_scenario_tasks(rule)
-            time_seconds: int | None = None
-            if rule_type == "time":
-                # Lazy import to avoid pulling the DSL stack into the overlay
-                # engine's import graph just for one regex helper.
-                from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
-
-                parsed = _parse_hms_to_seconds(txt)
-                if parsed is not None:
-                    time_seconds = int(parsed)
-                    # The presence of a parsed time IS the "matched" signal
-                    # for time rules — a HH:MM:SS countdown is what we OCR'd
-                    # for. Override the earlier ``matched=bool(txt)`` so a
-                    # rule without ``expected:`` still reports matched=False
-                    # when the timer text was unreadable noise.
-                    matched = True
-
-            out[logical_name] = {
-                "matched": matched,
-                "action": "text",
-                "region": region_name,
-                "text": txt,
-                "confidence": conf,
-                "threshold": threshold,
-                "expected": expected,
-                "match": best,
-                "ocr_source": ocr_source,
-            }
-            if rule_type:
-                out[logical_name]["type"] = rule_type
-            if time_seconds is not None:
-                # Surfaced in the result so the overlay enqueuer can use it
-                # as the dynamic ``ttl`` for any ``pushScenario`` entries —
-                # see ``_enqueue_push_scenarios_from_overlay``. Lets the
-                # operator write ``pushScenario: [{name: ...}]`` and have
-                # the throttle TTL filled from the OCR'd timer (no extra
-                # rule key needed).
-                out[logical_name]["time_seconds"] = time_seconds
-            if push_tasks:
-                out[logical_name]["pushScenario"] = push_tasks
-            if set_node_s:
-                out[logical_name]["set_node"] = set_node_s
-            if priority is not None:
-                out[logical_name]["priority"] = priority
+            )
             continue
 
         out[logical_name] = {"matched": False, "reason": "unsupported_action", "action": action}
+
+    if pending_text_rules:
+        text_out = await _evaluate_pending_text_rules(
+            image_bgr, area_doc, pending_text_rules, state_flat=state_flat
+        )
+        out.update(text_out)
+
+    return out
+
+
+async def _evaluate_pending_text_rules(
+    image_bgr: np.ndarray,
+    area_doc: dict[str, Any],
+    pending: list[dict[str, Any]],
+    *,
+    state_flat: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Two-phase batched OCR for ``action: text`` overlay rules.
+
+    Phase 1 — one ``ocr_regions`` call for every primary bbox. The
+    ``OcrClient`` already deduplicates identical patches within a single batch
+    by ``patch_hash``, so a frame with 141 ``page.heroes.unit.name`` cells
+    only sends one entry to the backend.
+
+    Phase 2 — only rules whose primary OCR text failed ``fuzzy_match``
+    against ``expected`` (and which have a ``{region}_search`` sibling on the
+    same OCR frame as the primary) contribute to a second ``ocr_regions``
+    batch. Rules without ``expected`` or rules that matched in Phase 1 don't
+    pay the fallback cost.
+
+    Replaces the per-rule ``ocr.ocr_region()`` + sequential ``_search`` retry:
+    the prior path issued one HTTP request per rule (and a second one per
+    miss), so a tick with 130+ text rules paid 130–260 round-trips per frame.
+    """
+    from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+
+    out: dict[str, Any] = {}
+    if not pending:
+        return out
+
+    ocr = OcrClient()
+    # Positional region_ids so two rules targeting the same area.json region
+    # with different ``expected`` / ``threshold`` don't collide on the same
+    # OCR slot — the client's within-call ``patch_hash`` dedup still collapses
+    # identical pixels into one backend entry.
+    primary_ids = [f"text::{i}" for i in range(len(pending))]
+    primary_regions = [p["region_px"] for p in pending]
+    primary_preprocess: list[str | None] = [p.get("preprocess") for p in pending]
+    try:
+        primary_results = await ocr.ocr_regions(
+            image_bgr,
+            primary_regions,
+            region_ids=primary_ids,
+            region_preprocess=primary_preprocess if any(primary_preprocess) else None,
+        )
+    except Exception as e:
+        for p in pending:
+            out[p["logical_name"]] = {
+                "matched": False,
+                "reason": "ocr_failed",
+                "detail": str(e),
+            }
+        return out
+
+    primary_by_id = {r.region_id: r for r in primary_results}
+
+    inter: list[dict[str, Any]] = []
+    fallbacks: list[dict[str, Any]] = []
+    hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    for i, p in enumerate(pending):
+        res = primary_by_id.get(primary_ids[i])
+        if res is None:
+            txt = ""
+            conf = 0.0
+        else:
+            txt = str(res.text or "").strip()
+            conf = float(res.confidence or 0.0)
+
+        matched = False
+        best: dict[str, object] | None = None
+        ocr_source = p["region_name"]
+        expected = p["expected"]
+
+        if expected:
+            # ``partial=True``: OCR may pick up sibling labels (multi-line
+            # popups, level badges next to the prompt). Mirrors what an
+            # author writes in ``expected: ["tap anywhere"]`` — they mean
+            # "this phrase appears somewhere in the OCR'd content", not
+            # "the OCR result equals this phrase verbatim".
+            m = fuzzy_match(txt, expected, threshold=p["threshold"], partial=True)
+            if m is not None:
+                matched = True
+                best = {"candidate": m.candidate, "score": m.score}
+            else:
+                # Fallback: same pattern as findIcon's slide-find — when a
+                # ``{region}_search`` sibling exists on the same OCR frame,
+                # re-OCR that wider ROI. A popup variant that moved the
+                # prompt out of the primary bbox (e.g. Patrick hero card
+                # pushes "Tap anywhere to continue" 5 % lower than the
+                # Chapter Rewards reference) still gets caught — the wider
+                # bbox includes both positions, partial-fuzzy filters out
+                # the surrounding noise.
+                pair_s = screen_region_by_name(
+                    area_doc, f"{p['region_name']}_search", state_flat=state_flat
+                )
+                if pair_s is not None:
+                    entry_s, reg_s = pair_s
+                    if str(entry_s.get("ocr") or "").strip() == p["ref_rel"]:
+                        sbbox = reg_s.get("bbox")
+                        if isinstance(sbbox, dict):
+                            sregion_px = _bbox_percent_to_region_px(sbbox, wi, hi)
+                            fallbacks.append(
+                                {
+                                    "pending_idx": i,
+                                    "search_region_name": f"{p['region_name']}_search",
+                                    "search_region_px": sregion_px,
+                                }
+                            )
+        else:
+            matched = bool(txt)
+
+        inter.append(
+            {
+                "txt": txt,
+                "conf": conf,
+                "matched": matched,
+                "best": best,
+                "ocr_source": ocr_source,
+            }
+        )
+
+    if fallbacks:
+        sids = [f"search::{f['pending_idx']}" for f in fallbacks]
+        sregions = [f["search_region_px"] for f in fallbacks]
+        # ``_search`` siblings inherit the parent rule's ``preprocess`` — the
+        # author flipped enhance on the rule because the *content* benefits
+        # from it, not the particular bbox, and the search ROI usually has
+        # the same paint as the primary (just a wider crop window).
+        spre: list[str | None] = [
+            pending[f["pending_idx"]].get("preprocess") for f in fallbacks
+        ]
+        try:
+            search_results = await ocr.ocr_regions(
+                image_bgr,
+                sregions,
+                region_ids=sids,
+                region_preprocess=spre if any(spre) else None,
+            )
+            search_by_id = {r.region_id: r for r in search_results}
+        except Exception:
+            # Network/backend miss on the wider ROI degrades fallbacks to
+            # "no match" — the primary verdict (``matched=False``) sticks.
+            search_by_id = {}
+
+        for f in fallbacks:
+            sres = search_by_id.get(f"search::{f['pending_idx']}")
+            if sres is None:
+                continue
+            stxt = str(sres.text or "").strip()
+            p = pending[f["pending_idx"]]
+            sm = fuzzy_match(
+                stxt, p["expected"], threshold=p["threshold"], partial=True
+            )
+            if sm is not None:
+                slot = inter[f["pending_idx"]]
+                slot["matched"] = True
+                slot["best"] = {"candidate": sm.candidate, "score": sm.score}
+                slot["txt"] = stxt
+                slot["conf"] = float(sres.confidence or 0.0)
+                slot["ocr_source"] = f["search_region_name"]
+
+    for i, p in enumerate(pending):
+        slot = inter[i]
+        matched = bool(slot["matched"])
+        txt = str(slot["txt"])
+        time_seconds: int | None = None
+        if p["rule_type"] == "time":
+            parsed = _parse_hms_to_seconds(txt)
+            if parsed is not None:
+                time_seconds = int(parsed)
+                # The presence of a parsed time IS the "matched" signal for
+                # time rules — a HH:MM:SS countdown is what we OCR'd for.
+                # Override the earlier ``matched=bool(txt)`` so a rule
+                # without ``expected:`` still reports matched=False when the
+                # timer text was unreadable noise.
+                matched = True
+
+        entry: dict[str, Any] = {
+            "matched": matched,
+            "action": "text",
+            "region": p["region_name"],
+            "text": txt,
+            "confidence": slot["conf"],
+            "threshold": p["threshold"],
+            "expected": p["expected"],
+            "match": slot["best"],
+            "ocr_source": slot["ocr_source"],
+        }
+        if p["rule_type"]:
+            entry["type"] = p["rule_type"]
+        if time_seconds is not None:
+            # Surfaced so the overlay enqueuer can use it as the dynamic
+            # ``ttl`` for any ``pushScenario`` entries — see
+            # ``_enqueue_push_scenarios_from_overlay``.
+            entry["time_seconds"] = time_seconds
+        if p["push_tasks"]:
+            entry["pushScenario"] = p["push_tasks"]
+        if p["set_node_s"]:
+            entry["set_node"] = p["set_node_s"]
+        if p["priority"] is not None:
+            entry["priority"] = p["priority"]
+        out[p["logical_name"]] = entry
 
     return out

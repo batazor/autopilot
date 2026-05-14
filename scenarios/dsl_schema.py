@@ -43,6 +43,8 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "ocr",
     "set_node",
     "swipe_direction",
+    "tap",
+    "swipe",
     "push_scenario",
     "exec",
     "wait",
@@ -91,6 +93,13 @@ class DslStep(BaseModel):
 
     push_scenario: str | dict[str, Any] | None = None
     swipe_direction: dict[str, Any] | None = None
+    # Raw-coord taps & swipes (percent-of-screen). Produced by the recorder UI
+    # (``ui/views/recorder.py``) — operator-recorded gestures that don't have a
+    # named region in ``area.json``. The runtime translates the percent fields
+    # into pixel coordinates using the live frame size and dispatches the
+    # corresponding ADB action via ``actions.tap`` / ``actions.swipe``.
+    tap: dict[str, Any] | None = None
+    swipe: dict[str, Any] | None = None
     # Typed specs so nested ``steps`` go through ``DslStep`` validation —
     # otherwise inner step shapes (e.g. ``long_click + wait`` as duration)
     # slip past the schema even though the runtime executes them.

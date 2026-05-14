@@ -30,6 +30,56 @@ def _queue_key(instance_id: str) -> str:
     return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
 
 
+# Atomic dedup-then-ZADD. Two producers (e.g. rolling overlay tick and the
+# after-task overlay tick) used to both pass ``has_pending_duplicate`` and
+# both ZADD the same logical scenario, since the Python guard read the ZSET
+# in one round-trip and wrote in another. Moving the scan + write into a
+# single ``EVAL`` makes Redis the serialization point.
+#
+# Match semantics (same as :meth:`RedisQueue.has_pending_duplicate`):
+# * always filter ``(instance_id, task_type)``;
+# * region filters unless ``ignore_region == "1"``;
+# * player-bound enqueue (``player_id != ""``) matches in-flight items whose
+#   ``data.player_id`` is either ``""`` (device-level) or the same player —
+#   so a queued cross-player item for the same task_type doesn't block;
+# * device-level enqueue (``player_id == ""``) matches any player — one
+#   queued device-level item blocks re-pushing for everyone.
+#
+# Returns 1 if ZADD was applied, 0 if a duplicate was found and ZADD skipped.
+_DEDUP_ZADD_LUA = """
+local function s(v)
+    if v == nil or v == cjson.null then return "" end
+    return tostring(v)
+end
+
+local task_type = ARGV[3]
+local player_id = ARGV[4]
+local instance_id = ARGV[5]
+local want_region = ARGV[6]
+local ignore_region = ARGV[7] == "1"
+local device_level_enqueue = player_id == ""
+
+local items = redis.call("ZRANGEBYSCORE", KEYS[1], "-inf", "+inf")
+for i = 1, #items do
+    local ok, data = pcall(cjson.decode, items[i])
+    if ok and type(data) == "table" then
+        if s(data.instance_id) == instance_id
+           and s(data.task_type) == task_type then
+            local data_pid = s(data.player_id)
+            if device_level_enqueue or data_pid == "" or data_pid == player_id then
+                if ignore_region or s(data.region) == want_region then
+                    return 0
+                end
+            end
+        end
+    end
+end
+
+redis.call("ZADD", KEYS[1], ARGV[2], ARGV[1])
+return 1
+"""
+
+
 def _recent_runs_key(instance_id: str) -> str:
     iid = str(instance_id or "").strip() or "unknown"
     return f"wos:instance:{iid}:recent_runs"
@@ -94,6 +144,9 @@ class RedisQueue:
     def __init__(self, redis_client: aioredis.Redis) -> None:  # type: ignore[type-arg]
         self._redis = redis_client
         self._settings = get_settings()
+        # Registered once per RedisQueue; redis-py caches the SHA and reissues
+        # ``SCRIPT LOAD`` on ``NOSCRIPT`` automatically.
+        self._dedup_zadd_script = redis_client.register_script(_DEDUP_ZADD_LUA)
 
     async def schedule(
         self,
@@ -128,35 +181,14 @@ class RedisQueue:
         By default, the duplicate signature includes ``region``.
         Set ``dedup_ignore_region=True`` to deduplicate by (instance_id, player_id, task_type)
         while still preserving ``region`` in the payload for UI/debugging.
+
+        The dedup check + ZADD run inside a single Lua script when
+        ``skip_if_duplicate=True`` so concurrent producers (e.g. rolling overlay
+        tick + after-task overlay tick) cannot both pass the guard and both
+        write the same logical task. ``pop_due`` already serializes pops via
+        ``ZREM``; this closes the symmetric gap on the enqueue side.
         """
         import json
-
-        if skip_if_duplicate and await self.has_pending_duplicate(
-            player_id=player_id,
-            task_type=task_type,
-            region=region,
-            instance_id=instance_id,
-            ignore_region=dedup_ignore_region,
-        ):
-            logger.debug(
-                "Skip duplicate queue item: player=%s type=%s region=%r",
-                player_id,
-                task_type,
-                region,
-            )
-            await record_event_async(
-                self._redis,
-                instance_id,
-                "queue.duplicate_skipped",
-                task_id=task_id,
-                fields={
-                    "task_type": task_type,
-                    "player_id": player_id,
-                    "region": region,
-                    "ignore_region": dedup_ignore_region,
-                },
-            )
-            return False
 
         body: dict[str, object] = {
             "task_id": task_id,
@@ -201,7 +233,50 @@ class RedisQueue:
         payload = json.dumps(body)
         # Score = run_at unix ts (earlier = higher priority in ZADD)
         qk = _queue_key(instance_id)
-        await self._redis.zadd(qk, {payload: run_at})
+
+        if skip_if_duplicate:
+            want_region = (
+                str(region).strip() if region is not None and str(region).strip() else ""
+            )
+            rv = await self._dedup_zadd_script(
+                keys=[qk],
+                args=[
+                    payload,
+                    run_at,
+                    task_type,
+                    player_id or "",
+                    instance_id or "",
+                    want_region,
+                    "1" if dedup_ignore_region else "0",
+                ],
+            )
+            try:
+                applied = int(rv) == 1
+            except (TypeError, ValueError):
+                applied = False
+            if not applied:
+                logger.debug(
+                    "Skip duplicate queue item: player=%s type=%s region=%r",
+                    player_id,
+                    task_type,
+                    region,
+                )
+                await record_event_async(
+                    self._redis,
+                    instance_id,
+                    "queue.duplicate_skipped",
+                    task_id=task_id,
+                    fields={
+                        "task_type": task_type,
+                        "player_id": player_id,
+                        "region": region,
+                        "ignore_region": dedup_ignore_region,
+                    },
+                )
+                return False
+        else:
+            await self._redis.zadd(qk, {payload: run_at})
+
         await record_event_async(
             self._redis,
             instance_id,
@@ -230,12 +305,19 @@ class RedisQueue:
         """True if the queue already has a matching item.
 
         Matching rules:
-        - Always filters by ``task_type``.
-        - Filters by ``region`` unless ``ignore_region=True``.
-        - Filters by ``instance_id`` when provided.
-        - Device-level pushes (``player_id=""``) match any player on the same
-          instance, so one queued item blocks re-pushing for all players.
-        - Player-specific pushes match only the same ``player_id``.
+        - Always filters by ``(instance_id, task_type)``.
+        - Region filters unless ``ignore_region=True``.
+        - Player-bound enqueue (``player_id != ""``) matches device-level
+          (``data.player_id == ""``) and same-player in-flight items. A
+          cross-player in-flight item with the same ``task_type`` does **not**
+          block — players on one instance run independent task streams.
+        - Device-level enqueue (``player_id == ""``) matches any player's
+          in-flight item — one device-level push blocks re-pushing for everyone.
+
+        Read-only counterpart to the atomic ``_DEDUP_ZADD_LUA`` used inside
+        :meth:`schedule`; both implement the same predicate. Direct callers
+        (``scheduler/runner.py``) use this as a best-effort pre-filter before
+        ``schedule(skip_if_duplicate=True)`` makes the final atomic decision.
 
         Always scans the queue ZSET — the previous index-based fast path stored
         full payloads (with random ``task_id`` and varying ``run_at``), so two
@@ -245,54 +327,26 @@ class RedisQueue:
         per-instance queue which is small (tens of items) — correctness over
         a microsecond fast path.
         """
-        device_level_seen = False
-        if instance_id and player_id:
-            # Device-level enqueue (player_id="") blocks all players for the same
-            # task_type on this instance; check that first so a player-bound
-            # caller still respects an in-flight device-level push.
-            device_level_seen = await self._scan_queue_for_duplicate(
-                player_id="",
-                task_type=task_type,
-                region=region,
-                instance_id=instance_id,
-                ignore_region=ignore_region,
-            )
-            if device_level_seen:
-                return True
-
-        return await self._scan_queue_for_duplicate(
-            player_id=player_id,
-            task_type=task_type,
-            region=region,
-            instance_id=instance_id or "",
-            ignore_region=ignore_region,
-        )
-
-    async def _scan_queue_for_duplicate(
-        self,
-        *,
-        player_id: str,
-        task_type: str,
-        region: str | None,
-        instance_id: str,
-        ignore_region: bool,
-    ) -> bool:
-        """Slow path: scan queue ZSET for a matching pending item."""
         import json
 
-        want_region = "" if ignore_region else (str(region).strip() if region else "")
-        device_level = not player_id
-        all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
+        iid = str(instance_id or "")
+        pid = str(player_id or "")
+        device_level_enqueue = pid == ""
+        want_region = "" if ignore_region else (
+            str(region).strip() if region is not None else ""
+        )
+        all_items = await self._redis.zrangebyscore(_queue_key(iid), "-inf", "+inf")
         for raw in all_items:
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
                 continue
-            if str(data.get("instance_id", "")) != instance_id:
+            if str(data.get("instance_id", "")) != iid:
                 continue
             if str(data.get("task_type", "")) != task_type:
                 continue
-            if not device_level and str(data.get("player_id", "")) != player_id:
+            data_pid = str(data.get("player_id", ""))
+            if not device_level_enqueue and data_pid != "" and data_pid != pid:
                 continue
             if ignore_region:
                 return True

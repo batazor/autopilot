@@ -37,6 +37,10 @@ PIL_ORIGINAL = "pil_original"
 ACTIVE_IMAGE_PATH = "active_image_path"
 SELECTED_REGION_IDX = "selected_region_idx"
 SELECTED_REGION_NAME = "selected_region_name"
+# Last `active_region_name` observed from the canvas frontend. Used to react
+# only to *changes* on the canvas side — without it, a stale value from a
+# previous canvas click silently reverts radio-button selections.
+CANVAS_LAST_ACTIVE_REGION = "canvas_last_active_region"
 IMAGE_ERROR = "image_error"
 LOAD_ERROR = "load_error"
 PENDING_IMAGE_PATH = "pending_image_path"

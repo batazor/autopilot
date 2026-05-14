@@ -7,6 +7,7 @@ import re
 import time
 from pathlib import Path
 
+import redis as _redis_sync
 import redis.asyncio as aioredis
 
 from config.devices import player_ids_for_device_candidates
@@ -24,10 +25,11 @@ from scenarios.models import Scenario
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
 from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
+from scheduler.wake import WAKE_CHANNEL, wake_scheduler
 
 logger = logging.getLogger(__name__)
 
-_SCHEDULER_UI_QUEUE = "wos:ui:command:scheduler"
+_SCHEDULER_UI_QUEUE = WAKE_CHANNEL
 _CRON_KEY = "wos:scheduler:cron:last_run"
 
 
@@ -35,6 +37,9 @@ class SchedulerRunner:
     def __init__(self) -> None:
         self._settings = get_settings()
         self._redis: aioredis.Redis | None = None  # type: ignore[type-arg]
+        # Sync client used only from non-asyncio threads (watchdog observer)
+        # so wake-on-scenario-reload doesn't need a coroutine bridge.
+        self._wake_sync: _redis_sync.Redis | None = None
         self._queue: RedisQueue | None = None
         self._optimizer = TaskOptimizer()
         self._evaluator = ScenarioEvaluator()
@@ -46,12 +51,35 @@ class SchedulerRunner:
         self._redis = aioredis.from_url(url, socket_connect_timeout=5.0)
         await ping_async_redis_or_exit(self._redis, url=url)
         self._queue = RedisQueue(self._redis)
+        self._wake_sync = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
+        self._scenario_loader.set_on_reload(self._on_scenarios_reloaded)
         self._scenario_loader.start_watching()
+
+    def _on_scenarios_reloaded(self) -> None:
+        """Fired from the watchdog observer thread when a scenario yaml changes.
+
+        Publishes a wake so cron yaml edits trigger immediate re-optimization
+        instead of waiting up to ``interval_seconds`` for the heartbeat tick.
+        """
+        client = self._wake_sync
+        if client is None:
+            return
+        try:
+            wake_scheduler(client, {"cmd": "wake", "reason": "scenarios_reloaded"})
+        except Exception:
+            logger.debug("wake on scenarios reload failed", exc_info=True)
 
     async def _disconnect_redis(self) -> None:
         client = self._redis
+        sync_client = self._wake_sync
         self._redis = None
+        self._wake_sync = None
         self._queue = None
+        if sync_client is not None:
+            try:
+                sync_client.close()
+            except Exception:
+                logger.debug("Scheduler wake-sync Redis close failed", exc_info=True)
         if client is None:
             return
         try:
@@ -131,7 +159,19 @@ class SchedulerRunner:
 
         return None
 
-    async def _cron_task_running(self, *, instance_id: str, player_id: str, task_type: str) -> bool:
+    async def _task_already_running(
+        self, *, instance_id: str, player_id: str, task_type: str
+    ) -> bool:
+        """True if a matching task is currently in flight on this instance.
+
+        Reads the per-instance running key (``wos:queue:running:{instance_id}``)
+        published by the worker for every task it pops (see
+        ``worker/instance_worker_tasks.py``). The pending-queue dedup
+        (``has_pending_duplicate``) only catches duplicates that are still
+        in the sorted set — once the worker pops a long-running item the
+        queue is empty and a fresh scheduler tick would otherwise re-enqueue
+        the same logical task.
+        """
         assert self._redis is not None
         raw = await self._redis.get(f"wos:queue:running:{instance_id}")
         if raw is None:
@@ -166,11 +206,11 @@ class SchedulerRunner:
         for the first run. A Redis throttle key (TTL=``interval_s``) gates
         subsequent scheduler ticks (default cadence: 30s) so the same task
         isn't re-enqueued the moment the worker pops it. ``has_pending_duplicate``
-        + ``_cron_task_running`` cover the inverse: don't enqueue while one is
+        + ``_task_already_running`` cover the inverse: don't enqueue while one is
         already pending or in flight.
         """
         assert self._queue is not None and self._redis is not None
-        if await self._cron_task_running(
+        if await self._task_already_running(
             instance_id=instance_id,
             player_id=player_id,
             task_type=task_type,
@@ -396,6 +436,17 @@ class SchedulerRunner:
         for player_id, tasks in assigned.items():
             instance_id = player_instance_map.get(player_id, "")
             for task in tasks:
+                # ``skip_if_duplicate`` only inspects the pending sorted set.
+                # If the worker has already popped this logical task and is
+                # mid-execution, the queue is empty and a fresh tick would
+                # enqueue a second copy that runs back-to-back. Filter those
+                # out by checking the per-instance running key as well.
+                if await self._task_already_running(
+                    instance_id=instance_id,
+                    player_id=player_id,
+                    task_type=task.task_type,
+                ):
+                    continue
                 await self._queue.schedule(  # type: ignore[union-attr]
                     task_id=task.task_id,
                     player_id=player_id,
@@ -410,40 +461,53 @@ class SchedulerRunner:
         queue_items = await self._queue.peek_all()  # type: ignore[union-attr]
         logger.info("Scheduler: queued %d total items", len(queue_items))
 
-    async def _handle_scheduler_ui_commands(self) -> None:
+    async def _drain_wake_queue(self) -> bool:
+        """Pop any remaining wake messages without blocking. Returns True if
+        an ``optimize_now`` command was seen (caller may want to log/trace it)."""
         assert self._redis is not None
+        saw_optimize_now = False
         while True:
             raw = await self._redis.rpop(_SCHEDULER_UI_QUEUE)
             if raw is None:
-                break
+                return saw_optimize_now
             text = raw.decode() if isinstance(raw, bytes) else raw
             try:
                 data = json.loads(text)
             except json.JSONDecodeError:
                 continue
             if str(data.get("cmd")) == "optimize_now":
-                try:
-                    await self._run_once()
-                except Exception:
-                    logger.exception("optimize_now failed")
+                saw_optimize_now = True
 
     async def run(self) -> None:
         try:
             await self._connect()
+            assert self._redis is not None
             interval = self._settings.scheduler.interval_seconds
-            logger.info("Scheduler started, interval=%ds", interval)
+            logger.info(
+                "Scheduler started, heartbeat=%ds (event-driven on %s)",
+                interval,
+                _SCHEDULER_UI_QUEUE,
+            )
+
+            # Run once at boot so a cold-started worker sees its queue populated
+            # without waiting for the first wake signal.
+            try:
+                await self._run_once()
+            except Exception:
+                logger.exception("Scheduler loop error (initial)")
 
             while True:
+                # Block until any producer publishes a wake (state change,
+                # task completion, UI command), or until the heartbeat fires.
+                # Drain the rest so a burst of wakes collapses to one optimize.
+                wake = await self._redis.blpop(_SCHEDULER_UI_QUEUE, timeout=interval)
+                if wake is not None:
+                    await self._drain_wake_queue()
+
                 try:
                     await self._run_once()
                 except Exception:
                     logger.exception("Scheduler loop error")
-
-                end = time.monotonic() + interval
-                while time.monotonic() < end:
-                    await self._handle_scheduler_ui_commands()
-                    remaining = end - time.monotonic()
-                    await asyncio.sleep(min(0.5, remaining) if remaining > 0 else 0.0)
         finally:
             # Lets the next SchedulerRunner start a fresh filesystem watch (avoids duplicate FSEvents).
             self._scenario_loader.stop_watching()

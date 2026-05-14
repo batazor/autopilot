@@ -6,6 +6,7 @@ without executing another page's module-level Streamlit calls.
 
 from __future__ import annotations
 
+import concurrent.futures as _cf
 import subprocess
 
 from capture.adb_screencap import resolve_adb_executable
@@ -104,6 +105,35 @@ def run_adb(args: list[str], timeout: float = 8.0) -> tuple[int, str, str]:
         proc.stdout.decode(errors="replace").strip(),
         proc.stderr.decode(errors="replace").strip(),
     )
+
+
+def port_scan_connect(start: int, end: int) -> tuple[list[int], list[int]]:
+    """Run ``adb connect 127.0.0.1:<port>`` across ``[start, end]`` in parallel.
+
+    Picks up emulators (BlueStacks / MuMu / LDPlayer / SDK) that the local ADB
+    server doesn't know about yet — `adb devices` alone won't reattach a
+    disconnected emulator. Returns ``(newly_connected, already_connected)``
+    port lists; closed ports are dropped.
+    """
+    if end < start:
+        return [], []
+    ports = list(range(start, end + 1))
+
+    def _connect(port: int) -> tuple[int, str, str]:
+        return run_adb(["connect", f"127.0.0.1:{port}"], timeout=1.5)
+
+    with _cf.ThreadPoolExecutor(max_workers=min(10, max(1, len(ports)))) as pool:
+        results = list(zip(ports, pool.map(_connect, ports), strict=True))
+
+    newly: list[int] = []
+    already: list[int] = []
+    for port, (rc, out, err) in results:
+        text = f"{out} {err}".lower()
+        if "already connected" in text:
+            already.append(port)
+        elif rc == 0 and "connected to" in text:
+            newly.append(port)
+    return newly, already
 
 
 def live_serials() -> set[str]:

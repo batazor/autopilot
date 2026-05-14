@@ -71,6 +71,11 @@ fsm_page = st.Page(
     url_path="routes",
 )
 adb_page = st.Page(str(_ui_dir / "views" / "adb.py"), title="ADB", url_path="adb")
+recorder_page = st.Page(
+    str(_ui_dir / "views" / "recorder.py"),
+    title="Recorder",
+    url_path="recorder",
+)
 balance_page = st.Page(
     str(_ui_dir / "views" / "balance.py"), title="Balance", url_path="balance"
 )
@@ -100,6 +105,7 @@ st.navigation(
             queue_page,
             timeline_page,
             debug_scenarios_page,
+            recorder_page,
             fsm_page,
             optimizer_debug_page,
             optimizer_playground_page,

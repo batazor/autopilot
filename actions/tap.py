@@ -1135,7 +1135,11 @@ class BotActions:
         # existing callers that expect a new ADB screencap still get one.
         # Scope is a single ``BotActions`` instance (one task execution), so the
         # cache is dropped when the task ends — no leak across scenarios.
-        self._frame_cache: dict[str, np.ndarray] = {}
+        # Each entry is ``(monotonic_ts, frame)``; callers that pass
+        # ``max_age_ms`` to ``capture_screen_bgr_cached`` use the timestamp to
+        # opt out of stale frames (OCR, timer reads). ``None`` keeps the
+        # tap-invalidation-only behavior used by ``match`` / ``while_match``.
+        self._frame_cache: dict[str, tuple[float, np.ndarray]] = {}
 
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
@@ -1171,10 +1175,15 @@ class BotActions:
             raise RuntimeError(err)
         # Warm the cache so an immediately-following ``..._cached`` call can
         # reuse this frame.
-        self._frame_cache[instance_id] = img
+        self._frame_cache[instance_id] = (time.monotonic(), img)
         return img
 
-    def capture_screen_bgr_cached(self, instance_id: str) -> np.ndarray:
+    def capture_screen_bgr_cached(
+        self,
+        instance_id: str,
+        *,
+        max_age_ms: float | None = None,
+    ) -> np.ndarray:
         """Return the most recent framebuffer if no action has invalidated it.
 
         DSL match siblings (``while_match``→``while_match``→…) all probe the
@@ -1182,10 +1191,19 @@ class BotActions:
         cached frame across them and skips the ADB screencap.  Any
         state-changing call (tap/swipe/long_tap/type_text/restart_application/
         ensure_game_foreground) drops the cache, forcing a fresh capture.
+
+        ``max_age_ms`` adds an additional staleness gate for callers that need
+        a recent frame even when no action has invalidated the cache — OCR
+        reads of timers/countdowns, for instance, must not run against a
+        300-ms-old frame just because nothing has tapped. ``None`` (default)
+        preserves the tap-invalidation-only behavior; pass a positive number
+        to require a frame no older than that many milliseconds.
         """
         cached = self._frame_cache.get(instance_id)
         if cached is not None:
-            return cached
+            ts, frame = cached
+            if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
+                return frame
         return self.capture_screen_bgr(instance_id)
 
     def tap(

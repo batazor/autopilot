@@ -10,6 +10,7 @@ from debug.timeline import record_event_async
 from fsm.states import InstanceState
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.queue import QueueItem
+from scheduler.wake import wake_scheduler_async
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
 
@@ -287,6 +288,13 @@ class InstanceWorkerTasksMixin:
                     "error": _task_error or None,
                 },
             )
+            try:
+                await wake_scheduler_async(
+                    self._redis,
+                    {"cmd": "wake", "reason": _terminal_event, "task_id": item.task_id},
+                )
+            except Exception:
+                logger.debug("wake_scheduler_async failed", exc_info=True)
             await self._record_task_history(
                 item=item,
                 task=task,
@@ -414,6 +422,18 @@ class InstanceWorkerTasksMixin:
         if result is None or result.next_run_at is None or self._queue is None:
             return
         run_at = time.mktime(result.next_run_at.timetuple())
+        # When a DSL scenario yields to a higher-priority task it returns
+        # ``resume_from_step_index`` in its metadata (see
+        # ``tasks/dsl_scenario_execute_mixin.py``). Forward it as
+        # ``start_step_index`` so the re-enqueued slice continues where it
+        # stopped instead of restarting at step 0.
+        meta = result.metadata or {}
+        try:
+            resume_step = int(meta.get("resume_from_step_index") or 0)
+        except (TypeError, ValueError):
+            resume_step = 0
+        if resume_step < 0:
+            resume_step = 0
         await self._queue.schedule(
             task_id=item.task_id,
             player_id=item.player_id,
@@ -424,4 +444,5 @@ class InstanceWorkerTasksMixin:
             region=item.region,
             threshold=item.threshold,
             score=item.score,
+            start_step_index=resume_step,
         )

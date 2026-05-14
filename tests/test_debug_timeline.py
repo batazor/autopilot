@@ -156,7 +156,7 @@ def test_read_timeline_returns_newest_first(redis_sync: object) -> None:
 
 def test_event_types_constant_covers_documented_set() -> None:
     """The whitelist contract — adding a producer requires updating EVENT_TYPES."""
-    assert EVENT_TYPES >= {
+    assert {
         "overlay.matched",
         "overlay.throttled",
         "queue.enqueued",
@@ -168,4 +168,4 @@ def test_event_types_constant_covers_documented_set() -> None:
         "task.preempted",
         "approval.requested",
         "dsl.step",
-    }
+    } <= EVENT_TYPES

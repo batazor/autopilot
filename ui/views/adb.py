@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import concurrent.futures as _cf
 import os
 import re
 import tempfile
@@ -27,6 +26,9 @@ from ui.adb_query import (
 )
 from ui.adb_query import (
     parse_adb_devices as _parse_adb_devices,
+)
+from ui.adb_query import (
+    port_scan_connect as _port_scan_connect,
 )
 from ui.adb_query import (
     run_adb as _run_adb,
@@ -339,26 +341,7 @@ if refresh_clicked:
     if detect_end < detect_start:
         st.error("End port must be >= start port.")
     else:
-        # Scan every port in the range. ADB daemon uses odd ports (5555, 5557, …)
-        # but the 1.5s parallel scan is cheap enough that we don't need to assume.
-        ports = list(range(detect_start, detect_end + 1))
-        # 1.5s per port is enough for a real listener to respond; closed ports
-        # return ECONNREFUSED immediately. Parallelism keeps a 17-port scan
-        # under ~2s even when nothing answers.
-        def _adb_connect(port: int) -> tuple[int, str, str]:
-            return _run_adb(["connect", f"127.0.0.1:{port}"], timeout=1.5)
-
-        with _cf.ThreadPoolExecutor(max_workers=min(10, max(1, len(ports)))) as pool:
-            results = list(zip(ports, pool.map(_adb_connect, ports), strict=True))
-
-        newly: list[int] = []
-        already: list[int] = []
-        for port, (rc, out_s, err_s) in results:
-            text = f"{out_s} {err_s}".lower()
-            if "already connected" in text:
-                already.append(port)
-            elif rc == 0 and "connected to" in text:
-                newly.append(port)
+        newly, already = _port_scan_connect(detect_start, detect_end)
         # Sync ``db/devices.yaml`` with what's actually on adb. Run
         # ``adb devices -l`` immediately (instead of waiting for the post-rerun
         # render) so attach + append happens in the same click.

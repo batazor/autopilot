@@ -376,6 +376,89 @@ async def test_scan_heroes_grid_clears_stale_shard_counts_when_unlocked(
     assert entry["stars"] == 4
 
 
+@pytest.mark.asyncio
+async def test_scan_heroes_grid_persists_shards_for_ready_to_recruit(
+    monkeypatch: Any,
+    redis_async: Any,
+) -> None:
+    """The "Recruit / N/N" transition state must persist ``shards_*``.
+
+    On the recruit-ready fixture, ``cloris`` sits in cell (0, 0) with a
+    visually unlocked card (``available=True``) but the level row shows
+    "Recruit" instead of "Lv. N", and the shard slot still reads "10/10".
+    Level OCR can't parse "Recruit", so the handler must fall back to the
+    badge OCR for that card and write ``shards_current=10`` /
+    ``shards_required=10`` — otherwise the bot would forget the hero is
+    one tap away from being recruited and lose the cue to act on it.
+    """
+    fixture_file = _FIXTURES_DIR / "page_heroes_ready_to_recruit.png"
+    frame = cv2.imread(str(fixture_file))
+    assert frame is not None
+
+    class _RecruitOcrStub:
+        async def ocr_regions(
+            self,
+            image: np.ndarray,
+            regions: list[Region],
+            *,
+            region_ids: list[str] | None = None,
+            **_kwargs: Any,
+        ) -> list[Any]:
+            out: list[Any] = []
+            for rid in region_ids or []:
+                if rid == "hero_level_cloris":
+                    text = "Recruit"
+                elif rid == "hero_shards_cloris":
+                    text = "10/10"
+                elif rid.startswith("hero_level_"):
+                    text = "Lv. 7"
+                elif rid.startswith("hero_shards_"):
+                    # Real OCR on unlocked rarity-star slot returns noise
+                    # that doesn't match N/N — mimic that so unlocked
+                    # heroes don't pick up a phantom shard reading.
+                    text = ""
+                else:
+                    text = ""
+                out.append(SimpleNamespace(region_id=rid, text=text, confidence=0.95))
+            return out
+
+    actions = _FakeActions(frame)
+    store = _FakeStore()
+    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(dsl_exec, "OcrClient", _RecruitOcrStub)
+
+    await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
+        dsl_exec.DslExecContext(
+            redis_client=redis_async,
+            player_id="player_42",
+            instance_id="bs1",
+        )
+    )
+
+    cloris = store.captured_flat["heroes.entries.cloris"]
+    assert cloris["available"] is True
+    assert cloris["shards_current"] == 10
+    assert cloris["shards_required"] == 10
+    # No "Lv. N" reading on a ready-to-recruit card.
+    assert "level" not in cloris
+
+    # Sanity: other unlocked heroes still pick up their level, not shards.
+    sergey = store.captured_flat["heroes.entries.sergey"]
+    assert sergey["available"] is True
+    assert sergey["level"] == 7
+    assert "shards_current" not in sergey
+
+    # Recruit-ready analyzer must have pushed ``cloris.recruit`` onto the
+    # queue so the bot follows up with the actual recruit flow. No other
+    # hero on this fixture has shards filled to the cap.
+    queue_items = await redis_async.zrange("wos:queue:bs1", 0, -1)
+    queued = _queued_scenarios(queue_items)
+    assert ("player_42", "cloris.recruit") in queued
+    recruit_pushes = [t for _, t in queued if t.endswith(".recruit")]
+    assert recruit_pushes == ["cloris.recruit"], recruit_pushes
+
+
 def _queued_scenarios(items: list[Any]) -> list[tuple[str, str]]:
     """Decode queue payloads into ``(player_id, task_type)`` tuples."""
     import json as _json

@@ -111,6 +111,7 @@ ignore = ["ANN401"]
 "tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501"]
 # Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
 "ui/area_annotator.py" = ["E402"]
+"ui/views/recorder.py" = ["E402"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -38,7 +38,8 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -197,11 +198,11 @@ def read_timeline(
         logger.debug("timeline: read failed for %s", instance_id, exc_info=True)
         return []
 
-    want_events: set[str] | None
-    if events is not None:
-        want_events = {str(e).strip() for e in events if str(e).strip()}
-    else:
-        want_events = None
+    want_events: set[str] | None = (
+        {str(e).strip() for e in events if str(e).strip()}
+        if events is not None
+        else None
+    )
     want_task = str(task_id).strip() if task_id is not None else None
 
     out: list[dict[str, Any]] = []

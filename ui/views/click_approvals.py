@@ -20,7 +20,7 @@ import streamlit as st
 from actions.tap import click_approval_enabled
 from analysis.overlay_manifest import default_analyze_yaml_path
 from config.loader import load_settings
-from ui.adb_query import canonical_serial, live_serials
+from ui.adb_query import canonical_serial, live_serials, port_scan_connect
 from ui.redis_client import require_redis_connection
 from ui.views._debug_scenarios_progress import render_active_scenario_progress
 from ui.views.click_approvals.chrome import (
@@ -65,7 +65,19 @@ if not active_instances:
     )
     _cols = st.columns([1, 1, 5])
     with _cols[0]:
-        if st.button("🔄 Refresh", key="click_approval_adb_refresh", width="stretch"):
+        if st.button(
+            "🔄 Refresh",
+            key="click_approval_adb_refresh",
+            width="stretch",
+            help=(
+                "Port-scans 127.0.0.1:5555-5700 with `adb connect` to reattach "
+                "disconnected emulators, then re-queries `adb devices`."
+            ),
+        ):
+            # `adb devices -l` alone won't reattach an emulator that the ADB
+            # server has dropped — match the ADB page's Refresh and run the
+            # port-scan + connect first, then rerun to pick up the new state.
+            port_scan_connect(5555, 5700)
             st.rerun()
     with _cols[1]:
         st.page_link(

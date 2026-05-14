@@ -222,6 +222,6 @@ overlay:
 - name: big_claim_button.visible
   region: big_claim_button
   action: findIcon
-  threshold: 0.9
+  threshold: 0.85
   pushScenario:
     - name: big_claim_button

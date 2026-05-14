@@ -1,9 +1,6 @@
 enabled: true
 name: 🏗️ Building upgrade (chapter task)
 
-# Onboarding-only flow that taps tutorial-driven upgrade buttons.  Safe before
-# player identity is known.
-device_level: true
 node: building
 
 steps:

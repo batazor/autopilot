@@ -1239,6 +1239,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "claim_all_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 57.2972972972973,
+            "y": 69.56521739130434,
+            "width": 38.91312741312741,
+            "height": 22.80539130434783,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "overlay_auxiliary": true
         }
       ]
     },
@@ -2914,9 +2930,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 2.0849420849420848,
-            "y": 54.67391304347826,
+            "y": 54.78260869565217,
             "width": 17.6003861003861,
-            "height": 3.4,
+            "height": 3.298,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

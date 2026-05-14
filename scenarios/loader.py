@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import yaml
@@ -73,9 +74,14 @@ class ScenarioLoader:
         self._scenarios: list[Scenario] = []
         self._lock = threading.RLock()
         self._observer: Observer | None = None
-        self.reload()
+        self._on_reload: Callable[[], None] | None = None
+        self.reload(fire_callback=False)
 
-    def reload(self) -> None:
+    def set_on_reload(self, callback: Callable[[], None] | None) -> None:
+        """Register a no-arg callback fired after every reload()."""
+        self._on_reload = callback
+
+    def reload(self, *, fire_callback: bool = True) -> None:
         loaded: list[Scenario] = []
         for yaml_file in sorted(self._path.rglob("*.yaml")):
             # Draft scenarios are not executable and must never be auto-loaded.
@@ -99,8 +105,14 @@ class ScenarioLoader:
                 logger.exception("Failed to load scenario %s", yaml_file)
         with self._lock:
             self._scenarios = loaded
+            cb = self._on_reload
         n_on = sum(1 for s in loaded if s.enabled)
         logger.info("Loaded %d scenarios (%d enabled) from %s", len(loaded), n_on, self._path)
+        if fire_callback and cb is not None:
+            try:
+                cb()
+            except Exception:
+                logger.debug("ScenarioLoader on_reload callback failed", exc_info=True)
 
     def load_all(self, path: Path | None = None) -> list[Scenario]:
         if path is not None and path != self._path:

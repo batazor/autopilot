@@ -37,6 +37,30 @@ def _runtime_error_is_device_offline(exc: BaseException) -> bool:
     ) or "device not found" in s or "no devices/emulators found" in s
 
 
+def _rolling_snapshot_interval(cfg: Any, *, task_busy: bool) -> float:
+    """Pick the snapshot cadence based on whether a task is in flight.
+
+    Idle: ``device_reference_snapshot_interval_seconds`` (fast — UI preview
+    + overlay analyzer both want fresh frames). Busy: the longer
+    ``device_reference_snapshot_busy_interval_seconds`` since the scenario
+    is doing its own captures and the rolling tick's only consumer is the
+    operator UI watcher.
+    """
+    if task_busy:
+        return float(cfg.device_reference_snapshot_busy_interval_seconds)
+    return float(cfg.device_reference_snapshot_interval_seconds)
+
+
+def _rolling_should_skip_screen_detect(cfg: Any, *, task_busy: bool) -> bool:
+    """Gate the screen detector during a busy task."""
+    return bool(task_busy) and not bool(cfg.screen_detect_when_busy)
+
+
+def _rolling_should_skip_overlay(cfg: Any, *, task_busy: bool) -> bool:
+    """Gate the overlay analyzer during a busy task."""
+    return bool(task_busy) and not bool(cfg.overlay_analyze_when_busy)
+
+
 class InstanceWorkerRollingMixin:
     _cfg: Any
     _settings: Any
@@ -146,11 +170,21 @@ class InstanceWorkerRollingMixin:
             self._rolling_snap_seq,
         )
 
+        cfg = self._settings.worker
+        task_busy = self._task_busy.is_set()
+        if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
+            # Skipping detect also skips the downstream overlay analyze
+            # (which depends on ``current_screen``) and the who_i_am
+            # backstop. The PNG above is still written so the UI preview
+            # continues to update on the busy cadence.
+            logger.debug(
+                "screen-detect-after-snapshot skipped (task busy, screen_detect_when_busy=false)"
+            )
+            return
+
         current_screen = await self._detect_current_screen_on_frame(image_bgr)
 
-        cfg = self._settings.worker
-        overlay_skipped_busy = not cfg.overlay_analyze_when_busy and self._task_busy.is_set()
-        if overlay_skipped_busy:
+        if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
             logger.debug("overlay-after-snapshot skipped (task busy, overlay_analyze_when_busy=false)")
             return
         await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
@@ -198,14 +232,20 @@ class InstanceWorkerRollingMixin:
         cfg = self._settings.worker
         await asyncio.sleep(0.5)
         logger.info(
-            "[rolling] %s: snapshot loop started (interval=%.2fs)",
+            "[rolling] %s: snapshot loop started (idle=%.2fs busy=%.2fs)",
             self._cfg.instance_id,
             float(cfg.device_reference_snapshot_interval_seconds),
+            float(cfg.device_reference_snapshot_busy_interval_seconds),
         )
         while True:
             try:
-                interval = cfg.device_reference_snapshot_interval_seconds
-                await asyncio.sleep(max(0.3, float(interval)))
+                # Re-read worker config every iteration so a hot-edit of
+                # ``settings.yaml`` propagates without a restart.
+                cfg_now = self._settings.worker
+                interval = _rolling_snapshot_interval(
+                    cfg_now, task_busy=self._task_busy.is_set()
+                )
+                await asyncio.sleep(max(0.3, interval))
                 if self._stopping:
                     return
                 if self._ui_paused:

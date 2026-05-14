@@ -20,9 +20,8 @@ history-based verify rule are exercised in
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
+import redis.asyncio as aioredis
 
 from navigation.screen_graph import (
     EDGE_TAPS,
@@ -92,28 +91,19 @@ def test_page_heroes_screen_regex_extracts_hero_id() -> None:
     assert m_unit is not None and m_unit.group("hero") == "unit"
 
 
-class _FakeRedis:
-    """Minimal stand-in returning a pre-seeded ``current_screen``.
+async def _make_mixin(
+    redis: aioredis.Redis, *, current_screen: str
+) -> InstanceWorkerOverlayMixin:
+    """Build a bare mixin bound to the testcontainer Redis with a seeded
+    ``current_screen``.
 
-    Implements just enough ``hget`` semantics for ``_resolve_hero_id_from_screen``.
+    The mixin's protocol fields (``_cfg``, ``_redis``, ``_queue``) are set on
+    a fresh instance — we don't instantiate the full ``InstanceWorker``
+    because the unit under test only touches ``_resolve_hero_id_from_screen``,
+    which reads ``hget(wos:instance:bs1:state, "current_screen")``.
     """
-
-    def __init__(self, current_screen: str = "") -> None:
-        self.current_screen = current_screen
-
-    async def hget(self, _key: str, field: str) -> bytes | None:
-        if field != "current_screen":
-            return None
-        return self.current_screen.encode() if self.current_screen else None
-
-
-def _make_mixin(redis: Any) -> InstanceWorkerOverlayMixin:
-    """Build a bare mixin instance bound to a fake Redis + cfg.
-
-    The mixin's protocol fields (``_cfg``, ``_redis``, ``_queue``) are set on a
-    fresh instance — we don't instantiate the full ``InstanceWorker`` because
-    the unit under test only touches ``_resolve_hero_id_from_screen``.
-    """
+    if current_screen:
+        await redis.hset("wos:instance:bs1:state", "current_screen", current_screen)
     mixin = InstanceWorkerOverlayMixin.__new__(InstanceWorkerOverlayMixin)
     mixin._redis = redis
     mixin._cfg = type("Cfg", (), {"instance_id": "bs1"})()
@@ -122,27 +112,30 @@ def _make_mixin(redis: Any) -> InstanceWorkerOverlayMixin:
 
 
 @pytest.mark.asyncio
-async def test_resolve_hero_id_from_per_hero_screen() -> None:
-    mixin = _make_mixin(_FakeRedis("page.heroes.sergey"))
+async def test_resolve_hero_id_from_per_hero_screen(redis_async: aioredis.Redis) -> None:
+    mixin = await _make_mixin(redis_async, current_screen="page.heroes.sergey")
     assert await mixin._resolve_hero_id_from_screen() == "sergey"
 
 
 @pytest.mark.asyncio
-async def test_resolve_hero_id_empty_on_unrelated_screen() -> None:
-    mixin = _make_mixin(_FakeRedis("main_city"))
+async def test_resolve_hero_id_empty_on_unrelated_screen(redis_async: aioredis.Redis) -> None:
+    mixin = await _make_mixin(redis_async, current_screen="main_city")
     assert await mixin._resolve_hero_id_from_screen() == ""
 
 
 @pytest.mark.asyncio
-async def test_resolve_hero_id_empty_when_screen_unset() -> None:
-    mixin = _make_mixin(_FakeRedis(""))
+async def test_resolve_hero_id_empty_when_screen_unset(redis_async: aioredis.Redis) -> None:
+    # No HSET — field simply absent from the state hash.
+    mixin = await _make_mixin(redis_async, current_screen="")
     assert await mixin._resolve_hero_id_from_screen() == ""
 
 
 @pytest.mark.asyncio
-async def test_resolve_hero_id_filters_generic_unit_subname() -> None:
+async def test_resolve_hero_id_filters_generic_unit_subname(
+    redis_async: aioredis.Redis,
+) -> None:
     """``page.heroes.unit`` is the FSM detail-page node, not a real hero —
     treating ``unit`` as a hero id would push ``heroes.unit.wiki`` which the
     template resolver can't render."""
-    mixin = _make_mixin(_FakeRedis("page.heroes.unit"))
+    mixin = await _make_mixin(redis_async, current_screen="page.heroes.unit")
     assert await mixin._resolve_hero_id_from_screen() == ""

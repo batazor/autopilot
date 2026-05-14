@@ -936,6 +936,100 @@ class DslScenarioInlineMixin:
                 await asyncio.sleep(0.4)
             self._append_trace_row(trace_path, step, "ok")
             return None
+        if "tap" in step and isinstance(step["tap"], dict):
+            # Raw-coord tap (recorder-produced). Percent-of-screen coords are
+            # resolution-independent: ``x_pct: 50`` taps the horizontal center
+            # of whatever framebuffer the device reports. Resolves to absolute
+            # pixels at dispatch time using ``dev_w`` / ``dev_h`` so re-running
+            # the same scenario on a different resolution still hits the same
+            # logical point.
+            spec = step["tap"]
+            try:
+                x_pct = float(spec.get("x_pct"))
+                y_pct = float(spec.get("y_pct"))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "dsl_scenario: tap missing x_pct/y_pct — skipping (%r)", step
+                )
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="tap_pct_missing"
+                )
+                return None
+            x_pct = max(0.0, min(100.0, x_pct))
+            y_pct = max(0.0, min(100.0, y_pct))
+            px = int(round(x_pct / 100.0 * dev_w))
+            py = int(round(y_pct / 100.0 * dev_h))
+            label = f"tap_pct:{x_pct:.1f}x{y_pct:.1f}"
+            tapped = await asyncio.to_thread(
+                actions.tap, instance_id, Point(px, py), approval_region=label
+            )
+            if not tapped:
+                logger.info(
+                    "dsl_scenario: tap rejected or blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="tap_not_approved"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "tap_not_approved"},
+                )
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        if "swipe" in step and isinstance(step["swipe"], dict):
+            spec = step["swipe"]
+            try:
+                x1_pct = float(spec.get("x1_pct"))
+                y1_pct = float(spec.get("y1_pct"))
+                x2_pct = float(spec.get("x2_pct"))
+                y2_pct = float(spec.get("y2_pct"))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "dsl_scenario: swipe missing x*_pct/y*_pct — skipping (%r)", step
+                )
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="swipe_pct_missing"
+                )
+                return None
+            try:
+                ms = int(spec.get("ms") or 300)
+            except (TypeError, ValueError):
+                ms = 300
+            x1_pct = max(0.0, min(100.0, x1_pct))
+            y1_pct = max(0.0, min(100.0, y1_pct))
+            x2_pct = max(0.0, min(100.0, x2_pct))
+            y2_pct = max(0.0, min(100.0, y2_pct))
+            start = Point(
+                int(round(x1_pct / 100.0 * dev_w)),
+                int(round(y1_pct / 100.0 * dev_h)),
+            )
+            end = Point(
+                int(round(x2_pct / 100.0 * dev_w)),
+                int(round(y2_pct / 100.0 * dev_h)),
+            )
+            ok = await asyncio.to_thread(
+                actions.swipe, instance_id, start, end, ms
+            )
+            if not ok:
+                logger.info(
+                    "dsl_scenario: swipe blocked — aborting scenario %s",
+                    _scen(scenario_key),
+                )
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="swipe_not_approved"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
+                )
+            await asyncio.sleep(0.4)
+            self._append_trace_row(trace_path, step, "ok")
+            return None
         if "ttl" in step:
             # Exit the scenario early with a delayed reschedule. Used inside
             # ``while_match.else`` to back off when an expected popup never
@@ -980,6 +1074,14 @@ class DslScenarioInlineMixin:
                             reason=str(md.get("reason") or ""),
                         )
                         return ip
+                # An explicit ``wait:`` is the author saying "the screen will
+                # change during this pause" — drop the per-instance frame
+                # cache so the next ``match`` / ``ocr`` re-captures instead of
+                # serving a pre-wait frame (matters most for timers / popups
+                # that animated in during the sleep).
+                _invalidate = getattr(actions, "invalidate_frame_cache", None)
+                if _invalidate is not None:
+                    _invalidate(instance_id)
             self._append_trace_row(trace_path, step, "ok")
             return None
         if "push_scenario" in step:
