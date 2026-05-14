@@ -68,6 +68,23 @@ def _rel_under_references(p: Path, root: Path) -> str:
         return p.name
 
 
+def _node_group_for(rel: str, sid: str | None) -> str:
+    """Pick the gallery group for a reference file.
+
+    Non-empty ``screen_id`` wins. Otherwise fall back to the top-level
+    directory under ``references/`` (e.g. ``events``) so on-disk layout
+    keeps icons together even before they're mapped in ``area.json``.
+    Files directly under ``references/`` stay in ``(unassigned)``.
+    """
+    s = (sid or "").strip()
+    if s:
+        return s
+    head = (rel or "").replace("\\", "/").split("/", 1)
+    if len(head) == 2 and head[0]:
+        return head[0]
+    return "(unassigned)"
+
+
 @st.cache_data(ttl=60)
 def _load_area_doc_cached(mtime: float) -> dict[str, object]:
     """Cache parsed `area.json` keyed by mtime (fast reruns)."""
@@ -565,7 +582,7 @@ for _p in files:
     if _rrel in _version_only_refs:
         continue
     _, _, _sid = _gallery_slice_cached(area_mtime, _rrel, "auto")
-    _nk = (_sid or "").strip() or "(unassigned)"
+    _nk = _node_group_for(_rrel, _sid)
     _node_counts[_nk] += 1
 _node_pill_labels = [
     f"{name} · {cnt}"
@@ -602,7 +619,7 @@ for p in files:
     if rel in _version_only_refs:
         continue
     have_f, _, sid_line = _gallery_slice_cached(area_mtime, rel, "auto")
-    node_key = (sid_line or "").strip() or "(unassigned)"
+    node_key = _node_group_for(rel, sid_line)
     if _selected_nodes and node_key not in _selected_nodes:
         continue
     if ql and ql not in rel.lower():
@@ -777,7 +794,7 @@ if group_by == "page (screen_id)":
     for p in filtered:
         rel = _rel_under_references(p, ref_root)
         _, _, sid = _gallery_slice_cached(area_mtime, rel, "auto")
-        sid_g = (sid or "").strip() or "(unassigned)"
+        sid_g = _node_group_for(rel, sid)
         groups.setdefault(sid_g, []).append(p)
 
     for sid in sorted(groups.keys()):

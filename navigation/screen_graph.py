@@ -54,6 +54,33 @@ caller (Navigator) treats it as a routing failure and retries later."""
 # ---------------------------------------------------------------------------
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
+
+
+def _hero_ids() -> list[str]:
+    """Hero IDs from ``db/heroes/index.yaml``, lowercase + sorted.
+
+    Same source the scenario template resolver uses, so per-hero edges /
+    verify rules and per-hero scenario keys stay in lockstep. Best-effort:
+    on parse failure / missing file we return ``[]`` and the navigation
+    layer just won't get per-hero wiki edges (they're additive, not core).
+    """
+    path = _repo_root() / "db" / "heroes" / "index.yaml"
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError):
+        return []
+    out: list[str] = []
+    for entry in raw.get("heroes") or []:
+        if not isinstance(entry, dict):
+            continue
+        hid = str(entry.get("id") or "").strip()
+        if hid:
+            out.append(hid)
+    return sorted(set(out))
+
+
 def _load_edge_taps() -> tuple[
     dict[tuple[str, str], list[Tap]],
     dict[tuple[str, str], DynamicEdgeSpec],
@@ -87,6 +114,15 @@ def _load_edge_taps() -> tuple[
                 static[key] = [taps]
             elif isinstance(taps, dict):
                 dynamic[key] = dict(taps)
+    # Generated per-hero wiki edges. One pair per hero: tap the wiki icon
+    # from the hero card to open the popup, tap back to return. YAML-listing
+    # 62 × 2 = 124 entries by hand drifts from db/heroes/index.yaml — keep
+    # the source of truth there and synthesize the edges at load time.
+    for hid in _hero_ids():
+        src_card = f"page.heroes.{hid}"
+        dst_wiki = f"heroes.{hid}.wiki"
+        static.setdefault((src_card, dst_wiki), ["page.heroes.unit.wiki"])
+        static.setdefault((dst_wiki, src_card), ["back_button"])
     return static, dynamic
 
 
@@ -149,6 +185,19 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
         value = raw.get(key)
         if value is not None and str(value).strip():
             rule[key] = str(value).strip()
+    # ``from_screen`` is an image-less verify: passes when the previous entry in
+    # the Navigator's rolling screen_history matches the given screen name. Lets
+    # destinations without their own OCR/match landmark (e.g. the per-hero wiki
+    # popup) be verified by the hop we took to reach them. List form accepts
+    # multiple acceptable predecessors.
+    fs_raw = raw.get("from_screen")
+    fs_values: list[str] = []
+    if isinstance(fs_raw, list):
+        fs_values = [str(x).strip() for x in fs_raw if str(x).strip()]
+    elif fs_raw is not None and str(fs_raw).strip():
+        fs_values = [str(fs_raw).strip()]
+    if fs_values:
+        rule["from_screen"] = fs_values
     if not rule:
         return None
     if "contains" in raw:
@@ -265,6 +314,54 @@ def load_screen_verify_config(fp: tuple[str, int, int] | None = None) -> VerifyC
                 entry["priority"] = 100
             if rules or landmarks or "retry" in entry:
                 out_screens[str(screen).strip()] = entry
+
+    # Synthesize per-hero wiki verify rules from db/heroes/index.yaml so the
+    # YAML doesn't have to enumerate 62 entries. A YAML override (same screen
+    # key) wins over the synthesized default.
+    for hid in _hero_ids():
+        wiki_screen = f"heroes.{hid}.wiki"
+        if wiki_screen in out_screens:
+            continue
+        out_screens[wiki_screen] = {
+            "rules": [{"from_screen": [f"page.heroes.{hid}"]}],
+            "landmarks": [],
+            "priority": 100,
+        }
+
+    # Per-hero detection via the existing ``page_title`` text_switch. The hero
+    # page banner already contains the hero name (e.g. "🦸 Bahiti" → OCR
+    # reads "Bahiti" from ``page_title``), so reusing that batched OCR call
+    # avoids a second region read per tick. Hero-name candidates are
+    # harvested from existing ``screens.page.heroes.<id>`` verify rules so
+    # we don't enumerate 62 names here. Skipped when a YAML override already
+    # lists a hero case on ``page_title`` (operator authoring wins).
+    page_title_rule: dict[str, Any] | None = next(
+        (r for r in text_switch if isinstance(r, dict) and r.get("ocr") == "page_title"),
+        None,
+    )
+    if page_title_rule is not None:
+        existing_cases = page_title_rule.setdefault("cases", {})
+        if isinstance(existing_cases, dict):
+            for screen, entry in out_screens.items():
+                if not screen.startswith("page.heroes."):
+                    continue
+                if screen in existing_cases:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                for rule in entry.get("rules") or []:
+                    if not isinstance(rule, dict):
+                        continue
+                    cands = rule.get("contains")
+                    if isinstance(cands, str):
+                        cands_list = [cands]
+                    elif isinstance(cands, list):
+                        cands_list = [str(c).strip() for c in cands if str(c).strip()]
+                    else:
+                        cands_list = []
+                    if cands_list:
+                        existing_cases[screen] = cands_list
+                        break
 
     return {
         "retry": retry if isinstance(retry, dict) else {},

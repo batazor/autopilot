@@ -304,9 +304,17 @@ class RedisQueue:
 
     @staticmethod
     def _task_types_requiring_node() -> set[str]:
-        """Task types from scenario YAMLs with root ``cron`` that declare `node`.
+        """Task types from cron YAML specs that declare ``node`` — used for the
+        "don't even pop if ``current_screen`` is empty" gate in :meth:`pop_due`.
 
-        These tasks must not run while instance `current_screen` is empty/unknown.
+        Stays cron-only on purpose: overlay-/DSL-pushed node-bound scenarios
+        get a different treatment — the worker pops them, the DSL execute
+        early-exits with ``awaiting_screen_identity``, seeds a ``where_i_am``
+        probe, and lets the next overlay tick re-push. Promoting them into
+        this set would silently leave them parked in the queue until screen
+        identity returned, which is harder to debug. The ranking-side
+        :meth:`_task_type_to_required_node` does cover all scenarios — that's
+        a separate concern (hops penalty, not a hard gate).
         """
         repo_root = Path(__file__).resolve().parent.parent
         fp = RedisQueue._cron_specs_fingerprint(repo_root)
@@ -334,24 +342,23 @@ class RedisQueue:
     def _task_types_requiring_node_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
-        return set(RedisQueue._task_type_to_required_node_cached(fp).keys())
-
-    @staticmethod
-    def _task_type_to_required_node() -> dict[str, str]:
-        """Map ``task_type → required_node`` from cron YAML specs.
-
-        Same source as :meth:`_task_types_requiring_node`; exposed separately for
-        ranking, which needs the node name (not just the gated set).
-        """
-        repo_root = Path(__file__).resolve().parent.parent
-        fp = RedisQueue._cron_specs_fingerprint(repo_root)
-        return RedisQueue._task_type_to_required_node_cached(fp)
+        return set(RedisQueue._task_type_to_required_node_cron_only_cached(fp).keys())
 
     @staticmethod
     @lru_cache(maxsize=8)
-    def _task_type_to_required_node_cached(
+    def _task_type_to_required_node_cron_only_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> dict[str, str]:
+        """Cron-only ``task_type → node`` map, used by the gating set.
+
+        Split off from :meth:`_task_type_to_required_node_cached` (which now
+        covers every scenario including templates) because gating and ranking
+        ask different questions: gating wants the smaller "must have screen
+        identity" set (cron only); ranking wants every task_type so it can
+        score hops.
+        """
+        from scenarios.cron_specs import resolve_cron_task_type
+
         scenarios_root = Path(fp[0])
         try:
             import yaml
@@ -370,11 +377,50 @@ class RedisQueue:
             node = str(raw.get("node") or "").strip()
             if not node:
                 continue
-            t = str(raw.get("task") or raw.get("task_type") or "").strip()
-            if not t:
-                t = yml.stem
+            t = resolve_cron_task_type(raw, yml)
             if t:
                 out[t] = node
+        return out
+
+    @staticmethod
+    def _task_type_to_required_node() -> dict[str, str]:
+        """Map ``task_type → required_node`` for **every** runnable scenario.
+
+        Covers cron, overlay-pushed, and DSL-pushed scenarios — plus template
+        files expanded to one entry per concrete key (``{hero}.yaml`` → 62
+        entries × rendered node). Ranking uses this map to compute BFS hops
+        from ``current_screen`` to each candidate's target node; without the
+        template / non-cron entries, ranking silently degenerated to FIFO for
+        anything not on a ``cron:`` schedule (so an overlay-pushed
+        ``heroes.bahiti.wiki`` 0 hops away lost to a 6-hop ``molly`` queued a
+        few seconds earlier).
+        """
+        repo_root = Path(__file__).resolve().parent.parent
+        scen_dir = repo_root / "scenarios"
+        fp = RedisQueue._scenarios_tree_fingerprint(scen_dir)
+        return RedisQueue._task_type_to_required_node_cached(fp)
+
+    @staticmethod
+    @lru_cache(maxsize=8)
+    def _task_type_to_required_node_cached(
+        fp: tuple[str, tuple[tuple[str, int, int], ...]]
+    ) -> dict[str, str]:
+        from scenarios.template_resolver import iter_resolved_keys, load_doc
+
+        repo_root = Path(fp[0]).parent
+        out: dict[str, str] = {}
+        for resolved in iter_resolved_keys(repo_root):
+            loaded = load_doc(repo_root, resolved.key)
+            if loaded is None:
+                continue
+            _path, doc = loaded
+            node = str(doc.get("node") or "").strip()
+            if not node:
+                continue
+            # Template-rendered node strings: ``load_doc`` already applied the
+            # substitution context, so ``heroes.${hero_id}.wiki`` arrived here
+            # as ``heroes.ahmose.wiki`` and so on — no extra rendering needed.
+            out[resolved.key] = node
         return out
 
     @staticmethod
@@ -414,6 +460,8 @@ class RedisQueue:
     def _task_types_device_level_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
+        from scenarios.cron_specs import resolve_cron_task_type
+
         scen_dir = Path(fp[0])
         try:
             import yaml
@@ -432,9 +480,7 @@ class RedisQueue:
                 continue
             if raw.get("device_level") is not True:
                 continue
-            t = str(raw.get("task") or raw.get("task_type") or "").strip()
-            if not t:
-                t = yml.stem
+            t = resolve_cron_task_type(raw, yml)
             if t:
                 out.add(t)
         return out

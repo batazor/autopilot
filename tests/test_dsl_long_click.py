@@ -79,7 +79,15 @@ async def test_dsl_long_click_uses_wait_as_duration(
     )
     res = await task.execute("bs1")
     assert res.success is True
-    assert actions.long_taps == [("bs1", 150, 150, 5000)]
+    # bbox 10..20% on a 1000x1000 screen → 100..200 px. With the 15% inset
+    # applied by the random-point helper the long-tap lands inside [115, 185]
+    # on both axes (±1 px rounding tolerance).
+    assert len(actions.long_taps) == 1
+    inst, x, y, dur = actions.long_taps[0]
+    assert inst == "bs1"
+    assert dur == 5000
+    assert 114 <= x <= 186, x
+    assert 114 <= y <= 186, y
 
 
 def test_dsl_long_click_point_reuses_last_match_tap_percent(redis_async: object) -> None:
@@ -103,7 +111,43 @@ def test_dsl_long_click_point_reuses_last_match_tap_percent(redis_async: object)
         1280,
     )
 
+    # No template_w/h on the match row → return the exact tap percent point.
     assert (pt.x, pt.y) == (608, 649)
+
+
+def test_dsl_click_randomises_inside_matched_template(redis_async: object) -> None:
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="long_click_demo",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    task._last_match_region = "upgrade_button"
+    # Matched template: 80 px × 40 px on a 720×1280 framebuffer, centred at
+    # (84.375%, 50.6641%) → (607.5, 648.5) px ⇒ click zone roughly
+    # x ∈ [567.5, 647.5], y ∈ [628.5, 668.5]. After the 15% inset the random
+    # point must stay inside the shrunk window.
+    task._last_match_row = {
+        "matched": True,
+        "tap_x_pct": 84.375,
+        "tap_y_pct": 50.6641,
+        "template_w": 80,
+        "template_h": 40,
+    }
+
+    seen = set()
+    for _ in range(80):
+        pt = task._point_for_region_action(
+            "upgrade_button",
+            {"x": 74.0, "y": 40.0, "width": 20.0, "height": 3.0},
+            720,
+            1280,
+        )
+        seen.add((pt.x, pt.y))
+        assert 575 <= pt.x <= 640, pt
+        assert 634 <= pt.y <= 663, pt
+
+    assert len(seen) > 5  # actually randomised, not pinned
 
 
 @pytest.mark.asyncio

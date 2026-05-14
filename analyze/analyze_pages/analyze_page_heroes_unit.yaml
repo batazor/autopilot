@@ -13,3 +13,15 @@ overlay:
   pushScenario:
   - name: read_hero_wiki
     ttl: 24h
+
+# Red dot on the same wiki button means there are unclaimed wiki rewards
+# / new content markers inside. The ``${hero_id}`` placeholder resolves
+# from ``current_screen`` (``page.heroes.<id>``) via the overlay enqueuer,
+# so this single rule fans out to all 62 ``heroes.<id>.wiki`` scenarios.
+- name: page.heroes.unit.wiki.red_dot
+  region: page.heroes.unit.wiki
+  isRedDot: true
+  screens:
+    - page.heroes.*
+  pushScenario:
+  - name: heroes.${hero_id}.wiki

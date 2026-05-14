@@ -1,0 +1,24 @@
+enabled: true
+name: 🚪 Dismiss popup on unknown screen
+# Fallback for "stuck on an unrecognized screen": the worker enqueues this
+# after >=10s with current_screen=None AND no global overlay rule matched.
+# Tries the universal popup-close (X) glyph; if it isn't on screen the
+# while_match is a no-op and the scenario exits silently.
+device_level: true
+
+steps:
+  - while_match: claim_button_close
+    max: 1
+    steps:
+      - click: claim_button_close
+      - wait: 1s
+  # Second-chance escape: the universal top-left back arrow. The region is
+  # defined on ``screen_id: mail`` in ``area.json`` but the resolver finds it
+  # globally by name, and the arrow glyph + position are shared across most
+  # WOS pages — so this works as a generic "step out one level" tap. Skipped
+  # automatically when not on screen.
+  - while_match: back_button
+    max: 1
+    steps:
+      - click: back_button
+      - wait: 1s

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 import uuid
 from contextlib import suppress
@@ -15,6 +16,18 @@ from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_pr
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# ``pushScenario.name`` placeholders. Right now only ``${hero_id}`` is wired
+# up — extracted from a ``page.heroes.<id>`` current_screen. Add new pattern /
+# extractor pairs here when another per-entity overlay rule needs the same
+# substitution shape (e.g. ``${building_id}`` from ``page.building.<id>``).
+_HERO_ID_PLACEHOLDER = "${hero_id}"
+_PAGE_HEROES_SCREEN_RE = re.compile(r"^page\.heroes\.(?P<hero>[a-z0-9_]+)$")
+# ``page.heroes.unit`` is the generic detail-page node (used by FSM edges
+# when no specific hero has been identified yet); the regex would otherwise
+# accept it as a "hero id" called ``unit``. Add reserved subnames here when
+# another non-hero ``page.heroes.<x>`` node lands.
+_PAGE_HEROES_NON_HERO_SUFFIXES = frozenset({"unit"})
 
 
 def _overlay_metric_float(value: object) -> float | None:
@@ -34,6 +47,31 @@ class InstanceWorkerOverlayMixin:
     _cfg: Any
     _redis: Any
     _queue: Any
+
+    async def _resolve_hero_id_from_screen(self) -> str:
+        """Return the hero id encoded in the current Redis ``current_screen``.
+
+        Empty string when Redis is absent, the field is unset, or the screen
+        isn't a ``page.heroes.<id>`` page. Used by ``${hero_id}`` substitution
+        in ``pushScenario.name``.
+        """
+        if self._redis is None:
+            return ""
+        try:
+            cur = await self._redis.hget(
+                f"wos:instance:{self._cfg.instance_id}:state", "current_screen"
+            )
+        except Exception:
+            logger.debug("overlay: current_screen read failed", exc_info=True)
+            return ""
+        cur_s = (
+            cur.decode() if isinstance(cur, bytes) else str(cur or "")
+        ).strip()
+        m = _PAGE_HEROES_SCREEN_RE.match(cur_s)
+        if not m:
+            return ""
+        hero = m.group("hero")
+        return "" if hero in _PAGE_HEROES_NON_HERO_SUFFIXES else hero
 
     async def _schedule_overlay_matches(
         self,
@@ -164,6 +202,22 @@ class InstanceWorkerOverlayMixin:
                 t = str(item.get("name") or item.get("type") or "").strip()
                 if not t:
                     continue
+
+                # ``${hero_id}`` resolves from ``current_screen`` (only meaningful
+                # on per-hero pages). Lets one overlay rule on ``page.heroes.*``
+                # fan out to the 62 ``heroes.<hero>.wiki`` scenarios without
+                # listing every hero. If the screen isn't a ``page.heroes.<id>``
+                # — or current_screen is empty — we drop the push: a literal
+                # ``heroes.${hero_id}.wiki`` task_type would just be dead.
+                if _HERO_ID_PLACEHOLDER in t:
+                    hid = await self._resolve_hero_id_from_screen()
+                    if not hid:
+                        logger.debug(
+                            "overlay: skipping %r — current_screen has no hero_id",
+                            t,
+                        )
+                        continue
+                    t = t.replace(_HERO_ID_PLACEHOLDER, hid)
 
                 # Special-case: avoid churning `set_node_main_city` when already on main_city.
                 # Scenario has `cond`, but repeated enqueue/execute can starve the queue.

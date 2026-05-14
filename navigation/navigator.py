@@ -11,7 +11,7 @@ import numpy as np
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_lookup import screen_region_by_name
-from layout.bbox_percent import bbox_percent_center_to_device_point
+from layout.bbox_percent import bbox_percent_random_point_to_device_point
 from layout.types import Region
 
 # Side-effect imports: register dynamic-edge resolvers with screen_graph
@@ -35,6 +35,12 @@ _MAIN_CITY = ScreenName.MAIN_CITY
 
 # _execute_hops outcomes: tap failed (rejected / blocked) vs screen never verified.
 _HopExec = Literal["ok", "tap_failed", "verify_failed"]
+
+_SCREEN_HISTORY_MAX = 5
+"""Cap on the rolling history kept at ``wos:instance:<id>:screen_history``.
+Long enough to recover hop context (e.g. ``page.heroes.ahmose`` → wiki) after a
+few intermediate transitions; short enough to keep LTRIM cheap. Index 0 is the
+most recent entry."""
 
 
 class Navigator:
@@ -124,7 +130,7 @@ class Navigator:
         if not isinstance(bbox, dict):
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
-        pt = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+        pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
         approval_context: dict[str, object] = {}
         if from_screen:
             approval_context["from_screen"] = from_screen
@@ -173,6 +179,9 @@ class Navigator:
     def _state_key(self, instance_id: str) -> str:
         return f"wos:instance:{instance_id}:state"
 
+    def _history_key(self, instance_id: str) -> str:
+        return f"wos:instance:{instance_id}:screen_history"
+
     async def _write_screen(self, instance_id: str, screen: str) -> None:
         if self._redis is None:
             return
@@ -180,6 +189,51 @@ class Navigator:
             await self._redis.hset(self._state_key(instance_id), "current_screen", screen)
         except Exception:
             logger.debug("Navigator: failed to write current_screen to Redis", exc_info=True)
+        # Push to rolling history. Skip empty strings (those represent "unknown"
+        # after a verify failure — a history entry there would suggest the bot
+        # was on a real "unknown" screen, which confuses ``from_screen`` rules
+        # that look one hop back). De-dupe consecutive duplicates so navigating
+        # back to a screen we were already on doesn't push a useless repeat.
+        screen_s = str(screen or "").strip()
+        if not screen_s:
+            return
+        try:
+            head = await self._redis.lindex(self._history_key(instance_id), 0)
+            head_s = (head.decode() if isinstance(head, bytes) else str(head or "")).strip()
+            if head_s == screen_s:
+                return
+            await self._redis.lpush(self._history_key(instance_id), screen_s)
+            await self._redis.ltrim(
+                self._history_key(instance_id), 0, _SCREEN_HISTORY_MAX - 1
+            )
+        except Exception:
+            logger.debug(
+                "Navigator: failed to push screen history to Redis", exc_info=True
+            )
+
+    async def _screen_history(self, instance_id: str) -> list[str]:
+        """Most-recent-first list of screens previously written by this navigator.
+
+        Index 0 is the current screen; index 1 the one before, and so on. Empty
+        list when Redis is absent or the key was never populated.
+        """
+        if self._redis is None:
+            return []
+        try:
+            raw = await self._redis.lrange(
+                self._history_key(instance_id), 0, _SCREEN_HISTORY_MAX - 1
+            )
+        except Exception:
+            logger.debug(
+                "Navigator: failed to read screen history from Redis", exc_info=True
+            )
+            return []
+        out: list[str] = []
+        for item in raw or []:
+            s = (item.decode() if isinstance(item, bytes) else str(item or "")).strip()
+            if s:
+                out.append(s)
+        return out
 
     async def _verify_match_rule(
         self,
@@ -284,12 +338,45 @@ class Navigator:
         rule: dict[str, object],
         *,
         state_flat: dict[str, Any] | None = None,
+        instance_id: str | None = None,
     ) -> bool:
+        if "from_screen" in rule:
+            return await self._verify_from_screen_rule(
+                rule, instance_id=instance_id
+            )
         if "match" in rule:
             return await self._verify_match_rule(image, rule, state_flat=state_flat)
         if "ocr" in rule:
             return await self._verify_ocr_rule(image, rule, state_flat=state_flat)
         return False
+
+    async def _verify_from_screen_rule(
+        self,
+        rule: dict[str, object],
+        *,
+        instance_id: str | None,
+    ) -> bool:
+        """True when the most-recent screen_history entry matches ``from_screen``.
+
+        ``_wait_for_screen_verified`` runs BEFORE ``_write_screen(target)``, so
+        at evaluation time index 0 of the history is the source screen of the
+        hop we just took. Only that immediate predecessor is checked: a wider
+        window would let an unrelated intermediate hop "validate" a wiki popup
+        that we never actually opened.
+        """
+        if not instance_id:
+            return False
+        accepted_raw = rule.get("from_screen")
+        accepted: list[str] = []
+        if isinstance(accepted_raw, list):
+            accepted = [str(x).strip() for x in accepted_raw if str(x).strip()]
+        elif accepted_raw is not None and str(accepted_raw).strip():
+            accepted = [str(accepted_raw).strip()]
+        if not accepted:
+            return False
+        history = await self._screen_history(instance_id)
+        prev = history[0] if history else ""
+        return prev in accepted
 
     async def _ui_back_button_visible(self, image: np.ndarray) -> bool:
         """True when ``back_button`` template matches in ``area.json`` (safe to tap)."""
@@ -298,17 +385,85 @@ class Navigator:
             {"match": "back_button", "threshold": 0.9},
         )
 
+    async def recover_screen_from_history(self, instance_id: str) -> str:
+        """Re-confirm the last known screen when ``current_screen`` is empty.
+
+        Closes a race that bites scenarios with a ``node:`` clause: the worker
+        pops the task, ``current_screen`` is empty (a prior verify failure or
+        an in-flight transition cleared it), and the scenario early-exits with
+        ``awaiting_screen_identity`` — even though the device is still sitting
+        on the screen we were on a heartbeat ago. The screen_history rolling
+        list remembers the most recent real screen; if its image-based verify
+        rules pass right now, we trust the previous identity and re-publish
+        ``current_screen`` so the scenario can proceed.
+
+        Returns the recovered screen name on success, ``""`` when no usable
+        history exists or its rules don't match the live frame. ``from_screen``
+        rules are skipped — they read the same history list and would yield a
+        circular pass.
+        """
+        history = await self._screen_history(instance_id)
+        if not history:
+            return ""
+        candidate = history[0]
+        rules = screen_verify_rules(candidate)
+        image_rules = [r for r in rules if "from_screen" not in r]
+        if not image_rules:
+            return ""
+        try:
+            image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
+        except Exception:
+            logger.debug(
+                "Navigator: history recovery capture failed instance=%s",
+                instance_id,
+                exc_info=True,
+            )
+            return ""
+        # Cheap path first: the screen detector already covers every screen
+        # listed in ``screen_verify.yaml`` via landmarks / text_switch, so
+        # a positive detection here makes the per-rule loop redundant.
+        try:
+            detected = await self._detector.detect_screen(image)
+        except Exception:
+            detected = ScreenName.UNKNOWN
+        if str(detected) == candidate:
+            await self._write_screen(instance_id, candidate)
+            return candidate
+        state_flat = await self._active_player_state_flat(instance_id)
+        for rule in image_rules:
+            if await self._verify_rule(
+                image, rule, state_flat=state_flat, instance_id=instance_id
+            ):
+                await self._write_screen(instance_id, candidate)
+                return candidate
+        return ""
+
     async def _wait_for_screen_verified(self, instance_id: str, target: str) -> bool:
         attempts, interval_seconds = screen_verify_retry(target)
         rules = screen_verify_rules(target)
         state_flat = await self._active_player_state_flat(instance_id)
+        # ``from_screen`` rules don't depend on the framebuffer — short-circuit
+        # before the capture loop so we don't burn the (attempts × interval)
+        # budget on rules that can decide from Redis history alone.
+        for rule in rules:
+            if "from_screen" in rule and await self._verify_rule(
+                np.empty((0, 0, 3), dtype=np.uint8),
+                rule,
+                state_flat=state_flat,
+                instance_id=instance_id,
+            ):
+                return True
         for attempt in range(1, attempts + 1):
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
             detected = await self._detector.detect_screen(image)
             if str(detected) == target:
                 return True
             for rule in rules:
-                if await self._verify_rule(image, rule, state_flat=state_flat):
+                if "from_screen" in rule:
+                    continue
+                if await self._verify_rule(
+                    image, rule, state_flat=state_flat, instance_id=instance_id
+                ):
                     return True
             logger.debug(
                 "Navigator: screen %s not verified on %s attempt %d/%d",

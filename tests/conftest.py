@@ -62,3 +62,28 @@ def redis_sync(redis_container: RedisContainer) -> Iterator[redis.Redis]:
         with contextlib.suppress(Exception):
             r.close()
 
+
+@pytest.fixture()
+def pin_click_to_center(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable random-in-bbox click jitter so tests can pin exact pixel coords.
+
+    Production code samples a random point inside the region/template bbox; that
+    is intentional (varies per-click to look human-like). Tests that pre-date the
+    randomisation pin the bbox centre, so they opt into this fixture instead of
+    encoding tolerance ranges.
+    """
+    from layout import bbox_percent as _bp
+    from navigation import navigator as _nav
+    from tasks import dsl_scenario_inline_mixin as _inline
+
+    monkeypatch.setattr(
+        _inline,
+        "bbox_percent_random_point_to_device_point",
+        _bp.bbox_percent_center_to_device_point,
+    )
+    monkeypatch.setattr(
+        _nav,
+        "bbox_percent_random_point_to_device_point",
+        _bp.bbox_percent_center_to_device_point,
+    )
+

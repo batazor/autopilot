@@ -11,6 +11,13 @@ import yaml
 
 from analysis.overlay_manifest import default_analyze_yaml_path, load_analyze_yaml
 from analysis.overlay_rules import optional_push_scenario_tasks
+from scenarios import template_resolver as _tmpl
+from scenarios.cron_specs import (
+    iter_cron_yaml_files,
+    load_root_mapping,
+    resolve_cron_task_type,
+)
+from scenarios.dsl_schema import validate_dsl_steps
 
 logger = logging.getLogger(__name__)
 
@@ -193,22 +200,6 @@ def _check_red_dot_capability(
         )
 
 
-def _scenario_keys(scenarios_root: Path) -> set[str]:
-    out: set[str] = set()
-    if not scenarios_root.is_dir():
-        return out
-    for path in scenarios_root.rglob("*.yaml"):
-        rel = path.relative_to(scenarios_root).as_posix()
-        if rel.startswith("drafts/"):
-            continue
-        out.add(path.stem)
-    return out
-
-
-def _scenario_exists(scenario_keys: set[str], name: str) -> bool:
-    return str(name or "").strip() in scenario_keys
-
-
 def _check_region(
     issues: list[StartupValidationIssue],
     *,
@@ -231,13 +222,46 @@ def _check_region(
 def _check_scenario(
     issues: list[StartupValidationIssue],
     *,
-    scenario_keys: set[str],
+    repo_root: Path,
     source: str,
     field: str,
     value: Any,
 ) -> None:
+    """Validate via the runtime resolver so template keys (``level_up_ahmose``)
+    aren't false-positives.
+
+    The old ``path.stem`` set treated ``level_up_{hero}.yaml`` as a literal
+    file and would reject every concrete hero key the worker actually runs.
+    Going through ``template_resolver.resolve`` is the same path the worker's
+    ``DslScenarioTask`` takes via ``template_resolver.load_doc``, so startup
+    and runtime can't drift.
+    """
     name = str(value or "").strip()
-    if name and not _scenario_exists(scenario_keys, name):
+    if not name:
+        return
+    # Names with ``${...}`` placeholders are resolved at enqueue time by the
+    # overlay worker (e.g. ``heroes.${hero_id}.wiki`` → ``heroes.ahmose.wiki``
+    # after reading ``current_screen``). At startup the placeholder is opaque,
+    # so just confirm the template file exists by checking the resolved-key
+    # space rather than passing the literal ``${...}`` string to the resolver.
+    if "${" in name:
+        from scenarios.template_resolver import iter_resolved_keys
+
+        prefix, _, rest = name.partition("${")
+        _, _, suffix = rest.partition("}")
+        for resolved in iter_resolved_keys(repo_root):
+            k = resolved.key
+            if k.startswith(prefix) and k.endswith(suffix):
+                return
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                source,
+                f"{field} references missing scenario {name!r}",
+            )
+        )
+        return
+    if _tmpl.resolve(repo_root, name) is None:
         issues.append(
             StartupValidationIssue(
                 "error",
@@ -253,7 +277,6 @@ def _validate_analyze_manifest(
     *,
     region_names: set[str],
     red_dot_regions: set[str],
-    scenario_keys: set[str],
 ) -> None:
     manifest_path = default_analyze_yaml_path(repo_root)
     if not manifest_path.is_file():
@@ -330,7 +353,7 @@ def _validate_analyze_manifest(
         for task in optional_push_scenario_tasks(rule):
             _check_scenario(
                 issues,
-                scenario_keys=scenario_keys,
+                repo_root=repo_root,
                 source=source,
                 field="pushScenario",
                 value=task.get("dsl_scenario") or task.get("type"),
@@ -345,10 +368,10 @@ def _walk_steps(
     *,
     source: str,
     issues: list[StartupValidationIssue],
+    repo_root: Path,
     region_names: set[str],
     red_dot_regions: set[str],
     text_search_regions: set[str],
-    scenario_keys: set[str],
 ) -> None:
     if not isinstance(steps, list):
         return
@@ -438,10 +461,10 @@ def _walk_steps(
                 repeat.get("steps"),
                 source=step_source,
                 issues=issues,
+                repo_root=repo_root,
                 region_names=region_names,
                 red_dot_regions=red_dot_regions,
                 text_search_regions=text_search_regions,
-                scenario_keys=scenario_keys,
             )
 
         if "push_scenario" in step:
@@ -449,7 +472,7 @@ def _walk_steps(
             name = spec.get("name") if isinstance(spec, dict) else spec
             _check_scenario(
                 issues,
-                scenario_keys=scenario_keys,
+                repo_root=repo_root,
                 source=step_source,
                 field="push_scenario",
                 value=name,
@@ -459,10 +482,10 @@ def _walk_steps(
             step.get("steps"),
             source=step_source,
             issues=issues,
+            repo_root=repo_root,
             region_names=region_names,
             red_dot_regions=red_dot_regions,
             text_search_regions=text_search_regions,
-            scenario_keys=scenario_keys,
         )
 
 
@@ -499,7 +522,6 @@ def _validate_scenarios(
     region_names: set[str],
     red_dot_regions: set[str],
     text_search_regions: set[str],
-    scenario_keys: set[str],
 ) -> None:
     scenarios_root = repo_root / "scenarios"
     if not scenarios_root.is_dir():
@@ -545,15 +567,53 @@ def _validate_scenarios(
                     "scenario `name` is empty or missing",
                 )
             )
+        # Mirrors the runtime gate in ``DslScenarioTask.execute`` so a typo
+        # like ``scope: instnace`` fails at startup instead of silently
+        # corrupting state during the first run.
+        for err in validate_dsl_steps(doc.get("steps")):
+            issues.append(StartupValidationIssue("error", source, err))
         _walk_steps(
             doc.get("steps"),
             source=source,
             issues=issues,
+            repo_root=repo_root,
             region_names=region_names,
             red_dot_regions=red_dot_regions,
             text_search_regions=text_search_regions,
-            scenario_keys=scenario_keys,
         )
+
+
+def _validate_cron_specs(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Every cron YAML's effective ``task_type`` must resolve to a scenario.
+
+    The scheduler enqueues ``resolve_cron_task_type(raw, yml)`` and the worker
+    later resolves that key via ``template_resolver.load_doc``. A typo like
+    ``task: arena_check`` with no matching scenario silently lands in the
+    queue every cron tick and fails as ``scenario_not_found`` — invisible
+    unless someone is tailing the worker. Catch the mismatch at startup.
+    """
+    scenarios_root = repo_root / "scenarios"
+    for yml in iter_cron_yaml_files(scenarios_root):
+        raw = load_root_mapping(yml)
+        if raw is None:
+            continue
+        task_type = resolve_cron_task_type(raw, yml)
+        if not task_type:
+            continue
+        if _tmpl.resolve(repo_root, task_type) is None:
+            rel = yml.relative_to(scenarios_root).as_posix()
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    f"cron:{rel}",
+                    f"task {task_type!r} does not resolve to any scenario "
+                    "(no literal YAML and no template match) — fix `task:` "
+                    "or move the file under `drafts/`",
+                )
+            )
 
 
 def _validate_edge_taps(
@@ -657,15 +717,14 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     region_names = _area_region_names(area_doc)
     red_dot_regions = _area_regions_with_red_dot_capability(area_doc)
     text_search_regions = _area_regions_text_action_with_search_sibling(area_doc)
-    scenario_keys = _scenario_keys(root / "scenarios")
 
     _validate_edge_taps(root, issues, region_names=region_names)
+    _validate_cron_specs(root, issues)
     _validate_analyze_manifest(
         root,
         issues,
         region_names=region_names,
         red_dot_regions=red_dot_regions,
-        scenario_keys=scenario_keys,
     )
     _validate_scenarios(
         root,
@@ -673,7 +732,6 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         region_names=region_names,
         red_dot_regions=red_dot_regions,
         text_search_regions=text_search_regions,
-        scenario_keys=scenario_keys,
     )
     return issues
 

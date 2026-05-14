@@ -1163,6 +1163,44 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
                 ctx.instance_id,
             )
 
+    # Analyzer: for every visible hero whose card lit up a red-dot badge,
+    # enqueue its per-hero scenario (``scenarios/heroes/{hero}.yaml``
+    # template → key = ``<hero_id>`` → navigates to ``page.heroes.<hero_id>``
+    # via the ``hero_grid`` edge resolver, which routes through the
+    # ``heroes.grid.r{ri}c{ci}`` cell we just wrote above). ``skip_if_duplicate``
+    # collapses repeat scans firing on the same dot until the first push runs.
+    from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+    from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+    red_dot_heroes = [hid for hid, match in hits.items() if match.has_red_dot]
+    pushed: list[str] = []
+    for hid in red_dot_heroes:
+        try:
+            ok = await _enqueue_scenario(
+                redis_async=ctx.redis_client,
+                instance_id=ctx.instance_id,
+                player_id=player_id,
+                scenario=hid,
+                priority=DEFAULT_SCENARIO_PRIORITY,
+                run_at=time.time(),
+                skip_if_duplicate=True,
+            )
+        except Exception:
+            logger.exception(
+                "dsl exec scan_heroes_grid: enqueue hero scenario failed "
+                "instance=%s hero=%s",
+                ctx.instance_id, hid,
+            )
+            continue
+        if ok:
+            pushed.append(hid)
+    if red_dot_heroes:
+        logger.info(
+            "dsl exec scan_heroes_grid: red-dot analyzer instance=%s player=%s "
+            "candidates=%d pushed=%d",
+            ctx.instance_id, player_id, len(red_dot_heroes), len(pushed),
+        )
+
 
 DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
     "detect_screen": _exec_detect_screen,

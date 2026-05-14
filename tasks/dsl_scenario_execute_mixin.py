@@ -408,6 +408,34 @@ class DslScenarioExecuteMixin:
                 instance_id, self.redis_client
             )
             if not cur_screen_at_entry:
+                # Race recovery: ``current_screen`` going empty between hops
+                # is usually a transient verify-failure / detect-failure, not a
+                # real unknown — the device is often still on the screen the
+                # navigator just left. Cheaply re-verify the head of
+                # ``screen_history`` before bailing; on success we proceed
+                # with the scenario instead of deferring it (and losing it from
+                # the queue when the success-true ``TaskResult`` below
+                # short-circuits the requeue).
+                from navigation.navigator import Navigator
+
+                navigator = Navigator(
+                    actions.capture_screen_bgr,
+                    actions.tap,
+                    redis_client=self.redis_client,
+                )
+                recovered = ""
+                with suppress(Exception):
+                    recovered = await navigator.recover_screen_from_history(
+                        instance_id
+                    )
+                if recovered:
+                    cur_screen_at_entry = recovered
+                    logger.info(
+                        "dsl_scenario: %s recovered current_screen=%s from "
+                        "history on %s",
+                        _scen(key), recovered, instance_id,
+                    )
+            if not cur_screen_at_entry:
                 with suppress(Exception):
                     from scheduler.queue import RedisQueue
                     await RedisQueue(self.redis_client).schedule(

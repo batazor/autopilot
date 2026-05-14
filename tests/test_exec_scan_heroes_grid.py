@@ -374,3 +374,79 @@ async def test_scan_heroes_grid_clears_stale_shard_counts_when_unlocked(
     assert "shards_required" not in entry
     # Unrelated pre-existing fields are not touched by the merge.
     assert entry["stars"] == 4
+
+
+def _queued_scenarios(items: list[Any]) -> list[tuple[str, str]]:
+    """Decode queue payloads into ``(player_id, task_type)`` tuples."""
+    import json as _json
+
+    out: list[tuple[str, str]] = []
+    for raw in items:
+        payload = raw.decode() if isinstance(raw, bytes) else str(raw)
+        doc = _json.loads(payload)
+        out.append((str(doc.get("player_id") or ""), str(doc.get("task_type") or "")))
+    return out
+
+
+@pytest.mark.asyncio
+async def test_scan_heroes_grid_enqueues_red_dot_hero_scenarios(
+    monkeypatch: Any,
+    redis_async: Any,
+) -> None:
+    """Heroes with ``has_red_dot`` get their per-hero scenario queued.
+
+    On ``frame_3_unlocked`` bahiti, molly, sergey all carry the dot — the
+    analyzer must enqueue ``bahiti`` / ``molly`` / ``sergey`` scenarios
+    (the ``scenarios/heroes/{hero}.yaml`` template keys) for the active
+    player. No queue items for the locked heroes without a dot.
+    """
+    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    store = _FakeStore()
+    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(dsl_exec, "OcrClient", _make_ocr_stub(level_text="Lv. 11"))
+
+    await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](
+        dsl_exec.DslExecContext(
+            redis_client=redis_async,
+            player_id="player_42",
+            instance_id="bs1",
+        )
+    )
+
+    items = await redis_async.zrangebyscore("wos:queue:bs1", "-inf", "+inf")
+    pairs = _queued_scenarios(items)
+    hero_pushes = {tt for pid, tt in pairs if pid == "player_42"}
+    assert hero_pushes == {"bahiti", "molly", "sergey"}, hero_pushes
+
+
+@pytest.mark.asyncio
+async def test_scan_heroes_grid_skips_red_dot_push_when_already_queued(
+    monkeypatch: Any,
+    redis_async: Any,
+) -> None:
+    """A second scan with the same red-dot heroes must not duplicate the queue.
+
+    ``_enqueue_scenario`` is called with ``skip_if_duplicate=True``; if the
+    hero scenario is still pending from an earlier scan, the second push
+    is a no-op (otherwise repeat scans would stack ``N`` copies of the
+    same hero card visit per minute).
+    """
+    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    store = _FakeStore()
+    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
+    monkeypatch.setattr(dsl_exec, "OcrClient", _make_ocr_stub(level_text="Lv. 11"))
+
+    ctx = dsl_exec.DslExecContext(
+        redis_client=redis_async,
+        player_id="player_42",
+        instance_id="bs1",
+    )
+    await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](ctx)
+    await dsl_exec.DSL_EXEC_REGISTRY["scan_heroes_grid"](ctx)
+
+    items = await redis_async.zrangebyscore("wos:queue:bs1", "-inf", "+inf")
+    pairs = _queued_scenarios(items)
+    hero_pushes = [tt for pid, tt in pairs if pid == "player_42"]
+    assert sorted(hero_pushes) == ["bahiti", "molly", "sergey"], hero_pushes

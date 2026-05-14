@@ -116,6 +116,11 @@ class InstanceWorker(
         self._last_current_screen: str | None = None
         self._last_detected_screen: str | None = None
         self._last_detected_screen_at: float = 0.0
+        # Monotonic clock at which ``current_screen`` was *hard-cleared* to
+        # None (i.e. dropped past the sticky "soft unknown" window). 0.0 means
+        # "not currently unknown". Used by the popup-dismiss fallback so it
+        # waits the full 10s of confirmed-unknown before firing.
+        self._unknown_since: float = 0.0
         self._screen_unknown_streak = 0
         self._screen_detector = ScreenDetector()
         # Per-player TTL state for overlay rules. Outer key = active player id

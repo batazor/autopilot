@@ -19,7 +19,7 @@ from actions.tap import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
-from layout.bbox_percent import bbox_percent_center_to_device_point
+from layout.bbox_percent import bbox_percent_random_point_to_device_point
 from layout.color_bucket import dominant_color_label_bgr
 from layout.crop_paths import exported_crop_png
 from layout.template_match import (
@@ -440,6 +440,29 @@ class DslScenarioInlineMixin:
             try:
                 txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
                 typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                # When the match carries the found template's pixel size, treat that
+                # rectangle as the click zone and randomise inside it — same idea as
+                # for a static bbox, just scoped to the actual icon location.
+                tw = self._last_match_row.get("template_w")
+                th = self._last_match_row.get("template_h")
+                if tw is not None and th is not None:
+                    try:
+                        tw_px = float(tw)
+                        th_px = float(th)
+                        if tw_px > 0.0 and th_px > 0.0:
+                            w_pct = tw_px / float(dev_w) * 100.0
+                            h_pct = th_px / float(dev_h) * 100.0
+                            synthetic_bbox = {
+                                "x": txp - w_pct / 2.0,
+                                "y": typ - h_pct / 2.0,
+                                "width": w_pct,
+                                "height": h_pct,
+                            }
+                            return bbox_percent_random_point_to_device_point(
+                                synthetic_bbox, dev_w, dev_h
+                            )
+                    except (TypeError, ValueError):
+                        pass
                 return Point(
                     int(round(txp / 100.0 * dev_w)),
                     int(round(typ / 100.0 * dev_h)),
@@ -456,7 +479,7 @@ class DslScenarioInlineMixin:
                 int(round(float(self.tap_x_pct) / 100.0 * dev_w)),
                 int(round(float(self.tap_y_pct) / 100.0 * dev_h)),
             )
-        return bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+        return bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
 
     async def _run_inline_step(
         self,

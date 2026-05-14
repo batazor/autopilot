@@ -248,6 +248,7 @@ async def test_player_bound_while_match_uses_implicit_search_region(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     """`while_match: x` should search inside implicit `x_search` when present."""
     frame = np.zeros((100, 100, 3), dtype=np.uint8)

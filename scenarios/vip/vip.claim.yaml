@@ -41,6 +41,14 @@ steps:
       - wait: 2s
       - click: page.vip.increase.close
 
+  - while_match: page.vip.unlock
+    isRedDot: true
+    max: 1
+    steps:
+      - click: page.vip.unlock
+      - wait: 2s
+      - click: page.vip.increase.close
+
   - while_match: page.vip.increase.use
     steps:
       - click: page.vip.increase.use

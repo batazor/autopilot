@@ -229,6 +229,87 @@ steps:
     assert "page.shop" in issues[0].message
 
 
+def test_startup_validation_reports_invalid_ocr_scope(tmp_path: Path) -> None:
+    """``validate_dsl_steps`` is the runtime gate for scope typos
+    (``ocr`` + ``scope: instnace``). Wiring it into startup means the same
+    typo trips before the worker boots, not on the first execute."""
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios").mkdir()
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":[{"name":"some_region",'
+        '"bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
+        encoding="utf-8",
+    )
+    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
+    (tmp_path / "scenarios" / "bad_scope.yaml").write_text(
+        """
+name: bad scope
+steps:
+  - ocr: some_region
+    scope: instnace
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].source == "scenario:bad_scope.yaml"
+    assert "scope" in issues[0].message
+    assert "instnace" in issues[0].message
+
+
+def test_startup_validation_reports_cron_task_without_matching_scenario(
+    tmp_path: Path,
+) -> None:
+    """A cron YAML whose ``task:`` doesn't resolve to any scenario must trip
+    at startup — otherwise the scheduler enqueues it every cron tick and the
+    worker silently fails it with ``scenario_not_found``."""
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
+    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
+    (tmp_path / "scenarios" / "by_cron" / "check_arena.yaml").write_text(
+        """
+name: check arena
+cron: "0 */3 * * *"
+task: arena_check
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert len(issues) == 1
+    assert issues[0].source == "cron:by_cron/check_arena.yaml"
+    assert "arena_check" in issues[0].message
+
+
+def test_startup_validation_accepts_cron_task_matching_existing_scenario(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "analyze").mkdir()
+    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
+    _write_edge_taps(tmp_path)
+    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
+    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
+    (tmp_path / "scenarios" / "redeem_gift_codes.yaml").write_text(
+        "name: redeem\nsteps: []\n", encoding="utf-8"
+    )
+    (tmp_path / "scenarios" / "by_cron" / "redeem.yaml").write_text(
+        """
+name: redeem cron
+cron: "0 */6 * * *"
+task: redeem_gift_codes
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    assert validate_startup_configs(tmp_path) == []
+
+
 def test_startup_validation_reports_missing_edge_tap_region(tmp_path: Path) -> None:
     (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()

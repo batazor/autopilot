@@ -82,6 +82,7 @@ async def test_dsl_match_guard_clicks_when_region_still_visible(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     frame[80:90, 80:90] = _skip_pattern()
@@ -194,6 +195,7 @@ async def test_dsl_match_with_steps_runs_steps_on_match(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     """match + steps + match succeeds → steps run."""
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -221,6 +223,7 @@ async def test_dsl_match_with_steps_runs_else_on_miss(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     """match + steps + match fails → else branch runs, scenario doesn't abort."""
     reference = np.zeros((100, 100, 3), dtype=np.uint8)

@@ -30,6 +30,7 @@ def _worker(detector: _FakeDetector, redis_async: object) -> InstanceWorker:
     worker._screen_detector = detector
     worker._last_detected_screen = None
     worker._last_detected_screen_at = 0.0
+    worker._unknown_since = 0.0
     worker._screen_unknown_streak = 0
     return worker
 
@@ -164,3 +165,146 @@ async def test_overlay_tick_clears_after_repeated_unknown_frames(redis_async: ob
     assert current is None
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
     assert cur == ""
+
+
+@pytest.mark.asyncio
+async def test_unknown_since_set_on_hard_clear_and_reset_on_known(
+    redis_async: object,
+) -> None:
+    """`_unknown_since` starts the dwell timer at hard-clear and resets on known."""
+    detector = _FakeDetector(
+        [
+            ScreenName.BUILDING,
+            ScreenName.UNKNOWN,
+            ScreenName.UNKNOWN,
+            ScreenName.UNKNOWN,
+            ScreenName.BUILDING,
+        ]
+    )
+    worker = _worker(detector, redis_async)
+
+    # Known frame — timer stays at 0.
+    await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+    assert worker._unknown_since == 0.0
+
+    # Soft-unknown ticks: still 0 (current_screen is sticky).
+    for _ in range(2):
+        await worker._detect_current_screen_on_frame(
+            np.zeros((10, 10, 3), dtype=np.uint8),
+        )
+        assert worker._unknown_since == 0.0
+
+    # Third UNKNOWN trips the streak threshold → hard-clear sets the timer.
+    await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+    assert worker._unknown_since > 0.0
+
+    # A known detection resets the timer.
+    await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+    assert worker._unknown_since == 0.0
+
+
+@pytest.mark.asyncio
+async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matches(
+    redis_async: object,
+) -> None:
+    """After >= 10s unknown with no global match, the fallback enqueues
+    ``dismiss_unknown_popup``. A second call within the 30s lock is a no-op."""
+    import time as _t
+
+    detector = _FakeDetector(ScreenName.BUILDING)
+    worker = _worker(detector, redis_async)
+    scheduled: list[dict] = []
+
+    class _FakeQueue:
+        async def schedule(self, **kwargs):  # noqa: ANN003
+            scheduled.append(kwargs)
+            return True
+
+    worker._queue = _FakeQueue()
+    worker._unknown_since = _t.monotonic() - 11.0
+
+    await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
+    assert len(scheduled) == 1
+    assert scheduled[0]["task_type"] == "dismiss_unknown_popup"
+    assert scheduled[0]["player_id"] == ""
+    assert scheduled[0]["instance_id"] == "bs1"
+
+    # Redis NX lock prevents re-enqueue within 30s.
+    await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
+    assert len(scheduled) == 1
+
+
+@pytest.mark.asyncio
+async def test_dismiss_unknown_popup_skipped_when_a_global_rule_matched(
+    redis_async: object,
+) -> None:
+    import time as _t
+
+    detector = _FakeDetector(ScreenName.BUILDING)
+    worker = _worker(detector, redis_async)
+    scheduled: list[dict] = []
+
+    class _FakeQueue:
+        async def schedule(self, **kwargs):  # noqa: ANN003
+            scheduled.append(kwargs)
+            return True
+
+    worker._queue = _FakeQueue()
+    worker._unknown_since = _t.monotonic() - 30.0
+
+    overlay_results = {"some_global_rule": {"matched": True}}
+    await worker._maybe_dismiss_unknown_popup(
+        overlay_results, current_screen=None
+    )
+    assert scheduled == []
+
+
+@pytest.mark.asyncio
+async def test_dismiss_unknown_popup_skipped_when_screen_is_known(
+    redis_async: object,
+) -> None:
+    import time as _t
+
+    detector = _FakeDetector(ScreenName.BUILDING)
+    worker = _worker(detector, redis_async)
+    scheduled: list[dict] = []
+
+    class _FakeQueue:
+        async def schedule(self, **kwargs):  # noqa: ANN003
+            scheduled.append(kwargs)
+            return True
+
+    worker._queue = _FakeQueue()
+    worker._unknown_since = _t.monotonic() - 30.0
+
+    await worker._maybe_dismiss_unknown_popup({}, current_screen="building")
+    assert scheduled == []
+
+
+@pytest.mark.asyncio
+async def test_dismiss_unknown_popup_skipped_below_dwell_threshold(
+    redis_async: object,
+) -> None:
+    import time as _t
+
+    detector = _FakeDetector(ScreenName.BUILDING)
+    worker = _worker(detector, redis_async)
+    scheduled: list[dict] = []
+
+    class _FakeQueue:
+        async def schedule(self, **kwargs):  # noqa: ANN003
+            scheduled.append(kwargs)
+            return True
+
+    worker._queue = _FakeQueue()
+    # 5s of dwell — below the 10s threshold.
+    worker._unknown_since = _t.monotonic() - 5.0
+
+    await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
+    assert scheduled == []

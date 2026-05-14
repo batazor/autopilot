@@ -19,11 +19,13 @@ class InstanceWorkerScreenMixin:
     _cfg: Any
     _redis: Any
     _bot_actions: Any
+    _queue: Any
     _screen_detector: Any
     _overlay_rule_eval_state_by_player: dict[str, dict[str, float]]
     _last_current_screen: str | None
     _last_detected_screen: str | None
     _last_detected_screen_at: float
+    _unknown_since: float
     _screen_unknown_streak: int
 
     async def _schedule_overlay_matches(
@@ -118,6 +120,79 @@ class InstanceWorkerScreenMixin:
         # compute absolute "X seconds ago" without sharing the worker clock.
         await self._persist_overlay_ttl_snapshot(tt_key, player_state)
         await self._schedule_overlay_matches(results, active_player=active_player)
+        await self._maybe_dismiss_unknown_popup(
+            results, current_screen=current_screen
+        )
+
+    async def _maybe_dismiss_unknown_popup(
+        self,
+        overlay_results: dict[str, object],
+        *,
+        current_screen: str | None,
+    ) -> None:
+        """Tap ``claim_button_close`` when stuck on an unrecognized screen.
+
+        Fires only when (a) current_screen is hard-cleared to None, (b) the
+        worker has been in that state for >= 10s, and (c) no global overlay
+        rule matched this tick — i.e. ad/popup analyzers without a node
+        binding produced nothing. A 30s Redis NX-EX lock keeps the scenario
+        from re-enqueueing on every 1 Hz rolling tick while it runs.
+        """
+        if current_screen:
+            return
+        unknown_since = float(getattr(self, "_unknown_since", 0.0) or 0.0)
+        if unknown_since <= 0.0:
+            return
+        if (time.monotonic() - unknown_since) < 10.0:
+            return
+        for payload in overlay_results.values():
+            if isinstance(payload, dict) and payload.get("matched"):
+                return
+        if self._queue is None:
+            return
+        lock_key = (
+            f"wos:instance:{self._cfg.instance_id}:dismiss_unknown_popup_lock"
+        )
+        if self._redis is not None:
+            try:
+                acquired = bool(
+                    await self._redis.set(lock_key, "1", nx=True, ex=30)
+                )
+            except Exception:
+                logger.debug(
+                    "dismiss_unknown_popup: lock acquire failed; allowing push",
+                    exc_info=True,
+                )
+                acquired = True
+            if not acquired:
+                return
+        import uuid as _uuid
+
+        task_id = (
+            f"ovl:{self._cfg.instance_id}:dismiss_unknown_popup:"
+            f"{_uuid.uuid4().hex[:8]}"
+        )
+        try:
+            await self._queue.schedule(
+                task_id=task_id,
+                player_id="",
+                task_type="dismiss_unknown_popup",
+                priority=70_000,
+                run_at=time.time(),
+                instance_id=self._cfg.instance_id,
+                skip_if_duplicate=True,
+                dedup_ignore_region=True,
+            )
+            logger.info(
+                "[fallback] %s: dismiss_unknown_popup enqueued "
+                "(unknown for %.1fs, no global match)",
+                self._cfg.instance_id,
+                time.monotonic() - unknown_since,
+            )
+        except Exception:
+            logger.debug(
+                "dismiss_unknown_popup: schedule failed", exc_info=True
+            )
 
     async def _persist_overlay_ttl_snapshot(
         self, player_id: str, player_state: dict[str, float]
@@ -160,6 +235,7 @@ class InstanceWorkerScreenDetectMixin:
     _screen_detector: Any
     _last_detected_screen: str | None
     _last_detected_screen_at: float
+    _unknown_since: float
     _screen_unknown_streak: int
 
     _SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES: int
@@ -187,6 +263,7 @@ class InstanceWorkerScreenDetectMixin:
             detected_s = str(detected)
             self._last_detected_screen = detected_s
             self._last_detected_screen_at = time.monotonic()
+            self._unknown_since = 0.0
             self._screen_unknown_streak = 0
             if self._redis is not None:
                 with contextlib.suppress(Exception):
@@ -211,6 +288,11 @@ class InstanceWorkerScreenDetectMixin:
 
         self._last_detected_screen = None
         self._last_detected_screen_at = 0.0
+        # Start the unknown-dwell timer at the moment we hard-clear — the
+        # popup-dismiss fallback (>= 10s) measures from this point, not from
+        # the soft-unknown sticky window.
+        if self._unknown_since <= 0.0:
+            self._unknown_since = time.monotonic()
         if self._redis is not None:
             with contextlib.suppress(Exception):
                 await self._redis.hset(

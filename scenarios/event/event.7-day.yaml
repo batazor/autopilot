@@ -1,5 +1,10 @@
-enabled: false
+enabled: true
 name: "7 Day"
 node: event.7-day
 icon: 7-day
-steps: []
+steps:
+  - while_match: big_claim_button
+    steps:
+      - click: big_claim_button
+      - wait: 1s
+      - click: tapanywhereyoexit

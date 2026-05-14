@@ -95,6 +95,7 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     visible = np.zeros((100, 100, 3), dtype=np.uint8)
     visible[20:30, 20:30] = _claim_pattern()
@@ -184,6 +185,7 @@ async def test_dsl_while_match_runs_else_branch_when_no_iterations(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     """Zero iterations + ``else:`` → fallback steps run, scenario succeeds."""
     visible = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -214,6 +216,7 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     """Loop body ran at least once → ``else:`` is skipped entirely."""
     visible = np.zeros((100, 100, 3), dtype=np.uint8)

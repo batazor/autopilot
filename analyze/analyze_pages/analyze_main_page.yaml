@@ -108,7 +108,7 @@ overlay:
   screens:
     - main_city
   pushScenario:
-  - name: click_vip
+  - name: vip.claim
     ttl: 5m
 
 - name: main_city.to.shop.has_red_dot

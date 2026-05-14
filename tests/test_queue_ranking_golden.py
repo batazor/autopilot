@@ -243,6 +243,69 @@ def test_created_at_is_final_stable_tiebreak(monkeypatch):
     assert ranked[0][2]["created_at"] == 1500.0
 
 
+def test_required_node_map_covers_template_keys():
+    """Regression: pre-fix ``_task_type_to_required_node`` only scanned cron
+    YAMLs, so overlay-pushed hero scenarios (no ``cron:``) and template fills
+    (``heroes.{hero}.wiki``) all resolved to ``required_node=""`` and lost the
+    hops penalty. The extended map must surface both.
+    """
+    mapping = RedisQueue._task_type_to_required_node()
+    # Hero card template (``{hero}.yaml`` → key ``ahmose``, node ``page.heroes.ahmose``).
+    assert mapping.get("ahmose") == "page.heroes.ahmose"
+    assert mapping.get("bahiti") == "page.heroes.bahiti"
+    # Wiki template (``heroes.{hero}.wiki.yaml`` → ``heroes.bahiti.wiki``,
+    # node ``heroes.bahiti.wiki``). Rendered through ``load_doc``.
+    assert mapping.get("heroes.bahiti.wiki") == "heroes.bahiti.wiki"
+    # Cron scenario still present (covered by the original cron-only path too).
+    assert mapping.get("check_main_city") == "main_city"
+
+
+def test_requiring_node_gating_stays_cron_only():
+    """The gating set (``_task_types_requiring_node``) is intentionally narrower
+    than the ranking map — overlay-pushed node-bound scenarios use the DSL's
+    own ``awaiting_screen_identity`` early-exit path, not queue-level gating.
+    """
+    gating = RedisQueue._task_types_requiring_node()
+    ranking = RedisQueue._task_type_to_required_node()
+    assert "check_main_city" in gating
+    # ``ahmose`` is in ranking (template-derived) but NOT in gating
+    # (no ``cron:`` on the template).
+    assert "ahmose" in ranking
+    assert "ahmose" not in gating
+    assert "heroes.bahiti.wiki" in ranking
+    assert "heroes.bahiti.wiki" not in gating
+
+
+def test_overlay_push_wins_locality_over_older_far_push(monkeypatch):
+    """Reproduces the bahiti.wiki vs molly case: an older queued task with
+    many hops loses to a freshly-pushed 0-hop task at the same priority.
+    Before the ranking-map extension, this came out backwards (older run_at
+    wins under FIFO when both tasks had ``required_node=""``).
+    """
+    _patch_required_nodes(monkeypatch, {
+        "heroes.bahiti.wiki": "heroes.bahiti.wiki",
+        "molly": "page.heroes.molly",
+    })
+    _patch_hops(monkeypatch, {
+        ("page.heroes.bahiti", "heroes.bahiti.wiki"): 1,
+        ("page.heroes.bahiti", "page.heroes.molly"): 6,
+    })
+
+    wiki = _due_item(
+        task_type="heroes.bahiti.wiki", priority=80_000,
+        run_at=2000.0, created_at=2000.0,
+    )
+    molly = _due_item(
+        task_type="molly", priority=80_000,
+        run_at=1500.0, created_at=1500.0,  # 500s older
+    )
+
+    ranked = _rank([wiki, molly], current_screen="page.heroes.bahiti")
+    assert ranked[0][2]["task_type"] == "heroes.bahiti.wiki", (
+        "0-hop wiki should beat 6-hop molly even though molly is much older"
+    )
+
+
 @pytest.mark.asyncio
 async def test_explain_top_n_returns_full_breakdown(monkeypatch):
     """Debug command surfaces base_priority, effective, debuffs, hops, reachable."""

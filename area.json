@@ -2846,6 +2846,22 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "page.vip.unlock",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.988416988416994,
+            "y": 89.23913043478261,
+            "width": 45.99999999999999,
+            "height": 8.100000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
         }
       ]
     },
@@ -3179,6 +3195,18 @@
       "id": 66,
       "screen_id": "",
       "ocr": "references/events/event.7-day.png",
+      "regions": []
+    },
+    {
+      "id": 67,
+      "screen_id": "",
+      "ocr": "references/events/event.weekly_benefits.png",
+      "regions": []
+    },
+    {
+      "id": 68,
+      "screen_id": "",
+      "ocr": "references/events/event.crystal_reactivation.png",
       "regions": []
     }
   ]
