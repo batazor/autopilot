@@ -11,7 +11,7 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
-from actions.tap import BotActions
+from actions.tap import BotActions, click_approval_enabled
 from capture.adb_screencap import DEFAULT_ADB_BIN
 
 # Both functions are imported solely so they live as attributes on the
@@ -201,11 +201,18 @@ class InstanceWorker(
             # an in-flight scenario keeps tapping a force-stopped game.
             inner = asyncio.create_task(task.execute(self._cfg.instance_id))
             self._current_task_handle = inner
+            # In approval mode the task is legitimately blocked on operator
+            # input (``_require_approval`` busy-waits on Redis); the worker
+            # timeout would kill it mid-wait and discard the pending tap.
+            approval_on = click_approval_enabled(self._cfg.instance_id)
             try:
-                result = await asyncio.wait_for(
-                    inner,
-                    timeout=self._settings.worker.task_timeout_seconds,
-                )
+                if approval_on:
+                    result = await inner
+                else:
+                    result = await asyncio.wait_for(
+                        inner,
+                        timeout=self._settings.worker.task_timeout_seconds,
+                    )
             finally:
                 if self._current_task_handle is inner:
                     self._current_task_handle = None

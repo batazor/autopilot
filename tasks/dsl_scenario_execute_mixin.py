@@ -10,7 +10,7 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-from actions.tap import _redis, _require_approval
+from actions.tap import _consume_skip, _redis, _require_approval
 from config.log_ansi import scenario_log_label as _scen
 from debug.timeline import record_event_async
 from layout.area_lookup import screen_region_by_name
@@ -388,16 +388,20 @@ class DslScenarioExecuteMixin:
 
         # Pre-flight screen identity gate. When a scenario declares
         # ``node: <screen>`` it expects ``current_screen`` to be *known* on
-        # entry — even if it doesn't match the target, the navigator needs a
-        # starting point. An empty Redis ``current_screen`` on entry means
-        # ``where_i_am`` hasn't run since the last reset / restart, and
-        # firing the scenario regardless means the navigator does a blind
-        # detect-from-image while the UI shows ``node: —`` (confusing the
-        # operator about whether the bot knows where it is). Defer the
-        # scenario and seed a ``where_i_am`` probe so the next pop has a
-        # resolved screen to anchor against. ``device_level: true``
-        # scenarios opt out — popup dismissals and identity probes
-        # themselves must run regardless of FSM state.
+        # entry — firing it from an unknown state means the navigator does a
+        # blind detect-from-image while the UI shows ``node: —``. Hard policy:
+        # if ``current_screen`` is empty, defer the scenario and do nothing
+        # else. No ``where_i_am`` seed — the worker's rolling tick already
+        # runs screen detection on every frame
+        # (``_detect_current_screen_on_frame`` in
+        # ``worker/instance_worker_screen.py``), so a one-shot probe here is
+        # redundant. No history recovery — we don't trust a stale
+        # ``screen_history[0]`` as identity. The 10 s "tap close/back" escape
+        # valve is handled by ``_maybe_dismiss_unknown_popup`` →
+        # ``dismiss_unknown_popup`` once ``current_screen`` stays empty for
+        # ≥10 s with no global overlay match. ``device_level: true`` scenarios
+        # (overlay-pushed ad dismissals, identity probe, unstuck fallback) opt
+        # out and run regardless of FSM state.
         if (
             target_node
             and self.start_step_index <= 0
@@ -408,45 +412,6 @@ class DslScenarioExecuteMixin:
                 instance_id, self.redis_client
             )
             if not cur_screen_at_entry:
-                # Race recovery: ``current_screen`` going empty between hops
-                # is usually a transient verify-failure / detect-failure, not a
-                # real unknown — the device is often still on the screen the
-                # navigator just left. Cheaply re-verify the head of
-                # ``screen_history`` before bailing; on success we proceed
-                # with the scenario instead of deferring it (and losing it from
-                # the queue when the success-true ``TaskResult`` below
-                # short-circuits the requeue).
-                from navigation.navigator import Navigator
-
-                navigator = Navigator(
-                    actions.capture_screen_bgr,
-                    actions.tap,
-                    redis_client=self.redis_client,
-                )
-                recovered = ""
-                with suppress(Exception):
-                    recovered = await navigator.recover_screen_from_history(
-                        instance_id
-                    )
-                if recovered:
-                    cur_screen_at_entry = recovered
-                    logger.info(
-                        "dsl_scenario: %s recovered current_screen=%s from "
-                        "history on %s",
-                        _scen(key), recovered, instance_id,
-                    )
-            if not cur_screen_at_entry:
-                with suppress(Exception):
-                    from scheduler.queue import RedisQueue
-                    await RedisQueue(self.redis_client).schedule(
-                        task_id=f"node_gate:where_i_am:{instance_id}:{int(time.time())}",
-                        player_id="",
-                        task_type="where_i_am",
-                        priority=90_000,
-                        run_at=time.time(),
-                        instance_id=instance_id,
-                        skip_if_duplicate=True,
-                    )
                 _trace_row(
                     0,
                     {"navigate_to": target_node},
@@ -455,8 +420,7 @@ class DslScenarioExecuteMixin:
                     target=target_node,
                 )
                 logger.info(
-                    "dsl_scenario: deferring %s — current_screen is empty at "
-                    "entry; seeded where_i_am on %s",
+                    "dsl_scenario: deferring %s — current_screen is empty on %s",
                     _scen(key), instance_id,
                 )
                 return TaskResult(
@@ -800,8 +764,8 @@ class DslScenarioExecuteMixin:
                     max_iters = 20
                 max_iters = max(0, max_iters)
                 inner_steps = step.get("steps")
-                if not isinstance(inner_steps, list) or not inner_steps:
-                    inner_steps = [{"click": reg}]
+                if not isinstance(inner_steps, list):
+                    inner_steps = []
 
                 # Player-bound scenarios retry the *initial* probe to absorb
                 # screen-settling lag after navigation.  Subsequent probes are
@@ -1379,7 +1343,10 @@ class DslScenarioExecuteMixin:
                             completed=False,
                         ),
                     )
-                if self.redis_client is not None:
+                # Operator chose ``Skip``: leave current_screen untouched and
+                # move on to the next step.
+                skipped = _consume_skip(req_id)
+                if not skipped and self.redis_client is not None:
                     with suppress(Exception):
                         await self.redis_client.hset(
                             f"wos:instance:{instance_id}:state",

@@ -312,7 +312,7 @@ def fragment_pending_approval_columns(
                 with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
                     st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
-                c1, c2 = st.columns([1, 1], vertical_alignment="center")
+                c1, c2, c3 = st.columns([1, 1, 1], vertical_alignment="center")
                 with c1:
                     if st.button(
                         "✅ Approve",
@@ -326,6 +326,13 @@ def fragment_pending_approval_columns(
                             client.delete(curr_key)
                         st.rerun()
                 with c2:
+                    if st.button("⏭️ Skip", width="stretch", key=f"skip-{inst}"):
+                        response_key = str(payload.get("response_key") or "").strip()
+                        if response_key:
+                            client.set(response_key, "skip", ex=120)
+                            client.delete(curr_key)
+                        st.rerun()
+                with c3:
                     if st.button("❌ Reject", width="stretch", key=f"rej-{inst}"):
                         response_key = str(payload.get("response_key") or "").strip()
                         if response_key:
@@ -357,7 +364,7 @@ def fragment_pending_approval_columns(
         with st.expander(f"Payload · {_payload_action_label(payload)}", expanded=False):
             st.code(json.dumps(payload, indent=2, ensure_ascii=False), language="json")
 
-        c1, c2 = st.columns([1, 1], vertical_alignment="center")
+        c1, c2, c3 = st.columns([1, 1, 1], vertical_alignment="center")
         with c1:
             if st.button(
                 "✅ Approve",
@@ -371,6 +378,13 @@ def fragment_pending_approval_columns(
                     client.delete(curr_key)
                 st.rerun()
         with c2:
+            if st.button("⏭️ Skip", width="stretch", key=f"skip-{inst}"):
+                response_key = str(payload.get("response_key") or "").strip()
+                if response_key:
+                    client.set(response_key, "skip", ex=120)
+                    client.delete(curr_key)
+                st.rerun()
+        with c3:
             if st.button("❌ Reject", width="stretch", key=f"rej-{inst}"):
                 response_key = str(payload.get("response_key") or "").strip()
                 if response_key:

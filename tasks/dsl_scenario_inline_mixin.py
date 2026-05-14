@@ -804,8 +804,8 @@ class DslScenarioInlineMixin:
                 max_iters = 20
             max_iters = max(0, max_iters)
             inner_steps = step.get("steps")
-            if not isinstance(inner_steps, list) or not inner_steps:
-                inner_steps = [{"click": reg}]
+            if not isinstance(inner_steps, list):
+                inner_steps = []
 
             iterations = 0
             for iter_idx in range(max_iters):

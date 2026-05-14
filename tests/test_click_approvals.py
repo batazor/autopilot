@@ -21,11 +21,13 @@ class _RedisProxy:
         client: Any,
         *,
         approve_on_current: bool = False,
+        decision_on_current: str | None = None,
         drop_current_after_publish: bool = False,
         inject_foreign_current: bool = False,
     ) -> None:
         self._r = client
         self._approve_on_current = approve_on_current
+        self._decision_on_current = decision_on_current
         self._drop_current_after_publish = drop_current_after_publish
         self._inject_foreign_current = inject_foreign_current
 
@@ -47,7 +49,10 @@ class _RedisProxy:
                 self._inject_foreign_current = False
                 return True
 
-            if self._approve_on_current:
+            if self._decision_on_current is not None:
+                payload = json.loads(value)
+                self._r.set(str(payload["response_key"]), self._decision_on_current)
+            elif self._approve_on_current:
                 payload = json.loads(value)
                 self._r.set(str(payload["response_key"]), "approve")
             if self._drop_current_after_publish:
@@ -688,3 +693,27 @@ def test_require_approval_survives_capturer_exception(
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
     # Falls back to the originally-cached preview from the caller.
     assert current["preview_png_rel"] == "temporal/cached.png"
+
+
+def test_require_approval_skip_returns_ok_and_queues_consume_marker(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """Operator ``skip`` returns ``ok=True`` (callers must not abort) AND queues
+    a one-shot consume marker so the ADB action (tap/swipe/type_text) can be
+    bypassed without aborting the scenario.
+    """
+    r = _RedisProxy(redis_sync, decision_on_current="skip")
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    _patch_redis(monkeypatch, r)
+    tap._skipped_req_ids.clear()
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is True
+    assert req_id is not None
+    assert tap._consume_skip(req_id) is True
+    # Marker is single-shot — a second consume must return False.
+    assert tap._consume_skip(req_id) is False
+    # The slot was cleared by the cleanup path (skip is non-approve).
+    assert r.get("wos:ui:click_approval:current:bs1") is None

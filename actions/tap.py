@@ -76,6 +76,11 @@ APPROVAL_CURRENT_TTL_SECONDS = 600
 # waiting requests when the running DSL scenario has clearly moved on.
 _APPROVAL_STALE_CURRENT_SECONDS = 120.0
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
+# Operator-issued ``skip`` decisions queued by ``_require_approval`` for the
+# tap/swipe/type_text helpers to consume. Skip means "don't execute this ADB
+# action but don't abort the scenario either" — the caller treats it as a
+# successful no-op and proceeds to the next step.
+_skipped_req_ids: set[str] = set()
 _SWIPE_MIN_DURATION_MS = 900
 _SWIPE_SETTLE_SECONDS = 0.25
 # ±15 % jitter on top of the post-min duration so two identical YAML swipes
@@ -471,7 +476,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
 
         time.sleep(_APPROVAL_POLL_SECONDS)
 
-    if decision in {"approve", "reject"}:
+    if decision in {"approve", "reject", "skip"}:
         # Persist decision time on the current payload for UI/debug.
         try:
             raw_cur = _redis().get(current_key)
@@ -481,7 +486,12 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                     doc["decision"] = decision
                     doc["approved_at"] = time.time() if decision == "approve" else None
                     doc["rejected_at"] = time.time() if decision == "reject" else None
-                    doc["status"] = "approved" if decision == "approve" else "rejected"
+                    doc["skipped_at"] = time.time() if decision == "skip" else None
+                    doc["status"] = {
+                        "approve": "approved",
+                        "reject": "rejected",
+                        "skip": "skipped",
+                    }[decision]
                     _redis().set(
                         current_key,
                         json.dumps(doc),
@@ -490,7 +500,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         except Exception:
             logger.debug("Failed to mark decision timestamps", exc_info=True)
 
-    # On reject/timeout, clear slot so the bot can proceed.
+    # On reject/skip/timeout, clear slot so the bot can proceed.
     if decision != "approve":
         try:
             raw_cur = _redis().get(current_key)
@@ -500,7 +510,27 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         except Exception:
             logger.debug("approval cleanup failed", exc_info=True)
 
-    return decision == "approve", req_id
+    # Operator-skipped: queue the req_id so the next call to
+    # ``_consume_skip`` (from tap()/swipe()/type_text()/set_node handler)
+    # short-circuits the ADB action while still returning ok=True to keep
+    # the caller from aborting the scenario.
+    if decision == "skip" and req_id:
+        _skipped_req_ids.add(req_id)
+
+    return decision in {"approve", "skip"}, req_id
+
+
+def _consume_skip(req_id: str | None) -> bool:
+    """True (and pops the marker) when the most recent approval for
+    ``req_id`` was an operator ``skip``. Callers use this between
+    ``_require_approval`` returning ok=True and actually issuing the ADB
+    action — skip means "treat as successful no-op, do not tap"."""
+    if not req_id:
+        return False
+    if req_id in _skipped_req_ids:
+        _skipped_req_ids.discard(req_id)
+        return True
+    return False
 
 
 def _clamp(val: int, lo: int, hi: int) -> int:
@@ -688,6 +718,12 @@ class AdbController:
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
             return False
+        if _consume_skip(req_id):
+            logger.info(
+                "ADB tap skipped by operator: %s (%d,%d)", self._instance_id, x, y
+            )
+            self._refresh_rolling_preview()
+            return True
         with self._approval_execution(req_id):
             self._shell("input", "tap", str(x), str(y))
             logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
@@ -854,6 +890,10 @@ class AdbController:
         if not ok:
             logger.info("ADB swipe blocked (no approval): %s", self._instance_id)
             return False
+        if _consume_skip(req_id):
+            logger.info("ADB swipe skipped by operator: %s", self._instance_id)
+            self._refresh_rolling_preview()
+            return True
         with self._approval_execution(req_id):
             # Zero-distance swipe: prefer plain ``input swipe`` — ``touchscreen swipe`` often
             # fails on emulators for press-and-hold at one pixel.
@@ -906,6 +946,10 @@ class AdbController:
         if not ok:
             logger.info("ADB type_text blocked (no approval): %s", self._instance_id)
             return False
+        if _consume_skip(req_id):
+            logger.info("ADB type_text skipped by operator: %s", self._instance_id)
+            self._refresh_rolling_preview()
+            return True
         with self._approval_execution(req_id):
             self._shell("input", "text", escaped)
             logger.debug("Type '%s' on %s", text, self._serial)

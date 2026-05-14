@@ -20,13 +20,10 @@ steps:
   # cond passes trivially. No Redis write here (no ``store:``) since these
   # values aren't consumed between steps within this same scenario.
   - ocr: exploration.level
-    type: integer
     state: exploration.level
   - ocr: exploration.state.myPower
-    type: integer
     state: exploration.state.myPower
   - ocr: exploration.state.enemyPower
-    type: integer
     state: exploration.state.enemyPower
 
   # Re-deploy the squad and start a fight.
@@ -38,31 +35,44 @@ steps:
   # polling the status banner.
   - wait: 10s
 
-  # Poll OCR'ing the status banner each iteration; exit once the text contains
-  # ``victory`` or ``defeat`` (case-insensitive). The OCR step inherits the
-  # region's ``threshold: 0.9`` from area.json — mid-animation low-confidence
-  # reads are correctly skipped (no garbage written), and the loop keeps
-  # polling until a stable banner OCR clears the threshold. ``squad_status``
-  # is a ``store:`` field (ephemeral, scenario-scope), so the DSL runner
-  # wipes it from Redis at scenario start — no stale ``"Victory!"`` /
-  # ``"Defeat!"`` from prior runs can short-circuit the loop's exit cond.
+  # Wait for the fight result: poll-OCR the status banner each iteration and
+  # exit the loop the moment the text contains ``victory`` or ``defeat``
+  # (case-insensitive). The OCR step inherits the region's ``threshold: 0.9``
+  # from area.json — mid-animation low-confidence reads are correctly skipped
+  # (no garbage written), and the loop keeps polling until a stable banner
+  # OCR clears the threshold. ``squad_status`` is a ``store:`` field
+  # (ephemeral, scenario-scope), so the DSL runner wipes it from Redis at
+  # scenario start — no stale ``"Victory!"`` / ``"Defeat!"`` from prior runs
+  # can short-circuit the loop's exit cond.
   - loop:
       cond: 'squad_status ~= "victory|defeat"'
       steps:
         - ocr: page.squad_settings.status
           store: squad_status
         - wait: 2s
-
-        # Won → tap `next` to dismiss the banner / start the next fight, then re-push
-        # ourselves so the scheduler picks up the next iteration. Lost → fall through
-        # and end (no push, no further taps). The ``~=`` operator is a case-insensitive
-        # substring match, so "Victory!", "VICTORY", and "victory" all hit.
-        - cond: squad_status ~= "victory"
+        # If the auto button is disabled, click it to enable it.
+        - while_match: page.squad_fight.auto
+          cond: exploration.level >= 5
           steps:
-            - click: page.squad_settings.next
-            - push_scenario: squad_fight
-
-        - cond: squad_status ~= "defeat"
+            - click: page.squad_fight.auto
+            - wait: 1s
+        # If the auto button is disabled, click it to enable it.
+        - while_match: page.squad_fight.speed
+          cond: exploration.level >= 10
           steps:
-            - click: page.squad_settings.status.defeat
-            - wait: 2s
+            - click: page.squad_fight.speed
+
+  # Won → dismiss the banner with ``next`` and re-push ourselves so the
+  # scheduler picks up the follow-on fight. The ``~=`` operator is a
+  # case-insensitive substring match, so "Victory!", "VICTORY", and
+  # "victory" all hit.
+  - cond: squad_status ~= "victory"
+    steps:
+      - push_scenario: squad_fight
+      - click: page.squad_settings.next
+
+  # Lost → dismiss the defeat banner and exit (no re-push).
+  - cond: squad_status ~= "defeat"
+    steps:
+      - click: page.squad_settings.status.defeat
+      - wait: 2s

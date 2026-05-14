@@ -42,6 +42,15 @@ overlay:
   pushScenario:
     - name: tap_ads_legend_transcend_pack
 
+- name: button.letsdothis.visible
+  region: button.letsdothis
+  action: findIcon
+  priority: 90_000
+  threshold: 0.9
+  ttl: 3
+  pushScenario:
+    - name: player_survey
+
 - name: button.done.visible
   region: button.done
   action: findIcon

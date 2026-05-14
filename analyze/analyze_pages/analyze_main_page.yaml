@@ -109,7 +109,6 @@ overlay:
     - main_city
   pushScenario:
   - name: vip.claim
-    ttl: 5m
 
 - name: main_city.to.shop.has_red_dot
   region: main_city.to.shop
