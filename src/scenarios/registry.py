@@ -1,8 +1,7 @@
 """Scenario source registry.
 
-Core scenarios live under ``scenarios/``. Optional feature modules can add
-their own runnable YAMLs under ``modules/<module_id>/scenarios/`` without
-being copied into the core tree. Base modules live under ``modules/core/<id>/``.
+Runnable YAMLs live in module-owned ``scenarios`` directories under
+``modules/``. Base modules live under ``modules/core/<id>/``.
 """
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ from config.module_discovery import (
     module_meta_id,
 )
 from config.module_registry import ALL_MODULES_KEY, CORE_MODULE_KEY, normalize_module_scope
-from config.paths import core_scenarios_root
 
 
 @dataclass(frozen=True)
@@ -35,9 +33,6 @@ def scenario_roots(
     """Return scenario roots in deterministic lookup order, optionally filtered."""
     scope = normalize_module_scope(module_scope)
     roots: list[ScenarioRoot] = []
-    core = core_scenarios_root(repo_root)
-    if core.is_dir() and scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
-        roots.append(ScenarioRoot(path=core, label="scenarios"))
 
     for module_dir in iter_module_dirs(repo_root):
         if scope == CORE_MODULE_KEY and not is_core_nested_module(module_dir, repo_root):

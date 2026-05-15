@@ -64,7 +64,7 @@ def _all_player_ids(settings: Settings) -> list[str]:
 
 
 def _scenario_rel_top_folder(rel: str) -> str:
-    """Top folder for pills — ``module:<id>`` or first segment under ``scenarios/``."""
+    """Top folder for pills — ``module:<id>`` or first path segment."""
 
     parts = Path(rel).parts
     if parts and parts[0] == "modules" and len(parts) >= 2:
@@ -238,7 +238,7 @@ def _scenario_file_row(sid: str, name: str, raw: dict) -> dict:
 def _build_folder_tree_from_meta(
     scenario_meta: list[tuple[Path, str, str, str, dict]],
 ) -> _FolderNode:
-    """Group display rows by relative path under ``scenarios/`` (folder nesting)."""
+    """Group display rows by relative path (folder nesting)."""
     root = _FolderNode()
     for _path, rel, sid, name, raw in scenario_meta:
         row = _scenario_file_row(sid, name, raw)
@@ -496,14 +496,14 @@ with tab_files:
             "Enable",
             key="scenarios_enable_selected",
             width="stretch",
-            help="Write `enabled: true` to selected YAML files under scenarios/",
+            help="Write `enabled: true` to selected module scenario YAML files",
         )
     with _bulk[2]:
         disable_selected = st.button(
             "Disable",
             key="scenarios_disable_selected",
             width="stretch",
-            help="Write `enabled: false` to selected YAML files under scenarios/",
+            help="Write `enabled: false` to selected module scenario YAML files",
         )
     with _bulk[3]:
         n_sel = len(selected_ids)
@@ -585,7 +585,7 @@ with tab_files:
 
 with tab_cron:
     if not cron_meta:
-        st.info("No YAML files with a root `cron` field under `scenarios/`.")
+        st.info("No module scenario YAML files with a root `cron` field.")
     else:
         import json
         import re

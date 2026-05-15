@@ -16,7 +16,9 @@ redis:
   url: redis://yaml:6379/0
   key_prefix: wos
 ocr:
-  url: http://yaml-ocr:8000
+  lang: eng
+  tesseract_cmd: tesseract
+  tessdata_dir: ""
   timeout_seconds: 10
 omniparser:
   url: http://yaml-omni:8765
@@ -30,7 +32,9 @@ worker: {}
     )
     monkeypatch.setenv("WOS_REDIS_URL", "redis://env:6379/1")
     monkeypatch.setenv("WOS_REDIS_KEY_PREFIX", "test")
-    monkeypatch.setenv("WOS_OCR_URL", "http://env-ocr:8000")
+    monkeypatch.setenv("WOS_OCR_LANG", "eng")
+    monkeypatch.setenv("WOS_TESSERACT_CMD", "/opt/bin/tesseract")
+    monkeypatch.setenv("TESSDATA_PREFIX", "/opt/share/tessdata")
     monkeypatch.setenv("WOS_OCR_TIMEOUT_SECONDS", "42")
     monkeypatch.setenv("OMNIPARSER_URL", "http://env-omni:8765")
     monkeypatch.setenv("OMNIPARSER_TIMEOUT_SECONDS", "7")
@@ -39,7 +43,9 @@ worker: {}
 
     assert settings.redis.url == "redis://env:6379/1"
     assert settings.redis.key_prefix == "test"
-    assert settings.ocr.url == "http://env-ocr:8000"
+    assert settings.ocr.lang == "eng"
+    assert settings.ocr.tesseract_cmd == "/opt/bin/tesseract"
+    assert settings.ocr.tessdata_dir == "/opt/share/tessdata"
     assert settings.ocr.timeout_seconds == 42
     assert settings.omniparser.url == "http://env-omni:8765"
     assert settings.omniparser.timeout_seconds == 7

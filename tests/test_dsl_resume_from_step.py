@@ -22,14 +22,23 @@ class _FakeActions:
         return np.zeros((100, 100, 3), dtype=np.uint8)
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 @pytest.mark.asyncio
 async def test_resume_from_step_skips_root_node_navigation(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "resume_router.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "resume_router.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -73,8 +82,9 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "done_router.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "done_router.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -125,8 +135,9 @@ async def test_navigation_failed_records_trace_row(
     producing TaskResult metadata with an empty ``steps_trace`` — the UI
     showed "0 steps ran" with no hint of what went wrong.
     """
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "nav_fail.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "nav_fail.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -185,8 +196,9 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
     blanked ``current_screen``, that BFS failed and the whole scenario aborted
     with ``navigation_failed`` even though earlier steps had completed.
     """
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "preempt_router.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "preempt_router.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -261,8 +273,9 @@ async def test_resume_hydrates_trace_from_prior_slice(
     history, so the resumed TaskResult shows the full scenario story rather
     than only what happened after resume.
     """
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "resume_trace.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "resume_trace.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -326,8 +339,9 @@ async def test_nested_steps_emit_trace_rows_with_path_indices(
     Before this change, only the top-level container row was recorded —
     nested clicks and inner ``while_match`` iterations were invisible.
     """
-    (tmp_path / "scenarios" / "chapters").mkdir(parents=True)
-    (tmp_path / "scenarios" / "chapters" / "nested.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "chapters").mkdir(parents=True)
+    (scenario_root / "chapters" / "nested.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

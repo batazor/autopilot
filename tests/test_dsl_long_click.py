@@ -37,8 +37,11 @@ async def test_dsl_long_click_uses_wait_as_duration(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "building").mkdir(parents=True)
-    (tmp_path / "scenarios" / "building" / "long_click_demo.yaml").write_text(
+    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = module_dir / "scenarios"
+    (scenario_root / "building").mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    (scenario_root / "building" / "long_click_demo.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -156,7 +159,6 @@ async def test_dsl_missing_scenario_pushes_ui_notification(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios").mkdir()
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
 
     task = dsl.DslScenarioTask(

@@ -1,4 +1,4 @@
-"""Structured editor for DSL scenarios (``scenarios/<domain>/<key>.yaml``).
+"""Structured editor for module-owned DSL scenario YAMLs.
 
 Companion to ``ui/views/debug_scenarios.py`` (read-only runner). This page edits
 the YAML in a form-based UI and saves with a timestamped backup. Running the
@@ -22,10 +22,10 @@ from st_ant_tree import st_ant_tree
 from streamlit_dnd_sortable import apply_order_to_list, sortable_list
 
 from config.reference_naming import event_icon_abs_path
-from config.startup_validation import duplicate_scenario_names
+from config.startup_validation import duplicate_scenario_names_for_repo
 from navigation.screen_graph import screen_verify_screen_names
 from scenarios.dsl_schema import DSL_ACTION_KEYS, dump_scenario, parse_scenario
-from scenarios.registry import iter_scenario_yaml_files, scenario_source_label
+from scenarios.registry import iter_scenario_yaml_files, scenario_roots, scenario_source_label
 from tasks.dsl_exec import DSL_EXEC_REGISTRY
 from ui.module_scope import render_module_scope_selector
 
@@ -69,12 +69,6 @@ def default_repo_root() -> Path:
     return repo_root()
 
 
-def _scenarios_root() -> Path:
-    from config.paths import core_scenarios_root
-
-    return core_scenarios_root()
-
-
 def _list_scenario_files(module_scope: str) -> list[Path]:
     repo = default_repo_root()
     out: list[Path] = []
@@ -91,7 +85,17 @@ def _list_scenario_files(module_scope: str) -> list[Path]:
 
 
 def _scenario_keys() -> list[str]:
-    return sorted({p.stem for p in _scenarios_root().rglob("*.yaml")})
+    return sorted({p.stem for _root, p in iter_scenario_yaml_files(default_repo_root())})
+
+
+def _scenario_root_for_path(path: Path) -> Path:
+    repo = default_repo_root()
+    resolved = path.resolve()
+    for root in scenario_roots(repo):
+        root_resolved = root.path.resolve()
+        if resolved == root_resolved or root_resolved in resolved.parents:
+            return root.path
+    return path.parent
 
 
 @st.cache_data(show_spinner=False)
@@ -165,11 +169,12 @@ def _save_doc(path: Path, doc: dict[str, Any]) -> Path:
     parsed = parse_scenario(doc)
     out_doc = dump_scenario(parsed)
 
-    backups_root = _scenarios_root() / ".backups"
+    scenario_root = _scenario_root_for_path(path)
+    backups_root = scenario_root / ".backups"
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_dir = backups_root / ts
     if path.is_file():
-        rel = path.relative_to(_scenarios_root())
+        rel = path.relative_to(scenario_root)
         backup_path = backup_dir / rel
         backup_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, backup_path)
@@ -590,7 +595,7 @@ def _name_collisions(current_rel: str, current_name: str) -> list[str]:
     nm = (current_name or "").strip()
     if not nm:
         return []
-    dups = duplicate_scenario_names(_scenarios_root())
+    dups = duplicate_scenario_names_for_repo(default_repo_root())
     others: list[str] = []
     for rel in dups.get(nm, []):
         if rel != current_rel:
@@ -706,7 +711,7 @@ def _selected_path_key() -> str:
 st.title("Scenarios editor")
 st.caption(
     "Edit DSL scenarios in form view. `drafts/` is read-only. Saves are validated against "
-    "the DSL schema and back up the previous file under `scenarios/.backups/<timestamp>/`."
+    "the DSL schema and back up the previous file under the module's `.backups/<timestamp>/`."
 )
 
 with st.sidebar:
@@ -825,16 +830,17 @@ with top_new, st.popover("New", width="stretch", help="Create a new scenario YAM
     new_key = st.text_input("file key", placeholder="e.g. dismiss_popup", key="es::newkey")
     if st.button("Create", key="es::newbtn", type="primary", width="stretch"):
         key = _safe_filename(new_key)
-        new_path = _scenarios_root() / new_domain / f"{key}.yaml"
+        scenario_root = _scenario_root_for_path(selected_path)
+        new_path = scenario_root / new_domain / f"{key}.yaml"
         if new_path.exists():
-            st.error(f"already exists: {new_path.relative_to(_scenarios_root())}")
+            st.error(f"already exists: {new_path.relative_to(scenario_root)}")
         elif not new_key.strip():
             st.error("file key is required")
         else:
             new_path.parent.mkdir(parents=True, exist_ok=True)
             stub = {"name": key.replace("_", " "), "enabled": False, "steps": []}
             new_path.write_text(yaml.safe_dump(stub, sort_keys=False), encoding="utf-8")
-            st.session_state[_selected_path_key()] = new_path.relative_to(_scenarios_root()).as_posix()
+            st.session_state[_selected_path_key()] = scenario_source_label(new_path, _repo)
             st.session_state.pop(_doc_session_key(new_path), None)
             st.rerun()
 

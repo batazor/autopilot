@@ -1,4 +1,4 @@
-"""Pydantic schema for DSL scenarios under ``scenarios/``.
+"""Pydantic schema for module-owned DSL scenario YAMLs.
 
 Mirrors the runtime executor in ``tasks/dsl_scenario.py``. The action key set is
 authoritative there (``_DSL_STEP_ACTION_KEYS``); this schema covers the same set
@@ -42,8 +42,6 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "ocr",
     "set_node",
     "swipe_direction",
-    "tap",
-    "swipe",
     "push_scenario",
     "exec",
     "wait",
@@ -92,13 +90,6 @@ class DslStep(BaseModel):
 
     push_scenario: str | dict[str, Any] | None = None
     swipe_direction: dict[str, Any] | None = None
-    # Raw-coord taps & swipes (percent-of-screen). Produced by the recorder UI
-    # (``ui/views/recorder.py``) — operator-recorded gestures that don't have a
-    # named region in ``area.json``. The runtime translates the percent fields
-    # into pixel coordinates using the live frame size and dispatches the
-    # corresponding ADB action via ``adb`` (``BotActions`` / ``AdbController``).
-    tap: dict[str, Any] | None = None
-    swipe: dict[str, Any] | None = None
     # Typed specs so nested ``steps`` go through ``DslStep`` validation —
     # otherwise inner step shapes (e.g. ``long_click + wait`` as duration)
     # slip past the schema even though the runtime executes them.
@@ -326,7 +317,7 @@ def _strip_defaults(d: Any) -> Any:
 def resolve_dsl_scenario_yaml_path(repo_root: Path, scenario_key: str) -> Path | None:
     """Path to the scenario YAML for ``scenario_key``.
 
-    Literal ``scenarios/**/{key}.yaml`` wins; falls back to template files
+    Literal ``{key}.yaml`` wins inside module scenario roots; falls back to template files
     (e.g. ``level_up_{hero}.yaml``) — note the returned path is the **template
     file**, so direct ``read_text()`` callers will see ``${hero_id}``-style
     placeholders. Use ``scenarios.template_resolver.load_doc`` if you need the

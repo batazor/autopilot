@@ -167,6 +167,12 @@ def _index_regions_by_name(regions: Any) -> dict[str, dict[str, Any]]:
         name = str(reg.get("name", "") or "").strip()
         if name:
             out[name] = reg
+        aliases = reg.get("aliases")
+        if isinstance(aliases, list):
+            for alias in aliases:
+                alias_s = str(alias or "").strip()
+                if alias_s:
+                    out[alias_s] = reg
     return out
 
 

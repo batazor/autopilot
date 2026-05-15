@@ -21,8 +21,10 @@ def test_normalize_module_scope_defaults_to_all() -> None:
 
 
 def test_scenario_roots_filter_core_only(tmp_path: Path) -> None:
-    (tmp_path / "scenarios").mkdir()
-    (tmp_path / "scenarios" / "a.yaml").write_text("steps: []\n", encoding="utf-8")
+    core = tmp_path / "modules" / "core" / "bootstrap_probe"
+    (core / "scenarios").mkdir(parents=True)
+    (core / "module.yaml").write_text("id: bootstrap_probe\ntitle: Bootstrap\n", encoding="utf-8")
+    (core / "scenarios" / "a.yaml").write_text("steps: []\n", encoding="utf-8")
     mod = tmp_path / "modules" / "mail"
     (mod / "scenarios").mkdir(parents=True)
     (mod / "module.yaml").write_text("id: mail\ntitle: Mail\n", encoding="utf-8")
@@ -32,18 +34,21 @@ def test_scenario_roots_filter_core_only(tmp_path: Path) -> None:
     assert len(all_roots) == 2
     core_only = scenario_roots(tmp_path, CORE_MODULE_KEY)
     assert len(core_only) == 1
-    assert core_only[0].module_id is None
+    assert core_only[0].module_id == "bootstrap_probe"
     mail_only = scenario_roots(tmp_path, "mail")
     assert len(mail_only) == 1
     assert mail_only[0].module_id == "mail"
 
 
 def test_path_matches_module_scope(tmp_path: Path) -> None:
-    core = tmp_path / "scenarios" / "x.yaml"
+    core = tmp_path / "modules" / "core" / "bootstrap_probe" / "scenarios" / "x.yaml"
     core.parent.mkdir(parents=True)
+    (tmp_path / "modules" / "core" / "bootstrap_probe" / "module.yaml").write_text(
+        "id: bootstrap_probe\n", encoding="utf-8"
+    )
     core.write_text("", encoding="utf-8")
     nested = tmp_path / "modules" / "core" / "bootstrap_probe" / "scenarios" / "z.yaml"
-    nested.parent.mkdir(parents=True)
+    nested.parent.mkdir(parents=True, exist_ok=True)
     (tmp_path / "modules" / "core" / "bootstrap_probe" / "module.yaml").write_text(
         "id: bootstrap_probe\n", encoding="utf-8"
     )

@@ -40,10 +40,20 @@ def _claim_pattern() -> np.ndarray:
     return patch
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    mod.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    scen = mod / "scenarios"
+    scen.mkdir(exist_ok=True)
+    return scen
+
+
 def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
-    (tmp_path / "scenarios" / "overlay").mkdir(parents=True)
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "overlay").mkdir(parents=True)
     (tmp_path / "references" / "crop").mkdir(parents=True)
-    (tmp_path / "scenarios" / "overlay" / "tap_claim_button.yaml").write_text(
+    (scenario_root / "overlay" / "tap_claim_button.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -129,9 +139,10 @@ def _write_repo_with_else(tmp_path: Path, frame: np.ndarray) -> None:
     a fallback ``button.fallback`` that is clicked from the ``else:`` branch
     when the primary never matches.
     """
-    (tmp_path / "scenarios" / "overlay").mkdir(parents=True)
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "overlay").mkdir(parents=True)
     (tmp_path / "references" / "crop").mkdir(parents=True)
-    (tmp_path / "scenarios" / "overlay" / "tap_with_else.yaml").write_text(
+    (scenario_root / "overlay" / "tap_with_else.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

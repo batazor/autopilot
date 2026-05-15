@@ -21,14 +21,23 @@ class _FakeActions:
         return True
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 @pytest.mark.asyncio
 async def test_dsl_click_uses_overlay_tap_override(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "hand_pointer.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "hand_pointer.yaml").write_text(
         yaml.dump({"enabled": True, "name": "Hand", "steps": [{"click": "hand_pointer"}]}),
         encoding="utf-8",
     )
@@ -84,8 +93,9 @@ async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
     Without forwarding, click steps with `_search` companions would fall back to
     the engine default and ignore user-set saturation gates.
     """
-    (tmp_path / "scenarios" / "main_city").mkdir(parents=True)
-    (tmp_path / "scenarios" / "main_city" / "tap_with_sat.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "main_city").mkdir(parents=True)
+    (scenario_root / "main_city" / "tap_with_sat.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

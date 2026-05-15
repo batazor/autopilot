@@ -1,4 +1,4 @@
-"""Cron vs plain scenarios: any YAML under ``scenarios/`` with a non-empty root ``cron`` field.
+"""Cron vs plain scenarios: any runnable YAML with a non-empty root ``cron`` field.
 
 There is no separate ``by_cron/`` convention — location is arbitrary; scheduling is
 determined only by the presence of ``cron`` in the parsed root mapping.
@@ -60,7 +60,7 @@ def _is_under_drafts(rel_parts: tuple[str, ...]) -> bool:
 
 
 def iter_scenarios_yaml_paths(scenarios_root: Path) -> list[Path]:
-    """All ``*.yaml`` under ``scenarios/``, excluding anything under ``drafts/``."""
+    """All ``*.yaml`` under one scenario root, excluding anything under ``drafts/``."""
     if not scenarios_root.is_dir():
         return []
     out: list[Path] = []
@@ -76,7 +76,7 @@ def iter_scenarios_yaml_paths_for_repo(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> list[Path]:
-    """All scenario YAML paths under core + module roots for ``module_scope``."""
+    """All scenario YAML paths under module roots for ``module_scope``."""
     return [path for _root, path in iter_scenario_yaml_files(repo_root, module_scope)]
 
 
@@ -110,7 +110,7 @@ def iter_cron_yaml_files_for_repo(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> list[Path]:
-    """Cron YAMLs across core + module scenario trees."""
+    """Cron YAMLs across module scenario trees."""
     out: list[Path] = []
     for p in iter_scenarios_yaml_paths_for_repo(repo_root, module_scope):
         raw = load_root_mapping(p)
@@ -142,7 +142,7 @@ def iter_plain_scenario_yaml_files_for_repo(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> list[Path]:
-    """Plain (non-cron) scenario YAMLs across core + module trees."""
+    """Plain (non-cron) scenario YAMLs across module scenario trees."""
     out: list[Path] = []
     for p in iter_scenarios_yaml_paths_for_repo(repo_root, module_scope):
         raw = load_root_mapping(p)

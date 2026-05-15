@@ -132,8 +132,6 @@ def _dsl_step_summary(step: Any) -> str:
         "ocr",
         "set_node",
         "swipe_direction",
-        "tap",
-        "swipe",
         "push_scenario",
         "exec",
         "wait",
@@ -152,13 +150,6 @@ def _dsl_step_summary(step: Any) -> str:
             base = "loop"
         elif key == "swipe_direction":
             base = f"swipe:{str(val)[:40]}"
-        elif key == "tap" and isinstance(val, dict):
-            base = f"tap:{val.get('x_pct')},{val.get('y_pct')}"
-        elif key == "swipe" and isinstance(val, dict):
-            base = (
-                f"swipe:{val.get('x1_pct')},{val.get('y1_pct')}"
-                f"→{val.get('x2_pct')},{val.get('y2_pct')}"
-            )
         elif key == "push_scenario":
             base = f"push:{str(val)[:40]}"
         elif key == "exec":

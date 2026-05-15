@@ -21,7 +21,9 @@ class RedisConfig:
 
 @dataclass(frozen=True)
 class OcrConfig:
-    url: str
+    lang: str = "eng"
+    tesseract_cmd: str = "tesseract"
+    tessdata_dir: str = ""
     timeout_seconds: int = 10
 
 
@@ -107,8 +109,15 @@ def load_settings(path: Path | None = None) -> Settings:
         redis_raw["key_prefix"] = redis_prefix
 
     ocr_raw = dict(raw["ocr"])
-    if ocr_url := _env_value("WOS_OCR_URL"):
-        ocr_raw["url"] = ocr_url
+    # Backwards compatibility: older configs used a sidecar URL. Local
+    # Tesseract OCR no longer needs it, so ignore the key if it is still present.
+    ocr_raw.pop("url", None)
+    if ocr_lang := _env_value("WOS_OCR_LANG"):
+        ocr_raw["lang"] = ocr_lang
+    if ocr_cmd := _env_value("WOS_TESSERACT_CMD"):
+        ocr_raw["tesseract_cmd"] = ocr_cmd
+    if tessdata_dir := _env_value("TESSDATA_PREFIX"):
+        ocr_raw["tessdata_dir"] = tessdata_dir
     if (ocr_timeout := _env_int("WOS_OCR_TIMEOUT_SECONDS")) is not None:
         ocr_raw["timeout_seconds"] = ocr_timeout
 

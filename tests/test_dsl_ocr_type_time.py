@@ -77,9 +77,18 @@ class _FakeActions:
         return True
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 def _write_timer_repo(tmp_path: Path) -> None:
-    (tmp_path / "scenarios" / "exploration").mkdir(parents=True)
-    (tmp_path / "scenarios" / "exploration" / "read_timer.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "exploration").mkdir(parents=True)
+    (scenario_root / "exploration" / "read_timer.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -177,8 +186,9 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
     marker with TTL = parsed seconds. Future overlay pushes of the named
     scenario are dropped until the marker expires.
     """
-    (tmp_path / "scenarios" / "building").mkdir(parents=True)
-    (tmp_path / "scenarios" / "building" / "throttle.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "building").mkdir(parents=True)
+    (scenario_root / "building" / "throttle.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -272,8 +282,9 @@ async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
     """When no ``active_player`` is set anywhere, throttle key falls back to
     per-instance scope — mirrors ``_enqueue_push_scenarios_from_overlay``.
     """
-    (tmp_path / "scenarios" / "building").mkdir(parents=True)
-    (tmp_path / "scenarios" / "building" / "throttle.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "building").mkdir(parents=True)
+    (scenario_root / "building" / "throttle.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -385,7 +396,7 @@ async def test_ocr_step_time_building_upgrading_reference_image(
     1. The bbox→px crop math (``_persist_ocr_result``) hits the correct
        region (``(520, 710, 111, 35)`` on a 720×1280 frame).
     2. The OCR client's response ("00:00:27" — captured live against the
-       reference image with the real OCR service) is parsed as 27 seconds.
+       reference image with local OCR) is parsed as 27 seconds.
     3. The throttle marker for ``building.upgrade`` lands in Redis with the
        parsed-seconds TTL.
 
@@ -406,8 +417,9 @@ async def test_ocr_step_time_building_upgrading_reference_image(
         "height": 2.7,
     }
 
-    (tmp_path / "scenarios" / "building").mkdir(parents=True)
-    (tmp_path / "scenarios" / "building" / "building_upgrade.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "building").mkdir(parents=True)
+    (scenario_root / "building" / "building_upgrade.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

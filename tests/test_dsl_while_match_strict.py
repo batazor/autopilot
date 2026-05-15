@@ -75,6 +75,14 @@ def _claim_pattern() -> np.ndarray:
     return patch
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
     """A player-bound scenario opted into strict mode via explicit ``strict: true``.
 
@@ -83,9 +91,10 @@ def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
     *explicit strict* path: the user can still opt in to "this step MUST have
     done work" via YAML for rare gate-like steps.
     """
-    (tmp_path / "scenarios" / "workers").mkdir(parents=True)
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "workers").mkdir(parents=True)
     (tmp_path / "references" / "crop").mkdir(parents=True)
-    (tmp_path / "scenarios" / "workers" / "test_assign.yaml").write_text(
+    (scenario_root / "workers" / "test_assign.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -370,7 +379,7 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     """`retry: {attempts, interval_seconds}` overrides the player-bound defaults."""
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _frame_with_pattern())
-    yaml_path = tmp_path / "scenarios" / "workers" / "test_assign.yaml"
+    yaml_path = _scenario_root(tmp_path) / "workers" / "test_assign.yaml"
     raw = yaml.safe_load(yaml_path.read_text())
     # Use the duration-string form ("250ms") to also exercise the parser.
     raw["steps"][0]["retry"] = {"attempts": 3, "interval": "250ms"}
@@ -416,7 +425,7 @@ async def test_device_level_while_match_zero_iterations_returns_success(
     # Mark the scenario as device_level so legacy semantics apply.  Also drop
     # the helper's ``strict: True`` — strict mode runs the approval-pause path
     # which blocks waiting for a UI response (redis-backed) and would hang.
-    yaml_path = tmp_path / "scenarios" / "workers" / "test_assign.yaml"
+    yaml_path = _scenario_root(tmp_path) / "workers" / "test_assign.yaml"
     raw = yaml.safe_load(yaml_path.read_text())
     raw["device_level"] = True
     for s in raw.get("steps", []):
@@ -463,8 +472,8 @@ def _write_red_dot_guard_scenario(tmp_path: Path) -> None:
     "tap iff the indicator is lit"; the off-state is the common case and
     must skip silently so subsequent steps run.
     """
-    (tmp_path / "scenarios").mkdir(parents=True)
-    (tmp_path / "scenarios" / "guarded.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "guarded.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

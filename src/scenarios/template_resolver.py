@@ -5,7 +5,7 @@ Instead of N near-duplicate files, the repo keeps one template per shape with
 a placeholder in the filename (e.g. ``level_up_{hero}.yaml``) and ``${hero_id}``
 / ``${hero_name}`` placeholders in the body. At lookup time the resolver:
 
-1. Tries a literal ``scenarios/**/{key}.yaml`` match (existing behavior).
+1. Tries a literal ``{key}.yaml`` match inside module scenario roots.
 2. Falls back to scanning template filenames; matches the placeholder against
    the key, validates the captured value against the heroes wiki index,
    and returns ``(template_path, substitution_context)``.
@@ -115,11 +115,11 @@ def _iter_template_yaml_paths(scenarios_root: Path) -> list[Path]:
 
 
 def _scenario_roots(repo_root: Path) -> list[Path]:
-    """Core ``scenarios/`` + each ``modules/<id>/scenarios/`` directory.
+    """Every module-owned scenario directory.
 
-    Order matches :func:`scenarios.registry.scenario_roots` — core first, then
-    modules in sorted ``module_id`` order. The first root with a hit wins for
-    literal lookups so core stays authoritative when a module shadows a key.
+    Order matches :func:`scenarios.registry.scenario_roots`. The first root
+    with a hit wins for literal lookups so resolution stays deterministic when
+    two modules expose the same key.
     """
     # Local import: ``scenarios.registry`` already imports from this module's
     # neighbourhood, and pulling it at module-load time creates an unnecessary
@@ -130,7 +130,7 @@ def _scenario_roots(repo_root: Path) -> list[Path]:
 
 
 def resolve(repo_root: Path, scenario_key: str) -> ResolvedScenario | None:
-    """Literal-then-template resolution across core + module scenario roots."""
+    """Literal-then-template resolution across module scenario roots."""
     key = (scenario_key or "").strip()
     if not key:
         return None

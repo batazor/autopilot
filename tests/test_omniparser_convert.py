@@ -84,3 +84,19 @@ def test_region_hash_is_stable_for_float_noise() -> None:
         "bbox": {"height": 40.0, "width": 30.0, "y": 20.0, "x": 10.0000002},
     }
     assert region_hash(base) == region_hash(same)
+
+
+def test_region_hash_ignores_display_name_for_aliasing() -> None:
+    base = {
+        "name": "icon.close",
+        "action": "exist",
+        "type": "string",
+        "bbox": {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0},
+    }
+    alias = {
+        "name": "icon.dismiss",
+        "action": "exist",
+        "type": "string",
+        "bbox": {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0},
+    }
+    assert region_hash(base) == region_hash(alias)

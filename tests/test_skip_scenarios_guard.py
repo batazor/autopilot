@@ -8,13 +8,9 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def _read_skip_scenario(rel_under_onboarding: str) -> dict:
-    for rel in (
-        Path("scenarios/onboarding") / rel_under_onboarding,
-        Path("modules/core/pop-up/scenarios") / rel_under_onboarding,
-    ):
-        p = REPO / rel
-        if p.is_file():
-            return yaml.safe_load(p.read_text(encoding="utf-8"))
+    p = REPO / "modules" / "draft" / "core" / "pop-up" / "scenarios" / rel_under_onboarding
+    if p.is_file():
+        return yaml.safe_load(p.read_text(encoding="utf-8"))
     raise FileNotFoundError(rel_under_onboarding)
 
 

@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
-import httpx
 import numpy as np
 import pytest
 import yaml
@@ -37,9 +37,18 @@ class _FakeActions:
         return True
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 def _write_who_i_am_repo(tmp_path: Path) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "who_i_am.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "who_i_am.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -241,8 +250,9 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "read_two.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "read_two.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -606,8 +616,9 @@ async def test_exec_fetch_player_syncs_century_fields(
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "sync_century.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "sync_century.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -670,8 +681,9 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "sync_century.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "sync_century.yaml").write_text(
         yaml.dump({"enabled": True, "steps": [{"exec": "fetch_player"}]}),
         encoding="utf-8",
     )
@@ -715,7 +727,7 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
 # This test is intentionally NOT auto-skipped — missing reference image, missing
 # area.json, or an unreachable OCR backend are all hard failures, because they
 # break the production `who_i_am` flow. Bring up the OCR stack
-# (`docker-compose up ocr`) before running the suite.
+# (Tesseract + eng.traineddata) before running the suite.
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -725,35 +737,28 @@ _AREA_JSON = _REPO_ROOT / "area.json"
 _REFERENCE_PLAYER_ID = "765502864"
 
 
-def _assert_ocr_service_reachable() -> str:
+def _assert_local_ocr_available() -> None:
     from config.loader import get_settings
 
     settings = get_settings()
-    base_url = str(getattr(settings.ocr, "url", "")).rstrip("/")
-    assert base_url, "OCR service URL is not configured (settings.ocr.url)"
-    try:
-        with httpx.Client(timeout=2.0) as c:
-            resp = c.get(f"{base_url}/health")
-            resp.raise_for_status()
-    except Exception as exc:  # noqa: BLE001 - keep the original error in the failure message
-        raise AssertionError(
-            f"OCR service not reachable at {base_url}: {type(exc).__name__}: {exc}. "
-            "Bring it up (e.g. `docker-compose up ocr`) before running this test."
-        ) from exc
-    return base_url
+    cmd = str(getattr(settings.ocr, "tesseract_cmd", "tesseract") or "tesseract")
+    assert shutil.which(cmd), (
+        f"Tesseract executable not found: {cmd!r}. "
+        "Install Tesseract with eng.traineddata before running this test."
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ocr_chief_profile_player_id_against_real_service() -> None:
+async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     """Real-OCR sanity check: the labelled `chief_profile.png` shows player_id 765502864.
 
-    Hits the configured OCR backend (PaddleOCR) with the exact bbox declared in
+    Hits local Tesseract OCR with the exact bbox declared in
     `area.json` for the `player_id` region, verifying both the integration wiring
     and that OCR remains accurate enough for `who_i_am` to identify the player.
 
-    NOTE: this test does not skip — if the OCR service is down or the reference
-    image / area.json are missing, the test fails. That is intentional: those
+    NOTE: this test does not skip — if local OCR is unavailable or the reference
+    image / area.json is missing, the test fails. That is intentional: those
     are required for the production `who_i_am` flow to work.
     """
     import cv2  # local import — heavy module, not needed by the unit tests above
@@ -763,7 +768,7 @@ async def test_ocr_chief_profile_player_id_against_real_service() -> None:
 
     assert _CHIEF_PROFILE_REF.is_file(), f"reference image missing: {_CHIEF_PROFILE_REF}"
     assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
-    _assert_ocr_service_reachable()
+    _assert_local_ocr_available()
 
     image = cv2.imread(str(_CHIEF_PROFILE_REF))
     assert image is not None, f"failed to decode {_CHIEF_PROFILE_REF}"
@@ -804,8 +809,9 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
 ) -> None:
     """``state: <path>`` writes the OCR value into ``db/state.yaml`` via state_store
     and *does not* touch Redis (since no ``store:`` was set)."""
-    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
-    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "by_cron").mkdir(parents=True)
+    (scenario_root / "by_cron" / "check_squad.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -900,8 +906,9 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
     redis_async: object,
 ) -> None:
     """Both keywords on one step → Redis (``store``) AND state.yaml (``state``)."""
-    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
-    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "by_cron").mkdir(parents=True)
+    (scenario_root / "by_cron" / "check_squad.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -985,8 +992,9 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
     redis_async: object,
 ) -> None:
     """Without ``state:`` keyword the state_store is never touched (Redis-only path)."""
-    (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
-    (tmp_path / "scenarios" / "by_cron" / "check_squad.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "by_cron").mkdir(parents=True)
+    (scenario_root / "by_cron" / "check_squad.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

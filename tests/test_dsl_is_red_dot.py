@@ -153,13 +153,15 @@ def _write_red_dot_repo(
     has_red_dot: bool,
     is_red_dot_step: bool,
 ) -> None:
-    """Write a tiny scenarios/area.json/crop layout that exercises ``isRedDot``.
+    """Write a tiny module/area.json/crop layout that exercises ``isRedDot``.
 
     Region ``mailBox`` matches via 1:1 template (same way real ``exist`` matches),
     optionally flagged with ``has_red_dot``. The scenario taps the region only when
     ``isRedDot`` requirement holds.
     """
-    (tmp_path / "scenarios" / "events").mkdir(parents=True)
+    module = tmp_path / "modules" / "core" / "events"
+    (module / "scenarios" / "events").mkdir(parents=True)
+    (module / "module.yaml").write_text("id: events\n", encoding="utf-8")
     (tmp_path / "references" / "crop").mkdir(parents=True)
 
     steps: list[dict[str, Any]] = [{"match": "mailBox", "threshold": 0.95}]
@@ -167,7 +169,7 @@ def _write_red_dot_repo(
         steps[0]["isRedDot"] = True
     steps.append({"click": "mailBox"})
 
-    (tmp_path / "scenarios" / "events" / "open_mail.yaml").write_text(
+    (module / "scenarios" / "events" / "open_mail.yaml").write_text(
         yaml.dump({"enabled": True, "name": "OpenMail", "steps": steps}),
         encoding="utf-8",
     )

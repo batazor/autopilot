@@ -82,8 +82,10 @@ async def test_overlay_enqueue_skips_disabled_scenario(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    scenarios_dir = tmp_path / "scenarios"
-    scenarios_dir.mkdir()
+    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    scenarios_dir = module_dir / "scenarios"
+    scenarios_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     (scenarios_dir / "disabled_popup.yaml").write_text(
         "enabled: false\nname: Disabled popup\nsteps: []\n",
         encoding="utf-8",

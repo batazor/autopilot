@@ -355,20 +355,19 @@ class RedisQueue:
     @staticmethod
     def _cron_specs_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
         """Stable fingerprint for all cron YAML specs (cache invalidation)."""
-        from config.paths import core_scenarios_root
-        from scenarios.cron_specs import iter_cron_yaml_files
+        from scenarios.cron_specs import iter_cron_yaml_files_for_repo
 
-        scenarios_root = core_scenarios_root(repo_root)
+        root = repo_root.resolve()
         items: list[tuple[str, int, int]] = []
-        for p in iter_cron_yaml_files(scenarios_root):
+        for p in iter_cron_yaml_files_for_repo(root):
             try:
                 st = p.stat()
             except OSError:
                 continue
-            rel = p.relative_to(scenarios_root).as_posix()
+            rel = p.relative_to(root).as_posix()
             items.append((rel, int(st.st_mtime_ns), int(st.st_size)))
         items.sort(key=lambda x: x[0])
-        return (str(scenarios_root), tuple(items))
+        return (str(root), tuple(items))
 
     @staticmethod
     @lru_cache(maxsize=8)
@@ -392,7 +391,7 @@ class RedisQueue:
         """
         from scenarios.cron_specs import resolve_cron_task_type
 
-        scenarios_root = Path(fp[0])
+        root = Path(fp[0])
         try:
             import yaml
         except Exception:
@@ -400,7 +399,7 @@ class RedisQueue:
 
         out: dict[str, str] = {}
         for rel, _, _ in fp[1]:
-            yml = scenarios_root / rel
+            yml = root / rel
             try:
                 raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
             except Exception:
@@ -459,7 +458,7 @@ class RedisQueue:
 
     @staticmethod
     def _task_types_device_level() -> set[str]:
-        """Task types from `scenarios/**/*.yaml` that declare ``device_level: true``.
+        """Task types from runnable scenario YAMLs that declare ``device_level: true``.
 
         These scenarios are explicitly safe to run without ``active_player`` —
         identity probes (``who_i_am``), tutorial dismissals
@@ -471,22 +470,6 @@ class RedisQueue:
         root = repo_root()
         fp = scenario_yaml_tree_fingerprint(root)
         return RedisQueue._task_types_device_level_cached(fp)
-
-    @staticmethod
-    def _scenarios_tree_fingerprint(
-        scen_dir: Path,
-    ) -> tuple[str, tuple[tuple[str, int, int], ...]]:
-        """Stable fingerprint for the whole ``scenarios/`` tree (excludes drafts)."""
-        items: list[tuple[str, int, int]] = []
-        for p in sorted(scen_dir.rglob("*.yaml")):
-            if "drafts" in {part.lower() for part in p.parts}:
-                continue
-            try:
-                st = p.stat()
-            except OSError:
-                continue
-            items.append((p.relative_to(scen_dir).as_posix(), int(st.st_mtime_ns), int(st.st_size)))
-        return (str(scen_dir), tuple(items))
 
     @staticmethod
     @lru_cache(maxsize=8)

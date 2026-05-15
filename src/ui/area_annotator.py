@@ -37,6 +37,7 @@ from layout.area_regions import (
     dedupe_redundant_version_regions,
     get_version_block,
     is_auxiliary_overlay_region,
+    region_names_for,
     validate_unique_region_names,
     validate_versions,
 )
@@ -99,6 +100,7 @@ class BBoxDict(TypedDict):
 
 class RegionDict(TypedDict, total=False):
     name: str
+    aliases: list[str]
     action: str
     type: str
     threshold: float
@@ -692,18 +694,25 @@ def _entry_region_names(entry: AreaEntryDict) -> list[str]:
     names: set[str] = set()
     for reg in entry.get("regions") or []:
         if isinstance(reg, dict):
-            name = str(reg.get("name") or "").strip()
-            if name:
-                names.add(name)
+            names.update(region_names_for(reg))
     for version in entry.get("versions") or []:
         if not isinstance(version, dict):
             continue
         for reg in version.get("regions") or []:
             if isinstance(reg, dict):
-                name = str(reg.get("name") or "").strip()
-                if name:
-                    names.add(name)
+                names.update(region_names_for(reg))
     return sorted(names)
+
+
+def _region_names_used_on_multiple_screens(doc: AreaDocDict) -> set[str]:
+    by_name: dict[str, set[str]] = {}
+    for idx, entry in enumerate(doc.get("screens") or []):
+        if not isinstance(entry, dict):
+            continue
+        screen_id = str(entry.get("screen_id") or "").strip() or f"id:{entry.get('id', idx)}"
+        for name in _entry_region_names(entry):
+            by_name.setdefault(name, set()).add(screen_id)
+    return {name for name, screens in by_name.items() if len(screens) > 1}
 
 
 def _format_screen_region_choice(value: str) -> str:
@@ -1309,7 +1318,25 @@ def _render_regions_expander(
                 st.caption("No regions yet — draw on the canvas or click **Add region**.")
             return
 
-        names = [f"{i}: {regions[i].get('name', '')}" for i in range(len(regions))]
+        current_screen_label = (
+            str(cur_entry.get("screen_id") or "").strip()
+            if cur_entry
+            else ""
+        )
+        duplicated_region_names = _region_names_used_on_multiple_screens(
+            st.session_state.area_doc
+        )
+
+        def _region_pick_label(i: int) -> str:
+            nm = str(regions[i].get("name", "") or "").strip()
+            display = (
+                f"{current_screen_label}:{nm}"
+                if current_screen_label and nm in duplicated_region_names
+                else nm
+            )
+            return f"{i}: {display}"
+
+        names = [_region_pick_label(i) for i in range(len(regions))]
         pick_key = f"area_region_pick_{_rk}"
 
         def _apply_region_pick_idx(new_idx: int, regs_now: list[RegionDict]) -> None:
@@ -1772,7 +1799,7 @@ def _render_regions_expander(
                 pass
             else:
                 st.caption("OCR preview (stub)")
-                st.text_area("OCR result", value="(connect your OCR service)", height=68, disabled=True)
+                st.text_area("OCR result", value="(local OCR preview not wired here yet)", height=68, disabled=True)
         elif not labeling_mode:
             st.caption("Load an image and select a region to preview the crop.")
         elif labeling_mode and reg_for_preview.get("has_red_dot"):

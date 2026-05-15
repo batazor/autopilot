@@ -14,6 +14,7 @@ from analysis.overlay_manifest import (
 )
 from analysis.overlay_rules import optional_push_scenario_tasks
 from config.paths import repo_root as default_repo_root
+from layout.area_regions import region_names_for
 from scenarios import template_resolver as _tmpl
 from scenarios.cron_specs import (
     load_root_mapping,
@@ -53,9 +54,7 @@ def _area_region_names(area_doc: dict[str, Any]) -> set[str]:
             for reg in source:
                 if not isinstance(reg, dict):
                     continue
-                name = str(reg.get("name") or "").strip()
-                if name:
-                    out.add(name)
+                out.update(region_names_for(reg))
     return out
 
 
@@ -83,9 +82,7 @@ def _area_regions_with_red_dot_capability(area_doc: dict[str, Any]) -> set[str]:
                     continue
                 if not bool(reg.get("has_red_dot")):
                     continue
-                name = str(reg.get("name") or "").strip()
-                if name:
-                    out.add(name)
+                out.update(region_names_for(reg))
     return out
 
 
@@ -113,12 +110,12 @@ def _area_regions_text_action_with_search_sibling(area_doc: dict[str, Any]) -> s
             for reg in source:
                 if not isinstance(reg, dict):
                     continue
-                name = str(reg.get("name") or "").strip()
-                if not name:
+                names = region_names_for(reg)
+                if not names:
                     continue
-                all_regions.add(name)
+                all_regions.update(names)
                 if str(reg.get("action") or "").strip() == "text":
-                    text_regions.add(name)
+                    text_regions.update(names)
     return {r for r in text_regions if f"{r}_search" in all_regions}
 
 
@@ -457,32 +454,6 @@ def _walk_steps(
             red_dot_regions=red_dot_regions,
             text_search_regions=text_search_regions,
         )
-
-
-def duplicate_scenario_names(scenarios_root: Path) -> dict[str, list[str]]:
-    """Map ``name:`` value → list of relative file paths that share it.
-
-    Skips ``drafts/`` and unparseable / unnamed YAMLs. Used by both the worker
-    startup validator and the UI editor so the rules can't drift.
-    """
-    by_name: dict[str, list[str]] = {}
-    if not scenarios_root.is_dir():
-        return {}
-    for path in sorted(scenarios_root.rglob("*.yaml")):
-        rel = path.relative_to(scenarios_root).as_posix()
-        if rel.startswith("drafts/"):
-            continue
-        try:
-            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if not isinstance(raw, dict):
-            continue
-        name = str(raw.get("name") or "").strip()
-        if not name:
-            continue
-        by_name.setdefault(name, []).append(rel)
-    return {n: rels for n, rels in by_name.items() if len(rels) > 1}
 
 
 def duplicate_scenario_names_for_repo(repo_root: Path) -> dict[str, list[str]]:

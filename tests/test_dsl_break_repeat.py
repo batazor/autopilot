@@ -33,14 +33,23 @@ class _FakeActions:
         return True
 
 
+def _scenario_root(tmp_path: Path) -> Path:
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    return scenario_root
+
+
 @pytest.mark.asyncio
 async def test_dsl_break_repeat_stops_swipe(
     tmp_path: Path,
     monkeypatch: Any,
     redis_async: object,
 ) -> None:
-    (tmp_path / "scenarios" / "mail").mkdir(parents=True)
-    (tmp_path / "scenarios" / "mail" / "break_repeat.yaml").write_text(
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "mail").mkdir(parents=True)
+    (scenario_root / "mail" / "break_repeat.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

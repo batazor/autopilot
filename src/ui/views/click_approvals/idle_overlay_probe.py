@@ -108,7 +108,7 @@ def _probe_area_region_ocr(
     """Run OCR on a live area-region crop and populate ``pay`` in place.
 
     Streamlit reruns the panel on every interaction; cache by crop hash so
-    the OCR service isn't hit on unrelated widget toggles.
+    local OCR isn't hit on unrelated widget toggles.
     """
     bbox = reg.get("bbox")
     if not isinstance(bbox, dict):

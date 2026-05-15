@@ -469,9 +469,6 @@ class SchedulerRunner:
                     dedup_ignore_region=True,
                 )
 
-        queue_items = await self._queue.peek_all()  # type: ignore[union-attr]
-        logger.info("Scheduler: queued %d total items", len(queue_items))
-
     async def _drain_wake_queue(self) -> bool:
         """Pop any remaining wake messages without blocking. Returns True if
         an ``optimize_now`` command was seen (caller may want to log/trace it)."""

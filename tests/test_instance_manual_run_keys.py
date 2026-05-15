@@ -15,10 +15,10 @@ from pathlib import Path
 import yaml
 
 from scenarios import template_resolver as _tmpl
+from scenarios.cron_specs import iter_cron_yaml_files_for_repo
 from ui.scenario_keys import runnable_scenario_keys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCENARIOS_ROOT = REPO_ROOT / "scenarios"
 
 
 def test_manual_run_keys_includes_known_scenario() -> None:
@@ -41,11 +41,17 @@ def test_manual_run_keys_excludes_templates() -> None:
 
 
 def test_manual_run_keys_excludes_drafts() -> None:
-    """``scenarios/drafts/*.yaml`` are placeholder schemas. ``run_task`` for
-    them would either fail or do nothing — and the underlying loader excludes
-    them anyway, so the UI must mirror that."""
+    """Draft scenario YAMLs are placeholder schemas.
+
+    ``run_task`` for them would either fail or do nothing — and the underlying
+    loader excludes them anyway, so the UI must mirror that.
+    """
     keys = runnable_scenario_keys(str(REPO_ROOT))
-    draft_stems = {p.stem for p in (SCENARIOS_ROOT / "drafts").glob("*.yaml")}
+    draft_stems = {
+        p.stem
+        for root in (REPO_ROOT / "modules").glob("**/scenarios")
+        for p in (root / "drafts").glob("*.yaml")
+    }
     leaked = draft_stems & set(keys)
     assert leaked == set(), f"draft scenarios leaked into manual-run list: {leaked}"
 
@@ -60,14 +66,15 @@ def test_every_manual_run_key_resolves_via_template_resolver() -> None:
 
 
 def test_manual_run_keys_excludes_cron_delegating_scenarios() -> None:
-    """``scenarios/by_cron/check_arena.yaml`` is a cron-only spec — it has no
-    ``steps:`` and delegates work to a separate task type. The resolver finds
-    it, but the worker rejects it at runtime with ``invalid_steps``. The
-    dropdown must exclude any such doc so operators can't queue a guaranteed
-    failure."""
+    """Cron-only specs without ``steps:`` delegate work to a separate task type.
+
+    The resolver finds them, but the worker rejects them at runtime with
+    ``invalid_steps``. The dropdown must exclude any such doc so operators
+    can't queue a guaranteed failure.
+    """
     keys = runnable_scenario_keys(str(REPO_ROOT))
-    check_arena = SCENARIOS_ROOT / "by_cron" / "check_arena.yaml"
-    if check_arena.exists():
+    check_arena = [p for p in iter_cron_yaml_files_for_repo(REPO_ROOT) if p.stem == "check_arena"]
+    if check_arena:
         assert "check_arena" not in keys
 
 

@@ -3,9 +3,8 @@
 # ``host.docker.internal`` on Docker Desktop, with the host's ``adb start-server``
 # already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
 #
-# Companion services:
-#   * ``ghcr.io/batazor/whiteout-survival-autopilot/ocr``   — PaddleOCR HTTP API
-#   * ``redis:alpine``                                       — queue / instance state
+# Companion service:
+#   * ``redis:alpine`` — queue / instance state
 # See ``docker-compose.yml`` for the wiring.
 
 FROM python:3.13-slim-bookworm AS builder
@@ -36,10 +35,11 @@ RUN uv sync --frozen --no-dev
 FROM python:3.13-slim-bookworm
 
 # Runtime libs: opencv-headless wants libGL/glib; ADB for tap/screencap;
-# curl for the docker healthcheck.
+# Tesseract + eng.traineddata for local OCR; curl for the docker healthcheck.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 \
         adb \
+        tesseract-ocr tesseract-ocr-eng \
         curl \
     && rm -rf /var/lib/apt/lists/*
 

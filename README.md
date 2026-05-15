@@ -4,7 +4,7 @@
 
 # Whiteout Survival autopilot
 
-Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via a separate OCR HTTP service.
+Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via local Tesseract OCR.
 
 <p align="center">
   <a href="https://discord.gg/G8encVpD9"><img src="https://img.shields.io/badge/Join_our_Discord-%235865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
@@ -137,9 +137,9 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 </td>
 <td align="center" width="25%">
   <br/>
-  <img src="https://img.shields.io/badge/PaddleOCR-0d1b2a?style=for-the-badge&logo=docker&logoColor=a8dadc" alt="PaddleOCR" />
+  <img src="https://img.shields.io/badge/Tesseract_OCR-0d1b2a?style=for-the-badge&logo=tesseract&logoColor=a8dadc" alt="Tesseract OCR" />
   <br/><br/>
-  <sub>Screen text via a separate OCR HTTP service (PaddleOCR in <code>docker compose</code>)</sub>
+  <sub>Screen text via local <code>eng.traineddata</code> Tesseract OCR inside the bot process</sub>
   <br/><br/>
 </td>
 <td align="center" width="25%">
@@ -223,7 +223,7 @@ cd whiteout-survival-autopilot
 adb start-server
 adb devices
 
-# Pull and start: redis + ocr + bot
+# Pull and start: redis + bot
 docker compose -f docker-compose.prod.yml up -d
 
 open http://127.0.0.1:8501
@@ -289,8 +289,7 @@ start http://127.0.0.1:8501
 
 | Service | Image | Notes |
 |:--------|:------|:------|
-| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI. Multi-arch (amd64+arm64). |
-| `ocr` | `ghcr.io/batazor/whiteout-survival-autopilot/ocr:latest` | PaddleOCR HTTP API. amd64 only (no paddlepaddle arm64 wheel for py3.13 yet). |
+| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI + local Tesseract OCR. Multi-arch (amd64+arm64). |
 | `redis` | `redis:alpine` | Queue + state. |
 
 <details>
@@ -299,7 +298,7 @@ start http://127.0.0.1:8501
 
 `bot` runs in `network_mode: host` so the container **shares the host's loopback** — `adb start-server` stays bound to `127.0.0.1:5037` (safe, no LAN exposure) and the container talks to it as `127.0.0.1:5037` from inside. No `adb -a`, no socat sidecar, no `host.docker.internal` indirection.
 
-Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis` and `ocr` publish to `127.0.0.1:<port>` on the host, and `bot` talks to them via those — already wired in `docker-compose.prod.yml`.
+Side-effect: `bot` can't use Compose-internal DNS for `redis`. `redis` publishes to `127.0.0.1:<port>` on the host, and `bot` talks to it via that — already wired in `docker-compose.prod.yml`.
 
 </details>
 
@@ -369,7 +368,6 @@ Typical failures:
 ```sh
 docker compose -f docker-compose.prod.yml ps             # service status + healthchecks
 docker compose -f docker-compose.prod.yml logs -f bot    # worker + UI logs
-docker compose -f docker-compose.prod.yml logs -f ocr    # PaddleOCR logs
 docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibility from inside the bot container
 ```
 

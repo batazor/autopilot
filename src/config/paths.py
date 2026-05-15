@@ -30,12 +30,3 @@ def balance_config_dir(repo_root_path: Path | None = None) -> Path:
     return src_root() / "config" / "balance"
 
 
-def core_scenarios_root(repo_root_path: Path | None = None) -> Path:
-    """Legacy root-level DSL YAML tree.
-
-    Runtime scenario discovery intentionally ignores ``src/scenarios``: Python
-    packages live under ``src/``, while executable YAML now lives in
-    ``modules/**/scenarios`` (and optionally a legacy repo-root ``scenarios/``).
-    """
-    root = (repo_root_path or repo_root()).resolve()
-    return root / "scenarios"

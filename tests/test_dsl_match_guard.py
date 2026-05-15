@@ -30,9 +30,12 @@ class _FakeActions:
 
 
 def _write_skip_text_repo(tmp_path: Path, frame: np.ndarray) -> None:
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     (tmp_path / "references" / "crop").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "skip_text_button.yaml").write_text(
+    (scenario_root / "onboarding" / "skip_text_button.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
@@ -140,9 +143,12 @@ def _write_match_with_steps_repo(tmp_path: Path, frame: np.ndarray) -> None:
     Two regions: the primary ``skip_text_button`` (probed by ``match:``) and
     a fallback ``backup_button`` reached only via ``else:``.
     """
-    (tmp_path / "scenarios" / "onboarding").mkdir(parents=True)
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     (tmp_path / "references" / "crop").mkdir(parents=True)
-    (tmp_path / "scenarios" / "onboarding" / "match_with_steps.yaml").write_text(
+    (scenario_root / "onboarding" / "match_with_steps.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,

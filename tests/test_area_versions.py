@@ -407,6 +407,55 @@ def test_screen_region_by_name_default_when_state_none() -> None:
     assert res is not None and res[1]["bbox"]["x"] == 10
 
 
+def test_screen_region_by_name_scopes_duplicate_names_to_screen_id() -> None:
+    doc = {
+        "version": 2,
+        "screens": [
+            {
+                "id": 1,
+                "screen_id": "screen_a",
+                "regions": [{"name": "icon.close", "bbox": {"x": 10}}],
+            },
+            {
+                "id": 2,
+                "screen_id": "screen_b",
+                "regions": [{"name": "icon.close", "bbox": {"x": 80}}],
+            },
+        ],
+    }
+
+    pair = screen_region_by_name(doc, "icon.close", screen_id="screen_b")
+
+    assert pair is not None
+    entry, region = pair
+    assert entry["screen_id"] == "screen_b"
+    assert region["bbox"]["x"] == 80
+
+
+def test_screen_region_by_name_resolves_region_alias() -> None:
+    doc = {
+        "version": 2,
+        "screens": [
+            {
+                "id": 1,
+                "screen_id": "screen_a",
+                "regions": [
+                    {
+                        "name": "icon.close",
+                        "aliases": ["icon.dismiss"],
+                        "bbox": {"x": 10},
+                    }
+                ],
+            }
+        ],
+    }
+
+    pair = screen_region_by_name(doc, "icon.dismiss", screen_id="screen_a")
+
+    assert pair is not None
+    assert pair[1]["name"] == "icon.close"
+
+
 def test_screen_region_by_name_picks_v2_override_under_matching_state() -> None:
     doc = _doc_with_versions()
     res = screen_region_by_name(doc, "promote_btn", state_flat={"heroes.norah.level": 9})

@@ -314,9 +314,9 @@ async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> No
 @pytest.mark.asyncio
 async def test_type_time_auto_enables_fast_line_preprocess(monkeypatch: Any) -> None:
     """A ``type: time`` rule with no explicit ``preprocess`` auto-derives
-    ``fast_line`` so paddle skips the detection model on a tiny countdown
-    crop. Locks in the cheap-path default — flipping it off would silently
-    revert overlay timers to the full pipeline.
+    ``fast_line`` so Tesseract uses single-line segmentation on a tiny
+    countdown crop. Locks in the cheap-path default — flipping it off would
+    silently revert overlay timers to block-style segmentation.
     """
     repo_root = Path(__file__).resolve().parents[1]
     area_doc: dict[str, Any] = json.loads(

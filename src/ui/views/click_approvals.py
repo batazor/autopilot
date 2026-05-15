@@ -210,8 +210,8 @@ if enabled_ui != enabled_now:
     st.rerun()
 
 ocr_cfg = getattr(settings, "ocr", None)
-ocr_url = str(getattr(ocr_cfg, "url", "") or "")
-render_header(ctx=_CTX, client=client, ocr_url=ocr_url)
+tesseract_cmd = str(getattr(ocr_cfg, "tesseract_cmd", "tesseract") or "tesseract")
+render_header(ctx=_CTX, client=client, tesseract_cmd=tesseract_cmd)
 render_ui_notifications(instance_id, client=client)
 render_heartbeat(ctx=_CTX, client=client)
 # Live progress for the scenario currently running on this instance — pulled

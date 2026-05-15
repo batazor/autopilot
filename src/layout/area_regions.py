@@ -32,16 +32,29 @@ def is_auxiliary_overlay_region(reg: dict[str, Any]) -> bool:
 
 
 def _region_names_in(regions: Any) -> list[str]:
-    """Non-empty names of regions in a list (skipping non-dict entries)."""
+    """Non-empty names and aliases of regions in a list (skipping non-dict entries)."""
     if not isinstance(regions, list):
         return []
     out: list[str] = []
     for reg in regions:
         if not isinstance(reg, dict):
             continue
-        name = str(reg.get("name", "") or "").strip()
-        if name:
-            out.append(name)
+        out.extend(region_names_for(reg))
+    return out
+
+
+def region_names_for(reg: dict[str, Any]) -> list[str]:
+    """Canonical region name followed by any same-bbox aliases."""
+    out: list[str] = []
+    name = str(reg.get("name", "") or "").strip()
+    if name:
+        out.append(name)
+    aliases = reg.get("aliases")
+    if isinstance(aliases, list):
+        for alias in aliases:
+            alias_s = str(alias or "").strip()
+            if alias_s and alias_s not in out:
+                out.append(alias_s)
     return out
 
 
@@ -317,6 +330,7 @@ __all__ = [
     "is_auxiliary_overlay_region",
     "iter_all_regions",
     "region_bbox_for_name",
+    "region_names_for",
     "resolve_region_with_version",
     "validate_unique_region_names",
     "validate_versions",

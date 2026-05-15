@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
-import httpx
 import streamlit as st
 
 from layout.area_lookup import screen_region_by_name
@@ -104,14 +104,8 @@ def active_player_state_flat(*, client: Any, instance_id: str) -> dict[str, Any]
 
 
 @st.cache_data(ttl=5)
-def ocr_health_status(ocr_url: str) -> tuple[bool, str]:
-    url = str(ocr_url or "").strip()
-    if not url:
-        return False, "OCR url is not configured"
-    try:
-        with httpx.Client(timeout=1.0) as c:
-            r = c.get(f"{url}/health")
-            r.raise_for_status()
+def ocr_health_status(tesseract_cmd: str) -> tuple[bool, str]:
+    cmd = str(tesseract_cmd or "tesseract").strip() or "tesseract"
+    if shutil.which(cmd):
         return True, "ok"
-    except Exception as exc:  # noqa: BLE001 - UI diagnostic only
-        return False, f"{type(exc).__name__}: {exc}"
+    return False, f"tesseract executable not found: {cmd}"

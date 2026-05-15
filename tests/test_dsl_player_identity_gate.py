@@ -31,8 +31,11 @@ class _FakeActions:
 
 
 def _write_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:
-    (tmp_path / "scenarios").mkdir()
-    (tmp_path / "scenarios" / "scn.yaml").write_text(
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    scenario_root.mkdir(parents=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    (scenario_root / "scn.yaml").write_text(
         yaml.dump({"enabled": True, "name": "scn", **doc}),
         encoding="utf-8",
     )

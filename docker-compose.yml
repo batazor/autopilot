@@ -20,29 +20,6 @@ services:
       timeout: 5s
       retries: 3
 
-  ocr:
-    build:
-      context: .
-      dockerfile: ocr/Dockerfile
-    ports:
-      # Bind to loopback only — same rationale as redis above; OCR is not
-      # designed to face the open internet.
-      - "127.0.0.1:8000:8000"
-    environment:
-      # PaddleX checks model host connectivity before loading. The models are cached
-      # in the volume below, so skipping this avoids slow/flaky cold starts.
-      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
-    volumes:
-      - paddle_model_cache:/root/.paddleocr
-      - paddlex_model_cache:/root/.paddlex
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 180s
-
   omniparser:
     build:
       context: .
@@ -66,5 +43,3 @@ services:
 
 volumes:
   redis_data:
-  paddle_model_cache:
-  paddlex_model_cache:

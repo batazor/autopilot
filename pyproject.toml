@@ -34,10 +34,6 @@ dependencies = [
 
 [project.optional-dependencies]
 ocr = [
-    "fastapi>=0.111",
-    "uvicorn[standard]>=0.29",
-    "paddlepaddle>=3.2.2",
-    "paddleocr>=2.7",
 ]
 dev = [
     "ruff>=0.4",
@@ -151,7 +147,6 @@ ignore = ["ANN401"]
 "modules/**/tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501"]
 # Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
 "src/ui/area_annotator.py" = ["E402"]
-"src/ui/views/recorder.py" = ["E402"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

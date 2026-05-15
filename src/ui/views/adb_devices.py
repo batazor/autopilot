@@ -522,10 +522,20 @@ with st.form("settings_yaml_form", clear_on_submit=False):
     )
 
     st.markdown("**OCR**")
-    ocr_url = st.text_input(
-        "ocr.url",
-        value=str(ocr_block.get("url", "http://localhost:8000")),
-        help="OCR microservice base URL.",
+    ocr_lang = st.text_input(
+        "ocr.lang",
+        value=str(ocr_block.get("lang", "eng")),
+        help="Tesseract language code. Use `eng` for eng.traineddata.",
+    )
+    tesseract_cmd = st.text_input(
+        "ocr.tesseract_cmd",
+        value=str(ocr_block.get("tesseract_cmd", "tesseract")),
+        help="Path/name of the local tesseract executable.",
+    )
+    tessdata_dir = st.text_input(
+        "ocr.tessdata_dir",
+        value=str(ocr_block.get("tessdata_dir", "")),
+        help="Optional tessdata directory containing eng.traineddata.",
     )
 
     submitted_settings = st.form_submit_button("Save settings.yaml", type="primary")
@@ -536,7 +546,10 @@ with st.form("settings_yaml_form", clear_on_submit=False):
         new_doc["redis"] = new_redis
 
         new_ocr = dict(ocr_block)
-        new_ocr["url"] = ocr_url.strip()
+        new_ocr.pop("url", None)
+        new_ocr["lang"] = ocr_lang.strip() or "eng"
+        new_ocr["tesseract_cmd"] = tesseract_cmd.strip() or "tesseract"
+        new_ocr["tessdata_dir"] = tessdata_dir.strip()
         new_doc["ocr"] = new_ocr
 
         try:

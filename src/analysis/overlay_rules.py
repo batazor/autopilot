@@ -148,6 +148,7 @@ def resolved_search_region_for_findicon(
     rule: dict[str, Any],
     *,
     state_flat: dict[str, Any] | None = None,
+    screen_id: str | None = None,
 ) -> str:
     """Effective ``search_region`` for ``findIcon``.
 
@@ -165,7 +166,12 @@ def resolved_search_region_for_findicon(
     if not primary:
         return ""
     candidate = f"{primary}_search"
-    pair_s = screen_region_by_name(area_doc, candidate, state_flat=state_flat)
+    pair_s = screen_region_by_name(
+        area_doc,
+        candidate,
+        state_flat=state_flat,
+        screen_id=screen_id,
+    )
     if pair_s is None:
         return ""
     entry_s, reg_s = pair_s
@@ -182,10 +188,21 @@ def centers_delta_pct_between_regions(
     to_region: str,
     *,
     state_flat: dict[str, Any] | None = None,
+    screen_id: str | None = None,
 ) -> tuple[float, float] | None:
     """Vector ``to_center - from_center`` in percent of frame (from ``area.json`` bboxes)."""
-    pa = screen_region_by_name(area_doc, from_region, state_flat=state_flat)
-    pb = screen_region_by_name(area_doc, to_region, state_flat=state_flat)
+    pa = screen_region_by_name(
+        area_doc,
+        from_region,
+        state_flat=state_flat,
+        screen_id=screen_id,
+    )
+    pb = screen_region_by_name(
+        area_doc,
+        to_region,
+        state_flat=state_flat,
+        screen_id=screen_id,
+    )
     if pa is None or pb is None:
         return None
     ba = pa[1].get("bbox")

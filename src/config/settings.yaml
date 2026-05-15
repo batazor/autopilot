@@ -3,7 +3,9 @@ redis:
   key_prefix: "wos"
 
 ocr:
-  url: "http://localhost:8000"
+  lang: "eng"
+  tesseract_cmd: "tesseract"
+  tessdata_dir: ""
   timeout_seconds: 10
 
 # Optional OmniParser sidecar for labeling auto-detect (see omniparser/service.py).

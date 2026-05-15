@@ -8,16 +8,11 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 def _read_hand_pointer_scenario(filename: str) -> dict:
-    for rel in (
-        Path("scenarios/onboarding") / filename,
-        Path("modules/core/pop-up/scenarios") / filename,
-    ):
-        p = REPO / rel
-        if p.is_file():
-            return yaml.safe_load(p.read_text(encoding="utf-8"))
-    raise FileNotFoundError(
-        f"{filename} not under scenarios/onboarding or modules/core/pop-up/scenarios"
-    )
+    rel = Path("modules/draft/core/pop-up/scenarios") / filename
+    p = REPO / rel
+    if p.is_file():
+        return yaml.safe_load(p.read_text(encoding="utf-8"))
+    raise FileNotFoundError(f"{filename} not under {rel.parent}")
 
 
 def test_hand_pointer_scenarios_check_visibility_before_click() -> None:

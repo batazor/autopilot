@@ -1,10 +1,8 @@
 name: docker
 
-# Builds the two runnable services so external users can pull the images and
+# Builds the runnable service so external users can pull the image and
 # `docker compose up` without a local toolchain:
-#   * ocr — PaddleOCR HTTP API (linux/amd64 only; paddlepaddle has no
-#           upstream arm64 wheels for Python 3.13 as of writing)
-#   * bot — worker + scheduler + Streamlit UI (multi-arch)
+#   * bot — worker + scheduler + Streamlit UI + local Tesseract OCR (multi-arch)
 #
 # Tagged on every push to main (`:latest`, `:<sha>`), on every semver tag
 # (`:vX.Y.Z`, `:X.Y.Z`, `:X.Y`), and on demand via the workflow_dispatch button.
@@ -16,7 +14,6 @@ on:
   pull_request:
     paths:
       - "Dockerfile.bot"
-      - "ocr/Dockerfile"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/docker.yml"
@@ -44,10 +41,6 @@ jobs:
             dockerfile: Dockerfile.bot
             # arm64 covered for Apple Silicon dev machines; main deps all have wheels.
             platforms: linux/amd64,linux/arm64
-          - name: ocr
-            dockerfile: ocr/Dockerfile
-            # paddlepaddle has no Python 3.13 arm64 wheel — leave amd64 only.
-            platforms: linux/amd64
 
     steps:
       - uses: actions/checkout@v4

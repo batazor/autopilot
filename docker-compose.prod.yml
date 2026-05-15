@@ -20,10 +20,10 @@
 # ``adb -a``.
 #
 # Side effects of host-mode that this file already accounts for:
-#   * ``bot`` cannot use the Compose-internal DNS names (``redis`` / ``ocr``)
+#   * ``bot`` cannot use the Compose-internal DNS name (``redis``)
 #     for the other services — host-mode bot has no Compose network attached.
-#     ``redis`` and ``ocr`` publish to ``127.0.0.1:<port>`` on the host, and
-#     ``bot`` talks to them via that.
+#     ``redis`` publishes to ``127.0.0.1:<port>`` on the host, and ``bot`` talks
+#     to it via that.
 #   * ``bot`` has no ``ports:`` block — Streamlit binds straight onto the
 #     host's ``:8501``.
 #
@@ -50,25 +50,6 @@ services:
       timeout: 5s
       retries: 3
 
-  ocr:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/ocr:${WOS_IMAGE_TAG:-latest}
-    ports:
-      - "127.0.0.1:8000:8000"
-    environment:
-      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
-    volumes:
-      - paddle_model_cache:/root/.paddleocr
-      - paddlex_model_cache:/root/.paddlex
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      # First boot downloads ~400 MB of paddle models into the volume; bumped
-      # start period covers a cold-cache first run on a slow link.
-      start_period: 240s
-
   bot:
     image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
     # host-mode: shared loopback with the host so ``adb`` and the
@@ -77,17 +58,14 @@ services:
     # Docker Desktop caveat — needs the "Host networking" beta toggle.
     network_mode: host
     # Compose's depends_on still works across networking modes, but the bot
-    # connects to redis / ocr by host-published port, not by Compose DNS.
+    # connects to redis by host-published port, not by Compose DNS.
     depends_on:
       redis:
         condition: service_healthy
-      ocr:
-        condition: service_started
     environment:
       # host-mode → talk to the published ports on the host's loopback rather
       # than the Compose-network hostnames.
       WOS_REDIS_URL: redis://127.0.0.1:6379/0
-      WOS_OCR_URL: http://127.0.0.1:8000
       # Host's adb server, untouched (default loopback bind is fine because
       # the container shares the host's lo).
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
@@ -95,5 +73,3 @@ services:
 
 volumes:
   redis_data:
-  paddle_model_cache:
-  paddlex_model_cache:

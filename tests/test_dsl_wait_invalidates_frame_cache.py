@@ -48,8 +48,11 @@ class _FakeActions:
 
 
 def _write_scenario(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
-    (tmp_path / "scenarios" / "test").mkdir(parents=True)
-    (tmp_path / "scenarios" / "test" / "wait_demo.yaml").write_text(
+    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    scenario_root = mod / "scenarios"
+    (scenario_root / "test").mkdir(parents=True)
+    (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
+    (scenario_root / "test" / "wait_demo.yaml").write_text(
         yaml.dump({"enabled": True, "steps": steps}),
         encoding="utf-8",
     )

@@ -24,11 +24,10 @@ def enhance_for_ocr(image: np.ndarray) -> np.ndarray:
 
 # Region ``type:`` values that imply short, single-line, digit-heavy content
 # (countdown timers ``HH:MM:SS``, stat cells like ``12,345`` / ``1.2M``).
-# These regions get an automatic ``preprocess: fast_line`` default — the
-# paddle detection model is overhead on tiny crops with one text line; running
-# only recognition is several times faster per region. The set is small on
-# purpose: ``string`` content (multi-word labels, varying layout) still needs
-# detection.
+# These regions get an automatic ``preprocess: fast_line`` default. Local
+# Tesseract maps that to single-line page segmentation, which is a better fit
+# for tiny timer/stat crops. The set is small on purpose: ``string`` content
+# (multi-word labels, varying layout) still needs block-style segmentation.
 _FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time", "int", "integer"})
 
 
@@ -43,8 +42,8 @@ def resolve_preprocess(
     1. ``explicit`` — the value set on the rule/step or area.json region by
        the operator (caller picks which one wins, usually rule > region).
     2. Auto-derivation from ``type_hint`` — ``time`` / ``int`` / ``integer``
-       default to ``"fast_line"`` (skip paddle detection on a single-line
-       crop). Other types (``string``, missing) fall through to ``None``.
+       default to ``"fast_line"`` (single-line OCR mode). Other types
+       (``string``, missing) fall through to ``None``.
 
     To opt OUT of the ``fast_line`` default on a ``type: time`` region, set
     ``preprocess`` to any explicit value (``enhance``, etc.). To opt INTO

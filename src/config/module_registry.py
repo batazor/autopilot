@@ -207,9 +207,7 @@ def path_matches_module_scope(path: Path, repo_root: Path, module_scope: str | N
     if scope == ALL_MODULES_KEY:
         return True
     if scope == CORE_MODULE_KEY:
-        return rel.startswith("scenarios/") or rel.startswith(
-            f"modules/{_module_discovery.CORE_MODULES_DIR}/"
-        )
+        return rel.startswith(f"modules/{_module_discovery.CORE_MODULES_DIR}/")
 
     path_resolved = path.resolve()
     for module_dir in _module_discovery.iter_module_dirs(root):

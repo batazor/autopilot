@@ -12,6 +12,7 @@ from omniparser.client import (
     resolve_omniparser_url,
 )
 from omniparser.convert import elements_to_regions
+from omniparser.convert import region_hash
 from ui.area_annotator import (
     PIL_ORIGINAL,
     current_regions,
@@ -44,6 +45,92 @@ def _has_bbox_intersection(region: dict[str, object], existing_rects: list[tuple
     if rect is None:
         return False
     return any(_rects_intersect(rect, existing) for existing in existing_rects)
+
+
+def _region_names(region: dict[str, object]) -> list[str]:
+    out: list[str] = []
+    name = str(region.get("name") or "").strip()
+    if name:
+        out.append(name)
+    aliases = region.get("aliases")
+    if isinstance(aliases, list):
+        for alias in aliases:
+            alias_s = str(alias or "").strip()
+            if alias_s and alias_s not in out:
+                out.append(alias_s)
+    return out
+
+
+def _region_identity_hashes(region: dict[str, object]) -> set[str]:
+    h = str(region.get("hash") or "").strip()
+    hashes = {region_hash(region)}
+    if h:
+        hashes.add(h)
+    return hashes
+
+
+def _add_region_alias(region: dict[str, object], alias: str, taken_names: set[str]) -> bool:
+    alias_s = alias.strip()
+    if not alias_s or alias_s in _region_names(region) or alias_s in taken_names:
+        return False
+    aliases = region.get("aliases")
+    if not isinstance(aliases, list):
+        aliases = []
+        region["aliases"] = aliases
+    aliases.append(alias_s)
+    taken_names.add(alias_s)
+    return True
+
+
+def merge_omniparser_regions(
+    existing: list[dict[str, object]],
+    proposed: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], int, int, int]:
+    """Merge proposed OmniParser regions into the current screen only.
+
+    Returns ``(merged, added, aliased, skipped_intersections)``. If a proposed
+    region has the same identity hash as an existing current-screen region, the
+    proposed name becomes an alias instead of creating a duplicate bbox.
+    """
+    merged = list(existing)
+    names = {name for region in merged for name in _region_names(region)}
+    by_hash: dict[str, dict[str, object]] = {}
+    for region in merged:
+        for h in _region_identity_hashes(region):
+            by_hash.setdefault(h, region)
+
+    existing_rects = [
+        rect
+        for region in merged
+        if (rect := _bbox_rect(region)) is not None
+    ]
+    added = 0
+    aliased = 0
+    skipped_intersections = 0
+    for reg in proposed:
+        nm = str(reg.get("name") or "").strip()
+        matched_region = next(
+            (by_hash[h] for h in _region_identity_hashes(reg) if h in by_hash),
+            None,
+        )
+        if matched_region is not None:
+            if _add_region_alias(matched_region, nm, names):
+                aliased += 1
+            continue
+        if nm in names:
+            continue
+        if _has_bbox_intersection(reg, existing_rects):
+            skipped_intersections += 1
+            continue
+        merged.append(reg)
+        for name in _region_names(reg):
+            names.add(name)
+        for h in _region_identity_hashes(reg):
+            by_hash.setdefault(h, reg)
+        if (rect := _bbox_rect(reg)) is not None:
+            existing_rects.append(rect)
+        added += 1
+    return merged, added, aliased, skipped_intersections
 
 
 def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
@@ -122,39 +209,22 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                     st.error(str(exc))
                     return
             existing = current_regions()
-            existing_names = {str(r.get("name") or "") for r in existing}
             proposed = elements_to_regions(
                 list(parsed.elements),
                 image_width=parsed.width,
                 image_height=parsed.height,
                 min_area_pct=float(min_area),
-                existing_names=existing_names,
             )
             skipped_intersections = 0
+            aliased = 0
             if merge_mode == "replace":
                 set_current_regions(proposed)
                 added = len(proposed)
             else:
-                names = set(existing_names)
-                merged = list(existing)
-                added = 0
-                existing_rects = [
-                    rect
-                    for region in existing
-                    if (rect := _bbox_rect(region)) is not None
-                ]
-                for reg in proposed:
-                    nm = str(reg.get("name") or "")
-                    if nm in names:
-                        continue
-                    if _has_bbox_intersection(reg, existing_rects):
-                        skipped_intersections += 1
-                        continue
-                    merged.append(reg)
-                    names.add(nm)
-                    if (rect := _bbox_rect(reg)) is not None:
-                        existing_rects.append(rect)
-                    added += 1
+                merged, added, aliased, skipped_intersections = merge_omniparser_regions(
+                    existing,
+                    proposed,
+                )
                 set_current_regions(merged)
             st.session_state.canvas_rev = int(st.session_state.get("canvas_rev", 0)) + 1
             msg = (
@@ -163,5 +233,7 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
             )
             if merge_mode != "replace" and skipped_intersections:
                 msg += f" Skipped **{skipped_intersections}** overlapping region(s)."
+            if merge_mode != "replace" and aliased:
+                msg += f" Added **{aliased}** alias(es) for matching hash(es)."
             st.success(msg)
             st.rerun()

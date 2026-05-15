@@ -107,8 +107,10 @@ async def test_execute_fails_fast_on_invalid_scope(
 
     from tasks import dsl_scenario as dsl
 
-    scen_dir = tmp_path / "scenarios"
-    scen_dir.mkdir()
+    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    scen_dir = module_dir / "scenarios"
+    scen_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     bad = {
         "name": "bad-scope",
         "enabled": True,

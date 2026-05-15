@@ -235,8 +235,8 @@ class DslOcrMixin:
 
         # ``preprocess:`` selects the backend pipeline. Step wins, then
         # area.json region, then a ``type:``-derived default
-        # (``time`` / ``int`` / ``integer`` → ``fast_line``, paddle skips
-        # detection on the single-line crop). Explicit value disables the
+        # (``time`` / ``int`` / ``integer`` → ``fast_line`` single-line OCR).
+        # Explicit value disables the
         # default — set ``preprocess: enhance`` on a ``type: time`` region
         # to force the full pipeline if fast_line ever misreads it.
         preprocess = resolve_preprocess(

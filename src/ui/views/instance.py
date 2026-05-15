@@ -240,7 +240,7 @@ with col_left:
             task_types = list(runnable_scenario_keys(str(_REPO)))
             if not task_types:
                 st.caption(
-                    "No runnable scenarios found under `scenarios/` "
+                    "No runnable module scenarios found "
                     "(excluding drafts/ and `{hero}` templates)."
                 )
             else:

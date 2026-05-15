@@ -31,9 +31,9 @@ def runnable_scenario_keys(repo_root_s: str) -> tuple[str, ...]:
     them with ``invalid_steps`` (see ``tasks/dsl_scenario_execute_mixin.py``
     where ``steps`` must be a list — empty is fine, missing is not), and the
     scheduler skips ``enabled: false`` the same way (``scheduler/runner.py``).
-    A YAML like ``scenarios/by_cron/check_arena.yaml`` (no ``steps``, just
-    ``cron: + task: arena_check``) would otherwise leak into this list and
-    silently fail when an operator picks it.
+    A cron-only YAML with no ``steps`` and just ``cron: + task: arena_check``
+    would otherwise leak into this list and silently fail when an operator
+    picks it.
     """
     repo_root = Path(repo_root_s)
     out: set[str] = set()

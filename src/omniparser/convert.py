@@ -66,8 +66,13 @@ def _stable_hash_value(value: Any) -> Any:
 
 
 def region_hash(region: dict[str, object]) -> str:
+    """Stable identity hash for an OmniParser region.
+
+    The display ``name`` is intentionally excluded so a later OmniParser pass
+    can attach a new name as an alias when the geometry/action identity is the
+    same.
+    """
     payload = {
-        "name": region.get("name"),
         "action": region.get("action"),
         "type": region.get("type"),
         "bbox": region.get("bbox"),

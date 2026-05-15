@@ -33,8 +33,10 @@ def test_imperative_dsl_doc_is_not_declarative_scenario() -> None:
 
 
 def test_scenario_loader_loads_only_declarative_yaml(tmp_path: Path) -> None:
-    scenarios_dir = tmp_path / "scenarios"
-    scenarios_dir.mkdir()
+    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    scenarios_dir = module_dir / "scenarios"
+    scenarios_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     (scenarios_dir / "upgrade.yaml").write_text(
         yaml.safe_dump(
             {

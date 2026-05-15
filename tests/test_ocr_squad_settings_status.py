@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
-import httpx
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -11,22 +11,15 @@ _VICTORY_REF = _REPO_ROOT / "references" / "page.squad_settings.status.victory.p
 _AREA_JSON = _REPO_ROOT / "area.json"
 
 
-def _assert_ocr_service_reachable() -> str:
+def _assert_local_ocr_available() -> None:
     from config.loader import get_settings
 
     settings = get_settings()
-    base_url = str(getattr(settings.ocr, "url", "")).rstrip("/")
-    assert base_url, "OCR service URL is not configured (settings.ocr.url)"
-    try:
-        with httpx.Client(timeout=2.0) as c:
-            resp = c.get(f"{base_url}/health")
-            resp.raise_for_status()
-    except Exception as exc:  # noqa: BLE001
-        raise AssertionError(
-            f"OCR service not reachable at {base_url}: {type(exc).__name__}: {exc}. "
-            "Bring it up (e.g. `docker compose up -d ocr`) before running this test."
-        ) from exc
-    return base_url
+    cmd = str(getattr(settings.ocr, "tesseract_cmd", "tesseract") or "tesseract")
+    assert shutil.which(cmd), (
+        f"Tesseract executable not found: {cmd!r}. "
+        "Install Tesseract with eng.traineddata before running this test."
+    )
 
 
 @pytest.mark.integration
@@ -35,7 +28,7 @@ async def test_ocr_squad_settings_status_reads_victory() -> None:
     """Real-OCR check for `page.squad_settings.status` on the victory reference.
 
     The status text is yellow/orange on a light cream background — a known
-    low-contrast case. This test guards that PaddleOCR still reads it well
+    low-contrast case. This test guards that local Tesseract still reads it well
     enough for the `squad_fight` scenario's `victory|defeat` polling loop.
     """
     import cv2
@@ -46,7 +39,7 @@ async def test_ocr_squad_settings_status_reads_victory() -> None:
 
     assert _VICTORY_REF.is_file(), f"reference image missing: {_VICTORY_REF}"
     assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
-    _assert_ocr_service_reachable()
+    _assert_local_ocr_available()
 
     image = cv2.imread(str(_VICTORY_REF))
     assert image is not None, f"failed to decode {_VICTORY_REF}"

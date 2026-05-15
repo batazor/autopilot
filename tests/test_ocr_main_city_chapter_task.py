@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
-import httpx
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -11,27 +11,20 @@ _MAIN_CITY_REF = _REPO_ROOT / "references" / "main_city.png"
 _AREA_JSON = _REPO_ROOT / "area.json"
 
 
-def _assert_ocr_service_reachable() -> str:
+def _assert_local_ocr_available() -> None:
     from config.loader import get_settings
 
     settings = get_settings()
-    base_url = str(getattr(settings.ocr, "url", "")).rstrip("/")
-    assert base_url, "OCR service URL is not configured (settings.ocr.url)"
-    try:
-        with httpx.Client(timeout=2.0) as c:
-            resp = c.get(f"{base_url}/health")
-            resp.raise_for_status()
-    except Exception as exc:  # noqa: BLE001
-        raise AssertionError(
-            f"OCR service not reachable at {base_url}: {type(exc).__name__}: {exc}. "
-            "Bring it up (e.g. `docker compose up -d ocr`) before running this test."
-        ) from exc
-    return base_url
+    cmd = str(getattr(settings.ocr, "tesseract_cmd", "tesseract") or "tesseract")
+    assert shutil.which(cmd), (
+        f"Tesseract executable not found: {cmd!r}. "
+        "Install Tesseract with eng.traineddata before running this test."
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ocr_main_city_chapter_task_against_real_service() -> None:
+async def test_ocr_main_city_chapter_task_against_real_tesseract() -> None:
     """Real-OCR sanity check for `chapter.task` on `references/main_city.png`.
 
     The labelled region should contain a single line like:
@@ -45,7 +38,7 @@ async def test_ocr_main_city_chapter_task_against_real_service() -> None:
 
     assert _MAIN_CITY_REF.is_file(), f"reference image missing: {_MAIN_CITY_REF}"
     assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
-    _assert_ocr_service_reachable()
+    _assert_local_ocr_available()
 
     image = cv2.imread(str(_MAIN_CITY_REF))
     assert image is not None, f"failed to decode {_MAIN_CITY_REF}"

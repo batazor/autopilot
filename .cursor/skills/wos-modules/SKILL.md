@@ -12,9 +12,9 @@ description: >-
 
 # WOS modules — layout & wiring
 
-The repo splits automation into **core** (`scenarios/`, root `area.json`) plus
-**modules** that plug in scenarios, overlay rules, exec handlers, Streamlit UI,
-and optional wiki DB rows — without copying everything into the core tree.
+The repo keeps automation in **modules** that provide scenarios, overlay rules,
+exec handlers, Streamlit UI, and optional wiki DB rows. Base game automation
+lives in `modules/core/*`; feature automation lives in top-level `modules/*`.
 
 ## Two module trees
 
@@ -38,7 +38,7 @@ every module manifest from `scenarios.registry.iter_module_analyze_manifests()` 
 ```
 modules/<id>/                    # or modules/core/<id>/
   module.yaml                    # required manifest
-  scenarios/**/*.yaml            # optional — resolved like core scenarios/
+  scenarios/**/*.yaml            # optional — runnable DSL scenarios
   analyze/analyze.yaml           # optional — overlay rules (findIcon, text, isRedDot, pushScenario)
   exec.py                        # optional — DSL exec: handlers (or path in module.yaml)
   ui/page.py                     # optional — Streamlit page (see module.yaml `ui:`)
@@ -86,15 +86,15 @@ module just to run a one-shot "where am I" probe.
 
 | Concern | Loader | Notes |
 |---------|--------|-------|
-| Scenario YAML paths | `scenarios/registry.py` → `scenario_roots()`, `iter_scenario_yaml_files()` | Core scope = `scenarios/` + `modules/core/*/scenarios` only |
+| Scenario YAML paths | `scenarios/registry.py` → `scenario_roots()`, `iter_scenario_yaml_files()` | Core scope = `modules/core/*/scenarios` only |
 | Overlay rules | `load_merged_analyze_yaml()` | Merged from all `modules/*/analyze/analyze.yaml` |
 | DSL `exec:` handlers | `config/module_exec_registry.load_module_exec_handlers()` | Export `DSL_EXEC_HANDLERS` dict |
 | Streamlit pages | `config/module_ui_registry.iter_module_ui_page_specs()` | Declared in `module.yaml` `ui:` |
 | Wiki DB tiles | `config/wiki_sources.load_merged_entries()` | See `modules/README_WIKI.md` |
 | Labeling / Gallery scope | `config/module_registry.list_wiki_modules()` | Skips `wiki: false` modules |
 
-Scenario keys resolve the same as core: filename without `.yaml`, including
-`scenarios/by_cron/` and template `{placeholder}` files under the module tree.
+Scenario keys resolve from filename without `.yaml`, including `by_cron/`
+subdirectories and template `{placeholder}` files under each module tree.
 
 ## Module scope (UI filter)
 
@@ -102,8 +102,8 @@ Sidebar **Module scope** (`ui/module_scope.py`): **All** | **Core** | feature id
 
 | Scope | Scenarios | Overlay manifests |
 |-------|-----------|-------------------|
-| `all` | Core `scenarios/` + every module | All module manifests |
-| `core` | `scenarios/` + `modules/core/*/scenarios` | `modules/core/*/analyze` only |
+| `all` | Every module | All module manifests |
+| `core` | `modules/core/*/scenarios` | `modules/core/*/analyze` only |
 | `mail` (etc.) | That module's `scenarios/` | That module's `analyze/` |
 
 `path_matches_module_scope()` treats `modules/core/...` as **Core** scope.

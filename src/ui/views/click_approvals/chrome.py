@@ -121,13 +121,14 @@ def render_node_player_caption(*, ctx: ClickApprovalsCtx, client: Any) -> None:
 
 
 @st.fragment(run_every=timedelta(seconds=1))
-def render_header(*, ctx: ClickApprovalsCtx, client: Any, ocr_url: str = "") -> None:
+def render_header(*, ctx: ClickApprovalsCtx, client: Any, tesseract_cmd: str = "tesseract") -> None:
     st.title(f"Click approvals · {ctx.instance_id}")
-    ok, detail = ocr_health_status(ocr_url)
-    if not ok and str(ocr_url or "").strip():
+    ok, detail = ocr_health_status(tesseract_cmd)
+    if not ok:
         st.warning(
-            f"OCR service is not available ({ocr_url}). "
-            "Please start OCR (e.g. docker-compose) — otherwise screen OCR/detection may stall. "
+            "Local OCR is not available. "
+            "Install Tesseract with `eng.traineddata` or set `WOS_TESSERACT_CMD`; "
+            "otherwise screen OCR/detection may stall. "
             f"Details: {detail}"
         )
 

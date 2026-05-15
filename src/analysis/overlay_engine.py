@@ -170,12 +170,17 @@ def _tap_region_delta_pct(
     rule: dict[str, Any],
     *,
     state_flat: dict[str, Any] | None = None,
+    screen_id: str | None = None,
 ) -> tuple[str, float, float] | None:
     tap_region = str(rule.get("tap_region") or f"{region_name}_tap").strip()
     if not tap_region:
         return None
     delta = centers_delta_pct_between_regions(
-        area_doc, region_name, tap_region, state_flat=state_flat
+        area_doc,
+        region_name,
+        tap_region,
+        state_flat=state_flat,
+        screen_id=screen_id,
     )
     if delta is None:
         return None
@@ -197,6 +202,15 @@ async def evaluate_overlay_rules_async(
     out: dict[str, Any] = {}
     now_mono = time.monotonic()
     cur_screen_norm = (current_screen or "").strip()
+
+    def _lookup_region(region_name: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        return screen_region_by_name(
+            area_doc,
+            region_name,
+            state_flat=state_flat,
+            screen_id=cur_screen_norm or None,
+        )
+
     # ``action: text`` rules defer their OCR to a batched pass below — one
     # ``ocr_regions`` call covers every primary bbox in this tick, plus a
     # second batch for any ``{region}_search`` fallbacks that didn't match
@@ -280,11 +294,7 @@ async def evaluate_overlay_rules_async(
         if action in ("red_dot", "red_dot_absent"):
             want_present = action == "red_dot"
             region_name_rd = str(rule.get("region") or "").strip()
-            pair_rd = (
-                screen_region_by_name(area_doc, region_name_rd, state_flat=state_flat)
-                if region_name_rd
-                else None
-            )
+            pair_rd = _lookup_region(region_name_rd) if region_name_rd else None
             if pair_rd is None:
                 out[logical_name] = {
                     "matched": False,
@@ -325,7 +335,13 @@ async def evaluate_overlay_rules_async(
             my_pct_rd = by + bh / 2.0
             tap_x_pct_rd = mx_pct_rd
             tap_y_pct_rd = my_pct_rd
-            tap_delta_rd = _tap_region_delta_pct(area_doc, region_name_rd, rule, state_flat=state_flat)
+            tap_delta_rd = _tap_region_delta_pct(
+                area_doc,
+                region_name_rd,
+                rule,
+                state_flat=state_flat,
+                screen_id=cur_screen_norm or None,
+            )
             if tap_delta_rd is not None:
                 _tap_reg_rd, dx_pct_rd, dy_pct_rd = tap_delta_rd
                 tap_x_pct_rd = mx_pct_rd + dx_pct_rd
@@ -360,11 +376,7 @@ async def evaluate_overlay_rules_async(
         if action in ("tab_active", "tab_active_absent"):
             want_active = action == "tab_active"
             region_name_ta = str(rule.get("region") or "").strip()
-            pair_ta = (
-                screen_region_by_name(area_doc, region_name_ta, state_flat=state_flat)
-                if region_name_ta
-                else None
-            )
+            pair_ta = _lookup_region(region_name_ta) if region_name_ta else None
             if pair_ta is None:
                 out[logical_name] = {
                     "matched": False,
@@ -407,7 +419,13 @@ async def evaluate_overlay_rules_async(
             my_pct_ta = by + bh / 2.0
             tap_x_pct_ta = mx_pct_ta
             tap_y_pct_ta = my_pct_ta
-            tap_delta_ta = _tap_region_delta_pct(area_doc, region_name_ta, rule, state_flat=state_flat)
+            tap_delta_ta = _tap_region_delta_pct(
+                area_doc,
+                region_name_ta,
+                rule,
+                state_flat=state_flat,
+                screen_id=cur_screen_norm or None,
+            )
             if tap_delta_ta is not None:
                 _tap_reg_ta, dx_pct_ta, dy_pct_ta = tap_delta_ta
                 tap_x_pct_ta = mx_pct_ta + dx_pct_ta
@@ -446,11 +464,7 @@ async def evaluate_overlay_rules_async(
         if action in ("white_border", "white_border_absent"):
             want_border = action == "white_border"
             region_name_wb = str(rule.get("region") or "").strip()
-            pair_wb = (
-                screen_region_by_name(area_doc, region_name_wb, state_flat=state_flat)
-                if region_name_wb
-                else None
-            )
+            pair_wb = _lookup_region(region_name_wb) if region_name_wb else None
             if pair_wb is None:
                 out[logical_name] = {
                     "matched": False,
@@ -512,7 +526,11 @@ async def evaluate_overlay_rules_async(
             tap_x_pct_wb = mx_pct_wb
             tap_y_pct_wb = my_pct_wb
             tap_delta_wb = _tap_region_delta_pct(
-                area_doc, region_name_wb, rule, state_flat=state_flat
+                area_doc,
+                region_name_wb,
+                rule,
+                state_flat=state_flat,
+                screen_id=cur_screen_norm or None,
             )
             if tap_delta_wb is not None:
                 _tap_reg_wb, dx_pct_wb, dy_pct_wb = tap_delta_wb
@@ -558,7 +576,7 @@ async def evaluate_overlay_rules_async(
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
             threshold = float(rule.get("threshold", 0.7))
-            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+            pair = _lookup_region(region_name)
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
@@ -621,12 +639,17 @@ async def evaluate_overlay_rules_async(
             tw_tpl = int(tpl.shape[1])
             th_tpl = int(tpl.shape[0])
             search_region_name = resolved_search_region_for_findicon(
-                area_doc, region_name, ref_rel, rule, state_flat=state_flat
+                area_doc,
+                region_name,
+                ref_rel,
+                rule,
+                state_flat=state_flat,
+                screen_id=cur_screen_norm or None,
             )
 
             try:
                 if search_region_name:
-                    pair_s = screen_region_by_name(area_doc, search_region_name, state_flat=state_flat)
+                    pair_s = _lookup_region(search_region_name)
                     if pair_s is None:
                         out[logical_name] = {
                             "matched": False,
@@ -702,7 +725,13 @@ async def evaluate_overlay_rules_async(
                     my_pct = 100.0 * cy_px / hi
                     tap_x_pct = mx_pct
                     tap_y_pct = my_pct
-                    tap_delta = _tap_region_delta_pct(area_doc, region_name, rule, state_flat=state_flat)
+                    tap_delta = _tap_region_delta_pct(
+                        area_doc,
+                        region_name,
+                        rule,
+                        state_flat=state_flat,
+                        screen_id=cur_screen_norm or None,
+                    )
                     if tap_delta is not None:
                         _tap_region, dx_pct, dy_pct = tap_delta
                         tap_x_pct = mx_pct + dx_pct
@@ -786,7 +815,13 @@ async def evaluate_overlay_rules_async(
 
             tap_x_pct_1 = mx_pct
             tap_y_pct_1 = my_pct
-            tap_delta_1 = _tap_region_delta_pct(area_doc, region_name, rule, state_flat=state_flat)
+            tap_delta_1 = _tap_region_delta_pct(
+                area_doc,
+                region_name,
+                rule,
+                state_flat=state_flat,
+                screen_id=cur_screen_norm or None,
+            )
             if tap_delta_1 is not None:
                 _tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
                 tap_x_pct_1 = mx_pct + dx_pct_1
@@ -857,7 +892,7 @@ async def evaluate_overlay_rules_async(
 
         if action == "color_check":
             region_name = str(rule.get("region") or "").strip()
-            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat) if region_name else None
+            pair = _lookup_region(region_name) if region_name else None
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
@@ -954,7 +989,7 @@ async def evaluate_overlay_rules_async(
             threshold = float(rule.get("threshold", 0.7))
             expected = optional_expected_texts(rule)
 
-            pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)
+            pair = _lookup_region(region_name)
             if pair is None:
                 out[logical_name] = {
                     "matched": False,
@@ -992,7 +1027,7 @@ async def evaluate_overlay_rules_async(
             # ``fast_line``, …). Explicit on the rule wins, otherwise inherit
             # from the area.json region. When nothing is set, the resolver
             # auto-derives ``fast_line`` for ``type: time`` / ``type: integer``
-            # regions so countdown / stat reads skip paddle's detection model.
+            # regions so countdown / stat reads use Tesseract's single-line mode.
             # ``type: string`` and missing types stay on the full pipeline.
             preprocess = resolve_preprocess(
                 explicit=rule.get("preprocess") or reg.get("preprocess"),
@@ -1023,6 +1058,7 @@ async def evaluate_overlay_rules_async(
             area_doc,
             pending_text_rules,
             state_flat=state_flat,
+            screen_id=cur_screen_norm or None,
             ocr_client=ocr_client,
         )
         out.update(text_out)
@@ -1036,6 +1072,7 @@ async def _evaluate_pending_text_rules(
     pending: list[dict[str, Any]],
     *,
     state_flat: dict[str, Any] | None,
+    screen_id: str | None,
     ocr_client: OcrClient | None = None,
 ) -> dict[str, Any]:
     """Two-phase batched OCR for ``action: text`` overlay rules.
@@ -1126,7 +1163,10 @@ async def _evaluate_pending_text_rules(
                 # bbox includes both positions, partial-fuzzy filters out
                 # the surrounding noise.
                 pair_s = screen_region_by_name(
-                    area_doc, f"{p['region_name']}_search", state_flat=state_flat
+                    area_doc,
+                    f"{p['region_name']}_search",
+                    state_flat=state_flat,
+                    screen_id=screen_id,
                 )
                 if pair_s is not None:
                     entry_s, reg_s = pair_s

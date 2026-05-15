@@ -1,16 +1,30 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import redis.asyncio as aioredis
-from tests.di_factories import make_scheduler_runner
 
 from config.loader import Settings
+from scenarios.cron_specs import scenario_loader_paths
+from scenarios.evaluator import ScenarioEvaluator
+from scenarios.loader import ScenarioLoader
+from scheduler.optimizer import TaskOptimizer
 from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner
+
+
+def _make_scheduler_runner(settings: Settings) -> SchedulerRunner:
+    repo_root = Path(__file__).resolve().parent.parent
+    return SchedulerRunner(
+        settings,
+        ScenarioLoader(scenario_loader_paths(repo_root)),
+        TaskOptimizer(settings),
+        ScenarioEvaluator(),
+    )
 
 
 def _wire_runner(
@@ -67,7 +81,7 @@ async def test_scheduler_enqueues_optimizer_assignments(
 ) -> None:
     """Happy path: optimizer assigns a task → ``_run_once`` lands it in Redis
     under ``wos:queue:bs1`` with the expected fields."""
-    runner = make_scheduler_runner()
+    runner = _make_scheduler_runner(settings)
     queue = _wire_runner(
         runner,
         settings=settings,
@@ -99,7 +113,7 @@ async def test_scheduler_dedups_pending_duplicate_across_ticks(
     """Repeated ticks with the same optimizer output don't pile up duplicates
     in the pending queue. This is the ``skip_if_duplicate`` half of the gate:
     once an item is queued and not yet popped, the next tick is a no-op."""
-    runner = make_scheduler_runner()
+    runner = _make_scheduler_runner(settings)
     queue = _wire_runner(
         runner,
         settings=settings,
@@ -145,7 +159,7 @@ async def test_scheduler_skips_enqueue_when_task_already_running(
         ex=180,
     )
 
-    runner = make_scheduler_runner()
+    runner = _make_scheduler_runner(settings)
     queue = _wire_runner(
         runner,
         settings=settings,
@@ -187,7 +201,7 @@ async def test_scheduler_does_not_skip_when_running_task_is_different_type(
         ex=180,
     )
 
-    runner = make_scheduler_runner()
+    runner = _make_scheduler_runner(settings)
     queue = _wire_runner(
         runner,
         settings=settings,

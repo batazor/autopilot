@@ -28,15 +28,15 @@ def test_auto_derives_fast_line_for_digit_types(type_hint: str) -> None:
     ["string", "", None, "float", "bool"],
 )
 def test_no_auto_for_non_digit_types(type_hint: str | None) -> None:
-    """Types outside the digit set fall through to ``None``: the full paddle
-    pipeline runs on the raw crop, no implicit fast_line."""
+    """Types outside the digit set fall through to ``None``: block-style OCR
+    runs on the raw crop, no implicit fast_line."""
     assert resolve_preprocess(None, type_hint) is None
 
 
 def test_explicit_value_overrides_auto() -> None:
     """An explicit ``preprocess: enhance`` on a ``type: time`` region wins —
     the operator opts out of the fast_line default. This is the escape hatch
-    for regions where ``det=False`` misreads the line."""
+    for regions where single-line segmentation misreads the line."""
     assert resolve_preprocess("enhance", "time") == "enhance"
 
 
@@ -58,8 +58,8 @@ def test_empty_explicit_falls_through_to_type() -> None:
 
 
 def test_unknown_explicit_value_passes_through() -> None:
-    """Future preprocess values added on the backend don't require client
-    code changes — anything non-empty just forwards. Wrong values surface as
-    backend dispatch misses, not client-side AttributeError."""
+    """Future preprocess values added to OCR don't require resolver changes —
+    anything non-empty just forwards. Wrong values surface in OCR handling, not
+    as client-side AttributeError."""
     assert resolve_preprocess("some_new_pipeline", None) == "some_new_pipeline"
     assert resolve_preprocess("some_new_pipeline", "time") == "some_new_pipeline"

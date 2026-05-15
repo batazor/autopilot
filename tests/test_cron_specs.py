@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from scenarios.cron_specs import (
-    iter_cron_yaml_files,
-    iter_plain_scenario_yaml_files,
-    iter_scenarios_yaml_paths,
+    iter_cron_yaml_files_for_repo,
+    iter_plain_scenario_yaml_files_for_repo,
+    iter_scenarios_yaml_paths_for_repo,
     resolve_cron_priority,
     resolve_cron_task_type,
 )
@@ -16,10 +16,9 @@ from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 
 def test_cron_and_plain_partition_repo_scenarios() -> None:
     repo_root = Path(__file__).resolve().parents[1]
-    scenarios_root = repo_root / "scenarios"
-    all_yaml = set(iter_scenarios_yaml_paths(scenarios_root))
-    cron_set = set(iter_cron_yaml_files(scenarios_root))
-    plain_set = set(iter_plain_scenario_yaml_files(scenarios_root))
+    all_yaml = set(iter_scenarios_yaml_paths_for_repo(repo_root))
+    cron_set = set(iter_cron_yaml_files_for_repo(repo_root))
+    plain_set = set(iter_plain_scenario_yaml_files_for_repo(repo_root))
     assert cron_set.isdisjoint(plain_set)
     assert cron_set | plain_set == all_yaml
 
@@ -52,7 +51,7 @@ def test_resolve_cron_priority_fallback_for_missing_or_invalid() -> None:
 def test_resolve_cron_task_type_prefers_explicit_task() -> None:
     """``task:`` is the canonical override knob — scheduler reads it first
     so the UI Cron Push must agree."""
-    p = Path("scenarios/by_cron/check_main_city.yaml")
+    p = Path("modules/core/main_city/scenarios/by_cron/check_main_city.yaml")
     assert resolve_cron_task_type({"task": "main_city_check"}, p) == "main_city_check"
     # ``task_type:`` is the legacy alias — still honored second.
     assert resolve_cron_task_type({"task_type": "legacy_name"}, p) == "legacy_name"
@@ -62,7 +61,7 @@ def test_resolve_cron_task_type_falls_back_to_stem() -> None:
     """Most cron YAMLs in the repo declare ``cron:`` + ``steps:`` and rely
     on the stem fallback. The UI Cron Push used to render an empty ``task``
     cell and refuse to push these — must now resolve to the stem."""
-    p = Path("scenarios/by_cron/check_main_city.yaml")
+    p = Path("modules/core/main_city/scenarios/by_cron/check_main_city.yaml")
     assert resolve_cron_task_type({}, p) == "check_main_city"
     assert resolve_cron_task_type({"task": ""}, p) == "check_main_city"
     assert resolve_cron_task_type({"task": "   "}, p) == "check_main_city"
@@ -75,8 +74,7 @@ def test_real_repo_cron_yamls_all_resolve() -> None:
     every Push from the UI."""
     import yaml
     repo_root = Path(__file__).resolve().parents[1]
-    scenarios_root = repo_root / "scenarios"
-    for p in iter_cron_yaml_files(scenarios_root):
+    for p in iter_cron_yaml_files_for_repo(repo_root):
         raw = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
         if not isinstance(raw, dict):
             continue
