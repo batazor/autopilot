@@ -337,7 +337,7 @@ class DslScenarioExecuteMixin:
         # entry — firing it from an unknown state means the navigator does a
         # blind detect-from-image while the UI shows ``node: —``. Hard policy:
         # if ``current_screen`` is empty, defer the scenario and do nothing
-        # else. No ``where_i_am`` seed — the worker's rolling tick already
+        # else. No queued screen probe — the worker's rolling tick already
         # runs screen detection on every frame
         # (``_detect_current_screen_on_frame`` in
         # ``worker/instance_worker_screen.py``), so a one-shot probe here is
