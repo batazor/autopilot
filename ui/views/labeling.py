@@ -7,11 +7,10 @@ from pathlib import Path
 
 import streamlit as st
 
-from capture.adb_screencap import adb_screencap_to_file
 from config.loader import load_settings
 from config.reference_naming import (
     TEMPORAL_SUBDIR,
-    temporal_png_abs_path,
+    temporal_png_abs_path_in_refs,
     unique_label_capture_basename,
 )
 from layout.area_versions import normalize_version_id
@@ -46,8 +45,9 @@ from ui.labeling_reference_panel import (
 )
 from ui.labeling_refresh_target import ocr_path_to_ref_rel, resolve_labeling_refresh_target_rel
 from ui.labeling_version_redirect import resolve_version_ref_redirect
-from ui.reference_preview import list_reference_pngs, references_root
-from ui.settings_state import ensure_ui_settings_session_defaults, get_ui_adb_bin
+from ui.reference_preview import copy_rolling_preview_to, list_reference_pngs
+from ui.settings_state import ensure_ui_settings_session_defaults
+from ui.wiki_module import render_wiki_module_selector
 
 
 def _labeling_has_version_query_param(params: object) -> bool:
@@ -155,6 +155,10 @@ if LABELING_ERROR_FLASH in st.session_state:
 
 ensure_ui_settings_session_defaults()
 
+wiki_ctx = render_wiki_module_selector(
+    help="Scope screenshots and area layout to Core or a feature module.",
+)
+
 settings = load_settings()
 instances = settings.instances
 if not instances:
@@ -169,14 +173,17 @@ instance_id = st.selectbox(
     key="labeling_instance",
     help="ADB device for captures; **New screenshot** writes a new unique file under references/.",
 )
-inst_cfg = next(i for i in instances if i.instance_id == instance_id)
-
 if st.session_state.get(LABELING_LAST_INSTANCE) != instance_id:
     st.session_state[LABELING_LAST_INSTANCE] = instance_id
     st.session_state.pop(LABELING_BN_SYNC_SEL, None)
 
-ref_root = references_root()
-existing = list_reference_pngs(exclude_temporal=True, exclude_crop=True)
+ref_root = wiki_ctx.references_dir
+ref_prefix = wiki_ctx.references_prefix
+existing = list_reference_pngs(
+    exclude_temporal=True,
+    exclude_crop=True,
+    root=ref_root,
+)
 
 init_session()
 
@@ -230,7 +237,7 @@ if _labeling_has_version_query_param(params):
             and not rs.startswith(temporal_prefix)
             and (ref_root / rs).is_file()
         ):
-            ocr_norm = (Path("references") / rs).as_posix()
+            ocr_norm = f"{ref_prefix}/{rs}".replace("\\", "/")
             ei0 = ensure_entry_for_reference_path(entries0, ocr_norm)
             if 0 <= ei0 < len(entries0):
                 ent0 = entries0[ei0]
@@ -248,6 +255,10 @@ discard_capture = False
 hdr_title, hdr_btn = st.columns([2, 3], vertical_alignment="center")
 with hdr_title:
     st.markdown("# Labeling")
+    st.caption(
+        f"Module **{wiki_ctx.title}** · references `{ref_root.relative_to(REPO_ROOT)}` · "
+        f"area `{wiki_ctx.area_path.relative_to(REPO_ROOT)}`"
+    )
 with hdr_btn:
     r1c1, r1c2 = st.columns(2, gap="small")
     with r1c1:
@@ -316,14 +327,12 @@ if discard_capture:
 # without waiting for the (potentially heavy) annotator/canvas to render.
 if new_screenshot:
     capture_bn = unique_label_capture_basename(instance_id)
-    with st.spinner("Capturing screenshot via ADB…"):
-        # Capture to temporal first; move to `references/` only when user assigns a basename.
-        temp_path = temporal_png_abs_path(REPO_ROOT, capture_bn)
-        ok, msg = adb_screencap_to_file(
-            temp_path,
-            adb_bin=get_ui_adb_bin(),
-            serial=inst_cfg.bluestacks_window_title,
-        )
+    with st.spinner("Copying latest rolling frame…"):
+        # Snapshot the worker's rolling PNG into temporal/ — the rolling loop is
+        # the only ADB capture path in the system, so we just copy its output.
+        # Move to `references/` only when user assigns a basename.
+        temp_path = temporal_png_abs_path_in_refs(ref_root, capture_bn)
+        ok, msg = copy_rolling_preview_to(instance_id, temp_path)
         fname = temp_path.relative_to(ref_root).as_posix()
     if not ok:
         st.session_state[LABELING_ERROR_FLASH] = (
@@ -374,6 +383,7 @@ render_area_annotator_ui(
     labeling_ref_root=ref_root,
     labeling_existing=existing,
     labeling_instance_id=instance_id,
+    labeling_references_prefix=ref_prefix,
 )
 
 sel = labeling_resolve_sel(ref_root, existing)
@@ -441,15 +451,11 @@ with labeling_refresh_confirm_slot.container():
                     st.error("Invalid selected path (outside references/).")
                     st.session_state.pop(LABELING_REFRESH_PENDING, None)
                     st.stop()
-                with st.spinner(f"Refreshing screenshot via ADB → `{target_rel_go}` …"):
-                    ok, msg = adb_screencap_to_file(
-                        target,
-                        adb_bin=get_ui_adb_bin(),
-                        serial=inst_cfg.bluestacks_window_title,
-                    )
+                with st.spinner(f"Copying rolling frame → `{target_rel_go}` …"):
+                    ok, msg = copy_rolling_preview_to(instance_id, target)
                 st.session_state.pop(LABELING_REFRESH_PENDING, None)
                 if not ok:
-                    with st.expander("ADB error details", expanded=True):
+                    with st.expander("Rolling preview error", expanded=True):
                         st.error(msg)
                 else:
                     st.session_state[LABELING_RENAME_FLASH] = (

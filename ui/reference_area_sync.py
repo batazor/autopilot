@@ -13,14 +13,16 @@ def sync_area_json_ocr_after_reference_rename(
     *,
     old_rel_under_refs: str,
     new_rel_under_refs: str,
+    area_path: Path | None = None,
+    references_prefix: str = "references",
 ) -> tuple[bool, str, int]:
     """Rewrite ``screens[].ocr`` entries that pointed at the old PNG.
 
-    Paths are relative to ``references/`` (e.g. ``city/foo.png``).
+    Paths are relative to the active references tree (e.g. ``city/foo.png``).
 
     Returns ``(ok, error_message, entries_updated)``. ``error_message`` is empty on success.
     """
-    area_path = repo_root / "area.json"
+    area_path = area_path or (repo_root / "area.json")
     if not area_path.is_file():
         return True, "", 0
 
@@ -41,13 +43,14 @@ def sync_area_json_ocr_after_reference_rename(
     else:
         return False, "area.json: invalid structure", 0
 
-    ref_root = repo_root / "references"
+    prefix = references_prefix.strip().rstrip("/")
+    ref_root = (repo_root / prefix).resolve()
     try:
         old_abs = (ref_root / Path(old_rel_under_refs)).resolve()
     except OSError as exc:
         return False, str(exc), 0
 
-    new_ocr = (Path("references") / Path(new_rel_under_refs)).as_posix()
+    new_ocr = f"{prefix}/{Path(new_rel_under_refs).as_posix()}".replace("\\", "/")
 
     updated = 0
     for entry in screens:

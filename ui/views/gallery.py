@@ -19,26 +19,33 @@ from layout.area_versions import (
     resolve_region_with_version,
 )
 from ui.area_annotator import _format_screen_id_choice, screen_id_select_options
+from config.module_registry import collect_reference_rels_from_doc
+from ui.area_annotator import REPO_ROOT, load_json
 from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
-from ui.reference_preview import list_reference_pngs, references_root
-
-_AREA_JSON_PATH = Path(__file__).resolve().parents[2] / "area.json"
-
+from ui.reference_preview import list_reference_pngs
+from ui.wiki_module import render_wiki_module_selector
 
 
 
-def _set_screen_id_for_ref(ref_rel: str, new_sid: str) -> tuple[bool, str]:
-    """Update ``screen_id`` of the area.json screen entry matching ``ref_rel``.
+
+def _set_screen_id_for_ref(
+    ref_rel: str,
+    new_sid: str,
+    *,
+    area_path: Path,
+    references_prefix: str,
+) -> tuple[bool, str]:
+    """Update ``screen_id`` of the area manifest screen entry matching ``ref_rel``.
 
     Returns ``(ok, message)``. The entry is the one whose ``ocr`` (or any
     ``versions[].ocr``) resolves to ``ref_rel`` — same lookup used by
     ``_screen_entry_for_ref``. ``new_sid`` may be empty to unassign.
     """
-    if not _AREA_JSON_PATH.is_file():
-        return False, "area.json not found"
+    if not area_path.is_file():
+        return False, f"{area_path.name} not found"
     try:
-        doc = json.loads(_AREA_JSON_PATH.read_text(encoding="utf-8"))
+        doc = load_json(area_path)
     except Exception as exc:
         return False, f"parse failed: {exc}"
     screens = doc.get("screens") if isinstance(doc, dict) else None
@@ -48,14 +55,19 @@ def _set_screen_id_for_ref(ref_rel: str, new_sid: str) -> tuple[bool, str]:
     for e in screens:
         if not isinstance(e, dict):
             continue
-        if any(r == ref_rel for r, _ in _refs_from_screen_entry(e)):
+        if any(
+            r == ref_rel
+            for r, _ in _refs_from_screen_entry(e, references_prefix=references_prefix)
+        ):
             target = e
             break
     if target is None:
         return False, f"no screen entry references `{ref_rel}`"
     target["screen_id"] = str(new_sid or "").strip()
     try:
-        _AREA_JSON_PATH.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        from ui.area_annotator import save_json
+
+        save_json(area_path, doc)
     except OSError as exc:
         return False, f"write failed: {exc}"
     return True, ""
@@ -86,23 +98,27 @@ def _node_group_for(rel: str, sid: str | None) -> str:
 
 
 @st.cache_data(ttl=60)
-def _load_area_doc_cached(mtime: float) -> dict[str, object]:
-    """Cache parsed `area.json` keyed by mtime (fast reruns)."""
+def _load_area_doc_cached(mtime: float, area_path_str: str) -> dict[str, object]:
+    """Cache parsed area manifest keyed by mtime (fast reruns)."""
     if mtime <= 0:
         return {}
-    area_path = Path(__file__).resolve().parents[2] / "area.json"
+    area_path = Path(area_path_str)
     if not area_path.is_file():
         return {}
     try:
-        return json.loads(area_path.read_text(encoding="utf-8"))
+        return load_json(area_path)
     except Exception:
         return {}
 
 
-def _ocr_to_ref_rel(ocr: str) -> str | None:
+def _ocr_to_ref_rel(ocr: str, references_prefix: str | None = None) -> str | None:
     path = str(ocr or "").replace("\\", "/").strip()
     if not path:
         return None
+    if references_prefix:
+        prefix = references_prefix.strip().rstrip("/")
+        if path == prefix or path.startswith(f"{prefix}/"):
+            return path[len(prefix) :].lstrip("/")
     try:
         return Path(path).relative_to("references").as_posix()
     except Exception:
@@ -124,10 +140,14 @@ def _declared_version_ids(entry: dict[str, object]) -> set[str]:
     return out
 
 
-def _refs_from_screen_entry(entry: dict[str, object]) -> list[tuple[str, str | None]]:
+def _refs_from_screen_entry(
+    entry: dict[str, object],
+    *,
+    references_prefix: str = "references",
+) -> list[tuple[str, str | None]]:
     """``(ref_rel, auto_active_version)`` — ``None`` means default (v1) screenshot."""
     out: list[tuple[str, str | None]] = []
-    rel = _ocr_to_ref_rel(str(entry.get("ocr") or ""))
+    rel = _ocr_to_ref_rel(str(entry.get("ocr") or ""), references_prefix)
     if rel:
         out.append((rel, None))
     raw = entry.get("versions")
@@ -137,7 +157,7 @@ def _refs_from_screen_entry(entry: dict[str, object]) -> list[tuple[str, str | N
         if not isinstance(v, dict):
             continue
         vid = normalize_version_id(str(v.get("id") or ""))
-        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""), references_prefix)
         if vid and vr:
             out.append((vr, vid))
     return out
@@ -147,9 +167,11 @@ def _active_version_for_ref(
     ref_rel: str,
     entry: dict[str, object],
     preview_mode: str,
+    *,
+    references_prefix: str = "references",
 ) -> str | None:
     if preview_mode == "auto":
-        for r, av in _refs_from_screen_entry(entry):
+        for r, av in _refs_from_screen_entry(entry, references_prefix=references_prefix):
             if r == ref_rel:
                 return av
         return None
@@ -162,6 +184,8 @@ def _merged_bbox_entries_for_ref(
     entry: dict[str, object],
     ref_rel: str,
     preview_mode: str,
+    *,
+    references_prefix: str = "references",
 ) -> list[dict[str, object]]:
     """Collect bbox rows for ``ref_rel`` under ``preview_mode``.
 
@@ -173,7 +197,9 @@ def _merged_bbox_entries_for_ref(
     reference image — switching to “Force v2” on ``main_city.png`` should not
     hide v2-exclusive boxes.
     """
-    av = _active_version_for_ref(ref_rel, entry, preview_mode)
+    av = _active_version_for_ref(
+        ref_rel, entry, preview_mode, references_prefix=references_prefix
+    )
     skip_eff_match = preview_mode not in ("auto", "default")
 
     candidate_names: set[str] = set()
@@ -198,7 +224,7 @@ def _merged_bbox_entries_for_ref(
             continue
         if not skip_eff_match:
             eff = effective_ocr_for_region(entry, resolved)
-            eff_rel = _ocr_to_ref_rel(eff)
+            eff_rel = _ocr_to_ref_rel(eff, references_prefix)
             if eff_rel != ref_rel:
                 continue
         nm = str(resolved.get("name") or "").strip()
@@ -208,20 +234,29 @@ def _merged_bbox_entries_for_ref(
     return list(by_name.values())
 
 
-def _screen_entry_for_ref(doc: dict[str, object], ref_rel: str) -> dict[str, object] | None:
+def _screen_entry_for_ref(
+    doc: dict[str, object],
+    ref_rel: str,
+    *,
+    references_prefix: str = "references",
+) -> dict[str, object] | None:
     screens = doc.get("screens") if isinstance(doc, dict) else None
     if not isinstance(screens, list):
         return None
     for e in screens:
         if not isinstance(e, dict):
             continue
-        ref_pairs = _refs_from_screen_entry(e)
+        ref_pairs = _refs_from_screen_entry(e, references_prefix=references_prefix)
         if any(r == ref_rel for r, _ in ref_pairs):
             return e
     return None
 
 
-def _screen_has_layout_versions(entry: dict[str, object] | None) -> bool:
+def _screen_has_layout_versions(
+    entry: dict[str, object] | None,
+    *,
+    references_prefix: str = "references",
+) -> bool:
     """True when the screen declares at least one ``versions[]`` entry with id + ``ocr`` path."""
     if entry is None:
         return False
@@ -232,17 +267,23 @@ def _screen_has_layout_versions(entry: dict[str, object] | None) -> bool:
         if not isinstance(v, dict):
             continue
         vid = normalize_version_id(str(v.get("id") or ""))
-        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""), references_prefix)
         if vid and vr:
             return True
     return False
 
 
-def _layout_ver_labels_for_entry(entry: dict[str, object] | None) -> OrderedDict[str, str]:
+def _layout_ver_labels_for_entry(
+    entry: dict[str, object] | None,
+    *,
+    references_prefix: str = "references",
+) -> OrderedDict[str, str]:
     """Options: **Auto** only without ``versions``; else Auto, Default, Force vN per entry."""
     od: OrderedDict[str, str] = OrderedDict()
     od["auto"] = "Auto (match file)"
-    if entry is None or not _screen_has_layout_versions(entry):
+    if entry is None or not _screen_has_layout_versions(
+        entry, references_prefix=references_prefix
+    ):
         return od
     od["default"] = "Default (v1)"
     raw = entry.get("versions")
@@ -253,7 +294,7 @@ def _layout_ver_labels_for_entry(entry: dict[str, object] | None) -> OrderedDict
         if not isinstance(v, dict):
             continue
         vid = normalize_version_id(str(v.get("id") or ""))
-        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""), references_prefix)
         if not vid or not vr or vid in seen:
             continue
         seen.add(vid)
@@ -265,15 +306,17 @@ def _display_ref_rel_for_card(
     doc: dict[str, object],
     listed_rel: str,
     preview_mode: str,
+    *,
+    references_prefix: str = "references",
 ) -> str:
     """Which ``references/…`` image to show for this gallery row and layout mode."""
-    entry = _screen_entry_for_ref(doc, listed_rel)
+    entry = _screen_entry_for_ref(doc, listed_rel, references_prefix=references_prefix)
     if entry is None:
         return listed_rel
     if preview_mode == "auto":
         return listed_rel
     if preview_mode == "default":
-        dr = _ocr_to_ref_rel(str(entry.get("ocr") or ""))
+        dr = _ocr_to_ref_rel(str(entry.get("ocr") or ""), references_prefix)
         return dr if dr else listed_rel
     vid = normalize_version_id(preview_mode)
     if not vid:
@@ -286,7 +329,7 @@ def _display_ref_rel_for_card(
             continue
         if normalize_version_id(str(v.get("id") or "")) != vid:
             continue
-        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""))
+        vr = _ocr_to_ref_rel(str(v.get("ocr") or ""), references_prefix)
         if vr:
             return vr
     return listed_rel
@@ -296,9 +339,13 @@ def _gallery_slice_for_ref(
     doc: dict[str, object],
     listed_rel: str,
     preview_mode: str,
+    *,
+    references_prefix: str = "references",
 ) -> tuple[set[str], list[dict[str, object]], str]:
     """Resolve regions against the **displayed** reference (layout-matched screenshot)."""
-    layout_ref = _display_ref_rel_for_card(doc, listed_rel, preview_mode)
+    layout_ref = _display_ref_rel_for_card(
+        doc, listed_rel, preview_mode, references_prefix=references_prefix
+    )
     regions: set[str] = set()
     boxes_by_name: dict[str, dict[str, object]] = {}
     sid_out = ""
@@ -308,13 +355,15 @@ def _gallery_slice_for_ref(
     for e in screens:
         if not isinstance(e, dict):
             continue
-        ref_pairs = _refs_from_screen_entry(e)
+        ref_pairs = _refs_from_screen_entry(e, references_prefix=references_prefix)
         if not any(r == listed_rel for r, _ in ref_pairs):
             continue
         sid = str(e.get("screen_id") or "").strip()
         if sid:
             sid_out = sid
-        for b in _merged_bbox_entries_for_ref(e, layout_ref, preview_mode):
+        for b in _merged_bbox_entries_for_ref(
+            e, layout_ref, preview_mode, references_prefix=references_prefix
+        ):
             nm = str(b.get("name") or "").strip()
             if nm:
                 regions.add(nm)
@@ -325,11 +374,15 @@ def _gallery_slice_for_ref(
 @st.cache_data(ttl=60)
 def _gallery_slice_cached(
     mtime: float,
+    area_path_str: str,
     ref_rel: str,
     preview_mode: str,
+    references_prefix: str,
 ) -> tuple[frozenset[str], list[dict[str, object]], str]:
-    doc = _load_area_doc_cached(mtime)
-    regs, boxes, sid = _gallery_slice_for_ref(doc, ref_rel, preview_mode)
+    doc = _load_area_doc_cached(mtime, area_path_str)
+    regs, boxes, sid = _gallery_slice_for_ref(
+        doc, ref_rel, preview_mode, references_prefix=references_prefix
+    )
     return frozenset(regs), boxes, sid
 
 
@@ -363,8 +416,8 @@ def _refs_exclusive_to_versions(doc: dict[str, object]) -> frozenset[str]:
 
 
 @st.cache_data(ttl=60)
-def _refs_exclusive_to_versions_cached(mtime: float) -> frozenset[str]:
-    doc = _load_area_doc_cached(mtime)
+def _refs_exclusive_to_versions_cached(mtime: float, area_path_str: str) -> frozenset[str]:
+    doc = _load_area_doc_cached(mtime, area_path_str)
     return _refs_exclusive_to_versions(doc)
 
 
@@ -443,13 +496,22 @@ def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes
 
 st.title("Gallery")
 
-ref_root = references_root()
-_area_path = Path(__file__).resolve().parents[2] / "area.json"
+wiki_ctx = render_wiki_module_selector(
+    help="Browse and annotate references for Core or a feature module.",
+)
+ref_root = wiki_ctx.references_dir
+_area_path = wiki_ctx.area_path
+_ref_prefix = wiki_ctx.references_prefix
 try:
     area_mtime = _area_path.stat().st_mtime if _area_path.is_file() else 0.0
 except OSError:
     area_mtime = 0.0
-area_doc = _load_area_doc_cached(area_mtime)
+area_doc = _load_area_doc_cached(area_mtime, str(_area_path))
+_module_refs: set[str] | None = None
+if wiki_ctx.module_id:
+    declared = collect_reference_rels_from_doc(area_doc, wiki_ctx)
+    if declared:
+        _module_refs = declared
 all_regions = _primary_region_names_for_filter(area_doc)
 
 def _qp_get_str(key: str, default: str = "") -> str:
@@ -527,7 +589,7 @@ with top[2]:
     q = st.text_input(
         "Filter by filename",
         value=qp_q,
-        placeholder="e.g. main_city, isNewPeople, rookie…",
+        placeholder="e.g. main_city, main_city.to.new_people, rookie…",
     )
 
 flt = st.columns([1, 1], vertical_alignment="bottom")
@@ -545,7 +607,7 @@ region_sel = st.multiselect(
 )
 
 def _sync_query_params() -> None:
-    qp: dict[str, object] = {}
+    qp: dict[str, object] = {"module": wiki_ctx.query_value}
     ql = q.strip()
     if ql:
         qp["q"] = ql
@@ -571,17 +633,20 @@ _sync_query_params()
 
 files = list_reference_pngs(
     limit=limit,
+    root=ref_root,
     exclude_temporal=not show_temporal,
     exclude_crop=not show_crop,
 )
 
-_version_only_refs = _refs_exclusive_to_versions_cached(area_mtime)
+_version_only_refs = _refs_exclusive_to_versions_cached(area_mtime, str(_area_path))
 _node_counts: Counter[str] = Counter()
 for _p in files:
     _rrel = _rel_under_references(_p, ref_root)
     if _rrel in _version_only_refs:
         continue
-    _, _, _sid = _gallery_slice_cached(area_mtime, _rrel, "auto")
+    _, _, _sid = _gallery_slice_cached(
+        area_mtime, str(_area_path), _rrel, "auto", _ref_prefix
+    )
     _nk = _node_group_for(_rrel, _sid)
     _node_counts[_nk] += 1
 _node_pill_labels = [
@@ -618,7 +683,11 @@ for p in files:
     rel = _rel_under_references(p, ref_root)
     if rel in _version_only_refs:
         continue
-    have_f, _, sid_line = _gallery_slice_cached(area_mtime, rel, "auto")
+    if _module_refs is not None and rel not in _module_refs:
+        continue
+    have_f, _, sid_line = _gallery_slice_cached(
+        area_mtime, str(_area_path), rel, "auto", _ref_prefix
+    )
     node_key = _node_group_for(rel, sid_line)
     if _selected_nodes and node_key not in _selected_nodes:
         continue
@@ -629,7 +698,8 @@ for p in files:
     filtered.append(p)
 
 st.caption(
-    f"Showing **{len(filtered)} / {len(files)}** file(s) · root: `{ref_root}` · "
+    f"Module **{wiki_ctx.title}** · showing **{len(filtered)} / {len(files)}** file(s) · "
+    f"root: `{ref_root}` · area: `{_area_path.relative_to(REPO_ROOT)}` · "
     "only **base** ``ocr`` screenshots listed — alternates via **Layout** · "
     "**Layout** when ``versions`` exist · defaults to **Default (v1)** · "
     "region filter **Auto** · **Open in Labeling**: default ``ocr``, "
@@ -644,7 +714,10 @@ def _render_cards(
     paths: list[Path],
     *,
     area_mtime: float,
+    area_path_str: str,
     area_doc: dict[str, object],
+    module_key: str,
+    references_prefix: str,
 ) -> None:
     for p in paths:
         rel = _rel_under_references(p, ref_root)
@@ -656,8 +729,12 @@ def _render_cards(
         row_key = rel.replace("/", "::")
         layout_key = f"layout::{row_key}"
 
-        entry = _screen_entry_for_ref(area_doc, rel)
-        ver_labels = _layout_ver_labels_for_entry(entry)
+        entry = _screen_entry_for_ref(
+            area_doc, rel, references_prefix=references_prefix
+        )
+        ver_labels = _layout_ver_labels_for_entry(
+            entry, references_prefix=references_prefix
+        )
         ver_keys = list(ver_labels.keys())
         show_layout_switch = len(ver_keys) > 1
 
@@ -680,9 +757,15 @@ def _render_cards(
         else:
             card_ver = "auto"
 
-        layout_rel = _display_ref_rel_for_card(area_doc, rel, card_ver)
-        labeling_ref = _display_ref_rel_for_card(area_doc, rel, "default")
-        labeling_qp = open_in_labeling_query_params(labeling_ref, card_ver)
+        layout_rel = _display_ref_rel_for_card(
+            area_doc, rel, card_ver, references_prefix=references_prefix
+        )
+        labeling_ref = _display_ref_rel_for_card(
+            area_doc, rel, "default", references_prefix=references_prefix
+        )
+        labeling_qp = open_in_labeling_query_params(
+            labeling_ref, card_ver, module_key=module_key
+        )
         img_path = (ref_root / layout_rel).resolve()
         try:
             if img_path.is_file():
@@ -697,7 +780,9 @@ def _render_cards(
             st.error(f"`{rel}` / `{layout_rel}`: {exc}")
             continue
 
-        regs_f, bbox_regs, sid = _gallery_slice_cached(area_mtime, rel, card_ver)
+        regs_f, bbox_regs, sid = _gallery_slice_cached(
+            area_mtime, area_path_str, rel, card_ver, references_prefix
+        )
         regs = set(regs_f)
         extra: list[str] = []
         if (sid or "").strip():
@@ -774,7 +859,12 @@ def _render_cards(
             )
 
             if (_selected_sid or "") != (sid or ""):
-                ok, err = _set_screen_id_for_ref(rel, _selected_sid or "")
+                ok, err = _set_screen_id_for_ref(
+                    rel,
+                    _selected_sid or "",
+                    area_path=_area_path,
+                    references_prefix=_ref_prefix,
+                )
                 if ok:
                     st.toast(
                         f"`{rel}` → node = "
@@ -793,7 +883,9 @@ if group_by == "page (screen_id)":
     groups: dict[str, list[Path]] = {}
     for p in filtered:
         rel = _rel_under_references(p, ref_root)
-        _, _, sid = _gallery_slice_cached(area_mtime, rel, "auto")
+        _, _, sid = _gallery_slice_cached(
+            area_mtime, str(_area_path), rel, "auto", _ref_prefix
+        )
         sid_g = _node_group_for(rel, sid)
         groups.setdefault(sid_g, []).append(p)
 
@@ -802,12 +894,18 @@ if group_by == "page (screen_id)":
             _render_cards(
                 groups[sid],
                 area_mtime=area_mtime,
+                area_path_str=str(_area_path),
                 area_doc=area_doc,
+                module_key=wiki_ctx.query_value,
+                references_prefix=_ref_prefix,
             )
 else:
     _render_cards(
         filtered,
         area_mtime=area_mtime,
+        area_path_str=str(_area_path),
         area_doc=area_doc,
+        module_key=wiki_ctx.query_value,
+        references_prefix=_ref_prefix,
     )
 

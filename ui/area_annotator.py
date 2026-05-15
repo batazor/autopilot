@@ -187,10 +187,33 @@ CANVAS_IGNORE_STALE_UNTIL = "_canvas_ignore_stale_until"
 def capture_screenshot(
     dest: Path, adb_bin: str = DEFAULT_ADB_BIN, serial: str | None = None
 ) -> tuple[bool, str]:
-    """Run ``adb exec-out screencap -p`` and write PNG bytes to ``dest``."""
-    from capture.adb_screencap import adb_screencap_to_file
+    """Copy the latest rolling preview PNG for ``serial`` into ``dest``.
 
-    return adb_screencap_to_file(dest, adb_bin=adb_bin, serial=serial)
+    Maps ``serial`` → ``instance_id`` via ``load_settings().instances`` then
+    delegates to :func:`ui.reference_preview.copy_rolling_preview_to`. The
+    rolling worker is the only ADB screencap caller in the system; the
+    annotator's "Take screenshot" button just snapshots its latest frame.
+    """
+    from config.loader import load_settings
+    from ui.reference_preview import copy_rolling_preview_to
+
+    if not serial:
+        return False, "no ADB serial selected"
+    instance_id = next(
+        (
+            inst.instance_id
+            for inst in load_settings().instances
+            if inst.bluestacks_window_title == serial
+        ),
+        None,
+    )
+    if instance_id is None:
+        return False, (
+            f"serial {serial!r} is not a registered instance — annotator copies "
+            "from the rolling-worker preview, so the device must be configured "
+            "in db/devices.yaml and have a running worker"
+        )
+    return copy_rolling_preview_to(instance_id, dest)
 
 
 def convert_bbox(
@@ -2284,6 +2307,7 @@ def render_area_annotator_ui(
     labeling_ref_root: Path | None = None,
     labeling_existing: list[Path] | None = None,
     labeling_instance_id: str | None = None,
+    labeling_references_prefix: str = "references",
 ) -> None:
     """Full annotator layout (no ``set_page_config`` — caller / host app sets that)."""
     init_session()
@@ -2439,7 +2463,11 @@ def render_area_annotator_ui(
                 labeling_instance_id or "",
             )
         sel_r = labeling_resolve_sel(labeling_ref_root, labeling_existing)
-        effective_forced_ref = labeling_forced_reference_rel(sel_r, labeling_existing)
+        effective_forced_ref = labeling_forced_reference_rel(
+            sel_r,
+            labeling_existing,
+            references_prefix=labeling_references_prefix,
+        )
         if effective_forced_ref:
             # Pending captures live under `references/temporal/` and should not create `area.json` entries.
             _is_temporal = "/temporal/" in effective_forced_ref.replace("\\", "/")
@@ -2580,8 +2608,11 @@ def render_area_annotator_ui(
             st.divider()
             if st.button("Save area.json", type="primary", width="stretch", key="save_area_json_lbl"):
                 try:
-                    removed = save_json(AREA_JSON_PATH, st.session_state.area_doc)
-                    msg = f"Wrote {AREA_JSON_PATH}"
+                    from ui.wiki_module import active_wiki_area_path
+
+                    area_path = active_wiki_area_path()
+                    removed = save_json(area_path, st.session_state.area_doc)
+                    msg = f"Wrote {area_path}"
                     if removed:
                         msg += f" · removed {removed} redundant version override(s) matching base"
                     st.success(msg)
@@ -2591,7 +2622,9 @@ def render_area_annotator_ui(
                 except (OSError, ValueError) as e:
                     st.error(str(e))
 
-            st.caption(f"File: `{AREA_JSON_PATH}`")
+            from ui.wiki_module import active_wiki_area_path
+
+            st.caption(f"File: `{active_wiki_area_path()}`")
 
         with mid_col:
             if pil_original is None:

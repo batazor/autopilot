@@ -48,7 +48,12 @@ def reference_png_abs_path(repo_root: Path, base: str, instance_id: str) -> Path
 
 def temporal_png_abs_path(repo_root: Path, base: str) -> Path:
     """Path for a temporary PNG under ``references/temporal/<base>.png`` (non-rolling)."""
-    refs = repo_root / "references" / TEMPORAL_SUBDIR
+    return temporal_png_abs_path_in_refs(repo_root / "references", base)
+
+
+def temporal_png_abs_path_in_refs(references_dir: Path, base: str) -> Path:
+    """Path for a temporary PNG under ``<references_dir>/temporal/<base>.png``."""
+    refs = references_dir / TEMPORAL_SUBDIR
     out = refs / f"{base}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     return out

@@ -64,10 +64,16 @@ def labeling_resolve_sel(ref_root: Path, existing: list[Path]) -> str | None:
     return default_rel
 
 
-def labeling_forced_reference_rel(sel: str | None, existing: list[Path]) -> str | None:
+def labeling_forced_reference_rel(
+    sel: str | None,
+    existing: list[Path],
+    *,
+    references_prefix: str = "references",
+) -> str | None:
     if not sel:
         return None
-    return (Path("references") / sel).as_posix()
+    prefix = references_prefix.strip().rstrip("/")
+    return f"{prefix}/{sel}".replace("\\", "/")
 
 
 def render_labeling_reference_column(
@@ -206,6 +212,7 @@ def render_labeling_reference_column(
                         src_temporal=src_temporal,
                         name_input=name_raw,
                         instance_id=instance_id,
+                        references_dir=ref_root,
                     )
                     if ok and new_rel:
                         # Promote in-memory temporal regions to the new persistent ref entry.
@@ -216,7 +223,11 @@ def render_labeling_reference_column(
                             if isinstance(doc, dict):
                                 entries = doc.get("screens")
                                 if isinstance(entries, list):
-                                    ocr = (Path("references") / new_rel).as_posix()
+                                    from ui.wiki_module import active_references_prefix
+
+                                    ocr = f"{active_references_prefix()}/{new_rel}".replace(
+                                        "\\", "/"
+                                    )
                                     ei = ensure_entry_for_reference_path(entries, ocr)
                                     regs = st.session_state.get(LABELING_TEMPORAL_REGIONS)
                                     if isinstance(regs, list):
@@ -248,14 +259,20 @@ def render_labeling_reference_column(
                     st.info("Name unchanged.")
                 else:
                     src = ref_root / sel_out
-                    ok, msg = rename_reference_to_basename(src, name_raw, instance_id)
+                    ok, msg = rename_reference_to_basename(
+                        src, name_raw, instance_id, references_dir=ref_root
+                    )
                     if ok:
                         new_rel = f"{dest_base}.png"
-                        repo_rt = ref_root.parent
+                        from ui.area_annotator import REPO_ROOT
+                        from ui.wiki_module import active_references_prefix, active_wiki_area_path
+
                         sync_ok, sync_err, n_ocr = sync_area_json_ocr_after_reference_rename(
-                            repo_rt,
+                            REPO_ROOT,
                             old_rel_under_refs=sel_out.replace("\\", "/"),
                             new_rel_under_refs=new_rel.replace("\\", "/"),
+                            area_path=active_wiki_area_path(),
+                            references_prefix=active_references_prefix(),
                         )
                         flash = msg
                         if sync_ok and n_ocr:
@@ -281,9 +298,10 @@ def render_labeling_reference_column(
                             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
                         )
                         try:
-                            from ui.area_annotator import AREA_JSON_PATH, load_json
+                            from ui.wiki_module import active_wiki_area_path
+                            from ui.area_annotator import load_json
 
-                            st.session_state.area_doc = load_json(AREA_JSON_PATH)
+                            st.session_state.area_doc = load_json(active_wiki_area_path())
                             st.session_state[CANVAS_REV] = (
                                 int(st.session_state.get(CANVAS_REV, 0)) + 1
                             )
@@ -404,7 +422,7 @@ def purge_reference_png_and_area_entries(repo_root: Path, ref_root: Path, rel_po
     except OSError:
         pass
     try:
-        target = (repo_root / "references" / rel_posix).resolve()
+        target = (ref_root / rel_posix).resolve()
     except OSError:
         return
     doc = st.session_state.get(AREA_DOC)
@@ -455,7 +473,7 @@ def delete_reference_completely(
         return 0, 0, 0
 
     try:
-        target = (repo_root / "references" / rel_posix).resolve()
+        target = (ref_root / rel_posix).resolve()
     except OSError:
         return 0, 0, 1
 
@@ -534,9 +552,10 @@ def delete_reference_completely(
     # Phase 4: persist area.json so a UI reload (or worker restart) sees the
     # deletion. Mirrors the rename flow, which also writes immediately.
     try:
-        from ui.area_annotator import AREA_JSON_PATH, save_json
+        from ui.wiki_module import active_wiki_area_path
+        from ui.area_annotator import save_json
 
-        save_json(AREA_JSON_PATH, doc)
+        save_json(active_wiki_area_path(), doc)
     except Exception:
         errors += 1
 

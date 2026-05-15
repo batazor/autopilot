@@ -8,6 +8,11 @@ are scoped to a single file — this file covers cross-file and collision-prone 
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
+# Wiki module scope (Gallery + Labeling)
+# ---------------------------------------------------------------------------
+WIKI_MODULE_STORAGE_KEY = "wiki_module_storage_key"
+
+# ---------------------------------------------------------------------------
 # Labeling page (shared between views/labeling.py and labeling_reference_panel.py)
 # ---------------------------------------------------------------------------
 LABELING_TREE_SELECTION = "labeling_tree_selection"
