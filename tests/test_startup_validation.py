@@ -12,19 +12,32 @@ def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
     (root / "navigation" / "edge_taps.yaml").write_text(text, encoding="utf-8")
 
 
+def _write_module_overlay(root: Path, module_id: str, overlay_yaml: str) -> Path:
+    mod = root / "modules" / "core" / module_id
+    (mod / "analyze").mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        f"id: {module_id}\ntitle: {module_id}\nwiki: false\n",
+        encoding="utf-8",
+    )
+    path = mod / "analyze" / "analyze.yaml"
+    path.write_text(overlay_yaml, encoding="utf-8")
+    return path
+
+
+def _write_empty_module_overlay(root: Path) -> None:
+    _write_module_overlay(root, "test", "overlay: []\n")
+
+
 def test_startup_validation_reports_missing_analyze_scenario(tmp_path: Path) -> None:
-    (tmp_path / "analyze" / "analyze_pages").mkdir(parents=True)
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":[{"name":"claim_all","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
         encoding="utf-8",
     )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
-        "include:\n  - analyze_pages/common.yaml\n",
-        encoding="utf-8",
-    )
-    (tmp_path / "analyze" / "analyze_pages" / "common.yaml").write_text(
+    _write_module_overlay(
+        tmp_path,
+        "test",
         """
 overlay:
   - name: claim_all.visible
@@ -33,7 +46,6 @@ overlay:
     pushScenario:
       - name: missing_claim_scenario
 """.lstrip(),
-        encoding="utf-8",
     )
 
     issues = validate_startup_configs(tmp_path)
@@ -44,18 +56,18 @@ overlay:
 
 
 def test_startup_validation_fails_fast(tmp_path: Path) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
     (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
+    _write_module_overlay(
+        tmp_path,
+        "test",
         """
 overlay:
   - name: broken.visible
     region: missing_region
     action: findIcon
 """.lstrip(),
-        encoding="utf-8",
     )
 
     with pytest.raises(RuntimeError, match="startup config validation failed: 1 issue"):
@@ -65,7 +77,6 @@ overlay:
 def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "analyze" / "analyze_pages").mkdir(parents=True)
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
     (tmp_path / "area.json").write_text(
@@ -74,14 +85,15 @@ def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
         "]}]}",
         encoding="utf-8",
     )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
+    _write_module_overlay(
+        tmp_path,
+        "test",
         """
 overlay:
   - name: page.shop.has_red_dot
     region: page.shop
     isRedDot: true
 """.lstrip(),
-        encoding="utf-8",
     )
 
     issues = validate_startup_configs(tmp_path)
@@ -95,7 +107,6 @@ overlay:
 def test_startup_validation_accepts_red_dot_rule_when_capability_enabled(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
     (tmp_path / "area.json").write_text(
@@ -105,14 +116,15 @@ def test_startup_validation_accepts_red_dot_rule_when_capability_enabled(
         "]}]}",
         encoding="utf-8",
     )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
+    _write_module_overlay(
+        tmp_path,
+        "test",
         """
 overlay:
   - name: page.vip.has_red_dot
     region: page.vip
     isRedDot: true
 """.lstrip(),
-        encoding="utf-8",
     )
 
     assert validate_startup_configs(tmp_path) == []
@@ -126,9 +138,9 @@ def test_startup_validation_reports_missing_expected_on_text_search_region(
     ``_search`` fallback never activates and popup variants silently exit with
     iterations=0 (as observed on ``tap_tapanywhereyoexit`` where the Patrick
     hero card's prompt rendered 5 % below the Chapter Rewards reference)."""
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":['
         '{"name":"tapanywhereyoexit","action":"text",'
@@ -137,9 +149,6 @@ def test_startup_validation_reports_missing_expected_on_text_search_region(
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
         encoding="utf-8",
-    )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
-        "overlay: []\n", encoding="utf-8"
     )
     (tmp_path / "scenarios" / "tap_dismiss.yaml").write_text(
         """
@@ -164,9 +173,9 @@ steps:
 def test_startup_validation_accepts_text_search_region_with_expected(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":['
         '{"name":"tapanywhereyoexit","action":"text",'
@@ -175,9 +184,6 @@ def test_startup_validation_accepts_text_search_region_with_expected(
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
         encoding="utf-8",
-    )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
-        "overlay: []\n", encoding="utf-8"
     )
     (tmp_path / "scenarios" / "tap_dismiss.yaml").write_text(
         """
@@ -199,17 +205,14 @@ steps:
 def test_startup_validation_reports_missing_red_dot_capability_on_dsl_step(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":['
         '{"name":"page.shop","bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
         encoding="utf-8",
-    )
-    (tmp_path / "analyze" / "analyze.yaml").write_text(
-        "overlay: []\n", encoding="utf-8"
     )
     (tmp_path / "scenarios" / "check_shop_dot.yaml").write_text(
         """
@@ -233,15 +236,14 @@ def test_startup_validation_reports_invalid_ocr_scope(tmp_path: Path) -> None:
     """``validate_dsl_steps`` is the runtime gate for scope typos
     (``ocr`` + ``scope: instnace``). Wiring it into startup means the same
     typo trips before the worker boots, not on the first execute."""
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":[{"name":"some_region",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
         encoding="utf-8",
     )
-    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
     (tmp_path / "scenarios" / "bad_scope.yaml").write_text(
         """
 name: bad scope
@@ -266,11 +268,10 @@ def test_startup_validation_reports_cron_task_without_matching_scenario(
     """A cron YAML whose ``task:`` doesn't resolve to any scenario must trip
     at startup — otherwise the scheduler enqueues it every cron tick and the
     worker silently fails it with ``scenario_not_found``."""
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
-    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
     (tmp_path / "scenarios" / "by_cron" / "check_arena.yaml").write_text(
         """
 name: check arena
@@ -290,11 +291,10 @@ task: arena_check
 def test_startup_validation_accepts_cron_task_matching_existing_scenario(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios" / "by_cron").mkdir(parents=True)
     _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
-    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
     (tmp_path / "scenarios" / "redeem_gift_codes.yaml").write_text(
         "name: redeem\nsteps: []\n", encoding="utf-8"
     )
@@ -311,7 +311,6 @@ task: redeem_gift_codes
 
 
 def test_startup_validation_reports_missing_edge_tap_region(tmp_path: Path) -> None:
-    (tmp_path / "analyze").mkdir()
     (tmp_path / "scenarios").mkdir()
     _write_edge_taps(
         tmp_path,
@@ -321,11 +320,11 @@ edges:
     mail: [missing_mail_button]
 """.lstrip(),
     )
+    _write_empty_module_overlay(tmp_path)
     (tmp_path / "area.json").write_text(
         '{"screens":[{"regions":[{"name":"mail.new","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
         encoding="utf-8",
     )
-    (tmp_path / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
 
     issues = validate_startup_configs(tmp_path)
 

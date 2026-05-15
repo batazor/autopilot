@@ -11,7 +11,12 @@ from __future__ import annotations
 
 import pytest
 
-from gift.redeemer import GiftCodeRedeemer, _is_shutdown_error
+_redeemer_mod = pytest.importorskip(
+    "modules.gift_codes.redeemer",
+    reason="gift_codes module is in draft (modules/draft/gift_codes/) — skip until promoted",
+)
+GiftCodeRedeemer = _redeemer_mod.GiftCodeRedeemer
+_is_shutdown_error = _redeemer_mod._is_shutdown_error
 
 
 def test_is_shutdown_error_recognises_executor_shutdown_message() -> None:
@@ -56,7 +61,7 @@ async def test_redeem_one_propagates_shutdown_instead_of_marking_failed(
     """Each network step must re-raise the shutdown error, not return ``FAILED``."""
     if fail_on == "redeem":
         # ``redeem`` is reached only after captcha solve; stub the solver to a constant.
-        monkeypatch.setattr("gift.redeemer.solve_captcha", lambda _img: "1234")
+        monkeypatch.setattr("modules.gift_codes.redeemer.solve_captcha", lambda _img: "1234")
 
     redeemer = GiftCodeRedeemer.__new__(GiftCodeRedeemer)
     redeemer._codes_path = tmp_path / "codes.yaml"  # not used in this path

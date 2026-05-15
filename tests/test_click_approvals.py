@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-import actions.tap as tap
+import adb.approvals as tap
 
 pytestmark = pytest.mark.integration
 

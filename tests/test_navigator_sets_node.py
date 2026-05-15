@@ -4,18 +4,18 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.conftest_nav import make_navigator
 
 import navigation.navigator as navigator_module
+from config.loader import Settings
 from navigation.detector import ScreenName
-from navigation.navigator import Navigator
-from ocr.client import OCRResult
+from ocr.client import OcrClient, OCRResult
 
 
 @pytest.mark.asyncio
 async def test_navigator_writes_destination_node_after_route_hop(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     redis = redis_async
     taps: list[str] = []
 
@@ -32,7 +32,7 @@ async def test_navigator_writes_destination_node_after_route_hop(
     async def detect_screen(_image: np.ndarray) -> ScreenName:
         return detections.pop(0) if detections else ScreenName.CHIEF_PROFILE
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
     monkeypatch.setattr(
         nav,
@@ -63,8 +63,7 @@ async def test_navigator_writes_destination_node_after_route_hop(
 @pytest.mark.asyncio
 async def test_navigator_verifies_destination_with_match_rule(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -89,7 +88,7 @@ async def test_navigator_verifies_destination_with_match_rule(
         name = str(rules[0]["name"])
         return {name: {"matched": True, "region": "chief_profile_title"}}
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
     monkeypatch.setattr(
         navigator_module,
@@ -133,8 +132,7 @@ async def test_navigator_verifies_destination_with_match_rule(
 @pytest.mark.asyncio
 async def test_navigator_verifies_destination_with_ocr_contains(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -163,7 +161,7 @@ async def test_navigator_verifies_destination_with_ocr_contains(
         name = str(rules[0]["name"])
         return {name: {"matched": False}}
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     nav._ocr = _FakeOcr()
     monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
     monkeypatch.setattr(

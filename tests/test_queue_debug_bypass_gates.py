@@ -13,6 +13,7 @@ import time
 
 import pytest
 
+from config.loader import get_settings
 from scheduler.queue import RedisQueue
 
 
@@ -46,7 +47,7 @@ def _zadd_debug_payload(
 @pytest.mark.asyncio
 async def test_debug_payload_pops_without_active_player(redis_async) -> None:
     """A non-device-level scenario with ``debug: true`` runs even with no active_player."""
-    q = RedisQueue(redis_async)  # type: ignore[arg-type]
+    q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
     await _zadd_debug_payload(redis_async, instance_id="bs1", task_type="assign_worker")
 
     item = await q.pop_due("bs1", current_screen="main_city")
@@ -58,7 +59,7 @@ async def test_debug_payload_pops_without_active_player(redis_async) -> None:
 @pytest.mark.asyncio
 async def test_debug_payload_pops_with_empty_current_screen(redis_async) -> None:
     """A node-requiring scenario with ``debug: true`` runs even with no current_screen."""
-    q = RedisQueue(redis_async)  # type: ignore[arg-type]
+    q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
     await redis_async.hset(
         "wos:instance:bs1:state", mapping={"active_player": "765502864"}
     )
@@ -76,7 +77,7 @@ async def test_debug_payload_pops_with_empty_current_screen(redis_async) -> None
 @pytest.mark.asyncio
 async def test_non_debug_payload_still_gated(redis_async) -> None:
     """Regression guard: removing ``debug`` flag restores normal gating."""
-    q = RedisQueue(redis_async)  # type: ignore[arg-type]
+    q = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
     await _zadd_debug_payload(
         redis_async, instance_id="bs1", task_type="assign_worker", debug=False
     )

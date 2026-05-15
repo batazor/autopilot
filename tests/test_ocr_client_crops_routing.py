@@ -21,6 +21,7 @@ import httpx
 import numpy as np
 import pytest
 
+from config.loader import get_settings
 from layout.types import Region
 from ocr.client import OcrClient
 
@@ -72,7 +73,7 @@ async def test_small_region_routes_to_ocr_crops(
     image = _img(1280, 720)
     region = Region(x=40, y=120, w=50, h=30)
 
-    res = await OcrClient().ocr_regions(image, [region], region_ids=["timer"])
+    res = await OcrClient(get_settings()).ocr_regions(image, [region], region_ids=["timer"])
 
     assert len(captured) == 1
     assert captured[0].url.path == "/ocr_crops"
@@ -100,7 +101,7 @@ async def test_large_region_routes_to_full_ocr(
     image = _img(1280, 720)
     region = Region(x=0, y=0, w=720, h=900)  # 0.703 of frame
 
-    await OcrClient().ocr_regions(image, [region], region_ids=["full"])
+    await OcrClient(get_settings()).ocr_regions(image, [region], region_ids=["full"])
 
     assert len(captured) == 1
     assert captured[0].url.path == "/ocr"
@@ -126,7 +127,7 @@ async def test_many_small_regions_stay_on_crops(
     regions = [Region(x=10 + i * 50, y=20, w=40, h=24) for i in range(12)]
     rids = [f"cell_{i}" for i in range(len(regions))]
 
-    await OcrClient().ocr_regions(image, regions, region_ids=rids)
+    await OcrClient(get_settings()).ocr_regions(image, regions, region_ids=rids)
 
     assert len(captured) == 1
     assert captured[0].url.path == "/ocr_crops"
@@ -148,7 +149,7 @@ async def test_threshold_boundary_picks_full_mode(
     image = _img(100, 100)  # 10_000 px full area; threshold 0.5 → 5_000 px
     region = Region(x=0, y=0, w=100, h=50)  # exactly 5_000 px
 
-    await OcrClient().ocr_regions(image, [region], region_ids=["edge"])
+    await OcrClient(get_settings()).ocr_regions(image, [region], region_ids=["edge"])
 
     assert captured[0].url.path == "/ocr"
 
@@ -183,7 +184,7 @@ async def test_crops_mode_response_stitched_by_region_id(
         Region(x=400, y=600, w=80, h=20),
     ]
     rids = ["alpha", "beta", "gamma"]
-    res = await OcrClient().ocr_regions(image, regions, region_ids=rids)
+    res = await OcrClient(get_settings()).ocr_regions(image, regions, region_ids=rids)
 
     by_rid = {r.region_id: r for r in res}
     assert by_rid["alpha"].text == "T-alpha"
@@ -208,7 +209,7 @@ async def test_crops_mode_within_batch_dedup_still_collapses(
         Region(x=200, y=200, w=40, h=40),
     ]
 
-    res = await OcrClient().ocr_regions(image, regions, region_ids=["a", "b"])
+    res = await OcrClient(get_settings()).ocr_regions(image, regions, region_ids=["a", "b"])
 
     assert captured[0].url.path == "/ocr_crops"
     body = json.loads(captured[0].read().decode())
@@ -251,7 +252,7 @@ async def test_404_on_crops_endpoint_falls_back_to_full_and_latches(
     region = Region(x=40, y=120, w=50, h=30)  # tiny → would pick crops
 
     # First call: tries /ocr_crops, gets 404, retries on /ocr, returns result.
-    res1 = await OcrClient().ocr_regions(image, [region], region_ids=["timer"])
+    res1 = await OcrClient(get_settings()).ocr_regions(image, [region], region_ids=["timer"])
     assert res1[0].text == "T-timer"
     assert [r.url.path for r in captured] == ["/ocr_crops", "/ocr"]
     assert OcrClient._crops_endpoint_unavailable is True
@@ -260,6 +261,6 @@ async def test_404_on_crops_endpoint_falls_back_to_full_and_latches(
     OcrClient.clear_cache()  # bust the result cache so we hit the wire again
     captured.clear()
     other = Region(x=200, y=400, w=60, h=30)
-    res2 = await OcrClient().ocr_regions(image, [other], region_ids=["other"])
+    res2 = await OcrClient(get_settings()).ocr_regions(image, [other], region_ids=["other"])
     assert res2[0].text == "T-other"
     assert [r.url.path for r in captured] == ["/ocr"]

@@ -1,8 +1,0 @@
-enabled: true
-name: "🚫 Dismiss rookie value pack"
-# Ads dismissal — purely UI, no player identity needed.
-device_level: true
-
-steps:
-  - click: ads_rookie_value_pack
-  - wait: 800ms

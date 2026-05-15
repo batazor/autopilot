@@ -1,7 +1,7 @@
 """
 Optional entrypoint for the OCR region annotator only (same canvas as dashboard **Labeling**).
 
-Prefer: ``wos`` / ``streamlit run ui/app.py`` → sidebar **Labeling** (references + ``area.json`` editor).
+Prefer: ``wos`` / ``uv run streamlit run src/ui/app.py`` → sidebar **Labeling** (references + ``area.json`` editor).
 
 ``area.json`` and ``references/`` are at the repository root.
 """

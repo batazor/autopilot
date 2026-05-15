@@ -14,27 +14,28 @@ from scenarios.dsl_schema import (
     dump_scenario,
     parse_scenario,
 )
+from scenarios.registry import iter_scenario_yaml_files
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCENARIOS_ROOT = REPO_ROOT / "scenarios"
 
 
 def _runnable_yaml_files() -> list[Path]:
-    return sorted(
-        p
-        for p in SCENARIOS_ROOT.rglob("*.yaml")
-        if "drafts/" not in p.relative_to(SCENARIOS_ROOT).as_posix()
-    )
+    """All runnable scenario YAMLs from active module scenario roots."""
+    return [path for _root, path in iter_scenario_yaml_files(REPO_ROOT)]
 
 
-@pytest.mark.parametrize("path", _runnable_yaml_files(), ids=lambda p: p.name)
+def _yaml_id(path: Path) -> str:
+    return path.relative_to(REPO_ROOT).as_posix()
+
+
+@pytest.mark.parametrize("path", _runnable_yaml_files(), ids=_yaml_id)
 def test_parse_existing_scenario(path: Path) -> None:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     scenario = parse_scenario(raw)
     assert scenario.name, f"missing name in {path}"
 
 
-@pytest.mark.parametrize("path", _runnable_yaml_files(), ids=lambda p: p.name)
+@pytest.mark.parametrize("path", _runnable_yaml_files(), ids=_yaml_id)
 def test_round_trip_preserves_structure(path: Path) -> None:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     scenario = parse_scenario(raw)

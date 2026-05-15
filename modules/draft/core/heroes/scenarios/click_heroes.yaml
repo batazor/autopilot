@@ -1,0 +1,9 @@
+enabled: false
+name: 🦸 Open Heroes page
+node: heroes
+steps:
+- swipe_direction:
+    direction: up
+    delta: 400
+    duration_ms: 400
+- wait: 0.5s

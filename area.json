@@ -1074,19 +1074,65 @@
     },
     {
       "id": 20,
-      "screen_id": "",
+      "screen_id": "reconnect",
+      "screen_region": "icon.reconnect",
       "ocr": "references/retry_page.png",
       "regions": [
         {
-          "name": "reconnect_button",
+          "name": "text.connection_lost",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.41698841698842,
+            "y": 34.14021739130435,
+            "width": 29.72200772200772,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.contact_us",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 53.82239382239382,
-            "y": 59.67391304347826,
-            "width": 36.6003861003861,
-            "height": 5.3,
+            "x": 5.5096525096525095,
+            "y": 59.17391304347826,
+            "width": 44.00965250965251,
+            "height": 6.959782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.reconnect",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.422779922779924,
+            "y": 59.15652173913043,
+            "width": 44.04247104247104,
+            "height": 7.001086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.unable_to_connect_please_check_your_connection_a",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.625482625482626,
+            "y": 42.707608695652176,
+            "width": 88.41891891891892,
+            "height": 15.289130434782608,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

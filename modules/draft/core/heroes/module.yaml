@@ -1,0 +1,8 @@
+id: heroes
+title: Heroes
+description: >-
+  Heroes screen — grid scan, per-hero upgrade/recruit templates, wiki sync,
+  and cron recruitment.
+scenarios: scenarios
+area: ../../../area.json
+references: ../../../references

@@ -7,6 +7,7 @@ import httpx
 import numpy as np
 import pytest
 
+from config.loader import get_settings
 from layout.types import Region
 from ocr.client import OcrClient
 
@@ -52,7 +53,7 @@ def _img(seed: int) -> np.ndarray:
 def test_identical_pixels_serve_from_cache_without_http(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = [0]
     _install_mock_transport(monkeypatch, calls)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(1)
     region = Region(10, 10, 30, 30)
 
@@ -69,7 +70,7 @@ def test_identical_pixels_serve_from_cache_without_http(monkeypatch: pytest.Monk
 def test_changed_pixels_bypass_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = [0]
     _install_mock_transport(monkeypatch, calls)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     region = Region(10, 10, 30, 30)
 
     async def run() -> None:
@@ -106,7 +107,7 @@ def test_partial_hit_sends_only_misses(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(OcrClient, "_http_client", _fake_http_client)
 
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(3)
     r_a = Region(0, 0, 20, 20)
     r_b = Region(40, 40, 20, 20)
@@ -157,7 +158,7 @@ def test_within_batch_identical_patches_collapse_to_one_payload(
 
     monkeypatch.setattr(OcrClient, "_http_client", _fake_http_client)
 
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(7)
     region = Region(10, 10, 30, 30)
     regions = [region] * 50
@@ -214,7 +215,7 @@ def test_within_batch_mixed_unique_and_duplicates(
 
     monkeypatch.setattr(OcrClient, "_http_client", _fake_http_client)
 
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(9)
     r_dup = Region(0, 0, 20, 20)
     r_alt = Region(30, 30, 20, 20)
@@ -254,7 +255,7 @@ def test_within_batch_dedup_caches_once_per_unique_key(
     """
     calls: list[int] = [0]
     _install_mock_transport(monkeypatch, calls)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(11)
     region = Region(5, 5, 25, 25)
 
@@ -310,7 +311,7 @@ def test_preprocess_flag_does_not_share_cache_with_raw(
 
     monkeypatch.setattr(OcrClient, "_http_client", _fake_http_client)
 
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(13)
     region = Region(10, 10, 30, 30)
 
@@ -369,7 +370,7 @@ def test_preprocess_omitted_when_not_set(
 
     monkeypatch.setattr(OcrClient, "_http_client", _fake_http_client)
 
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(15)
     region = Region(0, 0, 20, 20)
 
@@ -384,7 +385,7 @@ def test_preprocess_omitted_when_not_set(
 def test_ttl_expires_cached_entry(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = [0]
     _install_mock_transport(monkeypatch, calls)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     img = _img(4)
     region = Region(5, 5, 10, 10)
 

@@ -23,6 +23,7 @@ import pytest
 import yaml
 
 import tasks.dsl_scenario as dsl
+from conftest import patch_dsl_bot_actions
 
 
 class _FakeActions:
@@ -45,6 +46,12 @@ class _FakeActions:
         idx = min(self.capture_count, len(self.frames) - 1)
         self.capture_count += 1
         return self.frames[idx]
+
+    def capture_screen_bgr_cached(
+        self, instance_id: str, *, max_age_ms: float | None = None
+    ) -> np.ndarray:
+        del max_age_ms
+        return self.capture_screen_bgr(instance_id)
 
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
         self.tapped.append((instance_id, point.x, point.y, approval_region))
@@ -521,7 +528,7 @@ async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     actions = _FakeActions([blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    patch_dsl_bot_actions(monkeypatch, actions)
 
     marker_fired = {"n": 0}
 

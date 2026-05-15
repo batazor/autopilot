@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import threading
+import time
 from typing import Any
 
 import numpy as np
 import pytest
 
-import actions.tap as tap_module
-from actions.tap import BotActions, Point
+import adb.bot_actions as tap_module
+from adb import BotActions
+from layout.types import Point
+from worker import frame_bus
 
 
 class _StubController:
@@ -42,20 +46,46 @@ class _StubController:
     def attach_approval_preview(self, *_a: Any, **_kw: Any) -> None: ...
 
 
+@pytest.fixture(autouse=True)
+def _reset_bus() -> Any:
+    frame_bus.reset_for_test()
+    yield
+    frame_bus.reset_for_test()
+
+
+def _publish(counter: list[int], instance_id: str = "bs1") -> np.ndarray:
+    counter[0] += 1
+    frame = np.full((10, 10, 3), counter[0], dtype=np.uint8)
+    frame_bus.publish(instance_id, frame)
+    return frame
+
+
+def _capture_after_next_publish(
+    bot: BotActions, counter: list[int], instance_id: str = "bs1"
+) -> np.ndarray:
+    """``wait_for_next`` must see a publish that happens after the wait starts."""
+    out: list[np.ndarray] = []
+
+    def _worker() -> None:
+        out.append(bot.capture_screen_bgr_cached(instance_id))
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+    time.sleep(0.02)
+    _publish(counter, instance_id)
+    thread.join(timeout=5.0)
+    assert out, "capture timed out waiting for frame_bus publish"
+    return out[0]
+
+
 @pytest.fixture()
 def actions_with_stub(monkeypatch: pytest.MonkeyPatch) -> tuple[BotActions, list[int]]:
-    """Real BotActions wired to a stub controller and counted screencap."""
+    """Real BotActions wired to a stub controller; ``counter`` tracks frame_bus publishes."""
     counter = [0]
 
-    def _fake_screencap(_bin: str, _serial: str) -> tuple[np.ndarray, str | None]:
-        counter[0] += 1
-        # Encode the counter into the frame so callers can detect a fresh capture.
-        frame = np.full((10, 10, 3), counter[0], dtype=np.uint8)
-        return frame, None
+    from config.loader import get_settings
 
-    monkeypatch.setattr(tap_module, "adb_screencap_bgr", _fake_screencap)
-
-    bot = BotActions()
+    bot = BotActions(get_settings())
     monkeypatch.setattr(bot, "_get_serial", lambda _id: "stub-serial")
     monkeypatch.setattr(bot, "_adb_bin", lambda: "adb")
     monkeypatch.setattr(bot, "_controller", lambda _id: _StubController())
@@ -65,23 +95,23 @@ def actions_with_stub(monkeypatch: pytest.MonkeyPatch) -> tuple[BotActions, list
 
 def test_cached_capture_skips_adb_until_action(actions_with_stub: tuple[BotActions, list[int]]) -> None:
     bot, counter = actions_with_stub
+    _publish(counter, "bs1")
 
     f1 = bot.capture_screen_bgr_cached("bs1")
     f2 = bot.capture_screen_bgr_cached("bs1")
     f3 = bot.capture_screen_bgr_cached("bs1")
-    # Three cached calls in a row → one ADB screencap.
     assert counter[0] == 1
     assert int(f1[0, 0, 0]) == int(f2[0, 0, 0]) == int(f3[0, 0, 0]) == 1
 
 
 def test_tap_invalidates_frame_cache(actions_with_stub: tuple[BotActions, list[int]]) -> None:
     bot, counter = actions_with_stub
+    _publish(counter, "bs1")
 
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
     bot.tap("bs1", Point(50, 50))
-    bot.capture_screen_bgr_cached("bs1")
-    # Tap invalidated → next cached call must hit ADB again.
+    _capture_after_next_publish(bot, counter, "bs1")
     assert counter[0] == 2
 
 
@@ -101,29 +131,32 @@ def test_state_changing_actions_invalidate(
     call: Any,
 ) -> None:
     bot, counter = actions_with_stub
+    _publish(counter, "bs1")
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
     call(bot)
-    bot.capture_screen_bgr_cached("bs1")
+    _capture_after_next_publish(bot, counter, "bs1")
     assert counter[0] == 2, f"{action_name} should invalidate the cache"
 
 
 def test_separate_instance_ids_have_separate_caches(actions_with_stub: tuple[BotActions, list[int]]) -> None:
     bot, counter = actions_with_stub
+    _publish(counter, "bs1")
+    _publish(counter, "bs2")
     bot.capture_screen_bgr_cached("bs1")
     bot.capture_screen_bgr_cached("bs2")
     assert counter[0] == 2
     bot.tap("bs1", Point(0, 0))
-    bot.capture_screen_bgr_cached("bs1")
-    bot.capture_screen_bgr_cached("bs2")  # bs2 cache survived bs1's tap
+    _capture_after_next_publish(bot, counter, "bs1")
+    bot.capture_screen_bgr_cached("bs2")
     assert counter[0] == 3
 
 
 def test_explicit_capture_warms_cache(actions_with_stub: tuple[BotActions, list[int]]) -> None:
     bot, counter = actions_with_stub
+    _publish(counter, "bs1")
     bot.capture_screen_bgr("bs1")
     assert counter[0] == 1
-    # Immediate cached call returns the same frame without re-capturing.
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
 
@@ -132,12 +165,6 @@ def test_max_age_ms_recaptures_when_cache_too_old(
     actions_with_stub: tuple[BotActions, list[int]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``max_age_ms`` invalidates the cached frame when it's older than the gate.
-
-    OCR reads of countdowns/timers opt into this so a 300-ms-old frame doesn't
-    serve a stale seconds value. ``None`` (default) keeps the old
-    tap-invalidation-only behavior — that path is covered by the other tests.
-    """
     bot, counter = actions_with_stub
     fake_now = [1000.0]
 
@@ -146,20 +173,18 @@ def test_max_age_ms_recaptures_when_cache_too_old(
 
     monkeypatch.setattr(tap_module.time, "monotonic", _now)
 
+    _publish(counter, "bs1")
     bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
     assert counter[0] == 1
 
-    # 200 ms later — within the gate, no fresh capture.
     fake_now[0] += 0.2
     bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
     assert counter[0] == 1
 
-    # 400 ms past the original capture — beyond the gate, re-capture.
     fake_now[0] += 0.2
-    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
+    _capture_after_next_publish(bot, counter, "bs1")
     assert counter[0] == 2
 
-    # A caller without ``max_age_ms`` still serves the freshly-cached frame.
     fake_now[0] += 60.0
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 2
@@ -169,13 +194,6 @@ def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
     actions_with_stub: tuple[BotActions, list[int]],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Aging is per-call, not stored on the cache entry.
-
-    A ``match`` caller (no ``max_age_ms``) and a later ``ocr`` caller
-    (``max_age_ms=300``) share the same cache key — the age check is applied
-    at read time so the ``match`` call must keep working even when the entry
-    has aged out of an OCR caller's gate.
-    """
     bot, counter = actions_with_stub
     fake_now = [1000.0]
 
@@ -184,12 +202,13 @@ def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
 
     monkeypatch.setattr(tap_module.time, "monotonic", _now)
 
+    _publish(counter, "bs1")
     bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
 
-    fake_now[0] += 10.0  # well past any OCR-style max_age
-    bot.capture_screen_bgr_cached("bs1")  # match-style call, no gate
+    fake_now[0] += 10.0
+    bot.capture_screen_bgr_cached("bs1")
     assert counter[0] == 1
 
-    bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)  # ocr-style call
+    _capture_after_next_publish(bot, counter, "bs1")
     assert counter[0] == 2

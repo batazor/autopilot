@@ -1,0 +1,7 @@
+id: vip
+title: VIP
+description: VIP reward claiming and VIP level refresh.
+scenarios: scenarios
+area: ../../area.json
+references: ../../references
+wiki: false

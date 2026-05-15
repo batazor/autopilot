@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import tasks.dsl_exec as dsl_exec
+from tasks import dsl_runtime
 
 
 class _FakeImage:
@@ -38,7 +39,7 @@ async def test_put_all_red_dots_cycle_guard_filters_stuck_dot(
     """
 
     actions = _RecordingActions()
-    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
 
@@ -82,7 +83,7 @@ async def test_put_all_red_dots_distinct_spots_are_not_filtered(
     """
 
     actions = _RecordingActions()
-    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
 
@@ -121,7 +122,7 @@ async def test_put_all_red_dots_region_arg_crops_search_and_translates_coords(
 
     image = np.zeros((1280, 720, 3), dtype=np.uint8)
     actions = _RecordingActions(image=image)
-    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_TAP_DELAY_S", 0)
     monkeypatch.setattr(dsl_exec, "_PUT_ALL_RED_DOTS_RESCAN_DELAY_S", 0)
 
@@ -183,7 +184,7 @@ async def test_put_all_red_dots_region_arg_missing_region_aborts(
     """Unknown ``region:`` short-circuits: no capture, no detection, no taps."""
 
     actions = _RecordingActions()
-    monkeypatch.setattr(dsl_exec, "BotActions", lambda: actions)
+    monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "_load_area_doc", lambda: {"_fake": True})
     monkeypatch.setattr(dsl_exec, "screen_region_by_name", lambda *_a, **_k: None)
 

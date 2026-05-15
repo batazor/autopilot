@@ -1,0 +1,7 @@
+id: trials
+title: Trials event
+description: Trials event screen — auto-claim rewards across trial days, tasks, and box.
+scenarios: scenarios
+area: ../../../area.json
+references: ../../../references
+wiki: false

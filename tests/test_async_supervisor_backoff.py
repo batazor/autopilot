@@ -17,13 +17,15 @@ def _stub_settings(monkeypatch: pytest.MonkeyPatch) -> Any:
     class _Settings:
         worker = _Worker()
 
-    monkeypatch.setattr(async_supervisor, "get_settings", lambda: _Settings())
-    yield
+    settings = _Settings()
+    monkeypatch.setattr(async_supervisor, "get_settings", lambda: settings)
+    yield settings
 
 
 @pytest.mark.asyncio
 async def test_guard_loop_increments_attempt_on_quick_crash(
     monkeypatch: pytest.MonkeyPatch,
+    _stub_settings: Any,
 ) -> None:
     """Repeated quick crashes must produce monotonically growing delays."""
 
@@ -46,7 +48,7 @@ async def test_guard_loop_increments_attempt_on_quick_crash(
         raise RuntimeError("boom")
 
     with pytest.raises(asyncio.CancelledError):
-        await async_supervisor._guard_loop("test", _crash)
+        await async_supervisor._guard_loop("test", _crash, settings=_stub_settings)
 
     # base=1 → 1, 2, 4 for attempts 1, 2, 3
     assert sleeps == [1.0, 2.0, 4.0]
@@ -55,6 +57,7 @@ async def test_guard_loop_increments_attempt_on_quick_crash(
 @pytest.mark.asyncio
 async def test_guard_loop_resets_attempt_after_stable_run(
     monkeypatch: pytest.MonkeyPatch,
+    _stub_settings: Any,
 ) -> None:
     """A child that ran past the stability window resets back to attempt=1."""
 
@@ -94,7 +97,7 @@ async def test_guard_loop_resets_attempt_after_stable_run(
         raise RuntimeError("boom")
 
     with pytest.raises(asyncio.CancelledError):
-        await async_supervisor._guard_loop("test", _crash)
+        await async_supervisor._guard_loop("test", _crash, settings=_stub_settings)
 
     # base=1; attempt sequence is 1 (quick), then reset to 1 (after stable),
     # then 2 (quick again). Delays: 1, 1, 2.
@@ -104,6 +107,7 @@ async def test_guard_loop_resets_attempt_after_stable_run(
 @pytest.mark.asyncio
 async def test_guard_loop_propagates_cancellation(
     monkeypatch: pytest.MonkeyPatch,
+    _stub_settings: Any,
 ) -> None:
     """A CancelledError from the inner task must not be swallowed by the loop."""
 
@@ -111,4 +115,4 @@ async def test_guard_loop_propagates_cancellation(
         raise asyncio.CancelledError
 
     with pytest.raises(asyncio.CancelledError):
-        await async_supervisor._guard_loop("test", _cancelled)
+        await async_supervisor._guard_loop("test", _cancelled, settings=_stub_settings)

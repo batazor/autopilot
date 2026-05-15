@@ -1,0 +1,14 @@
+enabled: false
+name: 🚪 Dismiss popup on unknown screen
+device_level: true
+steps:
+- while_match: claim_button_close
+  max: 1
+  steps:
+  - click: claim_button_close
+  - wait: 1s
+- while_match: back_button
+  max: 1
+  steps:
+  - click: back_button
+  - wait: 1s

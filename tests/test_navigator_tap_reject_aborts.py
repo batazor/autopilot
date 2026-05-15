@@ -6,16 +6,18 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.conftest_nav import make_navigator
 
+from config.loader import Settings
 from navigation.detector import ScreenName
 from navigation.navigator import Navigator
+from ocr.client import OcrClient
 
 
 @pytest.mark.asyncio
 async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejected(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -31,7 +33,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
     async def detect_survivor(_image: np.ndarray) -> ScreenName:
         return ScreenName.SURVIVOR_STATUS
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
     monkeypatch.setattr(
         nav,
@@ -60,8 +62,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
 @pytest.mark.asyncio
 async def test_navigate_to_persists_intermediate_screen_identity(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """``navigate_to`` must write ``current_screen`` for any recognised
     screen, not only the target.
 
@@ -85,7 +86,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
     async def detect_survivor(_image: np.ndarray) -> ScreenName:
         return ScreenName.SURVIVOR_STATUS
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
     monkeypatch.setattr(
         nav,
@@ -121,8 +122,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
 @pytest.mark.asyncio
 async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """UNKNOWN-screen recovery taps ``back_button``. If the user rejects that tap
     in approval mode, ``navigate_to`` must abort instead of looping 10 times."""
     redis = redis_async
@@ -140,7 +140,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
     async def detect_unknown(_image: np.ndarray) -> ScreenName:
         return ScreenName.UNKNOWN
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_unknown)
     # Force the "back_button visible" branch deterministically.
     async def _back_visible(_self, _img):  # noqa: ANN001
@@ -174,8 +174,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
 @pytest.mark.asyncio
 async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """When the screen detector returns UNKNOWN for several consecutive ticks
     AND no ``back_button`` is visible (typical for a full-screen ad / popup
     covering the UI), the navigator must bail quickly so the worker frees up
@@ -198,7 +197,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
     async def detect_unknown(_image: np.ndarray) -> ScreenName:
         return ScreenName.UNKNOWN
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_unknown)
 
     async def _no_back(_self, _img):  # noqa: ANN001
@@ -224,8 +223,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
 @pytest.mark.asyncio
 async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """If current screen has no route to main_city, navigator falls back to
     ``back_button``. A rejected tap there must abort, not silently continue."""
     redis = redis_async
@@ -250,7 +248,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
     async def detect_unrouted(_image: np.ndarray):  # noqa: ANN202
         return unrouted
 
-    nav = Navigator(capture, tap, redis_client=redis)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_unrouted)
     async def _back_visible(_self, _img):  # noqa: ANN001
         return True

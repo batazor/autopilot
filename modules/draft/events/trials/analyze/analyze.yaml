@@ -1,0 +1,13 @@
+# Trials screen entered: when current_screen=event.trials and title OCR matches,
+# push the claim_trials walker. The 30s ttl dedupes repeated overlay ticks.
+# - name: event.trials.entered
+#   region: page_title
+#   action: text
+#   screens:
+#     - event.trials
+#   ttl: 30s
+#   pushScenario:
+#     - name: claim_trials
+#       priority: 80_000
+
+overlay: []

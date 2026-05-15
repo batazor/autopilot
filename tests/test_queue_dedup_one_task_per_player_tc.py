@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from config.loader import get_settings
 from scheduler.queue import RedisQueue
 
 
@@ -14,7 +15,7 @@ async def test_schedule_dedup_ignore_region_enforces_one_task_per_player(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     ok1 = await q.schedule(
         task_id="t1",
@@ -61,7 +62,7 @@ async def test_schedule_does_not_write_legacy_dup_index(redis_async: object) -> 
     until ``has_pending_duplicate`` was rewritten to scan the queue directly.
     """
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     ok = await q.schedule(
         task_id="t1",
@@ -91,7 +92,7 @@ async def test_has_pending_duplicate_scans_queue_zset_directly(
     writes — and verifies the dedup check finds it for both device-level and
     player-bound signatures.
     """
-    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+    queue = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
 
     payload = json.dumps(
         {
@@ -142,7 +143,7 @@ async def test_schedule_concurrent_dedup_atomic(redis_async: object) -> None:
     both pass the scan and both write the same logical scenario. With the
     Lua-serialized check, Redis itself is the synchronization point.
     """
-    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+    queue = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
 
     async def _enqueue(task_id: str) -> bool:
         return await queue.schedule(
@@ -177,7 +178,7 @@ async def test_schedule_cross_player_same_task_type_does_not_dedup(
     ``task_type`` for player B. The previous broad scan over-blocked here
     (Phase 1 matched any ``data.player_id``); the single-pass guard fixes it.
     """
-    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+    queue = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
 
     ok_a = await queue.schedule(
         task_id="a1",
@@ -221,7 +222,7 @@ async def test_schedule_device_level_blocks_subsequent_player_enqueue(
     exclusive with player-bound work on the same ``(instance, task_type)`` —
     that's the only case where the dedup intentionally crosses player streams.
     """
-    queue = RedisQueue(redis_async)  # type: ignore[arg-type]
+    queue = RedisQueue(redis_async, get_settings())  # type: ignore[arg-type]
 
     ok_device = await queue.schedule(
         task_id="dev1",

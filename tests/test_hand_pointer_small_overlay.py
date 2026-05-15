@@ -22,13 +22,14 @@ from pathlib import Path
 import cv2
 import pytest
 
-from analysis.overlay import evaluate_overlay_rules, load_analyze_yaml
+from analysis.overlay import evaluate_overlay_rules
+from analysis.overlay_manifest import load_merged_analyze_yaml
+from ocr.client import OCRResult
 
 REPO = Path(__file__).resolve().parents[1]
 
 _REF_PNG = REPO / "references" / "hand_pointer_small.png"
 _CROP_PNG = REPO / "references" / "crop" / "hand_pointer_small_hand_pointer_small.png"
-_ANALYZE = REPO / "analyze" / "analyze.yaml"
 _AREA = REPO / "area.json"
 # Repo-relative path; see module docstring.
 _FIXTURE_ADB_SCREEN = REPO / "tests" / "fixtures" / "hand_pointer_small_screen.png"
@@ -37,13 +38,26 @@ _FIXTURE_REL = "tests/fixtures/hand_pointer_small_screen.png"
 _RULE_HP = "hand_pointer_small.visible"
 _RULE_SKIP = "skip_text_button.visible"
 
-_DEPS_CORE = (
-    _REF_PNG.is_file()
-    and _CROP_PNG.is_file()
-    and _ANALYZE.is_file()
-    and _AREA.is_file()
-)
+_DEPS_CORE = _REF_PNG.is_file() and _CROP_PNG.is_file() and _AREA.is_file()
 _DEPS_FIXTURE = _DEPS_CORE and _FIXTURE_ADB_SCREEN.is_file()
+
+
+class _StubOcrClient:
+    async def ocr_regions(
+        self,
+        _image_bgr,
+        regions,
+        *,
+        region_ids: list[str] | None = None,
+        region_preprocess: list[str | None] | None = None,
+    ) -> list[OCRResult]:
+        ids = region_ids or [f"r{i}" for i in range(len(regions))]
+        return [OCRResult(region_id=rid, text="", confidence=0.0) for rid in ids]
+
+
+@pytest.fixture(autouse=True)
+def _stub_overlay_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("services.get_ocr_client", lambda: _StubOcrClient())
 
 
 @pytest.fixture(scope="module")
@@ -56,7 +70,7 @@ def hand_pointer_small_adb_screen_bgr():
 
 def _merged_overlay_and_area() -> tuple[list, dict]:
     doc = json.loads(_AREA.read_text(encoding="utf-8"))
-    cfg = load_analyze_yaml(_ANALYZE)
+    cfg = load_merged_analyze_yaml(REPO)
     overlay = cfg.get("overlay")
     assert isinstance(overlay, list)
     return overlay, doc

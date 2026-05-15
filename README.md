@@ -269,12 +269,6 @@ xdg-open http://127.0.0.1:8501
 git clone https://github.com/batazor/whiteout-survival-autopilot.git
 cd whiteout-survival-autopilot
 
-# Optional but recommended: run the doctor first — it tells you in plain
-# English what is missing or misconfigured, and how to fix it.
-.\scripts\doctor.ps1
-# If blocked by execution policy:
-# powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
-
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
 adb devices
@@ -284,8 +278,6 @@ docker compose -f docker-compose.prod.yml up -d
 
 start http://127.0.0.1:8501
 ```
-
-> `scripts\doctor.ps1` is read-only: it checks Docker / ADB / BlueStacks / open ports and prints `[OK]` / `[FAIL]` / `[WARN]` with concrete fix instructions next to each line. It never installs or starts anything on its own — safe to run any time.
 
 > If your antivirus flags `adb.exe` as PUA — whitelist the Android Platform Tools folder. ADB is a legitimate dev tool but can give root shells, so some scanners treat it as suspicious.
 
@@ -338,7 +330,7 @@ Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis
 | **DPI** | `320` | 🔴 **Mandatory** |
 | **Game Language** | English | 🔴 **Mandatory** |
 | **ADB** | Enabled (Advanced settings → Android Debug Bridge) | 🔴 **Mandatory** |
-| **ADB Serial** | Matches `bluestacks_window_title` in `config/settings.yaml` | 🔴 **Mandatory** |
+| **ADB Serial** | Matches the device serial configured in `db/devices.yaml` | 🔴 **Mandatory** |
 | **CPU / RAM** | 2 Cores / 2 GB | 🟡 Recommended |
 | **Frame Rate** | 30 FPS | 🟡 Recommended |
 
@@ -357,30 +349,6 @@ Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis
 
 ### Self-diagnosis
 
-<details open>
-<summary><b>🪟 Windows — <code>scripts\doctor.ps1</code></b></summary>
-<br/>
-
-Walks every prerequisite (Docker / ADB / BlueStacks / open ports / repo layout) and prints `[OK]` / `[FAIL]` / `[WARN]` with a one-line fix hint next to each result. Read-only — never installs / starts / stops anything. Exits non-zero on any failure so you can chain it: `.\scripts\doctor.ps1 ; if ($LASTEXITCODE -eq 0) { docker compose … }`.
-
-```powershell
-.\scripts\doctor.ps1
-# Blocked by execution policy:
-powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
-```
-
-Typical findings the doctor surfaces:
-- `[FAIL] docker daemon reachable` → Docker Desktop is closed or its WSL2 backend is asleep
-- `[WARN] Host networking enabled (Docker Desktop beta)` → toggle missing in *Settings → Resources → Network*
-- `[FAIL] adb on PATH` → Platform Tools not unzipped to a folder in `PATH`
-- `[FAIL] At least one ADB device is online` → BlueStacks ADB switch off, or `adb kill-server` needs a follow-up `adb start-server`
-
-</details>
-
-<details>
-<summary><b>🍎 macOS / 🐧 Linux — quick checks</b></summary>
-<br/>
-
 ```sh
 docker info | grep -i 'server version\|host'      # daemon reachable, host-net mode
 docker compose version --short                    # Compose v2 installed
@@ -388,9 +356,11 @@ adb version && adb devices                        # ADB on PATH + emulator onlin
 which adb                                         # actual binary used (Streamlit/Cursor PATH can differ)
 ```
 
-A native shell doctor for macOS / Linux is on the TODO list — for now the four commands above cover every check the Windows script does.
-
-</details>
+Typical failures:
+- Docker daemon unreachable → Docker Desktop closed or WSL2 backend asleep (Windows)
+- Host networking off → enable *Settings → Resources → Network* in Docker Desktop (Windows)
+- `adb` not on `PATH` → install [Platform Tools](https://developer.android.com/tools/releases/platform-tools) and add to `PATH`
+- No online device → enable BlueStacks ADB, then `adb kill-server` + `adb start-server`
 
 <br/>
 

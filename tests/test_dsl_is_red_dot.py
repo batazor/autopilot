@@ -22,20 +22,18 @@ import pytest
 import yaml
 
 import tasks.dsl_scenario as dsl
+from conftest import patch_dsl_bot_actions
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no Redis, no asyncio
 # ---------------------------------------------------------------------------
 
 
-def test_step_red_dot_requirement_reads_bool_and_aliases() -> None:
+def test_step_red_dot_requirement_reads_bool_only() -> None:
     assert dsl._step_red_dot_requirement({"isRedDot": True}) is True
     assert dsl._step_red_dot_requirement({"isRedDot": False}) is False
-    assert dsl._step_red_dot_requirement({"is_red_dot": True}) is True
-    assert dsl._step_red_dot_requirement({"isRedDot": "yes"}) is True
-    assert dsl._step_red_dot_requirement({"isRedDot": "off"}) is False
     assert dsl._step_red_dot_requirement({}) is None
-    assert dsl._step_red_dot_requirement({"isRedDot": "maybe"}) is None
+    assert dsl._step_red_dot_requirement({"isRedDot": "yes"}) is None
 
 
 def _frame_with_red_dot(w: int = 720, h: int = 1280, *, with_dot: bool) -> np.ndarray:
@@ -137,6 +135,12 @@ class _FakeActions:
         assert instance_id == "bs1"
         return self.frame
 
+    def capture_screen_bgr_cached(
+        self, instance_id: str, *, max_age_ms: float | None = None
+    ) -> np.ndarray:
+        del max_age_ms
+        return self.capture_screen_bgr(instance_id)
+
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
         self.tapped.append((instance_id, int(point.x), int(point.y), approval_region))
         return True
@@ -235,7 +239,7 @@ async def test_dsl_is_red_dot_true_clicks_when_dot_present(
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
     actions = _FakeActions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    patch_dsl_bot_actions(monkeypatch, actions)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -260,7 +264,7 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
     actions = _FakeActions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    patch_dsl_bot_actions(monkeypatch, actions)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -290,7 +294,7 @@ async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
     _write_red_dot_repo(tmp_path, frame, has_red_dot=False, is_red_dot_step=True)
     actions = _FakeActions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    patch_dsl_bot_actions(monkeypatch, actions)
 
     task = dsl.DslScenarioTask(
         task_id="t1",

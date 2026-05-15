@@ -19,9 +19,10 @@ import numpy as np
 import pytest
 
 import navigation.screen_graph as screen_graph
+from config.loader import get_settings
 from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
-from ocr.client import OCRResult
+from ocr.client import OcrClient, OCRResult
 
 
 class _FakeOcrClient:
@@ -83,7 +84,7 @@ screens:
 
 
 def _detector_with(text_by_region: dict[str, str]) -> ScreenDetector:
-    detector = ScreenDetector()
+    detector = ScreenDetector(OcrClient(get_settings()))
     detector._client = _FakeOcrClient(text_by_region)
     detector._area_doc = {
         "screens": [
@@ -245,7 +246,7 @@ text_switch:
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        detector = ScreenDetector()
+        detector = ScreenDetector(OcrClient(get_settings()))
         detector._client = _FakeOcrClient({"page_title": "Arena"})
         detector._area_doc = {
             "screens": [
@@ -298,7 +299,7 @@ screens:
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        detector = ScreenDetector()
+        detector = ScreenDetector(OcrClient(get_settings()))
         detector._client = _FakeOcrClient({"page_title": "Arena"})
         detector._area_doc = {
             "screens": [

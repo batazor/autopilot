@@ -8,6 +8,7 @@ import httpx
 import numpy as np
 import pytest
 
+from config.loader import get_settings
 from layout.types import Region
 from ocr.client import OcrClient
 
@@ -58,7 +59,7 @@ def test_ocr_regions_maps_by_region_id_not_response_order(
         return httpx.Response(200, json=items)
 
     _install_transport(monkeypatch, _handler)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     regions = [Region(0, 0, 10, 10), Region(10, 10, 10, 10), Region(20, 20, 10, 10)]
     ids = ["alpha", "beta", "gamma"]
 
@@ -93,7 +94,7 @@ def test_ocr_regions_ignores_unknown_region_id(
         return httpx.Response(200, json=items)
 
     _install_transport(monkeypatch, _handler)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     regions = [Region(0, 0, 10, 10), Region(10, 10, 10, 10)]
     ids = ["alpha", "beta"]
 
@@ -141,7 +142,7 @@ def test_ocr_regions_propagates_backend_error_field(
         return httpx.Response(200, json=items)
 
     _install_transport(monkeypatch, _handler)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     regions = [Region(0, 0, 10, 10), Region(10, 10, 10, 10)]
     ids = ["alpha", "beta"]
 
@@ -193,7 +194,7 @@ def test_ocr_regions_warns_on_missing_region_id(
         return httpx.Response(200, json=items)
 
     _install_transport(monkeypatch, _handler)
-    client = OcrClient()
+    client = OcrClient(get_settings())
     regions = [Region(0, 0, 10, 10), Region(10, 10, 10, 10)]
     ids = ["alpha", "beta"]
 

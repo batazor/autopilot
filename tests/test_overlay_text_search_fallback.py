@@ -19,6 +19,8 @@ import cv2
 import pytest
 
 from analysis import overlay_engine
+from config.loader import get_settings
+from ocr.client import OcrClient
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PATRICK_HERO_CARD_FIXTURE = (
@@ -47,7 +49,10 @@ async def test_text_rule_falls_back_to_search_bbox_when_primary_misses() -> None
         "threshold": 0.7,
     }
 
-    out = await overlay_engine.evaluate_overlay_rules_async(img, area_doc, REPO_ROOT, [rule])
+    ocr = OcrClient(get_settings())
+    out = await overlay_engine.evaluate_overlay_rules_async(
+        img, area_doc, REPO_ROOT, [rule], ocr_client=ocr
+    )
     row = out.get("tapanywhereyoexit.visible")
     assert isinstance(row, dict)
     assert row.get("matched") is True, row
@@ -77,7 +82,10 @@ async def test_text_rule_uses_primary_bbox_when_it_already_matches() -> None:
         "threshold": 0.7,
     }
 
-    out = await overlay_engine.evaluate_overlay_rules_async(img, area_doc, REPO_ROOT, [rule])
+    ocr = OcrClient(get_settings())
+    out = await overlay_engine.evaluate_overlay_rules_async(
+        img, area_doc, REPO_ROOT, [rule], ocr_client=ocr
+    )
     row = out.get("tapanywhereyoexit.visible")
     assert isinstance(row, dict)
     assert row.get("matched") is True, row

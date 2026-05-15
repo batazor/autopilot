@@ -24,26 +24,10 @@ COPY pyproject.toml uv.lock README.md ./
 COPY streamlit-plugin/ ./streamlit-plugin/
 RUN uv sync --frozen --no-install-project --no-dev
 
-# Step 2: project source — anything outside this list is irrelevant to the
-# worker runtime (tests, drafts, dev tooling).
-COPY actions/ ./actions/
-COPY analysis/ ./analysis/
-COPY analyze/ ./analyze/
-COPY capture/ ./capture/
-COPY config/ ./config/
+# Step 2: project source — runtime tree (``src/`` packages + repo-root data).
+COPY src/ ./src/
+COPY modules/ ./modules/
 COPY db/ ./db/
-COPY fsm/ ./fsm/
-COPY gift/ ./gift/
-COPY layout/ ./layout/
-COPY metrics/ ./metrics/
-COPY navigation/ ./navigation/
-COPY ocr/ ./ocr/
-COPY optimizer/ ./optimizer/
-COPY scenarios/ ./scenarios/
-COPY scheduler/ ./scheduler/
-COPY tasks/ ./tasks/
-COPY ui/ ./ui/
-COPY worker/ ./worker/
 COPY references/ ./references/
 COPY area.json ./
 RUN uv sync --frozen --no-dev
@@ -62,8 +46,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=builder /app /app
 
-ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
     WOS_STREAMLIT_PORT=8501
 

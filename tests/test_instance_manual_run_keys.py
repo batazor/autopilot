@@ -24,7 +24,7 @@ SCENARIOS_ROOT = REPO_ROOT / "scenarios"
 def test_manual_run_keys_includes_known_scenario() -> None:
     """``who_i_am`` is the canonical boot-time scenario — it must always be
     pickable so an operator can re-run identity resolution from the UI."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     assert "who_i_am" in keys
 
 
@@ -32,18 +32,19 @@ def test_manual_run_keys_excludes_templates() -> None:
     """Hero-template files like ``level_up_{hero}.yaml`` aren't runnable as-is
     — they need ``{hero}`` substituted. The Debug Runner page expands them
     per hero; this dropdown lists only directly-runnable keys."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     assert "{hero}" not in keys
     assert "level_up_{hero}" not in keys
-    # Sanity: the templates DO exist on disk, just not in this list.
-    assert (SCENARIOS_ROOT / "heroes" / "{hero}.yaml").exists()
+    # Sanity: hero template exists under a module scenarios tree.
+    hero_tpl = REPO_ROOT / "modules/core/heroes/scenarios/{hero}.yaml"
+    assert hero_tpl.is_file(), f"missing hero template: {hero_tpl}"
 
 
 def test_manual_run_keys_excludes_drafts() -> None:
     """``scenarios/drafts/*.yaml`` are placeholder schemas. ``run_task`` for
     them would either fail or do nothing — and the underlying loader excludes
     them anyway, so the UI must mirror that."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     draft_stems = {p.stem for p in (SCENARIOS_ROOT / "drafts").glob("*.yaml")}
     leaked = draft_stems & set(keys)
     assert leaked == set(), f"draft scenarios leaked into manual-run list: {leaked}"
@@ -53,7 +54,7 @@ def test_every_manual_run_key_resolves_via_template_resolver() -> None:
     """Final guarantee: every key the UI offers must be loadable by the
     worker. If this fails, the operator gets ``scenario_not_found`` — the
     exact bug this helper exists to prevent."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     unresolved = [k for k in keys if _tmpl.resolve(REPO_ROOT, k) is None]
     assert unresolved == [], f"manual-run keys with no resolver hit: {unresolved}"
 
@@ -64,7 +65,7 @@ def test_manual_run_keys_excludes_cron_delegating_scenarios() -> None:
     it, but the worker rejects it at runtime with ``invalid_steps``. The
     dropdown must exclude any such doc so operators can't queue a guaranteed
     failure."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     check_arena = SCENARIOS_ROOT / "by_cron" / "check_arena.yaml"
     if check_arena.exists():
         assert "check_arena" not in keys
@@ -75,7 +76,7 @@ def test_manual_run_keys_excludes_disabled() -> None:
     (``scheduler/runner.py``). Surfacing a disabled scenario in the dropdown
     misleads the operator — clicking ``Queue task`` would enqueue something
     the author explicitly turned off."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     for k in keys:
         resolved = _tmpl.resolve(REPO_ROOT, k)
         if resolved is None:
@@ -93,7 +94,7 @@ def test_every_manual_run_key_has_steps_list() -> None:
     An empty list is allowed — the executor just walks nothing and returns
     success — but a missing or non-list ``steps`` must be filtered out
     upstream so the operator doesn't get a guaranteed runtime failure."""
-    keys = runnable_scenario_keys(str(SCENARIOS_ROOT))
+    keys = runnable_scenario_keys(str(REPO_ROOT))
     bad: list[str] = []
     for k in keys:
         resolved = _tmpl.resolve(REPO_ROOT, k)

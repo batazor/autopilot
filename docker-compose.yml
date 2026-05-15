@@ -43,6 +43,27 @@ services:
       retries: 10
       start_period: 180s
 
+  omniparser:
+    build:
+      context: .
+      dockerfile: Dockerfile.omniparser
+    ports:
+      # Bind to loopback only; the labeling UI calls this local sidecar.
+      - "127.0.0.1:8765:8765"
+    environment:
+      OMNIPARSER_ROOT: /opt/OmniParser
+    volumes:
+      # Set OMNIPARSER_ROOT in .env to a microsoft/OmniParser checkout with weights/.
+      # If unset, Compose creates ./omniparser-upstream as an empty placeholder; the
+      # sidecar still starts, but /parse reports the missing upstream files.
+      - ${OMNIPARSER_ROOT:-./omniparser-upstream}:/opt/OmniParser:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   redis_data:
   paddle_model_cache:

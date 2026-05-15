@@ -1,0 +1,6 @@
+enabled: true
+name: 📮 Postman
+node: main_city
+steps:
+- click: isPostman
+- wait: 1s

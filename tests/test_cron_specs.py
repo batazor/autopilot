@@ -109,7 +109,11 @@ def test_ui_and_scheduler_share_resolvers() -> None:
     # Parse the UI page module without importing it — looking for the import
     # of both helpers from ``scenarios.cron_specs`` (no local re-define).
     page_src = (
-        Path(__file__).resolve().parents[1] / "ui" / "views" / "scenarios.py"
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "ui"
+        / "views"
+        / "scenarios.py"
     ).read_text(encoding="utf-8")
     tree = ast.parse(page_src)
     cron_specs_imports: set[str] = set()

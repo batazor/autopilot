@@ -1,18 +1,65 @@
-# Local IDE / agent settings (do not commit)
+# --- Local IDE / agent (do not commit) ----------------------------------------
 .claude/
+.idea/
+.vscode/
+*.swp
+*~
 
-# Virtual environment
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- Secrets / env ------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Python -------------------------------------------------------------------
 .venv/
-
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Local DB files (gift codes, device serials, synced state — do not commit)
+# Ruff / pytest / type-check caches (repo root and subpackages)
+**/.ruff_cache/
+**/.pytest_cache/
+**/.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+hypothesis/
+
+# --- uv / packaging (keep uv.lock committed) ------------------------------------
+
+# --- Node (Streamlit plugin frontends) ----------------------------------------
+**/node_modules/
+
+# --- Local DB / persisted player state (do not commit) --------------------------
 db/*.yaml
+db/state/
 
-# Runtime / UI temporal screenshots (do not commit)
+# --- Runtime / bot process ----------------------------------------------------
 references/temporal/
 .wos.nohup.log
 .wos.pid
+*.log
+
+# --- Local tooling outputs (scripts, labeling bench, inference) -----------------
+result/
+.bench_crops/
+
+# --- Optional local paths -----------------------------------------------------
+# OmniParser weights live outside the repo (OMNIPARSER_ROOT); ignore accidental dumps
+omniparser/weights/
+omniparser/.cache/

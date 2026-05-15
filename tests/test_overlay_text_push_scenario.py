@@ -12,6 +12,9 @@ from layout.types import Region
 from ocr.client import OCRResult
 
 
+def _patch_overlay_ocr_getter(monkeypatch: Any, client: Any) -> None:
+    """Batch OCR path calls :func:`services.get_ocr_client` — not ``OcrClient(...)``."""
+    monkeypatch.setattr("services.get_ocr_client", lambda: client)
 @pytest.mark.asyncio
 async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> None:
     """Regression: worker enqueues overlay pushes from ``payload['pushScenario']``.
@@ -50,7 +53,7 @@ async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> N
                 for rid in ids
             ]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _StubOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr,
@@ -97,7 +100,7 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
         ) -> list[OCRResult]:
             raise AssertionError("OCR must not run when screen gate fails")
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _StubOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr,
@@ -142,7 +145,7 @@ async def test_overlay_screen_gate_is_case_insensitive(monkeypatch: Any) -> None
                 OCRResult(region_id=rid, text="x", confidence=0.95) for rid in ids
             ]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _StubOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _StubOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr,
@@ -214,7 +217,7 @@ async def test_text_rules_batch_into_two_ocr_calls(monkeypatch: Any) -> None:
                     )
             return results
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
@@ -296,7 +299,7 @@ async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> No
                 for rid in ids
             ]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
@@ -348,7 +351,7 @@ async def test_type_time_auto_enables_fast_line_preprocess(monkeypatch: Any) -> 
             ids = region_ids or [f"r{i}" for i in range(len(regions))]
             return [OCRResult(region_id=rid, text="01:30:00", confidence=0.95) for rid in ids]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
@@ -396,7 +399,7 @@ async def test_explicit_preprocess_overrides_type_derived_default(monkeypatch: A
             ids = region_ids or [f"r{i}" for i in range(len(regions))]
             return [OCRResult(region_id=rid, text="01:30:00", confidence=0.95) for rid in ids]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
@@ -442,7 +445,7 @@ async def test_no_preprocess_keyword_when_flag_absent(monkeypatch: Any) -> None:
             ids = region_ids or [f"r{i}" for i in range(len(regions))]
             return [OCRResult(region_id=rid, text="x", confidence=0.9) for rid in ids]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
@@ -502,7 +505,7 @@ async def test_text_rules_skip_fallback_batch_when_all_primaries_match(
                 for rid in ids
             ]
 
-    monkeypatch.setattr(overlay_engine, "OcrClient", lambda *a, **k: _RecordingOcr())
+    _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
     out = await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None

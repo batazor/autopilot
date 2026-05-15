@@ -37,7 +37,7 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
         # bbox ``building.upgrading.time`` (x=72.16% y=55.43% w=15.4% h=2.7%).
         # Locks in the round-trip the production overlay rule relies on for
         # ``throttle_push: building.upgrade`` (see analyze_building.yaml and
-        # scenarios/building/building.upgrade.yaml).
+        # modules/core/building/scenarios/building.upgrade.yaml).
         ("00:00:27", 27),
     ],
 )

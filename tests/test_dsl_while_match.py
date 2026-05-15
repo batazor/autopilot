@@ -243,7 +243,9 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
 
 def test_tap_claim_button_while_match_has_nested_steps() -> None:
     repo = Path(__file__).resolve().parents[1]
-    doc = yaml.safe_load((repo / "scenarios/overlay/tap_claim_button.yaml").read_text())
+    doc = yaml.safe_load(
+        (repo / "modules/core/pop-up/scenarios/tap_claim_button.yaml").read_text()
+    )
     loop = doc["steps"][0]
 
     assert loop["while_match"] == "button.claim"

@@ -2,7 +2,7 @@
 
 Two layers, mirroring ``test_dsl_is_red_dot.py``:
 
-* parser (``_step_white_border_requirement``) — bool, snake_case, string aliases.
+* parser (``_step_white_border_requirement``) — YAML bool only.
 * row builder (``DslScenarioTask._build_white_border_only_row``) — present /
   absent / unexpected-present, plus the missing-bbox guard.
 
@@ -24,14 +24,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _DYN_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "white_border_dyn_1.png"
 
 
-def test_step_white_border_requirement_reads_bool_and_aliases() -> None:
+def test_step_white_border_requirement_reads_bool_only() -> None:
     assert _step_white_border_requirement({"isWhiteBorder": True}) is True
     assert _step_white_border_requirement({"isWhiteBorder": False}) is False
-    assert _step_white_border_requirement({"is_white_border": True}) is True
-    assert _step_white_border_requirement({"isWhiteBorder": "yes"}) is True
-    assert _step_white_border_requirement({"isWhiteBorder": "off"}) is False
     assert _step_white_border_requirement({}) is None
-    assert _step_white_border_requirement({"isWhiteBorder": "maybe"}) is None
+    assert _step_white_border_requirement({"isWhiteBorder": "yes"}) is None
 
 
 def _frame_with_white_halo(

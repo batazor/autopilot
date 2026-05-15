@@ -4,7 +4,7 @@ End-to-end Redis-backed coverage is intentionally skipped here — the cross-cut
 between ``match:`` → ``click:`` is already proven by ``test_dsl_is_red_dot``;
 this module pins down the new pieces:
 
-* parser (``_step_tab_active_requirement``) — bool + alias coercion;
+* parser (``_step_tab_active_requirement``) — YAML bool only;
 * short-circuit row builder (``_build_tab_active_only_row``) — match / miss /
   unexpected-active outcomes against a real mail-screen fixture.
 """
@@ -34,14 +34,11 @@ def _load_bbox(name: str) -> dict[str, float]:
     raise AssertionError(f"region {name!r} not found in area.json")
 
 
-def test_step_tab_active_requirement_reads_bool_and_aliases() -> None:
+def test_step_tab_active_requirement_reads_bool_only() -> None:
     assert dsl._step_tab_active_requirement({"isTabActive": True}) is True
     assert dsl._step_tab_active_requirement({"isTabActive": False}) is False
-    assert dsl._step_tab_active_requirement({"is_tab_active": True}) is True
-    assert dsl._step_tab_active_requirement({"isTabActive": "yes"}) is True
-    assert dsl._step_tab_active_requirement({"isTabActive": "off"}) is False
     assert dsl._step_tab_active_requirement({}) is None
-    assert dsl._step_tab_active_requirement({"isTabActive": "maybe"}) is None
+    assert dsl._step_tab_active_requirement({"isTabActive": "yes"}) is None
 
 
 def test_build_tab_active_only_row_matches_active_tab() -> None:

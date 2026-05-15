@@ -212,7 +212,7 @@ def test_node_independent_neutral_when_current_screen_unknown(monkeypatch):
     _patch_required_nodes(monkeypatch, {})  # no node-bound entries
     _patch_hops(monkeypatch, {})
 
-    probe = _due_item(task_type="where_i_am", priority=85_000)
+    probe = _due_item(task_type="housekeeping", priority=85_000)
     ranked = _rank([probe], current_screen="")
     assert ranked[0][3]["graph_debuff"] == 0
     assert ranked[0][3]["unreachable_flag"] == 0

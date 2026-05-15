@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -74,6 +75,33 @@ async def test_overlay_enqueue_skips_unmatched_payloads() -> None:
 
     assert [c["task_type"] for c in worker._queue.calls] == ["skip_text_button"]
     assert worker._queue.calls[0].get("dedup_ignore_region") is True
+
+
+@pytest.mark.asyncio
+async def test_overlay_enqueue_skips_disabled_scenario(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    scenarios_dir = tmp_path / "scenarios"
+    scenarios_dir.mkdir()
+    (scenarios_dir / "disabled_popup.yaml").write_text(
+        "enabled: false\nname: Disabled popup\nsteps: []\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("worker.instance_worker_overlay._REPO_ROOT", tmp_path)
+
+    worker = _Worker()
+    await worker._schedule_overlay_matches(
+        {
+            "disabled.visible": {
+                "matched": True,
+                "region": "disabled",
+                "pushScenario": [{"name": "disabled_popup", "priority": 85_000}],
+            },
+        }
+    )
+
+    assert worker._queue.calls == []
 
 
 @pytest.mark.asyncio

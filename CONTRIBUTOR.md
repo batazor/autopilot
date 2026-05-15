@@ -22,7 +22,7 @@ Streamlit (and Cursor) often start with a reduced `PATH`. The UI defaults to `/o
 Override either of:
 
 - `ANDROID_HOME=/path/to/sdk`
-- `worker.adb_executable: /full/path/to/adb` in `config/settings.yaml`
+- `worker.adb_executable: /full/path/to/adb` in `src/config/settings.yaml`
 
 Verify:
 
@@ -30,7 +30,7 @@ Verify:
 adb devices
 ```
 
-The serial column must match `bluestacks_window_title` in `config/settings.yaml`.
+The serial column must match `bluestacks_window_title` loaded from `db/devices.yaml`.
 
 ## Setup
 
@@ -45,7 +45,7 @@ uv sync
 docker compose up -d redis ocr
 ```
 
-Edit `config/settings.yaml` (`redis.url`, `ocr.url`, `instances`) and `db/devices.yaml` (players per device) before the first run.
+Edit `src/config/settings.yaml` (`redis.url`, `ocr.url`, worker settings) and `db/devices.yaml` (players per device) before the first run. `WOS_REDIS_URL`, `WOS_OCR_URL`, and related env vars can override the YAML values.
 
 ## Running
 
@@ -73,6 +73,15 @@ uv sync --extra dev    # ruff + pytest
 uv run ruff check .
 uv run pytest -q
 ```
+
+Module-owned tests should live next to the module they protect:
+
+```text
+modules/<id>/tests/test_*.py
+modules/core/<id>/tests/test_*.py
+```
+
+Keep cross-cutting tests in root `tests/`. Pytest discovers both `tests/` and `modules/`, and shared fixtures live in the repo-level `conftest.py` so module-local tests can use them.
 
 ## Building Docker images locally
 

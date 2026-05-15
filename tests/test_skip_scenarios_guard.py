@@ -7,8 +7,19 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 
 
+def _read_skip_scenario(rel_under_onboarding: str) -> dict:
+    for rel in (
+        Path("scenarios/onboarding") / rel_under_onboarding,
+        Path("modules/core/pop-up/scenarios") / rel_under_onboarding,
+    ):
+        p = REPO / rel
+        if p.is_file():
+            return yaml.safe_load(p.read_text(encoding="utf-8"))
+    raise FileNotFoundError(rel_under_onboarding)
+
+
 def test_skip_button_scenario_checks_visibility_before_click() -> None:
-    doc = yaml.safe_load((REPO / "scenarios/onboarding/skip_button.yaml").read_text())
+    doc = _read_skip_scenario("skip_button.yaml")
 
     assert doc["steps"][:2] == [
         {"match": "skip_button", "threshold": 0.95},
@@ -17,7 +28,7 @@ def test_skip_button_scenario_checks_visibility_before_click() -> None:
 
 
 def test_skip_text_button_scenario_checks_visibility_before_click() -> None:
-    doc = yaml.safe_load((REPO / "scenarios/onboarding/skip_text_button.yaml").read_text())
+    doc = _read_skip_scenario("skip_text_button.yaml")
 
     # ``while_match`` with the click nested inside is the visibility guard:
     # the inner steps only run when ``skip_text_button`` is on screen.

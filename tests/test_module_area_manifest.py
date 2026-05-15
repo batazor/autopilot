@@ -26,6 +26,10 @@ def test_default_area_doc_includes_module_area_manifests(tmp_path: Path) -> None
     )
     module_root = tmp_path / "modules" / "vip"
     module_root.mkdir(parents=True)
+    (module_root / "module.yaml").write_text(
+        yaml.safe_dump({"id": "vip", "name": "VIP"}),
+        encoding="utf-8",
+    )
     (module_root / "area.yaml").write_text(
         yaml.safe_dump(
             {

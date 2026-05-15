@@ -10,6 +10,7 @@ import time
 
 import pytest
 
+from config.loader import get_settings
 from scheduler.queue import RedisQueue
 
 
@@ -19,7 +20,7 @@ async def test_pop_due_blocks_player_bound_scenario_when_active_player_missing(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     # active_player is missing/empty by default
     await q.schedule(
@@ -42,7 +43,7 @@ async def test_pop_due_allows_device_level_scenario_when_active_player_missing(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     await q.schedule(
         task_id="t-who",
@@ -65,7 +66,7 @@ async def test_pop_due_prefers_device_level_when_player_bound_outranks(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     # Higher-priority routine task must NOT preempt seed when player is unknown.
     now = time.time()
@@ -100,7 +101,7 @@ async def test_pop_due_releases_player_bound_scenario_once_active_player_set(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r)  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     # Mimic who_i_am writing active_player on instance state.
     await r.hset("wos:instance:bs1:state", mapping={"active_player": "765502864"})  # type: ignore[attr-defined]

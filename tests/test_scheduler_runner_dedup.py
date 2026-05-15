@@ -6,7 +6,9 @@ from typing import Any
 
 import pytest
 import redis.asyncio as aioredis
+from tests.di_factories import make_scheduler_runner
 
+from config.loader import Settings
 from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner
 
@@ -14,6 +16,7 @@ from scheduler.runner import SchedulerRunner
 def _wire_runner(
     runner: SchedulerRunner,
     *,
+    settings: Settings,
     redis_client: aioredis.Redis,
     monkeypatch: pytest.MonkeyPatch,
     tasks: list[SimpleNamespace],
@@ -26,7 +29,7 @@ def _wire_runner(
     ``RedisQueue`` against the testcontainer Redis — exercises payload
     serialization, dedup ZADD script, and ``peek_all`` end-to-end.
     """
-    queue = RedisQueue(redis_client)
+    queue = RedisQueue(redis_client, settings)
     runner._queue = queue  # type: ignore[assignment]
     runner._redis = redis_client  # type: ignore[assignment]
 
@@ -60,12 +63,14 @@ def _wire_runner(
 async def test_scheduler_enqueues_optimizer_assignments(
     monkeypatch: pytest.MonkeyPatch,
     redis_async: aioredis.Redis,
+    settings: Settings,
 ) -> None:
     """Happy path: optimizer assigns a task → ``_run_once`` lands it in Redis
     under ``wos:queue:bs1`` with the expected fields."""
-    runner = SchedulerRunner()
+    runner = make_scheduler_runner()
     queue = _wire_runner(
         runner,
+        settings=settings,
         redis_client=redis_async,
         monkeypatch=monkeypatch,
         tasks=[
@@ -89,13 +94,15 @@ async def test_scheduler_enqueues_optimizer_assignments(
 async def test_scheduler_dedups_pending_duplicate_across_ticks(
     monkeypatch: pytest.MonkeyPatch,
     redis_async: aioredis.Redis,
+    settings: Settings,
 ) -> None:
     """Repeated ticks with the same optimizer output don't pile up duplicates
     in the pending queue. This is the ``skip_if_duplicate`` half of the gate:
     once an item is queued and not yet popped, the next tick is a no-op."""
-    runner = SchedulerRunner()
+    runner = make_scheduler_runner()
     queue = _wire_runner(
         runner,
+        settings=settings,
         redis_client=redis_async,
         monkeypatch=monkeypatch,
         tasks=[
@@ -115,6 +122,7 @@ async def test_scheduler_dedups_pending_duplicate_across_ticks(
 async def test_scheduler_skips_enqueue_when_task_already_running(
     monkeypatch: pytest.MonkeyPatch,
     redis_async: aioredis.Redis,
+    settings: Settings,
 ) -> None:
     """``skip_if_duplicate`` only looks at the pending queue. Once the worker
     pops a long-running item the queue is empty and a fresh scheduler tick
@@ -137,9 +145,10 @@ async def test_scheduler_skips_enqueue_when_task_already_running(
         ex=180,
     )
 
-    runner = SchedulerRunner()
+    runner = make_scheduler_runner()
     queue = _wire_runner(
         runner,
+        settings=settings,
         redis_client=redis_async,
         monkeypatch=monkeypatch,
         tasks=[
@@ -161,6 +170,7 @@ async def test_scheduler_skips_enqueue_when_task_already_running(
 async def test_scheduler_does_not_skip_when_running_task_is_different_type(
     monkeypatch: pytest.MonkeyPatch,
     redis_async: aioredis.Redis,
+    settings: Settings,
 ) -> None:
     """Running-task gate must match by ``task_type``. A different running task
     on the same instance shouldn't block unrelated assignments."""
@@ -177,9 +187,10 @@ async def test_scheduler_does_not_skip_when_running_task_is_different_type(
         ex=180,
     )
 
-    runner = SchedulerRunner()
+    runner = make_scheduler_runner()
     queue = _wire_runner(
         runner,
+        settings=settings,
         redis_client=redis_async,
         monkeypatch=monkeypatch,
         tasks=[

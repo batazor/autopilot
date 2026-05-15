@@ -1,0 +1,4 @@
+enabled: false
+name: ⭐ Star tier up · ${hero_name}
+node: page.heroes.${hero_id}
+steps: []

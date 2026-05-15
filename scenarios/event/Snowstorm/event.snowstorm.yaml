@@ -1,7 +1,0 @@
-enabled: true
-name: ❄️ Snowstorm event — tap Go
-icon: snowstorm
-
-steps:
-  - click: event.snowstorm
-  - wait: 1500ms

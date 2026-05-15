@@ -7,6 +7,19 @@ import yaml
 REPO = Path(__file__).resolve().parents[1]
 
 
+def _read_hand_pointer_scenario(filename: str) -> dict:
+    for rel in (
+        Path("scenarios/onboarding") / filename,
+        Path("modules/core/pop-up/scenarios") / filename,
+    ):
+        p = REPO / rel
+        if p.is_file():
+            return yaml.safe_load(p.read_text(encoding="utf-8"))
+    raise FileNotFoundError(
+        f"{filename} not under scenarios/onboarding or modules/core/pop-up/scenarios"
+    )
+
+
 def test_hand_pointer_scenarios_check_visibility_before_click() -> None:
     """Each tutorial-hand scenario must guard the tap on a visibility check.
 
@@ -33,5 +46,5 @@ def test_hand_pointer_scenarios_check_visibility_before_click() -> None:
     }
 
     for filename, want_first_step in expected_while_match_form.items():
-        doc = yaml.safe_load((REPO / "scenarios/onboarding" / filename).read_text())
+        doc = _read_hand_pointer_scenario(filename)
         assert doc["steps"][0] == want_first_step, filename

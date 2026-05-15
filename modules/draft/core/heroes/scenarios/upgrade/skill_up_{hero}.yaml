@@ -1,0 +1,4 @@
+enabled: false
+name: 📘 Skill up · ${hero_name}
+node: page.heroes.${hero_id}
+steps: []

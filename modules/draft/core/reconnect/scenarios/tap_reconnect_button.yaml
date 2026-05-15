@@ -1,0 +1,6 @@
+enabled: true
+name: 🔌 Tap reconnect (disconnect screen)
+device_level: true
+steps:
+- click: icon.reconnect
+- wait: 8s

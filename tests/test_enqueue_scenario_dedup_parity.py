@@ -1,12 +1,11 @@
 """``_enqueue_scenario`` must enqueue through ``RedisQueue.schedule`` so DSL
-``push_scenario`` and exec analyzers share the same atomic dedup semantics,
-``created_at`` tie-breaker, and timeline events as every other enqueue path.
+``push_scenario`` and exec analyzers share the same atomic dedup semantics
+and ``created_at`` tie-breaker as every other enqueue path.
 
 Regression history: the helper used to do ``ZRANGEBYSCORE`` + ``ZADD``
 non-atomically with a hand-rolled match-by-(player, task_type), which
 - raced concurrent producers (the read + write was not in a single EVAL),
 - skipped ``created_at`` (used for stable tie-breaking in ranking),
-- did not emit ``queue.enqueued`` / ``queue.duplicate_skipped`` timeline events,
 - treated a queued device-level item (``player_id=""``) as non-duplicate
   for a player-bound push, letting two equivalent pushes pile up.
 """
@@ -47,61 +46,6 @@ async def test_enqueue_scenario_writes_created_at(redis_async: aioredis.Redis) -
     assert isinstance(items[0]["created_at"], (int, float))
     assert items[0]["task_type"] == "claim_trials"
     assert items[0]["player_id"] == "p1"
-
-
-@pytest.mark.asyncio
-async def test_enqueue_scenario_emits_timeline_event(redis_async: aioredis.Redis) -> None:
-    """Every other enqueue path emits ``queue.enqueued``; ``_enqueue_scenario``
-    must too — otherwise the debug timeline silently loses DSL pushes."""
-    await _enqueue_scenario(
-        redis_async=redis_async,
-        instance_id="bs1",
-        player_id="p1",
-        scenario="claim_trials",
-        priority=50_000,
-        run_at=1_700_000_000.0,
-        skip_if_duplicate=True,
-    )
-
-    raw_events = await redis_async.lrange("wos:debug:timeline:bs1", 0, -1)
-    events = [json.loads(r) for r in raw_events]
-    enqueued = [e for e in events if e.get("event") == "queue.enqueued"]
-    assert len(enqueued) == 1, events
-    assert enqueued[0].get("task_type") == "claim_trials"
-    assert enqueued[0].get("player_id") == "p1"
-
-
-@pytest.mark.asyncio
-async def test_enqueue_scenario_emits_duplicate_skipped_event(
-    redis_async: aioredis.Redis,
-) -> None:
-    """Skipped enqueue must surface ``queue.duplicate_skipped`` so the UI
-    can show why a push didn't land — silent dedup hides bugs."""
-    await _enqueue_scenario(
-        redis_async=redis_async,
-        instance_id="bs1",
-        player_id="p1",
-        scenario="claim_trials",
-        priority=50_000,
-        run_at=1_700_000_000.0,
-        skip_if_duplicate=True,
-    )
-    ok = await _enqueue_scenario(
-        redis_async=redis_async,
-        instance_id="bs1",
-        player_id="p1",
-        scenario="claim_trials",
-        priority=50_000,
-        run_at=1_700_000_001.0,
-        skip_if_duplicate=True,
-    )
-    assert ok is False
-
-    raw_events = await redis_async.lrange("wos:debug:timeline:bs1", 0, -1)
-    events = [json.loads(r) for r in raw_events]
-    dupe = [e for e in events if e.get("event") == "queue.duplicate_skipped"]
-    assert len(dupe) == 1, events
-    assert dupe[0].get("task_type") == "claim_trials"
 
 
 @pytest.mark.asyncio

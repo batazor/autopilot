@@ -781,7 +781,9 @@ async def test_ocr_chief_profile_player_id_against_real_service() -> None:
     ph = int(round(float(bbox["height"]) / 100.0 * h))
     assert pw > 0 and ph > 0, f"degenerate pixel bbox: {(px, py, pw, ph)}"
 
-    result = await OcrClient().ocr_region(image, LayoutRegion(px, py, pw, ph))
+    from config.loader import get_settings
+
+    result = await OcrClient(get_settings()).ocr_region(image, LayoutRegion(px, py, pw, ph))
     digits = re.sub(r"\D+", "", result.text or "")
     assert digits == _REFERENCE_PLAYER_ID, (
         f"OCR did not match the labelled player_id on chief_profile.png. "

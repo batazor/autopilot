@@ -1,0 +1,7 @@
+id: reconnect
+title: Reconnect
+description: >-
+  Network disconnect overlay — detect the reconnect button and tap it when the
+  game shows the connection-lost dialog.
+scenarios: scenarios
+wiki: false

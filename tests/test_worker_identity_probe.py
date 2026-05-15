@@ -72,7 +72,6 @@ async def test_startup_identity_probe_is_enqueued_once_as_device_level() -> None
     await instance_worker.InstanceWorker._seed_startup_tasks(worker)
 
     assert [(call["task_type"], call["player_id"]) for call in worker._queue.calls] == [
-        ("where_i_am", ""),
         ("who_i_am", ""),
     ]
-    assert worker._queue.calls[0]["priority"] > worker._queue.calls[1]["priority"]
+    assert worker._queue.calls[0]["priority"] == 82_000

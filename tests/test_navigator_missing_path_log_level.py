@@ -5,17 +5,18 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.conftest_nav import make_navigator
 
+from config.loader import Settings
 from navigation.detector import ScreenName
-from navigation.navigator import Navigator
+from ocr.client import OcrClient
 
 
 @pytest.mark.asyncio
 async def test_missing_navigation_path_is_not_logged_as_error(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: Any,
-    redis_async: object,
-) -> None:
+    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     def capture(_instance_id: str) -> np.ndarray:
         return np.zeros((100, 100, 3), dtype=np.uint8)
 
@@ -23,7 +24,7 @@ async def test_missing_navigation_path_is_not_logged_as_error(
         del approval_region
         return True
 
-    nav = Navigator(capture, tap, redis_client=redis_async)
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis_async)
 
     async def detect_screen(_image: np.ndarray) -> ScreenName:
         return ScreenName.MAIN_CITY

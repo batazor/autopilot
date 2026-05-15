@@ -1,7 +1,0 @@
-id: exploration
-title: Exploration / Squad Settings
-description: Exploration reward claiming and squad fight automation.
-scenarios: scenarios
-analyze: analyze/analyze.yaml
-area: ../../area.json
-references: ../../references

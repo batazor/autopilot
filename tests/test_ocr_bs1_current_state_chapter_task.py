@@ -62,7 +62,9 @@ async def test_ocr_bs1_current_state_chapter_task_prints_text() -> None:
     ph = int(round(float(bbox["height"]) / 100.0 * h))
     assert pw > 0 and ph > 0
 
-    result = await OcrClient().ocr_region(image, LayoutRegion(px, py, pw, ph))
+    from config.loader import get_settings
+
+    result = await OcrClient(get_settings()).ocr_region(image, LayoutRegion(px, py, pw, ph))
     text = str(getattr(result, "text", "") or "").strip()
     conf = float(getattr(result, "confidence", 0.0) or 0.0)
 

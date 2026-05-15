@@ -1,0 +1,153 @@
+overlay:
+- name: mail.new.visible
+  region: mail.new
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: read_mail_gifts
+    ttl: 1m
+
+- name: new_chapter.visible
+  region: chapter.new
+  action: findIcon
+  threshold: 0.9
+  screens:
+    - main_city
+  pushScenario:
+  - name: new_chapter
+    ttl: 15m
+
+- name: chapter.new.has_red_dot
+  region: chapter.new
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: new_chapter
+    ttl: 15m
+
+- name: isNewPeople.visible
+  region: isNewPeople
+  action: findIcon
+  threshold: 0.92
+  screens:
+    - main_city
+  pushScenario:
+  - name: is_new_people
+    ttl: 15m
+
+- name: isWorkers.visible
+  region: isWorkers
+  isRedDot: true
+  screens:
+    - main_city
+  ttl: 5m
+  pushScenario:
+  - name: assign_worker
+
+- name: isPostman.visible
+  region: isPostman
+  action: findIcon
+  threshold: 0.9
+  screens:
+    - main_city
+  pushScenario:
+  - name: isPostman
+    ttl: 5m
+
+- name: main_city.to.exploration.has_reward
+  region: main_city.to.exploration
+  threshold: 0.98
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: claim_exploration_rewards
+    ttl: 1m
+
+- name: main_city.event.block.1.has_red_dot
+  region: main_city.event.block.1
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_1
+    ttl: 5m
+
+- name: main_city.event.block.2.has_red_dot
+  region: main_city.event.block.2
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_2
+    ttl: 5m
+
+- name: main_city.event.block.3.has_red_dot
+  region: main_city.event.block.3
+  isRedDot: true
+  screens:
+  - main_city
+  pushScenario:
+  - name: click_event_block_3
+    ttl: 5m
+
+- name: main_city.event.block.4.has_red_dot
+  region: main_city.event.block.4
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: click_event_block_4
+    ttl: 5m
+
+- name: page.vip.has_red_dot
+  region: page.vip
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: vip.claim
+
+- name: main_city.to.shop.has_red_dot
+  region: main_city.to.shop
+  isRedDot: true
+  screens:
+    - main_city
+  pushScenario:
+  - name: click_shop
+
+- name: main_city.to.heroes.has_red_dot
+  region: main_city.to.heroes
+  isRedDot: true
+  ttl: 5m
+  screens:
+    - main_city
+  pushScenario:
+    - name: scan_heroes_grid
+      ttl: 2m
+
+# OCR chapter.task overlay disabled:
+# - name: chapter.task.present
+#   region: chapter.task
+#   action: text
+#   screens:
+#   - main_city
+#   ttl: 30s
+#   pushScenario:
+#   - name: chapter_task_router
+
+# Periodic OCR-scan of the four event slots → resolves which screen each
+# block currently leads to. 5min TTL on the pushed scenario throttles the
+# scan to once per 5 min while on main_city (events rotate slowly, so this is
+# plenty fresh). Priority 70_000 sits below red-dot reactive scenarios (80_000)
+# so claim-walkers preempt a scheduled scan.
+# - name: main_city.event_blocks.scan
+#   region: is_main_city
+#   action: text
+#   screens:
+#   - main_city
+#   ttl: 5m
+#   pushScenario:
+#   - name: scan_event_blocks

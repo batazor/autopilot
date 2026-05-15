@@ -449,7 +449,7 @@ def test_generated_scenarios_exist_for_every_action(ctx, basic_state):
     """Smoke: every scenario the dispatcher might name must resolve.
 
     Resolution covers both literal files and ``{hero}``-template files under
-    ``scenarios/heroes/upgrade/`` (see ``scenarios.template_resolver``).
+    ``modules/core/heroes/scenarios/upgrade/`` (see ``scenarios.template_resolver``).
     """
     from pathlib import Path
 

@@ -13,9 +13,22 @@ from ui.overlay_yaml_sync import (
 )
 
 
+def _write_module_analyze(tmp_path: Path, raw: dict) -> None:
+    """Real module layout so :func:`iter_analyze_manifest_paths` finds YAML."""
+    mod = tmp_path / "modules" / "zz_overlay_sync_test"
+    mod.mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        yaml.dump({"id": "zz_overlay_sync_test", "name": "test"}),
+        encoding="utf-8",
+    )
+    (mod / "analyze").mkdir(parents=True)
+    (mod / "analyze" / "analyze.yaml").write_text(
+        yaml.dump(raw, sort_keys=False, default_flow_style=False),
+        encoding="utf-8",
+    )
+
+
 def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
-    ref_dir = tmp_path / "analyze"
-    ref_dir.mkdir(parents=True)
     raw = {
         "overlay": [
             {
@@ -26,8 +39,8 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
             }
         ]
     }
-    path = ref_dir / "analyze.yaml"
-    path.write_text(yaml.dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
+    _write_module_analyze(tmp_path, raw)
+    path = tmp_path / "modules" / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
 
     assert sync_findicon_overlay_aux_keys(tmp_path, "foo", use_search=True) is True
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -59,8 +72,6 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
 
 
 def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: Path) -> None:
-    ref_dir = tmp_path / "analyze"
-    ref_dir.mkdir(parents=True)
     raw = {
         "overlay": [
             {
@@ -72,8 +83,8 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
             }
         ]
     }
-    path = ref_dir / "analyze.yaml"
-    path.write_text(yaml.dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
+    _write_module_analyze(tmp_path, raw)
+    path = tmp_path / "modules" / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
 
     assert rename_findicon_overlay_primary(tmp_path, "old", "new") is True
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -117,7 +128,7 @@ def test_cascade_aux_region_names_empty_for_blank_input() -> None:
 def test_building_furniture_overlay_uses_image_match() -> None:
     repo = Path(__file__).resolve().parents[1]
     doc = yaml.safe_load(
-        (repo / "analyze/analyze_pages/analyze_building.yaml").read_text(encoding="utf-8")
+        (repo / "modules/core/building/analyze/analyze.yaml").read_text(encoding="utf-8")
     )
     rules = doc.get("overlay") or []
     assert not any(

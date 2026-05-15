@@ -353,13 +353,15 @@ def _parse_hero_page(html: str) -> dict[str, Any]:
 
 def main(argv: list[str]) -> int:
     repo = _repo_root()
-    heroes_dir = repo / "db" / "heroes"
+    from config.heroes import heroes_wiki_dir
+
+    heroes_dir = heroes_wiki_dir(repo)
 
     index_html = _http_get(_INDEX)
     index_path, index = _ensure_registry_from_index(heroes_dir=heroes_dir, index_html=index_html)
     index_heroes = index.get("heroes")
     if not isinstance(index_heroes, list):
-        print("db/heroes/index.yaml missing heroes list", file=sys.stderr)
+        print("heroes wiki index missing heroes list", file=sys.stderr)
         return 2
 
     updated = 0
