@@ -196,9 +196,9 @@ def _probe_area_region_exist(
     the engine row into ``pay`` so the score / threshold strip lights up.
 
     Uses the same ``evaluate_overlay_rules_async`` the worker uses — the engine
-    converts ``exist`` to ``findIcon`` internally, applies the ``{region}_search``
-    fallback, bright-detail and saturation gates — so the probe verdict matches
-    what a DSL ``match:`` step would see.
+    converts ``exist`` to ``findIcon`` internally and applies `isSearch`,
+    bright-detail, and saturation gates — so the probe verdict matches what a
+    DSL ``match:`` step would see.
     """
     bbox = None
     pair = screen_region_by_name(area_doc, region_name, state_flat=state_flat)

@@ -1,0 +1,6 @@
+id: mail
+title: Mail
+description: Mail-screen automation - drain gift mails and bulk Claim All / Delete All across every tab.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

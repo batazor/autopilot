@@ -112,15 +112,17 @@ def test_setup_tracing_idempotent(_initialised_tracing: object) -> None:
 
 
 def test_inject_context_into_writes_traceparent(_initialised_tracing: object) -> None:
-    """With an active recording span, the W3C ``traceparent`` lands in the carrier."""
+    """With an active recording span, search-friendly trace ids land in the carrier."""
     import config.tracing as tracing
 
     carrier: dict[str, object] = {}
-    with tracing.traced("inject_test"):
+    with tracing.traced("inject_test") as span:
+        expected = format(span.get_span_context().trace_id, "032x")
         tracing.inject_context_into(carrier)
     assert "traceparent" in carrier
     # W3C format: ``00-<32-hex trace_id>-<16-hex span_id>-<2-hex flags>``.
     assert carrier["traceparent"].count("-") == 3
+    assert carrier["trace_id"] == expected
 
 
 def test_inject_extract_round_trip(_initialised_tracing: object) -> None:
@@ -145,6 +147,21 @@ def test_inject_extract_round_trip(_initialised_tracing: object) -> None:
         "consumer", context=parent_ctx
     ) as child:
         assert child.get_span_context().trace_id == parent_trace_id
+
+
+def test_traced_root_starts_new_trace_under_active_parent(
+    _initialised_tracing: object,
+) -> None:
+    """Scenario spans use this helper so each run is searchable as its own trace."""
+    import config.tracing as tracing
+
+    with tracing.traced("worker.loop") as parent_span:
+        parent_trace_id = parent_span.get_span_context().trace_id
+        with tracing.traced_root("scenario.run mail.claim") as scenario_span:
+            scenario_ctx = scenario_span.get_span_context()
+
+    assert scenario_ctx.trace_id != parent_trace_id
+    assert scenario_ctx.trace_id != 0
 
 
 def test_context_from_carrier_returns_none_for_empty() -> None:

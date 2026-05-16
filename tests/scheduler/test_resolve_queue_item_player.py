@@ -49,7 +49,7 @@ def _worker(active_player: str = "") -> Any:
 @pytest.mark.asyncio
 async def test_dsl_no_active_player_stays_device_level() -> None:
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
-        _worker(), _item("read_mail_gifts")
+        _worker(), _item("mail.claim")
     )
     assert resolved.player_id == ""
 
@@ -57,7 +57,7 @@ async def test_dsl_no_active_player_stays_device_level() -> None:
 @pytest.mark.asyncio
 async def test_dsl_with_active_player_gets_assigned() -> None:
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
-        _worker("765502864"), _item("read_mail_gifts")
+        _worker("765502864"), _item("mail.claim")
     )
     assert resolved.player_id == "765502864"
 
@@ -115,7 +115,7 @@ async def test_registered_task_active_player_takes_priority(monkeypatch: Any) ->
 
 @pytest.mark.asyncio
 async def test_item_with_player_id_returned_unchanged() -> None:
-    item = _item("read_mail_gifts", player_id="111222333")
+    item = _item("mail.claim", player_id="111222333")
     resolved = await instance_worker.InstanceWorker._resolve_queue_item_player(
         _worker("999000000"), item
     )
@@ -136,7 +136,7 @@ async def test_resolve_preserves_ranking_fields() -> None:
     item = QueueItem(
         task_id="t1",
         player_id="",
-        task_type="read_mail_gifts",
+        task_type="mail.claim",
         priority=10,
         run_at=1.0,
         instance_id="bs1",

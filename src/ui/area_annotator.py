@@ -78,10 +78,8 @@ from ui.labeling_reference_panel import (
 )
 from ui.overlay_yaml_sync import (
     cascade_aux_region_names,
-    overlay_search_region_name,
     overlay_tap_region_name,
     rename_findicon_overlay_primary,
-    sync_findicon_overlay_aux_keys,
 )
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 
@@ -1486,24 +1484,18 @@ def _render_regions_expander(
                     "needed — detection is purely programmatic (HSV + circularity)."
                 ),
             )
+            is_search_chk = st.checkbox(
+                "Search full frame",
+                value=bool(reg.get("isSearch")),
+                help=(
+                    "For movable template regions, search the whole screenshot with "
+                    "cached previous hits before falling back to full-frame matching."
+                ),
+            )
             if st.form_submit_button("Apply edits"):
                 old_name = str(reg.get("name", "") or "").strip()
                 new_name = str(name.strip() or old_name or "region")
                 touched_restore: list[tuple[RegionDict, str]] = []
-
-                if (
-                    new_name != old_name
-                    and old_name
-                    and not old_name.endswith("_search")
-                    and not old_name.endswith("_tap")
-                ):
-                    sn_old = overlay_search_region_name(old_name)
-                    sn_new = overlay_search_region_name(new_name)
-                    for r in regions:
-                        rnm = str(r.get("name", "") or "").strip()
-                        if rnm == sn_old:
-                            touched_restore.append((r, sn_old))
-                            r["name"] = sn_new
 
                 touched_restore.append((reg, old_name))
                 reg["name"] = new_name
@@ -1514,6 +1506,10 @@ def _render_regions_expander(
                     reg["has_red_dot"] = True
                 else:
                     reg.pop("has_red_dot", None)
+                if is_search_chk:
+                    reg["isSearch"] = True
+                else:
+                    reg.pop("isSearch", None)
                 try:
                     validate_unique_region_names(st.session_state.area_doc)
                 except ValueError as e:
@@ -1539,34 +1535,21 @@ def _render_regions_expander(
             bbox_src = reg.get("bbox")
             bbox_ok = isinstance(bbox_src, dict)
             if bn_ov and not bn_ov.endswith("_search") and not bn_ov.endswith("_tap"):
-                sn_ov = overlay_search_region_name(bn_ov)
                 tn_ov = overlay_tap_region_name(bn_ov)
                 with st.popover("❓ Overlay rectangles"):
                     st.markdown(
-                        f"Optional overlay rectangles — same `ocr` frame as this region. "
-                        f"Sliding match uses `{sn_ov}` from `area.json` automatically; "
-                        f"clicks land at `{tn_ov}` center (offset from the matched primary) when present. "
-                        "YAML cleanup removes obsolete explicit `search_region` keys."
+                        f"Optional tap rectangle — same `ocr` frame as this region. "
+                        f"Clicks land at `{tn_ov}` center (offset from the matched primary) when present. "
+                        "For movable matching, enable `Search full frame` on the primary region."
                     )
 
                 def _regions_contains(nm: str) -> bool:
                     return any(str(r.get("name", "") or "").strip() == nm for r in regions)
 
-                ks_ov = f"ovl_aux_s_{ei_ov}_{idx}"
-                if ks_ov not in st.session_state:
-                    st.session_state[ks_ov] = _regions_contains(sn_ov)
                 kt_ov = f"ovl_aux_t_{ei_ov}_{idx}"
                 if kt_ov not in st.session_state:
                     st.session_state[kt_ov] = _regions_contains(tn_ov)
 
-                want_s_ov = st.checkbox(
-                    f"Search ROI (`{sn_ov}`)",
-                    key=ks_ov,
-                    help=(
-                        f"Larger ROI for sliding template match "
-                        f"(saved as `{sn_ov}` in area.json)."
-                    ),
-                )
                 want_t_ov = st.checkbox(
                     f"Tap ROI (`{tn_ov}`)",
                     key=kt_ov,
@@ -1576,26 +1559,6 @@ def _render_regions_expander(
                         "Independent of the Search ROI."
                     ),
                 )
-
-                search_changed = False
-                if bbox_ok and want_s_ov != _regions_contains(sn_ov):
-                    if want_s_ov:
-                        aux_s: RegionDict = {
-                            "name": sn_ov,
-                            "action": "exist",
-                            "type": "string",
-                            "threshold": 0.9,
-                            "bbox": dict(bbox_src),
-                            "overlay_auxiliary": True,
-                        }
-                        regions.append(aux_s)
-                    else:
-                        regions[:] = [
-                            x
-                            for x in regions
-                            if str(x.get("name", "") or "").strip() != sn_ov
-                        ]
-                    search_changed = True
 
                 tap_changed = False
                 if bbox_ok and want_t_ov != _regions_contains(tn_ov):
@@ -1617,7 +1580,7 @@ def _render_regions_expander(
                         ]
                     tap_changed = True
 
-                if search_changed or tap_changed:
+                if tap_changed:
                     try:
                         validate_unique_region_names(st.session_state.area_doc)
                     except ValueError as _e:
@@ -1628,18 +1591,6 @@ def _render_regions_expander(
                         st.error(f"Region validation failed — changes discarded: {_e}")
                         st.rerun()
                     set_current_regions(regions)
-                    if search_changed:
-                        synced = sync_findicon_overlay_aux_keys(
-                            REPO_ROOT,
-                            bn_ov,
-                            use_search=_regions_contains(sn_ov),
-                        )
-                        if not synced:
-                            st.session_state[OVL_YAML_WARN] = (
-                                f"No matching ``findIcon`` overlay rule for region `{bn_ov}` in "
-                                "`analyze/analyze.yaml` — regions updated; edit YAML by hand."
-                            )
-                    st.session_state.pop(ks_ov, None)
                     st.session_state.pop(kt_ov, None)
                     st.session_state.canvas_rev += 1
                     st.session_state.last_canvas_sig = ""

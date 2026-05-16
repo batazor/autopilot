@@ -1,5 +1,0 @@
-enabled: false
-name: "Tundra Adventure"
-node: event.tundra_adventure
-icon: tundra_adventure
-steps: []

@@ -382,6 +382,40 @@ def test_overlap_reuse_copies_canonical_bbox_from_existing_region() -> None:
     assert dropped == 0
 
 
+def test_overlap_reuse_collapses_icon_and_text_inside_one_current_region() -> None:
+    proposals = [
+        {
+            "name": "icon.omni_part",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 12.0, "y": 12.0, "width": 5.0, "height": 6.0},
+        },
+        {
+            "name": "text.omni_part",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 20.0, "y": 12.0, "width": 18.0, "height": 6.0},
+        },
+    ]
+    existing = [
+        {
+            "name": "mail.delete",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 30.0, "height": 10.0},
+        }
+    ]
+
+    renamed, reused, dropped = sb.reuse_proposal_names_from_overlapping_regions(proposals, existing)
+
+    assert len(renamed) == 1
+    assert renamed[0]["name"] == "mail.delete"
+    assert renamed[0]["bbox"] == existing[0]["bbox"]
+    assert renamed[0]["_omni_matched_existing"] is True
+    assert reused == 1
+    assert dropped == 1
+
+
 def test_apply_strips_internal_omni_matched_marker() -> None:
     proposed = [
         {

@@ -33,6 +33,9 @@ def test_area_screen_region_adds_screen_landmark(monkeypatch: Any, tmp_path: Pat
     )
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
     monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
+    # Per-hero wiki screens are synthesized from the real heroes index; the
+    # test wants to assert the area-region path in isolation, so suppress them.
+    monkeypatch.setattr(screen_graph, "_hero_ids", lambda: [])
     screen_graph.load_screen_verify_config.cache_clear()
 
     try:

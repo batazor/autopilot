@@ -13,7 +13,7 @@ from analysis.overlay_engine import evaluate_overlay_rules_async
 @pytest.mark.asyncio
 async def test_big_claim_button_matches_on_mail_fixture() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    fixture = repo_root / "tests" / "fixtures" / "mail_claim_bad_match.png"
+    fixture = repo_root / "references" / "big_claim_button.png"
     assert fixture.is_file()
 
     image_bgr = cv2.imread(str(fixture))
@@ -21,8 +21,8 @@ async def test_big_claim_button_matches_on_mail_fixture() -> None:
 
     area_doc: dict[str, Any] = json.loads((repo_root / "area.json").read_text(encoding="utf-8"))
     rule = {
-        "name": "test.big_claim_button.visible",
-        "region": "big_claim_button",
+        "name": "test.button.claim.big.visible",
+        "region": "button.claim.big",
         "action": "findIcon",
         "threshold": 0.9,
     }

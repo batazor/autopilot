@@ -100,7 +100,7 @@ def test_cascade_aux_region_names_returns_existing_helpers() -> None:
 
     cascade = cascade_aux_region_names("mailBox", existing)
 
-    assert cascade == ["mailBox_search", "mailBox_tap"]
+    assert cascade == ["mailBox_tap"]
 
 
 def test_cascade_aux_region_names_skips_missing_helpers() -> None:

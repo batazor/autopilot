@@ -152,34 +152,15 @@ def resolved_search_region_for_findicon(
 ) -> str:
     """Effective ``search_region`` for ``findIcon``.
 
-    Explicit ``rule["search_region"]`` wins if non-empty.
-
-    Otherwise, when ``area.json`` defines ``{region_name}_search`` on the same screen as
-    ``region_name`` (same ``ocr`` as ``ref_rel``) with a bbox, that name is used.
-
+    Only explicit ``rule["search_region"]`` is honored. Movable primary
+    regions use ``isSearch: true`` and the full-frame cached matcher.
     Returns ``""`` for fixed-bbox 1:1 template match at the primary region.
     """
     explicit = str(rule.get("search_region") or "").strip()
     if explicit:
         return explicit
-    primary = str(region_name or "").strip()
-    if not primary:
-        return ""
-    candidate = f"{primary}_search"
-    pair_s = screen_region_by_name(
-        area_doc,
-        candidate,
-        state_flat=state_flat,
-        screen_id=screen_id,
-    )
-    if pair_s is None:
-        return ""
-    entry_s, reg_s = pair_s
-    if str(entry_s.get("ocr") or "").strip() != str(ref_rel or "").strip():
-        return ""
-    if not isinstance(reg_s.get("bbox"), dict):
-        return ""
-    return candidate
+    _ = (area_doc, region_name, ref_rel, state_flat, screen_id)
+    return ""
 
 
 def centers_delta_pct_between_regions(

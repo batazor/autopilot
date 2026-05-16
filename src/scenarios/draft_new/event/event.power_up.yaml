@@ -1,5 +1,0 @@
-enabled: false
-name: "Power Up"
-node: event.power_up
-icon: power_up
-steps: []

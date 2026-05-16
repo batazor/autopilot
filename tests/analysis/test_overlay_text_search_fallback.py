@@ -1,13 +1,4 @@
-"""``action: text`` rules fall back to ``{region}_search`` when the primary
-bbox OCR fails to fuzzy-match ``expected``.
-
-Mirrors the slide-find pattern that already exists for ``action: findIcon``:
-a popup variant that moves the prompt out of the primary bbox (e.g. the
-``tapanywhereyoexit`` text rendered at y=96 % on a hero-card popup vs y=90.76 %
-on the original Chapter Rewards reference) still gets caught because the wider
-``_search`` sibling bbox covers both positions and fuzzy ``partial`` matching
-plucks the target phrase from the surrounding OCR noise.
-"""
+"""``action: text`` rules use only the primary bbox after `_search` removal."""
 
 from __future__ import annotations
 
@@ -30,12 +21,8 @@ CHAPTER_REWARDS_REFERENCE = REPO_ROOT / "references" / "tapanywhereyoexit.png"
 
 
 @pytest.mark.asyncio
-async def test_text_rule_falls_back_to_search_bbox_when_primary_misses() -> None:
-    """Patrick hero-card popup: primary bbox OCRs "Lv. 5" (the level row), but
-    the ``_search`` auxiliary bbox covers the actual "Tap anywhere to continue"
-    text 5 % below. The fallback must catch it; otherwise the popup never gets
-    dismissed and the worker stalls.
-    """
+async def test_text_rule_does_not_fall_back_to_removed_search_bbox() -> None:
+    """Patrick hero-card popup no longer relies on a `_search` auxiliary bbox."""
     img = cv2.imread(str(PATRICK_HERO_CARD_FIXTURE))
     assert img is not None
     area_doc: dict[str, Any] = json.loads(
@@ -55,11 +42,8 @@ async def test_text_rule_falls_back_to_search_bbox_when_primary_misses() -> None
     )
     row = out.get("tapanywhereyoexit.visible")
     assert isinstance(row, dict)
-    assert row.get("matched") is True, row
-    assert row.get("ocr_source") == "tapanywhereyoexit_search"
-    match = row.get("match")
-    assert isinstance(match, dict)
-    assert match.get("candidate") == "tap anywhere"
+    assert row.get("matched") is False, row
+    assert row.get("ocr_source") == "tapanywhereyoexit"
 
 
 @pytest.mark.asyncio

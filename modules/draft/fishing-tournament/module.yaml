@@ -1,8 +1,0 @@
-id: fishing-tournament
-title: Fishing Tournament
-description: >-
-  Monthly fishing event — wiki reference data in event.yaml next to this manifest.
-wiki: false
-area: ../../area.json
-references: ../../references
-event_data: event.yaml

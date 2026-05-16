@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import time
 from datetime import timedelta
 from typing import Any
 
 import streamlit as st
 
-from adb import APPROVAL_CURRENT_TTL_SECONDS, click_approval_enabled
+from adb import click_approval_enabled
 from ui.bot_services import restart_embedded_bot
 from ui.notifications import pop_new_notifications
 from ui.redis_client import get_instance_state
@@ -173,13 +172,10 @@ def render_heartbeat(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         client.set(ctx.hb_key, str(time.time()), ex=5)
     else:
         client.delete(ctx.hb_key)
-    # Keep the pending approval card alive while the page is open, even if
-    # the worker died mid-task and stopped refreshing its own TTL. Reuses
-    # the worker's TTL — no separate UI-mode default.
+    # Waiting approval requests are stored without expiry. Approval mode is
+    # operator-paced; invalid requests are cleared by owner/restart checks, not
+    # by wall-clock aging.
     has_current = bool(client.get(ctx.current_key))
-    if has_current and enabled:
-        with contextlib.suppress(Exception):
-            client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** (ttl≈5s when ON) · "

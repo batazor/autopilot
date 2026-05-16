@@ -166,6 +166,35 @@ class Navigator:
             )
         )  # type: ignore[operator]
 
+    async def _tap_region_name_async(
+        self,
+        instance_id: str,
+        region_name: str,
+        *,
+        dev_w: int,
+        dev_h: int,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        """Run ADB tap/approval wait off the event loop so rolling preview keeps ticking."""
+        return bool(
+            await asyncio.to_thread(
+                self._tap_region_name,
+                instance_id,
+                region_name,
+                dev_w=dev_w,
+                dev_h=dev_h,
+                from_screen=from_screen,
+                to_screen=to_screen,
+                state_flat=state_flat,
+                path_csv=path_csv,
+                hop_index=hop_index,
+            )
+        )
+
     def _tap_supports_approval_source(self) -> bool:
         if self._tap_accepts_approval_source is not None:
             return self._tap_accepts_approval_source
@@ -549,7 +578,7 @@ class Navigator:
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
                 if await self._ui_page_back_visible(img):
                     consec_unknown_no_back = 0
-                    if not self._tap_region_name(
+                    if not await self._tap_region_name_async(
                         instance_id,
                         "icon.page.back",
                         dev_w=dev_w,
@@ -635,7 +664,7 @@ class Navigator:
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
                     if await self._ui_page_back_visible(img2):
-                        if not self._tap_region_name(
+                        if not await self._tap_region_name_async(
                             instance_id,
                             "icon.page.back",
                             dev_w=dev_w2,
@@ -717,7 +746,7 @@ class Navigator:
         for hop_idx, (dst_screen, taps) in enumerate(hop_sequences, start=1):
             for point in taps:
                 # Tap steps are always region names (strings).
-                if not self._tap_region_name(
+                if not await self._tap_region_name_async(
                     instance_id,
                     str(point),
                     dev_w=dev_w,

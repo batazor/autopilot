@@ -74,7 +74,10 @@ def setup_stdout_logging(level: int = logging.INFO) -> None:
         if s is not None:
             _try_line_buffer(s)
 
-    fmt = "%(levelname)s [%(inst)s/%(player)s/%(node)s] %(name)s %(message)s"
+    fmt = (
+        "%(levelname)s [%(inst)s/%(player)s/%(node)s trace=%(otelTraceID)s] "
+        "%(name)s %(message)s"
+    )
     if _should_colorize(stream):
         handler = logging.StreamHandler(stream)
         handler.setFormatter(_AnsiLevelFormatter(fmt=fmt))

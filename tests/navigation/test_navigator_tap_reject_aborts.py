@@ -31,7 +31,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
         return False
 
     async def detect_survivor(_image: np.ndarray) -> ScreenName:
-        return ScreenName.SURVIVOR_STATUS
+        return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
@@ -44,7 +44,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
                     "id": 1,
                     "regions": [
                         {
-                            "name": "from.survivor_status.to.main_city",
+                            "name": "icon.page.back",
                             "bbox": {"x": 10.0, "y": 10.0, "width": 5.0, "height": 5.0},
                             "action": "exist",
                         },
@@ -84,7 +84,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
         return False
 
     async def detect_survivor(_image: np.ndarray) -> ScreenName:
-        return ScreenName.SURVIVOR_STATUS
+        return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
@@ -97,7 +97,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
                     "id": 1,
                     "regions": [
                         {
-                            "name": "from.survivor_status.to.main_city",
+                            "name": "icon.page.back",
                             "bbox": {"x": 10.0, "y": 10.0, "width": 5.0, "height": 5.0},
                             "action": "exist",
                         },
@@ -114,8 +114,8 @@ async def test_navigate_to_persists_intermediate_screen_identity(
 
     current = await redis.hget("wos:instance:bs1:state", "current_screen")
     current_s = current.decode() if isinstance(current, bytes) else str(current or "")
-    assert current_s == "survivor_status", (
-        f"expected current_screen='survivor_status', got {current_s!r}"
+    assert current_s == "mail", (
+        f"expected current_screen='mail', got {current_s!r}"
     )
 
 

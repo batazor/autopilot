@@ -1,5 +1,0 @@
-enabled: false
-name: "Tundra Album"
-node: event.tundra_album
-icon: tundra_album
-steps: []

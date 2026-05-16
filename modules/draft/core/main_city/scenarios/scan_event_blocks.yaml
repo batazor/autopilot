@@ -1,5 +1,0 @@
-enabled: false
-name: 🔍 Scan event blocks
-node: main_city
-steps:
-- exec: scan_event_blocks

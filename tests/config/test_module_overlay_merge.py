@@ -21,10 +21,10 @@ def _rule_names(doc: dict[str, Any]) -> list[str]:
     return [str(r.get("name") or "") for r in doc.get("overlay") or [] if isinstance(r, dict)]
 
 
-def test_reconnect_module_overlay_rule_present_in_merged_manifest() -> None:
+def test_core_building_module_overlay_rule_present_in_merged_manifest() -> None:
     doc = load_merged_analyze_yaml(REPO_ROOT)
     names = _rule_names(doc)
-    assert "reconnect_button.visible" in names
+    assert "build_button.visible" in names
 
 
 def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
@@ -33,7 +33,8 @@ def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
     names = _rule_names(doc)
 
     for expected in (
-        "mail_gift.visible",
+        "mail.new.has_red_dot",
+        "mail.gift.visible",
         "mail.tab.wars.has_red_dot",
         "mail.tab.alliance.has_red_dot",
         "mail.tab.system.has_red_dot",

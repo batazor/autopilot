@@ -4,8 +4,11 @@ import logging
 import time
 from typing import Any
 
+from opentelemetry import trace
+
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
+from config.tracing import set_span_attributes, traced_root
 from navigation.lifecycle_states import InstanceState
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.queue import QueueItem
@@ -197,70 +200,106 @@ class InstanceWorkerTasksMixin:
                 "current_scenario": scenario_for_job,
             },
         )
-        logger.info(
-            "Task start %s: id=%s type=%s player=%s prio=%s",
-            self._cfg.instance_id,
-            item.task_id,
-            scenario_log_label(item.task_type),
-            item.player_id,
-            item.priority,
-        )
         _task_result: TaskResult | None = None
         _task_error = ""
-        try:
-            if not skip_account:
-                await self._ensure_account(item.player_id)
-            _task_result = await self._execute_task(item, task)
-            await self._drain_ui_commands()
-            await self._reschedule_if_needed(item, _task_result)
-            if _task_result is not None:
-                logger.info(
-                    "Task done %s: id=%s success=%s next_run_at=%s",
-                    self._cfg.instance_id,
-                    item.task_id,
-                    getattr(_task_result, "success", None),
-                    getattr(_task_result, "next_run_at", None),
-                )
-            else:
-                logger.info("Task done %s: id=%s (no result)", self._cfg.instance_id, item.task_id)
-        except Exception as exc:
-            _task_error = f"{type(exc).__name__}: {exc!s}"
-            await self._set_instance_state(InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}")
-            await self._handle_failure(item, exc)
-        finally:
-            _finished_at = float(time.time())
-            # Emit terminal event: failure → task.failed, preempted reason →
-            # task.preempted, otherwise task.finished. Single event per task
-            # so the UI rendering can rely on a clean end marker.
-            _metadata = (
-                (_task_result.metadata or {}) if _task_result is not None else {}
+        _trace_name = (
+            f"scenario.run {scenario_for_job}"
+            if scenario_for_job
+            else f"task.run {item.task_type}"
+        )
+        with traced_root(
+            _trace_name,
+            **{
+                "wos.instance_id": self._cfg.instance_id,
+                "wos.player_id": item.player_id,
+                "wos.task_id": item.task_id,
+                "wos.task_type": item.task_type,
+                "wos.scenario": scenario_for_job or item.task_type,
+                "wos.priority": int(item.priority),
+                "wos.effective_priority": int(item.effective_priority or item.priority),
+                "wos.region": item.region or "",
+                "wos.start_step_index": int(item.start_step_index or 0),
+            },
+        ) as _task_span:
+            logger.info(
+                "Task start %s: id=%s type=%s player=%s prio=%s",
+                self._cfg.instance_id,
+                item.task_id,
+                scenario_log_label(item.task_type),
+                item.player_id,
+                item.priority,
             )
-            _reason = str(_metadata.get("reason") or "")
-            if _task_error:
-                _terminal_event = "task.failed"
-            elif _reason == "preempted_by_higher_priority" or _metadata.get(
-                "preempted"
-            ):
-                _terminal_event = "task.preempted"
-            else:
-                _terminal_event = "task.finished"
             try:
-                await wake_scheduler_async(
-                    self._redis,
-                    {"cmd": "wake", "reason": _terminal_event, "task_id": item.task_id},
+                if not skip_account:
+                    await self._ensure_account(item.player_id)
+                _task_result = await self._execute_task(item, task)
+                await self._drain_ui_commands()
+                await self._reschedule_if_needed(item, _task_result)
+                if _task_result is not None:
+                    logger.info(
+                        "Task done %s: id=%s success=%s next_run_at=%s",
+                        self._cfg.instance_id,
+                        item.task_id,
+                        getattr(_task_result, "success", None),
+                        getattr(_task_result, "next_run_at", None),
+                    )
+                else:
+                    logger.info("Task done %s: id=%s (no result)", self._cfg.instance_id, item.task_id)
+            except Exception as exc:
+                _task_error = f"{type(exc).__name__}: {exc!s}"
+                _task_span.record_exception(exc)
+                _task_span.set_status(trace.Status(trace.StatusCode.ERROR, _task_error))
+                await self._set_instance_state(InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}")
+                await self._handle_failure(item, exc)
+            finally:
+                _finished_at = float(time.time())
+                # Emit terminal event: failure → task.failed, preempted reason →
+                # task.preempted, otherwise task.finished. Single event per task
+                # so the UI rendering can rely on a clean end marker.
+                _metadata = (
+                    (_task_result.metadata or {}) if _task_result is not None else {}
                 )
-            except Exception:
-                logger.debug("wake_scheduler_async failed", exc_info=True)
-            await self._record_task_history(
-                item=item,
-                task=task,
-                started_at=started_at,
-                finished_at=_finished_at,
-                result=_task_result,
-                error=_task_error,
-            )
-            self._task_busy.clear()
-            await self._set_instance_state(InstanceState.READY)
+                _reason = str(_metadata.get("reason") or "")
+                if _task_error:
+                    _terminal_event = "task.failed"
+                elif _reason == "preempted_by_higher_priority" or _metadata.get(
+                    "preempted"
+                ):
+                    _terminal_event = "task.preempted"
+                else:
+                    _terminal_event = "task.finished"
+                _success = bool(_task_result.success) if _task_result is not None else not _task_error
+                set_span_attributes(
+                    _task_span,
+                    **{
+                        "wos.success": _success,
+                        "wos.reason": _reason,
+                        "wos.terminal_event": _terminal_event,
+                        "wos.error": _task_error,
+                        "wos.duration_s": max(0.0, _finished_at - started_at),
+                    },
+                )
+                if not _success and not _task_error:
+                    _task_span.set_status(
+                        trace.Status(trace.StatusCode.ERROR, _reason or "task failed")
+                    )
+                try:
+                    await wake_scheduler_async(
+                        self._redis,
+                        {"cmd": "wake", "reason": _terminal_event, "task_id": item.task_id},
+                    )
+                except Exception:
+                    logger.debug("wake_scheduler_async failed", exc_info=True)
+                await self._record_task_history(
+                    item=item,
+                    task=task,
+                    started_at=started_at,
+                    finished_at=_finished_at,
+                    result=_task_result,
+                    error=_task_error,
+                )
+                self._task_busy.clear()
+                await self._set_instance_state(InstanceState.READY)
             # Re-enqueue only if the hand-pointer task actually matched and clicked
             # (not a false-positive overlay detection that failed the match guard).
             _hand_pointer_hit = _task_result is not None and str(
@@ -351,6 +390,9 @@ class InstanceWorkerTasksMixin:
 
             metadata = result.metadata if result is not None else {}
             success = bool(result.success) if result is not None else (not error)
+            span_ctx = trace.get_current_span().get_span_context()
+            trace_id = format(span_ctx.trace_id, "032x") if span_ctx.trace_id else ""
+            span_id = format(span_ctx.span_id, "016x") if span_ctx.span_id else ""
             row = {
                 "task_id": item.task_id,
                 "task_type": item.task_type,
@@ -366,6 +408,8 @@ class InstanceWorkerTasksMixin:
                 "error": error,
                 "reason": str((metadata or {}).get("reason") or ""),
                 "metadata": metadata or {},
+                "trace_id": trace_id,
+                "span_id": span_id,
             }
             key = _history_key_for_instance(self._cfg.instance_id)
             await self._redis.lpush(key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]

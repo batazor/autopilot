@@ -1,6 +1,0 @@
-enabled: true
-name: 🎪 Open event block 2
-node: main_city
-steps:
-- click: main_city.event.block.2
-- wait: 1s

@@ -1,7 +1,0 @@
-enabled: true
-name: ⏭️ Tap skip
-device_level: true
-steps:
-- match: skip_button
-  threshold: 0.95
-- click: skip_button

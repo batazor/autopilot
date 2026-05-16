@@ -1,9 +1,0 @@
-enabled: true
-name: 🚫 Tap don't show this again today
-device_level: true
-steps:
-- match: dontshowthisagaintoday
-  threshold: 0.9
-  min_match_saturation: 48
-- click: dontshowthisagaintoday
-- wait: 500ms

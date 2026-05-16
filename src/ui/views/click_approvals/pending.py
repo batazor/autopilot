@@ -44,6 +44,25 @@ def _is_stale_from_previous_worker(payload: dict[str, Any], row: dict[str, Any])
     return created_at > 0 and worker_started_at > 0 and created_at < worker_started_at
 
 
+def _is_stale_for_live_owner(payload: dict[str, Any], row: dict[str, Any]) -> bool:
+    status = _as_text(payload.get("status")).lower()
+    if status and status != "waiting":
+        return False
+    ctx0 = payload.get("context")
+    if not isinstance(ctx0, dict):
+        return False
+    payload_task_id = _as_text(ctx0.get("current_task_id"))
+    live_task_id = _as_text(row.get("current_task_id"))
+    if payload_task_id and live_task_id:
+        return payload_task_id != live_task_id
+
+    payload_scenario = _as_text(ctx0.get("scenario"))
+    live_scenario = _as_text(row.get("current_scenario"))
+    if payload_scenario and live_scenario:
+        return payload_scenario != live_scenario
+    return False
+
+
 def _payload_action_label(payload: dict[str, Any]) -> str:
     kind = str(payload.get("type") or "").strip().lower()
     if kind == "set_node":
@@ -102,7 +121,7 @@ def _is_navigation_approval(payload: dict[str, Any], ctx0: object) -> bool:
     return False
 
 
-def _clear_stale_pending_after_restart(
+def _clear_invalid_pending(
     *, client: Any, inst: str, curr_key: str, raw: Any
 ) -> bool:
     try:
@@ -116,7 +135,9 @@ def _clear_stale_pending_after_restart(
     except Exception:
         return False
     row = {_as_text(k): _as_text(v) for k, v in row_raw.items()}
-    if not _is_stale_from_previous_worker(payload, row):
+    stale_after_restart = _is_stale_from_previous_worker(payload, row)
+    stale_owner = _is_stale_for_live_owner(payload, row)
+    if not (stale_after_restart or stale_owner):
         return False
 
     response_key = _as_text(payload.get("response_key"))
@@ -124,7 +145,8 @@ def _clear_stale_pending_after_restart(
     client.delete(curr_key)
     if response_key:
         client.delete(response_key)
-    st.toast(f"Cleared stale approval from previous bot run: `{request_id}`")
+    reason = "owner changed" if stale_owner else "previous bot run"
+    st.toast(f"Cleared stale approval ({reason}): `{request_id}`")
     return True
 
 
@@ -134,7 +156,7 @@ def fragment_sync_pending_presence(*, inst: str, client: Any) -> None:
     snap_k = f"{CLICK_APPROVAL_PENDING_SNAP}::{inst}"
     ck = f"wos:ui:click_approval:current:{inst}"
     raw = client.get(ck)
-    if raw and _clear_stale_pending_after_restart(client=client, inst=inst, curr_key=ck, raw=raw):
+    if raw and _clear_invalid_pending(client=client, inst=inst, curr_key=ck, raw=raw):
         raw = None
     has_pending = bool(raw)
     prev = st.session_state.get(snap_k)
@@ -152,7 +174,7 @@ def fragment_pending_approval_columns(
     if not raw:
         st.rerun()
         return
-    if _clear_stale_pending_after_restart(client=client, inst=inst, curr_key=curr_key, raw=raw):
+    if _clear_invalid_pending(client=client, inst=inst, curr_key=curr_key, raw=raw):
         st.rerun()
         return
     try:
@@ -211,7 +233,7 @@ def fragment_pending_approval_columns(
 
         render_node_player_caption(ctx=ctx, client=client)
         _tp = _as_text(payload.get("traceparent"))
-        _tid = w3c_trace_id_hex(_tp or None)
+        _tid = _as_text(payload.get("trace_id")) or w3c_trace_id_hex(_tp or None)
         if _tid:
             st.caption("Trace ID (Grafana / Tempo trace search)")
             st.code(_tid, language=None)

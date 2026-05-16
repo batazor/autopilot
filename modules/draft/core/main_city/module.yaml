@@ -1,8 +1,0 @@
-id: main_city
-title: Main city
-description: >-
-  Main city screen — postman tap, periodic event-block OCR scan, and other
-  main_city-node automation pushed from overlay rules.
-area: ../../../area.json
-references: ../../../references
-wiki: false

@@ -5,6 +5,7 @@ Extracted from ``dsl_scenario.py`` so the main module stays a thin composition r
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import suppress
 from datetime import datetime
 from typing import Any
@@ -23,6 +24,14 @@ PREEMPT_MARGIN = 5_000
 PREEMPT_MAX_YIELDS = 3
 PREEMPT_YIELD_COUNT_TTL_SECONDS = 300
 
+# Cache TTL for ``dsl_preempt_gen`` Redis reads.  A while_match iteration probes
+# the preempt key once for the outer loop and once per inner step (via
+# ``_inline_preempt_if_needed``) — at 5 Hz that's 3+ identical GETs per ~200 ms
+# tick.  The key only changes when the debug UI bumps the counter, so a short
+# cache window collapses the duplicates while keeping the worst-case delay for
+# a "Run scenario now" press well below the user-visible threshold.
+PREEMPT_GEN_CACHE_TTL_S = 0.25
+
 
 def _yield_count_key(instance_id: str, task_id: str) -> str:
     return f"wos:instance:{instance_id}:yield_count:{task_id}"
@@ -37,6 +46,10 @@ class DslScenarioPreemptMixin:
     priority: int
     effective_priority: int
     _preempt_gen_at_start: int
+    # ``(instance_id, primed_at_monotonic, preempted_int)`` — populated by
+    # :meth:`_preempted_by_new_debug` so the per-inline-step probes inside a
+    # while_match body share a single Redis round-trip per iteration.
+    _preempt_gen_cache: tuple[str, float, int] | None
 
     async def _read_dsl_preempt_gen(self, instance_id: str) -> int:
         if self.redis_client is None:
@@ -55,9 +68,14 @@ class DslScenarioPreemptMixin:
             return False
         try:
             cur = await self._read_dsl_preempt_gen(instance_id)
-            return cur > int(self._preempt_gen_at_start)
+            preempted = cur > int(self._preempt_gen_at_start)
         except Exception:
             return False
+        # Prime the inner-step cache so the immediately-following
+        # ``_inline_preempt_if_needed`` probes (one per nested DSL step in a
+        # while_match body) can short-circuit without re-reading Redis.
+        self._preempt_gen_cache = (instance_id, time.monotonic(), int(preempted))
+        return preempted
 
     async def _read_yield_count(self, instance_id: str) -> int:
         if self.redis_client is None or not self.task_id:
@@ -161,8 +179,28 @@ class DslScenarioPreemptMixin:
     async def _inline_preempt_if_needed(
         self, instance_id: str, scenario_key: str
     ) -> TaskResult | None:
-        if not await self._preempted_by_new_debug(instance_id):
-            return None
+        # Inner-step preempt probes fire once per nested DSL step — at while_match
+        # cadence (~5 Hz) that's an extra GET on the same key for every inner
+        # step in the loop body. Reuse the most recent outcome within a short
+        # window: the debug "Run scenario now" press still preempts on the next
+        # outer-loop probe (which always reads fresh via
+        # :meth:`_preempted_by_new_debug`), so the worst-case reaction delay is
+        # one while_match iteration — well below user-visible.
+        cache = getattr(self, "_preempt_gen_cache", None)
+        now = time.monotonic()
+        if (
+            isinstance(cache, tuple)
+            and len(cache) == 3
+            and cache[0] == instance_id
+            and (now - cache[1]) < PREEMPT_GEN_CACHE_TTL_S
+        ):
+            if not bool(cache[2]):
+                return None
+        else:
+            preempted = await self._preempted_by_new_debug(instance_id)
+            self._preempt_gen_cache = (instance_id, now, int(bool(preempted)))
+            if not preempted:
+                return None
         await self._clear_step_context(instance_id)
         logger.info(
             "dsl_scenario: preempted by debug Run scenario now — %s",

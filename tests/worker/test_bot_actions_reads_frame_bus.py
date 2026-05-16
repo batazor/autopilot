@@ -32,7 +32,7 @@ def _fake_settings() -> Settings:
 
     return Settings(
         redis=RedisConfig(url="redis://localhost:6379/0"),
-        ocr=OcrConfig(url="http://localhost:8000"),
+        ocr=OcrConfig(),
         omniparser=OmniparserConfig(),
         scheduler=SchedulerConfig(),
         worker=WorkerConfig(),

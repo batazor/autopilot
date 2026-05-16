@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.parse import quote, urlencode, urlparse, urlunparse
 
 import pandas as pd
 import streamlit as st
@@ -69,6 +70,20 @@ def _internal_page_url(page: str, query: dict[str, str] | None = None) -> str:
         path = "/" + page
     q = urlencode(query or {})
     return urlunparse((u.scheme, u.netloc, path, "", q, ""))
+
+
+def _tempo_trace_url(trace_id: str) -> str:
+    tid = str(trace_id or "").strip()
+    if not tid:
+        return ""
+    template = (
+        os.environ.get("WOS_TEMPO_TRACE_URL_TEMPLATE")
+        or os.environ.get("GRAFANA_TEMPO_TRACE_URL_TEMPLATE")
+        or ""
+    ).strip()
+    if template:
+        return template.replace("{trace_id}", quote(tid, safe=""))
+    return ""
 
 
 def _history_steps_summary(h: QueueHistoryRow) -> str:
@@ -411,8 +426,16 @@ def _history_nested_columns() -> list[dict[str, Any]]:
         table_column("scenario", "Scenario", width=266),
         table_column("key", "Key", width=226),
         table_column("player", "Player", width=134),
+        table_column("trace_id_short", "Trace", width=112),
         table_column("region", "Region", width=174),
         table_column("detail", "Reason / task", width=356),
+        table_column(
+            "tempo",
+            "Tempo",
+            width=104,
+            cell_type="link",
+            link_text_key="tempo_label",
+        ),
         table_column(
             "debug",
             "→",
@@ -676,6 +699,8 @@ def _queue_fragment() -> None:
                     debug_q: dict[str, str] = {"scenario": scen_key}
                     if h.player_id:
                         debug_q["player"] = h.player_id
+                    trace_id = str(h.trace_id or "").strip()
+                    tempo_url = _tempo_trace_url(trace_id)
                     hist_data.append(
                         {
                             "id": f"h-{iid}-{seq}",
@@ -686,11 +711,14 @@ def _queue_fragment() -> None:
                             "scenario": _scenario_display_label(str(_REPO), scen_key),
                             "key": scen_key,
                             "player": h.player_id or "—",
+                            "trace_id_short": trace_id[:12] if trace_id else "—",
                             "region": h.region or "—",
                             "duration": f"{h.duration_s:.1f}s",
                             "status": "done" if h.success else "failed",
                             "steps": _history_steps_summary(h),
                             "detail": detail,
+                            "tempo": tempo_url,
+                            "tempo_label": "Open" if tempo_url else "",
                             "debug": _internal_page_url("debug_scenarios", debug_q),
                             "debug_label": "Debug",
                         }
@@ -716,6 +744,15 @@ def _queue_fragment() -> None:
 
                 if hist_idx is not None and 0 <= hist_idx < len(hist):
                     h_sel = hist[hist_idx]
+                    if h_sel.trace_id:
+                        trace_cols = st.columns([2, 1], vertical_alignment="bottom")
+                        with trace_cols[0]:
+                            st.caption("Trace ID")
+                            st.code(h_sel.trace_id, language=None)
+                        tempo_url = _tempo_trace_url(h_sel.trace_id)
+                        if tempo_url:
+                            with trace_cols[1]:
+                                st.link_button("Open in Tempo", tempo_url, width="stretch")
                     if h_sel.steps_trace:
                         with st.expander("DSL step trace", expanded=False):
                             trace_df = pd.DataFrame(h_sel.steps_trace)

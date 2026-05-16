@@ -31,9 +31,11 @@ from layout.tab_active_detector import (
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
+    match_template_full_frame_cached,
     match_template_in_search_roi_bbox_percent,
     patch_bgr_from_bbox_percent,
     patch_mean_hsv_saturation,
+    template_cache_key,
     validate_live_bbox_patch_vs_reference_dims,
 )
 from layout.types import Region
@@ -213,7 +215,7 @@ async def evaluate_overlay_rules_async(
 
     # ``action: text`` rules defer their OCR to a batched pass below — one
     # ``ocr_regions`` call covers every primary bbox in this tick, plus a
-    # second batch for any ``{region}_search`` fallbacks that didn't match
+    # a single OCR batch for primary regions
     # against the primary OCR text. Replaces 130+ sequential HTTP calls on
     # ``screen_verify.yaml`` with at most 2 round-trips.
     pending_text_rules: list[dict[str, Any]] = []
@@ -638,6 +640,7 @@ async def evaluate_overlay_rules_async(
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
             th_tpl = int(tpl.shape[0])
+            is_search = bool(reg.get("isSearch"))
             search_region_name = resolved_search_region_for_findicon(
                 area_doc,
                 region_name,
@@ -648,6 +651,114 @@ async def evaluate_overlay_rules_async(
             )
 
             try:
+                if is_search:
+                    excl = rule.get("exclude_top_lefts")
+                    excl_pts: list[tuple[int, int]] = []
+                    if isinstance(excl, list):
+                        for it in excl:
+                            if isinstance(it, (list, tuple)) and len(it) >= 2:
+                                try:
+                                    excl_pts.append((int(float(it[0])), int(float(it[1]))))
+                                except (TypeError, ValueError):
+                                    continue
+                    try:
+                        excl_r = int(rule.get("exclude_radius_px") or 0)
+                    except (TypeError, ValueError):
+                        excl_r = 0
+                    res = match_template_full_frame_cached(
+                        image_bgr,
+                        tpl,
+                        cache_key=template_cache_key(
+                            region_name=resolved_region_name,
+                            reference_rel=ref_rel,
+                            template_bgr=tpl,
+                            screen_shape=(hi, wi),
+                        ),
+                        threshold=threshold,
+                        exclude_top_lefts=excl_pts or None,
+                        exclude_radius_px=excl_r,
+                    )
+                    cx_px = res["top_left"][0] + tw_tpl / 2.0
+                    cy_px = res["top_left"][1] + th_tpl / 2.0
+                    mx_pct = 100.0 * cx_px / wi
+                    my_pct = 100.0 * cy_px / hi
+                    tap_x_pct = mx_pct
+                    tap_y_pct = my_pct
+                    tap_delta = _tap_region_delta_pct(
+                        area_doc,
+                        region_name,
+                        rule,
+                        state_flat=state_flat,
+                        screen_id=cur_screen_norm or None,
+                    )
+                    if tap_delta is not None:
+                        _tap_region, dx_pct, dy_pct = tap_delta
+                        tap_x_pct = mx_pct + dx_pct
+                        tap_y_pct = my_pct + dy_pct
+                    score = res["score"]
+                    matched = score >= threshold
+                    tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
+                    sat_fail: str | None = None
+                    mean_sat: float | None = None
+                    bright_fail: str | None = None
+                    tpl_bright: float | None = None
+                    patch_bright: float | None = None
+                    if matched:
+                        ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
+                            image_bgr, tpl, tl_tuple
+                        )
+                        matched = ok
+                    if matched and min_sat is not None:
+                        ok, mean_sat, sat_fail = _apply_min_saturation_gate(
+                            image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
+                        )
+                        matched = ok
+                    hit: dict[str, Any] = {
+                        "matched": matched,
+                        "score": score,
+                        "score_ncc": res.get("score_ncc"),
+                        "score_ncc_second": res.get("score_ncc_second"),
+                        "score_color": res.get("score_color"),
+                        "score_edge": res.get("score_edge"),
+                        "threshold": threshold,
+                        "top_left": list(res["top_left"]),
+                        "template_w": tw_tpl,
+                        "template_h": th_tpl,
+                        "action": "findIcon",
+                        "region": region_name,
+                        "resolved_region": resolved_region_name,
+                        "resolved_version": region_version_of(entry, reg),
+                        "search_region": "full_frame_cache",
+                        "match_source": res.get("match_source"),
+                        "hash_distance": res.get("hash_distance"),
+                        "tap_x_pct": tap_x_pct,
+                        "tap_y_pct": tap_y_pct,
+                    }
+                    hit["tap_match_x_pct"] = mx_pct
+                    hit["tap_match_y_pct"] = my_pct
+                    if tap_delta is not None:
+                        tap_region, dx_pct, dy_pct = tap_delta
+                        hit["tap_region"] = tap_region
+                        hit["tap_delta_x_pct"] = dx_pct
+                        hit["tap_delta_y_pct"] = dy_pct
+                    if push_tasks:
+                        hit["pushScenario"] = push_tasks
+                    if set_node_s:
+                        hit["set_node"] = set_node_s
+                    if priority is not None:
+                        hit["priority"] = priority
+                    if min_sat is not None:
+                        hit["min_match_saturation"] = min_sat
+                    if tpl_bright is not None:
+                        hit["template_bright_ratio"] = tpl_bright
+                        hit["patch_bright_ratio"] = patch_bright
+                    if mean_sat is not None:
+                        hit["mean_saturation"] = mean_sat
+                    if bright_fail or sat_fail:
+                        hit["reason"] = bright_fail or sat_fail
+                    out[logical_name] = hit
+                    continue
+
                 if search_region_name:
                     pair_s = _lookup_region(search_region_name)
                     if pair_s is None:
@@ -998,10 +1109,6 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
             entry, reg = pair
-            # Same OCR-frame guard as the findIcon search-fallback: a
-            # ``{region}_search`` sibling on a *different* screen would point
-            # at unrelated pixels, so we anchor on the primary region's
-            # ``effective_ocr_for_region``.
             ref_rel = effective_ocr_for_region(entry, reg)
             # ``type: time`` opts the rule into HH:MM:SS / MM:SS parsing so
             # downstream consumers can read ``time_seconds`` directly. Rule
@@ -1082,15 +1189,8 @@ async def _evaluate_pending_text_rules(
     by ``patch_hash``, so a frame with 141 ``page.heroes.unit.name`` cells
     only sends one entry to the backend.
 
-    Phase 2 — only rules whose primary OCR text failed ``fuzzy_match``
-    against ``expected`` (and which have a ``{region}_search`` sibling on the
-    same OCR frame as the primary) contribute to a second ``ocr_regions``
-    batch. Rules without ``expected`` or rules that matched in Phase 1 don't
-    pay the fallback cost.
-
-    Replaces the per-rule ``ocr.ocr_region()`` + sequential ``_search`` retry:
-    the prior path issued one HTTP request per rule (and a second one per
-    miss), so a tick with 130+ text rules paid 130–260 round-trips per frame.
+    Replaces the old per-rule ``ocr.ocr_region()`` path: a tick with 130+
+    text rules now pays one batched OCR request instead of one per rule.
     """
     from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
 
@@ -1127,8 +1227,6 @@ async def _evaluate_pending_text_rules(
     primary_by_id = {r.region_id: r for r in primary_results}
 
     inter: list[dict[str, Any]] = []
-    fallbacks: list[dict[str, Any]] = []
-    hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
     for i, p in enumerate(pending):
         res = primary_by_id.get(primary_ids[i])
         if res is None:
@@ -1153,34 +1251,6 @@ async def _evaluate_pending_text_rules(
             if m is not None:
                 matched = True
                 best = {"candidate": m.candidate, "score": m.score}
-            else:
-                # Fallback: same pattern as findIcon's slide-find — when a
-                # ``{region}_search`` sibling exists on the same OCR frame,
-                # re-OCR that wider ROI. A popup variant that moved the
-                # prompt out of the primary bbox (e.g. Patrick hero card
-                # pushes "Tap anywhere to continue" 5 % lower than the
-                # Chapter Rewards reference) still gets caught — the wider
-                # bbox includes both positions, partial-fuzzy filters out
-                # the surrounding noise.
-                pair_s = screen_region_by_name(
-                    area_doc,
-                    f"{p['region_name']}_search",
-                    state_flat=state_flat,
-                    screen_id=screen_id,
-                )
-                if pair_s is not None:
-                    entry_s, reg_s = pair_s
-                    if str(entry_s.get("ocr") or "").strip() == p["ref_rel"]:
-                        sbbox = reg_s.get("bbox")
-                        if isinstance(sbbox, dict):
-                            sregion_px = _bbox_percent_to_region_px(sbbox, wi, hi)
-                            fallbacks.append(
-                                {
-                                    "pending_idx": i,
-                                    "search_region_name": f"{p['region_name']}_search",
-                                    "search_region_px": sregion_px,
-                                }
-                            )
         else:
             matched = bool(txt)
 
@@ -1193,46 +1263,6 @@ async def _evaluate_pending_text_rules(
                 "ocr_source": ocr_source,
             }
         )
-
-    if fallbacks:
-        sids = [f"search::{f['pending_idx']}" for f in fallbacks]
-        sregions = [f["search_region_px"] for f in fallbacks]
-        # ``_search`` siblings inherit the parent rule's ``preprocess`` — the
-        # author flipped enhance on the rule because the *content* benefits
-        # from it, not the particular bbox, and the search ROI usually has
-        # the same paint as the primary (just a wider crop window).
-        spre: list[str | None] = [
-            pending[f["pending_idx"]].get("preprocess") for f in fallbacks
-        ]
-        try:
-            search_results = await ocr.ocr_regions(
-                image_bgr,
-                sregions,
-                region_ids=sids,
-                region_preprocess=spre if any(spre) else None,
-            )
-            search_by_id = {r.region_id: r for r in search_results}
-        except Exception:
-            # Network/backend miss on the wider ROI degrades fallbacks to
-            # "no match" — the primary verdict (``matched=False``) sticks.
-            search_by_id = {}
-
-        for f in fallbacks:
-            sres = search_by_id.get(f"search::{f['pending_idx']}")
-            if sres is None:
-                continue
-            stxt = str(sres.text or "").strip()
-            p = pending[f["pending_idx"]]
-            sm = fuzzy_match(
-                stxt, p["expected"], threshold=p["threshold"], partial=True
-            )
-            if sm is not None:
-                slot = inter[f["pending_idx"]]
-                slot["matched"] = True
-                slot["best"] = {"candidate": sm.candidate, "score": sm.score}
-                slot["txt"] = stxt
-                slot["conf"] = float(sres.confidence or 0.0)
-                slot["ocr_source"] = f["search_region_name"]
 
     for i, p in enumerate(pending):
         slot = inter[i]

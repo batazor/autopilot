@@ -1,5 +1,0 @@
-enabled: false
-name: "City Development"
-node: event.city_development
-icon: city_development
-steps: []

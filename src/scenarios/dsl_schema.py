@@ -40,7 +40,6 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "match",
     "while_match",
     "ocr",
-    "set_node",
     "swipe_direction",
     "push_scenario",
     "exec",
@@ -79,7 +78,6 @@ class DslStep(BaseModel):
     match: str | None = None
     while_match: str | None = None
     ocr: str | None = None
-    set_node: str | None = None
     exec: str | None = None
     wait: str | int | float | None = None
     # ``ttl:`` exits the scenario early and reschedules it for ``now + ttl``.
@@ -117,6 +115,11 @@ class DslStep(BaseModel):
 
     @model_validator(mode="after")
     def _exactly_one_action(self) -> DslStep:
+        if "set_node" in (self.model_extra or {}):
+            raise ValueError(
+                "set_node is no longer a DSL action; screen state is detected "
+                "automatically"
+            )
         present = [k for k in DSL_ACTION_KEYS if self._has(k)]
         # ``long_click`` consumes the step-level ``wait`` (or ``duration``) as
         # its long-press time — see the runtime handler in
@@ -249,6 +252,13 @@ def validate_dsl_steps(steps: Any, *, path: str = "") -> list[str]:
         if not isinstance(step, dict):
             continue
         step_path = f"{path}.{i}" if path else str(i)
+
+        if "set_node" in step:
+            out.append(
+                f"steps.{step_path}.set_node: unsupported DSL action. "
+                "Screen state is detected automatically; use top-level "
+                "``node`` only when a scenario needs navigation."
+            )
 
         if "ocr" in step:
             scope_raw = step.get("scope")

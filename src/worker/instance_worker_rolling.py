@@ -75,8 +75,8 @@ class InstanceWorkerRollingMixin:
     ) -> None:
         raise NotImplementedError
 
-    async def _device_reference_snapshot_tick(self) -> None:
-        """ADB screencap → rolling preview PNG + overlay rules (same frame)."""
+    async def _device_reference_snapshot_tick(self, *, analyze: bool = True) -> None:
+        """ADB screencap → rolling preview PNG; optionally run screen/overlay analysis."""
         root = repo_root()
         (root / "references").mkdir(parents=True, exist_ok=True)
         base = reference_file_basename(None, self._cfg.instance_id)
@@ -162,6 +162,9 @@ class InstanceWorkerRollingMixin:
             self._rolling_snap_seq,
         )
 
+        if not analyze:
+            return
+
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
         if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
@@ -238,6 +241,7 @@ class InstanceWorkerRollingMixin:
                 if self._stopping:
                     return
                 if self._ui_paused:
+                    await self._device_reference_snapshot_tick(analyze=False)
                     continue
                 await self._device_reference_snapshot_tick()
             except asyncio.CancelledError:

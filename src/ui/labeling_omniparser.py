@@ -170,11 +170,23 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                     )
                     (
                         proposal_regions,
-                        overlap_name_reused,
-                        overlap_duplicate_dropped,
+                        current_overlap_name_reused,
+                        current_overlap_duplicate_dropped,
+                    ) = reuse_proposal_names_from_overlapping_regions(
+                        proposal_regions,
+                        current_regions(),
+                    )
+                    (
+                        proposal_regions,
+                        sibling_overlap_name_reused,
+                        sibling_overlap_duplicate_dropped,
                     ) = reuse_proposal_names_from_overlapping_regions(
                         proposal_regions,
                         _related_regions_for_current_screen(),
+                    )
+                    overlap_name_reused = current_overlap_name_reused + sibling_overlap_name_reused
+                    overlap_duplicate_dropped = (
+                        current_overlap_duplicate_dropped + sibling_overlap_duplicate_dropped
                     )
                 st.session_state[OMNIPARSER_LABELING_SESSION] = {
                     "elements": [parsed_element_to_dict(el) for el in parsed.elements],
@@ -197,6 +209,10 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                         "nms_removed": stats.nms_removed,
                         "blacklist_skipped": stats.blacklist_skipped,
                         "crop_hash_name_reused": int(crop_name_reused),
+                        "current_overlap_name_reused": int(current_overlap_name_reused),
+                        "current_overlap_duplicate_dropped": int(current_overlap_duplicate_dropped),
+                        "sibling_overlap_name_reused": int(sibling_overlap_name_reused),
+                        "sibling_overlap_duplicate_dropped": int(sibling_overlap_duplicate_dropped),
                         "overlap_name_reused": int(overlap_name_reused),
                         "overlap_duplicate_dropped": int(overlap_duplicate_dropped),
                     },
@@ -208,8 +224,10 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 )
                 if crop_name_reused:
                     summ += f" Reused **{crop_name_reused}** name(s) from current regions (overlap + crop hash)."
-                if overlap_name_reused:
-                    summ += f" Reused **{overlap_name_reused}** name(s) from sibling screen regions (80% overlap)."
+                if current_overlap_name_reused:
+                    summ += f" Reused **{current_overlap_name_reused}** name(s) from current canvas regions (80% overlap)."
+                if sibling_overlap_name_reused:
+                    summ += f" Reused **{sibling_overlap_name_reused}** name(s) from sibling screen regions (80% overlap)."
                 if overlap_duplicate_dropped:
                     summ += f" Dropped **{overlap_duplicate_dropped}** duplicate overlap proposal(s)."
                 summ += " Use **Apply proposal** below to update regions."

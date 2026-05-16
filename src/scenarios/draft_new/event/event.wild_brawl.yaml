@@ -1,5 +1,0 @@
-enabled: false
-name: "Wild Brawl"
-node: event.wild_brawl
-icon: wild_brawl
-steps: []

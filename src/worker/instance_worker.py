@@ -71,7 +71,7 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
-# Priority band: above routine state-aware overlays (assign_worker, read_mail_gifts,
+# Priority band: above routine state-aware overlays (assign_worker, mail.claim,
 # chapter_task_router et al. at 70_000–80_000) so identity is established before any
 # action is attributed to a player. Screen identity is handled by the worker's
 # rolling detector, not by a queued bootstrap scenario.

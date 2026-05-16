@@ -153,22 +153,22 @@ async def test_recover_screen_uses_detector_short_circuit(
     history, we trust that identity without iterating verify rules."""
     cap, tap = _fake_capture_and_tap()
     nav = make_navigator(cap, tap, settings=settings, ocr_client=ocr_client, redis_client=redis_async)
-    await nav._write_screen("bs1", "vip")
+    await nav._write_screen("bs1", "mail")
     # Force current_screen back to empty (the race we're recovering from).
     await redis_async.hset("wos:instance:bs1:state", "current_screen", "")
 
     from navigation.detector import ScreenName
 
     async def fake_detect(_image: np.ndarray) -> ScreenName:
-        return ScreenName.VIP
+        return ScreenName.MAIL
 
     monkeypatch.setattr(nav._detector, "detect_screen", fake_detect)
 
     recovered = await nav.recover_screen_from_history("bs1")
-    assert recovered == "vip"
+    assert recovered == "mail"
     # Recovery also republishes current_screen so the next read sees it.
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")
-    assert cur == "vip"
+    assert cur == "mail"
 
 
 @pytest.mark.asyncio

@@ -163,17 +163,6 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
     )
     metrics.set_meter_provider(meter_provider)
 
-    # Auto-instrument redis-py — covers every hget/hset/zadd/eval round-trip
-    # made by both the sync and async clients with no further changes.
-    try:
-        from opentelemetry.instrumentation.redis import RedisInstrumentor
-
-        RedisInstrumentor().instrument()
-    except Exception:
-        # Instrumentation failure must not block the process boot — the
-        # manual spans on the hot path still work without it.
-        logger.warning("RedisInstrumentor.instrument() failed", exc_info=True)
-
     # Stamp every ``logging.LogRecord`` with ``otelTraceID`` / ``otelSpanID``
     # via a custom factory wrapper. ``LoggingInstrumentor`` would do this too,
     # but only when ``set_logging_format=True`` — and that calls
@@ -233,6 +222,21 @@ def traced(name: str, **attrs: Any) -> Iterator[Span]:
             raise
 
 
+@contextmanager
+def traced_root(name: str, **attrs: Any) -> Iterator[Span]:
+    """Start a span as a new trace root, ignoring any active parent context."""
+    tracer = get_tracer()
+    with tracer.start_as_current_span(name, context=_otel_context.Context()) as span:
+        if attrs:
+            set_span_attributes(span, **attrs)
+        try:
+            yield span
+        except Exception as exc:
+            span.record_exception(exc)
+            span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+            raise
+
+
 def set_span_attributes(span: Span, **attrs: Any) -> None:
     """Set multiple attributes on ``span`` with the same coercion as :func:`traced`."""
     for k, v in attrs.items():
@@ -278,9 +282,13 @@ def inject_context_into(carrier: dict[str, Any]) -> None:
     """Write ``traceparent`` (and ``tracestate`` when present) into ``carrier``.
 
     Used at enqueue time so the downstream worker can continue the same trace.
-    No-op when there is no active span.
+    Also writes the plain 32-hex ``trace_id`` for UI/search surfaces.
     """
     propagate.inject(carrier)
+    span = trace.get_current_span()
+    ctx = span.get_span_context() if span is not None else trace.INVALID_SPAN_CONTEXT
+    if ctx.trace_id:
+        carrier["trace_id"] = format(ctx.trace_id, "032x")
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,4 @@
-"""Overlay YAML helpers: legacy explicit ``search_region`` cleanup.
-
-Runtime resolves ``{primary}_search`` when present in ``area.json`` (see
-``analysis.overlay_rules.resolved_search_region_for_findicon``).
-"""
+"""Overlay YAML helpers for labeling-time region metadata cleanup."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -41,7 +37,7 @@ def cascade_aux_region_names(
     if name.endswith("_search") or name.endswith("_tap"):
         return []
     out: list[str] = []
-    for aux in (overlay_search_region_name(name), overlay_tap_region_name(name)):
+    for aux in (overlay_tap_region_name(name),):
         if aux in existing_names:
             out.append(aux)
     return out
@@ -79,15 +75,7 @@ def sync_findicon_overlay_aux_keys(
     *,
     use_search: bool,
 ) -> bool:
-    """Remove obsolete explicit ``search_region`` from the matching ``findIcon`` rule.
-
-    Sliding ROI is inferred when ``{primary}_search`` exists in ``area.json`` on the same
-    screen as ``primary``. Explicit YAML overrides remain supported for non-standard names.
-
-    Returns True if a matching overlay rule exists (even when no file write was needed).
-
-    ``use_search`` is retained for Labeling call sites; matching mode follows ``area.json``.
-    """
+    """Remove obsolete explicit ``search_region`` from a matching ``findIcon`` rule."""
     _ = use_search
     primary = str(primary_region or "").strip()
     if not primary:

@@ -3,20 +3,23 @@ from __future__ import annotations
 
 import time
 from collections import Counter
+import fnmatch
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
+from streamlit_nested_table import nested_table, table_column
 import yaml
 
 from analysis.overlay_rules import optional_ttl_seconds, overlay_rule_screen_allowlist
 from config.devices import get_device_registry
+from config.loader import load_settings
 from config.module_registry import normalize_module_scope
 from config.paths import repo_root
 from scenarios.registry import iter_module_analyze_manifests
 from ui.module_scope import render_module_scope_selector
 from ui.overlay_analyze_audit import OverlayAuditIssue, area_doc_for_module_scope, audit_overlay_rules
-from ui.redis_client import get_redis
+from ui.redis_client import get_instance_state, get_redis
 
 _SOURCE_KEY = "_wiki_source"
 
@@ -174,6 +177,252 @@ def _screen_group_key(rule: dict[str, Any]) -> str:
     if len(allow) == 1:
         return allow[0].lower() if allow[0].lower() == "none" else allow[0]
     return ", ".join(allow)
+
+
+def _rule_matches_current_screen(rule: dict[str, Any], current_screen: str) -> bool:
+    """Mirror overlay engine screen gating for the live load table."""
+    allow = overlay_rule_screen_allowlist(rule)
+    if not allow:
+        return True
+    allowed_lc = {s.lower() for s in allow}
+    cur = current_screen.strip()
+    if not cur:
+        return "none" in allowed_lc
+    cur_lc = cur.lower()
+    if cur_lc in allowed_lc:
+        return True
+    return any(
+        fnmatch.fnmatchcase(cur_lc, pat)
+        for pat in allowed_lc
+        if "*" in pat or "?" in pat
+    )
+
+
+def _rule_live_scope(rule: dict[str, Any], current_screen: str) -> str:
+    allow = overlay_rule_screen_allowlist(rule)
+    if not allow:
+        return "global"
+    if _rule_matches_current_screen(rule, current_screen):
+        return current_screen.strip() or "none"
+    return "off-node"
+
+
+def _effective_action(rule: dict[str, Any]) -> str:
+    action = str(rule.get("action") or "").strip()
+    if action == "exist":
+        action = "findIcon"
+    if rule.get("isRedDot") is True:
+        return "red_dot"
+    if rule.get("isRedDot") is False:
+        return "red_dot_absent"
+    if rule.get("isTabActive") is True:
+        return "tab_active"
+    if rule.get("isTabActive") is False:
+        return "tab_active_absent"
+    if rule.get("isWhiteBorder") is True:
+        return "white_border"
+    if rule.get("isWhiteBorder") is False:
+        return "white_border_absent"
+    return action or "—"
+
+
+def _ttl_snapshot_for_context(
+    client: Any,
+    *,
+    instance_id: str,
+    active_player: str,
+) -> dict[str, float]:
+    key = (
+        f"wos:player:{active_player}:overlay_ttl"
+        if active_player
+        else f"wos:instance:{instance_id}:overlay_ttl_anon"
+    )
+    try:
+        raw = client.hgetall(key) if client else {}
+    except Exception:
+        raw = {}
+    out: dict[str, float] = {}
+    for k, v in (raw or {}).items():
+        ks = k.decode() if isinstance(k, bytes) else str(k)
+        vs = v.decode() if isinstance(v, bytes) else str(v)
+        try:
+            out[ks] = float(vs)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _rule_ttl_labels(
+    rule: dict[str, Any],
+    *,
+    now: float,
+    last_eval_at: dict[str, float],
+) -> tuple[str, str, bool]:
+    ttl_s = optional_ttl_seconds(rule)
+    if ttl_s is None:
+        return "—", "—", False
+    name = str(rule.get("name") or "").strip()
+    last = last_eval_at.get(name)
+    ttl_label = _humanize_seconds(ttl_s)
+    if last is None:
+        return ttl_label, "now", False
+    remaining = ttl_s - max(0.0, now - last)
+    if remaining <= 0:
+        return ttl_label, "now", False
+    return ttl_label, "in " + _humanize_seconds(remaining), True
+
+
+def _live_analyzer_columns() -> list[dict[str, Any]]:
+    return [
+        table_column("current_screen", "Current screen", width=190),
+        table_column("instance", "Instance", width=105),
+        table_column("active", "Active", width=82, cell_type="pill", pill_preset="reachable"),
+        table_column("scope", "Scope", width=112),
+        table_column("state", "State", width=112),
+        table_column("rule", "Rule", width=240),
+        table_column("action", "Action", width=132),
+        table_column("region", "Region", width=170),
+        table_column("screens", "Screens", width=220),
+        table_column("ttl", "TTL", width=82),
+        table_column("next_eval", "Next eval", width=96),
+        table_column("push", "Push", width=220),
+        table_column("source", "Source", width=220),
+    ]
+
+
+def _render_live_analyzers_table(
+    rules: list[dict[str, Any]],
+    *,
+    repo_root_path: Path,
+) -> None:
+    st.subheader(
+        "Live analyzer load",
+        help=(
+            "Rows are overlay analyzers gated against each instance's Redis "
+            "`current_screen`. Active means the worker may evaluate that rule on this tick."
+        ),
+    )
+    try:
+        settings = load_settings()
+    except Exception as exc:
+        st.caption(f"Cannot read instances: {exc}")
+        return
+    inst_ids = [i.instance_id for i in settings.instances]
+    if not inst_ids:
+        st.caption("No configured instances.")
+        return
+    try:
+        client = get_redis()
+        client.ping()
+    except Exception:
+        st.caption("Redis unreachable — cannot read live `current_screen` state.")
+        return
+
+    fc1, fc2, fc3 = st.columns([2, 1, 1], vertical_alignment="bottom")
+    with fc1:
+        selected_instances = st.multiselect(
+            "Instances",
+            options=inst_ids,
+            default=inst_ids,
+            key="wiki_analyze_live_instances",
+        )
+    with fc2:
+        show_inactive = st.checkbox(
+            "Show inactive",
+            value=False,
+            key="wiki_analyze_live_show_inactive",
+            help="Include rules whose `screens` gate does not match `current_screen`.",
+        )
+    with fc3:
+        include_global = st.checkbox(
+            "Include global",
+            value=True,
+            key="wiki_analyze_live_include_global",
+            help="Rules without `screens`; the overlay engine evaluates them on every node.",
+        )
+    selected_instances = selected_instances or inst_ids
+
+    rows: list[dict[str, Any]] = []
+    now = time.time()
+    for iid in selected_instances:
+        try:
+            state = get_instance_state(client, iid) or {}
+        except Exception:
+            state = {}
+        current_screen = str(state.get("current_screen") or "").strip()
+        active_player = str(state.get("active_player") or "").strip()
+        last_eval_at = _ttl_snapshot_for_context(
+            client, instance_id=iid, active_player=active_player
+        )
+        for idx, rule in enumerate(rules, start=1):
+            name = str(rule.get("name") or "").strip() or f"rule_{idx}"
+            scope_label = _rule_live_scope(rule, current_screen)
+            if scope_label == "global" and not include_global:
+                continue
+            screen_active = _rule_matches_current_screen(rule, current_screen)
+            if not screen_active and not show_inactive:
+                continue
+            ttl_label, next_eval, throttled = _rule_ttl_labels(
+                rule, now=now, last_eval_at=last_eval_at
+            )
+            screens = overlay_rule_screen_allowlist(rule)
+            src = rule.get(_SOURCE_KEY)
+            state_label = "gated"
+            if screen_active:
+                state_label = "throttled" if throttled else "ready"
+                if scope_label == "global":
+                    state_label = "global-throttled" if throttled else "global"
+            rows.append(
+                {
+                    "id": f"{iid}:{idx}:{name}",
+                    "current_screen": current_screen or "—",
+                    "instance": iid,
+                    "active": "yes" if screen_active else "no",
+                    "scope": scope_label,
+                    "state": state_label,
+                    "rule": name,
+                    "action": _effective_action(rule),
+                    "region": str(rule.get("region") or "").strip() or "—",
+                    "screens": ", ".join(screens) if screens else "global",
+                    "ttl": ttl_label,
+                    "next_eval": next_eval,
+                    "push": ", ".join(_scenario_names_from_key(rule, "pushScenario")) or "—",
+                    "source": _source_rel(src, repo_root_path)
+                    if isinstance(src, Path)
+                    else "—",
+                }
+            )
+
+    if not rows:
+        st.info("No analyzer rows match the selected live filters.")
+        return
+
+    active_n = sum(1 for r in rows if r["active"] == "yes")
+    throttled_n = sum(1 for r in rows if "throttled" in str(r["state"]))
+    global_n = sum(1 for r in rows if r["screens"] == "global")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Rows", len(rows))
+    m2.metric("Active analyzers", active_n)
+    m3.metric("Throttled", throttled_n)
+    m4.metric("Global", global_n)
+
+    rows.sort(
+        key=lambda r: (
+            str(r["current_screen"]).lower(),
+            r["active"] != "yes",
+            r["state"] == "gated",
+            str(r["rule"]).lower(),
+        )
+    )
+    nested_table(
+        rows,
+        _live_analyzer_columns(),
+        height=min(560, 56 + max(1, len(rows)) * 34),
+        striped=True,
+        compact=True,
+        hide_expand=True,
+        key="wiki_analyze_live_table",
+    )
 
 
 def _render_rule_detail(rule: dict[str, Any], repo_root_path: Path) -> None:
@@ -490,6 +739,8 @@ m1.metric("Rules", len(filtered))
 m2.metric("Manifests", len(loaded_files))
 m3.metric("Audit errors", issue_counts.get("error", 0))
 m4.metric("Rules w/ error", len(rules_with_errors))
+
+_render_live_analyzers_table(filtered, repo_root_path=root)
 
 tab_audit, tab_rules, tab_ttl = st.tabs(["Audit", "Rules", "TTL"])
 

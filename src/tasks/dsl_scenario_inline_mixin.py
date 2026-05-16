@@ -311,21 +311,6 @@ class DslScenarioInlineMixin:
         )
         return ok
 
-    def _region_has_search_companion(
-        self,
-        area_doc: dict[str, Any],
-        region: str,
-    ) -> bool:
-        """True if ``<region>_search`` exists in area.json (state-aware lookup)."""
-        if not region:
-            return False
-        return (
-            screen_region_by_name(
-                area_doc, f"{region}_search", state_flat=self._state_flat()
-            )
-            is not None
-        )
-
     async def _tap_region(
         self,
         *,
@@ -347,15 +332,13 @@ class DslScenarioInlineMixin:
             logger.warning("dsl_scenario: region not found in area.json: %s", region)
             return None
 
-        # When a `<region>_search` ROI exists, the static template bbox is just a sample
-        # crop — the icon's real on-screen position is anywhere inside the search ROI.
-        # Run an implicit `match:` first so `_point_for_region_action` taps the found
-        # location instead of the stale bbox center. Skip if the caller already did a
-        # `match:` for this region (the recent `_last_match_row` covers it).
+        # Search regions move on screen. Run an implicit `match:` first so
+        # `_point_for_region_action` taps the found location instead of the
+        # stale bbox center. Skip if the caller already matched this region.
         already_matched = (
             self._last_match_region == region and self._last_match_row is not None
         )
-        if not already_matched and self._region_has_search_companion(area_doc, region):
+        if not already_matched and bool(pair[1].get("isSearch")):
             # Forward optional gating from the click step so users can write
             # ``click: foo / threshold: 0.95 / min_match_saturation: 40`` and have
             # the implicit search honor those constraints. ``isRedDot`` and other

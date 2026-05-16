@@ -1,5 +1,0 @@
-enabled: false
-name: "Hero Rally"
-node: event.hero_rally
-icon: hero_rally
-steps: []

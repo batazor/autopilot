@@ -1,6 +1,0 @@
-enabled: true
-name: 🚫 Dismiss player survey ad
-device_level: true
-steps:
-- click: button.letsdothis
-- wait: 8s

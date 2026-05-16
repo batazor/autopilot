@@ -8,7 +8,7 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def _read_hand_pointer_scenario(filename: str) -> dict:
-    rel = Path("modules/draft/core/pop-up/scenarios") / filename
+    rel = Path("modules/core/pop-up/scenarios") / filename
     p = REPO / rel
     if p.is_file():
         return yaml.safe_load(p.read_text(encoding="utf-8"))

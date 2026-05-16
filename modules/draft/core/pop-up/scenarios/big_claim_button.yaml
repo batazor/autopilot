@@ -1,8 +1,0 @@
-enabled: true
-name: 🎁 Tap big claim button
-device_level: true
-steps:
-- while_match: big_claim_button
-  steps:
-  - click: big_claim_button
-  - wait: 1s

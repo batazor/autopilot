@@ -459,6 +459,15 @@ wheels = [
 ]
 
 [[package]]
+name = "diskcache"
+version = "5.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
+]
+
+[[package]]
 name = "distro"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1594,21 +1603,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3b/25/a30e0160cb3654bb63936be16d8ffe5f4a658d10bec0d5509cca3c74f103/opentelemetry_instrumentation_logging-0.62b1.tar.gz", hash = "sha256:997359d29ce06cb3768677387469431d0484b2450b5c35d7f02361431d3de338", size = 18969, upload-time = "2026-04-24T13:22:54.275Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/e4/216d1c7ff9c10815a8587ecbca0b570596921f001d1e2c2903c6f19e2e90/opentelemetry_instrumentation_logging-0.62b1-py3-none-any.whl", hash = "sha256:969330216d1ae02f4e10f1a030566ae758114caead020817192e6a02c6d1a0e1", size = 17488, upload-time = "2026-04-24T13:22:00.726Z" },
-]
-
-[[package]]
-name = "opentelemetry-instrumentation-redis"
-version = "0.62b1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-instrumentation" },
-    { name = "opentelemetry-semantic-conventions" },
-    { name = "wrapt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f5/ff/35414ad80409bd9e472c7959832524c5f2c8f63965af08c41c2b42d3a6a6/opentelemetry_instrumentation_redis-0.62b1.tar.gz", hash = "sha256:2d3c421d95e05ade075bee5becbe34e743b1cdf5bdee2085cb524f88c4f13dcb", size = 14796, upload-time = "2026-04-24T13:23:01.138Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/31/37/bc2271f3472e3041eeade8b8da1cfd3b06badae76fe5d0ff135b6285e70c/opentelemetry_instrumentation_redis-0.62b1-py3-none-any.whl", hash = "sha256:9aedd02c1acf631251d1d676634db47da9da04e0a626cd0c7d83fe0eb791d165", size = 15501, upload-time = "2026-04-24T13:22:11.705Z" },
 ]
 
 [[package]]
@@ -3596,6 +3590,7 @@ source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "ddddocr" },
+    { name = "diskcache" },
     { name = "httpx" },
     { name = "networkx" },
     { name = "numpy" },
@@ -3633,7 +3628,6 @@ dev = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation-logging" },
-    { name = "opentelemetry-instrumentation-redis" },
     { name = "opentelemetry-sdk" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -3672,6 +3666,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'omniparser'", specifier = ">=1.13.0" },
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "ddddocr", specifier = ">=1.4" },
+    { name = "diskcache", specifier = ">=5.6.3" },
     { name = "easyocr", marker = "extra == 'omniparser'", specifier = ">=1.7.2" },
     { name = "einops", marker = "extra == 'omniparser'", specifier = "==0.8.0" },
     { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.111" },
@@ -3685,7 +3680,6 @@ requires-dist = [
     { name = "opentelemetry-api", marker = "extra == 'dev'", specifier = ">=1.27" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'dev'", specifier = ">=1.27" },
     { name = "opentelemetry-instrumentation-logging", marker = "extra == 'dev'", specifier = ">=0.48b0" },
-    { name = "opentelemetry-instrumentation-redis", marker = "extra == 'dev'", specifier = ">=0.48b0" },
     { name = "opentelemetry-sdk", marker = "extra == 'dev'", specifier = ">=1.27" },
     { name = "ortools", specifier = ">=9.10" },
     { name = "paddleocr", marker = "extra == 'omniparser'", specifier = ">=2.10.0" },
@@ -3731,7 +3725,7 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'omniparser'", specifier = ">=0.46.0" },
     { name = "watchdog", specifier = ">=4.0" },
 ]
-provides-extras = ["ocr", "dev", "ui", "annotator", "omniparser"]
+provides-extras = ["dev", "ui", "annotator", "omniparser"]
 
 [[package]]
 name = "wrapt"

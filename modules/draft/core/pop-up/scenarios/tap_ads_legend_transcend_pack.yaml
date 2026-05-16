@@ -1,8 +1,0 @@
-enabled: true
-name: 🚫 Dismiss Legend Transcend Pack ad
-device_level: true
-steps:
-- match: ads.legend_transcend_pack
-  threshold: 0.92
-- click: ads.legend_transcend_pack
-- wait: 2s

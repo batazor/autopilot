@@ -33,8 +33,28 @@ screens:
 
   main_city:
     priority: 10
+    landmarks:
+      - match: icon.world
     rules:
-      - match: main_city.title
+      - match: icon.world
+        threshold: 0.9
+
+  mail:
+    priority: 20
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+    rules:
+      - match: mail.title
+        threshold: 0.9
+
+  alliance.invitation:
+    priority: 20
+    landmarks:
+      - match: alliance.title
+        threshold: 0.9
+    rules:
+      - match: alliance.title
         threshold: 0.9
 
   welcome_back:

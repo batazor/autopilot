@@ -2,7 +2,7 @@
 
 Contract:
 - Page open => refreshes Redis heartbeat key (per instance).
-- Worker inputs (ADB tap/swipe/type, DSL ``set_node``):
+- Worker inputs (ADB tap/swipe/type, screen-node updates):
   - Approval gating defaults **ON** when ``enabled`` key is unset (turn OFF in the toggle below).
   - If no heartbeat => block
   - If heartbeat present => publish single "current" request and wait for approve/reject
@@ -199,7 +199,7 @@ def _pending_request() -> None:
 
 enabled_now = click_approval_enabled(instance_id)
 enabled_ui = st.toggle(
-    "Approval mode (ON = require approve for ADB input and DSL set_node)",
+    "Approval mode (ON = require approve for ADB input and screen-node updates)",
     value=enabled_now,
     key=f"click_approvals_enabled::{instance_id}",
 )

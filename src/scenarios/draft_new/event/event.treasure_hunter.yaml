@@ -1,5 +1,0 @@
-enabled: false
-name: "Treasure Hunter"
-node: event.treasure_hunter
-icon: treasure_hunter
-steps: []

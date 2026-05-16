@@ -51,6 +51,7 @@ db/state/
 
 # --- Runtime / bot process ----------------------------------------------------
 references/temporal/
+.cache/
 .wos.nohup.log
 .wos.pid
 *.log

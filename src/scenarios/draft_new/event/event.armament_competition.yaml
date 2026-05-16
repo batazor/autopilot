@@ -1,5 +1,0 @@
-enabled: false
-name: "Armament Competition"
-node: event.armament_competition
-icon: armament_competition
-steps: []

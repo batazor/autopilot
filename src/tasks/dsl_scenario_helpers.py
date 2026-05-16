@@ -114,7 +114,6 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "swipe",
     "ocr",
     "exec",
-    "set_node",
     "click",
     "wait",
 })
@@ -130,7 +129,6 @@ def _dsl_step_summary(step: Any) -> str:
         "match",
         "while_match",
         "ocr",
-        "set_node",
         "swipe_direction",
         "push_scenario",
         "exec",
@@ -141,7 +139,7 @@ def _dsl_step_summary(step: Any) -> str:
         if key not in step:
             continue
         val = step[key]
-        if key in ("click", "match", "while_match", "ocr", "set_node"):
+        if key in ("click", "match", "while_match", "ocr"):
             s = str(val).strip()
             base = f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
         elif key == "repeat":

@@ -16,7 +16,7 @@ cond: active_player == ""
 # This scenario is auto-enqueued once per worker boot
 # (see `_STARTUP_SEED_TASKS` / `_seed_startup_tasks` in
 # `worker/instance_worker.py`) at priority 82_000 — above routine state-aware
-# overlays (assign_worker / read_mail_gifts / chapter_task_router at 70k–80k)
+# overlays (assign_worker / mail.claim / chapter_task_router at 70k–80k)
 # so identity is established before any action is attributed to a player.
 # Screen identity is maintained by the worker's rolling detector. This stays
 # below tutorial overlays (skip=85_000, hand=86_000) so tutorials still preempt

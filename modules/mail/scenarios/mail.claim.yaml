@@ -1,0 +1,132 @@
+enabled: true
+name: "Read mail - claim gifts"
+priority: 80_000
+
+# Navigate to Mail screen via FSM graph, then work only inside mail UI.
+node: mail
+
+# The active tab clears its red dot on entry, so always probe `mail.gift`
+# directly there. Other tabs are gated by their red dot before opening.
+_claim_block: &claim_block
+  - while_match: mail.gift
+    min_match_saturation: 48
+    max: 30
+    steps:
+      - click: mail.gift
+      - wait: 0.8s
+
+      - loop:
+          max: 4
+          steps:
+            - while_match: button.claim.big
+              max: 1
+              steps:
+                - click: button.claim.big
+                - wait: 0.8s
+                - break: loop
+            - while_match: button.claim
+              max: 1
+              steps:
+                - click: button.claim
+                - wait: 0.8s
+                - break: loop
+            - while_match: button.go.big
+              max: 1
+              steps:
+                - click: button.go.big
+                - wait: 0.8s
+                - break: loop
+            - swipe_direction:
+                direction: up
+                delta: 450
+                duration_ms: 650
+            - wait: 0.35s
+
+      - while_match: icon.page.back
+        max: 1
+        steps:
+          - click: icon.page.back
+          - wait: 0.8s
+
+  - while_match: mail.claim.all
+    max: 1
+    steps:
+      - click: mail.claim.all
+      - wait: 1s
+      - while_match: button.claim
+        steps:
+          - click: button.claim
+          - wait: 0.5s
+
+  - while_match: mail.delete.all
+    max: 1
+    steps:
+      - click: mail.delete.all
+      - wait: 1s
+      - while_match: ui.button.confirm_blue
+        steps:
+          - click: ui.button.confirm_blue
+          - wait: 0.5s
+
+steps:
+  - steps: *claim_block
+
+  - while_match: mail.tab.wars
+    isTabActive: false
+    max: 1
+    steps:
+      - while_match: mail.tab.wars
+        isRedDot: true
+        max: 1
+        steps:
+          - click: mail.tab.wars
+          - wait: 1s
+          - steps: *claim_block
+
+  - while_match: mail.tab.alliance
+    isTabActive: false
+    max: 1
+    steps:
+      - while_match: mail.tab.alliance
+        isRedDot: true
+        max: 1
+        steps:
+          - click: mail.tab.alliance
+          - wait: 1s
+          - steps: *claim_block
+
+  - while_match: mail.tab.system
+    isTabActive: false
+    max: 1
+    steps:
+      - while_match: mail.tab.system
+        isRedDot: true
+        max: 1
+        steps:
+          - click: mail.tab.system
+          - wait: 1s
+          - steps: *claim_block
+
+  - while_match: mail.tab.reports
+    isTabActive: false
+    max: 1
+    steps:
+      - while_match: mail.tab.reports
+        isRedDot: true
+        max: 1
+        steps:
+          - click: mail.tab.reports
+          - wait: 1s
+          - steps: *claim_block
+
+  - while_match: mail.tab.starred
+    isTabActive: false
+    max: 1
+    steps:
+      - while_match: mail.tab.starred
+        isRedDot: true
+        max: 1
+        steps:
+          - click: mail.tab.starred
+          - wait: 1s
+          - steps: *claim_block

@@ -401,7 +401,7 @@ def test_require_approval_context_strips_empty_fields(
             "current_task_confidence": "0.7257",
             # Real falsy value — must NOT be filtered out.
             "current_task_patch_bright_ratio": "0",
-            "current_scenario": "read_mail_gifts",
+            "current_scenario": "mail.claim",
             # All ``dsl_last_*`` keys are intentionally absent.
         },
     )
@@ -426,7 +426,7 @@ def test_require_approval_context_strips_empty_fields(
     assert ctx["current_task_player"] == "765502864"
     assert ctx["current_task_text"] == "KSA]sgSc"
     assert ctx["current_task_confidence"] == "0.7257"
-    assert ctx["scenario"] == "read_mail_gifts"
+    assert ctx["scenario"] == "mail.claim"
     # ``"0"`` is a meaningful value — must NOT be stripped.
     assert ctx["current_task_patch_bright_ratio"] == "0"
     # Mirrored approval fields (consumers read these from ctx, not top-level).

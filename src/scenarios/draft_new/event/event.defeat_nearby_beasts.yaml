@@ -1,5 +1,0 @@
-enabled: false
-name: "Defeat Nearby Beasts"
-node: event.defeat_nearby_beasts
-icon: defeat_nearby_beasts
-steps: []

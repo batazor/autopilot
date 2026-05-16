@@ -55,7 +55,7 @@ async def test_cond_skips_when_async_redis_returns_bytes_main_city(redis_async: 
 
     r = redis_async
     await r.hset("wos:instance:bs1:state", mapping={"current_screen": "main_city"})  # type: ignore[attr-defined]
-    step = {"set_node": "main_city", "cond": "currentNode != main_city"}
+    step = {"wait": "1s", "cond": "currentNode != main_city"}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
 
@@ -64,7 +64,7 @@ async def test_cond_skips_when_async_redis_returns_bytes_main_city(redis_async: 
 async def test_cond_proceeds_when_async_redis_screen_differs(redis_async: object) -> None:
     r = redis_async
     await r.hset("wos:instance:bs1:state", mapping={"current_screen": "chief_profile"})  # type: ignore[attr-defined]
-    step = {"set_node": "main_city", "cond": "currentNode != main_city"}
+    step = {"wait": "1s", "cond": "currentNode != main_city"}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True
 

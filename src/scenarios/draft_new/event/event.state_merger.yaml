@@ -1,5 +1,0 @@
-enabled: false
-name: "State Merger"
-node: event.state_merger
-icon: state_merger
-steps: []

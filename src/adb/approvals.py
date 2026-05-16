@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 _redis_client: redis.Redis | None = None
 _APPROVAL_POLL_SECONDS = 0.2
+_APPROVAL_PREVIEW_REFRESH_SECONDS = 2.0
 # Approval mode: there is intentionally NO non-decision exit from the wait
 # loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
 # always the operator's. The trade-off: closing the approvals page WILL hang
@@ -21,13 +22,10 @@ _APPROVAL_POLL_SECONDS = 0.2
 # giving up (only relevant if a previous request is still in flight on the
 # same instance). Independent from the operator's review time.
 _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
-# Redis TTL for the published ``current`` key. Refreshed every iteration so
-# the request never expires while the worker is still polling for a decision.
-APPROVAL_CURRENT_TTL_SECONDS = 600
-# A previous worker can die while leaving a pending approval in the shared
-# per-instance slot.  Keep active operator decisions untouched, but reap old
-# waiting requests when the running DSL scenario has clearly moved on.
-_APPROVAL_STALE_CURRENT_SECONDS = 120.0
+# Redis TTL for non-waiting approval states (approved/rejected/executing).
+# Waiting requests in approval mode are stored without expiry: approval mode is
+# operator-paced and must not age out while the bot is waiting for a decision.
+APPROVAL_CURRENT_TTL_SECONDS = 300
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
 # Operator-issued ``skip`` decisions queued by ``_require_approval`` for the
 # tap/swipe/type_text helpers to consume. Skip means "don't execute this ADB
@@ -92,12 +90,15 @@ def _clear_stale_approval_current(
     current_key: str,
     new_context: dict[str, object],
 ) -> None:
-    """Clear an old pending approval from a different scenario.
+    """Clear an old pending approval from a different owner.
 
     The approval slot is intentionally single-entry.  If a previous bot run
     exits while a request is pending, that stale JSON can block the next task
-    from publishing its own request.  We only delete old ``waiting`` requests
-    whose scenario differs from the scenario currently trying to publish.
+    from publishing its own request.
+
+    Do not use wall-clock age here. In approval mode, waiting is intentional.
+    Reap only when the owner task/scenario trying to publish is clearly
+    different from the owner captured on the existing waiting request.
     """
     try:
         raw = _redis().get(current_key)
@@ -106,31 +107,38 @@ def _clear_stale_approval_current(
         doc = json.loads(raw)
         if str(doc.get("status") or "").strip().lower() != "waiting":
             return
-        created_at = float(doc.get("created_at") or 0.0)
-        if created_at <= 0 or (time.time() - created_at) < _APPROVAL_STALE_CURRENT_SECONDS:
-            return
         old_ctx = doc.get("context")
+        old_task_id = ""
         old_scenario = ""
         if isinstance(old_ctx, dict):
+            old_task_id = str(old_ctx.get("current_task_id") or "").strip()
             old_scenario = str(old_ctx.get("scenario") or "").strip()
+        new_task_id = str(new_context.get("current_task_id") or "").strip()
         new_scenario = str(new_context.get("scenario") or "").strip()
-        # Preserve same-scenario approvals across cooperative-preempt + resume.
-        # ``old_scenario == new_scenario`` (including both-empty) means we're
-        # likely re-publishing for the same task — keep the old one. Empty
-        # ``old_scenario`` with a non-empty ``new_scenario`` is the inverse:
-        # the prior approval is orphaned (worker died before it could write
-        # ``current_scenario``, or pre-DSL publisher), and the new task is
-        # claiming the slot — reap.
-        if old_scenario == new_scenario:
+
+        should_clear = False
+        if old_task_id and new_task_id:
+            should_clear = old_task_id != new_task_id
+        elif old_scenario and new_scenario:
+            should_clear = old_scenario != new_scenario
+        elif not old_scenario and new_scenario:
+            # Prior approval is orphaned (worker died before it wrote
+            # ``current_scenario``, or a pre-DSL publisher owned it).
+            should_clear = True
+        elif not new_scenario:
+            # New publisher cannot identify itself; do not clobber a known owner.
             return
-        if not new_scenario:
-            # New publisher can't identify itself; don't clobber a known owner.
+
+        if not should_clear:
             return
         _redis().delete(current_key)
         logger.info(
-            "Click approval: cleared stale request for %s (old scenario=%r, new scenario=%s)",
+            "Click approval: cleared stale request for %s "
+            "(old task=%r scenario=%r, new task=%r scenario=%r)",
             instance_id,
+            old_task_id,
             old_scenario,
+            new_task_id,
             new_scenario,
         )
     except Exception:
@@ -150,6 +158,23 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     if not click_approval_enabled(instance_id):
         return True, None
 
+    preview_capturer = payload.get("_preview_capturer")
+    last_preview_refresh_at = 0.0
+
+    def _refresh_preview_if_due(target: dict[str, object], *, force: bool = False) -> None:
+        nonlocal last_preview_refresh_at
+        if not callable(preview_capturer):
+            return
+        now = time.time()
+        if not force and (now - last_preview_refresh_at) < _APPROVAL_PREVIEW_REFRESH_SECONDS:
+            return
+        try:
+            preview_capturer(target)
+        except Exception:
+            logger.debug("approval preview refresh failed for %s", instance_id, exc_info=True)
+            return
+        last_preview_refresh_at = now
+
     hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
     if not _redis().get(hb_key):
         # Approval always required — wait until the approvals page is opened.
@@ -157,6 +182,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             "Click approval: page not open, waiting for operator to open it (%s)", instance_id
         )
         while not _redis().get(hb_key):
+            _refresh_preview_if_due(payload)
             time.sleep(_APPROVAL_POLL_SECONDS)
         logger.info("Click approval: page opened — proceeding (%s)", instance_id)
 
@@ -181,8 +207,8 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         raw = _redis().hgetall(inst_state_key)
         if raw:
             # ``current_task_region`` is the task-level region (set by the worker once
-            # per task item). For ``set_node`` it is irrelevant — that step only
-            # updates the FSM ``current_screen`` and never taps a region. Including
+            # per task item). For screen-node updates it is irrelevant: they only
+            # update ``current_screen`` and never tap a region. Including
             # the stale value here would make the approvals UI draw a misleading
             # region overlay carried over from the previous step.
             task_region = (raw.get("current_task_region") or "").strip()
@@ -190,7 +216,12 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 task_region = ""
             ctx = {
                 "current_screen": (raw.get("current_screen") or "").strip(),
+                "current_task_id": (raw.get("current_task_id") or "").strip(),
+                "current_task_type": (raw.get("current_task_type") or "").strip(),
                 "current_task_player": (raw.get("current_task_player") or "").strip(),
+                "current_task_started_at": (
+                    raw.get("current_task_started_at") or ""
+                ).strip(),
                 "current_task_region": task_region,
                 "current_task_threshold": (raw.get("current_task_threshold") or "").strip(),
                 "current_task_score": (raw.get("current_task_score") or "").strip(),
@@ -301,7 +332,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # operator sees matches the screen at decision time — not a stale frame
     # captured at the start of phase-1's possibly-second-long publish wait.
     # Pop it off the dict so it never gets JSON-serialised into Redis.
-    preview_capturer = p.pop("_preview_capturer", None)
+    p.pop("_preview_capturer", None)
     p.pop("source", None)
     p.update(
         {
@@ -338,18 +369,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         # for several poll intervals, the cached preview captured at
         # ``_attach_approval_preview`` time is already drifting. Re-capture so
         # the published payload always carries a recent screenshot.
-        if callable(preview_capturer):
-            try:
-                preview_capturer(p)
-            except Exception:
-                logger.debug(
-                    "approval preview refresh failed for %s", instance_id, exc_info=True
-                )
-            p["created_at"] = time.time()
+        _refresh_preview_if_due(p, force=True)
+        p["created_at"] = time.time()
         if _redis().set(
             current_key,
             json.dumps(p),
-            ex=APPROVAL_CURRENT_TTL_SECONDS,
             nx=True,
         ):
             break
@@ -383,12 +407,19 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         except Exception:
             logger.debug("Failed to read current approval request", exc_info=True)
 
-        # Refresh TTL unconditionally so the request never silently expires —
-        # we are committed to waiting for an operator decision, however long.
+        # Refresh preview/payload without a TTL. Waiting approval requests must
+        # not silently expire while approval mode is on; owner mismatch / worker
+        # boot cleanup are responsible for clearing invalid requests.
         try:
-            _redis().expire(current_key, APPROVAL_CURRENT_TTL_SECONDS)
+            _refresh_preview_if_due(p)
+            raw_cur = _redis().get(current_key)
+            if raw_cur and json.loads(raw_cur).get("request_id") == req_id:
+                _redis().set(
+                    current_key,
+                    json.dumps(p),
+                )
         except Exception:
-            logger.debug("Failed to refresh current_key TTL", exc_info=True)
+            logger.debug("Failed to refresh current approval payload", exc_info=True)
 
         time.sleep(_APPROVAL_POLL_SECONDS)
 

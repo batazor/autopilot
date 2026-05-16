@@ -16,7 +16,7 @@ import redis
 import streamlit as st
 import yaml
 
-from adb import APPROVAL_CURRENT_TTL_SECONDS, click_approval_enabled
+from adb import click_approval_enabled
 from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
 from config.module_registry import path_matches_module_scope
@@ -580,12 +580,6 @@ def _render_approval_heartbeat(ctx: ClickApprovalsCtx) -> None:
         client.set(ctx.enabled_key, "0")
         client.delete(ctx.hb_key)
     has_current = bool(client.get(ctx.current_key))
-    # Keep the pending approval card alive while this page is open, even if
-    # the worker died mid-task and stopped refreshing its own TTL. Mirrors
-    # ``ui/views/click_approvals/chrome.py:render_heartbeat``.
-    if has_current and enabled:
-        with suppress(Exception):
-            client.expire(ctx.current_key, APPROVAL_CURRENT_TTL_SECONDS)
     st.caption(
         f"Approval mode: **{'ON' if enabled else 'OFF'}** · "
         f"Heartbeat: **{'ON' if enabled else 'OFF'}** · "
@@ -655,7 +649,7 @@ render_ui_notifications(inst.instance_id, client=client)
 
 enabled_now = click_approval_enabled(inst.instance_id)
 enabled_ui = st.toggle(
-    "Approval mode (ON = require approve for ADB input and DSL set_node)",
+    "Approval mode (ON = require approve for ADB input and screen-node updates)",
     value=enabled_now,
     key=f"debug_scenarios_approval_enabled::{inst.instance_id}",
 )

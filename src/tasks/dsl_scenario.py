@@ -113,6 +113,13 @@ class DslScenarioTask(
     )
     # Snapshot of ``dsl_preempt_gen`` at scenario start; debug UI bumps the counter to exit early.
     _preempt_gen_at_start: int = field(default=0, init=False, repr=False)
+    # Short-TTL cache of the preempt outcome so per-inline-step probes inside
+    # a while_match body don't each re-read the same Redis key. Tuple shape is
+    # ``(instance_id, primed_at_monotonic, preempted_int)`` — see
+    # :meth:`DslScenarioPreemptMixin._inline_preempt_if_needed`.
+    _preempt_gen_cache: tuple[str, float, int] | None = field(
+        default=None, init=False, repr=False
+    )
     # Trace timing — seeded by ``DslScenarioExecuteMixin.execute`` so every
     # appended row carries ``t`` and (for terminal top-level rows)
     # ``duration_ms``. ``None`` outside an active scenario; the appender

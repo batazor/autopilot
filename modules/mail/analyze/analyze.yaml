@@ -1,0 +1,64 @@
+overlay:
+  - name: mail.new.has_red_dot
+    region: mail.new
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: mail.claim
+        ttl: 1m
+
+  - name: mail.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+
+  - name: mail.tab.wars.has_red_dot
+    region: mail.tab.wars
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+        ttl: 5m
+
+  - name: mail.tab.alliance.has_red_dot
+    region: mail.tab.alliance
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+        ttl: 5m
+
+  - name: mail.tab.system.has_red_dot
+    region: mail.tab.system
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+        ttl: 5m
+
+  - name: mail.tab.reports.has_red_dot
+    region: mail.tab.reports
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+        ttl: 5m
+
+  - name: mail.tab.starred.has_red_dot
+    region: mail.tab.starred
+    isRedDot: true
+    screens:
+      - mail
+    pushScenario:
+      - name: mail.claim
+        ttl: 5m

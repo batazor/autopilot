@@ -12,10 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_literal_match_wins_over_template() -> None:
-    """``read_mail_gifts.yaml`` is a literal scenario — must resolve as-is."""
-    resolved = _tmpl.resolve(REPO_ROOT, "read_mail_gifts")
+    """``mail.claim.yaml`` is a literal scenario — must resolve as-is."""
+    resolved = _tmpl.resolve(REPO_ROOT, "mail.claim")
     assert resolved is not None
-    assert resolved.path.name == "read_mail_gifts.yaml"
+    assert resolved.path.name == "mail.claim.yaml"
     assert resolved.context == {}
 
 
@@ -69,7 +69,7 @@ def test_display_name_renders_template_keys() -> None:
     assert _tmpl.display_name(REPO_ROOT, "level_up_ahmose") == "⬆️ Level up · Ahmose"
     assert _tmpl.display_name(REPO_ROOT, "skill_up_lumak_bokan") == "📘 Skill up · Lumak Bokan"
     # Literal scenario falls through to its own ``name:`` field.
-    assert _tmpl.display_name(REPO_ROOT, "read_mail_gifts").strip() != ""
+    assert _tmpl.display_name(REPO_ROOT, "mail.claim").strip() != ""
     # Unknown keys fall back to the key itself (so the UI never shows ``None``).
     assert _tmpl.display_name(REPO_ROOT, "definitely_not_a_scenario") == "definitely_not_a_scenario"
     assert _tmpl.display_name(REPO_ROOT, "") == ""
@@ -81,12 +81,12 @@ def test_iter_resolved_keys_expands_templates_per_hero() -> None:
     keys = _tmpl.iter_resolved_keys(REPO_ROOT)
     by_key = {rk.key: rk for rk in keys}
     # Sample literal + sample expansions
-    assert "read_mail_gifts" in by_key
+    assert "mail.claim" in by_key
     assert "level_up_ahmose" in by_key
     assert "level_up_bahiti" in by_key
     assert "skill_up_lumak_bokan" in by_key
     # Template entries carry hero context; literal entries don't.
     assert by_key["level_up_ahmose"].context == {"hero_id": "ahmose", "hero_name": "Ahmose"}
-    assert by_key["read_mail_gifts"].context == {}
+    assert by_key["mail.claim"].context == {}
     # Same template path is shared by multiple keys.
     assert by_key["level_up_ahmose"].path == by_key["level_up_bahiti"].path

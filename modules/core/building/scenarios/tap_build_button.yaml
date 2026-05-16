@@ -1,0 +1,9 @@
+enabled: true
+name: 🏗️ Tap build button
+device_level: true
+steps:
+  - while_match: build_button
+    max: 1
+    steps:
+      - click: build_button
+      - wait: 800ms

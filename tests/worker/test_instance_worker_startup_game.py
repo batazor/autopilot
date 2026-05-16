@@ -20,7 +20,7 @@ from worker.instance_worker_health import InstanceWorkerHealthMixin
 def _default_settings(*, game_foreground_timeout_seconds: int = 120) -> Settings:
     return Settings(
         redis=RedisConfig(url="redis://localhost:6379/0"),
-        ocr=OcrConfig(url="http://localhost:8000"),
+        ocr=OcrConfig(),
         omniparser=OmniparserConfig(),
         scheduler=SchedulerConfig(),
         worker=WorkerConfig(game_foreground_timeout_seconds=game_foreground_timeout_seconds),

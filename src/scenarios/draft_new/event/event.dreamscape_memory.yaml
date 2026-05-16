@@ -1,5 +1,0 @@
-enabled: false
-name: "Dreamscape Memory"
-node: event.dreamscape_memory
-icon: dreamscape_memory
-steps: []

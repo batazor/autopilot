@@ -1,7 +1,0 @@
-enabled: true
-name: 🎒 Open Backpack
-node: main_city
-steps:
-  - click: main_city.to.backpack
-  - wait: 2s
-  - exec: put_all_red_dots

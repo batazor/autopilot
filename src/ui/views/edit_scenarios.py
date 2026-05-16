@@ -49,7 +49,6 @@ STEP_TYPES_FOR_NEW: tuple[str, ...] = (
     "ocr",
     "exec",
     "push_scenario",
-    "set_node",
     "swipe_direction",
     "loop",
     "cond",
@@ -204,8 +203,6 @@ def _new_step(step_type: str) -> dict[str, Any]:
         return {"exec": ""}
     if step_type == "push_scenario":
         return {"push_scenario": ""}
-    if step_type == "set_node":
-        return {"set_node": ""}
     if step_type == "swipe_direction":
         return {"swipe_direction": {"direction": "up", "delta": 400, "duration_ms": 600}}
     if step_type == "loop":
@@ -247,8 +244,6 @@ def _step_summary_one_line(step: dict[str, Any]) -> str:
         if isinstance(ps, dict):
             return str(ps.get("name") or "")
         return str(ps or "")
-    if stype == "set_node":
-        return str(step.get("set_node") or "")
     if stype == "wait":
         return str(step.get("wait") or "")
     if stype == "break":
@@ -315,7 +310,6 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
     regions = _region_names()
     scen_keys = _scenario_keys()
     execs = _exec_names()
-    nodes = _fsm_nodes()
 
     if stype == "click":
         step["click"] = _region_select("region (click)", step.get("click") or "", regions, pk + "::click")
@@ -387,10 +381,6 @@ def _render_step_card(step: dict[str, Any], path: tuple[int, ...], depth: int) -
             step["push_scenario"] = {"name": new_name, "priority": int(new_prio)}
         else:
             step["push_scenario"] = new_name
-    elif stype == "set_node":
-        step["set_node"] = _select_with_freetext(
-            "target node", str(step.get("set_node") or ""), nodes, pk + "::sn"
-        )
     elif stype == "wait":
         step["wait"] = st.text_input(
             "duration (e.g. 500ms, 2s, 0.8s)",

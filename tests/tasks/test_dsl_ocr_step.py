@@ -775,10 +775,12 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     h, w = int(image.shape[0]), int(image.shape[1])
 
     area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
-    pair = screen_region_by_name(area_doc, "player_id")
-    assert pair is not None, "area.json has no `player_id` region"
+    # Canonical region name in area.json is ``player.id`` (dotted), which is
+    # also what ``who_i_am`` scenario consumes via ``ocr: player.id``.
+    pair = screen_region_by_name(area_doc, "player.id")
+    assert pair is not None, "area.json has no `player.id` region"
     bbox = pair[1].get("bbox")
-    assert isinstance(bbox, dict), f"`player_id` region is missing a bbox: {pair[1]!r}"
+    assert isinstance(bbox, dict), f"`player.id` region is missing a bbox: {pair[1]!r}"
 
     px = int(round(float(bbox["x"]) / 100.0 * w))
     py = int(round(float(bbox["y"]) / 100.0 * h))

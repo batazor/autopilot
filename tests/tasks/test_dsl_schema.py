@@ -47,7 +47,7 @@ def test_round_trip_preserves_structure(path: Path) -> None:
 
 
 def test_dsl_scenario_yaml_priority_reads_mail_scenarios() -> None:
-    assert dsl_scenario_yaml_priority(REPO_ROOT, "read_mail_gifts") == 80_000
+    assert dsl_scenario_yaml_priority(REPO_ROOT, "mail.claim") == 80_000
     assert dsl_scenario_yaml_priority(REPO_ROOT, "nonexistent_scenario_key") is None
 
 
@@ -79,6 +79,13 @@ def test_step_rejects_empty_steps_group() -> None:
     """``steps: []`` with no action is invalid — nothing to run."""
     with pytest.raises(ValidationError):
         DslStep.model_validate({"steps": []})
+
+
+def test_step_rejects_removed_set_node_action() -> None:
+    with pytest.raises(ValidationError):
+        DslStep.model_validate({"set_node": "main_city"})
+    with pytest.raises(ValidationError):
+        DslStep.model_validate({"set_node": "main_city", "steps": [{"click": "x"}]})
 
 
 def test_step_rejects_multiple_action_keys() -> None:

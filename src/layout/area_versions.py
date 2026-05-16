@@ -61,6 +61,8 @@ def next_version_id(declared_ids: list[str]) -> str:
 
 _DOTTED_IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+")
 _PYTHON_KEYWORDS = frozenset({"True", "False", "None", "and", "or", "not", "in", "is"})
+_INT_STRING_RE = re.compile(r"^[+-]?\d+$")
+_FLOAT_STRING_RE = re.compile(r"^[+-]?(?:\d+\.\d*|\.\d+)$")
 
 
 def _rewrite_dotted_idents(expr: str) -> str:
@@ -83,6 +85,25 @@ def _rewrite_dotted_idents(expr: str) -> str:
     return _DOTTED_IDENT_RE.sub(repl, expr)
 
 
+def _coerce_cond_value(value: Any) -> Any:
+    """Coerce Redis/string state values for numeric version comparisons."""
+
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if _INT_STRING_RE.match(text):
+        try:
+            return int(text)
+        except ValueError:
+            return value
+    if _FLOAT_STRING_RE.match(text):
+        try:
+            return float(text)
+        except ValueError:
+            return value
+    return value
+
+
 def eval_cond(expr: str, state_flat: dict[str, Any]) -> bool:
     """Evaluate a version ``cond`` expression against a flat state dict.
 
@@ -94,8 +115,13 @@ def eval_cond(expr: str, state_flat: dict[str, Any]) -> bool:
     if not expr_str:
         return False
     rewritten = _rewrite_dotted_idents(expr_str)
+    coerced_state = {k: _coerce_cond_value(v) for k, v in state_flat.items()}
     try:
-        result = eval(rewritten, {"__builtins__": {}}, {"_state": state_flat, **state_flat})
+        result = eval(
+            rewritten,
+            {"__builtins__": {}},
+            {"_state": coerced_state, **coerced_state},
+        )
     except KeyError:
         return False
     except Exception as exc:

@@ -1,7 +1,0 @@
-enabled: true
-name: "🎁 Open backpack: Other tab"
-node: backpack
-steps:
-  - click: page.backpack.other
-  - wait: 2s
-  - exec: put_all_red_dots

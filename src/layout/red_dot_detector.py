@@ -64,6 +64,18 @@ RED_DOT_MAX_ASPECT = 1.9
 for three-digit counters too without overlapping banner / strip widths
 which sit at ≥3."""
 
+RED_DOT_COUNTER_MIN_FILL_RATIO = 0.30
+RED_DOT_COUNTER_MIN_WHITE_RATIO = 0.05
+RED_DOT_COUNTER_MIN_WHITE_PIXELS = 8
+"""Fallback gates for red badges whose white counter digit cuts up the red mask.
+
+Some in-game counters render as a red capsule/ring around a large white digit.
+The outer contour is clearly a notification badge, but its red-only mask can
+look too hollow/noisy for circularity and fill-ratio gates. We accept those only
+when a compact red candidate contains enough bright low-saturation pixels inside
+its bbox to explain the hollow shape as a white counter, not as a banner.
+"""
+
 RED_DOT_MIN_MEDIAN_SATURATION = 180
 RED_DOT_MIN_MEDIAN_VALUE = 200
 """Median S/V (HSV) of the matched red pixels inside the contour. Real
@@ -274,14 +286,8 @@ def find_red_dots(
         if radius < rmin or radius > rmax:
             continue
 
-        circularity = 4.0 * pi * area / (perimeter * perimeter)
-        if circularity < RED_DOT_MIN_CIRCULARITY:
-            continue
-
         bbox_area = bw * bh
         fill_ratio = area / bbox_area
-        if fill_ratio < RED_DOT_MIN_FILL_RATIO:
-            continue
 
         # Reject orange / salmon blobs (cooked meat, smiley icons, …) that pass
         # the shape filter but sit just outside the saturated-red band.
@@ -297,6 +303,23 @@ def find_red_dots(
         if v_med < RED_DOT_MIN_MEDIAN_VALUE:
             continue
 
+        circularity = 4.0 * pi * area / (perimeter * perimeter)
+        counter_like = False
+        if circularity < RED_DOT_MIN_CIRCULARITY or fill_ratio < RED_DOT_MIN_FILL_RATIO:
+            bbox_hsv = hsv[y : y + h, x : x + w]
+            if bbox_hsv.size == 0:
+                continue
+            white_counter = (bbox_hsv[..., 1] <= 70) & (bbox_hsv[..., 2] >= 185)
+            white_pixels = int(white_counter.sum())
+            white_ratio = white_pixels / bbox_area
+            counter_like = (
+                fill_ratio >= RED_DOT_COUNTER_MIN_FILL_RATIO
+                and white_pixels >= RED_DOT_COUNTER_MIN_WHITE_PIXELS
+                and white_ratio >= RED_DOT_COUNTER_MIN_WHITE_RATIO
+            )
+            if not counter_like:
+                continue
+
         # Surround-saturation gate: a real notification badge sits on a
         # saturated UI element (button, icon). Stray reds over washed-out
         # scenery (sky, snow, an avatar's hair) drop to S≈30 and fail.
@@ -310,7 +333,7 @@ def find_red_dots(
         # out, while the speedup row picks up neighbouring icons at S≈226.
         dilated = cv2.dilate(cmask, ring_kernel)
         ring = (dilated > 0) & (cmask == 0) & (mask == 0)
-        if int(ring.sum()) >= 8:
+        if not counter_like and int(ring.sum()) >= 8:
             ring_s_med = float(np.median(sat_plane[ring]))
             if ring_s_med < RED_DOT_MIN_SURROUND_MEDIAN_SATURATION:
                 wide_dilated = cv2.dilate(cmask, wide_ring_kernel)
@@ -413,6 +436,7 @@ def has_red_dot_in_bbox_percent(
     bbox_percent: dict[str, float],
     *,
     pad_px: int = 2,
+    edge_badge_pad_ratio: float = 0.85,
     accept_frost: bool = True,
 ) -> bool:
     """Return True iff ``bbox_percent`` contains at least one event indicator.
@@ -425,7 +449,9 @@ def has_red_dot_in_bbox_percent(
       that need strict red-only semantics).
 
     A small ``pad_px`` margin absorbs single-pixel rounding when a badge sits
-    at the very edge of the labeled region.
+    at the very edge of the labeled region. If that misses, a bounded
+    edge-badge fallback expands mostly upward: unread counters such as ``60``
+    are wider than a dot and often hang above the icon's labeled bbox.
     """
     if image_bgr is None or image_bgr.ndim != 3 or image_bgr.size == 0:
         return False
@@ -448,4 +474,25 @@ def has_red_dot_in_bbox_percent(
 
     if len(find_red_dots(patch, image_h_for_norm=hi)) > 0:
         return True
-    return bool(accept_frost and has_frost_badge(patch))
+    if accept_frost and has_frost_badge(patch):
+        return True
+
+    # Counter badges can sit just above the icon region. Keep this fallback
+    # local to the bbox so adjacent UI notifications do not leak in.
+    if edge_badge_pad_ratio > 0.0:
+        patch_h = int(patch.shape[0])
+        patch_w = int(patch.shape[1])
+        top_extra = max(pad_px, int(round(patch_h * edge_badge_pad_ratio)))
+        side_extra = max(pad_px, int(round(patch_w * 0.25)))
+        L3 = max(0, L - side_extra)
+        T3 = max(0, T - top_extra)
+        R3 = min(wi, L + patch_w + side_extra)
+        B3 = min(hi, T + patch_h + pad_px)
+        if T3 < T or L3 < L or R3 > L + patch_w:
+            expanded = image_bgr[T3:B3, L3:R3]
+            if len(find_red_dots(expanded, image_h_for_norm=hi)) > 0:
+                return True
+            if accept_frost and has_frost_badge(expanded):
+                return True
+
+    return False

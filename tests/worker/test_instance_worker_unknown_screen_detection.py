@@ -44,32 +44,32 @@ def _worker(detector: _FakeDetector, redis_async: object) -> InstanceWorker:
 
 @pytest.mark.asyncio
 async def test_overlay_tick_writes_detected_screen(redis_async: object) -> None:
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
 
     current = await worker._detect_current_screen_on_frame(
         np.zeros((10, 10, 3), dtype=np.uint8),
     )
 
-    assert current == "building"
+    assert current == "mail"
     assert detector.calls == 1
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
-    assert cur == "building"
+    assert cur == "mail"
 
 
 @pytest.mark.asyncio
 async def test_overlay_tick_overwrites_stale_known_screen(redis_async: object) -> None:
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
 
     current = await worker._detect_current_screen_on_frame(
         np.zeros((10, 10, 3), dtype=np.uint8),
     )
 
-    assert current == "building"
+    assert current == "mail"
     assert detector.calls == 1
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
-    assert cur == "building"
+    assert cur == "mail"
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_overlay_tick_clears_unknown_when_no_previous_screen(redis_async: 
 
 @pytest.mark.asyncio
 async def test_overlay_tick_debounces_transient_unknown_after_known_screen(redis_async: object) -> None:
-    detector = _FakeDetector([ScreenName.BUILDING, ScreenName.UNKNOWN])
+    detector = _FakeDetector([ScreenName.MAIL, ScreenName.UNKNOWN])
     worker = _worker(detector, redis_async)
 
     first = await worker._detect_current_screen_on_frame(
@@ -99,10 +99,10 @@ async def test_overlay_tick_debounces_transient_unknown_after_known_screen(redis
         np.zeros((10, 10, 3), dtype=np.uint8),
     )
 
-    assert first == "building"
-    assert second == "building"
+    assert first == "mail"
+    assert second == "mail"
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
-    assert cur == "building"
+    assert cur == "mail"
 
 
 @pytest.mark.asyncio
@@ -122,7 +122,7 @@ async def test_detect_clears_log_node_during_detect_and_restores_after(
         ) -> ScreenName:
             self.calls += 1
             seen_during.append(log_context._node.get())
-            return ScreenName.BUILDING
+            return ScreenName.MAIL
 
     worker = _worker(_ProbingDetector(), redis_async)  # type: ignore[arg-type]
 
@@ -130,12 +130,12 @@ async def test_detect_clears_log_node_during_detect_and_restores_after(
         np.zeros((10, 10, 3), dtype=np.uint8),
     )
 
-    assert result == "building"
+    assert result == "mail"
     assert seen_during == [""], (
         "Detector must run with cleared `node` context — otherwise its OCR "
         "logs inherit the previous tick's screen and read as a desync."
     )
-    assert log_context._node.get() == "building"
+    assert log_context._node.get() == "mail"
 
 
 @pytest.mark.asyncio
@@ -158,7 +158,7 @@ async def test_detect_clears_log_node_on_unknown(redis_async: object) -> None:
 async def test_overlay_tick_clears_after_repeated_unknown_frames(redis_async: object) -> None:
     detector = _FakeDetector(
         [
-            ScreenName.BUILDING,
+            ScreenName.MAIL,
             ScreenName.UNKNOWN,
             ScreenName.UNKNOWN,
             ScreenName.UNKNOWN,
@@ -183,11 +183,11 @@ async def test_unknown_since_set_on_hard_clear_and_reset_on_known(
     """`_unknown_since` starts the dwell timer at hard-clear and resets on known."""
     detector = _FakeDetector(
         [
-            ScreenName.BUILDING,
+            ScreenName.MAIL,
             ScreenName.UNKNOWN,
             ScreenName.UNKNOWN,
             ScreenName.UNKNOWN,
-            ScreenName.BUILDING,
+            ScreenName.MAIL,
         ]
     )
     worker = _worker(detector, redis_async)
@@ -226,7 +226,7 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
     ``dismiss_unknown_popup``. A second call within the 30s lock is a no-op."""
     import time as _t
 
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
     scheduled: list[dict] = []
 
@@ -255,7 +255,7 @@ async def test_dismiss_unknown_popup_skipped_when_a_global_rule_matched(
 ) -> None:
     import time as _t
 
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
     scheduled: list[dict] = []
 
@@ -280,7 +280,7 @@ async def test_dismiss_unknown_popup_skipped_when_screen_is_known(
 ) -> None:
     import time as _t
 
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
     scheduled: list[dict] = []
 
@@ -292,7 +292,7 @@ async def test_dismiss_unknown_popup_skipped_when_screen_is_known(
     worker._queue = _FakeQueue()
     worker._unknown_since = _t.monotonic() - 30.0
 
-    await worker._maybe_dismiss_unknown_popup({}, current_screen="building")
+    await worker._maybe_dismiss_unknown_popup({}, current_screen="mail")
     assert scheduled == []
 
 
@@ -302,7 +302,7 @@ async def test_dismiss_unknown_popup_skipped_below_dwell_threshold(
 ) -> None:
     import time as _t
 
-    detector = _FakeDetector(ScreenName.BUILDING)
+    detector = _FakeDetector(ScreenName.MAIL)
     worker = _worker(detector, redis_async)
     scheduled: list[dict] = []
 

@@ -1,8 +1,0 @@
-enabled: true
-name: 👆 Tap tutorial hand pointer (small)
-device_level: true
-steps:
-- while_match: hand_pointer_small
-  max: 1
-  steps:
-  - click: hand_pointer_small

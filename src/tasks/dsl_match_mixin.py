@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from adb import BotActions
-from analysis.overlay_rules import resolved_search_region_for_findicon
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
@@ -93,6 +92,19 @@ class DslMatchMixin:
             "dsl_last_match_matched": matched_s,
             "dsl_last_match_detail": detail_s,
             "dsl_last_match_at": str(time.time()),
+            # Keep the live task card/approval context on the actual DSL
+            # probe. Overlay-triggered tasks start with the trigger region
+            # (for example `mail.new`), but once the scenario is running the
+            # useful region is the current `match` / `while_match` target.
+            "current_task_region": region,
+            "current_task_threshold": thr_s,
+            "current_task_score": score_s,
+            "current_task_match_top_left_x": "",
+            "current_task_match_top_left_y": "",
+            "current_task_template_w": "",
+            "current_task_template_h": "",
+            "current_task_tap_match_x_pct": "",
+            "current_task_tap_match_y_pct": "",
             "dsl_last_match_mode": "",
             "dsl_last_match_red_dot_present": "",
             "dsl_last_match_red_dot_required": "",
@@ -153,15 +165,23 @@ class DslMatchMixin:
             tmy = row.get("tap_match_y_pct")
             if isinstance(tl, (list, tuple)) and len(tl) >= 2:
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_top_left_x"] = str(int(float(tl[0])))
+                    x_s = str(int(float(tl[0])))
+                    mapping["dsl_last_match_top_left_x"] = x_s
+                    mapping["current_task_match_top_left_x"] = x_s
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_top_left_y"] = str(int(float(tl[1])))
+                    y_s = str(int(float(tl[1])))
+                    mapping["dsl_last_match_top_left_y"] = y_s
+                    mapping["current_task_match_top_left_y"] = y_s
             if tw is not None:
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_template_w"] = str(int(tw))
+                    tw_s = str(int(tw))
+                    mapping["dsl_last_match_template_w"] = tw_s
+                    mapping["current_task_template_w"] = tw_s
             if th is not None:
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_template_h"] = str(int(th))
+                    th_s = str(int(th))
+                    mapping["dsl_last_match_template_h"] = th_s
+                    mapping["current_task_template_h"] = th_s
             if sr is not None and str(sr).strip():
                 mapping["dsl_last_match_search_region"] = str(sr).strip()
             if txp is not None:
@@ -172,10 +192,14 @@ class DslMatchMixin:
                     mapping["dsl_last_match_tap_y_pct"] = f"{float(typ):.6g}"
             if tmx is not None:
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_match_x_pct"] = f"{float(tmx):.6g}"
+                    tmx_s = f"{float(tmx):.6g}"
+                    mapping["dsl_last_match_tap_match_x_pct"] = tmx_s
+                    mapping["current_task_tap_match_x_pct"] = tmx_s
             if tmy is not None:
                 with suppress(TypeError, ValueError):
-                    mapping["dsl_last_match_tap_match_y_pct"] = f"{float(tmy):.6g}"
+                    tmy_s = f"{float(tmy):.6g}"
+                    mapping["dsl_last_match_tap_match_y_pct"] = tmy_s
+                    mapping["current_task_tap_match_y_pct"] = tmy_s
         try:
             await self.redis_client.hset(f"wos:instance:{instance_id}:state", mapping=mapping)
         except Exception:
@@ -302,21 +326,12 @@ class DslMatchMixin:
             )
         elif white_border_req is not None:
             image_bgr = await asyncio.to_thread(capture, instance_id)
-            # Mirror the findIcon path: when ``{region}_search`` exists on the
-            # same OCR frame, slide-find falls back to that broader bbox if
-            # the primary bbox yields no candidate. Without this, scenarios
-            # like ``claim_trials`` miss highlighted claim buttons whose
-            # position varies between popup layouts.
-            search_bbox = self._resolve_search_sibling_bbox(
-                area_doc, region, pair[0]
-            )
             row = self._build_white_border_only_row(
                 region=region,
                 region_def=pair[1],
                 image_bgr=image_bgr,
                 requirement=white_border_req,
                 step=step,
-                search_bbox=search_bbox,
             )
         else:
             # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
@@ -337,12 +352,9 @@ class DslMatchMixin:
                 rule["type"] = str(step.get("type") or pair[1].get("type") or "").strip()
             if area_action == "text":
                 # ``expected`` on the DSL step gates fuzzy OCR matching in
-                # ``overlay_engine`` (score >= ``threshold``) and activates the
-                # ``{region}_search`` fallback for popup variants that moved
-                # the prompt out of the primary bbox. Without ``expected`` the
-                # text branch falls back to ``matched = bool(txt)`` on the
-                # primary bbox alone — silent exit when that bbox is empty
-                # even though the prompt sits a few rows lower.
+                # ``overlay_engine`` (score >= ``threshold``). Without
+                # ``expected`` the text branch falls back to ``matched =
+                # bool(txt)`` on the primary bbox alone.
                 expected = step.get("expected")
                 if isinstance(expected, list) and expected:
                     rule["expected"] = [str(x) for x in expected]
@@ -497,39 +509,6 @@ class DslMatchMixin:
         base["tap_match_y_pct"] = cy
         return base
 
-    def _resolve_search_sibling_bbox(
-        self,
-        area_doc: dict[str, Any],
-        region_name: str,
-        primary_entry: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Return the bbox of ``{region_name}_search`` when it exists on the
-        same OCR frame as ``region_name``.
-
-        Same convention as :func:`resolved_search_region_for_findicon`. Returns
-        ``None`` when no sibling is defined, frames don't match, or the sibling
-        lacks a bbox — falling back to the primary region only.
-        """
-        ref_rel = str(primary_entry.get("ocr") or "").strip()
-        if not ref_rel:
-            return None
-        candidate_name = resolved_search_region_for_findicon(
-            area_doc,
-            region_name,
-            ref_rel,
-            {},
-            state_flat=self._state_flat(),
-        )
-        if not candidate_name:
-            return None
-        pair_s = screen_region_by_name(
-            area_doc, candidate_name, state_flat=self._state_flat()
-        )
-        if pair_s is None:
-            return None
-        bbox = pair_s[1].get("bbox")
-        return bbox if isinstance(bbox, dict) else None
-
     @staticmethod
     def _build_white_border_only_row(
         *,
@@ -538,7 +517,6 @@ class DslMatchMixin:
         image_bgr: Any,
         requirement: bool,
         step: dict[str, Any] | None = None,
-        search_bbox: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build a match row from the white-border detector alone (no template match).
 
@@ -552,10 +530,6 @@ class DslMatchMixin:
            (e.g., ``button.claim`` in the trial-box popup, where the actual
            claim button position varies between popups).
 
-           If ``search_bbox`` is provided and the primary bbox yields no
-           candidate, slide-find is retried against ``search_bbox``. The
-           caller resolves this from the ``{region}_search`` sibling in
-           ``area.json``, mirroring the findIcon path's auto-resolution.
         2. **Halo fallback** via :func:`has_white_border_in_bbox_percent` —
            tests halo statistics around the labeled bbox itself. Used when
            the contour pass returns no candidate; this is the path that
@@ -586,17 +560,10 @@ class DslMatchMixin:
             return base
 
         # --- Pass 1: slide-find (contour-based) ---
-        # Try the primary bbox first; if it yields no contour candidate, retry
-        # against the ``{region}_search`` sibling's bbox (passed in by the
-        # caller). This mirrors the findIcon path's ``resolved_search_region``
-        # fallback so popups where the highlighted item lives outside the
-        # narrow labeled bbox still match.
+        # Try the primary bbox only. Movable template regions are handled by
+        # the `isSearch` full-frame matcher before a click consumes the match.
         match = find_white_border_match_in_search_roi(image_bgr, bbox)
         match_source = "primary"
-        if match is None and isinstance(search_bbox, dict):
-            match = find_white_border_match_in_search_roi(image_bgr, search_bbox)
-            if match is not None:
-                match_source = "search_sibling"
         if match is not None:
             base["white_border_present"] = True
             x, y, w, h = match["px_rect"]  # type: ignore[index]

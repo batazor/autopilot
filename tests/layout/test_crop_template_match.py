@@ -9,6 +9,7 @@ import cv2
 import pytest
 
 from layout.template_match import (
+    match_template_full_frame_cached,
     match_crop_1to1_at_bbox_percent,
     validate_live_bbox_patch_vs_reference_dims,
 )
@@ -65,3 +66,69 @@ def test_validate_live_vs_reference_large_within_tolerance_ok() -> None:
     validate_live_bbox_patch_vs_reference_dims(
         100, 50, 105, 52, reference_label="exported crop"
     )
+
+
+def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.MonkeyPatch) -> None:
+    image = cv2.imread(str(_SKIP_FULL))
+    template = cv2.imread(str(_SKIP_CROP))
+    if image is None or template is None:
+        pytest.skip("skip_button reference assets missing")
+
+    cached: list[tuple[int, int, float]] = []
+    monkeypatch.setattr(
+        "layout.template_match.read_positions",
+        lambda key: [{"x": 6, "y": 13, "score": 0.99, "last_seen": 1.0, "hits": 3}],
+    )
+    monkeypatch.setattr(
+        "layout.template_match.record_position",
+        lambda key, *, x, y, score: cached.append((x, y, score)),
+    )
+
+    # Use an exact cached top-left from the fixture bbox.
+    doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    screen = next(s for s in doc.get("screens") or [] if Path(str(s.get("ocr") or "")).stem == _SKIP_FULL.stem)
+    region = next(r for r in screen.get("regions") or [] if str(r.get("name")) == "skip_button")
+    hi, wi = image.shape[:2]
+    x = int(float(region["bbox"]["x"]) / 100.0 * wi)
+    y = int(float(region["bbox"]["y"]) / 100.0 * hi)
+    monkeypatch.setattr(
+        "layout.template_match.read_positions",
+        lambda key: [{"x": x, "y": y, "score": 0.99, "last_seen": 1.0, "hits": 3}],
+    )
+
+    row = match_template_full_frame_cached(
+        image,
+        template,
+        cache_key="test-cache-hit",
+        threshold=0.99,
+    )
+
+    assert row["matched"] if "matched" in row else True
+    assert row["top_left"] == (x, y)
+    assert row["match_source"] == "cache"
+    assert cached and cached[0][0:2] == (x, y)
+
+
+def test_full_frame_cached_match_falls_back_to_full_frame(monkeypatch: pytest.MonkeyPatch) -> None:
+    image = cv2.imread(str(_SKIP_FULL))
+    template = cv2.imread(str(_SKIP_CROP))
+    if image is None or template is None:
+        pytest.skip("skip_button reference assets missing")
+
+    recorded: list[tuple[int, int, float]] = []
+    monkeypatch.setattr("layout.template_match.read_positions", lambda key: [])
+    monkeypatch.setattr(
+        "layout.template_match.record_position",
+        lambda key, *, x, y, score: recorded.append((x, y, score)),
+    )
+
+    row = match_template_full_frame_cached(
+        image,
+        template,
+        cache_key="test-full-frame",
+        threshold=0.99,
+    )
+
+    assert row["score"] >= 0.99
+    assert row["match_source"] == "full_frame_hash"
+    assert recorded

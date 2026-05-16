@@ -67,11 +67,17 @@ def bind_log_context(
 
 
 class LogContextFilter(logging.Filter):
-    """Attach ``inst`` / ``player`` / ``node`` / ``scenario`` attrs to every log record."""
+    """Attach context attrs expected by stdout / OTLP log formatters."""
 
     def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
         record.inst = _inst.get() or "-"
         record.player = _player.get() or "-"
         record.node = _node.get() or "-"
         record.scenario = _scenario.get() or "-"
+        if not hasattr(record, "otelTraceID"):
+            record.otelTraceID = "0"
+        if not hasattr(record, "otelSpanID"):
+            record.otelSpanID = "0"
+        if not hasattr(record, "otelTraceSampled"):
+            record.otelTraceSampled = False
         return True

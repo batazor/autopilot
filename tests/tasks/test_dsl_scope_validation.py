@@ -49,6 +49,14 @@ def test_validate_dsl_steps_clean_tree_returns_no_errors() -> None:
     assert validate_dsl_steps(steps) == []
 
 
+def test_validate_dsl_steps_rejects_removed_set_node_action() -> None:
+    errors = validate_dsl_steps([{"set_node": "main_city"}])
+
+    assert len(errors) == 1
+    assert "set_node" in errors[0]
+    assert "unsupported DSL action" in errors[0]
+
+
 def test_validate_dsl_steps_finds_typo_on_top_level_step() -> None:
     """The error string must name the offending step path so the operator
     can ``grep`` the YAML for it without re-reading the full trace."""

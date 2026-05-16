@@ -30,6 +30,11 @@ def test_eval_cond_dotted_key_falsy() -> None:
     assert eval_cond("heroes.norah.level >= 6", state) is False
 
 
+def test_eval_cond_coerces_numeric_strings_from_state() -> None:
+    assert eval_cond("buildings.furnace.level >= 4", {"buildings.furnace.level": "5"}) is True
+    assert eval_cond("buildings.furnace.level >= 4", {"buildings.furnace.level": "3"}) is False
+
+
 def test_eval_cond_missing_key_returns_false() -> None:
     assert eval_cond("heroes.gisela.level >= 6", {}) is False
 
@@ -74,6 +79,13 @@ def test_pick_active_version_returns_first_truthy() -> None:
         ]
     }
     assert pick_active_version(entry, {"heroes.norah.level": 7}) == "v3"
+
+
+def test_pick_active_version_accepts_numeric_string_state_values() -> None:
+    entry = {"versions": [{"id": "v2", "cond": "buildings.furnace.level >= 4"}]}
+
+    assert pick_active_version(entry, {"buildings.furnace.level": "5"}) == "v2"
+    assert pick_active_version(entry, {"buildings.furnace.level": "3"}) is None
 
 
 def test_pick_active_version_default_when_state_none() -> None:

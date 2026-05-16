@@ -1,5 +1,0 @@
-enabled: false
-name: "First Purchase"
-node: event.first_purchase
-icon: first_purchase
-steps: []

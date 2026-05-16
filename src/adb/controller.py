@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from adb.approvals import (
+    APPROVAL_CURRENT_TTL_SECONDS,
     _consume_skip,
     _redis,
     _require_approval,
@@ -226,6 +227,7 @@ class AdbController:
             ap["approval_context"] = dict(approval_context)
         if click_approval_enabled(self._instance_id):
             self._attach_approval_preview(ap)
+            ap["_preview_capturer"] = self._attach_approval_preview
         ok, req_id = _require_approval(self._instance_id, ap)
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
@@ -595,7 +597,11 @@ class AdbController:
                 doc = json.loads(raw)
                 doc["executed_at"] = time.time()
                 doc["status"] = "executing"
-                _redis().set(current_key, json.dumps(doc), ex=120)
+                _redis().set(
+                    current_key,
+                    json.dumps(doc),
+                    ex=APPROVAL_CURRENT_TTL_SECONDS,
+                )
         except Exception:
             logger.debug("Failed to mark executed_at", exc_info=True)
         try:

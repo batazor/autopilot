@@ -51,7 +51,7 @@ def test_falls_back_to_template_when_full_detect_raises(monkeypatch: Any) -> Non
         raise RuntimeError("ocr backend offline")
 
     async def _template_hit(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
-        return ScreenName.BUILDING
+        return ScreenName.MAIL
 
     monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _broken)
     monkeypatch.setattr(
@@ -59,7 +59,7 @@ def test_falls_back_to_template_when_full_detect_raises(monkeypatch: Any) -> Non
     )
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
-    assert suggest_node_for_image_sync(img) == "building"
+    assert suggest_node_for_image_sync(img) == "mail"
 
 
 def test_returns_none_when_both_paths_fail(monkeypatch: Any) -> None:

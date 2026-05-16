@@ -25,6 +25,7 @@ from layout.red_dot_detector import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAIN_CITY_V2_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "main_city_v2_red_dots.png"
+MAIN_CITY_BASE_REFERENCE = REPO_ROOT / "references" / "main_city.png"
 FROST_WORKERS_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "red_dot_frost_workers.png"
 EVENT_1ST_PURCHASE_FALSE_POSITIVE = (
     REPO_ROOT / "tests" / "fixtures" / "event_block_1st_purchase_false_positive.png"
@@ -156,6 +157,17 @@ def test_has_red_dot_in_bbox_percent_true_when_dot_inside() -> None:
     assert has_red_dot_in_bbox_percent(img, bbox) is True
 
 
+def test_has_red_dot_in_bbox_percent_detects_wide_counter_above_bbox_edge() -> None:
+    """Unread counters like ``60`` can hang above the icon bbox."""
+    img = _blank_frame()
+    _draw_red_dot_with_digit(img, cx=400, cy=300, radius=14, digit="60")
+
+    bbox = _bbox_percent(360, 330, 80, 80, frame_w=REFERENCE_W, frame_h=REFERENCE_H)
+
+    assert has_red_dot_in_bbox_percent(img, bbox, edge_badge_pad_ratio=0.0) is False
+    assert has_red_dot_in_bbox_percent(img, bbox) is True
+
+
 def test_has_red_dot_in_bbox_percent_false_when_dot_outside_bbox() -> None:
     img = _blank_frame()
     _draw_red_dot(img, cx=400, cy=300, radius=10)
@@ -255,6 +267,16 @@ def test_real_main_city_v2_has_red_dot_in_known_bboxes() -> None:
         assert has_red_dot_in_bbox_percent(img, bbox) is True, (
             f"expected red dot inside `{name}` bbox {bbox} on main_city_v2"
         )
+
+
+def test_real_main_city_base_detects_mail_counter_for_low_furnace_player() -> None:
+    """Base main_city (furnace < 5) has a mail counter in the v1 coordinates."""
+    img = cv2.imread(str(MAIN_CITY_BASE_REFERENCE))
+    assert img is not None, f"failed to load fixture: {MAIN_CITY_BASE_REFERENCE}"
+    h, w = img.shape[:2]
+    bbox = _bbox_percent(626, 1072, 82, 87, frame_w=w, frame_h=h)
+
+    assert has_red_dot_in_bbox_percent(img, bbox) is True
 
 
 def test_real_main_city_v2_has_no_red_dot_in_empty_central_area() -> None:

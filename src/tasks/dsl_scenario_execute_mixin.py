@@ -9,7 +9,6 @@ from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Any
 
-from adb import _consume_skip, _redis, _require_approval
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Point
@@ -712,7 +711,7 @@ class DslScenarioExecuteMixin:
                 # strict-by-default behavior for player-bound scenarios meant a
                 # missing claim button (popup already closed, wrong screen) would
                 # abort the scenario and pop an approval prompt — but the natural
-                # idiom across our scenarios (``claim_trials``, ``read_mail_gifts``,
+                # idiom across our scenarios (``claim_trials``, ``mail.claim``,
                 # ``vip_rewards``, etc.) is "try claim X, then claim Y, then …";
                 # failure of one branch should not prevent the rest from running.
                 # YAML can still set ``strict: true`` to opt into the
@@ -1234,58 +1233,6 @@ class DslScenarioExecuteMixin:
                 if cmd:
                     args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
                     await self._run_exec_step(cmd, instance_id, args)
-                _trace_row(_resumable_step, step, "ok")
-                continue
-            if "set_node" in step:
-                node = str(step.get("set_node") or "").strip()
-                await self._write_step_context(instance_id, scenario=key)
-                if not node:
-                    _trace_row(_resumable_step, step, "skipped_empty")
-                    continue
-                approval_payload: dict[str, object] = {
-                    "type": "set_node",
-                    "set_node": node,
-                }
-                attach_preview = getattr(actions, "attach_approval_preview", None)
-                if callable(attach_preview):
-                    with suppress(Exception):
-                        await asyncio.to_thread(attach_preview, instance_id, approval_payload)
-                ok, req_id = await asyncio.to_thread(
-                    _require_approval,
-                    instance_id,
-                    approval_payload,
-                )
-                if not ok:
-                    logger.info(
-                        "dsl_scenario: set_node rejected or blocked — aborting scenario %s",
-                        _scen(key),
-                    )
-                    await self._clear_step_context(instance_id)
-                    _trace_row(_resumable_step, step, "stopped", reason="set_node_not_approved")
-                    return TaskResult(
-                        success=False,
-                        next_run_at=None,
-                        metadata=_fin(
-                            {"scenario": key, "reason": "set_node_not_approved"},
-                            completed=False,
-                        ),
-                    )
-                # Operator chose ``Skip``: leave current_screen untouched and
-                # move on to the next step.
-                skipped = _consume_skip(req_id)
-                if not skipped and self.redis_client is not None:
-                    with suppress(Exception):
-                        await self.redis_client.hset(
-                            f"wos:instance:{instance_id}:state",
-                            "current_screen",
-                            node,
-                        )
-                if req_id is not None:
-                    try:
-                        _redis().delete(f"wos:ui:click_approval:current:{instance_id}")
-                        _redis().delete(f"wos:ui:click_approval:response:{req_id}")
-                    except Exception:
-                        logger.debug("approval cleanup after set_node failed", exc_info=True)
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "click" in step:

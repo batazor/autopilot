@@ -54,6 +54,8 @@ class QueueHistoryRow:
     region: str | None = None
     reason: str = ""
     error: str = ""
+    trace_id: str = ""
+    span_id: str = ""
     payload: dict[str, object] | None = None
     # DSL scenario execution trace (from ``metadata``); None for non-DSL tasks.
     scenario_completed: bool | None = None
@@ -157,6 +159,8 @@ def _parse_history_row(payload: str) -> QueueHistoryRow | None:
         region=region,
         reason=str(data.get("reason", "") or ""),
         error=str(data.get("error", "") or ""),
+        trace_id=str(data.get("trace_id", "") or ""),
+        span_id=str(data.get("span_id", "") or ""),
         payload=data,
         scenario_completed=scenario_completed,
         steps_total=steps_total,
