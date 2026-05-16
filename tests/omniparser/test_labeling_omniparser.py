@@ -9,7 +9,7 @@ import omniparser.supervision_bridge as sb
 from omniparser.convert import elements_to_regions
 from omniparser.types import ParsedUiElement
 from ui import labeling_omniparser as omni
-from ui.labeling_omniparser import merge_omniparser_regions
+from ui.labeling_omniparser import merge_detected_regions, merge_omniparser_regions
 
 
 def test_filter_blacklisted_omniparser_regions_by_crop_hash(monkeypatch) -> None:
@@ -349,6 +349,7 @@ def test_overlap_reuse_prefers_smaller_existing_region_when_scores_tie() -> None
 
     assert renamed[0]["name"] == "main_city.title"
     assert renamed[0]["bbox"] == existing[1]["bbox"]
+    assert renamed[0]["_omni_matched_existing"] is True
     assert reused == 1
     assert dropped == 0
 
@@ -375,9 +376,33 @@ def test_overlap_reuse_copies_canonical_bbox_from_existing_region() -> None:
 
     assert renamed[0]["name"] == "mail.title"
     assert renamed[0]["bbox"] == existing[0]["bbox"]
+    assert renamed[0]["_omni_matched_existing"] is True
     assert renamed[0]["hash"] == sb.region_hash(renamed[0])
     assert reused == 1
     assert dropped == 0
+
+
+def test_apply_strips_internal_omni_matched_marker() -> None:
+    proposed = [
+        {
+            "name": "mail.title",
+            "action": "exist",
+            "type": "string",
+            "_omni_matched_existing": True,
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        }
+    ]
+
+    merged, added, aliased, skipped = merge_detected_regions(
+        merge_mode="replace",
+        existing=[],
+        proposed_regions=proposed,
+    )
+
+    assert "_omni_matched_existing" not in merged[0]
+    assert added == 1
+    assert aliased == 0
+    assert skipped == 0
 
 
 def test_overlap_reuse_ignores_search_and_tap_auxiliary_regions() -> None:

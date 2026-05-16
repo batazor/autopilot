@@ -1350,10 +1350,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 65.7915057915058,
-            "y": 95.0,
-            "width": 27.6003861003861,
-            "height": 3.9999999999999996,
+            "x": 56.33204633204633,
+            "y": 93.15217391304348,
+            "width": 37.26061776061776,
+            "height": 6.4,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1365,10 +1365,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 15.019305019305019,
-            "y": 95.21739130434783,
-            "width": 32.0,
-            "height": 3.5999999999999996,
+            "x": 4.787644787644788,
+            "y": 93.15217391304348,
+            "width": 41.92084942084942,
+            "height": 5.831521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -2282,7 +2282,234 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "aliases": [
+            "icon.a_blue_folder_with_the_number_60"
+          ]
+        },
+        {
+          "name": "icon.2026_05_0815_20_42",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.052123552123552,
+            "y": 8.683695652173913,
+            "width": 94.17760617760618,
+            "height": 11.840217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b842d61be500075a4b866c2763c680598dc6e3b67e1d51c5dfa346174e2f84a2"
+        },
+        {
+          "name": "text.claim_the_milestone_rewards_below_now_stay_tuned",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.2222227520412865,
+            "y": 34.609375,
+            "width": 82.08333280351428,
+            "height": 1.7187500000000022,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "fd32f48a9d5646265fa5f1ea777c644acb53d4e5d6d133d3e27a75bf4f66b990"
+        },
+        {
+          "name": "text.more_updates_from_our_official_facebook_page_mor",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.666667196485731,
+            "y": 36.640625,
+            "width": 79.3055550257365,
+            "height": 2.34375,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c0b6bf998f8a650aca34fbee50808cde811f9f530591e0fa7afb9f441622f0fd"
+        },
+        {
+          "name": "text.rewards_awaits",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.805555555555555,
+            "y": 39.296875,
+            "width": 25.00000211927626,
+            "height": 1.7187500000000022,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "511d70c93f04878ef982652e3ddf6db1d6630115798b251a1d921258922591ec"
+        },
+        {
+          "name": "text.tap_the_go_button_below_to_view_more_event_detai",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.94444497426351,
+            "y": 43.75,
+            "width": 80.13888835906982,
+            "height": 2.109375000000002,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1d6afe1c115542c0900cbf48db201751fa4a1e84e7a91dfc4e91efde25c5a197"
+        },
+        {
+          "name": "text.whiteout_survival_team",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.666667196485731,
+            "y": 48.359375,
+            "width": 36.80555502573649,
+            "height": 2.265624999999999,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "87d382241df2010b3948a06c04cbb95d75ae48b1be296bdb1741eedf0470f085"
+        },
+        {
+          "name": "button.claim.big",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.166023166023166,
+            "y": 57.28260869565217,
+            "width": 33.2007722007722,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b0f653bf2941fc0b478baabf7d052d43200cc218cc010310bff0abb271ca89c1"
+        },
+        {
+          "name": "text.expires_in_2026_05_15_11_38_45",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 23.88888888888889,
+            "y": 88.828125,
+            "width": 47.638888888888886,
+            "height": 1.5625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3b7551413ff9ad427dc4b7b6d8d455e288b5e43515ca007f2d68d243f29fd537"
+        },
+        {
+          "name": "mail.delete",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "dfdb9c98e26e3f628a0ba4383c4089505e2c41675a33ca2fd046ad6ffd3ee52c"
+        },
+        {
+          "name": "icon.a_computer_mouse_pad_with_the_name_dayl_on_it",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.00575086805556,
+            "y": 64.73320960998535,
+            "width": 15.772060818142364,
+            "height": 8.795104026794432,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c9685f2887383ce3be86691df70ee46cfa8540e9e098646d40367c46fcbdcf1e"
+        },
+        {
+          "name": "icon.a_simple_step_or_guide_guide",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.989737616644966,
+            "y": 64.68973159790039,
+            "width": 15.856721666124132,
+            "height": 9.024610519409181,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "833ff62600babe239e7280c0a3c74f3aae142cb1d9c0463c6dde4d657c3e3ff0"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.79729729729729,
+            "y": 1.25,
+            "width": 7.766409266409266,
+            "height": 4.708695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2c19c3c867be5d996139fd0f412da69d3f8c321f9ce7390c76e7163c2d7f7dce"
+        },
+        {
+          "name": "icon.a_push_button_or_arrow",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.5915018717448,
+            "y": 51.28268718719482,
+            "width": 7.073449028862844,
+            "height": 3.2108306884765625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2a6303767393bd137a6449eb67e70ac47c26eca74e67159f0e0c7a85015e9c12"
         }
       ]
     },

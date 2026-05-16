@@ -36,6 +36,7 @@ OMNIPARSER_NAME_BLACKLIST_PREFIXES: tuple[str, ...] = (
     "icon.unanswerable",
     "text.6_6",
 )
+OMNIPARSER_MATCHED_EXISTING_KEY = "_omni_matched_existing"
 
 
 @dataclass(frozen=True)
@@ -292,6 +293,18 @@ def _copy_bbox_from_existing(
     return before != proposal["bbox"]
 
 
+def _mark_matched_existing(proposal: dict[str, object]) -> None:
+    proposal[OMNIPARSER_MATCHED_EXISTING_KEY] = True
+
+
+def _strip_internal_proposal_fields(region: dict[str, object]) -> dict[str, object]:
+    return {
+        key: value
+        for key, value in region.items()
+        if not str(key).startswith("_omni_")
+    }
+
+
 def _region_crop_pixel_hash(image: Image.Image, region: dict[str, object]) -> str | None:
     bbox = region.get("bbox")
     if not isinstance(bbox, dict):
@@ -371,6 +384,7 @@ def reuse_proposal_names_from_existing_crops(
                 continue
             if prop_hash != ex_hash:
                 continue
+            _mark_matched_existing(reg)
             changed = _copy_bbox_from_existing(reg, ex_bbox)
             if cur_name != primary:
                 reg["name"] = primary
@@ -454,6 +468,7 @@ def reuse_proposal_names_from_overlapping_regions(
         if idx not in keep_indices:
             dropped += 1
             continue
+        _mark_matched_existing(reg)
         changed = _copy_bbox_from_existing(reg, canonical_bbox)
         if str(reg.get("name") or "").strip() != canonical_name:
             reg["name"] = canonical_name
@@ -527,13 +542,14 @@ def merge_omniparser_regions(
         if _has_bbox_intersection(reg, [existing_rect for _region, existing_rect in existing_rects]):
             skipped_intersections += 1
             continue
-        merged.append(reg)
-        for name in _region_names(reg):
+        clean_reg = _strip_internal_proposal_fields(reg)
+        merged.append(clean_reg)
+        for name in _region_names(clean_reg):
             names.add(name)
-        for h in _region_identity_hashes(reg):
-            by_hash.setdefault(h, reg)
+        for h in _region_identity_hashes(clean_reg):
+            by_hash.setdefault(h, clean_reg)
         if rect is not None:
-            existing_rects.append((reg, rect))
+            existing_rects.append((clean_reg, rect))
         added += 1
     return merged, added, aliased, skipped_intersections
 
@@ -547,7 +563,8 @@ def merge_detected_regions(
     """Apply merge or replace semantics to prepared proposal regions."""
 
     if merge_mode == "replace":
-        return list(proposed_regions), len(proposed_regions), 0, 0
+        cleaned = [_strip_internal_proposal_fields(region) for region in proposed_regions]
+        return cleaned, len(cleaned), 0, 0
     return merge_omniparser_regions(existing, proposed_regions)
 
 

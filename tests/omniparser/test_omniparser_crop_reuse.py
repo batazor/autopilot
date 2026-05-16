@@ -16,6 +16,7 @@ def test_reuse_proposal_names_when_overlap_and_crop_hash_match() -> None:
     assert n == 1
     assert out[0]["name"] == "btn.merge_gift"
     assert out[0]["bbox"] == bbox
+    assert out[0]["_omni_matched_existing"] is True
 
 
 def test_reuse_proposal_names_skips_when_no_overlap() -> None:
