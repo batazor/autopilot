@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 
+from config.paths import repo_root
 from config.startup_validation import assert_startup_configs_valid, validate_startup_configs
+from scenarios import template_resolver
 
 
 def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
@@ -84,6 +86,15 @@ overlay:
 
     with pytest.raises(RuntimeError, match="startup config validation failed: 1 issue"):
         assert_startup_configs_valid(tmp_path)
+
+
+def test_unknown_popup_fallback_scenario_is_resolvable() -> None:
+    loaded = template_resolver.load_doc(repo_root(), "dismiss_unknown_popup")
+
+    assert loaded is not None
+    _path, doc = loaded
+    assert doc.get("enabled") is True
+    assert doc.get("device_level") is True
 
 
 def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
