@@ -12,7 +12,7 @@ screens:
   main_city:
     priority: 10
     rules:
-      - match: icon.world
+      - match: main_city.title
         threshold: 0.9
 
   welcome_back:
@@ -22,6 +22,16 @@ screens:
         threshold: 0.9
     rules:
       - match: text.welcome_back
+        threshold: 0.9
+
+  ads.natalia:
+    # Full-screen ad overlay; recognize before the underlying main_city node.
+    priority: 5
+    landmarks:
+      - match: ads.natalia
+        threshold: 0.9
+    rules:
+      - match: ads.natalia
         threshold: 0.9
 
 # screens:

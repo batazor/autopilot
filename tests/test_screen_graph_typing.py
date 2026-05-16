@@ -29,3 +29,7 @@ def test_exploration_routes_squad_settings() -> None:
 
 def test_welcome_back_routes_to_main_city() -> None:
     assert route_taps("welcome_back", "main_city") == [["button.confirm.green"]]
+
+
+def test_ads_natalia_routes_to_main_city() -> None:
+    assert route_taps("ads.natalia", "main_city") == [["ads.natalia"]]

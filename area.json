@@ -835,6 +835,21 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "main_city.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.97683397683398,
+            "y": 6.8478260869565215,
+            "width": 11.200772200772201,
+            "height": 1.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ],
       "versions": [
@@ -1181,7 +1196,7 @@
           ]
         }
       ],
-      "screen_region": "icon.world"
+      "screen_region": "main_city.title"
     },
     {
       "id": 16,
@@ -3204,7 +3219,7 @@
     },
     {
       "id": 51,
-      "screen_id": "",
+      "screen_id": "ads.natalia",
       "ocr": "references/ads.natalia.png",
       "regions": [
         {
@@ -3222,7 +3237,8 @@
             "original_height": 1280
           }
         }
-      ]
+      ],
+      "screen_region": "ads.natalia"
     },
     {
       "id": 52,

@@ -106,6 +106,9 @@ edges:
   # Welcome-back offline-income popup: tapping Confirm drops the client back to main_city.
   welcome_back:
     main_city: [button.confirm.green]
+  # Natalia first-purchase ad overlay: close it before continuing normal navigation.
+  ads.natalia:
+    main_city: [ads.natalia]
   chief_profile:
     main_city: [icon.page.back]
   mail:

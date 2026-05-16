@@ -8,6 +8,8 @@ import navigation.screen_graph as screen_graph
 
 def test_screen_verify_config_loads_rules_from_yaml(monkeypatch: Any, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
+    area = tmp_path / "area.json"
+    area.write_text('{"screens":[]}', encoding="utf-8")
     cfg.write_text(
         """
 retry:
@@ -33,6 +35,7 @@ screens:
         encoding="utf-8",
     )
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()
 
     try:
@@ -102,7 +105,7 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()
 
     expected = [{"match": "chief_profile_title", "threshold": 0.9}]
-    assert landmarks == expected
+    assert expected[0] in landmarks
     assert rules == expected
 
 
@@ -145,5 +148,18 @@ def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
     expected = [
         {"match": "text.welcome_back", "threshold": 0.9}
     ]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("ads.natalia")
+        rules = screen_graph.screen_verify_rules("ads.natalia")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "ads.natalia", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected

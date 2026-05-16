@@ -658,14 +658,13 @@ def successor_screens(screen_id: str, doc: AreaDocDict) -> list[str]:
 def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[str]:
     """Options for Screen ID: ``""`` = None; then sorted node ids from area + entries (always includes ``current``)."""
     ids: set[str] = set(all_fsm_screen_ids(doc))
-    # Seed options with the "known" node ids from runtime navigation/detection,
-    # so the dropdown isn't empty before the user defines node transitions.
+    # Seed options with the "known" node ids from runtime navigation config.
+    # Use screen_verify_screen_names() directly instead of ScreenName: the enum
+    # is built once at import, while the config loader tracks YAML mtimes.
     try:
-        from navigation.detector import ScreenName
+        from navigation.screen_graph import screen_verify_screen_names
 
-        ids.update(
-            s.value for s in ScreenName if getattr(s, "value", None) and s != ScreenName.UNKNOWN
-        )
+        ids.update(screen_verify_screen_names())
     except Exception:
         pass
     try:
