@@ -734,7 +734,7 @@ with _table_col:
         gallery_table_columns(),
         sub_rows_key="subRows",
         height=640,
-        default_expanded=(group_by == "page (screen_id)"),
+        default_expanded=False,
         striped=True,
         selectable=True,
         key="gallery_nested_table",
