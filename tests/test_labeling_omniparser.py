@@ -53,12 +53,21 @@ def test_filter_blacklisted_omniparser_regions_by_name() -> None:
                 "height": 50.0,
             },
         },
+        {
+            "name": "text.6_6",
+            "bbox": {
+                "x": 25.0,
+                "y": 25.0,
+                "width": 25.0,
+                "height": 25.0,
+            },
+        },
     ]
 
     kept, skipped = omni._filter_blacklisted_omniparser_regions(image, regions)
 
     assert [r["name"] for r in kept] == ["icon.real_button"]
-    assert skipped == 1
+    assert skipped == 2
 
 
 def _region(name: str, *, x: float = 10.0) -> dict[str, object]:

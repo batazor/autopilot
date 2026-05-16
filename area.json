@@ -744,21 +744,6 @@
       "ocr": "references/main_city.png",
       "regions": [
         {
-          "name": "is_main_city",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 13.281853281853282,
-            "y": 4.021739130434782,
-            "width": 5.397683397683398,
-            "height": 3.0358695652173915,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "chapter.new",
           "action": "exist",
           "type": "string",
@@ -954,10 +939,234 @@
                 "original_height": 1280
               },
               "has_red_dot": true
+            },
+            {
+              "name": "text.6_6",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 84.58301158301158,
+                "y": 25.859782608695653,
+                "width": 9.722007722007723,
+                "height": 2.1880434782608695,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "909a18584d72978d36484dd77f103741c9a1828dc051e0ef13d0abd771951c72"
+            },
+            {
+              "name": "text.ksa_sgle_ksa_power_alliance_looking_for_an_acti",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 10.416988416988417,
+                "y": 86.875,
+                "width": 88.61196911196912,
+                "height": 2.109782608695652,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "18da23e0fb712b77126a9ef1c46faaeacb8983f37030f7d3940be1ae6608283f"
+            },
+            {
+              "name": "text.ksa_xpand_tidak_buruk_dengan_angka_5",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 10.13899613899614,
+                "y": 88.98478260869565,
+                "width": 52.222007722007724,
+                "height": 1.9532608695652174,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "e4e84a66b22d8b81db382d54ead5419ff88e85cbf85e2e05f8b08d5fad6b2b74"
+            },
+            {
+              "name": "icon.17_30",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 12.718146718146718,
+                "y": 0.006521739130434782,
+                "width": 18.984555984555985,
+                "height": 3.618478260869565,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "e27db5ed827d198c02c4c596ac898acfca850d3709d62033fe7fa83afa963985"
+            },
+            {
+              "name": "icon.6_8",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 32.625482625482626,
+                "y": 0.0,
+                "width": 20.85135135135135,
+                "height": 3.514130434782609,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "ea03fab564b1e6dc2416713688c0900cbcdacfaa3b1b5eb0482aaca1a145b851"
+            },
+            {
+              "name": "icon.world",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 80.87451737451738,
+                "y": 90.95869565217392,
+                "width": 17.214285714285715,
+                "height": 9.041304347826086,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "46a364656b45d8de95ed59c49d0a00309dc32910daefc9d13aa6fbdf6cfefd02"
+            },
+            {
+              "name": "icon.54_1k",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 54.35521235521235,
+                "y": 0.08260869565217391,
+                "width": 15.127413127413128,
+                "height": 2.9239130434782608,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "e4b667b1a44675172a99c5f8f190ece09c554ff996b3a677e98bcd9201f11e77"
+            },
+            {
+              "name": "icon.a_lock_or_padlock_symbol",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 50.6042471042471,
+                "y": 91.73152173913043,
+                "width": 16.034749034749034,
+                "height": 8.268478260869564,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "7e130863ed3ca4a67300707d24dcc81992f01117d86216fe43d473ab2347baa5"
+            },
+            {
+              "name": "icon.a_lock_or_padlock_symbol.3",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 66.93629343629344,
+                "y": 91.57717391304348,
+                "width": 12.698841698841699,
+                "height": 8.42282608695652,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "bad4395381e17593735898a8444056d596b59b20d0fb942022cd70b99b54cfd4"
+            },
+            {
+              "name": "icon.a_man_with_a_beard_and_mustache",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 0.0,
+                "y": 17.754347826086956,
+                "width": 21.557915057915057,
+                "height": 8.940217391304348,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "a02de4b27b37da6155c83d5bd0dc82549e6b9bb7c6ddeef1b3fff27079084764"
+            },
+            {
+              "name": "icon.a_low_profile_or_profile_icon",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 73.57722007722008,
+                "y": 0.05217391304347826,
+                "width": 18.853281853281853,
+                "height": 3.5184782608695646,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "aaeb5a9cb6382adb8166b6d6f0e3735bc7223d0e7e1e4e39699f157d9acddda2"
+            },
+            {
+              "name": "icon.a_blurry_image_of_a_hand_reaching_towards_the_sk",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 0.0,
+                "y": 47.55543478260869,
+                "width": 3.1023166023166024,
+                "height": 4.404347826086957,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "7b95c7edfb655f06e9b6183edffedee73dff433edf322e2b6f39723909447c9b"
+            },
+            {
+              "name": "icon.a_logo_or_emblem_for_a_website_or_application",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 1.7992277992277992,
+                "y": 86.65,
+                "width": 8.262548262548263,
+                "height": 4.639130434782609,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "ead16946c31f32cd1016b3e0863049e5468b8b5521526050c8b72c3c7d1d6c29"
+            },
+            {
+              "name": "region",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 12.895752895752896,
+                "y": 3.8043478260869565,
+                "width": 28.7992277992278,
+                "height": 3.3000000000000007,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              }
             }
           ]
         }
-      ]
+      ],
+      "screen_region": "icon.world"
     },
     {
       "id": 16,

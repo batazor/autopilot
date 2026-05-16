@@ -65,6 +65,19 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("main_city")
+        rules = screen_graph.screen_verify_rules("main_city")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "icon.world", "threshold": 0.9}]
+    assert {"match": "icon.world"} in landmarks
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:

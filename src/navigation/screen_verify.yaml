@@ -9,6 +9,12 @@ retry:
   interval_seconds: 0.8
 
 screens:
+  main_city:
+    priority: 10
+    rules:
+      - match: icon.world
+        threshold: 0.9
+
   welcome_back:
     priority: 100
     landmarks:

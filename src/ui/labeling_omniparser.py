@@ -30,9 +30,14 @@ OMNIPARSER_CROP_HASH_BLACKLIST: frozenset[str] = frozenset(
         "25d8c3d35b3e3f7985656beecadd4ebbebbe58df7706ea1890ab66a3c53de57d",
         "f662a6201f1fa74f8236d2f55999856bcf6c95d3d5f120b6ef03819a07fc9dc7",
         "f5d4abad731b372f880b0a0e2b5a6688a9e6729340e6e39ed8d172c1b55fee0c",
+        # Decorative main-city event badge text (`text.6_6`).
+        "de837c3359ca5e069319ddac57e5657b3020ddc875adeb5f8f8af68baca0fc7a",
     }
 )
-OMNIPARSER_NAME_BLACKLIST_PREFIXES: tuple[str, ...] = ("icon.unanswerable",)
+OMNIPARSER_NAME_BLACKLIST_PREFIXES: tuple[str, ...] = (
+    "icon.unanswerable",
+    "text.6_6",
+)
 
 
 def _bbox_rect(region: dict[str, object]) -> tuple[float, float, float, float] | None:
