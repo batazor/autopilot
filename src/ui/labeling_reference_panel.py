@@ -15,6 +15,8 @@ from ui.keys import (
     CANVAS_REV,
     LABELING_BN_NONE,
     LABELING_BN_SYNC_SEL,
+    LABELING_CAPTURE_SCREEN_ID_REL,
+    LABELING_CAPTURE_SCREEN_ID_VALUE,
     LABELING_PENDING_CAPTURE_REL,
     LABELING_REF_TREE_NONCE,
     LABELING_RENAME_FLASH,
@@ -283,6 +285,18 @@ def render_labeling_reference_column(
                                     regs = st.session_state.get(LABELING_TEMPORAL_REGIONS)
                                     if isinstance(regs, list):
                                         entries[ei]["regions"] = regs  # type: ignore[index]
+                                    cap_rel = st.session_state.get(LABELING_CAPTURE_SCREEN_ID_REL)
+                                    cap_sid = st.session_state.get(LABELING_CAPTURE_SCREEN_ID_VALUE)
+                                    pend_norm = pending_rel.replace("\\", "/").strip()
+                                    if (
+                                        isinstance(cap_rel, str)
+                                        and cap_rel.replace("\\", "/").strip() == pend_norm
+                                        and isinstance(cap_sid, str)
+                                        and cap_sid.strip()
+                                    ):
+                                        entries[ei]["screen_id"] = cap_sid.strip()
+                                    st.session_state.pop(LABELING_CAPTURE_SCREEN_ID_REL, None)
+                                    st.session_state.pop(LABELING_CAPTURE_SCREEN_ID_VALUE, None)
                                     st.session_state.entry_idx = ei
                         except Exception:
                             # Best-effort; UI still works even if regions can't be promoted.

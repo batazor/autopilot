@@ -17,6 +17,7 @@ from layout.area_versions import normalize_version_id
 from ui.area_annotator import (
     REPO_ROOT,
     apply_active_version_from_labeling_query,
+    detect_screen_id_from_png_path,
     ensure_entry_for_reference_path,
     export_all_region_crops_for_area_doc,
     get_active_version,
@@ -30,6 +31,8 @@ from ui.keys import (
     CANVAS_REV,
     LABELING_AREA_DIRTY,
     LABELING_BN_SYNC_SEL,
+    LABELING_CAPTURE_SCREEN_ID_REL,
+    LABELING_CAPTURE_SCREEN_ID_VALUE,
     LABELING_ERROR_FLASH,
     LABELING_LAST_INSTANCE,
     LABELING_PENDING_CAPTURE_REL,
@@ -92,6 +95,8 @@ def _refresh_rel_and_note_for_session(rel_disp: str) -> tuple[str, str | None]:
 
 
 def _handle_discard_pending_capture(*, ref_root: Path) -> None:
+    st.session_state.pop(LABELING_CAPTURE_SCREEN_ID_REL, None)
+    st.session_state.pop(LABELING_CAPTURE_SCREEN_ID_VALUE, None)
     rel = st.session_state.pop(LABELING_PENDING_CAPTURE_REL, None)
     prev = st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
     if not rel:
@@ -433,7 +438,14 @@ if new_screenshot:
         st.session_state[LABELING_REF_TREE_NONCE] = (
             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
         )
-        st.session_state[LABELING_RENAME_FLASH] = f"Captured temp **references/{fname}**"
+        flash = f"Captured temp **references/{fname}**"
+        with st.spinner("Detecting screen node…"):
+            detected = detect_screen_id_from_png_path(temp_path)
+        st.session_state[LABELING_CAPTURE_SCREEN_ID_REL] = fname
+        st.session_state[LABELING_CAPTURE_SCREEN_ID_VALUE] = detected
+        if detected:
+            flash += f" · node **`{detected}`** (saved on basename → references/)"
+        st.session_state[LABELING_RENAME_FLASH] = flash
         st.rerun()
 
 render_area_annotator_ui(

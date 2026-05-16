@@ -4,7 +4,8 @@ import hashlib
 
 from PIL import Image
 
-from omniparser.convert import region_hash
+import omniparser.supervision_bridge as sb
+from omniparser.types import ParsedUiElement
 from ui import labeling_omniparser as omni
 from ui.labeling_omniparser import merge_omniparser_regions
 
@@ -12,8 +13,8 @@ from ui.labeling_omniparser import merge_omniparser_regions
 def test_filter_blacklisted_omniparser_regions_by_crop_hash(monkeypatch) -> None:
     image = Image.new("RGBA", (4, 4), (10, 20, 30, 255))
     digest = hashlib.sha256(image.tobytes()).hexdigest()
-    monkeypatch.setattr(omni, "OMNIPARSER_CROP_HASH_BLACKLIST", frozenset({digest}))
-    monkeypatch.setattr(omni, "OMNIPARSER_NAME_BLACKLIST_PREFIXES", ())
+    monkeypatch.setattr(sb, "OMNIPARSER_CROP_HASH_BLACKLIST", frozenset({digest}))
+    monkeypatch.setattr(sb, "OMNIPARSER_NAME_BLACKLIST_PREFIXES", ())
     regions = [
         {
             "name": "icon.decor",
@@ -71,6 +72,8 @@ def test_filter_blacklisted_omniparser_regions_by_name() -> None:
 
 
 def _region(name: str, *, x: float = 10.0) -> dict[str, object]:
+    from omniparser.convert import region_hash
+
     region: dict[str, object] = {
         "name": name,
         "action": "exist",
@@ -104,3 +107,84 @@ def test_merge_only_considers_current_regions_for_name_duplicates() -> None:
     assert added == 1
     assert aliased == 0
     assert skipped == 0
+
+
+def test_min_area_prefilter_skips_small_elements() -> None:
+    big = ParsedUiElement(
+        type="icon",
+        bbox=(0.0, 0.0, 0.5, 0.5),
+        interactivity=True,
+        content="icon 0.9",
+    )
+    tiny = ParsedUiElement(
+        type="icon",
+        bbox=(0.9, 0.9, 0.901, 0.901),
+        interactivity=True,
+        content="icon 0.9",
+    )
+    image = Image.new("RGB", (200, 200), (255, 255, 255))
+    regions, stats = sb.build_omniparser_proposal_regions(
+        (big, tiny),
+        image,
+        width=200,
+        height=200,
+        min_area_pct=0.04,
+        nms_iou_threshold=0.5,
+    )
+    names = [str(r["name"]) for r in regions]
+    assert len(names) >= 1
+    assert stats.skipped_min_area >= 1
+
+
+def test_nms_suppresses_overlapping_duplicate_boxes() -> None:
+    a = ParsedUiElement(
+        type="icon",
+        bbox=(0.0, 0.0, 0.5, 0.5),
+        interactivity=True,
+        content="icon 0.95",
+    )
+    b = ParsedUiElement(
+        type="icon",
+        bbox=(0.0, 0.0, 0.46, 0.46),
+        interactivity=True,
+        content="icon 0.85",
+    )
+    image = Image.new("RGB", (100, 100), (0, 0, 0))
+    regs, stats = sb.build_omniparser_proposal_regions(
+        (a, b),
+        image,
+        width=100,
+        height=100,
+        min_area_pct=0.01,
+        nms_iou_threshold=0.1,
+    )
+    assert stats.after_min_area_count == 2
+    assert len(regs) == 1
+    assert stats.nms_removed == 1
+
+
+def test_merge_detected_regions_replace() -> None:
+    existing = [_region("keep")]
+    proposed = [_region("new", x=50.0)]
+    merged, added, aliased, skipped = sb.merge_detected_regions(
+        merge_mode="replace",
+        existing=existing,
+        proposed_regions=proposed,
+    )
+    assert merged == proposed
+    assert added == len(proposed)
+    assert aliased == 0
+    assert skipped == 0
+
+
+def test_roundtrip_parse_element_json() -> None:
+    original = ParsedUiElement(
+        type="text",
+        bbox=(0.1, 0.2, 0.55, 0.6),
+        interactivity=False,
+        content="OK",
+    )
+    d = sb.parsed_element_to_dict(original)
+    back = sb.parsed_element_from_dict(dict(d))
+    assert back == original
+

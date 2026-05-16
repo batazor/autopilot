@@ -1,10 +1,1 @@
-overlay:
-- name: icon.reconnect.visible
-  region: icon.reconnect
-  action: findIcon
-  node: reconnect
-  priority: 999_000
-  threshold: 0.92
-  ttl: 5
-  pushScenario:
-    - name: tap_reconnect_button
+overlay: []

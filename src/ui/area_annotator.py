@@ -58,6 +58,8 @@ from ui.keys import (
     ENTRY_IDX,
     IMAGE_ERROR,
     LABELING_AREA_DIRTY,
+    LABELING_CAPTURE_SCREEN_ID_REL,
+    LABELING_CAPTURE_SCREEN_ID_VALUE,
     LABELING_PENDING_CAPTURE_REL,
     LABELING_RENAME_FLASH,
     LABELING_SELECTION_BEFORE_CAPTURE,
@@ -723,6 +725,19 @@ def _format_screen_region_choice(value: str) -> str:
 
 
 _NODE_SUGGEST_CACHE_KEY = "_node_suggest_by_path"
+
+
+def detect_screen_id_from_png_path(path: Path) -> str | None:
+    """Run :func:`navigation.detector.suggest_node_for_image_sync` on a PNG file."""
+
+    try:
+        from navigation.detector import suggest_node_for_image_sync
+
+        pil = Image.open(path).convert("RGBA")
+        bgr = cv2.cvtColor(np.asarray(pil), cv2.COLOR_RGBA2BGR)
+        return suggest_node_for_image_sync(bgr)
+    except Exception:
+        return None
 
 
 def _node_suggest_for_active_image() -> str | None:
@@ -2536,6 +2551,17 @@ def render_area_annotator_ui(
                     if entries and 0 <= ei < len(entries):
                         rel = dest.relative_to(REPO_ROOT).as_posix()
                         entries[ei]["ocr"] = rel
+                        ent = entries[ei]
+                        if not str(ent.get("screen_id") or "").strip():
+                            node = detect_screen_id_from_png_path(dest)
+                            if node:
+                                ent["screen_id"] = node
+                                sk = f"screen_id_{ei}_std"
+                                st.session_state[sk] = node
+                                cache: dict[str, str | None] = st.session_state.setdefault(
+                                    _NODE_SUGGEST_CACHE_KEY, {}
+                                )
+                                cache[str(dest.resolve())] = node
                 else:
                     st.error(msg)
 
