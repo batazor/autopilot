@@ -1,22 +1,9 @@
-"""Rolling-tick busy gates.
+"""Rolling-tick behavior while a task is busy.
 
-Pre-fix: ``_device_reference_snapshot_tick`` always ran ADB screencap →
-screen detect → (maybe overlay) every ``device_reference_snapshot_interval_seconds``,
-even while a task was busy. With ``overlay_analyze_when_busy=False`` only
-the overlay step was skipped — the screen detect (a non-trivial OpenCV
-template match) and the snapshot cadence stayed at idle pace.
-
-Post-fix: while a task is busy we
-* run the loop at ``device_reference_snapshot_busy_interval_seconds`` instead
-  of the idle interval — preview still updates for the UI watcher, just
-  less often;
-* skip screen detect by default (``screen_detect_when_busy=False``) — the
-  scenario already knows what screen it's on, and the post-task
-  ``_overlay_tick_now`` will re-detect on a fresh frame as soon as the
-  task finishes.
-
-The flags exist so operators can opt back into the old behavior per
-workload (debugging, dense overlay rules, etc.).
+The worker should keep writing the rolling preview PNG for the UI, but skip
+screen detect / overlay work by default while a scenario is in flight. The
+post-task ``_overlay_tick_now`` re-detects on a fresh frame as soon as the task
+finishes.
 """
 
 from __future__ import annotations
@@ -32,7 +19,6 @@ from worker.instance_worker_rolling import (
     InstanceWorkerRollingMixin,
     _rolling_should_skip_overlay,
     _rolling_should_skip_screen_detect,
-    _rolling_snapshot_interval,
 )
 
 
@@ -41,32 +27,6 @@ class _Cfg:
     overlay_analyze_when_busy: bool = False
     screen_detect_when_busy: bool = False
     device_reference_snapshot_interval_seconds: float = 1.0
-    device_reference_snapshot_busy_interval_seconds: float = 5.0
-
-
-# ---------------------------------------------------------------------------
-# Pure gate helpers
-# ---------------------------------------------------------------------------
-
-
-def test_snapshot_interval_idle_vs_busy() -> None:
-    cfg = _Cfg(
-        device_reference_snapshot_interval_seconds=1.0,
-        device_reference_snapshot_busy_interval_seconds=5.0,
-    )
-    assert _rolling_snapshot_interval(cfg, task_busy=False) == pytest.approx(1.0)
-    assert _rolling_snapshot_interval(cfg, task_busy=True) == pytest.approx(5.0)
-
-
-def test_snapshot_interval_busy_equals_idle_restores_old_behavior() -> None:
-    """Operator who wants the historical "always idle cadence" sets both
-    intervals equal; the helper returns the same value in both states."""
-    cfg = _Cfg(
-        device_reference_snapshot_interval_seconds=2.0,
-        device_reference_snapshot_busy_interval_seconds=2.0,
-    )
-    assert _rolling_snapshot_interval(cfg, task_busy=False) == 2.0
-    assert _rolling_snapshot_interval(cfg, task_busy=True) == 2.0
 
 
 @pytest.mark.parametrize(

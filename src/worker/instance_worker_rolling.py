@@ -38,17 +38,8 @@ def _runtime_error_is_device_offline(exc: BaseException) -> bool:
     ) or "device not found" in s or "no devices/emulators found" in s
 
 
-def _rolling_snapshot_interval(cfg: Any, *, task_busy: bool) -> float:
-    """Pick the snapshot cadence based on whether a task is in flight.
-
-    Idle: ``device_reference_snapshot_interval_seconds`` (fast — UI preview
-    + overlay analyzer both want fresh frames). Busy: the longer
-    ``device_reference_snapshot_busy_interval_seconds`` since the scenario
-    is doing its own captures and the rolling tick's only consumer is the
-    operator UI watcher.
-    """
-    if task_busy:
-        return float(cfg.device_reference_snapshot_busy_interval_seconds)
+def _rolling_snapshot_interval(cfg: Any) -> float:
+    """Rolling preview cadence, independent of task busy state."""
     return float(cfg.device_reference_snapshot_interval_seconds)
 
 
@@ -177,7 +168,7 @@ class InstanceWorkerRollingMixin:
             # Skipping detect also skips the downstream overlay analyze
             # (which depends on ``current_screen``) and the who_i_am
             # backstop. The PNG above is still written so the UI preview
-            # continues to update on the busy cadence.
+            # continues to update on the normal cadence.
             logger.debug(
                 "screen-detect-after-snapshot skipped (task busy, screen_detect_when_busy=false)"
             )
@@ -233,19 +224,16 @@ class InstanceWorkerRollingMixin:
         cfg = self._settings.worker
         await asyncio.sleep(0.5)
         logger.info(
-            "[rolling] %s: snapshot loop started (idle=%.2fs busy=%.2fs)",
+            "[rolling] %s: snapshot loop started (interval=%.2fs)",
             self._cfg.instance_id,
-            float(cfg.device_reference_snapshot_interval_seconds),
-            float(cfg.device_reference_snapshot_busy_interval_seconds),
+            _rolling_snapshot_interval(cfg),
         )
         while True:
             try:
                 # Re-read worker config every iteration so a hot-edit of
                 # ``settings.yaml`` propagates without a restart.
                 cfg_now = self._settings.worker
-                interval = _rolling_snapshot_interval(
-                    cfg_now, task_busy=self._task_busy.is_set()
-                )
+                interval = _rolling_snapshot_interval(cfg_now)
                 await asyncio.sleep(max(0.3, interval))
                 if self._stopping:
                     return

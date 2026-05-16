@@ -34,15 +34,7 @@ _PREVIEW_REFRESH_SEC = max(
     0.5,
     float(load_settings().worker.device_reference_snapshot_interval_seconds),
 )
-# Account for the busy-cadence too: during a long task the rolling preview
-# only updates every ``device_reference_snapshot_busy_interval_seconds``, so
-# the stale threshold has to cover *that* cadence to avoid spurious
-# "preview stale" warnings while the bot is just slowly snapshotting.
-_PREVIEW_REFRESH_BUSY_SEC = max(
-    _PREVIEW_REFRESH_SEC,
-    float(load_settings().worker.device_reference_snapshot_busy_interval_seconds),
-)
-_STALE_PREVIEW_AFTER_SEC = max(12.0, _PREVIEW_REFRESH_BUSY_SEC * 3)
+_STALE_PREVIEW_AFTER_SEC = max(12.0, _PREVIEW_REFRESH_SEC * 3)
 _PREVIEW_CACHE_KEY = "_instance_preview_cache"
 
 

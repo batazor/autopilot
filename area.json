@@ -1067,7 +1067,7 @@
               "hash": "46a364656b45d8de95ed59c49d0a00309dc32910daefc9d13aa6fbdf6cfefd02"
             },
             {
-              "name": "icon.54_1k",
+              "name": "main_city.resources",
               "action": "exist",
               "type": "string",
               "threshold": 0.9,
@@ -1080,7 +1080,7 @@
                 "original_width": 720,
                 "original_height": 1280
               },
-              "hash": "e4b667b1a44675172a99c5f8f190ece09c554ff996b3a677e98bcd9201f11e77"
+              "hash": "40f48a76370ae45de077171b051c3333218f70d9a63424c357db7ba122eba188"
             },
             {
               "name": "icon.a_lock_or_padlock_symbol",
@@ -1131,7 +1131,7 @@
               "hash": "a02de4b27b37da6155c83d5bd0dc82549e6b9bb7c6ddeef1b3fff27079084764"
             },
             {
-              "name": "icon.a_low_profile_or_profile_icon",
+              "name": "main_city.diamond",
               "action": "exist",
               "type": "string",
               "threshold": 0.9,
@@ -1144,7 +1144,7 @@
                 "original_width": 720,
                 "original_height": 1280
               },
-              "hash": "aaeb5a9cb6382adb8166b6d6f0e3735bc7223d0e7e1e4e39699f157d9acddda2"
+              "hash": "2dbcb308b7e6848e64e367dc6ab463bbd0a9ea7352b48cc1346e0bd5a734f564"
             },
             {
               "name": "icon.a_blurry_image_of_a_hand_reaching_towards_the_sk",
@@ -4146,10 +4146,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 30.97222222222222,
-            "y": 40.078125,
-            "width": 38.4722179836697,
-            "height": 3.0468750000000044,
+            "x": 30.972972972972972,
+            "y": 40.07826086956522,
+            "width": 38.472972972972975,
+            "height": 3.0467391304347826,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4163,9 +4163,9 @@
           "threshold": 0.9,
           "bbox": {
             "x": 42.5,
-            "y": 53.98437499999999,
-            "width": 15.833333333333337,
-            "height": 2.500000000000002,
+            "y": 53.98478260869565,
+            "width": 15.833976833976834,
+            "height": 2.5,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4178,10 +4178,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 31.944444444444443,
-            "y": 56.95312500000001,
-            "width": 36.25000000000001,
-            "height": 2.6562499999999933,
+            "x": 31.944015444015445,
+            "y": 56.95326086956522,
+            "width": 36.25096525096525,
+            "height": 2.6565217391304348,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4194,10 +4194,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 24.86111111111111,
-            "y": 61.328125,
-            "width": 42.77777353922526,
-            "height": 2.34375,
+            "x": 24.861003861003862,
+            "y": 61.32826086956522,
+            "width": 42.777992277992276,
+            "height": 2.3434782608695652,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4210,10 +4210,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 24.583333333333332,
-            "y": 64.0625,
-            "width": 48.88888888888889,
-            "height": 1.953125,
+            "x": 24.583011583011583,
+            "y": 64.06304347826087,
+            "width": 48.88803088803089,
+            "height": 1.9532608695652174,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4226,10 +4226,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 24.583333333333332,
-            "y": 66.640625,
-            "width": 46.38888888888889,
-            "height": 2.109375000000002,
+            "x": 24.583011583011583,
+            "y": 66.64021739130435,
+            "width": 46.38803088803089,
+            "height": 2.109782608695652,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4242,10 +4242,10 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 26.111111111111114,
-            "y": 92.734375,
-            "width": 47.91666666666667,
-            "height": 2.34375,
+            "x": 26.111969111969113,
+            "y": 92.73478260869565,
+            "width": 47.91698841698842,
+            "height": 2.3434782608695652,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -4258,15 +4258,486 @@
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 2.1032121446397567,
-            "y": 7.799100875854492,
-            "width": 94.23137240939671,
-            "height": 31.502680778503418,
+            "x": 2.1023166023166024,
+            "y": 7.798913043478261,
+            "width": 94.23166023166023,
+            "height": 31.502173913043478,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
           "hash": "7b792915666a59bfc51765ac972b7f46ac95db33bf55041950aae431ee8f5e04"
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "screen_id": "main_city",
+      "ocr": "references/main_city_v3.png",
+      "regions": [
+        {
+          "name": "text.our_living_cor",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 85.41698841698842,
+            "y": 52.57826086956522,
+            "width": 14.444015444015442,
+            "height": 2.031521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3a55670c25e3785e056b0b5da7688ccb920f29e125f8dcae872c3e7fff476892"
+        },
+        {
+          "name": "text.thanks",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.94401544401545,
+            "y": 56.56304347826087,
+            "width": 7.916988416988417,
+            "height": 1.5630434782608695,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ddbcfc90ee904bb639adf6e675241d070c0fcc629be7d3154f6dc8a2bf616a1a"
+        },
+        {
+          "name": "chapter.task",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.972972972972974,
+            "y": 81.48478260869565,
+            "width": 53.19498069498069,
+            "height": 1.875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d200f9a2faa82f31e5c3f6469ede89bc66f1a0ec5e1b75c021fbc7a02316aaaa"
+        },
+        {
+          "name": "text.ksa_xpand_tidak_buruk_dengan_angka_5",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.13899613899614,
+            "y": 88.82826086956521,
+            "width": 86.38803088803088,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7a1dc666006111afa03dee6e9a995e08f2569387ad50c66eca9c5f6db862d992"
+        },
+        {
+          "name": "main_city.to.exploration",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.019305019305019305,
+            "y": 91.95869565217392,
+            "width": 18.565637065637066,
+            "height": 8.041304347826086,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a11ca764adf16934644faf1af06cf95796b43c980e2b6bf286f99ddcfa0f9d6f"
+        },
+        {
+          "name": "main_city.to.backpack",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.00965250965251,
+            "y": 91.82934782608696,
+            "width": 16.826254826254825,
+            "height": 8.170652173913043,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "83382c774d8065ef5f0590d79151f3f31a753f08e78d6962e11e3e21d1d41bdb"
+        },
+        {
+          "name": "main_city.to.heroes",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 18.64864864864865,
+            "y": 91.86847826086957,
+            "width": 15.144787644787645,
+            "height": 8.131521739130434,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0e83be51bc9264a7749d15ddba972a13fcfaf5a0769b6caacc556a58ee08d8ff"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol.3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.29343629343629,
+            "y": 91.69347826086957,
+            "width": 16.102316602316602,
+            "height": 8.306521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "28df807c889e6caa9fff36115091c3597d7219f410055d74ee47726454a11a92"
+        },
+        {
+          "name": "icon.world",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.1003861003861,
+            "y": 90.93369565217391,
+            "width": 14.897683397683398,
+            "height": 9.066304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "60b8253339df0c19eb57b47009f761d6ccd70b6391d9fe0832170b00cc8e79bd"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 51.24710424710424,
+            "y": 91.8358695652174,
+            "width": 14.187258687258685,
+            "height": 8.164130434782608,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3701fd6531ed7256b8078bdc8145a5200209cf0df7cdc9fa1287c2dbed3ce9cd"
+        },
+        {
+          "name": "main_city.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.97683397683398,
+            "y": 6.8478260869565215,
+            "width": 11.200772200772201,
+            "height": 1.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ac16b6e8384dc02ec6909d7b201f0b1a02b2ad251d56eab61b2e4bf838ccfa48"
+        },
+        {
+          "name": "icon.17_30",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.835907335907335,
+            "y": 0.0,
+            "width": 19.3030888030888,
+            "height": 3.618478260869565,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ad2519508be31afd0c3152984be8a3807159e528f1bd469e254f55a1dcde88c1"
+        },
+        {
+          "name": "icon.6_8",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.56949806949807,
+            "y": 0.0,
+            "width": 17.723938223938223,
+            "height": 3.572826086956521,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b6ac46fcd0e396c378174f5ca36a91953b5522b8553997da7f06bdfba52389da"
+        },
+        {
+          "name": "main_city.resources",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.47876447876448,
+            "y": 0.0,
+            "width": 26.924710424710426,
+            "height": 3.5630434782608695,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
+        },
+        {
+          "name": "page.vip",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 57.4054054054054,
+            "y": 3.472826086956522,
+            "width": 22.996138996138995,
+            "height": 3.973913043478261,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c9a711187065ca54aae6877dfd59eab0bad94d12584c9ff05d70808bd40cb143"
+        },
+        {
+          "name": "main_city.event.block.1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.64285714285714,
+            "y": 8.740217391304348,
+            "width": 11.793436293436294,
+            "height": 7.017391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c6739bae331b1e847c01e07a13433cffd36bbdba1e334c2c1f549c382f9c4a07"
+        },
+        {
+          "name": "is_main_city",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.442084942084943,
+            "y": 3.4706521739130434,
+            "width": 29.60617760617761,
+            "height": 3.966304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1bb4e6e2a018f3e174c4db9944698512a1fbf2b12ab130c111bbb9414919f3ce"
+        },
+        {
+          "name": "main_city.diamond",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.23359073359073,
+            "y": 0.43695652173913035,
+            "width": 10.204633204633204,
+            "height": 2.6934782608695653,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "407f0fec9b763135162e35bce25dd997f79c5426444a74348f0ad848d239b068"
+        },
+        {
+          "name": "to_chief_profile",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 0.08586956521739131,
+            "width": 13.447876447876448,
+            "height": 7.5282608695652184,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f51b5b7653637de21e7baf9947d0b43238b9067c788756f306eab72d4d647c44"
+        },
+        {
+          "name": "icon.a_simple_arrow_or_arrow_mark",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.416988416988417,
+            "y": 7.426086956521738,
+            "width": 8.26061776061776,
+            "height": 3.746739130434783,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "26a7e82d3f3995ef8d009cc9af05d8b82cda6cfb8270dc2a6c2db18af7d97cdd"
+        },
+        {
+          "name": "icon.a_thumbs_up_or_thumbs_down_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.91698841698842,
+            "y": 64.55978260869566,
+            "width": 10.35907335907336,
+            "height": 6.576086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d5e0c44e2954e72128573e29960d854926ea8dae05db76931a6039528d0dd72a"
+        },
+        {
+          "name": "main_city.to.shop",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.9034749034749,
+            "y": 3.4467391304347825,
+            "width": 20.096525096525095,
+            "height": 4.08804347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "da06bd584e3bef53ad1a7a1e5d351ebe4fea2ed0b7a8a13ae0bade00bde72adc"
+        },
+        {
+          "name": "mani_city.to.exploration",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.065637065637056,
+            "y": 15.008695652173914,
+            "width": 10.832046332046332,
+            "height": 6.622826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "6e480281c6d47b175199dbb311cf4a7468aa1c02a06ceca03696247974aaef03"
+        },
+        {
+          "name": "icon.menu",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 40.54347826086956,
+            "width": 4.656370656370656,
+            "height": 6.719565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "bd7eb068eb5f6fb3b4f037ef8968193c54afe282b58b6149900c9e561b4c0b41"
+        },
+        {
+          "name": "icon.a_green_icon_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 94.14285714285714,
+            "y": 0.0641304347826087,
+            "width": 5.857142857142857,
+            "height": 3.4869565217391303,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "74d9e46ae4be3113d93a2b3ee71c6e41da3cee694d1c21b96f0449690e7d2d7b"
+        },
+        {
+          "name": "mail.new",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.81853281853282,
+            "y": 78.79130434782608,
+            "width": 10.764478764478765,
+            "height": 7.010869565217392,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "13c65e1b1b48c266115eb21880c44daee83fae6bc8e7ffbd8497bf9a9e398787"
+        },
+        {
+          "name": "icon.a_red_rose_pinned_to_a_symbol_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.11389961389962,
+            "y": 71.90760869565217,
+            "width": 9.934362934362934,
+            "height": 6.901086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "cbe9d5d186dc7ade1fe9f5793ebc02cacfc0d29ffc54daf7ee0bd39537eb3593"
+        },
+        {
+          "name": "icon.a_blurry_image_of_a_can",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 97.83011583011583,
+            "y": 58.717391304347835,
+            "width": 2.16988416988417,
+            "height": 2.340217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0ae156c0c21d0d90e3f4be0346b3007e9c4a9cf10df7ce3fa3bcceed799b3d43"
+        },
+        {
+          "name": "icon.a_key_or_function_related_to_connecting_or_attac",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 96.1988416988417,
+            "y": 54.393478260869564,
+            "width": 3.8011583011583014,
+            "height": 2.6760869565217393,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c41fc3d5e09a562dbbaa148e6dfd2067d21cd57d897c9227211c500f0ec01c56"
         }
       ]
     }

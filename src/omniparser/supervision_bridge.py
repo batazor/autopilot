@@ -224,6 +224,29 @@ def _rects_intersect(a: tuple[float, float, float, float], b: tuple[float, float
     return max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])
 
 
+def _rect_area(rect: tuple[float, float, float, float]) -> float:
+    return max(0.0, rect[2] - rect[0]) * max(0.0, rect[3] - rect[1])
+
+
+def _intersection_area(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> float:
+    w = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    h = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    return w * h
+
+
+def _overlap_ratio_of_smaller(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> float:
+    smaller = min(_rect_area(a), _rect_area(b))
+    if smaller <= 0.0:
+        return 0.0
+    return _intersection_area(a, b) / smaller
+
+
 def _has_bbox_intersection(region: dict[str, object], existing_rects: list[tuple[float, float, float, float]]) -> bool:
     rect = _bbox_rect(region)
     if rect is None:
@@ -337,6 +360,79 @@ def reuse_proposal_names_from_existing_crops(
     return proposals, reused
 
 
+def reuse_proposal_names_from_overlapping_regions(
+    proposals: list[dict[str, object]],
+    existing: list[dict[str, object]],
+    *,
+    threshold: float = 0.8,
+) -> tuple[list[dict[str, object]], int, int]:
+    """Rename proposal regions to existing names when bbox overlap proves identity.
+
+    If multiple proposal boxes map to the same existing region, keep the strongest
+    overlap and drop the rest so saving cannot create duplicate region names.
+    """
+
+    score_tie_epsilon = 0.05
+    existing_entries: list[tuple[tuple[float, float, float, float], str, float]] = []
+    for er in existing:
+        rect = _bbox_rect(er)
+        if rect is None:
+            continue
+        names = _region_names(er)
+        primary = names[0] if names else ""
+        if primary:
+            existing_entries.append((rect, primary, _rect_area(rect)))
+
+    best_by_name: dict[str, tuple[float, int]] = {}
+    match_by_idx: dict[int, tuple[str, float]] = {}
+    threshold = float(threshold)
+    for idx, reg in enumerate(proposals):
+        prop_rect = _bbox_rect(reg)
+        if prop_rect is None:
+            continue
+        best_name = ""
+        best_score = 0.0
+        best_area = float("inf")
+        for ex_rect, primary, existing_area in existing_entries:
+            score = _overlap_ratio_of_smaller(prop_rect, ex_rect)
+            if score < threshold:
+                continue
+            if (
+                score > best_score + score_tie_epsilon
+                or (abs(score - best_score) <= score_tie_epsilon and existing_area < best_area)
+            ):
+                best_name = primary
+                best_score = score
+                best_area = existing_area
+        if best_name:
+            match_by_idx[idx] = (best_name, best_score)
+            prev = best_by_name.get(best_name)
+            if prev is None or best_score > prev[0]:
+                best_by_name[best_name] = (best_score, idx)
+
+    keep_indices = {
+        winner_idx
+        for _score, winner_idx in best_by_name.values()
+    }
+    out: list[dict[str, object]] = []
+    reused = 0
+    dropped = 0
+    for idx, reg in enumerate(proposals):
+        match = match_by_idx.get(idx)
+        if match is None:
+            out.append(reg)
+            continue
+        canonical_name, _score = match
+        if idx not in keep_indices:
+            dropped += 1
+            continue
+        if str(reg.get("name") or "").strip() != canonical_name:
+            reg["name"] = canonical_name
+            reused += 1
+        out.append(reg)
+    return out, reused, dropped
+
+
 def merge_omniparser_regions(
     existing: list[dict[str, object]],
     proposed: list[dict[str, object]],
@@ -354,7 +450,11 @@ def merge_omniparser_regions(
         for h in _region_identity_hashes(region):
             by_hash.setdefault(h, region)
 
-    existing_rects = [rect for region in merged if (rect := _bbox_rect(region)) is not None]
+    existing_rects: list[tuple[dict[str, object], tuple[float, float, float, float]]] = [
+        (region, rect)
+        for region in merged
+        if (rect := _bbox_rect(region)) is not None
+    ]
     added = 0
     aliased = 0
     skipped_intersections = 0
@@ -374,13 +474,23 @@ def merge_omniparser_regions(
     for reg in proposed:
         nm = str(reg.get("name") or "").strip()
         matched_region = next((by_hash[h] for h in _region_identity_hashes(reg) if h in by_hash), None)
+        rect = _bbox_rect(reg)
+        if matched_region is None and rect is not None:
+            matched_region = next(
+                (
+                    existing_region
+                    for existing_region, existing_rect in existing_rects
+                    if _overlap_ratio_of_smaller(rect, existing_rect) >= 0.8
+                ),
+                None,
+            )
         if matched_region is not None:
             if _add_region_alias(matched_region, nm, names):
                 aliased += 1
             continue
         if nm in names:
             continue
-        if _has_bbox_intersection(reg, existing_rects):
+        if _has_bbox_intersection(reg, [existing_rect for _region, existing_rect in existing_rects]):
             skipped_intersections += 1
             continue
         merged.append(reg)
@@ -388,8 +498,8 @@ def merge_omniparser_regions(
             names.add(name)
         for h in _region_identity_hashes(reg):
             by_hash.setdefault(h, reg)
-        if (rect := _bbox_rect(reg)) is not None:
-            existing_rects.append(rect)
+        if rect is not None:
+            existing_rects.append((reg, rect))
         added += 1
     return merged, added, aliased, skipped_intersections
 

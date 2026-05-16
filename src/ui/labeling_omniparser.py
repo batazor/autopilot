@@ -20,6 +20,7 @@ from omniparser.supervision_bridge import (
     merge_omniparser_regions,
     parsed_element_to_dict,
     reuse_proposal_names_from_existing_crops,
+    reuse_proposal_names_from_overlapping_regions,
 )
 from ui.area_annotator import (
     PIL_ORIGINAL,
@@ -30,6 +31,40 @@ from ui.area_annotator import (
 )
 
 OMNIPARSER_LABELING_SESSION = "omniparser_labeling_proposal"
+
+
+def _related_regions_for_current_screen() -> list[dict[str, object]]:
+    doc = st.session_state.get("area_doc")
+    if not isinstance(doc, dict):
+        return []
+    entries = doc.get("screens")
+    if not isinstance(entries, list):
+        return []
+    idx = int(st.session_state.get("entry_idx", -1))
+    if idx < 0 or idx >= len(entries):
+        return []
+    cur_entry = entries[idx]
+    if not isinstance(cur_entry, dict):
+        return []
+    screen_id = str(cur_entry.get("screen_id") or "").strip()
+    if not screen_id:
+        return []
+
+    current_ids = {id(r) for r in current_regions() if isinstance(r, dict)}
+    out: list[dict[str, object]] = []
+    for entry in entries:
+        if not isinstance(entry, dict) or str(entry.get("screen_id") or "").strip() != screen_id:
+            continue
+        for reg in entry.get("regions") or []:
+            if isinstance(reg, dict) and id(reg) not in current_ids:
+                out.append(reg)
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
+                continue
+            for reg in ver.get("regions") or []:
+                if isinstance(reg, dict) and id(reg) not in current_ids:
+                    out.append(reg)
+    return out
 
 
 def _filter_blacklisted_omniparser_regions(
@@ -133,6 +168,14 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                         proposal_regions,
                         current_regions(),
                     )
+                    (
+                        proposal_regions,
+                        overlap_name_reused,
+                        overlap_duplicate_dropped,
+                    ) = reuse_proposal_names_from_overlapping_regions(
+                        proposal_regions,
+                        _related_regions_for_current_screen(),
+                    )
                 st.session_state[OMNIPARSER_LABELING_SESSION] = {
                     "elements": [parsed_element_to_dict(el) for el in parsed.elements],
                     "width": int(parsed.width),
@@ -154,6 +197,8 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                         "nms_removed": stats.nms_removed,
                         "blacklist_skipped": stats.blacklist_skipped,
                         "crop_hash_name_reused": int(crop_name_reused),
+                        "overlap_name_reused": int(overlap_name_reused),
+                        "overlap_duplicate_dropped": int(overlap_duplicate_dropped),
                     },
                 }
                 summ = (
@@ -163,6 +208,10 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 )
                 if crop_name_reused:
                     summ += f" Reused **{crop_name_reused}** name(s) from current regions (overlap + crop hash)."
+                if overlap_name_reused:
+                    summ += f" Reused **{overlap_name_reused}** name(s) from sibling screen regions (80% overlap)."
+                if overlap_duplicate_dropped:
+                    summ += f" Dropped **{overlap_duplicate_dropped}** duplicate overlap proposal(s)."
                 summ += " Use **Apply proposal** below to update regions."
                 st.success(summ)
                 st.rerun()
@@ -186,7 +235,8 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 f"{stats_p.get('raw_element_count')} · skipped min-area "
                 f"{stats_p.get('skipped_min_area')} · after NMS "
                 f"{stats_p.get('after_nms_count')} · crop-hash reuse "
-                f"{stats_p.get('crop_hash_name_reused', 0)}."
+                f"{stats_p.get('crop_hash_name_reused', 0)} · overlap reuse "
+                f"{stats_p.get('overlap_name_reused', 0)}."
             )
             save_after = st.checkbox("Save area.json after apply", value=False)
 
