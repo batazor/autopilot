@@ -112,7 +112,15 @@ def _module_default_ref(meta: dict[str, Any]) -> str | None:
     return raw
 
 
-def _default_module_area_path(module_dir: Path) -> Path:
+def _default_module_references_dir(repo_root: Path, module_dir: Path) -> Path:
+    if _module_discovery.is_core_nested_module(module_dir, repo_root):
+        return repo_root / "references"
+    return module_dir / "references"
+
+
+def _default_module_area_path(repo_root: Path, module_dir: Path) -> Path:
+    if _module_discovery.is_core_nested_module(module_dir, repo_root):
+        return repo_root / "area.json"
     for name in ("area.yaml", "area.yml", "area.json"):
         candidate = module_dir / name
         if candidate.is_file():
@@ -126,12 +134,19 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
     module_id = str(meta.get("id") or module_dir.name).strip() or module_dir.name
     title = str(meta.get("title") or module_id).strip() or module_id
 
-    references_dir = _resolve_under_module(module_dir, str(meta.get("references") or ""), "references")
+    references_decl = str(meta.get("references") or "").strip()
+    references_dir = (
+        _resolve_under_module(module_dir, references_decl, "references")
+        if references_decl
+        else _default_module_references_dir(repo_root, module_dir)
+    )
     area_decl = str(meta.get("area") or "").strip()
-    area_path = _default_module_area_path(module_dir)
+    area_path = _default_module_area_path(repo_root, module_dir)
     if area_decl:
         resolved_area = _resolve_under_module(module_dir, area_decl, "area.yaml")
         if resolved_area.resolve() != (repo_root / "area.json").resolve():
+            area_path = resolved_area
+        elif _module_discovery.is_core_nested_module(module_dir, repo_root):
             area_path = resolved_area
         elif area_path.is_file():
             pass

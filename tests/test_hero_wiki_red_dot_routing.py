@@ -44,14 +44,14 @@ def test_wiki_forward_edge_exists_for_known_hero() -> None:
 
 def test_wiki_back_edge_exists_for_known_hero() -> None:
     assert ("heroes.ahmose.wiki", "page.heroes.ahmose") in EDGE_TAPS
-    assert EDGE_TAPS[("heroes.ahmose.wiki", "page.heroes.ahmose")] == ["back_button"]
+    assert EDGE_TAPS[("heroes.ahmose.wiki", "page.heroes.ahmose")] == ["icon.page.back"]
 
 
 def test_wiki_back_edge_routes_via_static_topology() -> None:
     # ``page.heroes.ahmose`` is reached via a ``hero_grid`` dynamic edge, so
     # forward routing requires the async resolver — but the reverse hop is
     # static and exercisable in isolation.
-    assert route_taps("heroes.ahmose.wiki", "page.heroes.ahmose") == [["back_button"]]
+    assert route_taps("heroes.ahmose.wiki", "page.heroes.ahmose") == [["icon.page.back"]]
 
 
 def test_wiki_screen_verify_uses_from_screen() -> None:

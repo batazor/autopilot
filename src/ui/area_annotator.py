@@ -1051,7 +1051,7 @@ def _render_versions_block(
 
     with st.expander(
         f"Versions ({len(declared_ids)} declared) — active: {current_sel}",
-        expanded=(len(declared_ids) == 0 or current_sel != ACTIVE_VERSION_DEFAULT),
+        expanded=(current_sel != ACTIVE_VERSION_DEFAULT),
     ):
         # Style any button inside a container whose key starts with `version-danger-` red —
         # Streamlit has no destructive button variant, so we lean on the auto-generated
@@ -2818,6 +2818,8 @@ def render_area_annotator_ui(
                             if prev_sel_name:
                                 st.session_state.selected_region_name = prev_sel_name
                             _resolve_selected_region_idx(synced)
+                            if incoming_bbox_sig != current_bbox_sig:
+                                st.rerun()
 
                 _mirror_canvas_selection_into_session(canvas_result)
 

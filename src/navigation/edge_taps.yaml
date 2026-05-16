@@ -93,13 +93,13 @@ edges:
     event.stand_of_arms: { resolver: event_blocks, target: event.stand_of_arms }
     event.war_preparation: { resolver: event_blocks, target: event.war_preparation }
   # arena:
-  #   main_city: [back_button]
+  #   main_city: [icon.page.back]
   # training:
-  #   main_city: [back_button]
+  #   main_city: [icon.page.back]
   # gathering:
-  #   main_city: [back_button]
+  #   main_city: [icon.page.back]
   # alliance:
-  #   main_city: [back_button]
+  #   main_city: [icon.page.back]
   # Network disconnect overlay: tapping icon.reconnect drops the client back to main_city.
   reconnect:
     main_city: [icon.reconnect]
@@ -107,11 +107,11 @@ edges:
   welcome_back:
     main_city: [button.confirm.green]
   chief_profile:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   mail:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   chat:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   building:
     main_city: [from.building.to.main_city]
   # Furnace screen reuses the generic building→main_city back tap — both
@@ -121,16 +121,16 @@ edges:
   survivor_status:
     main_city: [from.survivor_status.to.main_city]
   suggestion_box:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   hero.recrutment:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   exploration:
-    main_city: [back_button]
+    main_city: [icon.page.back]
     squad_settings: [exploration.to.squad_settings]
   squad_settings:
-    exploration: [back_button]
+    exploration: [icon.page.back]
   heroes:
-    main_city: [back_button]
+    main_city: [icon.page.back]
     hero.recrutment: [heroes.recruit]
     page.heroes.ahmose: { resolver: hero_grid, target: ahmose }
     page.heroes.aisling: { resolver: hero_grid, target: aisling }
@@ -195,281 +195,281 @@ edges:
     page.heroes.xura: { resolver: hero_grid, target: xura }
     page.heroes.zinman: { resolver: hero_grid, target: zinman }
   page.heroes.unit:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.ahmose:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.aisling:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.alonso:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.bahiti:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.blanchette:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.bradley:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.cara:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.charlie:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.cloris:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.dominic:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.edith:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.eleonora:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.elif:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.estrella:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.eugene:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.flint:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.flora:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.fred:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.freya:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gatot:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gina:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gisela:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gordon:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.greg:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gregory:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.gwen:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.hank:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.hector:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.hendrik:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.hervor:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.jasser:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.jeronimo:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.jessie:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.karol:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.ligeia:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.ling_xue:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.lloyd:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.logan:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.lumak_bokan:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.lynn:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.magnus:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.mia:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.molly:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.natalia:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.norah:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.patrick:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.philly:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.reina:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.renee:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.rufus:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.seigel:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.seo_yoon:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.sergey:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.smith:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.sonya:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.ursar:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.viveca:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.vulcanus:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.wayne:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.wu_ming:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.xura:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   page.heroes.zinman:
-    heroes: [back_button]
+    heroes: [icon.page.back]
   backpack:
-    main_city: [back_button]
+    main_city: [icon.page.back]
     backpack.resources: [page.backpack.resources]
     backpack.speedup: [page.backpack.speedup]
     backpack.bonus: [page.backpack.bonus]
     backpack.gear: [page.backpack.gear]
     backpack.other: [page.backpack.other]
   backpack.resources:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   backpack.speedup:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   backpack.bonus:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   backpack.gear:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   backpack.other:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   vip:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   shop:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.trials:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.7-day:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.first_purchase:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.shining_city_pack:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.wild_brawl:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.dreamscape_memory:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.armament_competition:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.deadshot:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_album:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.defeat_nearby_beasts:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.silver_shell:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.snowbusters:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.journey_of_light:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.labyrinth:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.treasure_hunter:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.crystal_reactivation:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.vault_of_enigma:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.hero_rally:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.weekly_benefits:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.flame_and_fang:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.lucky_wheel:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.return_to_tundra:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.mia_fortune:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.ginas_revenge:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.heros_mission:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.frosty_fortune:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.king_of_icefield:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.frostfire_mine:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_trading_station:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.hall_of_heroes:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_adventure:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.fishing_tournament:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.grow_your_heroes:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.working_overtime:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.home_and_beyond:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.city_development:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.plan_your_city:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.trusted_chief:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.power_up:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.hall_of_chief:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.romance_season:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.state_merger:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.state_transfer:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.symphony_of_change:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.sunfire_castle:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.vision_of_dawn:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.brother_in_arms:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.officer_project:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_arms_league:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_trade_route:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.alliance_showdown:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.frostdragon_tyrant:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.canyon_clash:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.svs:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.foundry_battle:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.bear_hunt:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.crazy_joe:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.alliance_championship:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.mercenary_prestige:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.alliance_mobilization:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.develop_new_tech:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.tundra_star:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.daybreak_expedition:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.beast_whisperer:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.stand_of_arms:
-    main_city: [back_button]
+    main_city: [icon.page.back]
   event.war_preparation:
-    main_city: [back_button]
+    main_city: [icon.page.back]

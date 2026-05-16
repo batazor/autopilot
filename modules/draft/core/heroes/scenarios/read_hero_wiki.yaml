@@ -3,5 +3,5 @@ name: 📖 Read hero wiki
 steps:
 - click: page.heroes.unit.wiki
 - wait: 1s
-- click: back_button
+- click: icon.page.back
 - wait: 0.5s

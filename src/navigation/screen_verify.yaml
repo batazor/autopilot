@@ -24,17 +24,6 @@ screens:
       - match: text.welcome_back
         threshold: 0.9
 
-  chief_profile:
-    retry:
-      attempts: 8
-      interval_seconds: 1.0
-    landmarks:
-      - match: chief_profile_title
-        threshold: 0.9
-    rules:
-      - match: chief_profile_title
-        threshold: 0.9
-
 # screens:
 #   # Network "Retry/Reconnect" popup. Listed first so it short-circuits any
 #   # other landmark match — if the disconnect overlay is on top of the game,
@@ -150,7 +139,7 @@ screens:
 #     # gets a noisy banner string. Verify by template match against `page.shop`,
 #     # whose area.json definition lives on `references/page.shop.png` (the
 #     # navbar-side icon was renamed to `main_city.to.shop`, so the name is
-#     # now unambiguous). Return path: `shop → main_city: [back_button]` in
+#     # now unambiguous). Return path: `shop → main_city: [icon.page.back]` in
 #     # `navigation/edge_taps.yaml`.
 #     landmarks:
 #       - match: page.shop

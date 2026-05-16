@@ -744,6 +744,21 @@
       "ocr": "references/main_city.png",
       "regions": [
         {
+          "name": "is_main_city",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 13.281853281853282,
+            "y": 4.021739130434782,
+            "width": 5.397683397683398,
+            "height": 3.0358695652173915,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "chapter.new",
           "action": "exist",
           "type": "string",
@@ -1390,51 +1405,326 @@
       "ocr": "references/chief_profile.png",
       "regions": [
         {
-          "name": "chief_profile_title",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 11.737451737451737,
-            "y": 0.32608695652173914,
-            "width": 29.0,
-            "height": 4.556521739130435,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "profile_btn",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.1196911196911197,
-            "y": 0.43478260869565216,
-            "width": 9.0,
-            "height": 4.5,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "player_id",
+          "name": "text.lord765502864",
           "action": "text",
-          "type": "integer",
+          "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 42.818532818532816,
-            "y": 73.3695652173913,
-            "width": 21.2007722007722,
-            "height": 3.5000000000000004,
+            "x": 40.41698841698842,
+            "y": 69.76521739130435,
+            "width": 40.52895752895753,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "798e1b68a48ce96d28874a8c2ec0700c3902ee3491454fc6e89556cc62e6a4f5"
+        },
+        {
+          "name": "player.id",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.664092664092664,
+            "y": 74.06304347826087,
+            "width": 20.884169884169886,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3d5658dd80b61eff48ac835dc252661816e811cdba18030b023d46f3db6316d4"
+        },
+        {
+          "name": "text.17_492_q",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.61196911196911,
+            "y": 77.34347826086956,
+            "width": 22.22200772200772,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a48f95aa206ead96462d4a28d99c466c6a6557a726811017b4cd9377eae0f3e9"
+        },
+        {
+          "name": "text.kills_0_q",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 80.07826086956521,
+            "width": 16.666023166023166,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b872f0538789e144b3df2b456a4c574e90f282d27c751032e8607b17db4f5feb"
+        },
+        {
+          "name": "text.state_4353",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 86.56304347826087,
+            "width": 21.527027027027028,
+            "height": 2.4217391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "079947acb4ff0a779d51c49b1e45d038f1065abba1cde5f7cda7b20ce99b46bf"
+        },
+        {
+          "name": "icon.settingse",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.94980694980696,
+            "y": 91.67934782608695,
+            "width": 23.727799227799228,
+            "height": 7.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d2cd0a8c63b38aeab521bb7355e4046c40c140896bb5657c843bb132f0b5f5c1"
+        },
+        {
+          "name": "icon.troopse",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 25.77799227799228,
+            "y": 92.40978260869565,
+            "width": 23.7992277992278,
+            "height": 6.409782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e9278249ebea2a9793a6dc3c200d5342611ebff34ee3d2a6049ff61b5ca25e6e"
+        },
+        {
+          "name": "icon.leaderboard",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.42857142857144,
+            "y": 92.38152173913043,
+            "width": 23.7992277992278,
+            "height": 6.435869565217391,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8757c00e6efef8ba5d1ed7c82bf8e28e5c2dab2ad4fe0eb313ffec5e2f6d425d"
+        },
+        {
+          "name": "icon.mood",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.772200772200772,
+            "y": 81.3695652173913,
+            "width": 23.712355212355213,
+            "height": 3.6086956521739135,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b1b58d86ff2a53b0e081674ebc7c59c99345b5e3b3179c2aa9934405248dfa07"
+        },
+        {
+          "name": "icon.200_200",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.108108108108109,
+            "y": 85.17934782608695,
+            "width": 21.666023166023166,
+            "height": 3.866304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "033418bdbeddbe1b755214b24ac2e49f566766eb4ec425ad83f64b4f7fb940ec"
+        },
+        {
+          "name": "icon.page.back",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.7702702702702703,
+            "y": 0.5163043478260869,
+            "width": 10.832046332046332,
+            "height": 4.95,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "4ebf7081af15a3e1a46030e30081ffe3a4ff0c197a4741de9d1853e541e9e54e"
+        },
+        {
+          "name": "icon.alliance_none",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 83.3054347826087,
+            "width": 28.023166023166024,
+            "height": 3.0663043478260867,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "af967796770f3f3c8e5b8cb200024f9f5f9a37b36b06280e4f19cd621a1c7e78"
+        },
+        {
+          "name": "icon.a_profile_picture_of_a_man_with_a_mustache",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.818532818532818,
+            "y": 68.47826086956522,
+            "width": 24.723938223938223,
+            "height": 12.660869565217391,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "23fc19dbc0eb1f107cfcebc61243987f51ccdb7ed9ed15eb2a23b23b455488e9"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol_indicating_the_skins_ap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.167953667953668,
+            "y": 92.41304347826087,
+            "width": 23.805019305019304,
+            "height": 6.470652173913043,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ead3b759434591fc1659f872ea67c4473c2d42003f0dcc56031501e90f16bbcb"
+        },
+        {
+          "name": "icon.a_cursor_pointing_to_the_right",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 83.84169884169884,
+            "y": 69.06521739130434,
+            "width": 6.731660231660231,
+            "height": 3.8945652173913046,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "554d1069ec83152ab4ff78af689a9bcfc57f3997f214d909cb7e2dbae728f6e6"
+        },
+        {
+          "name": "icon.a_simple_icon_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.138996138996138,
+            "y": 85.14782608695653,
+            "width": 7.434362934362935,
+            "height": 3.9847826086956517,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e790cdfa44c9f45d5148d54bc91ae5555c694bcd7a11a308920b2fb719334750"
+        },
+        {
+          "name": "icon.a_simple_marker_or_icon_indicating_the_letter_v",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 73.26061776061776,
+            "y": 77.13478260869566,
+            "width": 14.583011583011585,
+            "height": 2.7217391304347824,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8322577f2e205b5fe92b7805133b68d97ade90e60446c9aef596c1f4985d53d2"
+        },
+        {
+          "name": "icon.a_character_from_a_video_game",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 10.32391304347826,
+            "width": 100.0,
+            "height": 53.64565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "5ff00dbc9729cb6db93e3479fd5d8dc137093b7aefe9410a4a0519ca8e465e3e"
+        },
+        {
+          "name": "icon.a_search_function",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 56.42084942084942,
+            "y": 76.94673913043478,
+            "width": 4.768339768339768,
+            "height": 3.1554347826086957,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "306fd66fd81081886c3eb4d24a6efee1c40e46ba6a9e362d03468c1dad22289e"
+        },
+        {
+          "name": "chief_profile.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.316602316602317,
+            "y": 0.5434782608695652,
+            "width": 27.3996138996139,
+            "height": 4.9,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
         }
-      ]
+      ],
+      "screen_region": "chief_profile.title"
     },
     {
       "id": 19,

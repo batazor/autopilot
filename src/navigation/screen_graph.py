@@ -13,7 +13,7 @@ screen (from detection), not the DSL scenario id. Directed taps are defined in
 Adding a new screen
 --------------------
 - Add ``src → dst: [region, ...]`` to ``navigation/edge_taps.yaml`` (regions must exist in area.json).
-- Add detection landmarks / verification rules to ``navigation/screen_verify.yaml``.
+- Add detection landmarks / verification rules to ``modules/<id>/screen_verify.yaml``.
 - Add coordinate constants to ``layout.screens``.
 """
 from __future__ import annotations
@@ -111,7 +111,7 @@ def _load_edge_taps() -> tuple[
         src_card = f"page.heroes.{hid}"
         dst_wiki = f"heroes.{hid}.wiki"
         static.setdefault((src_card, dst_wiki), ["page.heroes.unit.wiki"])
-        static.setdefault((dst_wiki, src_card), ["back_button"])
+        static.setdefault((dst_wiki, src_card), ["icon.page.back"])
     return static, dynamic
 
 
@@ -166,6 +166,28 @@ def _screen_verify_yaml_path() -> Path:
     return Path(__file__).resolve().with_name("screen_verify.yaml")
 
 
+def _module_screen_verify_yaml_paths() -> list[Path]:
+    from config.module_discovery import iter_module_dirs
+    from config.paths import repo_root
+
+    root = repo_root()
+    return [
+        module_dir / "screen_verify.yaml"
+        for module_dir in iter_module_dirs(root)
+        if (module_dir / "screen_verify.yaml").is_file()
+    ]
+
+
+def _screen_verify_yaml_paths() -> list[Path]:
+    path = _screen_verify_yaml_path()
+    paths = [path]
+    # Unit tests monkeypatch the root YAML path to a temp file; in that mode,
+    # keep the fixture isolated and do not merge production module manifests.
+    if path.resolve() == Path(__file__).resolve().with_name("screen_verify.yaml"):
+        paths.extend(_module_screen_verify_yaml_paths())
+    return paths
+
+
 def _area_json_path() -> Path:
     from config.paths import repo_root
 
@@ -215,8 +237,11 @@ def _file_fingerprint(path: Path) -> tuple[str, int, int]:
     return (str(path), int(st.st_mtime_ns), int(st.st_size))
 
 
-def _combined_config_fingerprint() -> tuple[tuple[str, int, int], tuple[str, int, int]]:
-    return (_file_fingerprint(_screen_verify_yaml_path()), _file_fingerprint(_area_json_path()))
+def _combined_config_fingerprint() -> tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]:
+    return (
+        tuple(_file_fingerprint(path) for path in _screen_verify_yaml_paths()),
+        _file_fingerprint(_area_json_path()),
+    )
 
 
 def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]]:
@@ -256,31 +281,41 @@ def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]
 
 @lru_cache(maxsize=8)
 def _load_screen_verify_config_cached(
-    fp: tuple[tuple[str, int, int], tuple[str, int, int]] | tuple[str, int, int] | None = None,
+    fp: tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
+    | tuple[tuple[str, int, int], tuple[str, int, int]]
+    | tuple[str, int, int]
+    | None = None,
 ) -> VerifyConfig:
-    """Load route destination verification rules from ``navigation/screen_verify.yaml``.
+    """Load route destination verification rules from root + module YAML.
 
     Cache key includes file mtime/size so edits are picked up automatically.
     """
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
-    if fp and isinstance(fp[0], tuple):
+    if fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
+        yaml_fps, area_fp = fp  # type: ignore[assignment]
+        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps]
+        area_path = Path(area_fp[0])
+    elif fp and isinstance(fp[0], tuple):
         yaml_fp, area_fp = fp  # type: ignore[assignment]
-        path = Path(yaml_fp[0])
+        paths = [Path(yaml_fp[0])]
         area_path = Path(area_fp[0])
     else:
-        path = Path(fp[0])  # type: ignore[index]
+        paths = [Path(fp[0])]  # type: ignore[index]
         area_path = _area_json_path()
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    raw = raw or {}
-    if not isinstance(raw, dict):
-        raw = {}
+    docs: list[dict[str, Any]] = []
+    for path in paths:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        raw = raw or {}
+        docs.append(raw if isinstance(raw, dict) else {})
 
-    retry = raw.get("retry")
-    screens = raw.get("screens")
+    retry = next((doc.get("retry") for doc in docs if isinstance(doc.get("retry"), dict)), {})
     out_screens: dict[str, ScreenVerifyEntry] = {}
-    if isinstance(screens, dict):
+    for raw in docs:
+        screens = raw.get("screens")
+        if not isinstance(screens, dict):
+            continue
         for screen, entry_raw in screens.items():
             if isinstance(entry_raw, list):
                 rules_raw = entry_raw
@@ -354,7 +389,10 @@ def _load_screen_verify_config_cached(
 
 
 def load_screen_verify_config(
-    fp: tuple[tuple[str, int, int], tuple[str, int, int]] | tuple[str, int, int] | None = None,
+    fp: tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
+    | tuple[tuple[str, int, int], tuple[str, int, int]]
+    | tuple[str, int, int]
+    | None = None,
 ) -> VerifyConfig:
     """Load screen verification config, keyed by current file fingerprints by default."""
 

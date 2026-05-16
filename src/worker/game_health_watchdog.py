@@ -52,6 +52,54 @@ def _publish_abort_task(r: redis.Redis, instance_id: str, reason: str) -> None:
 _FOREGROUND_VERIFY_TIMEOUT_S = 20.0
 _FOREGROUND_VERIFY_INTERVAL_S = 1.0
 _POST_RESTART_GRACE_S = 10.0
+_FOREGROUND_FAILURE_RETRIES = 3
+_FOREGROUND_FAILURE_RETRY_INTERVAL_S = 2.0
+
+
+def _is_game_foreground_after_retries(
+    ba: BotActions,
+    instance_id: str,
+    *,
+    stop: threading.Event,
+    retries: int = _FOREGROUND_FAILURE_RETRIES,
+    retry_interval: float = _FOREGROUND_FAILURE_RETRY_INTERVAL_S,
+) -> bool:
+    """Return true if any foreground probe succeeds before restart escalation."""
+    attempts = max(1, int(retries) + 1)
+    for attempt in range(1, attempts + 1):
+        try:
+            if ba.is_game_foreground(instance_id):
+                if attempt > 1:
+                    logger.info(
+                        "Watchdog: %s foreground check recovered on attempt %s/%s",
+                        instance_id,
+                        attempt,
+                        attempts,
+                    )
+                return True
+        except Exception:
+            logger.debug(
+                "Watchdog: foreground check attempt %s/%s failed on %s",
+                attempt,
+                attempts,
+                instance_id,
+                exc_info=True,
+            )
+
+        if attempt >= attempts:
+            break
+
+        logger.warning(
+            "Watchdog: Whiteout not foreground on %s — retrying check %s/%s in %.1fs",
+            instance_id,
+            attempt,
+            attempts - 1,
+            retry_interval,
+        )
+        if stop.wait(timeout=float(retry_interval)):
+            return True
+
+    return False
 
 
 def restart_application_after_health_failure(
@@ -268,10 +316,10 @@ def run_forever(stop: threading.Event | None = None) -> None:
                 continue
 
             try:
-                if ba.is_game_foreground(iid):
+                if _is_game_foreground_after_retries(ba, iid, stop=ev):
                     continue
                 logger.warning(
-                    "Watchdog: Whiteout not foreground on %s — restarting application",
+                    "Watchdog: Whiteout not foreground on %s after retries — restarting application",
                     iid,
                 )
                 restart_application_after_health_failure(iid, r, settings)

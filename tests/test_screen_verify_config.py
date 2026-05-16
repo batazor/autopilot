@@ -52,6 +52,47 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()
 
 
+def test_screen_verify_config_merges_module_yaml(monkeypatch: Any, tmp_path: Path) -> None:
+    root_cfg = tmp_path / "screen_verify.yaml"
+    root_cfg.write_text(
+        """
+retry:
+  attempts: 6
+  interval_seconds: 0.8
+screens:
+  main_city:
+    rules:
+      - match: icon.world
+""",
+        encoding="utf-8",
+    )
+    module_cfg = tmp_path / "modules" / "core" / "chief_profile" / "screen_verify.yaml"
+    module_cfg.parent.mkdir(parents=True)
+    module_cfg.write_text(
+        """
+screens:
+  chief_profile:
+    landmarks:
+      - match: chief_profile_title
+        threshold: 0.9
+    rules:
+      - match: chief_profile_title
+        threshold: 0.9
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_paths", lambda: [root_cfg, module_cfg])
+    screen_graph.load_screen_verify_config.cache_clear()
+
+    try:
+        assert screen_graph.screen_verify_rules("main_city") == [{"match": "icon.world"}]
+        assert screen_graph.screen_verify_rules("chief_profile") == [
+            {"match": "chief_profile_title", "threshold": 0.9}
+        ]
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+
 def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:

@@ -25,10 +25,11 @@ node: chief_profile
 
 steps:
   # Read the in-game player_id displayed on the chief_profile screen and persist
-  # it under `wos:player:<player_id>:state` (field `player_id`). Type/threshold
-  # default to the values declared on the region in `area.json`
-  # (integer, threshold 0.9).
-  - ocr: player_id
+  # it under `wos:player:<player_id>:state` (field `player_id`).
+  # The OCR region name is UI-facing; `store` keeps the Redis field stable.
+  - ocr: player.id
+    store: player_id
+    type: integer
   # Century POST /api/player — nickname, stove_level, kid, etc. (requires OCR player_id).
   - exec: fetch_player
   # Return to main_city right after identity is established. ``priority:

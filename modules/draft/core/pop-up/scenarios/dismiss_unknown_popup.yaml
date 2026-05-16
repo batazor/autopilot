@@ -7,8 +7,8 @@ steps:
   steps:
   - click: claim_button_close
   - wait: 1s
-- while_match: back_button
+- while_match: icon.page.back
   max: 1
   steps:
-  - click: back_button
+  - click: icon.page.back
   - wait: 1s

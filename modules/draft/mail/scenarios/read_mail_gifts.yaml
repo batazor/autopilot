@@ -29,7 +29,7 @@ node: mail
 # Phases:
 #   1. ``while_match: mail_gift`` — while a gift icon is still visible
 #      in the list: open it, hunt for a claim button (scroll if needed),
-#      then ``back_button`` to the list. Repeats up to 30 mails.
+#      then ``icon.page.back`` to the list. Repeats up to 30 mails.
 #   2. After the list is drained of gift icons, tap the list-level
 #      ``Read & Claim All`` and ``Delete All Read Mail`` buttons at the
 #      bottom of the screen — they must run on the *list* view, NOT
@@ -76,10 +76,10 @@ _claim_block: &claim_block
             - wait: 0.35s
 
       # Back to the mail list.
-      - while_match: back_button
+      - while_match: icon.page.back
         max: 1
         steps:
-          - click: back_button
+          - click: icon.page.back
           - wait: 0.8s
 
   # Phase 2 — list-level bulk buttons. Only fire when the button is

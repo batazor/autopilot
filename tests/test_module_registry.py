@@ -50,6 +50,23 @@ def test_module_local_references_prefix(tmp_path: Path) -> None:
     assert vip.references_prefix == "modules/vip/references"
 
 
+def test_core_module_defaults_to_root_area_and_references(tmp_path: Path) -> None:
+    (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
+    (tmp_path / "references").mkdir()
+    mod = tmp_path / "modules" / "core" / "chief_profile"
+    mod.mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        yaml.safe_dump({"id": "chief_profile", "title": "Chief profile"}),
+        encoding="utf-8",
+    )
+
+    ctx = get_wiki_module(tmp_path, "chief_profile")
+
+    assert ctx.area_path.resolve() == (tmp_path / "area.json").resolve()
+    assert ctx.references_dir.resolve() == (tmp_path / "references").resolve()
+    assert ctx.references_prefix == "references"
+
+
 def test_module_default_ref_from_manifest(tmp_path: Path) -> None:
     mod = tmp_path / "modules" / "core" / "who_i_am"
     mod.mkdir(parents=True)

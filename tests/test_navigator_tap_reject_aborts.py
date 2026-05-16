@@ -120,10 +120,10 @@ async def test_navigate_to_persists_intermediate_screen_identity(
 
 
 @pytest.mark.asyncio
-async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
+async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
     monkeypatch: Any,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
-    """UNKNOWN-screen recovery taps ``back_button``. If the user rejects that tap
+    """UNKNOWN-screen recovery taps ``icon.page.back``. If the user rejects that tap
     in approval mode, ``navigate_to`` must abort instead of looping 10 times."""
     redis = redis_async
 
@@ -142,11 +142,11 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     monkeypatch.setattr(nav._detector, "detect_screen", detect_unknown)
-    # Force the "back_button visible" branch deterministically.
+    # Force the "page back visible" branch deterministically.
     async def _back_visible(_self, _img):  # noqa: ANN001
         return True
 
-    monkeypatch.setattr(Navigator, "_ui_back_button_visible", _back_visible)
+    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _back_visible)
     monkeypatch.setattr(
         nav,
         "_load_area_doc",
@@ -156,7 +156,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
                     "id": 1,
                     "regions": [
                         {
-                            "name": "back_button",
+                            "name": "icon.page.back",
                             "bbox": {"x": 5.0, "y": 5.0, "width": 5.0, "height": 5.0},
                             "action": "exist",
                         },
@@ -168,15 +168,15 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unknown_screen(
 
     ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
     assert ok is False
-    assert tap_calls["n"] == 1, "rejected back_button must not retry"
+    assert tap_calls["n"] == 1, "rejected page back must not retry"
 
 
 @pytest.mark.asyncio
-async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
+async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
     monkeypatch: Any,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """When the screen detector returns UNKNOWN for several consecutive ticks
-    AND no ``back_button`` is visible (typical for a full-screen ad / popup
+    AND no ``icon.page.back`` is visible (typical for a full-screen ad / popup
     covering the UI), the navigator must bail quickly so the worker frees up
     for the overlay scanner to push the popup-dismissal scenario. Previously
     it looped 10 × ~1.5s, blocking the worker for ~15s and starving the
@@ -203,7 +203,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
     async def _no_back(_self, _img):  # noqa: ANN001
         return False
 
-    monkeypatch.setattr(Navigator, "_ui_back_button_visible", _no_back)
+    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _no_back)
     monkeypatch.setattr(nav, "_load_area_doc", lambda: {"screens": []})
     # Skip the sleep so the test runs fast.
     async def _no_sleep(_secs: float) -> None:
@@ -221,11 +221,11 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_back_button(
 
 
 @pytest.mark.asyncio
-async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
+async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
     monkeypatch: Any,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """If current screen has no route to main_city, navigator falls back to
-    ``back_button``. A rejected tap there must abort, not silently continue."""
+    ``icon.page.back``. A rejected tap there must abort, not silently continue."""
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -253,7 +253,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
     async def _back_visible(_self, _img):  # noqa: ANN001
         return True
 
-    monkeypatch.setattr(Navigator, "_ui_back_button_visible", _back_visible)
+    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _back_visible)
     monkeypatch.setattr(
         nav,
         "_load_area_doc",
@@ -263,7 +263,7 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
                     "id": 1,
                     "regions": [
                         {
-                            "name": "back_button",
+                            "name": "icon.page.back",
                             "bbox": {"x": 5.0, "y": 5.0, "width": 5.0, "height": 5.0},
                             "action": "exist",
                         },
@@ -275,4 +275,4 @@ async def test_navigate_to_aborts_when_back_button_rejected_on_unrouted_screen(
 
     ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
     assert ok is False
-    assert tap_calls["n"] == 1, "rejected fallback back_button must not retry"
+    assert tap_calls["n"] == 1, "rejected fallback page back must not retry"

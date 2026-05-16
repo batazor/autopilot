@@ -3,5 +3,5 @@ name: 📖 ${hero_name} wiki red-dots
 node: heroes.${hero_id}.wiki
 steps:
 - exec: put_all_red_dots
-- click: back_button
+- click: icon.page.back
 - wait: 0.5s

@@ -382,11 +382,11 @@ class Navigator:
         prev = history[0] if history else ""
         return prev in accepted
 
-    async def _ui_back_button_visible(self, image: np.ndarray) -> bool:
-        """True when ``back_button`` template matches in ``area.json`` (safe to tap)."""
+    async def _ui_page_back_visible(self, image: np.ndarray) -> bool:
+        """True when ``icon.page.back`` template matches in ``area.json`` (safe to tap)."""
         return await self._verify_match_rule(
             image,
-            {"match": "back_button", "threshold": 0.9},
+            {"match": "icon.page.back", "threshold": 0.9},
         )
 
     async def recover_screen_from_history(self, instance_id: str) -> str:
@@ -539,7 +539,7 @@ class Navigator:
             if current == ScreenName.UNKNOWN:
                 logger.warning(
                     "Navigator: screen not recognized (target=%s, instance=%s, "
-                    "navigate_attempt=%d/10); will tap back if back_button is visible",
+                    "navigate_attempt=%d/10); will tap back if icon.page.back is visible",
                     target,
                     instance_id,
                     attempt + 1,
@@ -547,21 +547,21 @@ class Navigator:
                 await self._write_screen(instance_id, "")
                 img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                 dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
-                if await self._ui_back_button_visible(img):
+                if await self._ui_page_back_visible(img):
                     consec_unknown_no_back = 0
                     if not self._tap_region_name(
                         instance_id,
-                        "back_button",
+                        "icon.page.back",
                         dev_w=dev_w,
                         dev_h=dev_h,
                         state_flat=state_flat,
                     ):
-                        # Tap was rejected (approval mode) or back_button bbox is gone:
+                        # Tap was rejected (approval mode) or icon.page.back bbox is gone:
                         # either way, retrying for 10 attempts spams the approval UI and
                         # ignores the user's explicit "no". Bail so the caller (DSL
                         # scenario) can abort cleanly.
                         logger.info(
-                            "Navigator: back_button tap not executed on %s — aborting "
+                            "Navigator: icon.page.back tap not executed on %s — aborting "
                             "navigation to %s",
                             instance_id, target,
                         )
@@ -570,7 +570,7 @@ class Navigator:
                     consec_unknown_no_back += 1
                     logger.warning(
                         "Navigator: screen not recognized (target=%s, instance=%s, "
-                        "navigate_attempt=%d/10); back_button not visible — "
+                        "navigate_attempt=%d/10); icon.page.back not visible — "
                         "skipping back tap (consec=%d/%d)",
                         target,
                         instance_id,
@@ -628,29 +628,29 @@ class Navigator:
                         return False
                 else:
                     logger.warning(
-                        "No route %s → main_city on %s; considering back_button",
+                        "No route %s → main_city on %s; considering icon.page.back",
                         current,
                         instance_id,
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
                     dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
-                    if await self._ui_back_button_visible(img2):
+                    if await self._ui_page_back_visible(img2):
                         if not self._tap_region_name(
                             instance_id,
-                            "back_button",
+                            "icon.page.back",
                             dev_w=dev_w2,
                             dev_h=dev_h2,
                             state_flat=state_flat,
                         ):
                             logger.info(
-                                "Navigator: back_button tap not executed on %s — "
+                                "Navigator: icon.page.back tap not executed on %s — "
                                 "aborting navigation to %s",
                                 instance_id, target,
                             )
                             return False
                     else:
                         logger.warning(
-                            "No route to main_city and back_button not visible on %s; not tapping",
+                            "No route to main_city and icon.page.back not visible on %s; not tapping",
                             instance_id,
                         )
                     await asyncio.sleep(1.5)
