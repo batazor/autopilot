@@ -1,0 +1,10 @@
+enabled: true
+name: Onboarding click · ${pointer_name}
+device_level: true
+priority: 100_000
+steps:
+  - while_match: ${pointer}
+    max: 1
+    steps:
+      - click: ${pointer}
+      - wait: 0.5s

@@ -62,6 +62,29 @@ async def test_pop_due_allows_device_level_scenario_when_active_player_missing(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_pop_due_allows_template_device_level_scenario_when_active_player_missing(
+    redis_async: object,
+) -> None:
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+
+    await q.schedule(
+        task_id="t-onboarding",
+        player_id="",
+        task_type="onboarding.click.hand_pointer_small_reverse",
+        priority=100_000,
+        run_at=time.time(),
+        instance_id="bs1",
+        skip_if_duplicate=False,
+    )
+
+    item = await q.pop_due("bs1", current_screen="chief_profile")
+    assert item is not None
+    assert item.task_type == "onboarding.click.hand_pointer_small_reverse"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_pop_due_blocks_all_scenarios_while_loading(redis_async: object) -> None:
     r = redis_async
     q = RedisQueue(r, get_settings())  # type: ignore[arg-type]

@@ -12,6 +12,7 @@ from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
 from scenarios.dsl_schema import (
     DEFAULT_SCENARIO_PRIORITY,
+    dsl_scenario_yaml_device_level,
     dsl_scenario_yaml_enabled,
     dsl_scenario_yaml_priority,
 )
@@ -222,6 +223,7 @@ class InstanceWorkerOverlayMixin:
                         continue
                     t = t.replace(_HERO_ID_PLACEHOLDER, hid)
 
+                is_device_level = dsl_scenario_yaml_device_level(_REPO_ROOT, t)
                 enabled = dsl_scenario_yaml_enabled(_REPO_ROOT, t)
                 if enabled is False:
                     logger.debug("overlay: skipping disabled scenario %s", t)
@@ -369,3 +371,12 @@ class InstanceWorkerOverlayMixin:
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
                 )
+                if is_device_level:
+                    cancel = getattr(self, "_cancel_current_task", None)
+                    if cancel is not None:
+                        with suppress(Exception):
+                            await cancel(
+                                f"device-level overlay {t} preempts current task",
+                                result_reason="preempted_by_device_level",
+                                reschedule=True,
+                            )

@@ -503,41 +503,59 @@ def _validate_scenarios(
             )
         )
 
+    resolved_templates_by_path: dict[Path, list[_tmpl.ResolvedKey]] = {}
+    for resolved in _tmpl.iter_resolved_keys(repo_root):
+        if resolved.context:
+            resolved_templates_by_path.setdefault(resolved.path, []).append(resolved)
+
     for _root, path in scenario_files:
         rel = scenario_source_label(path, repo_root)
-        doc = _load_yaml_dict(path)
-        source = f"scenario:{rel}"
-        if "__load_error__" in doc:
-            issues.append(
-                StartupValidationIssue(
-                    "error",
-                    source,
-                    f"cannot parse YAML: {doc['__load_error__']}",
+        resolved_keys = resolved_templates_by_path.get(path)
+        docs_to_validate: list[tuple[str, dict[str, Any]]] = []
+        if resolved_keys:
+            for resolved in resolved_keys:
+                loaded = _tmpl.load_doc(repo_root, resolved.key)
+                if loaded is None:
+                    docs_to_validate.append((f"scenario:{rel}({resolved.key})", {}))
+                    continue
+                _loaded_path, doc = loaded
+                docs_to_validate.append((f"scenario:{rel}({resolved.key})", doc))
+        else:
+            doc = _load_yaml_dict(path)
+            docs_to_validate.append((f"scenario:{rel}", doc))
+
+        for source, doc in docs_to_validate:
+            if "__load_error__" in doc:
+                issues.append(
+                    StartupValidationIssue(
+                        "error",
+                        source,
+                        f"cannot parse YAML: {doc['__load_error__']}",
+                    )
                 )
-            )
-            continue
-        if not str(doc.get("name") or "").strip():
-            issues.append(
-                StartupValidationIssue(
-                    "error",
-                    source,
-                    "scenario `name` is empty or missing",
+                continue
+            if not str(doc.get("name") or "").strip():
+                issues.append(
+                    StartupValidationIssue(
+                        "error",
+                        source,
+                        "scenario `name` is empty or missing",
+                    )
                 )
+            # Mirrors the runtime gate in ``DslScenarioTask.execute`` so a typo
+            # like ``scope: instnace`` fails at startup instead of silently
+            # corrupting state during the first run.
+            for err in validate_dsl_steps(doc.get("steps")):
+                issues.append(StartupValidationIssue("error", source, err))
+            _walk_steps(
+                doc.get("steps"),
+                source=source,
+                issues=issues,
+                repo_root=repo_root,
+                region_names=region_names,
+                red_dot_regions=red_dot_regions,
+                text_search_regions=text_search_regions,
             )
-        # Mirrors the runtime gate in ``DslScenarioTask.execute`` so a typo
-        # like ``scope: instnace`` fails at startup instead of silently
-        # corrupting state during the first run.
-        for err in validate_dsl_steps(doc.get("steps")):
-            issues.append(StartupValidationIssue("error", source, err))
-        _walk_steps(
-            doc.get("steps"),
-            source=source,
-            issues=issues,
-            repo_root=repo_root,
-            region_names=region_names,
-            red_dot_regions=red_dot_regions,
-            text_search_regions=text_search_regions,
-        )
 
 
 def _validate_cron_specs(

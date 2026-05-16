@@ -25,7 +25,13 @@ class InstanceWorkerHealthMixin:
     async def _set_instance_state(self, state: Any, *, error: str = "") -> None:
         raise NotImplementedError
 
-    async def _cancel_current_task(self, reason: str) -> bool:
+    async def _cancel_current_task(
+        self,
+        reason: str,
+        *,
+        result_reason: str = "aborted_for_restart",
+        reschedule: bool = False,
+    ) -> bool:
         # Provided by ``InstanceWorker``; declared here so the mixin can call it.
         raise NotImplementedError
 

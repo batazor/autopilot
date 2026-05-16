@@ -465,6 +465,11 @@ def has_red_dot_in_bbox_percent(
         return False
 
     patch, (L, T) = patch_bgr_from_bbox_percent(image_bgr, bbox_percent)
+    if len(find_red_dots(patch, image_h_for_norm=hi)) > 0:
+        return True
+    if accept_frost and has_frost_badge(patch):
+        return True
+
     if pad_px > 0:
         L2 = max(0, L - pad_px)
         T2 = max(0, T - pad_px)

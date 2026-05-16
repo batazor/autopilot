@@ -1106,6 +1106,23 @@ class DslScenarioExecuteMixin:
                     )
                 _trace_row(_resumable_step, step, "ok")
                 continue
+            if "system_back" in step:
+                await self._write_step_context(instance_id, scenario=key)
+                result = await self._run_system_back_step(
+                    actions=actions,
+                    instance_id=instance_id,
+                    scenario_key=key,
+                    step=step,
+                    trace_path=str(_resumable_step),
+                )
+                if result is not None:
+                    md = dict(result.metadata or {})
+                    return TaskResult(
+                        success=result.success,
+                        next_run_at=result.next_run_at,
+                        metadata=_fin(md, completed=False),
+                    )
+                continue
             if "swipe_direction" in step:
                 await self._write_step_context(instance_id, scenario=key)
                 spec = step.get("swipe_direction")

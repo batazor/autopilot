@@ -47,7 +47,7 @@ def test_round_trip_preserves_structure(path: Path) -> None:
 
 
 def test_dsl_scenario_yaml_priority_reads_mail_scenarios() -> None:
-    assert dsl_scenario_yaml_priority(REPO_ROOT, "mail.claim") == 80_000
+    assert dsl_scenario_yaml_priority(REPO_ROOT, "mail.claim.system") == 80_000
     assert dsl_scenario_yaml_priority(REPO_ROOT, "nonexistent_scenario_key") is None
 
 
@@ -98,6 +98,11 @@ def test_long_click_accepts_wait_as_duration() -> None:
     (see ``tasks/dsl_scenario_inline_mixin.py:483``). Schema must agree at
     every nesting level so building.upgrade.yaml validates."""
     DslStep.model_validate({"long_click": "upgrade_button", "wait": "5s"})
+
+
+def test_system_back_is_action_key() -> None:
+    step = DslStep.model_validate({"system_back": True})
+    assert step.step_type() == "system_back"
 
 
 def test_long_click_still_rejects_real_action_conflicts() -> None:

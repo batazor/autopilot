@@ -287,6 +287,35 @@ steps:
     assert "instnace" in issues[0].message
 
 
+def test_startup_validation_renders_pointer_template_before_region_checks(
+    tmp_path: Path,
+) -> None:
+    scenario_root = _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    (tmp_path / "area.json").write_text(
+        '{"screens":[{"regions":['
+        '{"name":"hand_pointer","bbox":{"x":1,"y":1,"width":1,"height":1}},'
+        '{"name":"hand_pointer_small","bbox":{"x":1,"y":1,"width":1,"height":1}},'
+        '{"name":"hand_pointer_small_reverse","bbox":{"x":1,"y":1,"width":1,"height":1}}'
+        "]}]}",
+        encoding="utf-8",
+    )
+    (scenario_root / "onboarding.click.{pointer}.yaml").write_text(
+        """
+name: Onboarding click · ${pointer_name}
+steps:
+  - while_match: ${pointer}
+    max: 1
+    steps:
+      - click: ${pointer}
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    assert validate_startup_configs(tmp_path) == []
+
+
 def test_startup_validation_reports_cron_task_without_matching_scenario(
     tmp_path: Path,
 ) -> None:

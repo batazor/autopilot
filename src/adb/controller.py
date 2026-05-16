@@ -449,6 +449,24 @@ class AdbController:
         """Long-press via swipe with same start/end coords."""
         return self.swipe(point, point, duration)
 
+    def system_back(self) -> bool:
+        payload = self._approval_payload_with_preview(
+            {"type": "system_back", "keycode": "KEYCODE_BACK", "serial": self._serial}
+        )
+        ok, req_id = _require_approval(self._instance_id, payload)
+        if not ok:
+            logger.info("ADB system BACK blocked (no approval): %s", self._instance_id)
+            return False
+        if _consume_skip(req_id):
+            logger.info("ADB system BACK skipped by operator: %s", self._instance_id)
+            self._refresh_rolling_preview()
+            return True
+        with self._approval_execution(req_id):
+            self._shell("input", "keyevent", "KEYCODE_BACK")
+            logger.debug("System BACK on %s", self._serial)
+            self._refresh_rolling_preview()
+        return True
+
     def type_text(self, text: str) -> bool:
         escaped = text.replace(" ", "%s").replace("'", "\\'")
         ok, req_id = _require_approval(

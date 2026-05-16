@@ -116,6 +116,7 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "exec",
     "click",
     "wait",
+    "system_back",
 })
 
 
@@ -135,6 +136,7 @@ def _dsl_step_summary(step: Any) -> str:
         "wait",
         "repeat",
         "loop",
+        "system_back",
     ):
         if key not in step:
             continue

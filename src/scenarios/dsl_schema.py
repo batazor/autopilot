@@ -48,6 +48,7 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "repeat",
     "loop",
     "break",
+    "system_back",
 )
 
 COMPOSITE_KEYS: tuple[str, ...] = ("cond",)
@@ -95,6 +96,7 @@ class DslStep(BaseModel):
     loop: LoopSpec | None = None
 
     break_: str | None = Field(default=None, alias="break")
+    system_back: bool | None = None
 
     steps: list[DslStep] | None = None
     # ``while_match`` only: steps to run when the probe finds zero iterations
@@ -369,3 +371,16 @@ def dsl_scenario_yaml_enabled(repo_root: Path, scenario_key: str) -> bool | None
     if not isinstance(raw, dict):
         return None
     return bool(raw.get("enabled", False))
+
+
+def dsl_scenario_yaml_device_level(repo_root: Path, scenario_key: str) -> bool:
+    """Whether the rendered scenario declares ``device_level: true``."""
+    from scenarios import template_resolver as _tmpl
+
+    loaded = _tmpl.load_doc(repo_root, scenario_key)
+    if loaded is None:
+        return False
+    _path, raw = loaded
+    if not isinstance(raw, dict):
+        return False
+    return raw.get("device_level") is True

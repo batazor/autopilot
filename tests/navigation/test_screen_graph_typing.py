@@ -40,7 +40,22 @@ def test_mail_routes_to_and_from_main_city() -> None:
     assert route_taps("mail", "main_city") == [["icon.page.back"]]
 
 
+def test_mail_tab_routes() -> None:
+    assert route_taps("main_city", "mail.wars") == [["mail.new"], ["mail.tab.wars"]]
+    assert route_taps("mail", "mail.alliance") == [["mail.tab.alliance"]]
+    assert route_taps("mail.system", "mail.reports") == [["mail.tab.reports"]]
+    assert route_taps("mail.starred", "main_city") == [["icon.page.back"]]
+
+
 def test_frostdragon_tyrant_routes_to_main_city() -> None:
     assert route_taps("text.frostdragon_tyrant", "main_city") == [
         ["text.tap_any_blank_space_to_close"]
     ]
+
+
+def test_rewards_routes_to_main_city() -> None:
+    assert route_taps("rewards", "main_city") == [["button.tap_anywhere_to_exit"]]
+
+
+def test_heroes_sr_new_routes_to_main_city() -> None:
+    assert route_taps("heroes.sr.new", "main_city") == [["heroes.sr.new.close"]]

@@ -39,8 +39,63 @@ screens:
       - match: icon.world
         threshold: 0.9
 
+  mail.wars:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.wars
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.wars
+
+  mail.alliance:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.alliance
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.alliance
+
+  mail.system:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.system
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.system
+
+  mail.reports:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.reports
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.reports
+
+  mail.starred:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.starred
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.starred
+
   mail:
-    priority: 20
+    priority: 30
     landmarks:
       - match: mail.title
         threshold: 0.9
@@ -57,6 +112,15 @@ screens:
       - match: alliance.title
         threshold: 0.9
 
+  rewards:
+    priority: 5
+    landmarks:
+      - match: rewards.title
+        threshold: 0.9
+    rules:
+      - match: rewards.title
+        threshold: 0.9
+
   welcome_back:
     priority: 100
     landmarks:
@@ -64,16 +128,6 @@ screens:
         threshold: 0.9
     rules:
       - match: text.welcome_back
-        threshold: 0.9
-
-  ads.natalia:
-    # Full-screen ad overlay; recognize before the underlying main_city node.
-    priority: 5
-    landmarks:
-      - match: ads.natalia
-        threshold: 0.9
-    rules:
-      - match: ads.natalia
         threshold: 0.9
 
 # screens:

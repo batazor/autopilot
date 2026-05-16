@@ -1,0 +1,9 @@
+overlay:
+  - name: mail.new.has_red_dot
+    region: mail.new
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: mail.claim.system
+        ttl: 1m

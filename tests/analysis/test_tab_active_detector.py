@@ -27,6 +27,7 @@ from layout.tab_active_detector import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAIL_FIXTURE = REPO_ROOT / "references" / "mail_page.png"
+MAIL_MODULE_REFERENCES = REPO_ROOT / "modules" / "mail" / "references"
 
 ACTIVE_TAB = "mail.tab.system"
 INACTIVE_TABS = (
@@ -35,6 +36,14 @@ INACTIVE_TABS = (
     "mail.tab.reports",
     "mail.tab.starred",
 )
+MAIL_TAB_FIXTURES = {
+    "mail.tab.wars": MAIL_MODULE_REFERENCES / "mail_tab_wars.png",
+    "mail.tab.alliance": MAIL_MODULE_REFERENCES / "mail_tab_alliance.png",
+    "mail.tab.system": MAIL_MODULE_REFERENCES / "mail_tab_system.png",
+    "mail.tab.reports": MAIL_MODULE_REFERENCES / "mail_tab_reports.png",
+    "mail.tab.starred": MAIL_MODULE_REFERENCES / "mail_tab_starred.png",
+}
+ALL_MAIL_TABS = tuple(MAIL_TAB_FIXTURES)
 
 
 def _load_area() -> dict[str, Any]:
@@ -84,6 +93,24 @@ def test_activity_stats_gap_holds() -> None:
         s, v = tab_activity_stats(patch)
         assert s > s_active + 30, f"{name}: S gap too small (active={s_active}, inactive={s})"
         assert v < v_active, f"{name}: V should be lower than active (active={v_active}, inactive={v})"
+
+
+@pytest.mark.parametrize("expected_tab, fixture_path", MAIL_TAB_FIXTURES.items())
+def test_module_mail_tab_fixtures_detect_current_tab(
+    expected_tab: str,
+    fixture_path: Path,
+) -> None:
+    image_bgr = cv2.imread(str(fixture_path))
+    assert image_bgr is not None, f"OpenCV must load {fixture_path}"
+    area = _load_area()
+
+    active_tabs = [
+        tab_name
+        for tab_name in ALL_MAIL_TABS
+        if is_tab_active_in_bbox_percent(image_bgr, _bbox_for(area, tab_name))
+    ]
+
+    assert active_tabs == [expected_tab]
 
 
 def test_invalid_inputs_return_false() -> None:

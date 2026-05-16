@@ -476,30 +476,20 @@ class RedisQueue:
     def _task_types_device_level_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
-        from scenarios.cron_specs import resolve_cron_task_type
+        from scenarios import template_resolver
 
         root = Path(fp[0])
-        try:
-            import yaml
-        except Exception:
-            return set()
-
         out: set[str] = set()
-        for rel, _mtime_ns, _size in fp[1]:
-            yml = root / rel
-            if "drafts" in {part.lower() for part in yml.parts}:
+        for resolved in template_resolver.iter_resolved_keys(root):
+            loaded = template_resolver.load_doc(root, resolved.key)
+            if loaded is None:
                 continue
-            try:
-                raw = yaml.safe_load(yml.read_text(encoding="utf-8")) or {}
-            except Exception:
-                continue
+            _path, raw = loaded
             if not isinstance(raw, dict):
                 continue
             if raw.get("device_level") is not True:
                 continue
-            t = resolve_cron_task_type(raw, yml)
-            if t:
-                out.add(t)
+            out.add(resolved.key)
         return out
 
     async def _collect_ranked_due(

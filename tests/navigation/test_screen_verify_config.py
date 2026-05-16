@@ -136,7 +136,7 @@ def test_production_screen_verify_yaml_active_rules_are_template_matches() -> No
             # ``from_screen`` rules (synthesized for per-hero wiki nodes) check
             # navigation history instead of pixels and are exempt from the
             # "template match only" policy this test enforces.
-            assert "match" in rule or "from_screen" in rule
+            assert "match" in rule or "from_screen" in rule or "tab_active" in rule
             assert "ocr" not in rule
 
 
@@ -181,6 +181,24 @@ def test_production_screen_verify_yaml_contains_mail_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        checks = {
+            "mail.wars": "mail.tab.wars",
+            "mail.alliance": "mail.tab.alliance",
+            "mail.system": "mail.tab.system",
+            "mail.reports": "mail.tab.reports",
+            "mail.starred": "mail.tab.starred",
+        }
+        for screen, tab_region in checks.items():
+            expected = [{"match": "mail.title", "threshold": 0.9, "tab_active": tab_region}]
+            assert screen_graph.screen_landmark_rules(screen) == expected
+            assert screen_graph.screen_verify_rules(screen) == expected
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+
 def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
@@ -190,6 +208,32 @@ def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> No
         screen_graph.load_screen_verify_config.cache_clear()
 
     expected = [{"match": "alliance.title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("rewards")
+        rules = screen_graph.screen_verify_rules("rewards")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "rewards.title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_heroes_sr_new_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("heroes.sr.new")
+        rules = screen_graph.screen_verify_rules("heroes.sr.new")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "heroes.sr.new.close", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
 

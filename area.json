@@ -1217,7 +1217,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
           "name": "mail.delete",
@@ -5163,6 +5164,67 @@
         }
       ],
       "screen_region": "alliance.title"
+    },
+    {
+      "id": 74,
+      "screen_id": "",
+      "ocr": "references/rewards.png",
+      "regions": [
+        {
+          "name": "rewards.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.756756756756758,
+            "y": 21.52173913043478,
+            "width": 66.7992277992278,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.tap_anywhere_to_exit",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.042471042471046,
+            "y": 90.97826086956522,
+            "width": 37.6003861003861,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "screen_id": "heroes.sr.new",
+      "ocr": "references/heroes.sr.new.png",
+      "regions": [
+        {
+          "name": "heroes.sr.new.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.339768339768344,
+            "y": 95.43478260869566,
+            "width": 42.99999999999999,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "screen_region": "heroes.sr.new.close"
     }
   ]
 }

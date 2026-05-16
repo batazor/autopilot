@@ -27,6 +27,20 @@ def test_core_building_module_overlay_rule_present_in_merged_manifest() -> None:
     assert "build_button.visible" in names
 
 
+def test_core_onboarding_module_overlay_rules_present_in_merged_manifest() -> None:
+    doc = load_merged_analyze_yaml(REPO_ROOT)
+    names = _rule_names(doc)
+
+    for expected in (
+        "skip_button.visible",
+        "onboarding.hand_pointer.visible",
+        "onboarding.hand_pointer_small.visible",
+        "onboarding.hand_pointer_small_reverse.visible",
+        "onboarding.tap_anywhere_to_exit.visible",
+    ):
+        assert expected in names
+
+
 def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
     """All six mail-screen rules live in the mail module and must surface here."""
     doc = load_merged_analyze_yaml(REPO_ROOT)
@@ -34,7 +48,16 @@ def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
 
     for expected in (
         "mail.new.has_red_dot",
-        "mail.gift.visible",
+        "mail.wars.active",
+        "mail.alliance.active",
+        "mail.system.active",
+        "mail.reports.active",
+        "mail.starred.active",
+        "mail.wars.gift.visible",
+        "mail.alliance.gift.visible",
+        "mail.system.gift.visible",
+        "mail.reports.gift.visible",
+        "mail.starred.gift.visible",
         "mail.tab.wars.has_red_dot",
         "mail.tab.alliance.has_red_dot",
         "mail.tab.system.has_red_dot",

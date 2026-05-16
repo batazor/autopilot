@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from contextlib import suppress
+from datetime import datetime
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -154,6 +155,8 @@ class InstanceWorker(
         # to a failed TaskResult) from a worker-shutdown cascade (propagate).
         self._current_task_handle: asyncio.Task[Any] | None = None
         self._task_aborted_for_restart: bool = False
+        self._task_abort_result_reason: str = "aborted_for_restart"
+        self._task_abort_reschedule: bool = False
 
     # Legacy hook removed: mail gift check will be a DSL scenario when needed.
 
@@ -234,14 +237,41 @@ class InstanceWorker(
             # latter must propagate so ``run()`` can shut down cleanly.
             if self._task_aborted_for_restart:
                 self._task_aborted_for_restart = False
+                result_reason = self._task_abort_result_reason or "aborted_for_restart"
+                reschedule = bool(self._task_abort_reschedule)
+                self._task_abort_result_reason = "aborted_for_restart"
+                self._task_abort_reschedule = False
                 logger.warning(
-                    "Task %s aborted: game restart in progress (%s)",
+                    "Task %s aborted: %s (%s)",
                     item.task_id,
+                    result_reason,
                     self._cfg.instance_id,
                 )
+                metadata: dict[str, object] = {"reason": result_reason}
+                if result_reason.startswith("preempted_by"):
+                    metadata["preempted"] = True
+                if reschedule:
+                    metadata["resume_from_step_index"] = int(item.start_step_index or 0)
+                    if self._redis is not None:
+                        with suppress(Exception):
+                            raw_step = await self._redis.hget(
+                                _INST_STATE_KEY_FMT.format(
+                                    instance_id=self._cfg.instance_id
+                                ),
+                                "last_active_scenario_step",
+                            )
+                            step_s = (
+                                raw_step.decode()
+                                if isinstance(raw_step, (bytes, bytearray))
+                                else str(raw_step or "")
+                            ).strip()
+                            metadata["resume_from_step_index"] = max(
+                                0, int(step_s or "0")
+                            )
                 return TaskResult(
                     success=False,
-                    metadata={"reason": "aborted_for_restart"},
+                    next_run_at=datetime.now() if reschedule else None,
+                    metadata=metadata,
                 )
             raise
 
@@ -278,7 +308,13 @@ class InstanceWorker(
             if task.is_cooperative:
                 await self._claims.release(task.task_type, item.player_id)  # type: ignore[union-attr]
 
-    async def _cancel_current_task(self, reason: str) -> bool:
+    async def _cancel_current_task(
+        self,
+        reason: str,
+        *,
+        result_reason: str = "aborted_for_restart",
+        reschedule: bool = False,
+    ) -> bool:
         """Cancel the in-flight ``task.execute()`` so a restart doesn't tap a dead app.
 
         Returns True if a cancel was actually issued. Sets
@@ -295,6 +331,8 @@ class InstanceWorker(
             reason,
         )
         self._task_aborted_for_restart = True
+        self._task_abort_result_reason = result_reason
+        self._task_abort_reschedule = bool(reschedule)
         handle.cancel()
         return True
 

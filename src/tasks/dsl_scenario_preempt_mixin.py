@@ -132,7 +132,16 @@ class DslScenarioPreemptMixin:
             return None
         top_eff = int(top.effective_priority) or int(top.priority)
         gap = top_eff - my_eff
-        if gap < PREEMPT_MARGIN:
+        try:
+            from config.paths import repo_root
+            from scenarios.dsl_schema import dsl_scenario_yaml_device_level
+
+            top_is_device_level = dsl_scenario_yaml_device_level(
+                repo_root(), str(top.task_type or "")
+            )
+        except Exception:
+            top_is_device_level = False
+        if gap < PREEMPT_MARGIN and not top_is_device_level:
             return None
 
         if immune:

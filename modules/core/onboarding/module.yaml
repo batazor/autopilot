@@ -1,0 +1,7 @@
+id: onboarding
+title: Onboarding
+description: >-
+  Tutorial hand-pointer overlays that guide the first-run onboarding flow.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

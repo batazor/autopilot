@@ -145,29 +145,46 @@ class ScreenDetector:
                 )
         return all_regions, region_map
 
-    async def _detect_by_match_landmarks(self, image: np.ndarray) -> ScreenName:
+    async def _detect_by_match_landmarks(
+        self,
+        image: np.ndarray,
+        *,
+        screen_names: list[str] | None = None,
+    ) -> ScreenName:
         rules: list[dict[str, object]] = []
-        rule_screens: list[ScreenName] = []
-        for screen_s in screen_verify_screen_names():
+        rule_groups: list[tuple[ScreenName, list[str]]] = []
+        for screen_s in screen_names if screen_names is not None else screen_verify_screen_names():
             try:
                 screen_name = ScreenName(screen_s)
             except ValueError:
                 continue
             for rule in screen_landmark_rules(screen_s):
                 region_name = str(rule.get("match") or "").strip()
-                if not region_name:
+                tab_region_name = str(rule.get("tab_active") or "").strip()
+                if not region_name and not tab_region_name:
                     continue
-                overlay_rule: dict[str, object] = {
-                    "name": f"screen_detector.{screen_s}.{region_name}",
-                    "action": "findIcon",
-                    "region": region_name,
-                    "threshold": rule.get("threshold", 0.9),
-                }
-                min_sat = rule.get("min_match_saturation")
-                if min_sat is not None:
-                    overlay_rule["min_match_saturation"] = min_sat
-                rules.append(overlay_rule)
-                rule_screens.append(screen_name)
+                group_names: list[str] = []
+                if region_name:
+                    overlay_rule = {
+                        "name": f"screen_detector.{screen_s}.{region_name}",
+                        "action": "findIcon",
+                        "region": region_name,
+                        "threshold": rule.get("threshold", 0.9),
+                    }
+                    min_sat = rule.get("min_match_saturation")
+                    if min_sat is not None:
+                        overlay_rule["min_match_saturation"] = min_sat
+                    rules.append(overlay_rule)
+                    group_names.append(str(overlay_rule["name"]))
+                if tab_region_name:
+                    overlay_rule = {
+                        "name": f"screen_detector.{screen_s}.{tab_region_name}.active",
+                        "region": tab_region_name,
+                        "isTabActive": True,
+                    }
+                    rules.append(overlay_rule)
+                    group_names.append(str(overlay_rule["name"]))
+                rule_groups.append((screen_name, group_names))
         if not rules:
             return ScreenName.UNKNOWN
         try:
@@ -180,11 +197,35 @@ class ScreenDetector:
         except Exception:
             logger.debug("ScreenDetector: match landmarks failed", exc_info=True)
             return ScreenName.UNKNOWN
-        for rule, screen_name in zip(rules, rule_screens, strict=False):
-            row = out.get(str(rule["name"]))
-            if isinstance(row, dict) and row.get("matched"):
+        for screen_name, group_names in rule_groups:
+            if all(
+                isinstance(out.get(rule_name), dict) and out[rule_name].get("matched")
+                for rule_name in group_names
+            ):
                 return screen_name
         return ScreenName.UNKNOWN
+
+    @staticmethod
+    def _sticky_preempt_candidates(hint_name: ScreenName) -> list[str]:
+        """Screens that should get a chance to override a verified sticky hint.
+
+        Sticky verification keeps steady-state detection cheap, but modal screens
+        can replace each other without first invalidating the old landmark. Check
+        earlier screen-verify entries before returning the old hint; exclude
+        ``main_city`` because it often remains visible underneath overlays.
+        """
+        out: list[str] = []
+        for screen_s in screen_verify_screen_names():
+            if screen_s == str(hint_name):
+                break
+            try:
+                candidate = ScreenName(screen_s)
+            except ValueError:
+                continue
+            if candidate in (ScreenName.UNKNOWN, ScreenName.MAIN_CITY):
+                continue
+            out.append(screen_s)
+        return out
 
     def _percent_region_for_name(self, region_name: str) -> Region | None:
         pair = screen_region_by_name(self._load_area_doc(), region_name)
@@ -225,48 +266,58 @@ class ScreenDetector:
         name_s = str(screen)
         landmarks = screen_landmark_rules(name_s)
 
-        template_landmarks: list[dict[str, object]] = []
+        overlay_rules: list[dict[str, object]] = []
+        overlay_rule_groups: list[list[str]] = []
         ocr_landmarks: list[dict[str, object]] = []
         for rule in landmarks:
-            if str(rule.get("match") or "").strip():
-                template_landmarks.append(rule)
+            region_name = str(rule.get("match") or "").strip()
+            tab_region_name = str(rule.get("tab_active") or "").strip()
+            if region_name or tab_region_name:
+                group_names: list[str] = []
+                if region_name:
+                    overlay_rule: dict[str, object] = {
+                        "name": f"screen_detector.verify.{name_s}.{region_name}",
+                        "action": "findIcon",
+                        "region": region_name,
+                        "threshold": rule.get("threshold", 0.9),
+                    }
+                    min_sat = rule.get("min_match_saturation")
+                    if min_sat is not None:
+                        overlay_rule["min_match_saturation"] = min_sat
+                    overlay_rules.append(overlay_rule)
+                    group_names.append(str(overlay_rule["name"]))
+                if tab_region_name:
+                    overlay_rule = {
+                        "name": f"screen_detector.verify.{name_s}.{tab_region_name}.active",
+                        "region": tab_region_name,
+                        "isTabActive": True,
+                    }
+                    overlay_rules.append(overlay_rule)
+                    group_names.append(str(overlay_rule["name"]))
+                overlay_rule_groups.append(group_names)
             elif str(rule.get("ocr") or "").strip():
                 ocr_landmarks.append(rule)
 
-        if template_landmarks:
-            overlay_rules: list[dict[str, object]] = []
-            for rule in template_landmarks:
-                region_name = str(rule.get("match") or "").strip()
-                if not region_name:
-                    continue
-                overlay_rule: dict[str, object] = {
-                    "name": f"screen_detector.verify.{name_s}.{region_name}",
-                    "action": "findIcon",
-                    "region": region_name,
-                    "threshold": rule.get("threshold", 0.9),
-                }
-                min_sat = rule.get("min_match_saturation")
-                if min_sat is not None:
-                    overlay_rule["min_match_saturation"] = min_sat
-                overlay_rules.append(overlay_rule)
-            if overlay_rules:
-                try:
-                    out = await evaluate_overlay_rules_async(
-                        image,
-                        self._load_area_doc(),
-                        repo_root(),
-                        overlay_rules,
-                    )
-                except Exception:
-                    logger.debug(
-                        "ScreenDetector._verify_screen: template match failed",
-                        exc_info=True,
-                    )
-                    out = {}
-                for rule in overlay_rules:
-                    row = out.get(str(rule["name"]))
-                    if isinstance(row, dict) and row.get("matched"):
-                        return True
+        if overlay_rules:
+            try:
+                out = await evaluate_overlay_rules_async(
+                    image,
+                    self._load_area_doc(),
+                    repo_root(),
+                    overlay_rules,
+                )
+            except Exception:
+                logger.debug(
+                    "ScreenDetector._verify_screen: overlay landmarks failed",
+                    exc_info=True,
+                )
+                out = {}
+            for group_names in overlay_rule_groups:
+                if all(
+                    isinstance(out.get(rule_name), dict) and out[rule_name].get("matched")
+                    for rule_name in group_names
+                ):
+                    return True
 
         if ocr_landmarks:
             h, w = int(image.shape[0]), int(image.shape[1])
@@ -355,6 +406,14 @@ class ScreenDetector:
                     )
                     verified = False
                 if verified:
+                    candidates = self._sticky_preempt_candidates(hint_name)
+                    if candidates:
+                        matched = await self._detect_by_match_landmarks(
+                            image,
+                            screen_names=candidates,
+                        )
+                        if matched != ScreenName.UNKNOWN:
+                            return matched
                     self.last_used_sticky_verify = True
                     return hint_name
 

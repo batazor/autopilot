@@ -173,6 +173,127 @@ screens:
 
 
 @pytest.mark.asyncio
+async def test_screen_detector_requires_combined_match_and_tab_active(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "screen_verify.yaml"
+    cfg.write_text(
+        """
+screens:
+  mail.alliance:
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.alliance
+  mail:
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()
+
+    async def evaluate_overlay_rules_async(
+        _image: np.ndarray,
+        _area_doc: dict[str, Any],
+        _repo_root: Path,
+        rules: list[dict[str, Any]],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        return {
+            str(rule["name"]): {
+                "matched": str(rule["region"]) == "mail.tab.alliance",
+            }
+            for rule in rules
+        }
+
+    import navigation.detector as detector_module
+
+    monkeypatch.setattr(
+        detector_module,
+        "evaluate_overlay_rules_async",
+        evaluate_overlay_rules_async,
+    )
+    detector = ScreenDetector(OcrClient(get_settings()))
+    detector._area_doc = {"screens": []}
+
+    try:
+        detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    assert detected == ScreenName.UNKNOWN
+
+
+@pytest.mark.asyncio
+async def test_sticky_hint_allows_prior_overlay_to_preempt(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    cfg = tmp_path / "screen_verify.yaml"
+    area = tmp_path / "area.json"
+    area.write_text('{"screens":[]}', encoding="utf-8")
+    cfg.write_text(
+        """
+screens:
+  main_city:
+    priority: 10
+    landmarks:
+      - match: icon.world
+  welcome_back:
+    priority: 100
+    landmarks:
+      - match: text.welcome_back
+    rules:
+      - match: text.welcome_back
+  reconnect:
+    priority: 100
+    landmarks:
+      - match: icon.reconnect
+    rules:
+      - match: icon.reconnect
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
+    screen_graph.load_screen_verify_config.cache_clear()
+
+    async def evaluate_overlay_rules_async(
+        _image: np.ndarray,
+        _area_doc: dict[str, Any],
+        _repo_root: Path,
+        rules: list[dict[str, Any]],
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        return {str(rule["name"]): {"matched": True} for rule in rules}
+
+    import navigation.detector as detector_module
+
+    monkeypatch.setattr(
+        detector_module,
+        "evaluate_overlay_rules_async",
+        evaluate_overlay_rules_async,
+    )
+    detector = ScreenDetector(OcrClient(get_settings()))
+    detector._area_doc = {"screens": []}
+
+    try:
+        detected = await detector.detect_screen(
+            np.zeros((200, 100, 3), dtype=np.uint8),
+            hint=ScreenName.RECONNECT,
+        )
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    assert detected == ScreenName.WELCOME_BACK
+    assert detector.last_used_sticky_verify is False
+
+
+@pytest.mark.asyncio
 @pytest.mark.skip(reason="legacy monkeypatched ScreenName coverage; rewrite for template landmarks")
 async def test_screen_detector_can_return_building_from_match_landmark(
     monkeypatch: Any,

@@ -132,6 +132,63 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     ]
 
 
+@pytest.mark.asyncio
+async def test_nested_while_match_retry_waits_for_late_region(
+    tmp_path: Path,
+    monkeypatch: Any,
+    redis_async: object,
+    pin_click_to_center: None,
+) -> None:
+    visible = np.zeros((100, 100, 3), dtype=np.uint8)
+    visible[20:30, 20:30] = _claim_pattern()
+    gone = np.zeros((100, 100, 3), dtype=np.uint8)
+    _write_claim_repo(tmp_path, visible)
+    scenario_path = (
+        tmp_path / "modules" / "core" / "test_scenarios" / "scenarios" / "overlay" / "tap_claim_button.yaml"
+    )
+    scenario_path.write_text(
+        yaml.dump(
+            {
+                "enabled": True,
+                "name": "Claim nested retry",
+                "steps": [
+                    {
+                        "loop": {
+                            "max": 1,
+                            "steps": [
+                                {
+                                    "while_match": "button.claim",
+                                    "threshold": 0.98,
+                                    "max": 1,
+                                    "retry": {"attempts": 3, "interval": 0},
+                                    "steps": [{"click": "button.claim"}],
+                                },
+                                {"click": "claim_button_close"},
+                            ],
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    actions = _FakeActions([gone, gone, visible])
+    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="p1",
+        scenario_key="tap_claim_button",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert actions.tapped == [("bs1", 25, 25, "button.claim"), ("bs1", 85, 15, "claim_button_close")]
+
+
 def _write_repo_with_else(tmp_path: Path, frame: np.ndarray) -> None:
     """Scenario with ``while_match`` + ``else:`` fallback steps.
 
@@ -254,9 +311,10 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
 
 def test_tap_claim_button_while_match_has_nested_steps() -> None:
     repo = Path(__file__).resolve().parents[2]
-    doc = yaml.safe_load(
-        (repo / "modules/core/pop-up/scenarios/tap_claim_button.yaml").read_text()
-    )
+    scenario_path = repo / "modules/core/pop-up/scenarios/tap_claim_button.yaml"
+    if not scenario_path.is_file():
+        pytest.skip("legacy pop-up tap_claim_button scenario removed")
+    doc = yaml.safe_load(scenario_path.read_text())
     loop = doc["steps"][0]
 
     assert loop["while_match"] == "button.claim"

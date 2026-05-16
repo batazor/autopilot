@@ -1,0 +1,4 @@
+edges:
+  # Natalia first-purchase ad overlay: close it before continuing normal navigation.
+  ads.natalia:
+    main_city: [ads.natalia]

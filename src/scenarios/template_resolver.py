@@ -26,10 +26,22 @@ import yaml
 # Extend when a new substitution axis lands. Each axis must:
 #   * appear as ``{axis}`` in template filenames,
 #   * resolve to one or more ``${...}`` body placeholders via ``_axis_context``.
-_AXES = ("hero",)
+_AXES = ("hero", "tab", "pointer")
 _FILENAME_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(_AXES) + r")\}")
 # Hero ids in the heroes wiki index are lowercase ASCII + underscores.
 _AXIS_VALUE_RE = r"[a-z0-9_]+"
+_MAIL_TABS = {
+    "wars": "Wars",
+    "alliance": "Alliance",
+    "system": "System",
+    "reports": "Reports",
+    "starred": "Starred",
+}
+_POINTERS = {
+    "hand_pointer": "Hand pointer",
+    "hand_pointer_small": "Small hand pointer",
+    "hand_pointer_small_reverse": "Small reverse hand pointer",
+}
 
 
 @dataclass(frozen=True)
@@ -78,6 +90,16 @@ def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | No
         if name is None:
             return None
         return {"hero_id": value, "hero_name": name}
+    if axis == "tab":
+        name = _MAIL_TABS.get(value)
+        if name is None:
+            return None
+        return {"tab": value, "tab_name": name}
+    if axis == "pointer":
+        name = _POINTERS.get(value)
+        if name is None:
+            return None
+        return {"pointer": value, "pointer_name": name}
     return None
 
 
@@ -286,6 +308,35 @@ def iter_resolved_keys(repo_root: Path) -> list[ResolvedKey]:
                             key=concrete_key,
                             path=p,
                             context={"hero_id": hid, "hero_name": hname},
+                        )
+                    )
+            elif axes == ["tab"]:
+                for tab, tab_name in _MAIL_TABS.items():
+                    concrete_key = p.stem.replace("{tab}", tab)
+                    if concrete_key in seen:
+                        continue
+                    seen.add(concrete_key)
+                    out.append(
+                        ResolvedKey(
+                            key=concrete_key,
+                            path=p,
+                            context={"tab": tab, "tab_name": tab_name},
+                        )
+                    )
+            elif axes == ["pointer"]:
+                for pointer, pointer_name in _POINTERS.items():
+                    concrete_key = p.stem.replace("{pointer}", pointer)
+                    if concrete_key in seen:
+                        continue
+                    seen.add(concrete_key)
+                    out.append(
+                        ResolvedKey(
+                            key=concrete_key,
+                            path=p,
+                            context={
+                                "pointer": pointer,
+                                "pointer_name": pointer_name,
+                            },
                         )
                     )
     return out

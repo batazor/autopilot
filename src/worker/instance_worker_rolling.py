@@ -71,7 +71,11 @@ class InstanceWorkerRollingMixin:
         raise NotImplementedError
 
     async def _overlay_analyze_bgr(
-        self, image_bgr: np.ndarray, *, current_screen_override: str | None = None
+        self,
+        image_bgr: np.ndarray,
+        *,
+        current_screen_override: str | None = None,
+        device_level_only: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -168,19 +172,24 @@ class InstanceWorkerRollingMixin:
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
         if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
-            # Skipping detect also skips the downstream overlay analyze
-            # (which depends on ``current_screen``) and the who_i_am
-            # backstop. The PNG above is still written so the UI preview
-            # continues to update on the normal cadence.
+            # Keep the expensive normal pipeline gated during busy tasks, but
+            # still let device-level overlays (tutorial hands, blocking popups)
+            # interrupt the current work.
+            await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
             logger.debug(
-                "screen-detect-after-snapshot skipped (task busy, screen_detect_when_busy=false)"
+                "screen-detect-after-snapshot skipped; ran device-level overlay only"
             )
             return
 
         current_screen = await self._detect_current_screen_on_frame(image_bgr)
 
         if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
-            logger.debug("overlay-after-snapshot skipped (task busy, overlay_analyze_when_busy=false)")
+            await self._overlay_analyze_bgr(
+                image_bgr,
+                current_screen_override=current_screen,
+                device_level_only=True,
+            )
+            logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
             return
         await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
         await self._maybe_enqueue_who_i_am_when_active_player_missing()

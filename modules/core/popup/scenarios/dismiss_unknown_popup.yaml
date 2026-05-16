@@ -13,3 +13,8 @@ steps:
     steps:
       - click: icon.page.back
       - wait: 1s
+  - while_match: button.tap_anywhere_to_exit
+    max: 1
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 1s

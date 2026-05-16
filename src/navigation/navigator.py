@@ -365,6 +365,35 @@ class Navigator:
             threshold = 0.8
         return fuzzy_match(text, candidates, threshold=threshold) is not None
 
+    async def _verify_tab_active_rule(
+        self,
+        image: np.ndarray,
+        rule: dict[str, object],
+        *,
+        state_flat: dict[str, Any] | None = None,
+    ) -> bool:
+        region = str(rule.get("tab_active") or "").strip()
+        if not region:
+            return False
+        overlay_rule: dict[str, Any] = {
+            "name": f"navigator.verify.{region}.active",
+            "region": region,
+            "isTabActive": True,
+        }
+        try:
+            out = await evaluate_overlay_rules_async(
+                image,
+                self._load_area_doc(),
+                self._repo_root,
+                [overlay_rule],
+                state_flat=state_flat,
+            )
+        except Exception:
+            logger.debug("Navigator: tab-active verify failed for %s", region, exc_info=True)
+            return False
+        row = out.get(str(overlay_rule["name"]))
+        return bool(isinstance(row, dict) and row.get("matched"))
+
     async def _verify_rule(
         self,
         image: np.ndarray,
@@ -381,6 +410,8 @@ class Navigator:
             return await self._verify_match_rule(image, rule, state_flat=state_flat)
         if "ocr" in rule:
             return await self._verify_ocr_rule(image, rule, state_flat=state_flat)
+        if "tab_active" in rule:
+            return await self._verify_tab_active_rule(image, rule, state_flat=state_flat)
         return False
 
     async def _verify_from_screen_rule(

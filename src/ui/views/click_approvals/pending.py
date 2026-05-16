@@ -83,6 +83,8 @@ def _payload_action_label(payload: dict[str, Any]) -> str:
         return "swipe"
     if kind == "type_text":
         return "type text"
+    if kind == "system_back":
+        return "system back"
     if kind == "tap":
         return "click"
     return kind or "действие"

@@ -15,7 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # screen (mid-refactor), referencing the enum member at collection time crashes
 # the whole file. Skip-at-collection if any required member is missing so the
 # rest of the suite still runs.
-_REQUIRED_SCREENS = ("CHIEF_PROFILE", "MAIL", "MAIN_CITY", "RECONNECT")
+_REQUIRED_SCREENS = ("CHIEF_PROFILE", "MAIL_SYSTEM", "MAIN_CITY", "RECONNECT")
 _missing = [s for s in _REQUIRED_SCREENS if not hasattr(ScreenName, s)]
 if _missing:
     pytest.skip(
@@ -31,7 +31,7 @@ if _missing:
     ("filename", "expected"),
     [
         ("chief_profile.png", ScreenName.CHIEF_PROFILE),
-        ("mail_page.png", ScreenName.MAIL),
+        ("mail_page.png", ScreenName.MAIL_SYSTEM),
         ("isNewPeople.png", ScreenName.MAIN_CITY),
         pytest.param(
             "retry_page.png",

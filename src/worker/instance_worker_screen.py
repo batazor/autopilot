@@ -47,6 +47,7 @@ class InstanceWorkerScreenMixin:
         image_bgr: np.ndarray,
         *,
         current_screen_override: str | None = None,
+        device_level_only: bool = False,
     ) -> None:
         """Run ``analyze/analyze.yaml`` overlay rules on an ADB frame (BGR)."""
         root = repo_root()
@@ -110,6 +111,7 @@ class InstanceWorkerScreenMixin:
                 rule_eval_state=player_state,
                 state_flat=state_flat,
                 ocr_client=self._ocr_client,
+                device_level_only=device_level_only,
             )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)

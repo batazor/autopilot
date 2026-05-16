@@ -181,6 +181,10 @@ class BotActions:
         self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).long_tap(point, timedelta(milliseconds=duration_ms))
 
+    def system_back(self, instance_id: str) -> bool:
+        self.invalidate_frame_cache(instance_id)
+        return self._controller(instance_id).system_back()
+
     def back(self, instance_id: str) -> None:
         logger.debug("BotActions.back(%s): no-op (phone BACK not allowed)", instance_id)
 

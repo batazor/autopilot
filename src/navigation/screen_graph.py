@@ -74,7 +74,7 @@ def _load_edge_taps() -> tuple[
     dict[tuple[str, str], list[Tap]],
     dict[tuple[str, str], DynamicEdgeSpec],
 ]:
-    """Parse edge_taps.yaml into static + dynamic registries.
+    """Parse root + module edge_taps.yaml into static + dynamic registries.
 
     Edge value forms:
     * ``str`` — single static tap region (legacy shorthand).
@@ -83,26 +83,27 @@ def _load_edge_taps() -> tuple[
       entry; the dict is opaque to the loader and passed through to the
       resolver as-is.
     """
-    path = Path(__file__).resolve().with_name("edge_taps.yaml")
-    if not path.is_file():
-        return {}, {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    edges = raw.get("edges", {})
     static: dict[tuple[str, str], list[Tap]] = {}
     dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
-    if not isinstance(edges, dict):
-        return static, dynamic
-    for src, dsts in edges.items():
-        if not isinstance(dsts, dict):
+    for path in _edge_taps_yaml_paths():
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        edges = raw.get("edges", {})
+        if not isinstance(edges, dict):
             continue
-        for dst, taps in dsts.items():
-            key = (str(src), str(dst))
-            if isinstance(taps, list):
-                static[key] = [str(t) for t in taps]
-            elif isinstance(taps, str):
-                static[key] = [taps]
-            elif isinstance(taps, dict):
-                dynamic[key] = dict(taps)
+        for src, dsts in edges.items():
+            if not isinstance(dsts, dict):
+                continue
+            for dst, taps in dsts.items():
+                key = (str(src), str(dst))
+                if isinstance(taps, list):
+                    static[key] = [str(t) for t in taps]
+                    dynamic.pop(key, None)
+                elif isinstance(taps, str):
+                    static[key] = [taps]
+                    dynamic.pop(key, None)
+                elif isinstance(taps, dict):
+                    dynamic[key] = dict(taps)
+                    static.pop(key, None)
     # Generated per-hero wiki edges. One pair per hero: tap the wiki icon
     # from the hero card to open the popup, tap back to return. YAML-listing
     # 62 × 2 = 124 entries by hand drifts from the heroes wiki index — keep
@@ -113,6 +114,22 @@ def _load_edge_taps() -> tuple[
         static.setdefault((src_card, dst_wiki), ["page.heroes.unit.wiki"])
         static.setdefault((dst_wiki, src_card), ["icon.page.back"])
     return static, dynamic
+
+
+def _edge_taps_yaml_paths() -> list[Path]:
+    root_path = Path(__file__).resolve().with_name("edge_taps.yaml")
+    paths = [root_path] if root_path.is_file() else []
+
+    from config.module_discovery import iter_module_dirs
+    from config.paths import repo_root
+
+    root = repo_root()
+    for module_dir in iter_module_dirs(root):
+        for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
+            path = module_dir / rel
+            if path.is_file():
+                paths.append(path)
+    return paths
 
 
 EDGE_TAPS, EDGE_DYNAMIC = _load_edge_taps()
@@ -171,11 +188,13 @@ def _module_screen_verify_yaml_paths() -> list[Path]:
     from config.paths import repo_root
 
     root = repo_root()
-    return [
-        module_dir / "screen_verify.yaml"
-        for module_dir in iter_module_dirs(root)
-        if (module_dir / "screen_verify.yaml").is_file()
-    ]
+    paths: list[Path] = []
+    for module_dir in iter_module_dirs(root):
+        for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
+            path = module_dir / rel
+            if path.is_file():
+                paths.append(path)
+    return paths
 
 
 def _screen_verify_yaml_paths() -> list[Path]:
@@ -198,7 +217,7 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     if not isinstance(raw, dict):
         return None
     rule: VerifyRule = {}
-    for key in ("match", "ocr"):
+    for key in ("match", "ocr", "tab_active"):
         value = raw.get(key)
         if value is not None and str(value).strip():
             rule[key] = str(value).strip()

@@ -1,24 +1,20 @@
-"""Structural checks for ``modules/mail/scenarios/mail.claim.yaml``."""
+"""Structural checks for tab-specific mail claim scenarios."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import yaml
+from scenarios import template_resolver
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
-SCENARIO_PATH = MODULE_DIR / "scenarios" / "mail.claim.yaml"
-EXPECTED_TABS = (
-    "mail.tab.wars",
-    "mail.tab.alliance",
-    "mail.tab.system",
-    "mail.tab.reports",
-    "mail.tab.starred",
-)
-
-
-def _load() -> dict:
-    return yaml.safe_load(SCENARIO_PATH.read_text(encoding="utf-8"))
+REPO_ROOT = MODULE_DIR.parents[1]
+TAB_SCENARIOS = {
+    "mail.claim.wars": ("mail.wars", "Mail Wars: Claim Rewards"),
+    "mail.claim.alliance": ("mail.alliance", "Mail Alliance: Claim Rewards"),
+    "mail.claim.system": ("mail.system", "Mail System: Claim Rewards"),
+    "mail.claim.reports": ("mail.reports", "Mail Reports: Claim Rewards"),
+    "mail.claim.starred": ("mail.starred", "Mail Starred: Claim Rewards"),
+}
 
 
 def _is_claim_block_root(step: dict) -> bool:
@@ -50,58 +46,23 @@ def _assert_claim_block_shape(block: list, *, context: str) -> None:
     assert any(s.get("click") == "mail.delete.all" for s in delete_body if isinstance(s, dict))
 
 
-def test_scenario_node_priority_and_key() -> None:
-    doc = _load()
-    assert doc["node"] == "mail"
-    assert doc["priority"] == 80_000
-    assert doc["enabled"] is True
-    assert SCENARIO_PATH.name == "mail.claim.yaml"
+def test_tab_template_renders_explicit_mail_pages() -> None:
+    for scenario_key, (node, name) in TAB_SCENARIOS.items():
+        loaded = template_resolver.load_doc(REPO_ROOT, scenario_key)
+        assert loaded is not None
+        path, doc = loaded
+        assert path.name == "mail.claim.{tab}.yaml"
+        assert doc["enabled"] is True
+        assert doc["priority"] == 80_000
+        assert doc["node"] == node
+        assert doc["name"] == name
+        _assert_claim_block_shape(doc["steps"], context=scenario_key)
 
 
-def test_six_top_level_steps_active_plus_five_tabs() -> None:
-    steps = _load()["steps"]
-    assert isinstance(steps, list)
-    assert len(steps) == 6
+def test_legacy_generic_mail_claim_scenario_removed() -> None:
+    assert not (MODULE_DIR / "scenarios" / "mail.claim.yaml").exists()
 
 
-def test_step0_is_bare_active_tab_claim_block() -> None:
-    step = _load()["steps"][0]
-    assert isinstance(step, dict)
-    assert set(step.keys()) == {"steps"}
-    _assert_claim_block_shape(step["steps"], context="step 0")
-
-
-def test_each_tab_branch_has_layered_guards() -> None:
-    steps = _load()["steps"]
-    for branch_idx, tab_name in enumerate(EXPECTED_TABS, start=1):
-        branch = steps[branch_idx]
-        assert isinstance(branch, dict)
-        assert branch.get("while_match") == tab_name
-        assert branch.get("isTabActive") is False
-        assert branch.get("max") == 1
-
-        inner = branch.get("steps")
-        assert isinstance(inner, list) and len(inner) == 1
-        red = inner[0]
-        assert red.get("while_match") == tab_name
-        assert red.get("isRedDot") is True
-        assert red.get("max") == 1
-
-        body = red.get("steps")
-        assert isinstance(body, list) and len(body) >= 3
-        assert body[0].get("click") == tab_name
-        assert "wait" in body[1]
-        claim_group = body[-1]
-        assert set(claim_group.keys()) == {"steps"}
-        _assert_claim_block_shape(claim_group["steps"], context=f"branch {branch_idx} ({tab_name})")
-
-
-def test_claim_block_is_shared_via_yaml_anchor() -> None:
-    steps = _load()["steps"]
-    usages = [steps[0]["steps"]]
-    for i in range(1, 6):
-        body = steps[i]["steps"][0]["steps"]
-        usages.append(body[-1]["steps"])
-    first = usages[0]
-    for other in usages[1:]:
-        assert other is first
+def test_literal_tab_claim_copies_removed() -> None:
+    for tab in ("wars", "alliance", "system", "reports", "starred"):
+        assert not (MODULE_DIR / "scenarios" / f"mail.claim.{tab}.yaml").exists()

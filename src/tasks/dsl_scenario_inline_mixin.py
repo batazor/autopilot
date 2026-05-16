@@ -167,6 +167,45 @@ class DslScenarioInlineMixin:
         except Exception:
             logger.exception("dsl_scenario: exec %r failed", name)
 
+    async def _run_system_back_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+        trace_path: str,
+    ) -> TaskResult | None:
+        if step.get("system_back") is False:
+            self._append_trace_row(trace_path, step, "ok")
+            return None
+        ok = False
+        try:
+            ok = bool(await asyncio.to_thread(actions.system_back, instance_id))
+        except Exception:
+            logger.exception(
+                "dsl_scenario: system_back failed scenario=%s instance=%s",
+                _scen(scenario_key),
+                instance_id,
+            )
+        if not ok:
+            logger.info(
+                "dsl_scenario: system_back blocked — aborting scenario %s",
+                _scen(scenario_key),
+            )
+            await self._clear_step_context(instance_id)
+            self._append_trace_row(
+                trace_path, step, "stopped", reason="system_back_not_approved"
+            )
+            return TaskResult(
+                success=False,
+                next_run_at=None,
+                metadata={"scenario": scenario_key, "reason": "system_back_not_approved"},
+            )
+        await asyncio.sleep(0.4)
+        self._append_trace_row(trace_path, step, "ok")
+        return None
+
     async def _color_check_region(
         self,
         *,
@@ -486,6 +525,14 @@ class DslScenarioInlineMixin:
         ip = await self._inline_preempt_if_needed(instance_id, scenario_key)
         if ip is not None:
             return ip
+        if "system_back" in step:
+            return await self._run_system_back_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+                trace_path=trace_path,
+            )
         if "long_click" in step:
             region = str(step.get("long_click") or "").strip()
             if not region:
@@ -789,18 +836,41 @@ class DslScenarioInlineMixin:
             inner_steps = step.get("steps")
             if not isinstance(inner_steps, list):
                 inner_steps = []
+            retry_cfg = step.get("retry")
+            if not isinstance(retry_cfg, dict):
+                retry_cfg = {}
+            try:
+                initial_attempts = int(retry_cfg.get("attempts", 1))
+            except (TypeError, ValueError):
+                initial_attempts = 1
+            initial_attempts = max(1, initial_attempts)
+            if "interval" in retry_cfg:
+                attempt_interval_s = _parse_wait_seconds(retry_cfg.get("interval"))
+            else:
+                attempt_interval_s = 0.0
+            attempt_interval_s = max(0.0, attempt_interval_s)
 
             iterations = 0
             for iter_idx in range(max_iters):
-                row = await self._match_region(
-                    actions=actions,
-                    area_doc=area_doc,
-                    repo_root=repo_root,
-                    instance_id=instance_id,
-                    scenario_key=scenario_key,
-                    step=step,
-                    region=reg,
-                )
+                probe_attempts = initial_attempts if iterations == 0 else 1
+                row = None
+                for attempt in range(probe_attempts):
+                    if attempt > 0 and hasattr(actions, "invalidate_frame_cache"):
+                        with suppress(Exception):
+                            actions.invalidate_frame_cache(instance_id)
+                    row = await self._match_region(
+                        actions=actions,
+                        area_doc=area_doc,
+                        repo_root=repo_root,
+                        instance_id=instance_id,
+                        scenario_key=scenario_key,
+                        step=step,
+                        region=reg,
+                    )
+                    if row is not None and bool(row.get("matched")):
+                        break
+                    if attempt < probe_attempts - 1:
+                        await asyncio.sleep(attempt_interval_s)
                 if row is None or not bool(row.get("matched")):
                     break
                 iter_path = (

@@ -1,9 +1,8 @@
 """Rolling-tick behavior while a task is busy.
 
-The worker should keep writing the rolling preview PNG for the UI, but skip
-screen detect / overlay work by default while a scenario is in flight. The
-post-task ``_overlay_tick_now`` re-detects on a fresh frame as soon as the task
-finishes.
+The worker should keep writing the rolling preview PNG for the UI, but skip the
+full screen-detect / overlay pipeline by default while a scenario is in flight.
+Device-level overlays still run so blocking tutorials/popups can interrupt.
 """
 
 from __future__ import annotations
@@ -103,9 +102,13 @@ class _Harness(InstanceWorkerRollingMixin):
         return "main_city"
 
     async def _overlay_analyze_bgr(
-        self, image_bgr: np.ndarray, *, current_screen_override: str | None = None
+        self,
+        image_bgr: np.ndarray,
+        *,
+        current_screen_override: str | None = None,
+        device_level_only: bool = False,
     ) -> None:
-        self.calls.append("overlay")
+        self.calls.append("overlay:device" if device_level_only else "overlay")
 
     async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
         self.calls.append("who_i_am")
@@ -141,11 +144,12 @@ async def test_tick_idle_runs_full_pipeline(_isolated_refs: Any) -> None:
 @pytest.mark.asyncio
 async def test_tick_busy_skips_detect_and_overlay_by_default(_isolated_refs: Any) -> None:
     """Default config: both gates closed → after the screenshot the tick
-    stops, no detect / overlay / who_i_am invocations."""
+    skips detect and the full overlay pipeline, but still checks device-level
+    overlay rules."""
     h = _Harness(cfg=_Cfg())
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
-    assert h.calls == ["grab"], h.calls
+    assert h.calls == ["grab", "overlay:device"], h.calls
 
 
 @pytest.mark.asyncio
@@ -156,7 +160,7 @@ async def test_tick_busy_keeps_detect_when_flag_enabled(_isolated_refs: Any) -> 
     h = _Harness(cfg=_Cfg(screen_detect_when_busy=True))
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
-    assert h.calls == ["grab", "detect"], h.calls
+    assert h.calls == ["grab", "detect", "overlay:device"], h.calls
 
 
 @pytest.mark.asyncio

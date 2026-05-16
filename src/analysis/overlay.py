@@ -31,6 +31,7 @@ async def run_overlay_analysis(
     rule_eval_state: dict[str, float] | None = None,
     state_flat: dict[str, Any] | None = None,
     ocr_client: OcrClient | None = None,
+    device_level_only: bool = False,
 ) -> dict[str, Any]:
     """Load module overlay manifests (unless overridden) and evaluate ``overlay`` rules."""
     if analyze_yaml is None:
@@ -41,6 +42,12 @@ async def run_overlay_analysis(
         cfg = {}
     overlay = cfg.get("overlay")
     rules = overlay if isinstance(overlay, list) else []
+    if device_level_only:
+        rules = [
+            rule
+            for rule in rules
+            if isinstance(rule, dict) and rule.get("device_level") is True
+        ]
 
     if area_doc is None:
         import json
@@ -70,6 +77,7 @@ def run_overlay_analysis_sync(
     rule_eval_state: dict[str, float] | None = None,
     state_flat: dict[str, Any] | None = None,
     ocr_client: OcrClient | None = None,
+    device_level_only: bool = False,
 ) -> dict[str, Any]:
     """Sync wrapper for contexts that cannot await (e.g. some Streamlit pages)."""
     return asyncio.run(
@@ -82,6 +90,7 @@ def run_overlay_analysis_sync(
             rule_eval_state=rule_eval_state,
             state_flat=state_flat,
             ocr_client=ocr_client,
+            device_level_only=device_level_only,
         )
     )
 
