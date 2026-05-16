@@ -1382,7 +1382,7 @@
       "ocr": "references/big_claim_button.png",
       "regions": [
         {
-          "name": "big_claim_button",
+          "name": "button.claim.big",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1395,22 +1395,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "big_claim_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 10.193050193050192,
-            "y": 48.369565217391305,
-            "width": 82.33783783783784,
-            "height": 38.56521739130435,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
         }
       ]
     },
@@ -2055,35 +2039,132 @@
       "ocr": "references/big_claim.png",
       "regions": [
         {
-          "name": "big_claim_button_disabled",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 40.69498069498069,
-            "y": 60.43478260869565,
-            "width": 20.0,
-            "height": 4.9,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "big_claim_button_disabled_search",
+          "name": "go_big_button_search",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 20.038610038610038,
-            "y": 52.93478260869565,
-            "width": 63.7992277992278,
-            "height": 34.98586956521739,
+            "x": 42.777992277992276,
+            "y": 22.109782608695653,
+            "width": 15.0,
+            "height": 2.1880434782608695,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "hash": "250c117b6ded1899bc3d277dfec55646a130fdb6c666963d1ee24670373d95e1"
+        },
+        {
+          "name": "button.claimed.disabled",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.237451737451735,
+            "y": 60.43478260869565,
+            "width": 35.2992277992278,
+            "height": 5.5271739130434785,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a9d418581c84514ae6e32592c48fb1d229f2cd18e0a590152e5df29c30242f1a"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "51db066391daf3035435c75bf9692afc39eeac8a371152b6b3081fe5d3dc2cac"
+        },
+        {
+          "name": "icon.2026_05_0815_20_42",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.052123552123552,
+            "y": 8.683695652173913,
+            "width": 94.17760617760618,
+            "height": 11.840217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "37110693d3a3804bc21dd2c6a1f5fd2982b6abe8365d2e1f211abf96cc7e7fd7"
+        },
+        {
+          "name": "mail.next",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.99034749034749,
+            "y": 47.415217391304346,
+            "width": 7.517374517374518,
+            "height": 5.623913043478261,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0f78da716b4f921cd674e9061b70cd0f5b34b34072589707e3beae59e1621dec"
+        },
+        {
+          "name": "mail.delete",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "80a4da74a0e99dc06ce1d59f09ac58641169cd12399cbfc8735e4945df186918"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.81274131274131,
+            "y": 1.2173913043478262,
+            "width": 7.737451737451737,
+            "height": 4.744565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f845842599e64984c58eb8a00c12c2eb81f857f9f28092ebfdc37df25178fd25"
+        },
+        {
+          "name": "mail_gift_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.71428571428571,
+            "y": 32.85434782608696,
+            "width": 6.710424710424711,
+            "height": 3.006521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b30256c91d6f7e510d4e4e87a95a89408e9083f7017df618e47ac7d42dfd437d"
         }
       ]
     },
