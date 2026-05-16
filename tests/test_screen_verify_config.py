@@ -152,6 +152,32 @@ def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_loading_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("loading")
+        rules = screen_graph.screen_verify_rules("loading")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "text.survival", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_frostdragon_tyrant_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("text.frostdragon_tyrant")
+        rules = screen_graph.screen_verify_rules("text.frostdragon_tyrant")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "text.frostdragon_tyrant", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:

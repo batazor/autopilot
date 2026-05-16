@@ -138,6 +138,8 @@ class InstanceWorkerRedisMixin:
             return ""
         if not rows:
             return ""
+        if str(current_screen or "").strip().lower() == "loading":
+            return f"{len(rows)} due item(s) blocked: current_screen is loading"
         active_raw = await self._redis.hget(
             _INST_STATE_KEY_FMT.format(instance_id=inst),
             "active_player",

@@ -78,11 +78,21 @@ def load_models() -> dict[str, Any]:
         if root_s not in sys.path:
             sys.path.insert(0, root_s)
         os.chdir(root)
-        from util.utils import (  # type: ignore[import-not-found]
-            check_ocr_box,
-            get_som_labeled_img,
-            get_yolo_model,
-        )
+        try:
+            from util.utils import (  # type: ignore[import-not-found]
+                check_ocr_box,
+                get_som_labeled_img,
+                get_yolo_model,
+            )
+        except ImportError as exc:
+            missing = str(getattr(exc, "name", "") or "").strip() or getattr(exc, "msg", "") or ""
+            hint = (
+                "Full OmniParser needs heavy Python deps from the repo optional group `omniparser` "
+                "(easyocr, torch, transformers, paddleocr, …). From repo root run: uv sync --extra omniparser. "
+                "For a lighter path without that stack, set OMNIPARSER_LOCAL_BACKEND=icon_detect (YOLO bboxes only)."
+            )
+            msg = hint if not missing else f"{hint} (import error module: {missing})"
+            raise RuntimeError(msg) from exc
 
         weights = root / "weights"
         yolo_path = weights / "icon_detect" / "model.pt"

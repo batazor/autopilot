@@ -544,6 +544,9 @@ class RedisQueue:
         if not due:
             return []
 
+        if str(current_screen or "").strip().lower() == "loading":
+            return []
+
         if not str(current_screen or "").strip():
             gated = self._task_types_requiring_node()
             if gated:

@@ -62,6 +62,26 @@ async def test_pop_due_allows_device_level_scenario_when_active_player_missing(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_pop_due_blocks_all_scenarios_while_loading(redis_async: object) -> None:
+    r = redis_async
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+
+    await q.schedule(
+        task_id="t-who-loading",
+        player_id="",
+        task_type="who_i_am",
+        priority=82_000,
+        run_at=time.time(),
+        instance_id="bs1",
+        skip_if_duplicate=False,
+    )
+
+    item = await q.pop_due("bs1", current_screen="loading")
+    assert item is None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_pop_due_prefers_device_level_when_player_bound_outranks(
     redis_async: object,
 ) -> None:

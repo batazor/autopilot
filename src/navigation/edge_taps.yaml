@@ -109,6 +109,9 @@ edges:
   # Natalia first-purchase ad overlay: close it before continuing normal navigation.
   ads.natalia:
     main_city: [ads.natalia]
+  # Frostdragon Tyrant popup/card: tap the blank-space prompt to return to main_city.
+  text.frostdragon_tyrant:
+    main_city: [text.tap_any_blank_space_to_close]
   chief_profile:
     main_city: [icon.page.back]
   mail:

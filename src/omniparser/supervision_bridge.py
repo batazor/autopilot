@@ -155,15 +155,10 @@ def detections_to_regions(
             name = candidate_nm
         taken.add(str(name))
 
-        if payload.type == "text":
-            action = "text"
-            rtype = "string"
-        elif payload.interactivity:
-            action = "exist"
-            rtype = "string"
-        else:
-            action = "exist"
-            rtype = "string"
+        # OmniParser may call the element text, but the generated area region
+        # should still be a cheap template/hash check at runtime.
+        action = "exist"
+        rtype = "string"
 
         region = {
             "name": name,

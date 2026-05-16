@@ -33,3 +33,9 @@ def test_welcome_back_routes_to_main_city() -> None:
 
 def test_ads_natalia_routes_to_main_city() -> None:
     assert route_taps("ads.natalia", "main_city") == [["ads.natalia"]]
+
+
+def test_frostdragon_tyrant_routes_to_main_city() -> None:
+    assert route_taps("text.frostdragon_tyrant", "main_city") == [
+        ["text.tap_any_blank_space_to_close"]
+    ]

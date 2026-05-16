@@ -9,6 +9,28 @@ retry:
   interval_seconds: 0.8
 
 screens:
+  loading:
+    # Startup/loading splash. Treat as a real screen so Redis current_screen
+    # is not cleared to unknown while the game is still booting.
+    priority: 1
+    landmarks:
+      - match: text.survival
+        threshold: 0.9
+    rules:
+      - match: text.survival
+        threshold: 0.9
+
+  text.frostdragon_tyrant:
+    # Frostdragon Tyrant popup/card. Recognize before hub screens so overlay
+    # automation can close it without trying normal navigation.
+    priority: 2
+    landmarks:
+      - match: text.frostdragon_tyrant
+        threshold: 0.9
+    rules:
+      - match: text.frostdragon_tyrant
+        threshold: 0.9
+
   main_city:
     priority: 10
     rules:

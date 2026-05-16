@@ -5,6 +5,7 @@ import hashlib
 from PIL import Image
 
 import omniparser.supervision_bridge as sb
+from omniparser.convert import elements_to_regions
 from omniparser.types import ParsedUiElement
 from ui import labeling_omniparser as omni
 from ui.labeling_omniparser import merge_omniparser_regions
@@ -161,6 +162,30 @@ def test_nms_suppresses_overlapping_duplicate_boxes() -> None:
     assert stats.after_min_area_count == 2
     assert len(regs) == 1
     assert stats.nms_removed == 1
+
+
+def test_omniparser_text_elements_are_persisted_as_exist_regions() -> None:
+    el = ParsedUiElement(
+        type="text",
+        bbox=(0.1, 0.2, 0.4, 0.25),
+        interactivity=False,
+        content="Survival",
+    )
+
+    legacy_regions = elements_to_regions([el], image_width=100, image_height=100)
+    bridge_regions, _stats = sb.build_omniparser_proposal_regions(
+        (el,),
+        Image.new("RGB", (100, 100), (255, 255, 255)),
+        width=100,
+        height=100,
+        min_area_pct=0.01,
+        nms_iou_threshold=0.5,
+    )
+
+    assert legacy_regions[0]["name"] == "text.survival"
+    assert legacy_regions[0]["action"] == "exist"
+    assert bridge_regions[0]["name"] == "text.survival"
+    assert bridge_regions[0]["action"] == "exist"
 
 
 def test_merge_detected_regions_replace() -> None:

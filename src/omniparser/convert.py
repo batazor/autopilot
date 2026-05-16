@@ -108,15 +108,10 @@ def elements_to_regions(
                 candidate = f"{name}.{suffix}"
             name = candidate
         taken.add(name)
-        if el.type == "text":
-            action = "text"
-            rtype = "string"
-        elif el.interactivity:
-            action = "exist"
-            rtype = "string"
-        else:
-            action = "exist"
-            rtype = "string"
+        # OmniParser text boxes are labels, not OCR tasks for the bot. Persist
+        # every auto-labeled region as a template/hash match to avoid runtime OCR.
+        action = "exist"
+        rtype = "string"
         region = {
             "name": name,
             "action": action,
