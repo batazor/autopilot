@@ -348,8 +348,94 @@ def test_overlap_reuse_prefers_smaller_existing_region_when_scores_tie() -> None
     renamed, reused, dropped = sb.reuse_proposal_names_from_overlapping_regions(proposals, existing)
 
     assert renamed[0]["name"] == "main_city.title"
+    assert renamed[0]["bbox"] == existing[1]["bbox"]
     assert reused == 1
     assert dropped == 0
+
+
+def test_overlap_reuse_copies_canonical_bbox_from_existing_region() -> None:
+    proposals = [
+        {
+            "name": "icon.omni_title",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 1.0, "y": 1.0, "width": 21.0, "height": 8.0},
+        }
+    ]
+    existing = [
+        {
+            "name": "mail.title",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 2.0, "y": 2.0, "width": 20.0, "height": 6.0},
+        }
+    ]
+
+    renamed, reused, dropped = sb.reuse_proposal_names_from_overlapping_regions(proposals, existing)
+
+    assert renamed[0]["name"] == "mail.title"
+    assert renamed[0]["bbox"] == existing[0]["bbox"]
+    assert renamed[0]["hash"] == sb.region_hash(renamed[0])
+    assert reused == 1
+    assert dropped == 0
+
+
+def test_overlap_reuse_ignores_search_and_tap_auxiliary_regions() -> None:
+    proposals = [
+        {
+            "name": "icon.omni",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        }
+    ]
+    existing = [
+        {
+            "name": "go_big_button_search",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        },
+        {
+            "name": "button.tap",
+            "aliases": ["button_tap"],
+            "action": "click",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        },
+    ]
+
+    renamed, reused, dropped = sb.reuse_proposal_names_from_overlapping_regions(proposals, existing)
+
+    assert renamed[0]["name"] == "icon.omni"
+    assert reused == 0
+    assert dropped == 0
+
+
+def test_merge_ignores_search_region_as_overlap_match_target() -> None:
+    existing = [
+        {
+            "name": "go_big_button_search",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        }
+    ]
+    proposed = [
+        {
+            "name": "icon.omni",
+            "action": "exist",
+            "type": "string",
+            "bbox": {"x": 10.0, "y": 10.0, "width": 10.0, "height": 10.0},
+        }
+    ]
+
+    merged, added, aliased, skipped = merge_omniparser_regions(existing, proposed)
+
+    assert [r["name"] for r in merged] == ["go_big_button_search", "icon.omni"]
+    assert added == 1
+    assert aliased == 0
+    assert skipped == 0
 
 
 def test_min_area_prefilter_skips_small_elements() -> None:

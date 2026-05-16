@@ -268,12 +268,28 @@ def _region_names(region: dict[str, object]) -> list[str]:
     return out
 
 
+def _is_matching_auxiliary_region(region: dict[str, object]) -> bool:
+    if bool(region.get("overlay_auxiliary")):
+        return True
+    return any(name.endswith(("_search", "_tap")) for name in _region_names(region))
+
+
 def _region_identity_hashes(region: dict[str, object]) -> set[str]:
     h = str(region.get("hash") or "").strip()
     hashes = {region_hash(region)}
     if h:
         hashes.add(h)
     return hashes
+
+
+def _copy_bbox_from_existing(
+    proposal: dict[str, object],
+    existing_bbox: dict[str, object],
+) -> bool:
+    before = proposal.get("bbox")
+    proposal["bbox"] = dict(existing_bbox)
+    proposal["hash"] = region_hash(proposal)
+    return before != proposal["bbox"]
 
 
 def _region_crop_pixel_hash(image: Image.Image, region: dict[str, object]) -> str | None:
@@ -325,10 +341,13 @@ def reuse_proposal_names_from_existing_crops(
     """
 
     reused = 0
-    existing_entries: list[tuple[tuple[float, float, float, float], str, str]] = []
+    existing_entries: list[tuple[tuple[float, float, float, float], str, str, dict[str, object]]] = []
     for er in existing:
+        if _is_matching_auxiliary_region(er):
+            continue
         rect = _bbox_rect(er)
-        if rect is None:
+        bbox = er.get("bbox")
+        if rect is None or not isinstance(bbox, dict):
             continue
         ch = _region_crop_pixel_hash(image, er)
         if not ch:
@@ -337,7 +356,7 @@ def reuse_proposal_names_from_existing_crops(
         primary = names[0] if names else ""
         if not primary:
             continue
-        existing_entries.append((rect, primary, ch))
+        existing_entries.append((rect, primary, ch, bbox))
 
     for reg in proposals:
         prop_rect = _bbox_rect(reg)
@@ -347,13 +366,17 @@ def reuse_proposal_names_from_existing_crops(
         if not prop_hash:
             continue
         cur_name = str(reg.get("name") or "").strip()
-        for ex_rect, primary, ex_hash in existing_entries:
+        for ex_rect, primary, ex_hash, ex_bbox in existing_entries:
             if not _rects_intersect(prop_rect, ex_rect):
                 continue
             if prop_hash != ex_hash:
                 continue
+            changed = _copy_bbox_from_existing(reg, ex_bbox)
             if cur_name != primary:
                 reg["name"] = primary
+                reg["hash"] = region_hash(reg)
+                reused += 1
+            elif changed:
                 reused += 1
             break
 
@@ -373,18 +396,21 @@ def reuse_proposal_names_from_overlapping_regions(
     """
 
     score_tie_epsilon = 0.05
-    existing_entries: list[tuple[tuple[float, float, float, float], str, float]] = []
+    existing_entries: list[tuple[tuple[float, float, float, float], str, float, dict[str, object]]] = []
     for er in existing:
+        if _is_matching_auxiliary_region(er):
+            continue
         rect = _bbox_rect(er)
-        if rect is None:
+        bbox = er.get("bbox")
+        if rect is None or not isinstance(bbox, dict):
             continue
         names = _region_names(er)
         primary = names[0] if names else ""
         if primary:
-            existing_entries.append((rect, primary, _rect_area(rect)))
+            existing_entries.append((rect, primary, _rect_area(rect), bbox))
 
     best_by_name: dict[str, tuple[float, int]] = {}
-    match_by_idx: dict[int, tuple[str, float]] = {}
+    match_by_idx: dict[int, tuple[str, float, dict[str, object]]] = {}
     threshold = float(threshold)
     for idx, reg in enumerate(proposals):
         prop_rect = _bbox_rect(reg)
@@ -393,7 +419,8 @@ def reuse_proposal_names_from_overlapping_regions(
         best_name = ""
         best_score = 0.0
         best_area = float("inf")
-        for ex_rect, primary, existing_area in existing_entries:
+        best_bbox: dict[str, object] | None = None
+        for ex_rect, primary, existing_area, existing_bbox in existing_entries:
             score = _overlap_ratio_of_smaller(prop_rect, ex_rect)
             if score < threshold:
                 continue
@@ -404,8 +431,9 @@ def reuse_proposal_names_from_overlapping_regions(
                 best_name = primary
                 best_score = score
                 best_area = existing_area
-        if best_name:
-            match_by_idx[idx] = (best_name, best_score)
+                best_bbox = existing_bbox
+        if best_name and best_bbox is not None:
+            match_by_idx[idx] = (best_name, best_score, best_bbox)
             prev = best_by_name.get(best_name)
             if prev is None or best_score > prev[0]:
                 best_by_name[best_name] = (best_score, idx)
@@ -422,12 +450,16 @@ def reuse_proposal_names_from_overlapping_regions(
         if match is None:
             out.append(reg)
             continue
-        canonical_name, _score = match
+        canonical_name, _score, canonical_bbox = match
         if idx not in keep_indices:
             dropped += 1
             continue
+        changed = _copy_bbox_from_existing(reg, canonical_bbox)
         if str(reg.get("name") or "").strip() != canonical_name:
             reg["name"] = canonical_name
+            reg["hash"] = region_hash(reg)
+            reused += 1
+        elif changed:
             reused += 1
         out.append(reg)
     return out, reused, dropped
@@ -447,13 +479,15 @@ def merge_omniparser_regions(
     names = {name for region in merged for name in _region_names(region)}
     by_hash: dict[str, dict[str, object]] = {}
     for region in merged:
+        if _is_matching_auxiliary_region(region):
+            continue
         for h in _region_identity_hashes(region):
             by_hash.setdefault(h, region)
 
     existing_rects: list[tuple[dict[str, object], tuple[float, float, float, float]]] = [
         (region, rect)
         for region in merged
-        if (rect := _bbox_rect(region)) is not None
+        if not _is_matching_auxiliary_region(region) and (rect := _bbox_rect(region)) is not None
     ]
     added = 0
     aliased = 0

@@ -175,6 +175,10 @@ ACTIONS = ("exist", "text", "color_check", "click")
 TYPES = ("integer", "string", "boolean", "time")
 COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
+OMNIPARSER_LABELING_SESSION = "omniparser_labeling_proposal"
+OMNIPARSER_PROPOSAL_CANVAS_FLAG = "wos_omni_proposal"
+OMNIPARSER_PROPOSAL_STROKE = "#a855f7"
+OMNIPARSER_PROPOSAL_FILL = "rgba(168, 85, 247, 0.12)"
 # Drawable canvas display size (longer side cap).
 CANVAS_DISPLAY_MAX_SIDE = 1280
 # Labeling layout: slightly smaller canvas so the reference / regions column gets more width.
@@ -1969,6 +1973,7 @@ def _bbox_to_canvas_rect(
     *,
     stroke: str,
     stroke_width: int = 2,
+    fill: str = "rgba(255, 255, 255, 0.05)",
     region_name: str = "",
     active: bool = False,
 ) -> dict[str, Any]:
@@ -1985,7 +1990,7 @@ def _bbox_to_canvas_rect(
         "top": top,
         "width": max(width, 1.0),
         "height": max(height, 1.0),
-        "fill": "rgba(255, 255, 255, 0.05)",
+        "fill": fill,
         "stroke": stroke,
         "strokeWidth": stroke_width,
         "angle": bbox.get("rotation", 0.0),
@@ -2006,11 +2011,22 @@ def _bbox_to_canvas_rect(
     return doc
 
 
+def _proposal_canvas_regions_from_session() -> list[RegionDict]:
+    proposal = st.session_state.get(OMNIPARSER_LABELING_SESSION)
+    if not isinstance(proposal, dict):
+        return []
+    regs = proposal.get("proposal_regions")
+    if not isinstance(regs, list):
+        return []
+    return [r for r in regs if isinstance(r, dict) and isinstance(r.get("bbox"), dict)]
+
+
 def regions_to_initial_drawing(
     regions: list[RegionDict],
     canvas_w: int,
     canvas_h: int,
     selected_idx: int | None,
+    proposal_regions: list[RegionDict] | None = None,
 ) -> dict[str, Any]:
     objects: list[dict[str, Any]] = []
     for i, reg in enumerate(regions):
@@ -2035,6 +2051,25 @@ def regions_to_initial_drawing(
                 active=is_selected,
             )
         )
+    for reg in proposal_regions or []:
+        bbox = reg.get("bbox")
+        if not bbox:
+            continue
+        obj = _bbox_to_canvas_rect(
+            bbox,
+            canvas_w,
+            canvas_h,
+            stroke=OMNIPARSER_PROPOSAL_STROKE,
+            stroke_width=3,
+            fill=OMNIPARSER_PROPOSAL_FILL,
+            region_name=str(reg.get("name") or "").strip(),
+        )
+        obj[OMNIPARSER_PROPOSAL_CANVAS_FLAG] = True
+        obj["selectable"] = False
+        obj["evented"] = False
+        obj["hasControls"] = False
+        obj["hasBorders"] = False
+        objects.append(obj)
     return {"version": CANVAS_VERSION, "objects": objects}
 
 
@@ -2114,6 +2149,7 @@ def sync_regions_from_canvas(
     new_regions: list[RegionDict] = []
     rect_objs = [o for o in (json_data.get("objects") or []) if isinstance(o, dict)]
     rect_objs = [o for o in rect_objs if o.get("type") == "rect"]
+    rect_objs = [o for o in rect_objs if not o.get(OMNIPARSER_PROPOSAL_CANVAS_FLAG)]
     if not rect_objs:
         return regions
 
@@ -2806,7 +2842,16 @@ def render_area_annotator_ui(
                 regions = current_regions()
                 sel = _resolve_selected_region_idx(regions)
 
-                initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
+                proposal_regions = _proposal_canvas_regions_from_session()
+                initial = regions_to_initial_drawing(
+                    regions,
+                    canvas_w,
+                    canvas_h,
+                    sel,
+                    proposal_regions=proposal_regions,
+                )
+                if proposal_regions:
+                    st.caption("Purple boxes = pending Omni proposal regions (not saved until Apply proposal).")
 
                 canvas_result = st_canvas(
                     fill_color="rgba(120, 180, 255, 0.15)",

@@ -1395,6 +1395,102 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "go_big_button_search",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.666023166023166,
+            "y": 36.25,
+            "width": 16.944015444015445,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9d52745851268f1b5bf100ea26590e04bfa3ccf9bec0f05704a99ba085fff52b"
+        },
+        {
+          "name": "mail.delete",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "dfdb9c98e26e3f628a0ba4383c4089505e2c41675a33ca2fd046ad6ffd3ee52c"
+        },
+        {
+          "name": "icon.2026_05_0815_20_42",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.063706563706564,
+            "y": 8.685869565217391,
+            "width": 94.08880308880309,
+            "height": 11.869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "47bbdbe3fe6c5c74cf38a5e6cfdb6cdbc34f8700af2a910eff97bb593221c60f"
+        },
+        {
+          "name": "mail.next",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.37065637065638,
+            "y": 47.471739130434784,
+            "width": 6.932432432432432,
+            "height": 6.228260869565218,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9b7cf7c56e2de4611fb6c9895812870bfdc92b70ebb565865293bbfab8236de5"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.79729729729729,
+            "y": 1.25,
+            "width": 7.766409266409266,
+            "height": 4.708695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "48d515be1aad7665fece7aee6b3acf1a718ab723b09a6eb9174410c6983daa63"
         }
       ]
     },
@@ -2174,7 +2270,7 @@
       "ocr": "references/go_big_button.png",
       "regions": [
         {
-          "name": "go_big_button",
+          "name": "button.go.big",
           "action": "text",
           "type": "string",
           "threshold": 0.9,
@@ -2187,22 +2283,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "go_big_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 10.386100386100386,
-            "y": 21.956521739130434,
-            "width": 82.61969111969113,
-            "height": 69.31847826086957,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
         }
       ]
     },
