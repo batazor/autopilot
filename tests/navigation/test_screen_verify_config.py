@@ -262,3 +262,16 @@ def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
     expected = [{"match": "ads.natalia", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_is_new_people_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("isNewPeople")
+        rules = screen_graph.screen_verify_rules("isNewPeople")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "welcome_in", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected

@@ -41,6 +41,20 @@ def test_core_onboarding_module_overlay_rules_present_in_merged_manifest() -> No
         assert expected in names
 
 
+def test_alliance_module_overlay_rule_present_in_merged_manifest() -> None:
+    doc = load_merged_analyze_yaml(REPO_ROOT)
+    names = _rule_names(doc)
+
+    assert "alliance.main_city.new_alliance.mail.visible" in names
+
+
+def test_core_is_new_people_module_overlay_rule_present_in_merged_manifest() -> None:
+    doc = load_merged_analyze_yaml(REPO_ROOT)
+    names = _rule_names(doc)
+
+    assert "isNewPeople.visible" in names
+
+
 def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
     """All six mail-screen rules live in the mail module and must surface here."""
     doc = load_merged_analyze_yaml(REPO_ROOT)

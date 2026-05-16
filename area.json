@@ -1797,7 +1797,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },
@@ -5225,6 +5226,28 @@
         }
       ],
       "screen_region": "heroes.sr.new.close"
+    },
+    {
+      "id": 76,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.new_alliance.mail.png",
+      "regions": [
+        {
+          "name": "main_city.new_alliance.mail.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.8030888030888,
+            "y": 72.28260869565217,
+            "width": 8.0,
+            "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

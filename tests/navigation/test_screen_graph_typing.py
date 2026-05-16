@@ -35,6 +35,11 @@ def test_ads_natalia_routes_to_main_city() -> None:
     assert route_taps("ads.natalia", "main_city") == [["ads.natalia"]]
 
 
+def test_is_new_people_routes_to_and_from_main_city() -> None:
+    assert route_taps("main_city", "isNewPeople") == [["isNewPeople"]]
+    assert route_taps("isNewPeople", "main_city") == [["welcome_in"]]
+
+
 def test_mail_routes_to_and_from_main_city() -> None:
     assert route_taps("main_city", "mail") == [["mail.new"]]
     assert route_taps("mail", "main_city") == [["icon.page.back"]]
