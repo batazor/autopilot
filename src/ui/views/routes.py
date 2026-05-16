@@ -1,4 +1,4 @@
-"""Game node graph topology (Python mirror of Go transition tables): regions and edges."""
+"""Game node routing graph backed by the runtime tap registry."""
 from __future__ import annotations
 
 import streamlit as st
@@ -6,28 +6,17 @@ from streamlit_nested_table import nested_table, table_column
 from streamlit_react_flow import FlowLegendItem, react_flow
 
 from navigation.screen_graph import EDGE_DYNAMIC, EDGE_TAPS, bfs_route
-from navigation.screen_topology import (
-    MAIN_MENU_EDGES,
-    SCREEN_TOPOLOGY_EDGES,
-    TROOPS_EDGES,
-    TUNDRA_ADVENTURE_EDGES,
-)
-from ui.flow_layout import adjacency_from_edge_keys, build_flow_graph, screen_to_regions, sorted_edge_pairs
-
-_REGIONS: tuple[tuple[str, dict[str, frozenset[str]]], ...] = (
-    ("Tundra Adventure", TUNDRA_ADVENTURE_EDGES),
-    ("Main Menu", MAIN_MENU_EDGES),
-    ("Troops", TROOPS_EDGES),
-)
+from ui.flow_layout import adjacency_from_edge_keys, build_flow_graph, sorted_edge_pairs
 
 _STATIC_TAP_EDGE_KEYS = frozenset(EDGE_TAPS.keys())
 _DYNAMIC_EDGE_KEYS = frozenset(EDGE_DYNAMIC.keys())
 _ROUTABLE_EDGE_KEYS = frozenset((*_STATIC_TAP_EDGE_KEYS, *_DYNAMIC_EDGE_KEYS))
+_TAP_GRAPH = adjacency_from_edge_keys(_ROUTABLE_EDGE_KEYS)
+_SCREEN_REGIONS: dict[str, frozenset[str]] = {}
 
 _LEGEND: list[FlowLegendItem] = [
     {"label": "registered tap", "color": "#111827", "kind": "edge"},
     {"label": "dynamic tap", "color": "#2563eb", "kind": "dashed-edge"},
-    {"label": "topology only", "color": "#a1a1aa", "kind": "dashed-edge"},
     {"label": "planned route", "color": "#ea580c", "kind": "edge"},
 ]
 
@@ -35,10 +24,6 @@ _LEGEND: list[FlowLegendItem] = [
 def _render_flow(
     edges: dict[str, frozenset[str]],
     *,
-    default_region: str | None = None,
-    screen_regions: dict[str, frozenset[str]] | None = None,
-    tap_edge_keys: frozenset[tuple[str, str]] | None = None,
-    dynamic_edge_keys: frozenset[tuple[str, str]] | None = None,
     highlight_nodes: frozenset[str] | None = None,
     highlight_edges: frozenset[tuple[str, str]] | None = None,
     key: str,
@@ -47,10 +32,9 @@ def _render_flow(
 ) -> str | None:
     nodes, flow_edges, height, width = build_flow_graph(
         edges,
-        default_region=default_region,
-        screen_regions=screen_regions,
-        tap_edge_keys=tap_edge_keys,
-        dynamic_edge_keys=dynamic_edge_keys,
+        screen_regions=_SCREEN_REGIONS,
+        tap_edge_keys=_ROUTABLE_EDGE_KEYS,
+        dynamic_edge_keys=_DYNAMIC_EDGE_KEYS,
         highlight_nodes=highlight_nodes,
         highlight_edges=highlight_edges,
     )
@@ -101,7 +85,7 @@ def _edge_status(src: str, dst: str) -> str:
         return "static tap"
     if key in EDGE_DYNAMIC:
         return "dynamic tap"
-    return "topology only"
+    return "unknown"
 
 
 def _edge_action_summary(src: str, dst: str) -> str:
@@ -119,8 +103,6 @@ def _edge_action_summary(src: str, dst: str) -> str:
 def _render_node_details(
     node_id: str | None,
     edges: dict[str, frozenset[str]],
-    *,
-    screen_regions: dict[str, frozenset[str]],
 ) -> None:
     if not node_id:
         st.caption("Click a node in the graph to inspect its routing edges.")
@@ -128,18 +110,27 @@ def _render_node_details(
 
     outgoing = sorted(edges.get(node_id, frozenset()))
     incoming = sorted(src for src, dsts in edges.items() if node_id in dsts)
-    regions = ", ".join(sorted(screen_regions.get(node_id, frozenset()))) or "none"
 
-    st.markdown(f"**Selected:** `{node_id}` · regions: `{regions}`")
+    st.markdown(f"**Selected:** `{node_id}`")
     col_in, col_out = st.columns(2)
     col_in.metric("Incoming", len(incoming))
     col_out.metric("Outgoing", len(outgoing))
 
     rows = [
-        {"id": f"sel_in_{idx}", "dir": "in", "edge": f"{src} → {node_id}", "status": _edge_status(src, node_id)}
+        {
+            "id": f"sel_in_{idx}",
+            "dir": "in",
+            "edge": f"{src} -> {node_id}",
+            "status": _edge_status(src, node_id),
+        }
         for idx, src in enumerate(incoming)
     ] + [
-        {"id": f"sel_out_{idx}", "dir": "out", "edge": f"{node_id} → {dst}", "status": _edge_status(node_id, dst)}
+        {
+            "id": f"sel_out_{idx}",
+            "dir": "out",
+            "edge": f"{node_id} -> {dst}",
+            "status": _edge_status(node_id, dst),
+        }
         for idx, dst in enumerate(outgoing)
     ]
     if rows:
@@ -160,33 +151,23 @@ def _render_node_details(
 
 st.title("Screen routes")
 
-_screen_regions = screen_to_regions(_REGIONS)
-_tap_graph = adjacency_from_edge_keys(_ROUTABLE_EDGE_KEYS)
-_topology_pairs = set(sorted_edge_pairs(SCREEN_TOPOLOGY_EDGES))
-_missing_topology_pairs = _topology_pairs - set(_ROUTABLE_EDGE_KEYS)
+_tap_pairs = set(sorted_edge_pairs(_TAP_GRAPH))
 
 st.caption(
-    "Explore the merged screen topology, compare it with the bot tap graph, and inspect route coverage."
+    "Explore the runtime tap graph from `navigation/edge_taps.yaml` and dynamic edge resolvers."
 )
 
 metric_a, metric_b, metric_c, metric_d = st.columns(4)
-metric_a.metric("Topology edges", len(_topology_pairs))
+metric_a.metric("Runtime edges", len(_tap_pairs))
 metric_b.metric("Static tap edges", len(_STATIC_TAP_EDGE_KEYS))
 metric_c.metric("Dynamic tap edges", len(_DYNAMIC_EDGE_KEYS))
-metric_d.metric("Topology-only gaps", len(_missing_topology_pairs))
+metric_d.metric("Screens", len(_tap_graph_nodes()))
 
-tab_merged, tab_tap_graph, tab_edges = st.tabs(["Merged", "Tap graph", "All edges"])
+tab_graph, tab_edges = st.tabs(["Tap graph", "All edges"])
 
-with tab_merged:
-    st.caption(
-        "Full topology: `SCREEN_TOPOLOGY_EDGES` (union of regional graphs). "
-        "Solid edges = static taps; blue dashed = dynamic taps; gray dashed = topology only."
-    )
-
-    st.subheader("Bot route planner (tap graph)")
-    st.caption(
-        "Uses `navigation/screen_graph.py` · static and dynamic tap edges. Can differ from the full topology."
-    )
+with tab_graph:
+    st.subheader("Bot route planner")
+    st.caption("Uses `navigation/screen_graph.py` backed by `navigation/edge_taps.yaml`.")
 
     nodes = _tap_graph_nodes()
     if not nodes:
@@ -201,7 +182,7 @@ with tab_merged:
         with col_c:
             focus = st.selectbox(
                 "Focus node",
-                [""] + sorted(set(_screen_regions) | set(nodes)),
+                [""] + nodes,
                 index=0,
                 key="routes_focus_node",
             )
@@ -211,22 +192,15 @@ with tab_merged:
         highlight_edges = _route_edge_pairs(path)
 
         selected = _render_flow(
-            SCREEN_TOPOLOGY_EDGES,
-            screen_regions=_screen_regions,
-            tap_edge_keys=_ROUTABLE_EDGE_KEYS,
-            dynamic_edge_keys=_DYNAMIC_EDGE_KEYS,
+            _TAP_GRAPH,
             highlight_nodes=highlight_nodes,
             highlight_edges=highlight_edges,
-            key="flow-merged",
+            key="flow-tap-graph",
         )
-        _render_node_details(
-            selected or (focus if focus else None),
-            SCREEN_TOPOLOGY_EDGES,
-            screen_regions=_screen_regions,
-        )
+        _render_node_details(selected or (focus if focus else None), _TAP_GRAPH)
 
         if path is None:
-            st.error(f"No bot route found for `{src}` → `{dst}` (and no route via `main_city`).")
+            st.error(f"No bot route found for `{src}` -> `{dst}` (and no route via `main_city`).")
         else:
             if mode == "via_main_city" and src != dst:
                 st.info("Showing route **via `main_city`** (hub route).")
@@ -244,7 +218,7 @@ with tab_merged:
                         {
                             "id": f"routes_hop_{i}",
                             "n": i + 1,
-                            "hop": f"{a} → {b}",
+                            "hop": f"{a} -> {b}",
                             "status": _edge_status(a, b),
                             "action": _edge_action_summary(a, b),
                         }
@@ -264,17 +238,6 @@ with tab_merged:
                     key="routes_planned_hops",
                 )
 
-with tab_tap_graph:
-    st.caption("Runnable graph from `EDGE_TAPS` plus runtime-resolved `EDGE_DYNAMIC` edges.")
-    selected = _render_flow(
-        _tap_graph,
-        screen_regions=_screen_regions,
-        tap_edge_keys=_ROUTABLE_EDGE_KEYS,
-        dynamic_edge_keys=_DYNAMIC_EDGE_KEYS,
-        key="flow-tap-graph",
-    )
-    _render_node_details(selected, _tap_graph, screen_regions=_screen_regions)
-
 with tab_edges:
     q = (
         st.text_input("Filter edges", placeholder="screen id, status, region...", key="routes_edge_filter")
@@ -283,17 +246,15 @@ with tab_edges:
     )
     wanted_status = st.multiselect(
         "Status",
-        ["static tap", "dynamic tap", "topology only"],
-        default=["static tap", "dynamic tap", "topology only"],
+        ["static tap", "dynamic tap"],
+        default=["static tap", "dynamic tap"],
         key="routes_edge_status",
     )
     edge_rows: list[dict[str, object]] = []
-    for idx, (src, dst) in enumerate(sorted_edge_pairs(SCREEN_TOPOLOGY_EDGES)):
-        rf = ", ".join(sorted(_screen_regions.get(src, frozenset())))
-        rt = ", ".join(sorted(_screen_regions.get(dst, frozenset())))
+    for idx, (src, dst) in enumerate(sorted_edge_pairs(_TAP_GRAPH)):
         status = _edge_status(src, dst)
         action = _edge_action_summary(src, dst)
-        haystack = " ".join((src, dst, rf, rt, status, action)).lower()
+        haystack = " ".join((src, dst, status, action)).lower()
         if status not in wanted_status or (q and q not in haystack):
             continue
         edge_rows.append(
@@ -303,20 +264,16 @@ with tab_edges:
                 "to": dst,
                 "status": status,
                 "action": action,
-                "regions (from)": rf,
-                "regions (to)": rt,
             }
         )
     with st.expander("Edge table", expanded=True):
         nested_table(
             edge_rows,
             [
-                table_column("from", "from", width=160),
-                table_column("to", "to", width=160),
+                table_column("from", "from", width=180),
+                table_column("to", "to", width=180),
                 table_column("status", "status", width=120),
-                table_column("action", "action", width=320),
-                table_column("regions (from)", "regions (from)", width=260),
-                table_column("regions (to)", "regions (to)", width=260),
+                table_column("action", "action", width=420),
             ],
             height=min(48 + max(len(edge_rows), 1) * 34, 560),
             striped=True,
@@ -324,4 +281,4 @@ with tab_edges:
             hide_expand=True,
             key="routes_edges_nt",
         )
-        st.caption(f"Showing **{len(edge_rows)}** of **{len(_topology_pairs)}** merged topology edges.")
+        st.caption(f"Showing **{len(edge_rows)}** of **{len(_tap_pairs)}** runtime edges.")

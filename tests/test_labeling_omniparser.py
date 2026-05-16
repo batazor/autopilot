@@ -1,9 +1,64 @@
-"""Labeling OmniParser merge behavior."""
-
 from __future__ import annotations
 
+import hashlib
+
+from PIL import Image
+
 from omniparser.convert import region_hash
+from ui import labeling_omniparser as omni
 from ui.labeling_omniparser import merge_omniparser_regions
+
+
+def test_filter_blacklisted_omniparser_regions_by_crop_hash(monkeypatch) -> None:
+    image = Image.new("RGBA", (4, 4), (10, 20, 30, 255))
+    digest = hashlib.sha256(image.tobytes()).hexdigest()
+    monkeypatch.setattr(omni, "OMNIPARSER_CROP_HASH_BLACKLIST", frozenset({digest}))
+    monkeypatch.setattr(omni, "OMNIPARSER_NAME_BLACKLIST_PREFIXES", ())
+    regions = [
+        {
+            "name": "icon.decor",
+            "bbox": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 100.0,
+                "height": 100.0,
+            },
+        },
+    ]
+
+    kept, skipped = omni._filter_blacklisted_omniparser_regions(image, regions)
+
+    assert kept == []
+    assert skipped == 1
+
+
+def test_filter_blacklisted_omniparser_regions_by_name() -> None:
+    image = Image.new("RGBA", (4, 4), (10, 20, 30, 255))
+    regions = [
+        {
+            "name": "icon.unanswerable.2",
+            "bbox": {
+                "x": 0.0,
+                "y": 0.0,
+                "width": 50.0,
+                "height": 50.0,
+            },
+        },
+        {
+            "name": "icon.real_button",
+            "bbox": {
+                "x": 50.0,
+                "y": 50.0,
+                "width": 50.0,
+                "height": 50.0,
+            },
+        },
+    ]
+
+    kept, skipped = omni._filter_blacklisted_omniparser_regions(image, regions)
+
+    assert [r["name"] for r in kept] == ["icon.real_button"]
+    assert skipped == 1
 
 
 def _region(name: str, *, x: float = 10.0) -> dict[str, object]:

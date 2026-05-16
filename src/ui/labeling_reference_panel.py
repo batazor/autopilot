@@ -150,6 +150,7 @@ def render_labeling_reference_column(
 
             sel = stored_raw if isinstance(stored_raw, str) else None
             one = _ant_tree_single_value(picked)
+            picked_new_ref = False
             # When a pending temporal capture is active, the tree still renders with a
             # non-temporal defaultValue. AntTree will often emit that default on rerun
             # even without user interaction — do not treat it as an explicit selection.
@@ -159,11 +160,21 @@ def render_labeling_reference_column(
                 and (not is_temporal_sel or one != stored_for_tree)
             ):
                 sel = one
+                picked_new_ref = one != stored_raw
             if not sel or not (ref_root / sel).is_file():
                 sel = stored_for_tree
             # Only overwrite selection when it is a real file under references/.
             # Pending temporal selection is kept unless user explicitly picks another ref.
             st.session_state[LABELING_TREE_SELECTION] = sel
+            if picked_new_ref:
+                st.session_state["_labeling_last_ref_param"] = sel
+                st.session_state[CANVAS_REV] = int(st.session_state.get(CANVAS_REV, 0)) + 1
+                st.session_state[CANVAS_LAST_SIG] = ""
+                with contextlib.suppress(Exception):
+                    st.query_params["ref"] = sel
+                    if "version" in st.query_params:
+                        del st.query_params["version"]
+                st.rerun()
 
         else:
             st.session_state.pop(LABELING_BN_SYNC_SEL, None)

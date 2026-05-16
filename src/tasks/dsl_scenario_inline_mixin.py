@@ -77,12 +77,16 @@ class DslScenarioInlineMixin:
         try:
             target = ScreenName(target_node)
         except ValueError:
-            logger.warning(
-                "dsl_scenario: unknown FSM screen %r for scenario %s — skipping navigation",
-                target_node,
-                _scen(scenario_key),
-            )
-            return False
+            from navigation.screen_graph import screen_verify_screen_names
+
+            if target_node not in set(screen_verify_screen_names()):
+                logger.warning(
+                    "dsl_scenario: unknown FSM screen %r for scenario %s — skipping navigation",
+                    target_node,
+                    _scen(scenario_key),
+                )
+                return False
+            target = target_node
 
         cur = await _read_current_screen(instance_id, self.redis_client)
         if cur == str(target):

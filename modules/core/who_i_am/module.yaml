@@ -3,6 +3,6 @@ title: Who am I
 description: >-
   Device-level identity probe — OCR player_id on chief_profile, Century fetch,
   bootstrap active_player before player-bound scenarios run.
-scenarios: scenarios
 area: ../../../area.json
 references: ../../../references
+default_ref: chief_profile.png

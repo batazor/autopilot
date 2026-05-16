@@ -1,6 +1,9 @@
 """OmniParser auto-label controls for the labeling page."""
 from __future__ import annotations
 
+import hashlib
+import math
+
 import streamlit as st
 from PIL import Image
 
@@ -18,6 +21,18 @@ from ui.area_annotator import (
     current_regions,
     set_current_regions,
 )
+
+OMNIPARSER_CROP_HASH_BLACKLIST: frozenset[str] = frozenset(
+    {
+        # `icon.unanswerable*` crops from welcome_back.png. OmniParser labels
+        # these as icons, but they are decorative popup artwork.
+        "3bd39f05ac16b1ba678908b8240853d1f3346051ad89782fb1fc10a817f162c2",
+        "25d8c3d35b3e3f7985656beecadd4ebbebbe58df7706ea1890ab66a3c53de57d",
+        "f662a6201f1fa74f8236d2f55999856bcf6c95d3d5f120b6ef03819a07fc9dc7",
+        "f5d4abad731b372f880b0a0e2b5a6688a9e6729340e6e39ed8d172c1b55fee0c",
+    }
+)
+OMNIPARSER_NAME_BLACKLIST_PREFIXES: tuple[str, ...] = ("icon.unanswerable",)
 
 
 def _bbox_rect(region: dict[str, object]) -> tuple[float, float, float, float] | None:
@@ -67,6 +82,56 @@ def _region_identity_hashes(region: dict[str, object]) -> set[str]:
     if h:
         hashes.add(h)
     return hashes
+
+
+def _region_crop_pixel_hash(image: Image.Image, region: dict[str, object]) -> str | None:
+    bbox = region.get("bbox")
+    if not isinstance(bbox, dict):
+        return None
+    try:
+        x = float(bbox.get("x", 0.0))
+        y = float(bbox.get("y", 0.0))
+        w_pct = float(bbox.get("width", 0.0))
+        h_pct = float(bbox.get("height", 0.0))
+    except (TypeError, ValueError):
+        return None
+    if w_pct <= 0 or h_pct <= 0:
+        return None
+
+    image_rgba = image.convert("RGBA")
+    ow, oh = image_rgba.size
+    left = x / 100.0 * ow
+    top = y / 100.0 * oh
+    width = w_pct / 100.0 * ow
+    height = h_pct / 100.0 * oh
+    l_px = max(0, min(math.floor(left), ow - 1))
+    t_px = max(0, min(math.floor(top), oh - 1))
+    r_px = max(l_px + 1, min(math.ceil(left + width), ow))
+    b_px = max(t_px + 1, min(math.ceil(top + height), oh))
+    crop = image_rgba.crop((l_px, t_px, r_px, b_px))
+    return hashlib.sha256(crop.tobytes()).hexdigest()
+
+
+def _is_blacklisted_omniparser_region(image: Image.Image, region: dict[str, object]) -> bool:
+    name = str(region.get("name") or "").strip().lower()
+    if any(name == prefix or name.startswith(f"{prefix}.") for prefix in OMNIPARSER_NAME_BLACKLIST_PREFIXES):
+        return True
+    crop_hash = _region_crop_pixel_hash(image, region)
+    return bool(crop_hash and crop_hash in OMNIPARSER_CROP_HASH_BLACKLIST)
+
+
+def _filter_blacklisted_omniparser_regions(
+    image: Image.Image,
+    regions: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], int]:
+    kept: list[dict[str, object]] = []
+    skipped = 0
+    for region in regions:
+        if _is_blacklisted_omniparser_region(image, region):
+            skipped += 1
+            continue
+        kept.append(region)
+    return kept, skipped
 
 
 def _add_region_alias(region: dict[str, object], alias: str, taken_names: set[str]) -> bool:
@@ -215,6 +280,10 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 image_height=parsed.height,
                 min_area_pct=float(min_area),
             )
+            proposed, skipped_blacklisted = _filter_blacklisted_omniparser_regions(
+                pil,
+                proposed,
+            )
             skipped_intersections = 0
             aliased = 0
             if merge_mode == "replace":
@@ -231,6 +300,8 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 f"OmniParser: **{len(parsed.elements)}** elements detected, "
                 f"**{added}** region(s) added ({merge_mode}). Save `area.json` when ready."
             )
+            if skipped_blacklisted:
+                msg += f" Skipped **{skipped_blacklisted}** blacklisted decorative region(s)."
             if merge_mode != "replace" and skipped_intersections:
                 msg += f" Skipped **{skipped_intersections}** overlapping region(s)."
             if merge_mode != "replace" and aliased:

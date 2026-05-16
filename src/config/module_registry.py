@@ -26,6 +26,7 @@ class WikiModuleContext:
     references_dir: Path
     references_prefix: str
     area_path: Path
+    default_ref: str | None = None
     is_all: bool = False
 
     @property
@@ -104,6 +105,13 @@ def _references_repo_prefix(repo_root: Path, references_dir: Path) -> str:
     return ref.relative_to(root).as_posix()
 
 
+def _module_default_ref(meta: dict[str, Any]) -> str | None:
+    raw = str(meta.get("default_ref") or "").replace("\\", "/").strip().lstrip("/")
+    if not raw or raw.startswith("..") or "/.." in raw:
+        return None
+    return raw
+
+
 def _default_module_area_path(module_dir: Path) -> Path:
     for name in ("area.yaml", "area.yml", "area.json"):
         candidate = module_dir / name
@@ -138,6 +146,7 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
         references_dir=references_dir,
         references_prefix=_references_repo_prefix(repo_root, references_dir),
         area_path=area_path,
+        default_ref=_module_default_ref(meta),
     )
 
 

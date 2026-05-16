@@ -35,11 +35,22 @@ def list_reference_pngs(
 
     When ``exclude_temporal`` is True, omit everything under ``<root>/temporal/`` (rolling OCR preview).
     When ``exclude_crop`` is True, omit everything under ``<root>/crop/`` (exported bbox tiles, not full refs).
+    Omit ``unanswerable`` assets: OmniParser emits those for decorative UI pieces,
+    not actionable icons or screen references.
     """
     root = (root or references_root()).resolve()
     if not root.is_dir():
         return []
-    files = sorted(root.rglob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True)
+    mtimes: list[tuple[float, Path]] = []
+    for p in root.rglob("*.png"):
+        try:
+            mtimes.append((p.stat().st_mtime, p))
+        except (FileNotFoundError, OSError):
+            # Rolling previews are rewritten concurrently by the worker; a file
+            # can disappear between rglob() and stat().
+            continue
+    files = [p for _, p in sorted(mtimes, key=lambda item: item[0], reverse=True)]
+    files = [p for p in files if not _is_unanswerable_reference(root, p)]
     if exclude_temporal:
         files = [p for p in files if not _is_under_temporal(root, p)]
     if exclude_crop:
@@ -61,6 +72,14 @@ def _is_under_crop(root: Path, p: Path) -> bool:
     except ValueError:
         return False
     return len(rel.parts) > 0 and rel.parts[0] == "crop"
+
+
+def _is_unanswerable_reference(root: Path, p: Path) -> bool:
+    try:
+        rel = p.relative_to(root)
+    except ValueError:
+        return False
+    return any("unanswerable" in part.lower() for part in rel.parts)
 
 
 def _newest_png_for_instance_then_any(root: Path, instance_id: str) -> Path | None:

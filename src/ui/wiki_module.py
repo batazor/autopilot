@@ -1,6 +1,7 @@
 """Streamlit module selector for Gallery / Labeling (core vs ``modules/<id>/``)."""
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 import streamlit as st
@@ -116,10 +117,27 @@ def render_wiki_module_selector(*, help: str | None = None) -> WikiModuleContext
         "Modules use ``modules/<id>/area.yaml`` and their own references tree when configured.",
     )
     ctx = ctxs[labels.index(picked)]
+    prev_scope = st.session_state.get(WIKI_MODULE_STORAGE_KEY)
+    scope_changed = prev_scope is not None and prev_scope != ctx.storage_key
     if qp != ctx.query_value:
         with st.spinner("Switching module…"):
             st.query_params[_QUERY_PARAM] = ctx.query_value
+            _sync_labeling_ref_for_module(ctx)
             ensure_wiki_module_session(ctx)
             st.rerun()
+    if scope_changed:
+        _sync_labeling_ref_for_module(ctx)
     ensure_wiki_module_session(ctx)
     return ctx
+
+
+def _sync_labeling_ref_for_module(ctx: WikiModuleContext) -> None:
+    """Reset stale `?ref=` when the Labeling/Gallery module scope changes."""
+    with contextlib.suppress(Exception):
+        default_ref = (ctx.default_ref or "").replace("\\", "/").strip().lstrip("/")
+        if default_ref and not default_ref.startswith("..") and "/.." not in default_ref:
+            st.query_params["ref"] = default_ref
+        elif st.query_params.get("ref"):
+            del st.query_params["ref"]
+        if st.query_params.get("version"):
+            del st.query_params["version"]

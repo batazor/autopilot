@@ -3,7 +3,6 @@ title: Pop-ups
 description: >-
   Global popup and overlay dismissals — ads, claim buttons, confirm/skip,
   hand pointers, and tap-anywhere exits pushed from analyze rules.
-scenarios: scenarios
 area: ../../../area.json
 references: ../../../references
 wiki: false

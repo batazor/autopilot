@@ -3,7 +3,6 @@ title: Exploration
 description: >-
   Exploration screen and squad settings — reward claims, squad fight loop,
   and related automation (formerly separate ``squad_settings`` core module).
-scenarios: scenarios
 area: ../../../area.json
 references: ../../../references
 wiki: false

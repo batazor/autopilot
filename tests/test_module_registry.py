@@ -50,6 +50,26 @@ def test_module_local_references_prefix(tmp_path: Path) -> None:
     assert vip.references_prefix == "modules/vip/references"
 
 
+def test_module_default_ref_from_manifest(tmp_path: Path) -> None:
+    mod = tmp_path / "modules" / "core" / "who_i_am"
+    mod.mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "id": "who_i_am",
+                "title": "Who am I",
+                "references": "../../../references",
+                "default_ref": "chief_profile.png",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    ctx = get_wiki_module(tmp_path, "who_i_am")
+
+    assert ctx.default_ref == "chief_profile.png"
+
+
 def test_ocr_path_belongs_to_context() -> None:
     from config.module_registry import WikiModuleContext
 

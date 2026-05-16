@@ -3,7 +3,6 @@ title: Building
 description: >-
   Building screen automation — chapter-task upgrades, big upgrade button taps,
   and overlay-driven pushes when the building UI is visible.
-scenarios: scenarios
 area: ../../../area.json
 references: ../../../references
 wiki: false

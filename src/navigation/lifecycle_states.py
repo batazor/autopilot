@@ -1,7 +1,6 @@
 """Worker lifecycle enums (not game screen nodes).
 
-Screen topology and taps live in :mod:`navigation.screen_graph` and
-:mod:`navigation.screen_topology`.
+Screen routing and taps live in :mod:`navigation.screen_graph`.
 """
 from __future__ import annotations
 

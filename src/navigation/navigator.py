@@ -424,8 +424,8 @@ class Navigator:
             )
             return ""
         # Cheap path first: the screen detector already covers every screen
-        # listed in ``screen_verify.yaml`` via landmarks / text_switch, so
-        # a positive detection here makes the per-rule loop redundant.
+        # listed in ``screen_verify.yaml`` via landmarks, so a positive
+        # detection here makes the per-rule loop redundant.
         try:
             detected = await self._detector.detect_screen(image)
         except Exception:
@@ -486,11 +486,10 @@ class Navigator:
         attempts: int | None = None,
         interval_seconds: float | None = None,
     ) -> str:
-        # Trusts ScreenDetector: it already covers text_switch + match landmarks +
-        # OCR landmarks. Every screen in screen_verify.yaml that has `rules:` is
-        # also covered by `landmarks:` or `text_switch.cases`, so the historic
-        # post-detector fan-out over `screen_verify_screen_names() × rules` was
-        # pure duplication — ~60 redundant OCRs per attempt.
+        # Trusts ScreenDetector: it already covers match landmarks. Every
+        # routable screen in screen_verify.yaml should expose template
+        # landmarks, so the historic post-detector fan-out over
+        # `screen_verify_screen_names() × rules` was pure duplication.
         default_attempts, default_interval = screen_verify_retry()
         attempts_i = max(1, int(attempts if attempts is not None else default_attempts))
         interval_f = max(

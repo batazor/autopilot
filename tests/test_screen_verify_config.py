@@ -14,12 +14,6 @@ retry:
   attempts: 9
   interval_seconds: 1.25
 
-text_switch:
-  - ocr: page_title
-    threshold: 0.8
-    cases:
-      arena: [arena]
-
 screens:
   chief_profile:
     landmarks:
@@ -54,9 +48,6 @@ screens:
         assert screen_graph.screen_landmark_rules("chief_profile") == [
             {"ocr": "page_title", "contains": ["chief"]}
         ]
-        assert screen_graph.screen_text_switch_rules() == [
-            {"ocr": "page_title", "cases": {"arena": ["arena"]}, "threshold": 0.8}
-        ]
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
@@ -64,72 +55,41 @@ screens:
 def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
+        landmarks = screen_graph.screen_landmark_rules("chief_profile")
         rules = screen_graph.screen_verify_rules("chief_profile")
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
-    assert rules == [
-        {
-            "ocr": "page_title",
-            "contains": ["chief profile", "chief", "profile"],
-            "threshold": 0.8,
-        }
-    ]
+    expected = [{"match": "chief_profile_title", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
 
 
-def test_production_screen_verify_yaml_contains_mail_title_switch() -> None:
+def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        rules = screen_graph.screen_text_switch_rules()
-        mail_rules = screen_graph.screen_verify_rules("mail")
+        screens = screen_graph.load_screen_verify_config().get("screens")
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
-    assert any("mail" in rule.get("cases", {}) for rule in rules)
-    assert mail_rules == [
-        {"ocr": "page_title", "contains": ["mail"], "threshold": 0.8}
-    ]
+    assert isinstance(screens, dict)
+    for entry in screens.values():
+        assert isinstance(entry, dict)
+        for rule in [*(entry.get("landmarks") or []), *(entry.get("rules") or [])]:
+            assert "match" in rule
+            assert "ocr" not in rule
 
 
-def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
+def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        rules = screen_graph.screen_text_switch_rules()
-        expl_rules = screen_graph.screen_verify_rules("exploration")
-    finally:
-        screen_graph.load_screen_verify_config.cache_clear()
-
-    assert any("exploration" in rule.get("cases", {}) for rule in rules)
-    assert expl_rules == [
-        {"ocr": "page_title", "contains": ["exploration"], "threshold": 0.8}
-    ]
-
-
-def test_production_screen_verify_yaml_contains_chat_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
-    try:
-        rules = screen_graph.screen_text_switch_rules()
-        chat_rules = screen_graph.screen_verify_rules("chat")
-    finally:
-        screen_graph.load_screen_verify_config.cache_clear()
-
-    assert any("chat" in rule.get("cases", {}) for rule in rules)
-    assert chat_rules == [
-        {"ocr": "page_title", "contains": ["chat"], "threshold": 0.8}
-    ]
-
-
-def test_production_screen_verify_yaml_contains_building_landmark() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
-    try:
-        landmarks = screen_graph.screen_landmark_rules("building")
-        rules = screen_graph.screen_verify_rules("building")
+        landmarks = screen_graph.screen_landmark_rules("welcome_back")
+        rules = screen_graph.screen_verify_rules("welcome_back")
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
     expected = [
-        {"match": "page.building.furniture", "threshold": 0.85},
-        {"match": "building.upgrade", "threshold": 0.9},
+        {"match": "text.welcome_back", "threshold": 0.9}
     ]
     assert landmarks == expected
     assert rules == expected

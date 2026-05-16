@@ -1,7 +1,6 @@
 id: backpack
 title: Backpack
 description: Open backpack from main city and clear red-dot tabs (resources, speedup, bonus, gear, other).
-scenarios: scenarios
 area: ../../area.json
 references: ../../references
 wiki: false

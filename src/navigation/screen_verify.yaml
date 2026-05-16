@@ -1,101 +1,34 @@
 # Screen verification config used by navigation.detector + navigation.navigator.
 #
-# - text_switch: cheap OCR switch by common page title/text regions.
 # - screens.<name>.landmarks: used by ScreenDetector to recognize the current screen.
 # - screens.<name>.rules: used by Navigator to verify that a route/tap reached target screen.
-# A check can be image-based (`match`) or OCR-based (`ocr` + optional `contains`).
+# Navigation checks should be image/template-based (`match`) so screen detection
+# stays fast and deterministic.
 retry:
   attempts: 6
   interval_seconds: 0.8
 
-# Fast OCR-based screen switch for screens that expose a shared title region.
-text_switch:
-  # - ocr: page_title
-  #   threshold: 0.8
-  #   cases:
-  #     arena: [arena, battle, fight]
-  #     training: [training, troop, recruit]
-  #     gathering: [gather, resource, march]
-  #     alliance: [alliance, guild, member]
-  #     exploration: [exploration]
-  #     squad_settings: [squad]
-  #     chat: [chat]
-  #     mail: [mail]
-  #     chief_profile: [chief profile, chief, profile]
-  #     backpack: [backpack]
-  #     vip: [vip]
-  #     # `shop` intentionally absent — its title is unreliable; see screens.shop below.
-  #     # Main heroes roster (Power tab); title OCR is e.g. "Heroes Power" — avoid
-  #     # bare "heroes" so we do not collide with "Hall of Heroes" / "Grow your heroes".
-  #     heroes: [heroes power, hero power]
-  #     event.trials: [trials, trial]
-  #     event.7-day: [7-day, 7 day, 7days]
-  #     event.first_purchase: [1st purchase, first purchase, t purchase]
-  #     event.shining_city_pack: ["shining city pack", "shining city", "city pack"]
-  #     event.wild_brawl: ["wild brawl", "brawl"]
-  #     event.dreamscape_memory: ["dreamscape memory", "dreamscape"]
-  #     event.armament_competition: ["armament competition", "armament"]
-  #     event.deadshot: ["deadshot"]
-  #     event.tundra_album: ["tundra album"]
-  #     event.defeat_nearby_beasts: ["defeat nearby beasts", "nearby beasts", "defeat beasts"]
-  #     event.silver_shell: ["silver shell events", "silver shell"]
-  #     event.snowbusters: ["snowbusters"]
-  #     event.journey_of_light: ["journey of light", "journey"]
-  #     event.labyrinth: ["the labyrinth", "labyrinth"]
-  #     event.treasure_hunter: ["treasure hunter", "treasure"]
-  #     event.crystal_reactivation: ["crystal reactivation", "crystal"]
-  #     event.vault_of_enigma: ["vault of enigma", "vault", "enigma"]
-  #     event.hero_rally: ["hero rally"]
-  #     event.weekly_benefits: ["weekly benefits card", "weekly benefits", "benefits card"]
-  #     event.flame_and_fang: ["flame and fang", "flame fang"]
-  #     event.lucky_wheel: ["lucky wheel"]
-  #     event.return_to_tundra: ["return to tundra", "return tundra"]
-  #     event.mia_fortune: ["mia fortune"]
-  #     event.ginas_revenge: ["gina's revenge", "gina revenge", "ginas revenge"]
-  #     event.heros_mission: ["hero's mission", "heros mission", "hero mission"]
-  #     event.frosty_fortune: ["frosty fortune"]
-  #     event.king_of_icefield: ["king of icefield", "king icefield"]
-  #     event.frostfire_mine: ["frostfire mine", "frostfire"]
-  #     event.tundra_trading_station: ["tundra trading station", "trading station"]
-  #     event.hall_of_heroes: ["hall of heroes"]
-  #     event.tundra_adventure: ["tundra adventure"]
-  #     event.fishing_tournament: ["fishing tournament", "fishing"]
-  #     event.grow_your_heroes: ["grow your heroes", "grow heroes"]
-  #     event.working_overtime: ["working overtime", "overtime"]
-  #     event.home_and_beyond: ["home & beyond", "home beyond", "home and beyond"]
-  #     event.city_development: ["city development"]
-  #     event.plan_your_city: ["plan your city", "plan city"]
-  #     event.trusted_chief: ["trusted chief"]
-  #     event.power_up: ["power up"]
-  #     event.hall_of_chief: ["hall of chief"]
-  #     event.romance_season: ["romance season", "romance"]
-  #     event.state_merger: ["state merger"]
-  #     event.state_transfer: ["state transfer event", "state transfer"]
-  #     event.symphony_of_change: ["symphony of change", "symphony"]
-  #     event.sunfire_castle: ["sunfire castle", "sunfire"]
-  #     event.vision_of_dawn: ["vision of dawn", "vision dawn"]
-  #     event.brother_in_arms: ["brother in arms", "brother arms", "kill event"]
-  #     event.officer_project: ["officer project"]
-  #     event.tundra_arms_league: ["tundra arms league", "arms league"]
-  #     event.tundra_trade_route: ["tundra trade route", "trade route"]
-  #     event.alliance_showdown: ["alliance showdown", "showdown"]
-  #     event.frostdragon_tyrant: ["frostdragon tyrant", "frostdragon"]
-  #     event.canyon_clash: ["canyon clash", "canyon"]
-  #     event.svs: ["svs", "state of power", "svs state"]
-  #     event.foundry_battle: ["foundry battle", "foundry"]
-  #     event.bear_hunt: ["bear hunt", "bear"]
-  #     event.crazy_joe: ["crazy joe", "joe"]
-  #     event.alliance_championship: ["alliance championship", "championship"]
-  #     event.mercenary_prestige: ["mercenary prestige", "mercenary"]
-  #     event.alliance_mobilization: ["alliance mobilization", "mobilization"]
-  #     event.develop_new_tech: ["develop new tech", "new tech"]
-  #     event.tundra_star: ["tundra star"]
-  #     event.daybreak_expedition: ["daybreak expedition", "daybreak"]
-  #     event.beast_whisperer: ["beast whisperer", "whisperer"]
-  #     event.stand_of_arms: ["stand of arms"]
-  #     event.war_preparation: ["war preparation", "war prep"]
+screens:
+  welcome_back:
+    priority: 100
+    landmarks:
+      - match: text.welcome_back
+        threshold: 0.9
+    rules:
+      - match: text.welcome_back
+        threshold: 0.9
 
-screens: []
+  chief_profile:
+    retry:
+      attempts: 8
+      interval_seconds: 1.0
+    landmarks:
+      - match: chief_profile_title
+        threshold: 0.9
+    rules:
+      - match: chief_profile_title
+        threshold: 0.9
+
 # screens:
 #   # Network "Retry/Reconnect" popup. Listed first so it short-circuits any
 #   # other landmark match — if the disconnect overlay is on top of the game,

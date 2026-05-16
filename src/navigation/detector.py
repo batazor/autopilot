@@ -14,7 +14,6 @@ from layout.area_lookup import screen_region_by_name
 from layout.types import Region
 from navigation.screen_graph import (
     screen_landmark_rules,
-    screen_text_switch_rules,
     screen_verify_screen_names,
 )
 from ocr.client import OcrClient
@@ -212,88 +211,16 @@ class ScreenDetector:
             int(round(float(region.h) / 100.0 * height)),
         )
 
-    async def _detect_by_text_switch(self, image: np.ndarray) -> ScreenName:
-        switch_rules = screen_text_switch_rules()
-        if not switch_rules:
-            return ScreenName.UNKNOWN
-        h, w = int(image.shape[0]), int(image.shape[1])
-        regions: list[Region] = []
-        region_ids: list[str] = []
-        rule_map: list[dict[str, object]] = []
-        for rule in switch_rules:
-            region_name = str(rule.get("ocr") or "")
-            region = self._percent_region_for_name(region_name)
-            if region is None:
-                continue
-            regions.append(self._to_pixel_region(region, width=w, height=h))
-            region_ids.append(region_name)
-            rule_map.append(rule)
-        if not regions:
-            return ScreenName.UNKNOWN
-        try:
-            results = await self._client.ocr_regions(image, regions, region_ids=region_ids)
-        except RetryError as exc:
-            root = exc.last_attempt.exception() if exc.last_attempt else exc
-            logger.error("OCR failed during screen text switch: %s", root, exc_info=True)
-            return ScreenName.UNKNOWN
-        except Exception:
-            logger.exception("OCR failed during screen text switch")
-            return ScreenName.UNKNOWN
-
-        for result, rule in zip(results, rule_map, strict=False):
-            conf_raw = rule.get("confidence")
-            try:
-                min_conf = float(conf_raw) if conf_raw is not None else 0.0
-            except (TypeError, ValueError):
-                min_conf = 0.0
-            if float(result.confidence or 0.0) < min_conf:
-                continue
-            threshold_raw = rule.get("threshold")
-            try:
-                threshold = float(threshold_raw) if threshold_raw is not None else 0.8
-            except (TypeError, ValueError):
-                threshold = 0.8
-            cases = rule.get("cases")
-            if not isinstance(cases, dict):
-                continue
-            text_lc = str(result.text or "").strip().lower()
-            for screen_s, candidates_raw in cases.items():
-                try:
-                    screen = ScreenName(str(screen_s))
-                except ValueError:
-                    continue
-                candidates = (
-                    [str(x).strip() for x in candidates_raw if str(x).strip()]
-                    if isinstance(candidates_raw, list)
-                    else []
-                )
-                if not candidates:
-                    continue
-                # Substring contains first — mirrors ``Navigator._verify_ocr_rule``
-                # so a candidate ``squad`` finds itself inside ``"Settings Squad"``
-                # without being rejected by ``fuzz.ratio``'s length penalty.
-                if any(c.lower() in text_lc for c in candidates):
-                    return screen
-                # Fuzzy fallback for OCR noise / case-mangled titles where the
-                # candidate is approximately the entire title.
-                if match(result.text, candidates, threshold=threshold):
-                    return screen
-        return ScreenName.UNKNOWN
-
     async def _verify_screen(self, image: np.ndarray, screen: ScreenName) -> bool:
         """Sticky check: does this frame still satisfy ``screen``'s own rules?
 
         Runs ONLY the rules attached to ``screen`` in
-        ``navigation/screen_verify.yaml`` — landmark templates first
-        (cheapest: in-process ``cv2.matchTemplate``), then text_switch
-        entries whose ``cases`` mention this screen (one OCR region per
-        rule), then OCR landmarks (one OCR region per rule + fuzzy match).
-        Short-circuits at the first hit.
+        ``navigation/screen_verify.yaml`` — template landmarks first
+        (in-process ``cv2.matchTemplate``), then OCR landmarks only for
+        legacy/test configs. Short-circuits at the first hit.
 
-        Big win on the steady-state case where the bot dwells on one
-        screen for many ticks: skips the full multi-screen scan that
-        otherwise builds rules across all ~11 landmark sets and ~100
-        text_switch cases per frame.
+        Big win on the steady-state case where the bot dwells on one screen
+        for many ticks: skips the full multi-screen template scan.
         """
         name_s = str(screen)
         landmarks = screen_landmark_rules(name_s)
@@ -339,58 +266,6 @@ class ScreenDetector:
                 for rule in overlay_rules:
                     row = out.get(str(rule["name"]))
                     if isinstance(row, dict) and row.get("matched"):
-                        return True
-
-        relevant_switch_rules = [
-            tsr
-            for tsr in screen_text_switch_rules()
-            if isinstance(tsr.get("cases"), dict) and name_s in tsr["cases"]
-        ]
-        if relevant_switch_rules:
-            h, w = int(image.shape[0]), int(image.shape[1])
-            regions: list[Region] = []
-            region_ids: list[str] = []
-            rules_used: list[dict[str, object]] = []
-            for rule in relevant_switch_rules:
-                region_name = str(rule.get("ocr") or "")
-                region = self._percent_region_for_name(region_name)
-                if region is None:
-                    continue
-                regions.append(self._to_pixel_region(region, width=w, height=h))
-                region_ids.append(region_name)
-                rules_used.append(rule)
-            if regions:
-                try:
-                    results = await self._client.ocr_regions(
-                        image, regions, region_ids=region_ids
-                    )
-                except (RetryError, Exception):
-                    logger.debug(
-                        "ScreenDetector._verify_screen: text_switch OCR failed",
-                        exc_info=True,
-                    )
-                    results = []
-                for result, rule in zip(results, rules_used, strict=False):
-                    cases = rule.get("cases") or {}
-                    candidates_raw = cases.get(name_s) if isinstance(cases, dict) else None
-                    if not isinstance(candidates_raw, list):
-                        continue
-                    candidates = [
-                        str(x).strip() for x in candidates_raw if str(x).strip()
-                    ]
-                    if not candidates:
-                        continue
-                    threshold_raw = rule.get("threshold")
-                    try:
-                        threshold = (
-                            float(threshold_raw) if threshold_raw is not None else 0.8
-                        )
-                    except (TypeError, ValueError):
-                        threshold = 0.8
-                    text_lc = str(result.text or "").strip().lower()
-                    if any(c.lower() in text_lc for c in candidates):
-                        return True
-                    if match(result.text, candidates, threshold=threshold):
                         return True
 
         if ocr_landmarks:
@@ -483,10 +358,6 @@ class ScreenDetector:
                     self.last_used_sticky_verify = True
                     return hint_name
 
-        switched = await self._detect_by_text_switch(image)
-        if switched != ScreenName.UNKNOWN:
-            return switched
-
         matched = await self._detect_by_match_landmarks(image)
         if matched != ScreenName.UNKNOWN:
             return matched
@@ -524,12 +395,11 @@ class ScreenDetector:
 def suggest_node_for_image_sync(image_bgr: np.ndarray) -> str | None:
     """Best-effort node id for ``image_bgr`` — UI-friendly sync wrapper.
 
-    Tries the full :class:`ScreenDetector` pipeline first (text switch + template
-    landmarks + OCR landmarks) so that screens already labeled in
-    ``navigation/screen_verify.yaml`` are picked up regardless of whether they
-    rely on icons or page titles. When OCR is unavailable (no backend running,
-    network error, slow timeout) the function silently falls back to the
-    template-only landmark path so the labeling UI stays usable offline.
+    Tries the full :class:`ScreenDetector` pipeline first (template landmarks,
+    plus OCR landmarks only for legacy/test configs). When OCR is unavailable
+    (no backend running, network error, slow timeout) the function silently
+    falls back to the template-only landmark path so the labeling UI stays
+    usable offline.
 
     Returns the screen id string (e.g. ``"main_city"``) on success, or ``None``
     when no rule fires / detection is unsafe to suggest.

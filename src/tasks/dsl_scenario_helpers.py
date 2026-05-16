@@ -421,8 +421,8 @@ async def _enqueue_scenario(
     # Lazy import: ``scheduler.queue`` pulls in ``config.loader`` /
     # ``navigation.screen_graph`` which we don't want to evaluate at
     # ``tasks.*`` import time.
-    from config.loader import get_settings
     from scheduler.queue import RedisQueue
+    from services import get_settings
 
     queue = RedisQueue(redis_async, get_settings())
     return await queue.schedule(

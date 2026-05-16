@@ -99,8 +99,8 @@ class DslScenarioPreemptMixin:
         immune = yc >= PREEMPT_MAX_YIELDS
 
         try:
-            from config.loader import get_settings
             from scheduler.queue import RedisQueue
+            from services import get_settings
 
             q = RedisQueue(self.redis_client, get_settings())
             cs = await _read_current_screen(instance_id, self.redis_client) or ""

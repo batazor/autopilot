@@ -85,7 +85,7 @@ def _node_subtitle(
         return ""
     regions = screen_regions.get(nid, frozenset())
     if not regions:
-        return "topology only"
+        return ""
     return " · ".join(sorted(regions))
 
 

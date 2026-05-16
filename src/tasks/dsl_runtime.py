@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from adb import BotActions
-from config.loader import Settings, get_settings
+from config.loader import Settings
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
-from services import get_ocr_client
+from services import get_ocr_client, get_settings
 
 
 def settings() -> Settings:

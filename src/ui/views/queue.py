@@ -11,7 +11,6 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_nested_table import nested_table, table_column
 
 from config.loader import load_settings
@@ -183,60 +182,13 @@ def _task_pick_label(r: QueueRow) -> str:
 
 
 def _render_clipboard_button(label: str, text: str) -> None:
-    """Render a browser-side copy button without an intermediate code card."""
-    text_js = json.dumps(text)
-    label_js = json.dumps(label)
-    components.html(
-        f"""
-        <button id="copy-json-btn" type="button"></button>
-        <script>
-        const btn = document.getElementById("copy-json-btn");
-        const originalLabel = {label_js};
-        btn.textContent = originalLabel;
-        btn.addEventListener("click", async () => {{
-          const text = {text_js};
-          try {{
-            if (navigator.clipboard && window.isSecureContext) {{
-              await navigator.clipboard.writeText(text);
-            }} else {{
-              const ta = document.createElement("textarea");
-              ta.value = text;
-              ta.setAttribute("readonly", "");
-              ta.style.position = "fixed";
-              ta.style.left = "-9999px";
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand("copy");
-              document.body.removeChild(ta);
-            }}
-            btn.textContent = "Copied";
-            setTimeout(() => {{ btn.textContent = originalLabel; }}, 1200);
-          }} catch (err) {{
-            console.error("queue copy JSON failed", err);
-            btn.textContent = "Copy failed";
-            setTimeout(() => {{ btn.textContent = originalLabel; }}, 1600);
-          }}
-        }});
-        </script>
-        <style>
-          #copy-json-btn {{
-            box-sizing: border-box;
-            width: 100%;
-            min-height: 38px;
-            border: 1px solid rgba(49, 51, 63, 0.2);
-            border-radius: 0.5rem;
-            background: rgb(255, 255, 255);
-            color: rgb(49, 51, 63);
-            font: inherit;
-            cursor: pointer;
-          }}
-          #copy-json-btn:hover {{
-            border-color: rgb(255, 75, 75);
-            color: rgb(255, 75, 75);
-          }}
-        </style>
-        """,
-        height=40,
+    """Render payload access without deprecated raw-HTML components."""
+    st.download_button(
+        label=label.replace("Copy", "Download"),
+        data=text,
+        file_name="queue_payload.json",
+        mime="application/json",
+        width="stretch",
     )
 
 

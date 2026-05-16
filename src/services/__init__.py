@@ -117,11 +117,17 @@ def get_repo_root() -> Path:
 def get_ocr_client() -> OcrClient:
     """Lazy :class:`OcrClient`. Tests that monkeypatch ``ocr.client.OcrClient``
     with a zero-arg stub still work — we fall back to no-args construction."""
-    if (c := _state.get(_K_OCR)) is not None:
-        return c
     import ocr.client as ocr_mod
 
     ctor = ocr_mod.OcrClient
+    if (c := _state.get(_K_OCR)) is not None:
+        if not isinstance(ctor, type) or type(c) is ctor:
+            return c
+        # Streamlit reloads and pytest monkeypatches can replace the OcrClient
+        # class while the APP-scope singleton survives. Rebuild against the
+        # currently imported class instead of leaking stale OCR behavior.
+        _state.pop(_K_OCR)
+
     try:
         c = ctor(get_settings())
     except TypeError:

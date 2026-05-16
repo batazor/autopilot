@@ -12,9 +12,8 @@ screen (from detection), not the DSL scenario id. Directed taps are defined in
 
 Adding a new screen
 --------------------
-- Add an edge to ``navigation.screen_topology`` (topology only; Routes UI).
 - Add ``src → dst: [region, ...]`` to ``navigation/edge_taps.yaml`` (regions must exist in area.json).
-- Add detection landmarks to ``navigation.detector._SCREEN_LANDMARKS``.
+- Add detection landmarks / verification rules to ``navigation/screen_verify.yaml``.
 - Add coordinate constants to ``layout.screens``.
 """
 from __future__ import annotations
@@ -33,7 +32,6 @@ Tap = str
 VerifyRule = dict[str, object]
 VerifyConfig = dict[str, object]
 ScreenVerifyEntry = dict[str, object]
-TextSwitchRule = dict[str, object]
 DynamicEdgeSpec = dict[str, Any]
 """Per-edge spec for runtime-resolved taps.
 
@@ -209,36 +207,6 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     return rule
 
 
-def _normalize_text_switch_rule(raw: object) -> TextSwitchRule | None:
-    if not isinstance(raw, dict):
-        return None
-    region = str(raw.get("ocr") or "").strip()
-    cases_raw = raw.get("cases")
-    if not region or not isinstance(cases_raw, dict):
-        return None
-    cases: dict[str, list[str]] = {}
-    for screen, candidates_raw in cases_raw.items():
-        screen_s = str(screen).strip()
-        if not screen_s:
-            continue
-        if isinstance(candidates_raw, str):
-            candidates = [candidates_raw]
-        elif isinstance(candidates_raw, list):
-            candidates = [str(x).strip() for x in candidates_raw if str(x).strip()]
-        else:
-            candidates = []
-        if candidates:
-            cases[screen_s] = candidates
-    if not cases:
-        return None
-    rule: TextSwitchRule = {"ocr": region, "cases": cases}
-    if "threshold" in raw:
-        rule["threshold"] = raw["threshold"]
-    if "confidence" in raw:
-        rule["confidence"] = raw["confidence"]
-    return rule
-
-
 def _file_fingerprint(path: Path) -> tuple[str, int, int]:
     try:
         st = path.stat()
@@ -287,7 +255,7 @@ def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]
 
 
 @lru_cache(maxsize=8)
-def load_screen_verify_config(
+def _load_screen_verify_config_cached(
     fp: tuple[tuple[str, int, int], tuple[str, int, int]] | tuple[str, int, int] | None = None,
 ) -> VerifyConfig:
     """Load route destination verification rules from ``navigation/screen_verify.yaml``.
@@ -295,7 +263,7 @@ def load_screen_verify_config(
     Cache key includes file mtime/size so edits are picked up automatically.
     """
     if fp is None:
-        return load_screen_verify_config(_combined_config_fingerprint())
+        return _load_screen_verify_config_cached(_combined_config_fingerprint())
     if fp and isinstance(fp[0], tuple):
         yaml_fp, area_fp = fp  # type: ignore[assignment]
         path = Path(yaml_fp[0])
@@ -310,14 +278,6 @@ def load_screen_verify_config(
         raw = {}
 
     retry = raw.get("retry")
-    switch_raw = raw.get("text_switch")
-    text_switch = []
-    if isinstance(switch_raw, list):
-        text_switch = [
-            rule
-            for rule in (_normalize_text_switch_rule(item) for item in switch_raw)
-            if rule is not None
-        ]
     screens = raw.get("screens")
     out_screens: dict[str, ScreenVerifyEntry] = {}
     if isinstance(screens, dict):
@@ -387,46 +347,23 @@ def load_screen_verify_config(
             "priority": 100,
         }
 
-    # Per-hero detection via the existing ``page_title`` text_switch. The hero
-    # page banner already contains the hero name (e.g. "🦸 Bahiti" → OCR
-    # reads "Bahiti" from ``page_title``), so reusing that batched OCR call
-    # avoids a second region read per tick. Hero-name candidates are
-    # harvested from existing ``screens.page.heroes.<id>`` verify rules so
-    # we don't enumerate 62 names here. Skipped when a YAML override already
-    # lists a hero case on ``page_title`` (operator authoring wins).
-    page_title_rule: dict[str, Any] | None = next(
-        (r for r in text_switch if isinstance(r, dict) and r.get("ocr") == "page_title"),
-        None,
-    )
-    if page_title_rule is not None:
-        existing_cases = page_title_rule.setdefault("cases", {})
-        if isinstance(existing_cases, dict):
-            for screen, entry in out_screens.items():
-                if not screen.startswith("page.heroes."):
-                    continue
-                if screen in existing_cases:
-                    continue
-                if not isinstance(entry, dict):
-                    continue
-                for rule in entry.get("rules") or []:
-                    if not isinstance(rule, dict):
-                        continue
-                    cands = rule.get("contains")
-                    if isinstance(cands, str):
-                        cands_list = [cands]
-                    elif isinstance(cands, list):
-                        cands_list = [str(c).strip() for c in cands if str(c).strip()]
-                    else:
-                        cands_list = []
-                    if cands_list:
-                        existing_cases[screen] = cands_list
-                        break
-
     return {
         "retry": retry if isinstance(retry, dict) else {},
-        "text_switch": text_switch,
         "screens": out_screens,
     }
+
+
+def load_screen_verify_config(
+    fp: tuple[tuple[str, int, int], tuple[str, int, int]] | tuple[str, int, int] | None = None,
+) -> VerifyConfig:
+    """Load screen verification config, keyed by current file fingerprints by default."""
+
+    return _load_screen_verify_config_cached(
+        _combined_config_fingerprint() if fp is None else fp
+    )
+
+
+load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]
 
 
 def screen_verify_rules(screen: str) -> list[VerifyRule]:
@@ -452,11 +389,6 @@ def screen_landmark_rules(screen: str) -> list[VerifyRule]:
     if not isinstance(entry, dict):
         return []
     rules = entry.get("landmarks")
-    return list(rules) if isinstance(rules, list) else []
-
-
-def screen_text_switch_rules() -> list[TextSwitchRule]:
-    rules = load_screen_verify_config().get("text_switch")
     return list(rules) if isinstance(rules, list) else []
 
 

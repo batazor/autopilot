@@ -181,6 +181,8 @@ LABELING_CANVAS_DISPLAY_MAX_SIDE = 920
 REGION_PREVIEW_MAX_SIDE = 400
 CANVAS_IGNORE_STALE_BBOX_SIG = "_canvas_ignore_stale_bbox_sig"
 CANVAS_IGNORE_STALE_UNTIL = "_canvas_ignore_stale_until"
+CANVAS_SUPPRESS_ACTIVE_TARGET = "_canvas_suppress_active_target"
+CANVAS_SUPPRESS_ACTIVE_UNTIL = "_canvas_suppress_active_until"
 
 
 # -----------------------------------------------------------------------------
@@ -1342,9 +1344,11 @@ def _render_regions_expander(
         def _apply_region_pick_idx(new_idx: int, regs_now: list[RegionDict]) -> None:
             new_idx = max(0, min(new_idx, len(regs_now) - 1)) if regs_now else 0
             st.session_state.selected_region_idx = new_idx
-            st.session_state.selected_region_name = _selected_region_name_from_idx(
-                regs_now, new_idx
-            )
+            selected_name = _selected_region_name_from_idx(regs_now, new_idx)
+            st.session_state.selected_region_name = selected_name
+            if selected_name:
+                st.session_state[CANVAS_SUPPRESS_ACTIVE_TARGET] = selected_name
+                st.session_state[CANVAS_SUPPRESS_ACTIVE_UNTIL] = time.time() + 2.0
 
         def _on_region_pick_change(pkey: str = pick_key) -> None:
             raw = st.session_state.get(pkey, 0)
@@ -1379,23 +1383,28 @@ def _render_regions_expander(
             if target_idx not in pick_options:
                 target_idx = pick_options[0] if pick_options else 0
             list_pos = pick_options.index(target_idx) if target_idx in pick_options else 0
+            pick_widget_key = f"{pick_key}::{target_idx}::{'_'.join(map(str, pick_options))}"
             picked_pos = st.selectbox(
                 "Select region",
                 range(len(pick_options)),
                 format_func=lambda j: pick_labels[pick_options[j]],
-                key=pick_key,
+                key=pick_widget_key,
                 on_change=_on_region_pick_change,
+                args=(pick_widget_key,),
                 index=list_pos,
             )
             r_sel_idx = pick_options[int(picked_pos)]
         else:
+            pick_widget_key = f"{pick_key}::{target_idx}::{len(names)}"
             r_sel = st.radio(
                 "Select region",
                 range(len(names)),
                 format_func=lambda i: names[i],
                 horizontal=False,
-                key=pick_key,
+                key=pick_widget_key,
                 on_change=_on_region_pick_change,
+                args=(pick_widget_key,),
+                index=target_idx,
             )
             if isinstance(r_sel, str):
                 head = r_sel.split(":", 1)[0].strip()
@@ -2177,6 +2186,21 @@ def _mirror_canvas_selection_into_session(canvas_result: Any) -> None:
     cr_active = (getattr(canvas_result, "active_region_name", "") or "").strip()
     if not cr_active:
         return
+    suppress_target = str(st.session_state.get(CANVAS_SUPPRESS_ACTIVE_TARGET) or "").strip()
+    suppress_until = float(st.session_state.get(CANVAS_SUPPRESS_ACTIVE_UNTIL, 0.0) or 0.0)
+    if suppress_target:
+        if time.time() > suppress_until:
+            st.session_state.pop(CANVAS_SUPPRESS_ACTIVE_TARGET, None)
+            st.session_state.pop(CANVAS_SUPPRESS_ACTIVE_UNTIL, None)
+        elif cr_active != suppress_target:
+            # The canvas can echo the previously active object for a rerun after
+            # the right-panel picker changed. Do not let that stale echo undo
+            # the user's explicit `Select region` choice.
+            st.session_state[CANVAS_LAST_ACTIVE_REGION] = cr_active
+            return
+        else:
+            st.session_state.pop(CANVAS_SUPPRESS_ACTIVE_TARGET, None)
+            st.session_state.pop(CANVAS_SUPPRESS_ACTIVE_UNTIL, None)
     last_seen = str(st.session_state.get(CANVAS_LAST_ACTIVE_REGION) or "").strip()
     if cr_active == last_seen:
         return
