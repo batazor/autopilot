@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from tenacity import RetryError
@@ -73,7 +74,19 @@ def _build_screen_name_enum() -> type[StrEnum]:
     return StrEnum("ScreenName", members)
 
 
-ScreenName: type[StrEnum] = _build_screen_name_enum()
+# ScreenName is composed at runtime from screen_verify.yaml so its members
+# are dynamic — ty can't statically see e.g. ``ScreenName.UNKNOWN`` on the
+# resulting ``type[StrEnum]`` object, and ``type[StrEnum]`` itself is not
+# accepted in type-annotation position. Under TYPE_CHECKING expose a plain
+# ``StrEnum`` subclass with the three well-known members so static analysis
+# sees a normal enum class; at runtime the dynamic factory still wins.
+if TYPE_CHECKING:
+    class ScreenName(StrEnum):
+        UNKNOWN = "unknown"
+        MAIN_CITY = "main_city"
+        SUGGESTION_BOX = "suggestion_box"
+else:
+    ScreenName = _build_screen_name_enum()
 
 
 class ScreenDetector:
@@ -151,7 +164,7 @@ class ScreenDetector:
         *,
         screen_names: list[str] | None = None,
     ) -> ScreenName:
-        rules: list[dict[str, object]] = []
+        rules: list[dict[str, Any]] = []
         rule_groups: list[tuple[ScreenName, list[str]]] = []
         for screen_s in screen_names if screen_names is not None else screen_verify_screen_names():
             try:

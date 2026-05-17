@@ -10,7 +10,7 @@ import time
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 
@@ -112,7 +112,12 @@ class DslScenarioInlineMixin(_Base):
 
         navigator = dsl_runtime.navigator(actions, redis_client=self.redis_client)
         try:
-            ok = await navigator.navigate_to(target, instance_id)
+            # ``target`` is ``ScreenName | str`` after the ValueError fallback
+            # above; ``navigate_to`` is typed strict ScreenName but since
+            # ``ScreenName`` is a StrEnum the runtime accepts the bare str form
+            # transparently. Cast at the boundary rather than widening the
+            # Navigator signature.
+            ok = await navigator.navigate_to(cast("ScreenName", target), instance_id)
         finally:
             if self.redis_client is not None:
                 with suppress(Exception):
