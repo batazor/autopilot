@@ -40,7 +40,7 @@ def resolve_omniparser_root() -> Path:
     return root
 
 
-def health_status() -> dict[str, object]:
+def health_status() -> dict[str, Any]:
     root = (os.environ.get("OMNIPARSER_ROOT") or "").strip()
     error = ""
     ok = False
@@ -177,9 +177,9 @@ def _predict_icon_elements(
     *,
     box_threshold: float,
     imgsz: int | None,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     device = _resolve_device()
-    kwargs: dict[str, object] = {
+    kwargs: dict[str, Any] = {
         "source": image.convert("RGB"),
         "conf": float(box_threshold),
         "verbose": False,
@@ -192,7 +192,7 @@ def _predict_icon_elements(
     if device:
         kwargs["device"] = device
     result = model.predict(**kwargs)[0]
-    elements: list[dict[str, object]] = []
+    elements: list[dict[str, Any]] = []
     boxes = getattr(result, "boxes", None)
     if boxes is None or not len(boxes):
         return elements
@@ -216,7 +216,7 @@ def parse_image(
     iou_threshold: float,
     use_paddleocr: bool,
     imgsz: int | None,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     models = load_models()
     check_ocr = models["check_ocr_box"]
     width, height = image.size
@@ -256,7 +256,7 @@ def parse_image(
         iou_threshold=iou_threshold,
         imgsz=imgsz,
     )
-    elements: list[dict[str, object]] = []
+    elements: list[dict[str, Any]] = []
     for box in filtered_boxes:
         if not isinstance(box, dict):
             continue
@@ -279,7 +279,7 @@ def parse_icon_detect_image(
     *,
     box_threshold: float,
     imgsz: int | None,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     """Fast one-shot path: use OmniParser's YOLO icon detector only."""
     global _icon_model  # noqa: PLW0603
     root = resolve_omniparser_root()

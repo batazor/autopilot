@@ -20,9 +20,9 @@ import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-from conftest import patch_dsl_bot_actions
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no Redis, no asyncio
@@ -122,30 +122,6 @@ def test_build_red_dot_only_row_errors_without_capability_flag() -> None:
 # ---------------------------------------------------------------------------
 
 
-class _FakeActions:
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return int(self.frame.shape[1]), int(self.frame.shape[0])
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return self.frame
-
-    def capture_screen_bgr_cached(
-        self, instance_id: str, *, max_age_ms: float | None = None
-    ) -> np.ndarray:
-        del max_age_ms
-        return self.capture_screen_bgr(instance_id)
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, int(point.x), int(point.y), approval_region))
-        return True
-
-
 def _write_red_dot_repo(
     tmp_path: Path,
     frame: np.ndarray,
@@ -234,14 +210,13 @@ def _mailbox_frame(*, with_red_dot: bool, w: int = 720, h: int = 1280) -> np.nda
 @pytest.mark.asyncio
 async def test_dsl_is_red_dot_true_clicks_when_dot_present(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     frame = _mailbox_frame(with_red_dot=True)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
-    actions = _FakeActions(frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    actions = make_actions(frame)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -253,20 +228,19 @@ async def test_dsl_is_red_dot_true_clicks_when_dot_present(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert len(actions.tapped) == 1
+    assert len(actions.tap.call_args_list) == 1
 
 
 @pytest.mark.asyncio
 async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     frame = _mailbox_frame(with_red_dot=False)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
-    actions = _FakeActions(frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    actions = make_actions(frame)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -280,7 +254,7 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
     # Failed guard is reported as ``success=False`` (queue history honesty).
     assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
-    assert actions.tapped == []
+    assert actions.tap.call_args_list == []
     match_row = result.metadata.get("match")
     assert isinstance(match_row, dict)
     assert match_row.get("reason") == "red_dot_missing"
@@ -289,14 +263,13 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
 @pytest.mark.asyncio
 async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     frame = _mailbox_frame(with_red_dot=True)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=False, is_red_dot_step=True)
-    actions = _FakeActions(frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    actions = make_actions(frame)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -309,7 +282,7 @@ async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
 
     assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
-    assert actions.tapped == []
+    assert actions.tap.call_args_list == []
     match_row = result.metadata.get("match")
     assert isinstance(match_row, dict)
     assert match_row.get("reason") == "red_dot_capability_disabled"

@@ -6,7 +6,7 @@ from typing import Any
 import streamlit as st
 
 
-def render_dsl_step_audit(ctx: dict[str, object]) -> None:
+def render_dsl_step_audit(ctx: dict[str, Any]) -> None:
     """Last DSL `match` / `ocr` / `color_check` snapshot copied into approval `context`."""
     mr = str(ctx.get("dsl_last_match_region") or "").strip()
     ms = str(ctx.get("dsl_last_match_score") or "").strip()

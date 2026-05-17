@@ -2,27 +2,82 @@ enabled: true
 name: "VIP: Daily Rewards"
 priority: 80_000
 
-cron: "0 */6 * * *"
+cron: "0 */12 * * *"
 node: vip
 cond: "active_player != null"
 
 steps:
   - while_match: page.vip.box
     isRedDot: true
-    max: 1
+    max: 3
     retry:
       attempts: 1
       interval: 100ms
     steps:
       - click: page.vip.box
       - wait: 0.5s
+      - while_match: button.click_to_continue
+        max: 1
+        retry:
+          attempts: 3
+          interval: 500ms
+        steps:
+          - click: button.click_to_continue
+          - wait: 0.5s
+
+  - while_match: button.claim
+    max: 1
+    retry:
+      attempts: 3
+      interval: 400ms
+    steps:
+      - click: button.claim
+      - wait: 0.8s
+      - click: button.tap_anywhere_to_exit
+      - wait: 0.3s
 
   - while_match: page.vip.add
     isRedDot: true
-    max: 1
+    max: 3
     retry:
       attempts: 1
       interval: 100ms
     steps:
       - click: page.vip.add
       - wait: 0.5s
+      - while_match: button.use
+        retry:
+          attempts: 3
+          interval: 500ms
+        steps:
+          - click: button.use
+          - wait: 1s
+      - while_match: increase_level.icon.close
+        max: 1
+        steps:
+          - click: increase_level.icon.close
+          - wait: 300ms
+      - wait: 300ms
+
+  - while_match: page.vip.unlock
+    isRedDot: true
+    max: 3
+    retry:
+      attempts: 1
+      interval: 100ms
+    steps:
+      - click: page.vip.unlock
+      - wait: 0.5s
+      - while_match: button.use
+        retry:
+          attempts: 3
+          interval: 500ms
+        steps:
+          - click: button.use
+          - wait: 1s
+      - while_match: increase_level.icon.close
+        max: 1
+        steps:
+          - click: increase_level.icon.close
+          - wait: 300ms
+      - wait: 300ms

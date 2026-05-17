@@ -17,11 +17,53 @@ Resolution rules (see :func:`resolve_region_with_version`):
 """
 from __future__ import annotations
 
+import ast
 import logging
 import re
+from functools import lru_cache
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Node types allowed inside a ``cond`` expression. ``__builtins__: {}`` alone
+# does NOT sandbox eval — a payload like ``(0).__class__.__mro__[1].__subclasses__()``
+# escapes via attribute traversal on a literal int. Restricting the AST to a
+# small grammar (literals, comparisons, boolean/arith ops, dotted-state lookup)
+# blocks attribute access and calls entirely. ``cond`` strings come from repo
+# YAML today, but this still hardens the sandbox if user-provided conds are
+# ever accepted (debug UI, custom modules, etc.).
+_COND_ALLOWED_NODES: frozenset[type[ast.AST]] = frozenset({
+    ast.Expression,
+    ast.Constant,
+    ast.Name,
+    ast.Load,
+    ast.BoolOp, ast.And, ast.Or,
+    ast.BinOp, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow,
+    ast.UnaryOp, ast.Not, ast.USub, ast.UAdd,
+    ast.Compare, ast.Eq, ast.NotEq, ast.Lt, ast.LtE, ast.Gt, ast.GtE,
+    ast.In, ast.NotIn, ast.Is, ast.IsNot,
+    ast.IfExp,
+    # Subscript needed for the ``_state["dotted.key"]`` lookup synthesised by
+    # ``_rewrite_dotted_idents``. ``Tuple`` enables ``x in (a, b)``.
+    ast.Subscript, ast.Tuple, ast.List,
+})
+
+
+def _validate_cond_ast(tree: ast.AST) -> None:
+    for node in ast.walk(tree):
+        if type(node) not in _COND_ALLOWED_NODES:
+            raise SyntaxError(
+                f"cond: disallowed node {type(node).__name__} "
+                "(only literals, comparisons, boolean/arith ops and dotted-state lookups allowed)"
+            )
+
+
+@lru_cache(maxsize=512)
+def _compile_cond_cached(rewritten: str) -> Any:
+    """Parse + validate + compile a cond expression; cache the code object."""
+    tree = ast.parse(rewritten, mode="eval")
+    _validate_cond_ast(tree)
+    return compile(tree, "<cond>", "eval")
 
 VERSION_ID_RE = re.compile(r"^v\d+$")
 _VERSION_ID_LOOSE_RE = re.compile(r"^[Vv]?(\d+)$")
@@ -115,10 +157,15 @@ def eval_cond(expr: str, state_flat: dict[str, Any]) -> bool:
     if not expr_str:
         return False
     rewritten = _rewrite_dotted_idents(expr_str)
+    try:
+        code = _compile_cond_cached(rewritten)
+    except SyntaxError as exc:
+        logger.warning("eval_cond rejected for %r: %s", expr_str, exc)
+        return False
     coerced_state = {k: _coerce_cond_value(v) for k, v in state_flat.items()}
     try:
         result = eval(
-            rewritten,
+            code,
             {"__builtins__": {}},
             {"_state": coerced_state, **coerced_state},
         )
@@ -136,7 +183,7 @@ def compile_cond(expr: str) -> None:
     if not expr_str:
         raise SyntaxError("cond expression is empty")
     rewritten = _rewrite_dotted_idents(expr_str)
-    compile(rewritten, "<cond>", "eval")
+    _compile_cond_cached(rewritten)
 
 
 def pick_active_version(

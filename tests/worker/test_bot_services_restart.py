@@ -10,12 +10,12 @@ import ui.bot_services as bot_services
 
 
 @pytest.fixture(autouse=True)
-def _reset_module_state(monkeypatch: Any) -> Any:
+def _reset_module_state(mocker) -> Any:
     """Avoid bleeding state between tests — the bot_services module is global."""
-    monkeypatch.setattr(bot_services, "_started", False)
-    monkeypatch.setattr(bot_services, "_stop_event", None)
-    monkeypatch.setattr(bot_services, "_thread", None)
-    monkeypatch.setattr(bot_services, "_stop_health_watchdog", lambda: None)
+    mocker.patch.object(bot_services, "_started", new=False)
+    mocker.patch.object(bot_services, "_stop_event", new=None)
+    mocker.patch.object(bot_services, "_thread", new=None)
+    mocker.patch.object(bot_services, "_stop_health_watchdog", new=lambda: None)
     yield
 
 
@@ -25,7 +25,7 @@ def test_stop_embedded_bot_returns_true_when_nothing_running() -> None:
 
 
 def test_stop_embedded_bot_returns_false_when_thread_will_not_stop(
-    monkeypatch: Any,
+    mocker,
 ) -> None:
     """A thread that ignores the stop event must produce ``False``, and the
     module state must remain marked as ``_started`` so a later restart cannot
@@ -43,9 +43,9 @@ def test_stop_embedded_bot_returns_false_when_thread_will_not_stop(
     thread.start()
     started.wait(timeout=1.0)
 
-    monkeypatch.setattr(bot_services, "_started", True)
-    monkeypatch.setattr(bot_services, "_stop_event", stop_event)
-    monkeypatch.setattr(bot_services, "_thread", thread)
+    mocker.patch.object(bot_services, "_started", new=True)
+    mocker.patch.object(bot_services, "_stop_event", new=stop_event)
+    mocker.patch.object(bot_services, "_thread", new=thread)
 
     ok = bot_services.stop_embedded_bot(join_timeout_s=0.1)
     assert ok is False
@@ -55,7 +55,7 @@ def test_stop_embedded_bot_returns_false_when_thread_will_not_stop(
 
 
 def test_restart_embedded_bot_raises_when_thread_does_not_stop(
-    monkeypatch: Any,
+    mocker,
 ) -> None:
     """``restart_embedded_bot`` must raise instead of silently no-op'ing
     when the supervisor thread is stuck — otherwise the operator sees a
@@ -72,16 +72,16 @@ def test_restart_embedded_bot_raises_when_thread_does_not_stop(
     thread.start()
     started.wait(timeout=1.0)
 
-    monkeypatch.setattr(bot_services, "_started", True)
-    monkeypatch.setattr(bot_services, "_stop_event", stop_event)
-    monkeypatch.setattr(bot_services, "_thread", thread)
+    mocker.patch.object(bot_services, "_started", new=True)
+    mocker.patch.object(bot_services, "_stop_event", new=stop_event)
+    mocker.patch.object(bot_services, "_thread", new=thread)
 
     ensure_called: list[bool] = []
 
     def _fail_ensure() -> None:
         ensure_called.append(True)
 
-    monkeypatch.setattr(bot_services, "ensure_embedded_bot", _fail_ensure)
+    mocker.patch.object(bot_services, "ensure_embedded_bot", new=_fail_ensure)
 
     with pytest.raises(RuntimeError, match="did not stop"):
         bot_services.restart_embedded_bot(join_timeout_s=0.1)

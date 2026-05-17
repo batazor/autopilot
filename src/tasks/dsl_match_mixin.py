@@ -20,9 +20,14 @@ import logging
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from adb import BotActions
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
@@ -38,7 +43,6 @@ from layout.white_border_detector import (
     has_white_border_in_bbox_percent,
 )
 from tasks.dsl_scenario_helpers import (
-    _read_current_screen,
     _step_red_dot_requirement,
     _step_tab_active_requirement,
     _step_white_border_requirement,
@@ -47,7 +51,7 @@ from tasks.dsl_scenario_helpers import (
 logger = logging.getLogger(__name__)
 
 
-class DslMatchMixin:
+class DslMatchMixin(_Base):
     redis_client: Any
     _last_match_region: str
     _last_match_row: dict[str, Any] | None
@@ -271,13 +275,11 @@ class DslMatchMixin:
         step: dict[str, Any],
         region: str,
     ) -> dict[str, Any] | None:
-        current_screen = await _read_current_screen(instance_id, self.redis_client)
         pair = (
             screen_region_by_name(
                 area_doc,
                 region,
                 state_flat=self._state_flat(),
-                screen_id=current_screen or None,
             )
             if region
             else None

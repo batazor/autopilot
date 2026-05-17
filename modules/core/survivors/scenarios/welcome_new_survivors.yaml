@@ -1,0 +1,16 @@
+enabled: true
+name: Welcome new survivors
+
+priority: 100_000
+
+node: isNewPeople
+
+steps:
+  - while_match: button.welcome_in
+    max: 1
+    retry:
+      attempts: 3
+      interval: 500ms
+    steps:
+      - click: button.welcome_in
+      - wait: 2s

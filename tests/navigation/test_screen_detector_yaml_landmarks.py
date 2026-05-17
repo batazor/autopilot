@@ -28,7 +28,7 @@ class _FakeOcrClient:
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="legacy OCR landmark coverage; rewrite for template landmarks")
-async def test_screen_detector_uses_yaml_landmarks(monkeypatch: Any, tmp_path: Path) -> None:
+async def test_screen_detector_uses_yaml_landmarks(mocker, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
     cfg.write_text(
         """
@@ -41,12 +41,12 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
     fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr
+    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
     detector._area_doc = {
         "screens": [
             {
@@ -64,7 +64,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.ARENA
     assert fake_ocr.regions == [Region(10, 40, 30, 20)]
@@ -73,7 +73,7 @@ screens:
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="legacy text_switch detector coverage; rewrite for template landmarks")
 async def test_screen_detector_switches_on_page_title_text(
-    monkeypatch: Any,
+    mocker,
     tmp_path: Path,
 ) -> None:
     cfg = tmp_path / "screen_verify.yaml"
@@ -92,12 +92,12 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
     fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr
+    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
     detector._area_doc = {
         "screens": [
             {
@@ -119,7 +119,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.ARENA
     assert fake_ocr.regions == [Region(11, 4, 70, 10)]
@@ -127,7 +127,7 @@ screens:
 
 @pytest.mark.asyncio
 async def test_screen_detector_uses_match_landmark(
-    monkeypatch: Any,
+    mocker,
     tmp_path: Path,
 ) -> None:
     cfg = tmp_path / "screen_verify.yaml"
@@ -141,8 +141,8 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -156,10 +156,10 @@ screens:
 
     import navigation.detector as detector_module
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         detector_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
     detector = ScreenDetector(OcrClient(get_settings()))
     detector._area_doc = {"screens": []}
@@ -167,14 +167,14 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.MAIN_CITY
 
 
 @pytest.mark.asyncio
 async def test_screen_detector_requires_combined_match_and_tab_active(
-    monkeypatch: Any,
+    mocker,
     tmp_path: Path,
 ) -> None:
     cfg = tmp_path / "screen_verify.yaml"
@@ -193,8 +193,8 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -212,10 +212,10 @@ screens:
 
     import navigation.detector as detector_module
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         detector_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
     detector = ScreenDetector(OcrClient(get_settings()))
     detector._area_doc = {"screens": []}
@@ -223,14 +223,14 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.UNKNOWN
 
 
 @pytest.mark.asyncio
 async def test_sticky_hint_allows_prior_overlay_to_preempt(
-    monkeypatch: Any,
+    mocker,
     tmp_path: Path,
 ) -> None:
     cfg = tmp_path / "screen_verify.yaml"
@@ -258,9 +258,9 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -273,10 +273,10 @@ screens:
 
     import navigation.detector as detector_module
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         detector_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
     detector = ScreenDetector(OcrClient(get_settings()))
     detector._area_doc = {"screens": []}
@@ -287,16 +287,16 @@ screens:
             hint=ScreenName.RECONNECT,
         )
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.WELCOME_BACK
     assert detector.last_used_sticky_verify is False
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="legacy monkeypatched ScreenName coverage; rewrite for template landmarks")
+@pytest.mark.skip(reason="legacy mocker-patched ScreenName coverage; rewrite for template landmarks")
 async def test_screen_detector_can_return_building_from_match_landmark(
-    monkeypatch: Any,
+    mocker,
     tmp_path: Path,
 ) -> None:
     cfg = tmp_path / "screen_verify.yaml"
@@ -310,8 +310,8 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -326,10 +326,10 @@ screens:
 
     import navigation.detector as detector_module
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         detector_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
     detector = ScreenDetector(OcrClient(get_settings()))
     detector._area_doc = {"screens": []}
@@ -337,6 +337,6 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.BUILDING

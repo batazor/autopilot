@@ -1,0 +1,5 @@
+enabled: false
+name: "Alliance Mobilization"
+node: event.alliance_mobilization
+icon: alliance_mobilization
+steps: []

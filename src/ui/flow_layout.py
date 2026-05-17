@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
+from typing import Any
 
 import networkx as nx
 from streamlit_react_flow import FlowEdge, FlowNode
@@ -20,15 +21,15 @@ _SLOT_W = 304.0
 _SLOT_H = 168.0
 _NORM_MARGIN = 104.0
 
-_HIGHLIGHT_EDGE_STYLE: dict[str, object] = {
+_HIGHLIGHT_EDGE_STYLE: dict[str, Any] = {
     "stroke": "#ea580c",
     "strokeWidth": 2.5,
 }
-_NON_TAP_EDGE_STYLE: dict[str, object] = {
+_NON_TAP_EDGE_STYLE: dict[str, Any] = {
     "stroke": "#a1a1aa",
     "strokeDasharray": "6 4",
 }
-_DYNAMIC_EDGE_STYLE: dict[str, object] = {
+_DYNAMIC_EDGE_STYLE: dict[str, Any] = {
     "stroke": "#2563eb",
     "strokeDasharray": "8 4",
     "strokeWidth": 2,
@@ -215,7 +216,7 @@ def build_flow_graph(
     for nid in ordered:
         grp = _node_group(nid, default_region=default_region, screen_regions=screen_regions)
         bg = REGION_BG.get(grp, "#f4f4f5")
-        data: dict[str, object] = {
+        data: dict[str, Any] = {
             "label": nid,
             "background": bg,
             "highlighted": nid in highlight_node_set,

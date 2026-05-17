@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import shlex
 import subprocess
 import tempfile
 import time
@@ -468,7 +469,14 @@ class AdbController:
         return True
 
     def type_text(self, text: str) -> bool:
-        escaped = text.replace(" ", "%s").replace("'", "\\'")
+        # ``adb shell ARGS`` concatenates ARGS and runs them through the
+        # device-side ``sh``, so shell metacharacters (``&``, ``;``, ``|``,
+        # backticks, ``$``, etc.) in ``text`` would otherwise be interpreted
+        # or fail to escape correctly. ``input text`` itself can't accept
+        # spaces, so we first replace them with the ``%s`` placeholder it
+        # understands, then wrap the whole thing in ``shlex.quote`` so the
+        # device shell hands the literal string to ``input text``.
+        escaped = shlex.quote(text.replace(" ", "%s"))
         ok, req_id = _require_approval(
             self._instance_id,
             self._approval_payload_with_preview(

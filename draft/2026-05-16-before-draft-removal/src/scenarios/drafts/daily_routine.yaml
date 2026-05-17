@@ -1,0 +1,52 @@
+name: "Daily Routine"
+priority: 100
+repeat: true
+enabled: false
+
+conditions:
+  - type: time_range
+    from: "06:00"
+    to: "23:00"
+  - type: player_level_min
+    value: 10
+
+steps:
+  - id: step_daily_checkin
+    task: daily_checkin
+    priority: 900
+    cooldown: 24h
+    required: true
+
+  - id: step_arena
+    task: arena
+    priority: 500
+    cooldown: 3h
+    max_attempts: 3
+    conditions:
+      - type: resource_min
+        resource: stamina
+        value: 1
+
+  - id: step_training
+    task: training
+    priority: 400
+    cooldown: 30m
+    params:
+      troop_type: infantry
+      quantity: auto
+
+  - id: step_gather
+    task: gathering
+    priority: 300
+    cooldown: 2h
+    params:
+      resources: [wood, food]
+      march_slots: all
+
+  - id: step_defend_ally
+    task: defend_ally
+    priority: 800
+    cooperative: true
+    cooldown: 10m
+    conditions:
+      - type: alliance_member_under_attack

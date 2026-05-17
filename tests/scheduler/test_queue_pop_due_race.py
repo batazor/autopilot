@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Any
 
 import pytest
 
@@ -24,9 +25,9 @@ def _ghost(
     priority: int = 99_000,
     run_at: float = 0.0,
     instance_id: str = "bs1",
-) -> tuple[str, dict[str, object]]:
+) -> tuple[str, dict[str, Any]]:
     """Synthetic 'race-lost' payload not present in Redis."""
-    data: dict[str, object] = {
+    data: dict[str, Any] = {
         "task_id": task_id,
         "player_id": "",
         "task_type": task_type,
@@ -38,7 +39,7 @@ def _ghost(
     return json.dumps(data), data
 
 
-def _meta(priority: int) -> dict[str, object]:
+def _meta(priority: int) -> dict[str, Any]:
     """Full meta dict matching ``_rank_candidates`` output; ``_log_pop_winner``
     reads every key, so partial dicts break the success-path log call."""
     return {
@@ -75,7 +76,7 @@ async def test_pop_due_skips_race_loss_and_claims_next(
         run_at=now - 1,
         instance_id="bs1",
     )
-    real_items = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    real_items = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(real_items) == 1
     real_raw = real_items[0]
     real_data = json.loads(real_raw)
@@ -83,7 +84,7 @@ async def test_pop_due_skips_race_loss_and_claims_next(
     ghost_raw, ghost_data = _ghost(task_id="ghost", run_at=now - 2)
 
     async def _fake_collect(*_a: object, **_kw: object) -> list[
-        tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]
+        tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]
     ]:
         # Ghost wins ranking (lower sort key) → tried first → zrem==0 → skip.
         return [
@@ -107,12 +108,12 @@ async def test_pop_due_skips_race_loss_and_claims_next(
     assert item is not None
     assert item.task_id == "real", "must skip the race-lost ghost and claim the real item"
 
-    remaining = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    remaining = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert remaining == [], "claimed item must be gone from the queue"
 
     # ``_append_recent_run`` runs only on a successful claim — recent_runs must
     # have exactly one event tagged with the *real* task_type, never the ghost.
-    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(members) == 1
     assert str(members[0]).startswith("who_i_am|"), members
 
@@ -130,7 +131,7 @@ async def test_pop_due_returns_none_when_all_candidates_lost(
     g2_raw, g2_data = _ghost(task_id="g2", priority=10)
 
     async def _fake_collect(*_a: object, **_kw: object) -> list[
-        tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]
+        tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]
     ]:
         return [
             ((-99_000, 0, 0, 0.0, 0.0), g1_raw, g1_data, _meta(99_000)),
@@ -142,7 +143,7 @@ async def test_pop_due_returns_none_when_all_candidates_lost(
     item = await q.pop_due("bs1", current_screen="main_city")
     assert item is None, "all candidates lost → no claim, no phantom QueueItem"
 
-    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert members == [], "race-lost candidates must not pollute recent_runs"
 
 

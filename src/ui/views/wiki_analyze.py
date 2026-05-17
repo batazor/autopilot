@@ -1,15 +1,15 @@
 """Wiki · Analyze — overlay rules browser and area.json audit."""
 from __future__ import annotations
 
+import fnmatch
 import time
 from collections import Counter
-import fnmatch
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
-from streamlit_nested_table import nested_table, table_column
 import yaml
+from streamlit_nested_table import nested_table, table_column
 
 from analysis.overlay_rules import optional_ttl_seconds, overlay_rule_screen_allowlist
 from config.devices import get_device_registry

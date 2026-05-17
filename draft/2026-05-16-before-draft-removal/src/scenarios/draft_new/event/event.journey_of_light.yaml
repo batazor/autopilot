@@ -1,0 +1,5 @@
+enabled: false
+name: "Journey Of Light"
+node: event.journey_of_light
+icon: journey_of_light
+steps: []

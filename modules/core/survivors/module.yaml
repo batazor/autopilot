@@ -1,0 +1,7 @@
+id: survivors
+title: Survivors
+description: >-
+  Main-city survivor prompts, including welcoming newly arrived survivors.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

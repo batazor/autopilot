@@ -27,31 +27,28 @@ class FrameBusTimeout(RuntimeError):
 
 _LOCK: Final[threading.Lock] = threading.Lock()
 _FRAMES: dict[str, tuple[float, np.ndarray]] = {}
-_EVENTS: dict[str, threading.Event] = {}
+_VERSIONS: dict[str, int] = {}
+_CONDITIONS: dict[str, threading.Condition] = {}
 
 
-def _event(instance_id: str) -> threading.Event:
+def _condition(instance_id: str) -> threading.Condition:
     with _LOCK:
-        ev = _EVENTS.get(instance_id)
-        if ev is None:
-            ev = threading.Event()
-            _EVENTS[instance_id] = ev
-        return ev
+        cond = _CONDITIONS.get(instance_id)
+        if cond is None:
+            cond = threading.Condition()
+            _CONDITIONS[instance_id] = cond
+        return cond
 
 
 def publish(instance_id: str, frame_bgr: np.ndarray) -> None:
     """Store ``frame_bgr`` as the latest frame for ``instance_id`` and wake waiters."""
     ts = time.monotonic()
-    with _LOCK:
-        _FRAMES[instance_id] = (ts, frame_bgr)
-        ev = _EVENTS.get(instance_id)
-        if ev is None:
-            ev = threading.Event()
-            _EVENTS[instance_id] = ev
-    # set() then clear() so any thread currently in wait() returns, while
-    # subsequent waiters will block until the next publish.
-    ev.set()
-    ev.clear()
+    cond = _condition(instance_id)
+    with cond:
+        with _LOCK:
+            _FRAMES[instance_id] = (ts, frame_bgr)
+            _VERSIONS[instance_id] = _VERSIONS.get(instance_id, 0) + 1
+        cond.notify_all()
 
 
 def latest(instance_id: str) -> tuple[float, np.ndarray] | None:
@@ -81,12 +78,26 @@ def wait_for_next(instance_id: str, *, timeout: float) -> np.ndarray:
     (default 1 s), so a 2 s timeout comfortably covers it; longer timeouts on
     the caller side are appropriate when the action itself takes time
     (restart_application, ensure_game_foreground).
+
+    Uses a monotonic version counter under a Condition so back-to-back publishes
+    can't be lost between two waiter wakeups (the previous Event.set()+clear()
+    pattern had a CPython race where ``clear`` could fire before a woken waiter
+    re-checked ``is_set``, causing it to block again indefinitely).
     """
-    ev = _event(instance_id)
-    if not ev.wait(timeout=timeout):
-        raise FrameBusTimeout(
-            f"frame_bus: no new frame for {instance_id!r} within {timeout:.2f}s"
-        )
+    cond = _condition(instance_id)
+    deadline = time.monotonic() + timeout
+    with cond:
+        with _LOCK:
+            baseline = _VERSIONS.get(instance_id, 0)
+        while True:
+            with _LOCK:
+                if _VERSIONS.get(instance_id, 0) > baseline:
+                    break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not cond.wait(timeout=remaining):
+                raise FrameBusTimeout(
+                    f"frame_bus: no new frame for {instance_id!r} within {timeout:.2f}s"
+                )
     snap = latest(instance_id)
     if snap is None:
         raise FrameBusTimeout(
@@ -99,4 +110,5 @@ def reset_for_test() -> None:
     """Clear all state. Test-only — production code never calls this."""
     with _LOCK:
         _FRAMES.clear()
-        _EVENTS.clear()
+        _VERSIONS.clear()
+        _CONDITIONS.clear()

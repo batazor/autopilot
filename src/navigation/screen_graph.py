@@ -23,15 +23,15 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
 # Tap steps are region names from `area.json` (no hardcoded coordinates).
 Tap = str
-VerifyRule = dict[str, object]
-VerifyConfig = dict[str, object]
-ScreenVerifyEntry = dict[str, object]
+VerifyRule = dict[str, Any]
+VerifyConfig = dict[str, Any]
+ScreenVerifyEntry = dict[str, Any]
 DynamicEdgeSpec = dict[str, Any]
 """Per-edge spec for runtime-resolved taps.
 
@@ -87,12 +87,14 @@ def _load_edge_taps() -> tuple[
     dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
     for path in _edge_taps_yaml_paths():
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        edges = raw.get("edges", {})
-        if not isinstance(edges, dict):
+        edges_raw = raw.get("edges", {})
+        if not isinstance(edges_raw, dict):
             continue
-        for src, dsts in edges.items():
-            if not isinstance(dsts, dict):
+        edges = cast(dict[str, Any], edges_raw)
+        for src, dsts_raw in edges.items():
+            if not isinstance(dsts_raw, dict):
                 continue
+            dsts = cast(dict[str, Any], dsts_raw)
             for dst, taps in dsts.items():
                 key = (str(src), str(dst))
                 if isinstance(taps, list):
@@ -216,9 +218,10 @@ def _area_json_path() -> Path:
 def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     if not isinstance(raw, dict):
         return None
+    raw_d = cast(dict[str, Any], raw)
     rule: VerifyRule = {}
     for key in ("match", "ocr", "tab_active"):
-        value = raw.get(key)
+        value = raw_d.get(key)
         if value is not None and str(value).strip():
             rule[key] = str(value).strip()
     # ``from_screen`` is an image-less verify: passes when the previous entry in
@@ -226,7 +229,7 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     # destinations without their own OCR/match landmark (e.g. the per-hero wiki
     # popup) be verified by the hop we took to reach them. List form accepts
     # multiple acceptable predecessors.
-    fs_raw = raw.get("from_screen")
+    fs_raw = raw_d.get("from_screen")
     fs_values: list[str] = []
     if isinstance(fs_raw, list):
         fs_values = [str(x).strip() for x in fs_raw if str(x).strip()]
@@ -236,15 +239,15 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
         rule["from_screen"] = fs_values
     if not rule:
         return None
-    if "contains" in raw:
-        contains = raw.get("contains")
+    if "contains" in raw_d:
+        contains = raw_d.get("contains")
         if isinstance(contains, list):
             rule["contains"] = [str(x).strip() for x in contains if str(x).strip()]
         elif contains is not None and str(contains).strip():
             rule["contains"] = str(contains).strip()
     for key in ("threshold", "confidence", "min_match_saturation"):
-        if key in raw:
-            rule[key] = raw[key]
+        if key in raw_d:
+            rule[key] = raw_d[key]
     return rule
 
 
@@ -312,15 +315,20 @@ def _load_screen_verify_config_cached(
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
     if fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
-        yaml_fps, area_fp = fp  # type: ignore[assignment]
-        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps]
-        area_path = Path(area_fp[0])
+        yaml_fps_, area_fp_ = cast(
+            "tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]", fp
+        )
+        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
+        area_path = Path(area_fp_[0])
     elif fp and isinstance(fp[0], tuple):
-        yaml_fp, area_fp = fp  # type: ignore[assignment]
-        paths = [Path(yaml_fp[0])]
-        area_path = Path(area_fp[0])
+        yaml_fp_, area_fp_ = cast(
+            "tuple[tuple[str, int, int], tuple[str, int, int]]", fp
+        )
+        paths = [Path(yaml_fp_[0])]
+        area_path = Path(area_fp_[0])
     else:
-        paths = [Path(fp[0])]  # type: ignore[index]
+        fp_single = cast("tuple[str, int, int]", fp)
+        paths = [Path(fp_single[0])]
         area_path = _area_json_path()
 
     docs: list[dict[str, Any]] = []
@@ -420,7 +428,7 @@ def load_screen_verify_config(
     )
 
 
-load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]
+load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def screen_verify_rules(screen: str) -> list[VerifyRule]:
@@ -429,11 +437,11 @@ def screen_verify_rules(screen: str) -> list[VerifyRule]:
         return []
     entry = screens.get(screen)
     if isinstance(entry, list):
-        return list(entry)
+        return cast("list[VerifyRule]", list(entry))
     if not isinstance(entry, dict):
         return []
     rules = entry.get("rules")
-    return list(rules) if isinstance(rules, list) else []
+    return cast("list[VerifyRule]", list(rules)) if isinstance(rules, list) else []
 
 
 def screen_landmark_rules(screen: str) -> list[VerifyRule]:
@@ -442,11 +450,11 @@ def screen_landmark_rules(screen: str) -> list[VerifyRule]:
         return []
     entry = screens.get(screen)
     if isinstance(entry, list):
-        return list(entry)
+        return cast("list[VerifyRule]", list(entry))
     if not isinstance(entry, dict):
         return []
     rules = entry.get("landmarks")
-    return list(rules) if isinstance(rules, list) else []
+    return cast("list[VerifyRule]", list(rules)) if isinstance(rules, list) else []
 
 
 def screen_verify_screen_names() -> list[str]:
@@ -465,12 +473,13 @@ def _parse_retry(
 ) -> tuple[int, float]:
     if not isinstance(raw, dict):
         return default_attempts, default_interval
+    raw_d = cast("dict[str, Any]", raw)
     try:
-        attempts = int(raw.get("attempts", default_attempts))
+        attempts = int(raw_d.get("attempts", default_attempts))
     except (TypeError, ValueError):
         attempts = default_attempts
     try:
-        interval = float(raw.get("interval_seconds", default_interval))
+        interval = float(raw_d.get("interval_seconds", default_interval))
     except (TypeError, ValueError):
         interval = default_interval
     return max(1, attempts), max(0.0, interval)

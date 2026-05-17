@@ -26,7 +26,7 @@ def scenario_display_name(scenario_key: str) -> str:
 
 
 @st.cache_data(ttl=60)
-def load_area_doc_cached(area_path: Path, mtime: float) -> dict[str, object]:
+def load_area_doc_cached(area_path: Path, mtime: float) -> dict[str, Any]:
     """Cache `area.json` keyed by file mtime."""
     if not area_path.is_file():
         return {}
@@ -36,7 +36,7 @@ def load_area_doc_cached(area_path: Path, mtime: float) -> dict[str, object]:
         return {}
 
 
-def load_area_doc(area_path: Path) -> dict[str, object]:
+def load_area_doc(area_path: Path) -> dict[str, Any]:
     try:
         mtime = area_path.stat().st_mtime if area_path.is_file() else 0.0
     except OSError:

@@ -5,17 +5,17 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.navigation.conftest_nav import make_navigator
 
 from config.loader import Settings
 from navigation.detector import ScreenName
 from ocr.client import OcrClient
+from tests.navigation.conftest_nav import make_navigator
 
 
 @pytest.mark.asyncio
 async def test_missing_navigation_path_is_not_logged_as_error(
     caplog: pytest.LogCaptureFixture,
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     def capture(_instance_id: str) -> np.ndarray:
         return np.zeros((100, 100, 3), dtype=np.uint8)
@@ -29,7 +29,7 @@ async def test_missing_navigation_path_is_not_logged_as_error(
     async def detect_screen(_image: np.ndarray) -> ScreenName:
         return ScreenName.MAIN_CITY
 
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
 
     # LOADING is in ``ScreenName`` (it's a real splash screen) but has no
     # incoming edge in edge_taps.yaml — you can't navigate *to* loading. This

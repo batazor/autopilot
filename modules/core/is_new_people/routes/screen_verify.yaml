@@ -1,9 +1,0 @@
-screens:
-  isNewPeople:
-    priority: 5
-    landmarks:
-      - match: welcome_in
-        threshold: 0.9
-    rules:
-      - match: welcome_in
-        threshold: 0.9

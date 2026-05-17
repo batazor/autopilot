@@ -13,7 +13,6 @@
         {
           "name": "skip_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 80.98841698841699,
@@ -35,7 +34,6 @@
         {
           "name": "hand_pointer",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 52.63899613899614,
@@ -51,7 +49,6 @@
         {
           "name": "hand_pointer_tap",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 44.86100386100386,
@@ -74,7 +71,6 @@
         {
           "name": "hand_pointer_small_reverse",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 38.88803088803089,
@@ -90,7 +86,6 @@
         {
           "name": "hand_pointer_small_reverse_tap",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 45.833976833976834,
@@ -113,7 +108,6 @@
         {
           "name": "hand_pointer_small",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.741312741312742,
@@ -129,7 +123,6 @@
         {
           "name": "hand_pointer_small_tap",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 7.142857142857143,
@@ -152,7 +145,6 @@
         {
           "name": "button.claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.7104247104247,
@@ -168,7 +160,6 @@
         {
           "name": "claim_button_close",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 92.66409266409266,
@@ -191,7 +182,6 @@
         {
           "name": "upgrade_building",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 75.25096525096525,
@@ -214,7 +204,6 @@
         {
           "name": "build_building_item",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.67181467181467,
@@ -237,7 +226,6 @@
         {
           "name": "upgrade_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.47876447876448,
@@ -260,7 +248,6 @@
         {
           "name": "go_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 77.18146718146718,
@@ -283,7 +270,6 @@
         {
           "name": "build_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 41.46718146718147,
@@ -306,7 +292,6 @@
         {
           "name": "upgrade_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.729729729729726,
@@ -329,7 +314,6 @@
         {
           "name": "add_worker_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 62.907335907335906,
@@ -352,7 +336,6 @@
         {
           "name": "text.welcome_back",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 35.13899613899614,
@@ -448,7 +431,6 @@
         {
           "name": "icon.10_2k",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 40.737451737451735,
@@ -464,7 +446,6 @@
         {
           "name": "button.confirm.green",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 29.97104247104247,
@@ -480,7 +461,6 @@
         {
           "name": "icon.the_symbol_or_symbol_of_a_single_line",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 29.617760617760613,
@@ -496,7 +476,6 @@
         {
           "name": "icon.a_crosswalk_or_walk_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 89.14864864864865,
@@ -512,7 +491,6 @@
         {
           "name": "icon.a_symbol_or_icon_indicating_a_pause_or_cancel_fu",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 21.515444015444015,
@@ -528,7 +506,6 @@
         {
           "name": "icon.a_simple_logitech_logo",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.998069498069498,
@@ -544,7 +521,6 @@
         {
           "name": "icon.a_thumbs_up_or_like_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 58.06370656370656,
@@ -582,7 +558,6 @@
         {
           "name": "chapter.new",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.7316602316602316,
@@ -644,7 +619,6 @@
         {
           "name": "isWorkers",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.972972972972975,
@@ -660,7 +634,6 @@
         {
           "name": "main_city.title",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 43.97683397683398,
@@ -698,7 +671,6 @@
             {
               "name": "chapter.new",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 0.5386100386100386,
@@ -714,7 +686,6 @@
             {
               "name": "mail.new",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 86.67953667953668,
@@ -730,7 +701,6 @@
             {
               "name": "main_city.to.exploration",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 1.698841698841699,
@@ -746,7 +716,6 @@
             {
               "name": "main_city.to.heroes",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 18.494208494208493,
@@ -762,7 +731,6 @@
             {
               "name": "main_city.event.block.1",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 87.25868725868726,
@@ -778,7 +746,6 @@
             {
               "name": "main_city.event.block.2",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 87.64478764478764,
@@ -842,7 +809,6 @@
             {
               "name": "icon.17_30",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 12.718146718146718,
@@ -858,7 +824,6 @@
             {
               "name": "icon.6_8",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 32.625482625482626,
@@ -874,7 +839,6 @@
             {
               "name": "icon.world",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 80.87451737451738,
@@ -890,7 +854,6 @@
             {
               "name": "main_city.resources",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 54.35521235521235,
@@ -906,7 +869,6 @@
             {
               "name": "icon.a_lock_or_padlock_symbol",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 50.6042471042471,
@@ -922,7 +884,6 @@
             {
               "name": "icon.a_lock_or_padlock_symbol.3",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 66.93629343629344,
@@ -938,7 +899,6 @@
             {
               "name": "icon.a_man_with_a_beard_and_mustache",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 0.0,
@@ -954,7 +914,6 @@
             {
               "name": "main_city.diamond",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 73.57722007722008,
@@ -970,7 +929,6 @@
             {
               "name": "icon.a_blurry_image_of_a_hand_reaching_towards_the_sk",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 0.0,
@@ -986,7 +944,6 @@
             {
               "name": "icon.a_logo_or_emblem_for_a_website_or_application",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 1.7992277992277992,
@@ -1002,7 +959,6 @@
             {
               "name": "region",
               "action": "exist",
-              "type": "string",
               "threshold": 0.9,
               "bbox": {
                 "x": 12.895752895752896,
@@ -1027,7 +983,6 @@
         {
           "name": "button.back",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.3474903474903475,
@@ -1042,7 +997,6 @@
         {
           "name": "mail.title",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 11.544401544401545,
@@ -1137,7 +1091,6 @@
         {
           "name": "mail.gift",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 85.65637065637065,
@@ -1153,7 +1106,6 @@
         {
           "name": "mail.claim.all",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 56.33204633204633,
@@ -1169,7 +1121,6 @@
         {
           "name": "mail.delete.all",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 4.787644787644788,
@@ -1184,7 +1135,6 @@
         {
           "name": "icon.welcome_to_whiteout_survival_dear_chief_2026_05",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.227799227799228,
@@ -1207,7 +1157,6 @@
         {
           "name": "button.claim.big",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 33.166023166023166,
@@ -1223,7 +1172,6 @@
         {
           "name": "mail.delete",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.6061776061776,
@@ -1237,9 +1185,8 @@
           "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.big_claim_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.355212355212355,
@@ -1255,7 +1202,6 @@
         {
           "name": "icon.2026_05_0815_20_42",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.063706563706564,
@@ -1271,7 +1217,6 @@
         {
           "name": "mail.next",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 92.37065637065638,
@@ -1287,7 +1232,6 @@
         {
           "name": "icon.close",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 90.79729729729729,
@@ -1390,7 +1334,6 @@
         {
           "name": "icon.settingse",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.94980694980696,
@@ -1406,7 +1349,6 @@
         {
           "name": "icon.troopse",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 25.77799227799228,
@@ -1422,7 +1364,6 @@
         {
           "name": "icon.leaderboard",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 50.42857142857144,
@@ -1438,7 +1379,6 @@
         {
           "name": "icon.mood",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.772200772200772,
@@ -1454,7 +1394,6 @@
         {
           "name": "icon.200_200",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 8.108108108108109,
@@ -1470,7 +1409,6 @@
         {
           "name": "icon.page.back",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.7702702702702703,
@@ -1486,7 +1424,6 @@
         {
           "name": "icon.alliance_none",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 38.472972972972975,
@@ -1502,7 +1439,6 @@
         {
           "name": "icon.a_profile_picture_of_a_man_with_a_mustache",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.818532818532818,
@@ -1518,7 +1454,6 @@
         {
           "name": "icon.a_lock_or_padlock_symbol_indicating_the_skins_ap",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 1.167953667953668,
@@ -1534,7 +1469,6 @@
         {
           "name": "icon.a_cursor_pointing_to_the_right",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 83.84169884169884,
@@ -1550,7 +1484,6 @@
         {
           "name": "icon.a_simple_icon_or_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 29.138996138996138,
@@ -1566,7 +1499,6 @@
         {
           "name": "icon.a_simple_marker_or_icon_indicating_the_letter_v",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 73.26061776061776,
@@ -1582,7 +1514,6 @@
         {
           "name": "icon.a_character_from_a_video_game",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.0,
@@ -1598,7 +1529,6 @@
         {
           "name": "icon.a_search_function",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 56.42084942084942,
@@ -1614,7 +1544,6 @@
         {
           "name": "chief_profile.title",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.316602316602317,
@@ -1637,7 +1566,6 @@
         {
           "name": "accept_all_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 15.984555984555984,
@@ -1652,7 +1580,6 @@
         {
           "name": "accept_all_button_tap",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.972972972972975,
@@ -1691,7 +1618,6 @@
         {
           "name": "icon.contact_us",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 5.5096525096525095,
@@ -1706,7 +1632,6 @@
         {
           "name": "icon.reconnect",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 50.422779922779924,
@@ -1721,7 +1646,6 @@
         {
           "name": "icon.unable_to_connect_please_check_your_connection_a",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 5.625482625482626,
@@ -1743,7 +1667,6 @@
         {
           "name": "ads_rookie_value_pack",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 81.46718146718146,
@@ -1785,9 +1708,8 @@
       "ocr": "references/isNewPeople.welcome_in.png",
       "regions": [
         {
-          "name": "welcome_in",
-          "action": "text",
-          "type": "string",
+          "name": "button.welcome_in",
+          "action": "exist",
           "threshold": 0.9,
           "bbox": {
             "x": 33.552123552123554,
@@ -1810,7 +1732,6 @@
         {
           "name": "skip_text_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 86.89382239382239,
@@ -1870,7 +1791,6 @@
         {
           "name": "claim_all",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.0926640926641,
@@ -1915,7 +1835,6 @@
         {
           "name": "button.claimed.disabled",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.237451737451735,
@@ -1929,9 +1848,8 @@
           "hash": "a9d418581c84514ae6e32592c48fb1d229f2cd18e0a590152e5df29c30242f1a"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.big_claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.355212355212355,
@@ -1945,9 +1863,8 @@
           "hash": "51db066391daf3035435c75bf9692afc39eeac8a371152b6b3081fe5d3dc2cac"
         },
         {
-          "name": "icon.2026_05_0815_20_42",
+          "name": "icon.2026_05_0815_20_42.big_claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.052123552123552,
@@ -1961,9 +1878,8 @@
           "hash": "37110693d3a3804bc21dd2c6a1f5fd2982b6abe8365d2e1f211abf96cc7e7fd7"
         },
         {
-          "name": "mail.next",
+          "name": "mail.next.big_claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 91.99034749034749,
@@ -1977,9 +1893,8 @@
           "hash": "0f78da716b4f921cd674e9061b70cd0f5b34b34072589707e3beae59e1621dec"
         },
         {
-          "name": "mail.delete",
+          "name": "mail.delete.big_claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.6061776061776,
@@ -1993,9 +1908,8 @@
           "hash": "80a4da74a0e99dc06ce1d59f09ac58641169cd12399cbfc8735e4945df186918"
         },
         {
-          "name": "icon.close",
+          "name": "icon.close.big_claim",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 90.81274131274131,
@@ -2018,7 +1932,6 @@
         {
           "name": "button.go.big",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 33.745173745173744,
@@ -2035,9 +1948,8 @@
           "isSearch": true
         },
         {
-          "name": "icon.2026_05_0815_20_42",
+          "name": "icon.2026_05_0815_20_42.go_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.052123552123552,
@@ -2053,7 +1965,6 @@
         {
           "name": "text.claim_the_milestone_rewards_below_now_stay_tuned",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 7.2222227520412865,
@@ -2069,7 +1980,6 @@
         {
           "name": "text.more_updates_from_our_official_facebook_page_mor",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 6.666667196485731,
@@ -2085,7 +1995,6 @@
         {
           "name": "text.rewards_awaits",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 6.805555555555555,
@@ -2101,7 +2010,6 @@
         {
           "name": "text.tap_the_go_button_below_to_view_more_event_detai",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 6.94444497426351,
@@ -2117,7 +2025,6 @@
         {
           "name": "text.whiteout_survival_team",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 6.666667196485731,
@@ -2131,9 +2038,8 @@
           "hash": "87d382241df2010b3948a06c04cbb95d75ae48b1be296bdb1741eedf0470f085"
         },
         {
-          "name": "button.claim.big",
+          "name": "button.claim.big.go_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 33.166023166023166,
@@ -2149,7 +2055,6 @@
         {
           "name": "text.expires_in_2026_05_15_11_38_45",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 23.88888888888889,
@@ -2163,9 +2068,8 @@
           "hash": "3b7551413ff9ad427dc4b7b6d8d455e288b5e43515ca007f2d68d243f29fd537"
         },
         {
-          "name": "mail.delete",
+          "name": "mail.delete.go_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.6061776061776,
@@ -2179,9 +2083,8 @@
           "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.go_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.355212355212355,
@@ -2197,7 +2100,6 @@
         {
           "name": "icon.a_computer_mouse_pad_with_the_name_dayl_on_it",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.00575086805556,
@@ -2213,7 +2115,6 @@
         {
           "name": "icon.a_simple_step_or_guide_guide",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 11.989737616644966,
@@ -2227,9 +2128,8 @@
           "hash": "833ff62600babe239e7280c0a3c74f3aae142cb1d9c0463c6dde4d657c3e3ff0"
         },
         {
-          "name": "icon.close",
+          "name": "icon.close.go_big_button",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 90.79729729729729,
@@ -2245,7 +2145,6 @@
         {
           "name": "icon.a_push_button_or_arrow",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 87.5915018717448,
@@ -2300,7 +2199,6 @@
         {
           "name": "worker.status",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 7.876447876447876,
@@ -2322,7 +2220,6 @@
         {
           "name": "page.worker.add",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 85.53861003861005,
@@ -2353,7 +2250,6 @@
         {
           "name": "page.survivor_status",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.0849420849420848,
@@ -2375,7 +2271,6 @@
         {
           "name": "button.done",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 72.16216216216216,
@@ -2398,7 +2293,6 @@
         {
           "name": "button.next",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.67181467181467,
@@ -2421,7 +2315,6 @@
         {
           "name": "page.building.furniture",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 16.756756756756758,
@@ -2473,7 +2366,6 @@
         {
           "name": "isPostman",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 20.617760617760617,
@@ -2496,7 +2388,6 @@
         {
           "name": "ui.button.confirm_blue",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 35.52123552123552,
@@ -2519,7 +2410,6 @@
         {
           "name": "dontshowthisagaintoday",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 26.21621621621622,
@@ -2603,7 +2493,6 @@
         {
           "name": "isHeroRecruitment",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 74.9034749034749,
@@ -2633,7 +2522,6 @@
         {
           "name": "hero.recrutment.advanced.free",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 21.003861003861005,
@@ -2662,7 +2550,6 @@
         {
           "name": "exploration.to.squad_settings",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.343629343629345,
@@ -2699,7 +2586,6 @@
         {
           "name": "squad_settings.quick_deploy",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 10.772200772200772,
@@ -2714,7 +2600,6 @@
         {
           "name": "squad_settings.fight",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 59.22779922779923,
@@ -2760,11 +2645,11 @@
     },
     {
       "id": 45,
-      "screen_id": "squad_settings",
-      "ocr": "references/page.squad_settings.status.victory.png",
+      "screen_id": "exploration.victory",
+      "ocr": "modules/core/exploration/references/page.exploration.victory.png",
       "regions": [
         {
-          "name": "page.squad_settings.status",
+          "name": "page.exploration.victory.title",
           "action": "text",
           "type": "string",
           "threshold": 0.9,
@@ -2779,9 +2664,8 @@
           }
         },
         {
-          "name": "page.squad_settings.next",
+          "name": "page.exploration.victory.next",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 60.965250965250966,
@@ -2791,7 +2675,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },
@@ -2803,7 +2688,6 @@
         {
           "name": "page.squad_settings.status.defeat",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 34.32432432432432,
@@ -2825,7 +2709,6 @@
         {
           "name": "heroes.recruit",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 26.40926640926641,
@@ -2841,7 +2724,6 @@
         {
           "name": "heroes.grid",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.2432432432432434,
@@ -2856,7 +2738,6 @@
         {
           "name": "heroes.grid.r0c0",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.86100386100386,
@@ -2871,7 +2752,6 @@
         {
           "name": "heroes.grid.r0c1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.91698841698842,
@@ -2886,7 +2766,6 @@
         {
           "name": "heroes.grid.r0c2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 55.972972972972975,
@@ -2901,7 +2780,6 @@
         {
           "name": "heroes.grid.r0c3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.02702702702703,
@@ -2916,7 +2794,6 @@
         {
           "name": "heroes.grid.r1c0",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.86100386100386,
@@ -2931,7 +2808,6 @@
         {
           "name": "heroes.grid.r1c1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.91698841698842,
@@ -2946,7 +2822,6 @@
         {
           "name": "heroes.grid.r1c2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 55.972972972972975,
@@ -2961,7 +2836,6 @@
         {
           "name": "heroes.grid.r1c3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.02702702702703,
@@ -2976,7 +2850,6 @@
         {
           "name": "heroes.grid.r2c0",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.86100386100386,
@@ -2991,7 +2864,6 @@
         {
           "name": "heroes.grid.r2c1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.91698841698842,
@@ -3006,7 +2878,6 @@
         {
           "name": "heroes.grid.r2c2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 55.972972972972975,
@@ -3021,7 +2892,6 @@
         {
           "name": "heroes.grid.r2c3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.02702702702703,
@@ -3036,7 +2906,6 @@
         {
           "name": "heroes.grid.r3c0",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.86100386100386,
@@ -3051,7 +2920,6 @@
         {
           "name": "heroes.grid.r3c1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.91698841698842,
@@ -3066,7 +2934,6 @@
         {
           "name": "heroes.grid.r3c2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 55.972972972972975,
@@ -3081,7 +2948,6 @@
         {
           "name": "heroes.grid.r3c3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.02702702702703,
@@ -3103,7 +2969,6 @@
         {
           "name": "ads.legend_transcend_pack",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 81.23552123552123,
@@ -3155,7 +3020,6 @@
         {
           "name": "page.heroes.unit.wiki",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 90.34749034749035,
@@ -3171,7 +3035,6 @@
         {
           "name": "page.heroes.unit.previously_unit",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.277992277992278,
@@ -3186,7 +3049,6 @@
         {
           "name": "page.heroes.unit.next_unit",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 88.61003861003861,
@@ -3201,7 +3063,6 @@
         {
           "name": "page.heroes.unit.upgrade",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 30.694980694980696,
@@ -3240,7 +3101,6 @@
         {
           "name": "ads.natalia",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 84.55598455598455,
@@ -3263,7 +3123,6 @@
         {
           "name": "page.vip",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 59.45945945945946,
@@ -3279,7 +3138,6 @@
         {
           "name": "main_city.to.shop",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 80.6949806949807,
@@ -3295,7 +3153,6 @@
         {
           "name": "main_city.event.block.3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 87.25868725868726,
@@ -3311,7 +3168,6 @@
         {
           "name": "main_city.event.block.4",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 87.25868725868726,
@@ -3327,7 +3183,6 @@
         {
           "name": "main_city.to.backpack",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 34.13127413127413,
@@ -3350,7 +3205,6 @@
         {
           "name": "page.backpack.resources",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 1.505791505791506,
@@ -3366,7 +3220,6 @@
         {
           "name": "page.backpack.speedup",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 23.127413127413128,
@@ -3382,7 +3235,6 @@
         {
           "name": "page.backpack.bonus",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 41.85328185328186,
@@ -3398,7 +3250,6 @@
         {
           "name": "page.backpack.gear",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 60.19305019305019,
@@ -3437,7 +3288,6 @@
         {
           "name": "trial.task.1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.8223938223938223,
@@ -3453,7 +3303,6 @@
         {
           "name": "trial.task.2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 41.66023166023166,
@@ -3469,7 +3318,6 @@
         {
           "name": "trial.task.3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 68.68725868725869,
@@ -3485,7 +3333,6 @@
         {
           "name": "trial.day.1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 10.193050193050192,
@@ -3501,7 +3348,6 @@
         {
           "name": "trial.day.2",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 26.21621621621622,
@@ -3517,7 +3363,6 @@
         {
           "name": "trial.day.3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 44.55598455598456,
@@ -3533,7 +3378,6 @@
         {
           "name": "trial.day.4",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 61.351351351351354,
@@ -3549,7 +3393,6 @@
         {
           "name": "trial.day.5",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.34362934362935,
@@ -3588,7 +3431,6 @@
         {
           "name": "page.vip.box",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 81.46718146718146,
@@ -3604,7 +3446,6 @@
         {
           "name": "page.vip.add",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 68.91891891891892,
@@ -3635,7 +3476,6 @@
         {
           "name": "page.vip.unlock",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 26.988416988416994,
@@ -3658,7 +3498,6 @@
         {
           "name": "event.7-day",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.953667953667956,
@@ -3680,7 +3519,6 @@
         {
           "name": "building.furnace.max_power",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 87.64478764478764,
@@ -3695,7 +3533,6 @@
         {
           "name": "building.furnace",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.0849420849420848,
@@ -3732,7 +3569,6 @@
         {
           "name": "page.vip.increase.close",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 89.76833976833977,
@@ -3755,7 +3591,6 @@
         {
           "name": "building.upgrade",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 20.81081081081081,
@@ -3777,7 +3612,6 @@
         {
           "name": "box.gift",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 80.5019305019305,
@@ -3822,7 +3656,6 @@
         {
           "name": "page.shop.dawnMarket",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 15.984555984555984,
@@ -3837,7 +3670,6 @@
         {
           "name": "page.shop.training",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 44.55598455598456,
@@ -3852,7 +3684,6 @@
         {
           "name": "page.shop.riseofthecity",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 70.42471042471043,
@@ -3867,7 +3698,6 @@
         {
           "name": "page.shop.warning",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 92.08494208494209,
@@ -3882,7 +3712,6 @@
         {
           "name": "page.shop",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 19.266409266409266,
@@ -3926,7 +3755,6 @@
         {
           "name": "page.squad_fight.auto",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 88.03088803088804,
@@ -3941,7 +3769,6 @@
         {
           "name": "page.squad_fight.speed",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 88.37837837837837,
@@ -3987,7 +3814,6 @@
         {
           "name": "button.letsdothis",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 54.01544401544402,
@@ -4057,7 +3883,6 @@
         {
           "name": "game.version",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 80.16988416988417,
@@ -4073,7 +3898,6 @@
         {
           "name": "icon.support",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.137065637065637,
@@ -4089,7 +3913,6 @@
         {
           "name": "icon.change_character",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.0926640926640925,
@@ -4105,7 +3928,6 @@
         {
           "name": "icon.a_simple_icon_or_icon_represents_a_specific_loca",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 9.88030888030888,
@@ -4240,7 +4062,6 @@
         {
           "name": "icon.a_robot_holding_a_tool",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.1023166023166024,
@@ -4263,7 +4084,6 @@
         {
           "name": "text.our_living_cor",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 85.41698841698842,
@@ -4279,7 +4099,6 @@
         {
           "name": "text.thanks",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 91.94401544401545,
@@ -4293,9 +4112,8 @@
           "hash": "ddbcfc90ee904bb639adf6e675241d070c0fcc629be7d3154f6dc8a2bf616a1a"
         },
         {
-          "name": "chapter.task",
+          "name": "chapter.task.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 10.972972972972974,
@@ -4311,7 +4129,6 @@
         {
           "name": "text.ksa_xpand_tidak_buruk_dengan_angka_5",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 10.13899613899614,
@@ -4327,7 +4144,6 @@
         {
           "name": "main_city.to.exploration",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.019305019305019305,
@@ -4341,9 +4157,8 @@
           "hash": "a11ca764adf16934644faf1af06cf95796b43c980e2b6bf286f99ddcfa0f9d6f"
         },
         {
-          "name": "main_city.to.backpack",
+          "name": "main_city.to.backpack.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 34.00965250965251,
@@ -4359,7 +4174,6 @@
         {
           "name": "main_city.to.heroes",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 18.64864864864865,
@@ -4375,7 +4189,6 @@
         {
           "name": "icon.a_lock_or_padlock_symbol.3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 66.29343629343629,
@@ -4391,7 +4204,6 @@
         {
           "name": "icon.world",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 82.1003861003861,
@@ -4407,7 +4219,6 @@
         {
           "name": "icon.a_lock_or_padlock_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 51.24710424710424,
@@ -4421,9 +4232,8 @@
           "hash": "3701fd6531ed7256b8078bdc8145a5200209cf0df7cdc9fa1287c2dbed3ce9cd"
         },
         {
-          "name": "main_city.title",
+          "name": "main_city.title.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 43.97683397683398,
@@ -4439,7 +4249,6 @@
         {
           "name": "icon.17_30",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.835907335907335,
@@ -4455,7 +4264,6 @@
         {
           "name": "icon.6_8",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 32.56949806949807,
@@ -4471,7 +4279,6 @@
         {
           "name": "main_city.resources",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 53.47876447876448,
@@ -4485,9 +4292,8 @@
           "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
         },
         {
-          "name": "page.vip",
+          "name": "page.vip.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 57.915057915057915,
@@ -4503,7 +4309,6 @@
         {
           "name": "main_city.event.block.1",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 86.64285714285714,
@@ -4517,9 +4322,8 @@
           "hash": "c6739bae331b1e847c01e07a13433cffd36bbdba1e334c2c1f549c382f9c4a07"
         },
         {
-          "name": "is_main_city",
+          "name": "is_main_city.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 12.442084942084943,
@@ -4535,7 +4339,6 @@
         {
           "name": "main_city.diamond",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 82.23359073359073,
@@ -4549,9 +4352,8 @@
           "hash": "407f0fec9b763135162e35bce25dd997f79c5426444a74348f0ad848d239b068"
         },
         {
-          "name": "to_chief_profile",
+          "name": "to_chief_profile.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.0,
@@ -4567,7 +4369,6 @@
         {
           "name": "icon.a_simple_arrow_or_arrow_mark",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.416988416988417,
@@ -4583,7 +4384,6 @@
         {
           "name": "icon.a_thumbs_up_or_thumbs_down_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 86.91698841698842,
@@ -4597,9 +4397,8 @@
           "hash": "d5e0c44e2954e72128573e29960d854926ea8dae05db76931a6039528d0dd72a"
         },
         {
-          "name": "main_city.to.shop",
+          "name": "main_city.to.shop.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.9034749034749,
@@ -4615,7 +4414,6 @@
         {
           "name": "mani_city.to.exploration",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 50.065637065637056,
@@ -4631,7 +4429,6 @@
         {
           "name": "icon.menu",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 0.0,
@@ -4647,7 +4444,6 @@
         {
           "name": "icon.a_green_icon_or_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 94.14285714285714,
@@ -4661,9 +4457,8 @@
           "hash": "74d9e46ae4be3113d93a2b3ee71c6e41da3cee694d1c21b96f0449690e7d2d7b"
         },
         {
-          "name": "mail.new",
+          "name": "mail.new.main_city_v3",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 86.81853281853282,
@@ -4679,7 +4474,6 @@
         {
           "name": "icon.a_red_rose_pinned_to_a_symbol_or_symbol",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 87.11389961389962,
@@ -4695,7 +4489,6 @@
         {
           "name": "icon.a_blurry_image_of_a_can",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 97.83011583011583,
@@ -4711,7 +4504,6 @@
         {
           "name": "icon.a_key_or_function_related_to_connecting_or_attac",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 96.1988416988417,
@@ -4734,7 +4526,6 @@
         {
           "name": "text.sky_eaglewarriors",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.91698841698842,
@@ -4750,7 +4541,6 @@
         {
           "name": "text.57_100",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 28.05598455598456,
@@ -4766,7 +4556,6 @@
         {
           "name": "text.1_099_964_315",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 28.1949806949807,
@@ -4782,7 +4571,6 @@
         {
           "name": "text.y6",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.36100386100386,
@@ -4798,7 +4586,6 @@
         {
           "name": "text.74_100",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.91698841698842,
@@ -4814,7 +4601,6 @@
         {
           "name": "text.50_000_000",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 67.5,
@@ -4830,7 +4616,6 @@
         {
           "name": "text.lv_11",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 10.694980694980694,
@@ -4846,7 +4631,6 @@
         {
           "name": "text.10_978_752_096",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 28.05598455598456,
@@ -4862,7 +4646,6 @@
         {
           "name": "text.bhx_theclang",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.91698841698842,
@@ -4878,7 +4661,6 @@
         {
           "name": "text.14",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.36100386100386,
@@ -4894,7 +4676,6 @@
         {
           "name": "text.join",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 78.05598455598455,
@@ -4910,7 +4691,6 @@
         {
           "name": "icon.vip_vipacademy_apply_lv_11_76_100_8_098_795_549",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.357142857142857,
@@ -4926,7 +4706,6 @@
         {
           "name": "icon.join_alliance",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 34.56949806949807,
@@ -4942,7 +4721,6 @@
         {
           "name": "icon.4us_4musketeersonly_all_languages_join_lv_11_50",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.451737451737452,
@@ -4958,7 +4736,6 @@
         {
           "name": "button.join",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 69.1911196911197,
@@ -4974,7 +4751,6 @@
         {
           "name": "icon.create_alliance",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 2.667953667953668,
@@ -4990,7 +4766,6 @@
         {
           "name": "icon.invites_requests",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 66.31467181467181,
@@ -5006,7 +4781,6 @@
         {
           "name": "alliance.title",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 11.583011583011583,
@@ -5022,7 +4796,6 @@
         {
           "name": "icon.tap_to_enter",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 3.694980694980695,
@@ -5038,7 +4811,6 @@
         {
           "name": "icon.lv_11",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 5.891891891891892,
@@ -5054,7 +4826,6 @@
         {
           "name": "icon.all_languages",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.625482625482626,
@@ -5070,7 +4841,6 @@
         {
           "name": "icon.one_akatsuki",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.75868725868726,
@@ -5086,7 +4856,6 @@
         {
           "name": "icon.find",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 84.42857142857143,
@@ -5102,7 +4871,6 @@
         {
           "name": "icon.a_simple_icon_or_profile_indicator",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 88.7992277992278,
@@ -5118,7 +4886,6 @@
         {
           "name": "icon.a_walking_path_or_platform",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 27.808880308880312,
@@ -5134,7 +4901,6 @@
         {
           "name": "icon.a_symbol_or_emblem_indicating_a_specific_purpose",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 86.96911196911196,
@@ -5148,9 +4914,8 @@
           "hash": "579dce7ec6142fc34d92d2358b7845cc16541722e3558a396acfb22bce589fc4"
         },
         {
-          "name": "icon.a_simple_icon_or_symbol",
+          "name": "icon.a_simple_icon_or_symbol.alliance.invitation",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 79.96911196911196,
@@ -5174,7 +4939,6 @@
         {
           "name": "rewards.title",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 16.756756756756758,
@@ -5189,7 +4953,6 @@
         {
           "name": "button.tap_anywhere_to_exit",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 31.042471042471046,
@@ -5212,7 +4975,6 @@
         {
           "name": "heroes.sr.new.close",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 28.339768339768344,
@@ -5235,13 +4997,178 @@
         {
           "name": "main_city.new_alliance.mail.close",
           "action": "exist",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 88.8030888030888,
             "y": 72.28260869565217,
             "width": 8.0,
             "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "screen_id": "",
+      "ocr": "modules/vip/references/mcp.vip.rehearsal.10.after_box.png",
+      "regions": [
+        {
+          "name": "rewards.title.v2",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.86872586872587,
+            "y": 27.065217391304348,
+            "width": 27.6003861003861,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.click_to_continue",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.51737451737452,
+            "y": 91.52173913043478,
+            "width": 31.000000000000004,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "screen_region": "rewards.title.v2"
+    },
+    {
+      "id": 78,
+      "screen_id": "increase_level",
+      "ocr": "modules/vip/references/page.increase_level.png",
+      "regions": [
+        {
+          "name": "increase_level.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.0965250965251,
+            "y": 8.478260869565217,
+            "width": 30.0,
+            "height": 3.8760869565217386,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.use",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.1969111969112,
+            "y": 27.608695652173914,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "increase_level.icon.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.42084942084942,
+            "y": 8.26086956521739,
+            "width": 7.142857142857142,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "screen_id": "",
+      "ocr": "modules/vip/references/page.vip.png",
+      "regions": [
+        {
+          "name": "vip.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.158301158301159,
+            "y": 0.7608695652173914,
+            "width": 10.200772200772201,
+            "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "screen_id": "",
+      "ocr": "modules/core/exploration/references/squad_fight.rehearsal.17.timeout.png",
+      "regions": [
+        {
+          "name": "defeat.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.58687258687259,
+            "y": 24.891304347826086,
+            "width": 34.2007722007722,
+            "height": 6.600000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "screen_id": "",
+      "ocr": "modules/core/exploration/references/page.exploration.defeat.png",
+      "regions": [
+        {
+          "name": "exploration.defeat.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.3938223938224,
+            "y": 25.108695652173914,
+            "width": 35.2007722007722,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.to_main_city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.814671814671815,
+            "y": 81.52173913043478,
+            "width": 35.3996138996139,
+            "height": 4.5,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

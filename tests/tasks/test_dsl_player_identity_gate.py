@@ -12,22 +12,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        return 720, 1280
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        return np.zeros((1280, 720, 3), dtype=np.uint8)
-
-    def tap(self, *_args: Any, **_kwargs: Any) -> bool:
-        return True
 
 
 def _write_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:
@@ -45,14 +34,13 @@ def _write_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:
 @pytest.mark.asyncio
 async def test_player_bound_scenario_skipped_when_player_id_empty(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Plain (non-device-level) scenario + empty player_id → skip with
     ``awaiting_player_identity``. No navigation, no steps, no taps."""
     _write_scenario(tmp_path, {"steps": [{"exec": "should_not_run"}]})
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     fired = {"count": 0}
 
@@ -61,11 +49,11 @@ async def test_player_bound_scenario_skipped_when_player_id_empty(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "should_not_run", _should_not_run)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"should_not_run": _should_not_run})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
-        player_id="",  # the case we now guard against
+        player_id="",
         scenario_key="scn",
         redis_client=redis_async,  # type: ignore[arg-type]
     )
@@ -80,7 +68,7 @@ async def test_player_bound_scenario_skipped_when_player_id_empty(
 @pytest.mark.asyncio
 async def test_device_level_scenario_runs_with_empty_player_id(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``device_level: true`` opts out of the gate — that's how ``who_i_am``
@@ -89,8 +77,7 @@ async def test_device_level_scenario_runs_with_empty_player_id(
         tmp_path,
         {"device_level": True, "steps": [{"exec": "bootstrap"}]},
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     fired = {"count": 0}
 
@@ -99,7 +86,7 @@ async def test_device_level_scenario_runs_with_empty_player_id(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "bootstrap", _bootstrap)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"bootstrap": _bootstrap})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -117,15 +104,12 @@ async def test_device_level_scenario_runs_with_empty_player_id(
 @pytest.mark.asyncio
 async def test_player_bound_scenario_runs_with_explicit_player_id(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
-    """Non-device-level scenario + non-empty player_id → normal execution.
-    This is the happy path after ``who_i_am`` has populated the queue with a
-    real identity."""
+    """Non-device-level scenario + non-empty player_id → normal execution."""
     _write_scenario(tmp_path, {"steps": [{"exec": "do_work"}]})
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     fired = {"count": 0}
 
@@ -134,7 +118,7 @@ async def test_player_bound_scenario_runs_with_explicit_player_id(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "do_work", _do_work)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"do_work": _do_work})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -152,16 +136,12 @@ async def test_player_bound_scenario_runs_with_explicit_player_id(
 @pytest.mark.asyncio
 async def test_gate_skipped_on_resume(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
-    """Cooperative preemption + resume must not re-trigger the gate. By the
-    time we're resuming, the original run already passed identity check —
-    if ``player_id`` somehow got cleared since (it shouldn't), failing the
-    resume isn't actionable."""
+    """Cooperative preemption + resume must not re-trigger the gate."""
     _write_scenario(tmp_path, {"steps": [{"exec": "resumed"}]})
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     fired = {"count": 0}
 
@@ -170,17 +150,15 @@ async def test_gate_skipped_on_resume(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "resumed", _resumed)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"resumed": _resumed})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
         player_id="",
         scenario_key="scn",
-        start_step_index=1,  # resumed run
+        start_step_index=1,
         redis_client=redis_async,  # type: ignore[arg-type]
     )
     result = await task.execute("bs1")
 
-    # Empty player_id still produces a sane result; the gate skipped means
-    # ``awaiting_player_identity`` does not apply on resume.
     assert result.metadata.get("reason") != "awaiting_player_identity"

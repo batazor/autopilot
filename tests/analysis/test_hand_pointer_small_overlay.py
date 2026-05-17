@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import cv2
 import pytest
@@ -86,7 +87,7 @@ def _rule(out: dict, logical: str) -> dict:
     return r if isinstance(r, dict) else {}
 
 
-def _digest_row(out: dict, logical: str) -> dict[str, object]:
+def _digest_row(out: dict, logical: str) -> dict[str, Any]:
     r = _rule(out, logical)
     return {
         "matched": r.get("matched"),

@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -86,11 +87,13 @@ def _recent_runs_key(instance_id: str) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _bfs_hops(src: str, dst: str) -> int | None:
+def _bfs_hops_cached(src: str, dst: str, fp: tuple[Any, ...] | None) -> int | None:
     """Shortest-path hop count over the screen graph, or None if unreachable.
 
-    Process-cached on (src, dst). Topology is loaded once at import; the cache
-    only needs to be cleared if ``screen_graph`` is reloaded — out of scope here.
+    ``fp`` is the screen-graph config fingerprint (file mtimes/sizes) — including
+    it in the cache key invalidates stale paths whenever ``screen_verify.yaml``
+    or ``area.json`` is edited on disk. Without this, the cache returned stale
+    paths after hot-reload until the process restarted.
     """
     from navigation.screen_graph import bfs_route
 
@@ -100,6 +103,16 @@ def _bfs_hops(src: str, dst: str) -> int | None:
     if path is None:
         return None
     return max(0, len(path) - 1)
+
+
+def _bfs_hops(src: str, dst: str) -> int | None:
+    try:
+        from navigation.screen_graph import _combined_config_fingerprint
+
+        fp = _combined_config_fingerprint()
+    except Exception:
+        fp = None
+    return _bfs_hops_cached(src, dst, fp)
 
 
 @dataclass(frozen=True)
@@ -194,7 +207,7 @@ class RedisQueue:
         """
         import json
 
-        body: dict[str, object] = {
+        body: dict[str, Any] = {
             "task_id": task_id,
             "player_id": player_id,
             "task_type": task_type,
@@ -498,8 +511,8 @@ class RedisQueue:
         tuple[
             tuple[int, int, int, float, float],
             str,
-            dict[str, object],
-            dict[str, object],
+            dict[str, Any],
+            dict[str, Any],
         ]
     ]:
         """Return post-gate, ranked due items. Shared by pop_due / peek_top_due.
@@ -524,7 +537,7 @@ class RedisQueue:
         key = _queue_key(instance_id)
         candidates = await self._redis.zrangebyscore(key, "-inf", now)
 
-        due: list[tuple[str, dict[str, object]]] = []
+        due: list[tuple[str, dict[str, Any]]] = []
         for raw in candidates:
             data = json.loads(raw)
             pid = str(data.get("player_id", ""))
@@ -606,7 +619,7 @@ class RedisQueue:
         *,
         current_screen: str = "",
         n: int = 10,
-    ) -> list[dict[str, object]]:
+    ) -> list[dict[str, Any]]:
         """Top-N due candidates with full effective_priority breakdown.
 
         Powers the debug command from ADR 0001 §"Debug / operator tools" and
@@ -615,7 +628,7 @@ class RedisQueue:
         """
         now = time.time()
         ranked = await self._collect_ranked_due(instance_id, current_screen, now)
-        out: list[dict[str, object]] = []
+        out: list[dict[str, Any]] = []
         for sort_key, _raw, data, meta in ranked[: max(0, int(n))]:
             out.append(
                 {
@@ -659,7 +672,7 @@ class RedisQueue:
 
     @staticmethod
     def _build_queue_item(
-        data: dict[str, object],
+        data: dict[str, Any],
         *,
         default_run_at: float,
         effective_priority: int = 0,
@@ -840,12 +853,12 @@ class RedisQueue:
 
     def _rank_candidates(
         self,
-        due: list[tuple[str, dict[str, object]]],
+        due: list[tuple[str, dict[str, Any]]],
         *,
         current_screen: str,
         recent_counts: dict[tuple[str, str], int],
         now: float,
-    ) -> list[tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]]:
+    ) -> list[tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]]:
         """Compute the full ranking tuple + metadata for every due candidate.
 
         Returned tuples are ``(sort_key, raw_payload, parsed_data, meta)`` where
@@ -856,7 +869,7 @@ class RedisQueue:
         Shared by ``pop_due`` and ``peek_top_due`` (cooperative preemption).
         """
         required_node_map = self._task_type_to_required_node()
-        out: list[tuple[tuple[int, int, int, float, float], str, dict[str, object], dict[str, object]]] = []
+        out: list[tuple[tuple[int, int, int, float, float], str, dict[str, Any], dict[str, Any]]] = []
         for raw, data in due:
             base = int(data.get("priority", 0))
             ttype = str(data.get("task_type", ""))
@@ -904,7 +917,7 @@ class RedisQueue:
 
     @staticmethod
     def _log_pop_winner(
-        *, instance_id: str, data: dict[str, object], meta: dict[str, object]
+        *, instance_id: str, data: dict[str, Any], meta: dict[str, Any]
     ) -> None:
         logger.info(
             "queue.pop_due winner instance=%s task_type=%s player=%s "

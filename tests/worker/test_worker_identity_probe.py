@@ -44,12 +44,12 @@ async def test_device_level_dsl_item_is_not_resolved_to_first_configured_player(
 
 
 @pytest.mark.asyncio
-async def test_registered_device_task_still_resolves_to_known_player(monkeypatch: Any) -> None:
+async def test_registered_device_task_still_resolves_to_known_player(mocker) -> None:
     class _RegisteredTask:
         pass
 
-    monkeypatch.setitem(instance_worker._TASK_REGISTRY, "registered_task", _RegisteredTask)
-    monkeypatch.setattr(instance_worker, "player_ids_for_device", lambda _: ["765502864"])
+    mocker.patch.dict(instance_worker._TASK_REGISTRY, {"registered_task": _RegisteredTask})
+    mocker.patch.object(instance_worker, "player_ids_for_device", new=lambda _: ["765502864"])
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", bluestacks_window_title="emulator-5554")
     worker._redis = None

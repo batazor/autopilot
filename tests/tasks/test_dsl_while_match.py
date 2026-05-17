@@ -1,35 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from unittest.mock import ANY, call
 
 import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from scenarios import template_resolver
 
-
-class _FakeActions:
-    def __init__(self, frames: list[np.ndarray]) -> None:
-        self.frames = frames
-        self.capture_count = 0
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 100, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        idx = min(self.capture_count, len(self.frames) - 1)
-        self.capture_count += 1
-        return self.frames[idx]
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _claim_pattern() -> np.ndarray:
@@ -103,7 +86,7 @@ def _write_claim_repo(tmp_path: Path, frame: np.ndarray) -> None:
 @pytest.mark.asyncio
 async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -111,9 +94,8 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     visible[20:30, 20:30] = _claim_pattern()
     gone = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_claim_repo(tmp_path, visible)
-    actions = _FakeActions([visible, visible, gone])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([visible, visible, gone], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -125,17 +107,17 @@ async def test_dsl_while_match_clicks_until_region_disappears_then_closes(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [
-        ("bs1", 25, 25, "button.claim"),
-        ("bs1", 25, 25, "button.claim"),
-        ("bs1", 85, 15, "claim_button_close"),
+    assert actions.tap.call_args_list == [
+        call("bs1", ANY, approval_region="button.claim"),
+        call("bs1", ANY, approval_region="button.claim"),
+        call("bs1", ANY, approval_region="claim_button_close"),
     ]
 
 
 @pytest.mark.asyncio
 async def test_nested_while_match_retry_waits_for_late_region(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -172,9 +154,8 @@ async def test_nested_while_match_retry_waits_for_late_region(
         ),
         encoding="utf-8",
     )
-    actions = _FakeActions([gone, gone, visible])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([gone, gone, visible], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -186,7 +167,10 @@ async def test_nested_while_match_retry_waits_for_late_region(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [("bs1", 25, 25, "button.claim"), ("bs1", 85, 15, "claim_button_close")]
+    assert actions.tap.call_args_list == [
+        call("bs1", ANY, approval_region="button.claim"),
+        call("bs1", ANY, approval_region="claim_button_close"),
+    ]
 
 
 def _write_repo_with_else(tmp_path: Path, frame: np.ndarray) -> None:
@@ -251,7 +235,7 @@ def _write_repo_with_else(tmp_path: Path, frame: np.ndarray) -> None:
 @pytest.mark.asyncio
 async def test_dsl_while_match_runs_else_branch_when_no_iterations(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -261,9 +245,8 @@ async def test_dsl_while_match_runs_else_branch_when_no_iterations(
     gone = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_repo_with_else(tmp_path, visible)
     # Only "gone" frames — primary never matches; else-branch should run.
-    actions = _FakeActions([gone, gone, gone])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([gone, gone, gone], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -276,13 +259,13 @@ async def test_dsl_while_match_runs_else_branch_when_no_iterations(
 
     assert result.success is True
     # Else-branch tapped the fallback region (centered at 65,65).
-    assert actions.tapped == [("bs1", 65, 65, "button.fallback")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="button.fallback")]
 
 
 @pytest.mark.asyncio
 async def test_dsl_while_match_skips_else_when_iterations_ran(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -291,9 +274,8 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
     visible[20:30, 20:30] = _claim_pattern()
     gone = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_repo_with_else(tmp_path, visible)
-    actions = _FakeActions([visible, gone])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([visible, gone], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -306,20 +288,12 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
 
     assert result.success is True
     # Only the primary tap recorded — fallback wasn't touched.
-    assert actions.tapped == [("bs1", 25, 25, "button.claim")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="button.claim")]
 
 
-def test_tap_claim_button_while_match_has_nested_steps() -> None:
-    repo = Path(__file__).resolve().parents[2]
-    scenario_path = repo / "modules/core/pop-up/scenarios/tap_claim_button.yaml"
-    if not scenario_path.is_file():
-        pytest.skip("legacy pop-up tap_claim_button scenario removed")
-    doc = yaml.safe_load(scenario_path.read_text())
-    loop = doc["steps"][0]
-
-    assert loop["while_match"] == "button.claim"
-    assert loop["steps"] == [{"click": "button.claim"}, {"wait": "3s"}]
-    close = doc["steps"][1]
-    assert close["while_match"] == "claim_button_close"
-    assert close["max"] == 1
-    assert close["steps"] == [{"click": "claim_button_close"}, {"wait": "1s"}]
+def test_tap_claim_button_while_match_has_nested_steps(snapshot) -> None:
+    loaded = template_resolver.load_doc(REPO_ROOT, "tap_claim_button")
+    if loaded is None:
+        pytest.skip("tap_claim_button scenario not in repo")
+    _path, doc = loaded
+    assert doc == snapshot

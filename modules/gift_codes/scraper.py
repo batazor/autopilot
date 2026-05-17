@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 import yaml
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
+
 from modules.gift_codes.models import GiftCode, GiftCodeDB, gift_db_to_yaml_dict
 
 logger = logging.getLogger(__name__)

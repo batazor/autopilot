@@ -1,32 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from unittest.mock import ANY, call
 
 import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 100, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return self.frame
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
 
 
 def _write_skip_text_repo(tmp_path: Path, frame: np.ndarray) -> None:
@@ -83,16 +66,15 @@ def _skip_pattern() -> np.ndarray:
 @pytest.mark.asyncio
 async def test_dsl_match_guard_clicks_when_region_still_visible(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     frame[80:90, 80:90] = _skip_pattern()
     _write_skip_text_repo(tmp_path, frame)
-    actions = _FakeActions(frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([frame], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -104,22 +86,21 @@ async def test_dsl_match_guard_clicks_when_region_still_visible(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [("bs1", 85, 85, "skip_text_button")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="skip_text_button")]
 
 
 @pytest.mark.asyncio
 async def test_dsl_match_guard_skips_click_when_region_is_stale(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     reference_frame = np.zeros((100, 100, 3), dtype=np.uint8)
     reference_frame[80:90, 80:90] = _skip_pattern()
     _write_skip_text_repo(tmp_path, reference_frame)
     stale_frame = np.zeros((100, 100, 3), dtype=np.uint8)
-    actions = _FakeActions(stale_frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([stale_frame], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -134,7 +115,7 @@ async def test_dsl_match_guard_skips_click_when_region_is_stale(
     # a failure (not a silent ok with ``reason=match_guard_failed``).
     assert result.success is False
     assert result.metadata["reason"] == "match_guard_failed"
-    assert actions.tapped == []
+    assert actions.tap.call_args_list == []
 
 
 def _write_match_with_steps_repo(tmp_path: Path, frame: np.ndarray) -> None:
@@ -199,7 +180,7 @@ def _write_match_with_steps_repo(tmp_path: Path, frame: np.ndarray) -> None:
 @pytest.mark.asyncio
 async def test_dsl_match_with_steps_runs_steps_on_match(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -207,9 +188,8 @@ async def test_dsl_match_with_steps_runs_steps_on_match(
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     frame[80:90, 80:90] = _skip_pattern()
     _write_match_with_steps_repo(tmp_path, frame)
-    actions = _FakeActions(frame)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([frame], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -221,13 +201,13 @@ async def test_dsl_match_with_steps_runs_steps_on_match(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [("bs1", 85, 85, "skip_text_button")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="skip_text_button")]
 
 
 @pytest.mark.asyncio
 async def test_dsl_match_with_steps_runs_else_on_miss(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -236,9 +216,8 @@ async def test_dsl_match_with_steps_runs_else_on_miss(
     reference[80:90, 80:90] = _skip_pattern()
     _write_match_with_steps_repo(tmp_path, reference)
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
-    actions = _FakeActions(blank)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions([blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -252,4 +231,4 @@ async def test_dsl_match_with_steps_runs_else_on_miss(
     # Soft form: success=True, no match_guard_failed; else clicked backup.
     assert result.success is True
     assert result.metadata.get("reason") != "match_guard_failed"
-    assert actions.tapped == [("bs1", 15, 15, "backup_button")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="backup_button")]

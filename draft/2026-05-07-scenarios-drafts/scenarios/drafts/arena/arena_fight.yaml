@@ -1,0 +1,29 @@
+name: Arena Fight
+
+node: arena_battle
+
+trigger: arena.state.isTicketsAvailable
+
+priority: 50
+
+steps:
+  - action: loop
+    trigger: arena.state.isTicketsAvailable
+    steps:
+      - click: arena.state.fightButton
+      - wait: 5000ms
+      - action: screenshot
+        analyze:
+          - name: arena.state.resultScreen
+            action: findIcon
+            threshold: 0.7
+            saveAsRegion: false
+          - name: arena.state.isTicketsAvailable
+            action: findIcon
+            threshold: 0.75
+            saveAsRegion: false
+      - if:
+          trigger: arena.state.resultScreen
+          then:
+            - click: arena.state.closeResultButton
+            - wait: 1000ms

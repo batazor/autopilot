@@ -4,12 +4,19 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
 
-class InstanceWorkerHealthMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerHealthMixin(_Base):
     _cfg: Any
     _settings: Any
     _redis: Any
@@ -145,7 +152,10 @@ class InstanceWorkerHealthMixin:
 
         try:
             try:
-                self._bot_actions.restart_application(self._cfg.instance_id)
+                await self._run_blocking(
+                    self._bot_actions.restart_application,
+                    self._cfg.instance_id,
+                )
                 await asyncio.sleep(3.0)
                 await self._run_blocking(
                     self._bot_actions.ensure_game_foreground,

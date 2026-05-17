@@ -3,22 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    tapped: list[tuple[str, int, int, str | None]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 1000, 1000
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -32,7 +22,7 @@ def _scenario_root(tmp_path: Path) -> Path:
 @pytest.mark.asyncio
 async def test_dsl_click_uses_overlay_tap_override(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -61,10 +51,8 @@ async def test_dsl_click_uses_overlay_tap_override(
         encoding="utf-8",
     )
 
-    fake_actions = _FakeActions()
-    fake_actions.tapped = []
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: fake_actions)
+    actions = make_actions(resolution=(1000, 1000))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -79,13 +67,17 @@ async def test_dsl_click_uses_overlay_tap_override(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert fake_actions.tapped == [("bs1", 500, 700, "hand_pointer")]
+    tap_call = actions.tap.call_args_list[0]
+    assert tap_call[0][0] == "bs1"
+    assert tap_call[0][1].x == 500
+    assert tap_call[0][1].y == 700
+    assert tap_call[1]["approval_region"] == "hand_pointer"
 
 
 @pytest.mark.asyncio
 async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``click: foo / min_match_saturation: 40`` reaches the implicit search rule.
@@ -125,6 +117,7 @@ async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
                                 "action": "exist",
                                 "type": "string",
                                 "threshold": 0.9,
+                                "isSearch": True,
                                 "bbox": {"x": 10, "y": 10, "width": 10, "height": 10},
                             },
                             # Search companion → triggers implicit match-on-click.
@@ -166,26 +159,9 @@ async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
             }
         }
 
-    import numpy as np
-
-    class _FakeActionsWithCapture:
-        def __init__(self) -> None:
-            self.tapped: list[tuple[str, int, int, str | None]] = []
-
-        def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-            return 1000, 1000
-
-        def capture_screen_bgr(self, instance_id: str) -> Any:
-            return np.zeros((1000, 1000, 3), dtype=np.uint8)
-
-        def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-            self.tapped.append((instance_id, point.x, point.y, approval_region))
-            return True
-
-    actions = _FakeActionsWithCapture()
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(dsl, "evaluate_overlay_rules_async", _fake_eval)
+    actions = make_actions(np.zeros((1000, 1000, 3), dtype=np.uint8), resolution=(1000, 1000))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fake_eval)
 
     task = dsl.DslScenarioTask(
         task_id="t1",

@@ -2,17 +2,25 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
 import cv2
 from mcp.server.fastmcp import FastMCP
+from PIL import Image
 
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from navigation.detector import ScreenName
+from omniparser.client import check_omniparser_health, parse_screenshot
+from omniparser.supervision_bridge import (
+    build_omniparser_proposal_regions,
+    parsed_element_to_dict,
+)
 from scenarios import template_resolver
-from services import get_bot_actions, get_repo_root, get_scheduler_async_redis
+from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
+from services import get_bot_actions, get_repo_root, get_scheduler_async_redis, get_scheduler_queue
 from tasks import dsl_runtime
 from tasks.dsl_scenario import DslScenarioTask
 from tasks.dsl_scenario_helpers import _read_active_player, _read_current_screen
@@ -42,6 +50,22 @@ def _safe_output_path(output: str | None, *, default_name: str) -> Path:
     return _repo() / path
 
 
+def _bgr_frame_to_pil(frame: Any) -> Image.Image:
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    return Image.fromarray(rgb)
+
+
+def _omni_stats_dict(stats: Any) -> dict[str, int]:
+    return {
+        "raw_element_count": int(stats.raw_element_count),
+        "skipped_min_area": int(stats.skipped_min_area),
+        "after_min_area_count": int(stats.after_min_area_count),
+        "after_nms_count": int(stats.after_nms_count),
+        "nms_removed": int(stats.nms_removed),
+        "blacklist_skipped": int(stats.blacklist_skipped),
+    }
+
+
 def _step_region(step: dict[str, Any]) -> str:
     for key in ("while_match", "match", "click", "long_click", "ocr"):
         value = step.get(key)
@@ -54,6 +78,17 @@ async def _navigator() -> Any:
     actions = get_bot_actions()
     redis = await get_scheduler_async_redis()
     return dsl_runtime.navigator(actions, redis_client=redis)
+
+
+@mcp.tool()
+async def ensure_game_foreground(instance_id: str = "bs1") -> dict[str, Any]:
+    """Bring Whiteout Survival to foreground through BotActions/AdbController."""
+
+    actions = get_bot_actions()
+    before = actions.is_game_foreground(instance_id)
+    actions.ensure_game_foreground(instance_id)
+    after = actions.is_game_foreground(instance_id)
+    return {"instance_id": instance_id, "was_foreground": bool(before), "is_foreground": bool(after)}
 
 
 @mcp.tool()
@@ -77,6 +112,88 @@ async def capture_screen(
         "width": int(frame.shape[1]),
         "height": int(frame.shape[0]),
     }
+
+
+@mcp.tool()
+async def omni_health(url: str | None = None) -> dict[str, Any]:
+    """Check whether the configured OmniParser backend is ready."""
+
+    return dict(check_omniparser_health(url=url))
+
+
+@mcp.tool()
+async def omni_parse_screen(
+    instance_id: str = "bs1",
+    output: str | None = None,
+    screenshot_output: str | None = None,
+    url: str | None = None,
+    timeout_seconds: int | None = None,
+    box_threshold: float = 0.05,
+    iou_threshold: float = 0.1,
+    min_area_pct: float = 0.04,
+    use_paddleocr: bool = True,
+    imgsz: int | None = None,
+    detect_first: bool = False,
+) -> dict[str, Any]:
+    """Capture the live screen and run OmniParser for preliminary UI recognition."""
+
+    current = None
+    if detect_first:
+        detected = await detect_screen(instance_id=instance_id, attempts=1, interval_seconds=0.0)
+        current = detected.get("current_screen")
+
+    actions = get_bot_actions()
+    frame = actions.capture_screen_bgr(instance_id)
+    pil = _bgr_frame_to_pil(frame)
+
+    screenshot_rel = None
+    if screenshot_output:
+        shot_path = _safe_output_path(screenshot_output, default_name=f"mcp_omni_{instance_id}_{int(time.time())}.png")
+        shot_path.parent.mkdir(parents=True, exist_ok=True)
+        pil.save(shot_path, format="PNG")
+        screenshot_rel = shot_path.relative_to(_repo()).as_posix()
+
+    parsed = parse_screenshot(
+        pil,
+        url=url,
+        timeout_seconds=timeout_seconds,
+        box_threshold=float(box_threshold),
+        iou_threshold=float(iou_threshold),
+        use_paddleocr=bool(use_paddleocr),
+        imgsz=imgsz,
+    )
+    proposal_regions, stats = build_omniparser_proposal_regions(
+        parsed.elements,
+        pil,
+        width=parsed.width,
+        height=parsed.height,
+        min_area_pct=float(min_area_pct),
+        nms_iou_threshold=float(iou_threshold),
+    )
+    result = {
+        "instance_id": instance_id,
+        "current_screen": current,
+        "width": int(parsed.width),
+        "height": int(parsed.height),
+        "params": {
+            "box_threshold": float(box_threshold),
+            "iou_threshold": float(iou_threshold),
+            "min_area_pct": float(min_area_pct),
+            "use_paddleocr": bool(use_paddleocr),
+            "imgsz": int(imgsz) if imgsz is not None else None,
+        },
+        "elements": [parsed_element_to_dict(el) for el in parsed.elements],
+        "proposal_regions": proposal_regions,
+        "stats": _omni_stats_dict(stats),
+    }
+    if screenshot_rel:
+        result["screenshot_path"] = screenshot_rel
+
+    out_path = _safe_output_path(output, default_name=f"mcp_omni_{instance_id}_{int(time.time())}.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    result["path"] = out_path.relative_to(_repo()).as_posix()
+    return result
 
 
 @mcp.tool()
@@ -194,7 +311,7 @@ async def tap_region(
     if not current:
         raise RuntimeError("current_screen is unknown; run detect_screen or pass screen_id")
 
-    pair = screen_region_by_name(_area_doc(), region, screen_id=current)
+    pair = screen_region_by_name(_area_doc(), region)
     if pair is None:
         raise ValueError(f"region {region!r} not found on screen {current!r}")
     _entry, reg = pair
@@ -219,6 +336,87 @@ async def tap_region(
         "x": int(point.x),
         "y": int(point.y),
         "ok": bool(ok),
+    }
+
+
+@mcp.tool()
+async def push_scenario(
+    scenario_key: str,
+    instance_id: str = "bs1",
+    player_id: str | None = None,
+    priority: int | None = None,
+    delay_seconds: float = 0.0,
+    start_step_index: int = 0,
+    force: bool = False,
+    wake_worker: bool = True,
+) -> dict[str, Any]:
+    """Enqueue a DSL scenario for the worker instead of running it inline."""
+
+    key = str(scenario_key or "").strip()
+    if not key:
+        raise ValueError("scenario_key is required")
+    iid = str(instance_id or "").strip()
+    if not iid:
+        raise ValueError("instance_id is required")
+
+    loaded = template_resolver.load_doc(_repo(), key)
+    if loaded is None:
+        raise ValueError(f"scenario not found: {key}")
+    path, doc = loaded
+
+    redis = await get_scheduler_async_redis()
+    is_device_level = dsl_scenario_yaml_device_level(_repo(), key)
+    if is_device_level:
+        pid = ""
+    else:
+        pid = str(player_id or "").strip() or await _read_active_player(iid, redis)
+        if not pid:
+            raise ValueError(
+                f"scenario {key!r} is player-bound; pass player_id or set active_player first"
+            )
+
+    scen_priority = dsl_scenario_yaml_priority(_repo(), key)
+    prio = int(priority if priority is not None else (scen_priority or DEFAULT_SCENARIO_PRIORITY))
+    run_at = time.time() + max(0.0, float(delay_seconds))
+    start_idx = max(0, int(start_step_index))
+    task_id = f"mcp:push:{iid}:{key}:{uuid.uuid4().hex[:8]}"
+
+    queue = await get_scheduler_queue()
+    enqueued = await queue.schedule(
+        task_id=task_id,
+        player_id=pid,
+        task_type=key,
+        priority=prio,
+        run_at=run_at,
+        instance_id=iid,
+        start_step_index=start_idx,
+        skip_if_duplicate=not bool(force),
+        dedup_ignore_region=True,
+    )
+
+    if enqueued and wake_worker:
+        await redis.lpush(
+            f"wos:ui:command:{iid}",
+            json.dumps({"cmd": "wake", "source": "mcp.push_scenario", "scenario": key}),
+        )
+
+    return {
+        "instance_id": iid,
+        "scenario": key,
+        "name": str(doc.get("name") or ""),
+        "enabled": bool(doc.get("enabled", False)),
+        "scenario_path": path.relative_to(_repo()).as_posix(),
+        "task_id": task_id if enqueued else None,
+        "queued": bool(enqueued),
+        "duplicate_skipped": not bool(enqueued),
+        "player_id": pid,
+        "device_level": bool(is_device_level),
+        "priority": prio,
+        "run_at": run_at,
+        "delay_seconds": max(0.0, float(delay_seconds)),
+        "start_step_index": start_idx,
+        "force": bool(force),
+        "worker_woken": bool(enqueued and wake_worker),
     }
 
 

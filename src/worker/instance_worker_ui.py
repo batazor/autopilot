@@ -4,7 +4,7 @@ import json
 import logging
 import time
 import uuid
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as aioredis
 
@@ -15,7 +15,14 @@ from config.reference_naming import reference_file_basename, reference_png_abs_p
 logger = logging.getLogger(__name__)
 
 
-class InstanceWorkerUiMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerUiMixin(_Base):
     _cfg: Any
     _redis: aioredis.Redis | None
     _queue: Any

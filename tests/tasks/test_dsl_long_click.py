@@ -2,40 +2,20 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def __init__(self) -> None:
-        self.long_taps: list[tuple[str, int, int, int]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 1000, 1000
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return np.zeros((1000, 1000, 3), dtype=np.uint8)
-
-    def long_tap(self, instance_id: str, point: Any, duration_ms: int = 800) -> bool:
-        self.long_taps.append((instance_id, int(point.x), int(point.y), int(duration_ms)))
-        return True
-
-    def tap(self, *_args: Any, **_kwargs: Any) -> bool:
-        raise AssertionError("tap() should not be called in long_click test")
 
 
 @pytest.mark.asyncio
 async def test_dsl_long_click_uses_wait_as_duration(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     module_dir = tmp_path / "modules" / "core" / "test_scenarios"
     scenario_root = module_dir / "scenarios"
@@ -70,9 +50,8 @@ async def test_dsl_long_click_uses_wait_as_duration(
         encoding="utf-8",
     )
 
-    actions = _FakeActions()
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    actions = make_actions(resolution=(1000, 1000))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -85,12 +64,17 @@ async def test_dsl_long_click_uses_wait_as_duration(
     # bbox 10..20% on a 1000x1000 screen → 100..200 px. With the 15% inset
     # applied by the random-point helper the long-tap lands inside [115, 185]
     # on both axes (±1 px rounding tolerance).
-    assert len(actions.long_taps) == 1
-    inst, x, y, dur = actions.long_taps[0]
+    assert len(actions.long_tap.call_args_list) == 1
+    inst, point, dur = (
+        actions.long_tap.call_args_list[0][0][0],
+        actions.long_tap.call_args_list[0][0][1],
+        actions.long_tap.call_args_list[0][1]["duration_ms"],
+    )
     assert inst == "bs1"
     assert dur == 5000
-    assert 114 <= x <= 186, x
-    assert 114 <= y <= 186, y
+    assert 114 <= point.x <= 186, point.x
+    assert 114 <= point.y <= 186, point.y
+    actions.tap.assert_not_called()
 
 
 def test_dsl_long_click_point_reuses_last_match_tap_percent(redis_async: object) -> None:
@@ -156,10 +140,10 @@ def test_dsl_click_randomises_inside_matched_template(redis_async: object) -> No
 @pytest.mark.asyncio
 async def test_dsl_missing_scenario_pushes_ui_notification(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -172,7 +156,7 @@ async def test_dsl_missing_scenario_pushes_ui_notification(
 
     assert res.success is False
     assert res.metadata == {"reason": "scenario_not_found", "key": "missing_upgrade"}
-    raw = await redis_async.lrange("wos:ui:notifications:bs1", 0, -1)  # type: ignore[attr-defined]
+    raw = await redis_async.lrange("wos:ui:notifications:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(raw) == 1
     body = json.loads(raw[0])
     assert body["kind"] == "dsl.scenario_not_found"

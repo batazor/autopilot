@@ -1,0 +1,6 @@
+enabled: true
+name: 🎪 Open event block 4
+node: main_city
+steps:
+- click: main_city.event.block.4
+- wait: 1s

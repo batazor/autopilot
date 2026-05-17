@@ -8,7 +8,7 @@ import logging
 import time
 from contextlib import suppress
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.log_ansi import scenario_log_label as _scen
 from tasks.base import TaskResult
@@ -16,6 +16,11 @@ from tasks.dsl_scenario_helpers import _read_current_screen
 from ui.redis_client import dsl_preempt_gen_key
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
 # Cooperative preemption knobs (ADR 0001 §5). Margin is large enough that two
 # tasks within the same band don't ping-pong; immunity threshold caps the worst
@@ -37,7 +42,7 @@ def _yield_count_key(instance_id: str, task_id: str) -> str:
     return f"wos:instance:{instance_id}:yield_count:{task_id}"
 
 
-class DslScenarioPreemptMixin:
+class DslScenarioPreemptMixin(_Base):
     """Debug / rank-time cooperative yield checks."""
 
     redis_client: Any | None
@@ -51,26 +56,45 @@ class DslScenarioPreemptMixin:
     # while_match body share a single Redis round-trip per iteration.
     _preempt_gen_cache: tuple[str, float, int] | None
 
-    async def _read_dsl_preempt_gen(self, instance_id: str) -> int:
+    async def _read_dsl_preempt_gen(self, instance_id: str) -> int | None:
+        """Return current preempt gen, ``0`` if key is unset, or ``None`` on error.
+
+        Distinguishing "unset" from "error" matters at scenario start: if the
+        seed read fails and silently returns ``0`` while the live key is at
+        ``N > 0``, every subsequent probe sees ``cur > start`` and the
+        scenario aborts on its first step with ``dsl_preempted_debug``.
+        """
         if self.redis_client is None:
             return 0
         try:
             raw = await self.redis_client.get(dsl_preempt_gen_key(instance_id))
-            if raw is None:
-                return 0
+        except Exception:
+            logger.debug("dsl_preempt_gen read failed", exc_info=True)
+            return None
+        if raw is None:
+            return 0
+        try:
             s = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
             return int(s)
-        except Exception:
-            return 0
+        except (TypeError, ValueError):
+            logger.debug("dsl_preempt_gen parse failed: %r", raw)
+            return None
 
     async def _preempted_by_new_debug(self, instance_id: str) -> bool:
         if self.redis_client is None:
             return False
-        try:
-            cur = await self._read_dsl_preempt_gen(instance_id)
-            preempted = cur > int(self._preempt_gen_at_start)
-        except Exception:
+        cur = await self._read_dsl_preempt_gen(instance_id)
+        if cur is None:
+            # Transient Redis error — don't flip the preempt bit based on a
+            # missing read, that would falsely preempt the scenario.
             return False
+        # Lazy re-seed: if the start read failed (sentinel -1), adopt the
+        # current value as the baseline now so subsequent bumps are detected.
+        if int(self._preempt_gen_at_start) < 0:
+            self._preempt_gen_at_start = cur
+            self._preempt_gen_cache = (instance_id, time.monotonic(), 0)
+            return False
+        preempted = cur > int(self._preempt_gen_at_start)
         # Prime the inner-step cache so the immediately-following
         # ``_inline_preempt_if_needed`` probes (one per nested DSL step in a
         # while_match body) can short-circuit without re-reading Redis.

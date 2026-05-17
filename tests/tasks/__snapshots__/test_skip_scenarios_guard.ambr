@@ -1,0 +1,23 @@
+# serializer version: 1
+# name: test_skip_button_scenario_checks_visibility_before_click
+  dict({
+    'device_level': True,
+    'enabled': True,
+    'name': 'Onboarding click · Skip',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'skip_button',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+        ]),
+        'while_match': 'skip_button',
+      }),
+    ]),
+  })
+# ---

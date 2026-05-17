@@ -30,7 +30,7 @@ def test_fetch_queue_explain_rows_returns_breakdown(
         "instance_id": "bs1",
         "created_at": time.time() - 1,
     }
-    redis_sync.zadd(  # type: ignore[attr-defined]
+    redis_sync.zadd(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:queue:bs1", {json.dumps(body): float(body["run_at"])}
     )
 

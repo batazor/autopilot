@@ -6,6 +6,7 @@ import os
 import tempfile
 import threading
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -171,6 +172,11 @@ class StateStore:
             for pid, gamer in new_gamers.items():
                 if pid not in self._stores:
                     self._stores[pid] = GamerStateStore(gamer, new_db, self._path, self._lock)
+            # Drop stores for gamers removed from the YAML — otherwise the orphan
+            # store keeps writing the pre-reload _db to disk on next _persist().
+            for pid in list(self._stores.keys()):
+                if pid not in new_gamers:
+                    del self._stores[pid]
             self._db = new_db
 
 
@@ -182,6 +188,7 @@ def _load_state_db(path: Path) -> StateDB:
 
 
 def _save_state_db(db: StateDB, path: Path) -> None:
+    tmp: str | None = None
     try:
         data = db.model_dump(mode="json")
         content = yaml.dump(data, allow_unicode=True, sort_keys=False)
@@ -191,9 +198,16 @@ def _save_state_db(db: StateDB, path: Path) -> None:
             f.write(content)
             tmp = f.name
         os.replace(tmp, path)
+        tmp = None  # rename succeeded — nothing left to clean up
     except Exception:
         logger.exception("Failed to persist state to %s", path)
         return
+    finally:
+        # If we left a tmp behind (write or replace failed), drop it — otherwise
+        # repeated failures slowly fill db/ with stale *.tmp siblings.
+        if tmp is not None:
+            with suppress(OSError):
+                os.unlink(tmp)
     _fire_on_save_callbacks()
 
 

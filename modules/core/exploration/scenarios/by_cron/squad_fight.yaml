@@ -1,0 +1,66 @@
+enabled: true
+name: Squad Fight
+
+# A cron tick starts the redeploy loop. Victory re-pushes this scenario so the
+# chain can continue until a fight is lost.
+cron: "0 */12 * * *"
+
+node: squad_settings
+
+steps:
+  - ocr: exploration.level
+    state: exploration.level
+  - ocr: exploration.state.myPower
+    state: exploration.state.myPower
+  - ocr: exploration.state.enemyPower
+    state: exploration.state.enemyPower
+
+  - click: squad_settings.quick_deploy
+  - wait: 500ms
+  - click: squad_settings.fight
+  - wait: 10s
+
+  - loop:
+      cond: 'squad_status ~= "victory|defeat"'
+      max: 90
+      steps:
+        - while_match: page.exploration.victory.next
+          max: 1
+          steps:
+            - push_scenario: squad_fight
+            - click: page.exploration.victory.next
+            - break: loop
+        - while_match: page.squad_settings.status.defeat
+          max: 1
+          steps:
+            - click: button.to_main_city
+            - wait: 2s
+            - break: loop
+        - while_match: exploration.defeat.title
+          max: 1
+          steps:
+            - click: button.to_main_city
+            - wait: 2s
+            - break: loop
+        - ocr: page.squad_settings.status
+          store: squad_status
+        - wait: 2s
+        - while_match: page.squad_fight.auto
+          cond: exploration.level >= 5
+          steps:
+            - click: page.squad_fight.auto
+            - wait: 1s
+        - while_match: page.squad_fight.speed
+          cond: exploration.level >= 10
+          steps:
+            - click: page.squad_fight.speed
+
+  - cond: squad_status ~= "victory"
+    steps:
+      - push_scenario: squad_fight
+      - click: page.exploration.victory.next
+
+  - cond: squad_status ~= "defeat"
+    steps:
+      - click: button.to_main_city
+      - wait: 2s

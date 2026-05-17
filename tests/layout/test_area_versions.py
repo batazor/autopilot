@@ -419,7 +419,7 @@ def test_screen_region_by_name_default_when_state_none() -> None:
     assert res is not None and res[1]["bbox"]["x"] == 10
 
 
-def test_screen_region_by_name_scopes_duplicate_names_to_screen_id() -> None:
+def test_screen_region_by_name_ignores_screen_id_for_global_names() -> None:
     doc = {
         "version": 2,
         "screens": [
@@ -431,7 +431,7 @@ def test_screen_region_by_name_scopes_duplicate_names_to_screen_id() -> None:
             {
                 "id": 2,
                 "screen_id": "screen_b",
-                "regions": [{"name": "icon.close", "bbox": {"x": 80}}],
+                "regions": [{"name": "icon.close.screen_b", "bbox": {"x": 80}}],
             },
         ],
     }
@@ -440,8 +440,13 @@ def test_screen_region_by_name_scopes_duplicate_names_to_screen_id() -> None:
 
     assert pair is not None
     entry, region = pair
-    assert entry["screen_id"] == "screen_b"
-    assert region["bbox"]["x"] == 80
+    assert entry["screen_id"] == "screen_a"
+    assert region["bbox"]["x"] == 10
+
+    pair_b = screen_region_by_name(doc, "icon.close.screen_b")
+    assert pair_b is not None
+    assert pair_b[0]["screen_id"] == "screen_b"
+    assert pair_b[1]["bbox"]["x"] == 80
 
 
 def test_screen_region_by_name_resolves_region_alias() -> None:

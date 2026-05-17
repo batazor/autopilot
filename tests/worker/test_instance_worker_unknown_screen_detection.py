@@ -53,7 +53,7 @@ async def test_overlay_tick_writes_detected_screen(redis_async: object) -> None:
 
     assert current == "mail"
     assert detector.calls == 1
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "mail"
 
 
@@ -68,7 +68,7 @@ async def test_overlay_tick_overwrites_stale_known_screen(redis_async: object) -
 
     assert current == "mail"
     assert detector.calls == 1
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "mail"
 
 
@@ -83,7 +83,7 @@ async def test_overlay_tick_clears_unknown_when_no_previous_screen(redis_async: 
 
     assert current is None
     assert detector.calls == 1
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == ""
 
 
@@ -101,7 +101,7 @@ async def test_overlay_tick_debounces_transient_unknown_after_known_screen(redis
 
     assert first == "mail"
     assert second == "mail"
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "mail"
 
 
@@ -172,7 +172,7 @@ async def test_overlay_tick_clears_after_repeated_unknown_frames(redis_async: ob
         )
 
     assert current is None
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == ""
 
 

@@ -98,7 +98,7 @@ def _render_building(building: dict[str, Any]) -> None:
 
     req = building.get("requirements_by_level")
     if isinstance(req, dict) and req:
-        rows: list[dict[str, object]] = []
+        rows: list[dict[str, Any]] = []
         for lvl_s, row in req.items():
             try:
                 lvl = int(lvl_s)

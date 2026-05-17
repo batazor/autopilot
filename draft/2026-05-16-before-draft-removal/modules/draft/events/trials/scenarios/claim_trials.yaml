@@ -1,0 +1,192 @@
+enabled: false
+name: 🏆 Claim trials
+node: event.trials
+steps:
+- while_match: button.claim
+  strict: false
+  steps:
+  - click: button.claim
+  - wait: 0.5s
+- while_match: trial.day.1
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.day.1
+  - wait: 1s
+  - while_match: trial.task.1
+    isRedDot: true
+    steps:
+    - click: trial.task.1
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.2
+    isRedDot: true
+    steps:
+    - click: trial.task.2
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.3
+    isRedDot: true
+    steps:
+    - click: trial.task.3
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+- while_match: trial.day.2
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.day.2
+  - wait: 1s
+  - while_match: trial.task.1
+    isRedDot: true
+    steps:
+    - click: trial.task.1
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.2
+    isRedDot: true
+    steps:
+    - click: trial.task.2
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.3
+    isRedDot: true
+    steps:
+    - click: trial.task.3
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+- while_match: trial.day.3
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.day.3
+  - wait: 1s
+  - while_match: trial.task.1
+    isRedDot: true
+    steps:
+    - click: trial.task.1
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.2
+    isRedDot: true
+    steps:
+    - click: trial.task.2
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.3
+    isRedDot: true
+    steps:
+    - click: trial.task.3
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+- while_match: trial.day.4
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.day.4
+  - wait: 1s
+  - while_match: trial.task.1
+    isRedDot: true
+    steps:
+    - click: trial.task.1
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.2
+    isRedDot: true
+    max: 1
+    steps:
+    - click: trial.task.2
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.3
+    isRedDot: true
+    steps:
+    - click: trial.task.3
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+- while_match: trial.day.5
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.day.5
+  - wait: 1s
+  - while_match: trial.task.1
+    isRedDot: true
+    steps:
+    - click: trial.task.1
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.2
+    isRedDot: true
+    steps:
+    - click: trial.task.2
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+  - while_match: trial.task.3
+    isRedDot: true
+    steps:
+    - click: trial.task.3
+    - wait: 0.8s
+    - while_match: button.claim
+      steps:
+      - click: button.claim
+      - wait: 0.5s
+- while_match: trial.box
+  isRedDot: true
+  max: 1
+  steps:
+  - click: trial.box
+  - wait: 2s
+  - while_match: button.claim
+    steps:
+    - click: button.claim
+    - wait: 0.5s
+  - while_match: button.claim
+    isWhiteBorder: true
+    max: 1
+    steps:
+    - click: button.claim
+    - wait: 1s
+    - click: page.vip.increase.close

@@ -84,6 +84,16 @@ def labeling_forced_reference_rel(
     return f"{prefix}/{sel}".replace("\\", "/")
 
 
+def labeling_query_ref(sel: str, ref_root: Path) -> str:
+    """Canonical Labeling ``?ref=`` value: repo-relative path to the selected PNG."""
+
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        return (ref_root / sel).resolve().relative_to(repo_root).as_posix()
+    except (OSError, ValueError):
+        return sel.replace("\\", "/").strip().lstrip("/")
+
+
 def render_labeling_reference_column(
     ref_root: Path,
     existing: list[Path],
@@ -173,7 +183,7 @@ def render_labeling_reference_column(
                 st.session_state[CANVAS_REV] = int(st.session_state.get(CANVAS_REV, 0)) + 1
                 st.session_state[CANVAS_LAST_SIG] = ""
                 with contextlib.suppress(Exception):
-                    st.query_params["ref"] = sel
+                    st.query_params["ref"] = labeling_query_ref(sel, ref_root)
                     if "version" in st.query_params:
                         del st.query_params["version"]
                 st.rerun()
@@ -312,7 +322,7 @@ def render_labeling_reference_column(
                             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
                         )
                         with contextlib.suppress(Exception):
-                            st.query_params["ref"] = new_rel
+                            st.query_params["ref"] = labeling_query_ref(new_rel, ref_root)
                         st.rerun()
                     st.error(msg) if not ok else None
                     if not ok:
@@ -362,6 +372,10 @@ def render_labeling_reference_column(
                         st.session_state[LABELING_REF_TREE_NONCE] = (
                             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
                         )
+                        with contextlib.suppress(Exception):
+                            st.query_params["ref"] = labeling_query_ref(new_rel, ref_root)
+                            if "version" in st.query_params:
+                                del st.query_params["version"]
                         try:
                             from ui.area_annotator import load_json
                             from ui.wiki_module import active_wiki_area_path

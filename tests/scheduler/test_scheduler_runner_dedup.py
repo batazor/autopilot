@@ -50,7 +50,7 @@ def _wire_runner(
     async def _no_cron() -> None:
         return None
 
-    async def _player_states() -> dict[str, dict[str, object]]:
+    async def _player_states() -> dict[str, dict[str, Any]]:
         return {"p1": {"player_id": "p1"}}
 
     async def _player_instance_map() -> dict[str, str]:

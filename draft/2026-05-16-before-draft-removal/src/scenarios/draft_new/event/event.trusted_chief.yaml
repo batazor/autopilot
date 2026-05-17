@@ -1,0 +1,5 @@
+enabled: false
+name: "Trusted Chief"
+node: event.trusted_chief
+icon: trusted_chief
+steps: []

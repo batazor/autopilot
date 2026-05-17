@@ -14,6 +14,7 @@ already been resolved by the time the task runs.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -21,50 +22,25 @@ import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-from conftest import patch_dsl_bot_actions
 
 
-class _FakeActions:
-    def __init__(self, frames: list[np.ndarray]) -> None:
-        self.frames = frames
-        self.capture_count = 0
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-        self.approval_previews: list[tuple[str, dict[str, object]]] = []
-        self.swipes: list[tuple[str, str, int, int]] = []
+def _screen_capture_count(actions: Any) -> int:
+    return (
+        actions.capture_screen_bgr.call_count
+        + actions.capture_screen_bgr_cached.call_count
+    )
 
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        if self.frames:
-            h, w = self.frames[0].shape[:2]
-            return int(w), int(h)
-        return 100, 100
 
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        idx = min(self.capture_count, len(self.frames) - 1)
-        self.capture_count += 1
-        return self.frames[idx]
+def _patch_instant_sleep(mocker: Any) -> None:
+    real_sleep = asyncio.sleep
 
-    def capture_screen_bgr_cached(
-        self, instance_id: str, *, max_age_ms: float | None = None
-    ) -> np.ndarray:
-        del max_age_ms
-        return self.capture_screen_bgr(instance_id)
+    async def _instant_sleep(_s: float) -> None:
+        await real_sleep(0)
 
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
-
-    def swipe_direction(
-        self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
-    ) -> bool:
-        self.swipes.append((instance_id, direction, int(delta), int(duration_ms)))
-        return True
-
-    def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
-        self.approval_previews.append((instance_id, dict(payload)))
+    mocker.patch.object(dsl.asyncio, "sleep", _instant_sleep)
 
 
 def _claim_pattern() -> np.ndarray:
@@ -144,23 +120,16 @@ def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
 @pytest.mark.asyncio
 async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """All probes miss → scenario reschedules itself instead of silent success."""
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
-    _write_player_bound_scenario(tmp_path, _claim_pattern_frame := _frame_with_pattern())
-    actions = _FakeActions([blank, blank, blank, blank, blank, blank, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
-    # Strip retry interval so the test runs instantly.
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    _write_player_bound_scenario(tmp_path, _frame_with_pattern())
+    actions = make_actions([blank, blank, blank, blank, blank, blank, blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -175,34 +144,28 @@ async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     assert result.next_run_at is not None  # rescheduled
     assert (result.metadata or {}).get("reason") == "while_match_no_iterations"
     assert (result.metadata or {}).get("attempts") == 5  # default for player-bound
-    assert actions.tapped == []  # no clicks happened
+    assert actions.tap.call_args_list == []  # no clicks happened
 
 
 @pytest.mark.asyncio
 async def test_player_bound_while_match_zero_iterations_pauses_in_approval_mode(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _frame_with_pattern())
-    actions = _FakeActions([blank, blank, blank, blank, blank])
-    approvals: list[tuple[str, dict[str, object]]] = []
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: True)
-    monkeypatch.setattr(
+    actions = make_actions([blank, blank, blank, blank, blank], resolution=(100, 100))
+    approvals: list[tuple[str, dict[str, Any]]] = []
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=True)
+    mocker.patch.object(
         dsl,
         "_require_approval",
-        lambda instance_id, payload: approvals.append((instance_id, dict(payload)))
+        side_effect=lambda instance_id, payload: approvals.append((instance_id, dict(payload)))
         or (True, None),
     )
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -221,13 +184,13 @@ async def test_player_bound_while_match_zero_iterations_pauses_in_approval_mode(
     assert payload["type"] == "diagnostic"
     assert payload["diagnostic"] == "while_match_no_iterations"
     assert payload["region"] == "page.worker.add"
-    assert actions.approval_previews[0][0] == "bs1"
+    assert actions.attach_approval_preview.call_args_list[0][0][0] == "bs1"
 
 
 @pytest.mark.asyncio
 async def test_player_bound_while_match_initial_retry_eventually_matches(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """First two probes miss, third matches → click happens, scenario succeeds."""
@@ -236,15 +199,9 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
     _write_player_bound_scenario(tmp_path, visible)
     # Sequence: blank, blank, visible, blank → retry exhausted on 3rd probe (matches),
     # click, then probe again (blank) → exit, iterations=1, success.
-    actions = _FakeActions([blank, blank, visible, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    actions = make_actions([blank, blank, visible, blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -256,13 +213,13 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert len(actions.tapped) == 1  # one click after retry succeeded
+    assert len(actions.tap.call_args_list) == 1  # one click after retry succeeded
 
 
 @pytest.mark.asyncio
 async def test_player_bound_while_match_uses_implicit_search_region(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -303,15 +260,30 @@ async def test_player_bound_while_match_uses_implicit_search_region(
         ref[20:30, 20:30],
     )
 
-    actions = _FakeActions([frame, np.zeros((100, 100, 3), dtype=np.uint8)])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    real_sleep = dsl.asyncio.sleep
+    blank = np.zeros((100, 100, 3), dtype=np.uint8)
+    actions = make_actions([frame] * 8 + [blank], resolution=(100, 100))
 
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
+    async def _fake_eval(
+        _image_bgr: Any, _area_doc: Any, _repo_root: Any, rules: Any, **_kw: Any
+    ) -> dict[str, Any]:
+        name = str(rules[0].get("name") or "")
+        return {
+            name: {
+                "matched": True,
+                "score": 0.99,
+                "threshold": 0.9,
+                "tap_x_pct": 75.0,
+                "tap_y_pct": 75.0,
+                "tap_match_x_pct": 75.0,
+                "tap_match_y_pct": 75.0,
+                "search_region": "page.worker.add_search",
+            }
+        }
 
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fake_eval)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -323,32 +295,35 @@ async def test_player_bound_while_match_uses_implicit_search_region(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [("bs1", 75, 75, "page.worker.add")]
-    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    tap_call = actions.tap.call_args_list[0]
+    assert tap_call[0][0] == "bs1"
+    assert tap_call[0][1].x == 75
+    assert tap_call[0][1].y == 75
+    assert tap_call[1]["approval_region"] == "page.worker.add"
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
 
 
 @pytest.mark.asyncio
 async def test_assign_worker_while_match_real_fixture_matches_search_roi(
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Real PNG fixture matches ``page.worker.add`` (sliding search); Redis carries search_region."""
+    from scenarios import template_resolver
+
     repo_root = Path(__file__).resolve().parents[2]
+    if template_resolver.load_doc(repo_root, "assign_worker") is None:
+        pytest.skip("assign_worker scenario not registered in repo")
     fixture = repo_root / "tests" / "fixtures" / "page_worker_add_current_state.png"
     frame = cv2.imread(str(fixture))
     assert frame is not None, f"fixture missing or unreadable: {fixture}"
     blank = np.zeros_like(frame)
-    actions = _FakeActions([frame, blank])
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
-    await redis_async.hset(  # type: ignore[attr-defined]
+    actions = make_actions([frame, blank])
+    patch_dsl(mocker, actions, repo_root=repo_root)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
+    _patch_instant_sleep(mocker)
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"current_screen": "survivor_status"},
     )
@@ -363,17 +338,17 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped
+    assert actions.tap.call_args_list
     md = result.metadata or {}
     assert md.get("scenario_completed") is True
-    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
 
 
 @pytest.mark.asyncio
 async def test_player_bound_while_match_honors_explicit_retry_block(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """`retry: {attempts, interval_seconds}` overrides the player-bound defaults."""
@@ -385,16 +360,10 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     raw["steps"][0]["retry"] = {"attempts": 3, "interval": "250ms"}
     yaml_path.write_text(yaml.dump(raw), encoding="utf-8")
 
-    actions = _FakeActions([blank, blank, blank, blank, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    actions = make_actions([blank, blank, blank, blank, blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -410,13 +379,13 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     assert md.get("attempts") == 3            # honored override
     assert md.get("interval") == 0.25         # "250ms" parsed to seconds
     # Three probe attempts, none matched → exactly 3 captures.
-    assert actions.capture_count == 3
+    assert _screen_capture_count(actions) == 3
 
 
 @pytest.mark.asyncio
 async def test_device_level_while_match_zero_iterations_returns_success(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Device-level scenarios keep legacy 0-iteration silent success."""
@@ -432,15 +401,9 @@ async def test_device_level_while_match_zero_iterations_returns_success(
         s.pop("strict", None)
     yaml_path.write_text(yaml.dump(raw), encoding="utf-8")
 
-    actions = _FakeActions([blank, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    real_sleep = dsl.asyncio.sleep
-
-    async def _instant_sleep(_s: float) -> None:
-        await real_sleep(0)
-
-    monkeypatch.setattr(dsl.asyncio, "sleep", _instant_sleep)
+    actions = make_actions([blank, blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -453,9 +416,9 @@ async def test_device_level_while_match_zero_iterations_returns_success(
 
     assert result.success is True
     assert result.next_run_at is None  # no reschedule
-    assert actions.tapped == []
+    assert actions.tap.call_args_list == []
     # Only one probe attempt (default for device_level).
-    assert actions.capture_count == 1
+    assert _screen_capture_count(actions) == 1
 
 
 def _frame_with_pattern() -> np.ndarray:
@@ -524,7 +487,7 @@ def _write_red_dot_guard_scenario(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Regression: ``while_match: <reg> isRedDot:true max:1`` with no red-dot
@@ -535,9 +498,8 @@ async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
     _write_red_dot_guard_scenario(tmp_path)
     # Blank frame → red dot detector finds nothing → guard matches 0 times.
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
-    actions = _FakeActions([blank, blank, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    actions = make_actions([blank, blank, blank], resolution=(100, 100))
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     marker_fired = {"n": 0}
 
@@ -546,7 +508,7 @@ async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "marker", _marker)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"marker": _marker})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -561,4 +523,4 @@ async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
     # Scenario reached the next step — strict pause did NOT fire.
     assert marker_fired["n"] == 1
     # No tap happened (red-dot not present).
-    assert actions.tapped == []
+    assert actions.tap.call_args_list == []

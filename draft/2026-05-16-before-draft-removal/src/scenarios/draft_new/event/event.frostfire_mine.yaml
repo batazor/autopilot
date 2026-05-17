@@ -1,0 +1,5 @@
+enabled: false
+name: "Frostfire Mine"
+node: event.frostfire_mine
+icon: frostfire_mine
+steps: []

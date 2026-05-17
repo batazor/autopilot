@@ -1,0 +1,8 @@
+name: "⚔️ Check Arena"
+enabled: false
+
+cron: "0 */3 * * *"
+
+node: arena
+task: arena_check
+

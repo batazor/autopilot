@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from tenacity import RetryError
@@ -73,7 +74,33 @@ def _build_screen_name_enum() -> type[StrEnum]:
     return StrEnum("ScreenName", members)
 
 
-ScreenName: type[StrEnum] = _build_screen_name_enum()
+# ScreenName is composed at runtime from screen_verify.yaml so its members
+# are dynamic — ty can't statically see e.g. ``ScreenName.UNKNOWN`` on the
+# resulting ``type[StrEnum]`` object, and ``type[StrEnum]`` itself is not
+# accepted in type-annotation position. Under TYPE_CHECKING expose a plain
+# ``StrEnum`` subclass with the three well-known members so static analysis
+# sees a normal enum class; at runtime the dynamic factory still wins.
+if TYPE_CHECKING:
+    class ScreenName(StrEnum):
+        # Sentinels + hubs (always present via ``_WELL_KNOWN_SCREEN_VALUES``).
+        UNKNOWN = "unknown"
+        MAIN_CITY = "main_city"
+        SUGGESTION_BOX = "suggestion_box"
+        # Other landmarks referenced by name from Python — discovered via
+        # ``grep ScreenName\\.``. Values must match the slug used in
+        # ``screen_verify.yaml``. Adding a new ``ScreenName.<X>`` site means
+        # appending the matching member here so ty stops flagging it; the
+        # runtime factory composes the same member from the YAML.
+        ARENA = "arena"
+        BUILDING = "building"
+        CHIEF_PROFILE = "chief_profile"
+        LOADING = "loading"
+        MAIL = "mail"
+        MAIL_SYSTEM = "mail_system"
+        RECONNECT = "reconnect"
+        WELCOME_BACK = "welcome_back"
+else:
+    ScreenName = _build_screen_name_enum()
 
 
 class ScreenDetector:
@@ -151,7 +178,7 @@ class ScreenDetector:
         *,
         screen_names: list[str] | None = None,
     ) -> ScreenName:
-        rules: list[dict[str, object]] = []
+        rules: list[dict[str, Any]] = []
         rule_groups: list[tuple[ScreenName, list[str]]] = []
         for screen_s in screen_names if screen_names is not None else screen_verify_screen_names():
             try:
@@ -439,9 +466,17 @@ class ScreenDetector:
             logger.exception("OCR failed during screen detection")
             return ScreenName.UNKNOWN
 
+        # Pair OCR results back to landmarks by region_id, not by position.
+        # ``OcrClient.ocr_regions`` filters out ``None`` slots before returning,
+        # so a single dropped/error slot would shift every subsequent index and
+        # silently score the wrong screen.
+        by_rid = {t[3]: t for t in region_map}
         scores: dict[ScreenName, int] = {s: 0 for s in ScreenName}
-        for i, result in enumerate(results):
-            screen_name, candidates, threshold, _region_name = region_map[i]
+        for result in results:
+            entry = by_rid.get(result.region_id)
+            if entry is None:
+                continue
+            screen_name, candidates, threshold, _region_name = entry
             if match(result.text, candidates, threshold=threshold):
                 scores[screen_name] += 1
 

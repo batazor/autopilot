@@ -10,31 +10,12 @@ from typing import Any
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from century.api import CenturyAPIError, PlayerData
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
-
-
-class _FakeActions:
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-        self.captures = 0
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 200, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        self.captures += 1
-        return self.frame
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -97,11 +78,11 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_ocr_step_persists_integer_to_player_state(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     captured: dict[str, Any] = {}
@@ -121,9 +102,8 @@ async def test_ocr_step_persists_integer_to_player_state(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr",
@@ -136,7 +116,7 @@ async def test_ocr_step_persists_integer_to_player_state(
     assert result.success is True
     # 200×100 frame, bbox x=25 y=50 w=50 h=10 (% of frame).
     assert captured["region"] == LayoutRegion(50, 50, 100, 10)
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["player_id"] == EXPECTED_PLAYER_ID
     assert final["player_id_text"] == REAL_OCR_TEXT
     assert float(final["player_id_confidence"]) == pytest.approx(0.97, abs=1e-3)
@@ -146,11 +126,11 @@ async def test_ocr_step_persists_integer_to_player_state(
 @pytest.mark.asyncio
 async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     class _StubOcrClient:
@@ -159,9 +139,8 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-device",
@@ -173,20 +152,20 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
 
     assert result.success is True
     assert task.player_id == "765502864"
-    p = await redis_async.hget("wos:player:765502864:state", "player_id")  # type: ignore[attr-defined]
+    p = await redis_async.hget("wos:player:765502864:state", "player_id")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert p == "765502864"
-    ap = await redis_async.hget("wos:instance:bs1:state", "active_player")  # type: ignore[attr-defined]
+    ap = await redis_async.hget("wos:instance:bs1:state", "active_player")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert ap == "765502864"
 
 
 @pytest.mark.asyncio
 async def test_ocr_step_skips_persist_below_threshold(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     class _LowConfStub:
@@ -195,9 +174,8 @@ async def test_ocr_step_skips_persist_below_threshold(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _LowConfStub)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _LowConfStub)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-low",
@@ -208,18 +186,18 @@ async def test_ocr_step_skips_persist_below_threshold(
     result = await task.execute("bs1")
 
     assert result.success is True
-    v = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
+    v = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert v in {None, ""}, "low-confidence OCR must not persist player_id"
 
 
 @pytest.mark.asyncio
 async def test_device_level_who_i_am_retries_when_identity_not_resolved(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _LowConfStub:
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
@@ -227,9 +205,8 @@ async def test_device_level_who_i_am_retries_when_identity_not_resolved(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _LowConfStub)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _LowConfStub)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-low-device",
@@ -247,7 +224,7 @@ async def test_device_level_who_i_am_retries_when_identity_not_resolved(
 @pytest.mark.asyncio
 async def test_consecutive_ocr_steps_share_one_capture_and_request(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -291,7 +268,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         ),
         encoding="utf-8",
     )
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
     captured: dict[str, Any] = {"calls": 0}
 
@@ -309,9 +286,8 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _BulkOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _BulkOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-bulk",
@@ -322,21 +298,24 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.captures == 1
+    assert (
+        actions.capture_screen_bgr.call_count
+        + actions.capture_screen_bgr_cached.call_count
+    ) == 1
     assert captured["calls"] == 1
     assert captured["regions"] == [
         LayoutRegion(20, 10, 40, 10),
         LayoutRegion(80, 50, 60, 20),
     ]
-    pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
+    pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert pid == "765502864"
-    task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]
+    task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert task_txt == "Upgrade Furnace to Lv. 8"
 
 
 @pytest.mark.asyncio
 async def test_exec_sync_building_name_persists_detected_level(
-    monkeypatch: Any,
+    mocker,
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
 ) -> None:
@@ -354,14 +333,14 @@ async def test_exec_sync_building_name_persists_detected_level(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             captured["flat"] = flat
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         dsl_exec,
         "get_building_registry",
-        lambda: BuildingRegistry(buildings=(BuildingDef(id="cookhouse", name="Cookhouse"),)),
+        side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="cookhouse", name="Cookhouse"),)),
     )
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={"building.name": "Cookhouse Lv. 1"},
     )
@@ -375,7 +354,7 @@ async def test_exec_sync_building_name_persists_detected_level(
             )
         )
 
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["buildings.levels.cookhouse"] == "1"
     assert final["building.name.parsed_id"] == "cookhouse"
     assert final["building.name.parsed_name"] == "Cookhouse"
@@ -394,7 +373,7 @@ async def test_exec_sync_building_name_persists_detected_level(
 
 @pytest.mark.asyncio
 async def test_exec_sync_building_name_logs_unchanged_level(
-    monkeypatch: Any,
+    mocker,
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
 ) -> None:
@@ -408,14 +387,14 @@ async def test_exec_sync_building_name_logs_unchanged_level(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             pass
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         dsl_exec,
         "get_building_registry",
-        lambda: BuildingRegistry(buildings=(BuildingDef(id="coal_mine", name="Coal Mine"),)),
+        side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="coal_mine", name="Coal Mine"),)),
     )
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={
             "building.name": "Coal Mine Lv.1",
@@ -440,7 +419,7 @@ async def test_exec_sync_building_name_logs_unchanged_level(
 
 @pytest.mark.asyncio
 async def test_exec_sync_building_name_uses_active_player_instance_fallback(
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     import tasks.dsl_exec as dsl_exec
@@ -453,14 +432,14 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             pass
 
-    monkeypatch.setattr(
+    mocker.patch.object(
         dsl_exec,
         "get_building_registry",
-        lambda: BuildingRegistry(buildings=(BuildingDef(id="lancer_camp", name="Lancer Camp"),)),
+        side_effect=lambda: BuildingRegistry(buildings=(BuildingDef(id="lancer_camp", name="Lancer Camp"),)),
     )
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={
             "active_player": "player_42",
@@ -476,7 +455,7 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
         )
     )
 
-    level = await redis_async.hget(  # type: ignore[attr-defined]
+    level = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         "buildings.levels.lancer_camp",
     )
@@ -485,7 +464,7 @@ async def test_exec_sync_building_name_uses_active_player_instance_fallback(
 
 @pytest.mark.asyncio
 async def test_exec_sync_hero_unit_persists_name_and_level(
-    monkeypatch: Any,
+    mocker,
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
 ) -> None:
@@ -503,9 +482,9 @@ async def test_exec_sync_hero_unit_persists_name_and_level(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             captured["flat"] = flat
 
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={
             "page.heroes.unit.name": "Bahiti",
@@ -535,7 +514,7 @@ async def test_exec_sync_hero_unit_persists_name_and_level(
 
 @pytest.mark.asyncio
 async def test_exec_sync_hero_unit_skips_when_name_missing(
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """No OCR'd name → no state.yaml write, no crash."""
@@ -553,9 +532,9 @@ async def test_exec_sync_hero_unit_skips_when_name_missing(
             nonlocal state_store_called
             state_store_called = True
 
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
     # Only level set; name is missing.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={"page.heroes.unit.level": "3"},
     )
@@ -572,7 +551,7 @@ async def test_exec_sync_hero_unit_skips_when_name_missing(
 
 @pytest.mark.asyncio
 async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """OCR noise like punctuation / casing collapses to a stable hero ID."""
@@ -587,8 +566,8 @@ async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
         def update_from_flat(self, flat: dict[str, Any]) -> None:
             captured["flat"] = flat
 
-    monkeypatch.setattr(dsl_exec, "get_state_store", lambda: _FakeStore())
-    await redis_async.hset(  # type: ignore[attr-defined]
+    mocker.patch.object(dsl_exec, "get_state_store", side_effect=lambda: _FakeStore())
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_42:state",
         mapping={
             "page.heroes.unit.name": "Sgt. Black-eye!",
@@ -613,7 +592,7 @@ async def test_exec_sync_hero_unit_normalises_messy_name_to_slug(
 @pytest.mark.asyncio
 async def test_exec_fetch_player_syncs_century_fields(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -630,7 +609,7 @@ async def test_exec_fetch_player_syncs_century_fields(
     (tmp_path / "area.json").write_text("{}", encoding="utf-8")
 
     redis_client = redis_async
-    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]
+    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     captured: dict[str, Any] = {}
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
@@ -644,16 +623,11 @@ async def test_exec_fetch_player_syncs_century_fields(
             stove_lv_content=100,
         )
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(
-        dsl,
-        "BotActions",
-        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
-    )
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     from century.api import CenturyClient
 
-    monkeypatch.setattr(CenturyClient, "fetch_player", fake_fetch_player)
+    mocker.patch.object(CenturyClient, "fetch_player", new=fake_fetch_player)
 
     task = dsl.DslScenarioTask(
         task_id="t-exec",
@@ -665,7 +639,7 @@ async def test_exec_fetch_player_syncs_century_fields(
 
     assert result.success is True
     assert captured.get("fid") == 765502864
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["nickname"] == "TestNick"
     assert final["stove_level"] == "30"
     assert final["kid"] == "55"
@@ -677,7 +651,7 @@ async def test_exec_fetch_player_syncs_century_fields(
 @pytest.mark.asyncio
 async def test_exec_fetch_player_api_error_is_soft_failure(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     caplog: pytest.LogCaptureFixture,
     redis_async: object,
 ) -> None:
@@ -690,21 +664,16 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     (tmp_path / "area.json").write_text("{}", encoding="utf-8")
 
     redis_client = redis_async
-    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]
+    await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
         raise CenturyAPIError("player HTTP 403: Forbidden")
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(
-        dsl,
-        "BotActions",
-        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
-    )
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     from century.api import CenturyClient
 
-    monkeypatch.setattr(CenturyClient, "fetch_player", fake_fetch_player)
+    mocker.patch.object(CenturyClient, "fetch_player", new=fake_fetch_player)
 
     task = dsl.DslScenarioTask(
         task_id="t-exec-soft",
@@ -716,7 +685,7 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
         result = await task.execute("bs1")
 
     assert result.success is True
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["player_id"] == "765502864"
     assert "nickname" not in final
     assert "player HTTP 403" in caplog.text
@@ -806,7 +775,7 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
 @pytest.mark.asyncio
 async def test_ocr_step_state_keyword_writes_to_state_yaml(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``state: <path>`` writes the OCR value into ``db/state.yaml`` via state_store
@@ -859,7 +828,7 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     captured: dict[str, Any] = {"flat": None, "player_id": None}
 
@@ -878,10 +847,9 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
     import config.state_store as state_store_module
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(state_store_module, "get_state_store", side_effect=lambda: _FakeStore())
 
     task = dsl.DslScenarioTask(
         task_id="t-squad",
@@ -896,7 +864,7 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
     assert captured["flat"] == {"exploration.level": 12}
 
     # No ``store:`` → Redis player hash should be untouched.
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert "exploration.level" not in final
     assert "squad_settings.level" not in final
 
@@ -904,7 +872,7 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
 @pytest.mark.asyncio
 async def test_ocr_step_state_and_store_together_write_both_targets(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Both keywords on one step → Redis (``store``) AND state.yaml (``state``)."""
@@ -951,7 +919,7 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     captured: dict[str, Any] = {"flat": None}
 
     class _FakeStore:
@@ -968,10 +936,9 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
     import config.state_store as state_store_module
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(state_store_module, "get_state_store", side_effect=lambda: _FakeStore())
 
     task = dsl.DslScenarioTask(
         task_id="t-squad",
@@ -983,14 +950,14 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
 
     assert result.success is True
     assert captured["flat"] == {"exploration.level": 7}
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["level_redis"] == "7"
 
 
 @pytest.mark.asyncio
 async def test_ocr_step_without_state_keyword_skips_state_store(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Without ``state:`` keyword the state_store is never touched (Redis-only path)."""
@@ -1041,7 +1008,7 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     state_store_called = False
 
@@ -1062,10 +1029,9 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
     import config.state_store as state_store_module
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
-    monkeypatch.setattr(state_store_module, "get_state_store", lambda: _FakeStore())
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(state_store_module, "get_state_store", side_effect=lambda: _FakeStore())
 
     task = dsl.DslScenarioTask(
         task_id="t-squad-nofs",

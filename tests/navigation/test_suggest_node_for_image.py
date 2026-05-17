@@ -25,27 +25,27 @@ def test_returns_none_for_empty_input() -> None:
     assert suggest_node_for_image_sync(np.zeros((10,), dtype=np.uint8)) is None  # type: ignore[arg-type]
 
 
-def test_returns_none_when_detector_unknown(monkeypatch: Any) -> None:
+def test_returns_none_when_detector_unknown(mocker) -> None:
     async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         return ScreenName.UNKNOWN
 
-    monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _fake_detect)
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     assert suggest_node_for_image_sync(img) is None
 
 
-def test_returns_screen_id_string_on_full_detect_hit(monkeypatch: Any) -> None:
+def test_returns_screen_id_string_on_full_detect_hit(mocker) -> None:
     async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         return ScreenName.MAIN_CITY
 
-    monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _fake_detect)
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     assert suggest_node_for_image_sync(img) == "main_city"
 
 
-def test_falls_back_to_template_when_full_detect_raises(monkeypatch: Any) -> None:
+def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
     """OCR backend down → full path raises → template-only path is consulted."""
     async def _broken(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         raise RuntimeError("ocr backend offline")
@@ -53,22 +53,22 @@ def test_falls_back_to_template_when_full_detect_raises(monkeypatch: Any) -> Non
     async def _template_hit(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         return ScreenName.MAIL
 
-    monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _broken)
-    monkeypatch.setattr(
-        detector_mod.ScreenDetector, "_detect_by_match_landmarks", _template_hit
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_broken)
+    mocker.patch.object(
+        detector_mod.ScreenDetector, "_detect_by_match_landmarks", new=_template_hit
     )
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     assert suggest_node_for_image_sync(img) == "mail"
 
 
-def test_returns_none_when_both_paths_fail(monkeypatch: Any) -> None:
+def test_returns_none_when_both_paths_fail(mocker) -> None:
     async def _broken(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         raise RuntimeError("dead")
 
-    monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _broken)
-    monkeypatch.setattr(
-        detector_mod.ScreenDetector, "_detect_by_match_landmarks", _broken
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_broken)
+    mocker.patch.object(
+        detector_mod.ScreenDetector, "_detect_by_match_landmarks", new=_broken
     )
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -104,12 +104,12 @@ def _screen_param(name: str, expected: str) -> Any:
     ],
 )
 def test_returns_canonical_screen_id_string(
-    monkeypatch: Any, screen: ScreenName, expected: str
+    mocker, screen: ScreenName, expected: str
 ) -> None:
     async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
         return screen
 
-    monkeypatch.setattr(detector_mod.ScreenDetector, "detect_screen", _fake_detect)
+    mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
 
     img = np.zeros((100, 100, 3), dtype=np.uint8)
     assert suggest_node_for_image_sync(img) == expected

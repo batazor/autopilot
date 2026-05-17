@@ -27,7 +27,15 @@ class ScenarioEvaluator:
                     from_t = str(cond.from_ or "00:00")
                     to_t = str(cond.to or "23:59")
                     hm_now = now.strftime("%H:%M")
-                    if not (from_t <= hm_now <= to_t):
+                    # Overnight window (from > to, e.g. 22:00→02:00) wraps
+                    # midnight: now must be ≥ from OR ≤ to. Same-day window
+                    # is the usual ``from ≤ now ≤ to``.
+                    in_range = (
+                        from_t <= hm_now <= to_t
+                        if from_t <= to_t
+                        else hm_now >= from_t or hm_now <= to_t
+                    )
+                    if not in_range:
                         return False
                 case "player_level_min":
                     player_id = str(player_state.get("player_id", ""))
@@ -36,7 +44,11 @@ class ScenarioEvaluator:
                     if level < int(cond.value or 0):
                         return False
                 case "resource_min":
-                    resource_val = int(player_state.get(str(cond.resource or ""), 0))
+                    raw_resource = player_state.get(str(cond.resource or ""))
+                    try:
+                        resource_val = int(raw_resource) if raw_resource is not None else 0
+                    except (TypeError, ValueError):
+                        resource_val = 0
                     if resource_val < int(cond.value or 0):
                         return False
                 case "alliance_member_under_attack":

@@ -105,13 +105,14 @@ def test_validate_dsl_steps_walks_else_branch() -> None:
 
 @pytest.mark.asyncio
 async def test_execute_fails_fast_on_invalid_scope(
-    tmp_path, monkeypatch, redis_async
+    tmp_path, mocker, redis_async
 ) -> None:
     """End-to-end: a scenario YAML with a typo'd scope makes ``execute()``
     return ``reason="scenario_invalid"`` *before* the worker starts tapping.
     Previously the OCR step would log a warning, write to the wrong scope,
     and keep going."""
     import yaml as _yaml
+    from conftest import make_actions, patch_dsl
 
     from tasks import dsl_scenario as dsl
 
@@ -132,7 +133,7 @@ async def test_execute_fails_fast_on_invalid_scope(
         ],
     }
     (scen_dir / "bad_scope.yaml").write_text(_yaml.safe_dump(bad), encoding="utf-8")
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-bad-scope",

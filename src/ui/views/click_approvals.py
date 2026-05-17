@@ -12,6 +12,7 @@ Contract:
 from __future__ import annotations
 
 from datetime import timedelta
+from typing import Any
 
 import streamlit as st
 
@@ -119,7 +120,7 @@ def _render_preview_with_point(
     instance_id: str,
     x: int | None,
     y: int | None,
-    payload: dict[str, object] | None = None,
+    payload: dict[str, Any] | None = None,
     where: object | None = None,
 ) -> None:
     ui = where if where is not None else st

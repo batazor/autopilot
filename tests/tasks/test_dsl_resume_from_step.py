@@ -4,22 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from tasks.base import TaskResult
-
-
-class _FakeActions:
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 100, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return np.zeros((100, 100, 3), dtype=np.uint8)
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -33,7 +23,7 @@ def _scenario_root(tmp_path: Path) -> Path:
 @pytest.mark.asyncio
 async def test_resume_from_step_skips_root_node_navigation(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -57,9 +47,8 @@ async def test_resume_from_step_skips_root_node_navigation(
     async def _fail_navigation(*_args: Any, **_kwargs: Any) -> bool:
         raise AssertionError("root node navigation should be skipped on resumed steps")
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
-    monkeypatch.setattr(dsl.DslScenarioTask, "_navigate_to_node", _fail_navigation)
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_fail_navigation)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -79,7 +68,7 @@ async def test_resume_from_step_skips_root_node_navigation(
 @pytest.mark.asyncio
 async def test_completed_scenario_clears_stale_hand_pointer_resume(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -95,7 +84,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
         encoding="utf-8",
     )
     (tmp_path / "area.json").write_text(yaml.dump({"screens": []}), encoding="utf-8")
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={
             "last_active_scenario": "done_router",
@@ -105,8 +94,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
         },
     )
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -118,7 +106,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
     result = await task.execute("bs1")
 
     assert result.success is True
-    state = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    state = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert state["last_active_scenario"] == ""
     assert state["last_active_scenario_step"] == ""
 
@@ -126,7 +114,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
 @pytest.mark.asyncio
 async def test_navigation_failed_records_trace_row(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Navigation failure must leave at least one trace row explaining itself.
@@ -152,16 +140,15 @@ async def test_navigation_failed_records_trace_row(
 
     # Seed current_screen so the trace row can capture it before the
     # navigation_failed branch blanks it.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "current_screen", "popup.claim"
     )
 
     async def _navfail(*_args: Any, **_kwargs: Any) -> bool:
         return False
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
-    monkeypatch.setattr(dsl.DslScenarioTask, "_navigate_to_node", _navfail)
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_navfail)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -185,7 +172,7 @@ async def test_navigation_failed_records_trace_row(
 @pytest.mark.asyncio
 async def test_preempt_yield_with_target_node_resumes_at_actual_step(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Preempt-yield must resume at the actual step, not reset to 0.
@@ -225,20 +212,19 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
             )
         return None
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
-    monkeypatch.setattr(dsl.DslScenarioTask, "_navigate_to_node", _navok)
-    monkeypatch.setattr(
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_navok)
+    mocker.patch.object(
         dsl.DslScenarioTask,
         "_preempted_by_higher_priority",
-        _yield_at_step_1,
+        new=_yield_at_step_1,
     )
 
     # Seed ``current_screen`` so the entry-time screen-identity gate (see
     # ``DslScenarioExecuteMixin.execute``) lets the scenario proceed to its
     # first step. Empty ``current_screen`` would otherwise short-circuit
     # before the preempt-yield logic under test ever runs.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "current_screen", "event.trials"
     )
 
@@ -253,7 +239,7 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
     # The fix: resume at the actually-yielded step, not 0.
     assert result.metadata["resume_from_step_index"] == 1
     # And the trace was persisted to Redis so the resumed slice can hydrate.
-    raw = await redis_async.hget(  # type: ignore[attr-defined]
+    raw = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "last_active_scenario_trace"
     )
     assert raw, "preempt-yield must persist steps_trace for resume"
@@ -266,7 +252,7 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
 @pytest.mark.asyncio
 async def test_resume_hydrates_trace_from_prior_slice(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Resume must rehydrate ``steps_trace`` from the prior slice's persisted
@@ -297,14 +283,13 @@ async def test_resume_hydrates_trace_from_prior_slice(
             "reason": "preempted_by_higher_priority",
         },
     ]
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         "last_active_scenario_trace",
         json.dumps(prior),
     )
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -321,7 +306,7 @@ async def test_resume_hydrates_trace_from_prior_slice(
     assert trace[0] == prior[0]
     assert trace[1] == prior[1]
     # Successful completion wipes the persisted trace via _clear_step_context.
-    raw = await redis_async.hget(  # type: ignore[attr-defined]
+    raw = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "last_active_scenario_trace"
     )
     assert raw in (None, "")
@@ -330,7 +315,7 @@ async def test_resume_hydrates_trace_from_prior_slice(
 @pytest.mark.asyncio
 async def test_nested_steps_emit_trace_rows_with_path_indices(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Container steps (repeat / while_match) must record per-iteration
@@ -363,8 +348,7 @@ async def test_nested_steps_emit_trace_rows_with_path_indices(
     )
     (tmp_path / "area.json").write_text(yaml.dump({"screens": []}), encoding="utf-8")
 
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",

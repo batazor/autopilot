@@ -19,6 +19,12 @@ _WATCH_LOCK = threading.RLock()
 # This can happen when Streamlit reloads or when async services are started twice.
 _WATCHING_PATHS: set[str] = set()
 
+# macOS fires several modify events per save (open → write → close), and a
+# multi-module commit sprays dozens of .yaml writes within milliseconds.
+# Each event triggered a full ``loader.reload()`` (an ``rglob`` walk over
+# every scenario root) — debouncing collapses the burst into one re-scan.
+_RELOAD_DEBOUNCE_SECONDS = 0.5
+
 
 def _is_declarative_scenario_doc(raw: object) -> bool:
     """Return True for legacy scheduler scenarios handled by ``ScenarioEvaluator``.
@@ -56,16 +62,36 @@ class _ScenarioReloadHandler(FileSystemEventHandler):
     def __init__(self, loader: ScenarioLoader) -> None:
         super().__init__()
         self._loader = loader
+        self._timer_lock = threading.Lock()
+        self._pending_timer: threading.Timer | None = None
+        self._pending_label: str = ""
+
+    def _schedule_reload(self, label: str) -> None:
+        with self._timer_lock:
+            if self._pending_timer is not None:
+                # Coalesce: cancel the in-flight timer and restart the window.
+                self._pending_timer.cancel()
+            self._pending_label = label
+            t = threading.Timer(_RELOAD_DEBOUNCE_SECONDS, self._fire_reload)
+            t.daemon = True
+            self._pending_timer = t
+            t.start()
+
+    def _fire_reload(self) -> None:
+        with self._timer_lock:
+            label = self._pending_label
+            self._pending_timer = None
+            self._pending_label = ""
+        logger.info("Scenario change debounced — reloading (last=%s)", label)
+        self._loader.reload()
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if str(event.src_path).endswith(".yaml"):
-            logger.info("Scenario changed: %s — reloading", event.src_path)
-            self._loader.reload()
+            self._schedule_reload(str(event.src_path))
 
     def on_created(self, event: FileSystemEvent) -> None:
         if str(event.src_path).endswith(".yaml"):
-            logger.info("New scenario: %s — reloading", event.src_path)
-            self._loader.reload()
+            self._schedule_reload(str(event.src_path))
 
 
 class ScenarioLoader:

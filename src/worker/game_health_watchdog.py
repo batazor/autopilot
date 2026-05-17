@@ -140,6 +140,7 @@ def restart_application_after_health_failure(
     with contextlib.suppress(redis.RedisError):
         r.delete(lock_key)
 
+    restart_ok = False
     try:
         try:
             ba.restart_application(instance_id)
@@ -187,13 +188,18 @@ def restart_application_after_health_failure(
 
         with contextlib.suppress(redis.RedisError):
             r.hset(key, mapping={"state": str(InstanceState.READY), "last_error": ""})
+        restart_ok = True
     finally:
-        # 4. Always resume — even on a crashed path we want to clear the flag we
-        # set in step 1; otherwise the worker would stay paused forever waiting
-        # for someone to send ``{"cmd": "resume"}``.
-        _push_instance_command(r, instance_id, {"cmd": "resume"})
-        with contextlib.suppress(redis.RedisError):
-            r.hset(key, mapping={"paused": "0", "auto_paused": "0"})
+        # 4. Resume the worker only when the restart actually succeeded.
+        # Keeping the worker paused after a CRASHED restart is the safer
+        # default: otherwise the worker resumes against a dead game and
+        # taps a loader / launcher until the watchdog re-detects the
+        # foreground-missing state one full interval later. The operator
+        # (or a higher-level recovery loop) can resume manually via the UI.
+        if restart_ok:
+            _push_instance_command(r, instance_id, {"cmd": "resume"})
+            with contextlib.suppress(redis.RedisError):
+                r.hset(key, mapping={"paused": "0", "auto_paused": "0"})
 
 
 def run_forever(stop: threading.Event | None = None) -> None:

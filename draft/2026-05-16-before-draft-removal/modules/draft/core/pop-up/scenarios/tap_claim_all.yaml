@@ -1,0 +1,8 @@
+enabled: true
+name: 🎁 Tap claim all
+device_level: true
+steps:
+- match: claim_all
+  threshold: 0.92
+- click: claim_all
+- wait: 800ms

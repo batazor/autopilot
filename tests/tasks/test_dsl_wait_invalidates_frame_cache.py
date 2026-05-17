@@ -16,35 +16,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def __init__(self) -> None:
-        self.invalidations: list[str] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 1000, 1000
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        return np.zeros((1000, 1000, 3), dtype=np.uint8)
-
-    def capture_screen_bgr_cached(
-        self, instance_id: str, *, max_age_ms: float | None = None
-    ) -> np.ndarray:
-        del max_age_ms
-        return self.capture_screen_bgr(instance_id)
-
-    def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
-        self.invalidations.append(instance_id or "*")
-
-    def tap(self, *_a: Any, **_kw: Any) -> bool:
-        raise AssertionError("tap() must not run in this test")
 
 
 def _write_scenario(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
@@ -80,13 +56,17 @@ def _write_scenario(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
 @pytest.mark.asyncio
 async def test_wait_step_invalidates_frame_cache(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_scenario(tmp_path, [{"wait": "10ms"}])
-    actions = _FakeActions()
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    invalidations: list[str] = []
+    actions = make_actions(resolution=(1000, 1000))
+    actions.invalidate_frame_cache.side_effect = lambda instance_id=None: invalidations.append(
+        instance_id or "*"
+    )
+    actions.tap.side_effect = AssertionError("tap() must not run in this test")
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -96,25 +76,27 @@ async def test_wait_step_invalidates_frame_cache(
     )
     res = await task.execute("bs1")
     assert res.success is True
-    assert actions.invalidations == ["bs1"], (
-        f"expected one frame-cache invalidation for instance 'bs1', "
-        f"got {actions.invalidations}"
+    assert invalidations == ["bs1"], (
+        f"expected one frame-cache invalidation for instance 'bs1', got {invalidations}"
     )
 
 
 @pytest.mark.asyncio
 async def test_zero_duration_wait_does_not_invalidate(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """A ``wait: 0`` (parsed to ``<= 0`` seconds) is a no-op annotation, not a
     real pause — the cache should survive so the next ``match`` keeps reusing
     the warmed frame."""
     _write_scenario(tmp_path, [{"wait": "0ms"}])
-    actions = _FakeActions()
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    invalidations: list[str] = []
+    actions = make_actions(resolution=(1000, 1000))
+    actions.invalidate_frame_cache.side_effect = lambda instance_id=None: invalidations.append(
+        instance_id or "*"
+    )
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -124,4 +106,4 @@ async def test_zero_duration_wait_does_not_invalidate(
     )
     res = await task.execute("bs1")
     assert res.success is True
-    assert actions.invalidations == []
+    assert invalidations == []

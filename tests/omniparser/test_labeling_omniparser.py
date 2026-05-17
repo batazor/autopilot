@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from typing import Any
 
 from PIL import Image
 
@@ -73,10 +74,10 @@ def test_filter_blacklisted_omniparser_regions_by_name() -> None:
     assert skipped == 2
 
 
-def _region(name: str, *, x: float = 10.0) -> dict[str, object]:
+def _region(name: str, *, x: float = 10.0) -> dict[str, Any]:
     from omniparser.convert import region_hash
 
-    region: dict[str, object] = {
+    region: dict[str, Any] = {
         "name": name,
         "action": "exist",
         "type": "string",
@@ -86,7 +87,7 @@ def _region(name: str, *, x: float = 10.0) -> dict[str, object]:
     return region
 
 
-def _region_by_name(regions: list[dict[str, object]], name: str) -> dict[str, object]:
+def _region_by_name(regions: list[dict[str, Any]], name: str) -> dict[str, Any]:
     return next(r for r in regions if r.get("name") == name)
 
 
@@ -97,7 +98,7 @@ def _fixture_region(
     y: float,
     width: float,
     height: float,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     return {
         "name": name,
         "action": "exist",
@@ -115,7 +116,7 @@ def _fixture_region(
     }
 
 
-def _main_city_v2_fixture_regions() -> list[dict[str, object]]:
+def _main_city_v2_fixture_regions() -> list[dict[str, Any]]:
     """Small frozen fixture copied from ``area.json`` main_city.png version v2."""
 
     return [
@@ -164,7 +165,7 @@ def _main_city_v2_fixture_regions() -> list[dict[str, object]]:
     ]
 
 
-def _main_city_v3_fixture_regions() -> list[dict[str, object]]:
+def _main_city_v3_fixture_regions() -> list[dict[str, Any]]:
     """Frozen Omni-style proposal fixture copied from a saved main_city_v3 run."""
 
     return [

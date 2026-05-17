@@ -111,6 +111,8 @@ edges:
     main_city: [text.tap_any_blank_space_to_close]
   rewards:
     main_city: [button.tap_anywhere_to_exit]
+  increase_level:
+    vip: [increase_level.icon.close]
   chief_profile:
     main_city: [icon.page.back]
   mail:
@@ -169,6 +171,8 @@ edges:
     squad_settings: [exploration.to.squad_settings]
   squad_settings:
     exploration: [icon.page.back]
+  exploration.defeat:
+    main_city: [button.to_main_city]
   heroes:
     main_city: [icon.page.back]
     hero.recrutment: [heroes.recruit]

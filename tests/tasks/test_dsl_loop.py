@@ -6,27 +6,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def __init__(self, frame: np.ndarray | None = None) -> None:
-        self.frame = frame if frame is not None else np.zeros((100, 100, 3), dtype=np.uint8)
-        self.tapped: list[tuple[str, int, int, str | None]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        return 100, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        return self.frame
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
 
 
 def _write_scenario(tmp_path: Path, body: dict[str, Any]) -> None:
@@ -51,7 +35,7 @@ def _write_scenario(tmp_path: Path, body: dict[str, Any]) -> None:
 @pytest.mark.asyncio
 async def test_loop_cond_breaks_when_state_field_matches(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``cond`` re-evaluates each iteration; once the instance hash matches, loop exits."""
@@ -65,11 +49,10 @@ async def test_loop_cond_breaks_when_state_field_matches(
             }
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     # Pre-seed the field so cond is True on the first probe and the loop exits.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"squad_status": "Victory!"},
     )
@@ -87,7 +70,7 @@ async def test_loop_cond_breaks_when_state_field_matches(
 @pytest.mark.asyncio
 async def test_loop_cond_breaks_after_inner_step_flips_state(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``cond`` is the exit condition: an inner ``exec`` step writes the
@@ -106,8 +89,7 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
             }
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     iterations = {"n": 0}
 
@@ -126,7 +108,7 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "advance_progress", _advance)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"advance_progress": _advance})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -139,14 +121,14 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
     assert result.success is True
     # 3 iterations (step1, step2, exec writes "done"; cond True on iter 4's top check → exit).
     assert iterations["n"] == 3
-    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]
+    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final == "done"
 
 
 @pytest.mark.asyncio
 async def test_loop_max_caps_iteration_count(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Without a satisfying cond, ``max`` caps the loop and the scenario still finishes."""
@@ -160,8 +142,7 @@ async def test_loop_max_caps_iteration_count(
             }
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     ticks = {"n": 0}
 
@@ -170,7 +151,7 @@ async def test_loop_max_caps_iteration_count(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "tick", _tick)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"tick": _tick})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -186,7 +167,7 @@ async def test_loop_max_caps_iteration_count(
 @pytest.mark.asyncio
 async def test_loop_break_repeat_exits_loop(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``break: repeat`` doubles as "exit loop"."""
@@ -202,8 +183,7 @@ async def test_loop_break_repeat_exits_loop(
             }
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     ticks = {"n": 0}
 
@@ -212,7 +192,7 @@ async def test_loop_break_repeat_exits_loop(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "tick", _tick)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"tick": _tick})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -228,7 +208,7 @@ async def test_loop_break_repeat_exits_loop(
 @pytest.mark.asyncio
 async def test_loop_inner_step_cond_skips_individual_step(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Step-level ``cond:`` is evaluated each iteration so inner steps can be conditionally skipped."""
@@ -244,8 +224,7 @@ async def test_loop_inner_step_cond_skips_individual_step(
             }
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     counts = {"always": 0, "only_when_yes": 0}
 
@@ -262,8 +241,7 @@ async def test_loop_inner_step_cond_skips_individual_step(
 
     import tasks.dsl_exec as dsl_exec
 
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "always", _always)
-    monkeypatch.setitem(dsl_exec.DSL_EXEC_REGISTRY, "only_when_yes", _only_when_yes)
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"always": _always, "only_when_yes": _only_when_yes})
 
     task = dsl.DslScenarioTask(
         task_id="t1",

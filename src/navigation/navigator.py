@@ -4,6 +4,7 @@ import asyncio
 import inspect
 import json
 import logging
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -47,15 +48,20 @@ most recent entry."""
 class Navigator:
     def __init__(
         self,
-        capture_fn: object,
-        tap_fn: object,
+        capture_fn: Callable[[str], np.ndarray],
+        tap_fn: Callable[..., bool | None],
         *,
         settings: Settings,
         ocr_client: OcrClient,
         redis_client: Any | None = None,
     ) -> None:
-        self._capture = capture_fn   # Callable[[str], np.ndarray]
-        self._tap = tap_fn           # Callable[[str, Point], None]
+        # ``tap_fn`` is loosely typed (``Callable[..., bool | None]``) because
+        # callers pass either the legacy 2-arg shape (``(instance_id, point)``)
+        # or the modern 4-kwarg form (``approval_region``, ``approval_source``,
+        # ``approval_context``); ``_tap_supports_approval_source`` introspects
+        # via ``inspect.signature`` to pick the right calling shape.
+        self._capture = capture_fn
+        self._tap = tap_fn
         self._detector = ScreenDetector(ocr_client)
         self._ocr = ocr_client
         self._settings = settings
@@ -135,7 +141,7 @@ class Navigator:
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
         pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
-        approval_context: dict[str, object] = {}
+        approval_context: dict[str, Any] = {}
         if from_screen:
             approval_context["from_screen"] = from_screen
         if to_screen:
@@ -271,7 +277,7 @@ class Navigator:
     async def _verify_match_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -309,7 +315,7 @@ class Navigator:
     async def _verify_ocr_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -368,7 +374,7 @@ class Navigator:
     async def _verify_tab_active_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -397,7 +403,7 @@ class Navigator:
     async def _verify_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
         instance_id: str | None = None,
@@ -416,7 +422,7 @@ class Navigator:
 
     async def _verify_from_screen_rule(
         self,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         instance_id: str | None,
     ) -> bool:
@@ -758,7 +764,7 @@ class Navigator:
     async def _execute_hops(
         self,
         instance_id: str,
-        hop_sequences: list[tuple[str, list[object]]],
+        hop_sequences: list[tuple[str, list[str]]],
         *,
         from_screen: str | None = None,
     ) -> _HopExec:

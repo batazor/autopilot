@@ -46,6 +46,11 @@ dev = [
     "opentelemetry-exporter-otlp-proto-http>=1.27",
     "opentelemetry-instrumentation-logging>=0.48b0",
     "fastapi>=0.111",
+    "syrupy>=5.2.0",
+    "pytest-mock>=3.15.1",
+    "pytest-clarity>=1.0.1",
+    "pytest-sugar>=1.1.1",
+    "pytest-timeout>=2.4.0",
 ]
 ui = [
     "streamlit>=1.39",
@@ -84,6 +89,7 @@ omniparser = [
 [project.scripts]
 wos = "worker.launch:main"
 wos-bot = "worker.supervisor:main"
+wos-ia-editor = "worker.ia_editor:main"
 wos-mcp = "wos_mcp.server:main"
 
 [build-system]
@@ -162,15 +168,50 @@ ignore = ["ANN401"]
 # Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
 "src/ui/area_annotator.py" = ["E402"]
 
+[tool.ty]
+# Strategy: baseline + ratchet (see scripts/ty-ratchet.py).
+# 1164 pre-existing diagnostics frozen at the snapshot date — the CI gate
+# fails only if a file's diagnostic count goes UP relative to the
+# baseline (.ty-baseline.json). Touching a file is allowed; making it
+# worse is not.
+
+[tool.ty.src]
+exclude = [
+    "streamlit-plugin/streamlit-drawable-canvas",
+    "streamlit-plugin/streamlit-nested-table",
+    "streamlit-plugin/streamlit-react-flow",
+    "streamlit-plugin/streamlit-dnd-sortable",
+]
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.rules]
+# redis-py's async client returns Awaitable[...], but the stubs union it
+# with the sync return — ty sees `Awaitable[T] | T` and flags every
+# `await client.method(...)`. Suppressing globally rather than per-call
+# is the lesser evil until stubs improve.
+invalid-await = "ignore"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests", "modules"]
+# pytest-sugar: progress + one-line failures; pytest-clarity: coloured diffs at -vv.
+# pytest-timeout: per-test limit; integration tests get 180s in conftest.py.
+# CI uses ``pytest -q`` (disables sugar/clarity; timeouts still apply).
+addopts = ["-vv"]
+timeout = 60
+# thread: avoid SIGALRM + tests that patch signal.signal (see test_bot_services_shutdown).
+timeout_method = "thread"
+timeout_func_only = true
+session_timeout = 1200
 # Upstream RedisContainer still uses @wait_container_is_ready (deprecated) until
 # testcontainers-python 4.15+; silence import-time noise from the vendored module.
 filterwarnings = [
     "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers.redis",
 ]
 markers = [
-    "integration: requires external services (OCR backend, Redis via testcontainers, ADB, etc.)",
+    "integration: requires external services (OCR backend, Redis via testcontainers, ADB, etc.); 180s timeout",
+    "timeout(timeout, method=None, func_only=False): per-test timeout override (pytest-timeout)",
 ]

@@ -10,7 +10,7 @@ import time
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 
@@ -39,8 +39,13 @@ from tasks.dsl_scenario_helpers import (
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
-class DslScenarioInlineMixin:
+
+class DslScenarioInlineMixin(_Base):
     """Navigation + per-step actions shared by top-level and nested DSL blocks."""
 
     redis_client: Any | None
@@ -107,7 +112,12 @@ class DslScenarioInlineMixin:
 
         navigator = dsl_runtime.navigator(actions, redis_client=self.redis_client)
         try:
-            ok = await navigator.navigate_to(target, instance_id)
+            # ``target`` is ``ScreenName | str`` after the ValueError fallback
+            # above; ``navigate_to`` is typed strict ScreenName but since
+            # ``ScreenName`` is a StrEnum the runtime accepts the bare str form
+            # transparently. Cast at the boundary rather than widening the
+            # Navigator signature.
+            ok = await navigator.navigate_to(cast("ScreenName", target), instance_id)
         finally:
             if self.redis_client is not None:
                 with suppress(Exception):
@@ -423,19 +433,15 @@ class DslScenarioInlineMixin:
         self._last_tap_region_clicked = region
         # After a click on a matched region, remember the last match top-left so the next
         # `while_match` can pick a different occurrence if multiple are present.
-        if (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and isinstance(self._last_match_row.get("top_left"), (list, tuple))
-            and len(self._last_match_row.get("top_left")) >= 2  # type: ignore[arg-type]
-        ):
-            try:
-                tl = self._last_match_row.get("top_left")
-                x0 = int(float(tl[0]))  # type: ignore[index]
-                y0 = int(float(tl[1]))  # type: ignore[index]
-                self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
-            except Exception:
-                pass
+        if self._last_match_row is not None and self._last_match_region == region:
+            tl = self._last_match_row.get("top_left")
+            if isinstance(tl, (list, tuple)) and len(tl) >= 2:
+                try:
+                    x0 = int(float(tl[0]))
+                    y0 = int(float(tl[1]))
+                    self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
+                except Exception:
+                    pass
         return None
 
     def _point_for_region_action(
@@ -452,16 +458,18 @@ class DslScenarioInlineMixin:
         # best-found position even if the score didn't clear the threshold — the user explicitly
         # asked us to find this button, threshold gating only matters when verifying presence.
         implicit = self._implicit_match_for_region == region
-        if (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and (implicit or bool(self._last_match_row.get("matched")))
-            and self._last_match_row.get("tap_x_pct") is not None
-            and self._last_match_row.get("tap_y_pct") is not None
+        if self._last_match_row is not None and self._last_match_region == region and (
+            implicit or bool(self._last_match_row.get("matched"))
         ):
+            tap_x_raw = self._last_match_row.get("tap_x_pct")
+            tap_y_raw = self._last_match_row.get("tap_y_pct")
+        else:
+            tap_x_raw = None
+            tap_y_raw = None
+        if tap_x_raw is not None and tap_y_raw is not None and self._last_match_row is not None:
             try:
-                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
-                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                txp = float(tap_x_raw)
+                typ = float(tap_y_raw)
                 # When the match carries the found template's pixel size, treat that
                 # rectangle as the click zone and randomise inside it — same idea as
                 # for a static bbox, just scoped to the actual icon location.
@@ -844,10 +852,11 @@ class DslScenarioInlineMixin:
             except (TypeError, ValueError):
                 initial_attempts = 1
             initial_attempts = max(1, initial_attempts)
-            if "interval" in retry_cfg:
-                attempt_interval_s = _parse_wait_seconds(retry_cfg.get("interval"))
-            else:
-                attempt_interval_s = 0.0
+            attempt_interval_s = (
+                _parse_wait_seconds(retry_cfg.get("interval"))
+                if "interval" in retry_cfg
+                else 0.0
+            )
             attempt_interval_s = max(0.0, attempt_interval_s)
 
             iterations = 0

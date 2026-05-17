@@ -6,17 +6,17 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.navigation.conftest_nav import make_navigator
 
 from config.loader import Settings
 from navigation.detector import ScreenName
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
+from tests.navigation.conftest_nav import make_navigator
 
 
 @pytest.mark.asyncio
 async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejected(
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     redis = redis_async
 
@@ -34,11 +34,11 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
         return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
-    monkeypatch.setattr(
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_survivor)
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,
@@ -61,7 +61,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
 
 @pytest.mark.asyncio
 async def test_navigate_to_persists_intermediate_screen_identity(
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """``navigate_to`` must write ``current_screen`` for any recognised
     screen, not only the target.
@@ -87,11 +87,11 @@ async def test_navigate_to_persists_intermediate_screen_identity(
         return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_survivor)
-    monkeypatch.setattr(
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_survivor)
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,
@@ -121,7 +121,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
 
 @pytest.mark.asyncio
 async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """UNKNOWN-screen recovery taps ``icon.page.back``. If the user rejects that tap
     in approval mode, ``navigate_to`` must abort instead of looping 10 times."""
@@ -141,16 +141,16 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
         return ScreenName.UNKNOWN
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_unknown)
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_unknown)
     # Force the "page back visible" branch deterministically.
     async def _back_visible(_self, _img):  # noqa: ANN001
         return True
 
-    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _back_visible)
-    monkeypatch.setattr(
+    mocker.patch.object(Navigator, "_ui_page_back_visible", new=_back_visible)
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,
@@ -173,7 +173,7 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
 
 @pytest.mark.asyncio
 async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """When the screen detector returns UNKNOWN for several consecutive ticks
     AND no ``icon.page.back`` is visible (typical for a full-screen ad / popup
@@ -198,19 +198,19 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
         return ScreenName.UNKNOWN
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_unknown)
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_unknown)
 
     async def _no_back(_self, _img):  # noqa: ANN001
         return False
 
-    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _no_back)
-    monkeypatch.setattr(nav, "_load_area_doc", lambda: {"screens": []})
+    mocker.patch.object(Navigator, "_ui_page_back_visible", new=_no_back)
+    mocker.patch.object(nav, "_load_area_doc", new=lambda: {"screens": []})
     # Skip the sleep so the test runs fast.
     async def _no_sleep(_secs: float) -> None:
         return None
 
     import navigation.navigator as navmod
-    monkeypatch.setattr(navmod.asyncio, "sleep", _no_sleep)
+    mocker.patch.object(navmod.asyncio, "sleep", new=_no_sleep)
 
     ok = await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
 
@@ -222,7 +222,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
 
 @pytest.mark.asyncio
 async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
-    monkeypatch: Any,
+    mocker,
     redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
     """If current screen has no route to main_city, navigator falls back to
     ``icon.page.back``. A rejected tap there must abort, not silently continue."""
@@ -249,15 +249,15 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
         return unrouted
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_unrouted)
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_unrouted)
     async def _back_visible(_self, _img):  # noqa: ANN001
         return True
 
-    monkeypatch.setattr(Navigator, "_ui_page_back_visible", _back_visible)
-    monkeypatch.setattr(
+    mocker.patch.object(Navigator, "_ui_page_back_visible", new=_back_visible)
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,

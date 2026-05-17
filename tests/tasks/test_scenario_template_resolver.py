@@ -40,14 +40,12 @@ def test_bare_hero_template_resolves() -> None:
     assert resolved.context == {"hero_id": "ahmose", "hero_name": "Ahmose"}
 
 
-def test_load_doc_substitutes_placeholders() -> None:
+def test_load_doc_substitutes_placeholders(snapshot) -> None:
     """``${hero_id}`` / ``${hero_name}`` in the body are rendered before parse."""
     loaded = _tmpl.load_doc(REPO_ROOT, "level_up_bahiti")
     assert loaded is not None
     _path, doc = loaded
-    assert doc["name"] == "⬆️ Level up · Bahiti"
-    assert doc["node"] == "page.heroes.bahiti"
-    assert isinstance(doc["steps"], list) and doc["steps"]
+    assert doc == snapshot
 
 
 def test_render_keeps_unknown_placeholders() -> None:
@@ -116,10 +114,8 @@ def test_template_rejects_unknown_onboarding_pointer() -> None:
     assert _tmpl.resolve(REPO_ROOT, "onboarding.click.not_a_pointer") is None
 
 
-def test_load_doc_substitutes_onboarding_pointer() -> None:
+def test_load_doc_substitutes_onboarding_pointer(snapshot) -> None:
     loaded = _tmpl.load_doc(REPO_ROOT, "onboarding.click.hand_pointer")
     assert loaded is not None
     _path, doc = loaded
-    assert doc["name"] == "Onboarding click · Hand pointer"
-    assert doc["steps"][0]["while_match"] == "hand_pointer"
-    assert doc["steps"][0]["steps"][0]["click"] == "hand_pointer"
+    assert doc == snapshot

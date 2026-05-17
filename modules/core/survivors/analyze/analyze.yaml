@@ -1,0 +1,10 @@
+overlay:
+  - name: isNewPeople.visible
+    region: isNewPeople
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - main_city
+    ttl: 2s
+    pushScenario:
+      - name: welcome_new_survivors

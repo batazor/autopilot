@@ -210,7 +210,6 @@ async def evaluate_overlay_rules_async(
             area_doc,
             region_name,
             state_flat=state_flat,
-            screen_id=cur_screen_norm or None,
         )
 
     # ``action: text`` rules defer their OCR to a batched pass below — one

@@ -94,15 +94,15 @@ def load_settings(path: Path | None = None) -> Settings:
     load_env_once()
     if path is None:
         path = Path(__file__).parent / "settings.yaml"
-    raw = yaml.safe_load(path.read_text())
+    raw = yaml.safe_load(path.read_text()) or {}
 
-    redis_raw = dict(raw["redis"])
+    redis_raw = dict(raw.get("redis") or {})
     if redis_url := _env_value("WOS_REDIS_URL"):
         redis_raw["url"] = redis_url
     if redis_prefix := _env_value("WOS_REDIS_KEY_PREFIX"):
         redis_raw["key_prefix"] = redis_prefix
 
-    ocr_raw = dict(raw["ocr"])
+    ocr_raw = dict(raw.get("ocr") or {})
     # Backwards compatibility: older configs used a sidecar URL. Local
     # Tesseract OCR no longer needs it, so ignore the key if it is still present.
     ocr_raw.pop("url", None)
@@ -124,7 +124,7 @@ def load_settings(path: Path | None = None) -> Settings:
     redis_cfg = RedisConfig(**redis_raw)
     ocr_cfg = OcrConfig(**ocr_raw)
     omniparser_cfg = OmniparserConfig(**omniparser_raw)
-    scheduler_cfg = SchedulerConfig(**raw["scheduler"])
+    scheduler_cfg = SchedulerConfig(**(raw.get("scheduler") or {}))
     worker_cfg = WorkerConfig(**raw.get("worker", {}))
 
     # Each ``db/devices.yaml`` entry maps to one ``InstanceConfig``. Inline

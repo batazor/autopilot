@@ -10,10 +10,10 @@ from worker.restart_backoff import compute_restart_delay
 
 
 @pytest.fixture(autouse=True)
-def _deterministic_rng(monkeypatch: pytest.MonkeyPatch) -> Any:
+def _deterministic_rng(mocker) -> Any:
     """Pin the RNG so jitter is reproducible across runs."""
     rng = random.Random(0xDEADBEEF)
-    monkeypatch.setattr(restart_backoff, "_rng", rng)
+    mocker.patch.object(restart_backoff, "_rng", new=rng)
     yield
 
 

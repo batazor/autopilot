@@ -12,8 +12,8 @@ misleading TM peaks when a tiny template slides inside a large ROI (e.g. ``10×8
 """
 from __future__ import annotations
 
-import math
 import hashlib
+import math
 from typing import TypedDict
 
 import cv2

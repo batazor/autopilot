@@ -3,14 +3,22 @@ from __future__ import annotations
 import contextlib
 import os
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 import redis
 import redis.asyncio as aioredis
 from testcontainers.redis import RedisContainer
 
+from adb import BotActions
 from config.loader import Settings, load_settings, reset_settings, set_settings
 from ocr.client import OcrClient
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 
 @pytest.fixture(scope="session")
@@ -107,10 +115,71 @@ def pin_click_to_center(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def patch_dsl_bot_actions(monkeypatch: pytest.MonkeyPatch, actions: object) -> None:
+def make_actions(
+    frames: list[np.ndarray] | np.ndarray | None = None,
+    *,
+    resolution: tuple[int, int] | None = None,
+) -> MagicMock:
+    """``MagicMock(spec=BotActions)`` with optional sequential frame capture."""
+    if isinstance(frames, np.ndarray):
+        frame_list = [frames]
+    elif frames is None:
+        frame_list = None
+    else:
+        frame_list = frames
+
+    actions = MagicMock(spec=BotActions)
+    if resolution is not None:
+        actions.screen_resolution.return_value = resolution
+    elif frame_list:
+        height, width = frame_list[0].shape[:2]
+        actions.screen_resolution.return_value = (int(width), int(height))
+    else:
+        actions.screen_resolution.return_value = (720, 1280)
+
+    if frame_list is not None:
+        it = iter(frame_list)
+        last = [frame_list[-1]]
+
+        def next_frame(*_args: object, **_kwargs: object) -> np.ndarray:
+            last[0] = next(it, last[0])
+            return last[0]
+
+        actions.capture_screen_bgr.side_effect = next_frame
+        actions.capture_screen_bgr_cached.side_effect = next_frame
+    else:
+        blank = np.zeros((1280, 720, 3), dtype=np.uint8)
+        actions.capture_screen_bgr.return_value = blank
+        actions.capture_screen_bgr_cached.return_value = blank
+
+    actions.tap.return_value = True
+    return actions
+
+
+def patch_dsl(
+    mocker: MockerFixture,
+    actions: MagicMock,
+    *,
+    repo_root: Path | str | None = None,
+) -> None:
     """Route DSL ``execute()`` to a test double instead of ADB / ``frame_bus``."""
     import tasks.dsl_scenario as dsl
     from tasks import dsl_runtime
 
-    monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    if repo_root is not None:
+        mocker.patch.object(dsl, "_repo_root", return_value=repo_root)
+    mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
+    mocker.patch.object(dsl, "BotActions", return_value=actions)
+
+
+_INTEGRATION_TIMEOUT_S = 180
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Longer per-test limit for integration tests (Redis, OCR backend, etc.)."""
+    for item in items:
+        if not item.get_closest_marker("integration"):
+            continue
+        if item.get_closest_marker("timeout"):
+            continue
+        item.add_marker(pytest.mark.timeout(_INTEGRATION_TIMEOUT_S))

@@ -16,26 +16,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from tasks.dsl_scenario_helpers import (
     _collect_ocr_store_targets,
     _ocr_store_redis_fields,
 )
-
-
-class _FakeActions:
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        return 720, 1280
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        return np.zeros((1280, 720, 3), dtype=np.uint8)
-
-    def tap(self, *_args: Any, **_kwargs: Any) -> bool:
-        return True
 
 
 def _write_minimal_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:
@@ -119,7 +108,7 @@ def test_ocr_store_redis_fields_expands_to_four_siblings() -> None:
 @pytest.mark.asyncio
 async def test_scenario_start_wipes_stale_store_field(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Squad-fight-style regression: a previous run left ``squad_status``
@@ -149,12 +138,11 @@ async def test_scenario_start_wipes_stale_store_field(
             ],
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     # Pre-seed the *exact* shape the OCR step would have written, including
     # all four sibling fields. All must be gone after scenario start.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:p1:state",
         mapping={
             "squad_status": "Defeat!",
@@ -174,18 +162,18 @@ async def test_scenario_start_wipes_stale_store_field(
     await task.execute("bs1")
 
     # Stale ``squad_status`` and its 3 siblings were wiped at scenario start.
-    assert await redis_async.hget("wos:player:p1:state", "squad_status") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_text") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_confidence") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_at") is None  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_text") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_confidence") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_at") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     # Unrelated fields on the same hash survive.
-    assert await redis_async.hget("wos:player:p1:state", "unrelated") == "must-stay"  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "unrelated") == "must-stay"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
 async def test_resumed_scenario_does_not_wipe_store(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """When a scenario is resumed after preemption (``start_step_index > 0``),
@@ -200,10 +188,9 @@ async def test_resumed_scenario_does_not_wipe_store(
             ],
         },
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: _FakeActions())
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
-    await redis_async.hset("wos:player:p1:state", "progress", "step3")  # type: ignore[attr-defined]
+    await redis_async.hset("wos:player:p1:state", "progress", "step3")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -214,4 +201,4 @@ async def test_resumed_scenario_does_not_wipe_store(
     )
     await task.execute("bs1")
 
-    assert await redis_async.hget("wos:player:p1:state", "progress") == "step3"  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "progress") == "step3"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

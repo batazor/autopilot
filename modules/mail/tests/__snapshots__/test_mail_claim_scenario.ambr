@@ -1,0 +1,756 @@
+# serializer version: 1
+# name: test_tab_template_renders_explicit_mail_pages[mail.claim.alliance]
+  dict({
+    'enabled': True,
+    'name': 'Mail Alliance: Claim Rewards',
+    'node': 'mail.alliance',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'max': 6,
+        'min_match_saturation': 48,
+        'steps': list([
+          dict({
+            'click': 'mail.gift',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'loop': dict({
+              'max': 2,
+              'steps': list([
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 3,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim.big',
+                }),
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 4,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim',
+                }),
+                dict({
+                  'max': 1,
+                  'steps': list([
+                    dict({
+                      'click': 'button.go.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.go.big',
+                }),
+                dict({
+                  'swipe_direction': dict({
+                    'delta': 450,
+                    'direction': 'up',
+                    'duration_ms': 650,
+                  }),
+                }),
+                dict({
+                  'wait': '0.5s',
+                }),
+              ]),
+            }),
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'icon.page.back',
+              }),
+              dict({
+                'wait': '0.8s',
+              }),
+            ]),
+            'while_match': 'icon.page.back',
+          }),
+        ]),
+        'while_match': 'mail.gift',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.claim.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'button.claim',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.claim',
+          }),
+        ]),
+        'while_match': 'mail.claim.all',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.delete.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'ui.button.confirm_blue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'ui.button.confirm_blue',
+          }),
+        ]),
+        'while_match': 'mail.delete.all',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_mail_pages[mail.claim.reports]
+  dict({
+    'enabled': True,
+    'name': 'Mail Reports: Claim Rewards',
+    'node': 'mail.reports',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'max': 6,
+        'min_match_saturation': 48,
+        'steps': list([
+          dict({
+            'click': 'mail.gift',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'loop': dict({
+              'max': 2,
+              'steps': list([
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 3,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim.big',
+                }),
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 4,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim',
+                }),
+                dict({
+                  'max': 1,
+                  'steps': list([
+                    dict({
+                      'click': 'button.go.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.go.big',
+                }),
+                dict({
+                  'swipe_direction': dict({
+                    'delta': 450,
+                    'direction': 'up',
+                    'duration_ms': 650,
+                  }),
+                }),
+                dict({
+                  'wait': '0.5s',
+                }),
+              ]),
+            }),
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'icon.page.back',
+              }),
+              dict({
+                'wait': '0.8s',
+              }),
+            ]),
+            'while_match': 'icon.page.back',
+          }),
+        ]),
+        'while_match': 'mail.gift',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.claim.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'button.claim',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.claim',
+          }),
+        ]),
+        'while_match': 'mail.claim.all',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.delete.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'ui.button.confirm_blue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'ui.button.confirm_blue',
+          }),
+        ]),
+        'while_match': 'mail.delete.all',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_mail_pages[mail.claim.starred]
+  dict({
+    'enabled': True,
+    'name': 'Mail Starred: Claim Rewards',
+    'node': 'mail.starred',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'max': 6,
+        'min_match_saturation': 48,
+        'steps': list([
+          dict({
+            'click': 'mail.gift',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'loop': dict({
+              'max': 2,
+              'steps': list([
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 3,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim.big',
+                }),
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 4,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim',
+                }),
+                dict({
+                  'max': 1,
+                  'steps': list([
+                    dict({
+                      'click': 'button.go.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.go.big',
+                }),
+                dict({
+                  'swipe_direction': dict({
+                    'delta': 450,
+                    'direction': 'up',
+                    'duration_ms': 650,
+                  }),
+                }),
+                dict({
+                  'wait': '0.5s',
+                }),
+              ]),
+            }),
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'icon.page.back',
+              }),
+              dict({
+                'wait': '0.8s',
+              }),
+            ]),
+            'while_match': 'icon.page.back',
+          }),
+        ]),
+        'while_match': 'mail.gift',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.claim.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'button.claim',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.claim',
+          }),
+        ]),
+        'while_match': 'mail.claim.all',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.delete.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'ui.button.confirm_blue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'ui.button.confirm_blue',
+          }),
+        ]),
+        'while_match': 'mail.delete.all',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_mail_pages[mail.claim.system]
+  dict({
+    'enabled': True,
+    'name': 'Mail System: Claim Rewards',
+    'node': 'mail.system',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'max': 6,
+        'min_match_saturation': 48,
+        'steps': list([
+          dict({
+            'click': 'mail.gift',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'loop': dict({
+              'max': 2,
+              'steps': list([
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 3,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim.big',
+                }),
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 4,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim',
+                }),
+                dict({
+                  'max': 1,
+                  'steps': list([
+                    dict({
+                      'click': 'button.go.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.go.big',
+                }),
+                dict({
+                  'swipe_direction': dict({
+                    'delta': 450,
+                    'direction': 'up',
+                    'duration_ms': 650,
+                  }),
+                }),
+                dict({
+                  'wait': '0.5s',
+                }),
+              ]),
+            }),
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'icon.page.back',
+              }),
+              dict({
+                'wait': '0.8s',
+              }),
+            ]),
+            'while_match': 'icon.page.back',
+          }),
+        ]),
+        'while_match': 'mail.gift',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.claim.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'button.claim',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.claim',
+          }),
+        ]),
+        'while_match': 'mail.claim.all',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.delete.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'ui.button.confirm_blue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'ui.button.confirm_blue',
+          }),
+        ]),
+        'while_match': 'mail.delete.all',
+      }),
+    ]),
+  })
+# ---
+# name: test_tab_template_renders_explicit_mail_pages[mail.claim.wars]
+  dict({
+    'enabled': True,
+    'name': 'Mail Wars: Claim Rewards',
+    'node': 'mail.wars',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'max': 6,
+        'min_match_saturation': 48,
+        'steps': list([
+          dict({
+            'click': 'mail.gift',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+          dict({
+            'loop': dict({
+              'max': 2,
+              'steps': list([
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 3,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim.big',
+                }),
+                dict({
+                  'max': 1,
+                  'retry': dict({
+                    'attempts': 4,
+                    'interval': '400ms',
+                  }),
+                  'steps': list([
+                    dict({
+                      'click': 'button.claim',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.claim',
+                }),
+                dict({
+                  'max': 1,
+                  'steps': list([
+                    dict({
+                      'click': 'button.go.big',
+                    }),
+                    dict({
+                      'wait': '0.8s',
+                    }),
+                    dict({
+                      'break': 'loop',
+                    }),
+                  ]),
+                  'while_match': 'button.go.big',
+                }),
+                dict({
+                  'swipe_direction': dict({
+                    'delta': 450,
+                    'direction': 'up',
+                    'duration_ms': 650,
+                  }),
+                }),
+                dict({
+                  'wait': '0.5s',
+                }),
+              ]),
+            }),
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'icon.page.back',
+              }),
+              dict({
+                'wait': '0.8s',
+              }),
+            ]),
+            'while_match': 'icon.page.back',
+          }),
+        ]),
+        'while_match': 'mail.gift',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.claim.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'button.claim',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.claim',
+          }),
+        ]),
+        'while_match': 'mail.claim.all',
+      }),
+      dict({
+        'max': 1,
+        'steps': list([
+          dict({
+            'click': 'mail.delete.all',
+          }),
+          dict({
+            'wait': '1s',
+          }),
+          dict({
+            'steps': list([
+              dict({
+                'click': 'ui.button.confirm_blue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'ui.button.confirm_blue',
+          }),
+        ]),
+        'while_match': 'mail.delete.all',
+      }),
+    ]),
+  })
+# ---

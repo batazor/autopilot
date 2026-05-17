@@ -1,0 +1,13 @@
+enabled: false
+name: 📖 Chapter task router
+node: main_city
+steps:
+- cond: chapter.task ~= "Upgrade a Hero"
+  steps:
+  - click: chapter.task
+  - push_scenario: hero.upgrade
+- cond: chapter.task ~= "Upgrade|Build"
+  steps:
+  - click: chapter.task
+  - wait: 2s
+  - push_scenario: building.upgrade

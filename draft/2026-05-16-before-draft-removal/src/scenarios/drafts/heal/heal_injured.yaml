@@ -1,0 +1,26 @@
+name: ⛑️ Heal injured troops
+
+# Draft — regions are aspirational. Real area.json bindings still TBD.
+
+node: heal
+
+priority: 70_000
+
+steps:
+  # Open the heal panel only when the injured-troops marker is on screen.
+  - match: heal.injured_marker
+    steps:
+      - click: heal.injured_marker
+      - wait: 500ms
+
+      # Tap "Heal All" if shown, then confirm.
+      - while_match: heal.button.heal_all
+        max: 1
+        steps:
+          - click: heal.button.heal_all
+          - wait: 500ms
+          - while_match: button.confirm
+            max: 1
+            steps:
+              - click: button.confirm
+              - wait: 500ms

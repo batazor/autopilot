@@ -55,6 +55,13 @@ def test_core_is_new_people_module_overlay_rule_present_in_merged_manifest() -> 
     assert "isNewPeople.visible" in names
 
 
+def test_core_exploration_module_overlay_rule_present_in_merged_manifest() -> None:
+    doc = load_merged_analyze_yaml(REPO_ROOT)
+    names = _rule_names(doc)
+
+    assert "main_city.to.exploration.has_reward" in names
+
+
 def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
     """All six mail-screen rules live in the mail module and must surface here."""
     doc = load_merged_analyze_yaml(REPO_ROOT)

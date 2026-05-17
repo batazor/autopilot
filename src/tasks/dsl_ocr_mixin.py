@@ -18,16 +18,21 @@ import logging
 import re
 import time
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from adb import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
 from ocr.preprocess import resolve_preprocess
-from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
+from tasks.dsl_scenario_helpers import _parse_hms_to_seconds, _read_current_screen
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
 # OCR may reuse a recent framebuffer instead of issuing a fresh ADB screencap
 # when sibling ``match`` / ``while_match`` steps just warmed the per-instance
@@ -53,7 +58,7 @@ def _safe_float_or_none(s: str) -> float | None:
         return None
 
 
-class DslOcrMixin:
+class DslOcrMixin(_Base):
     redis_client: Any
     player_id: str | None
     _ocr_client: Any
@@ -178,7 +183,17 @@ class DslOcrMixin:
         # doesn't paint this row with stale values when the OCR call bails on
         # an early gate (``region_not_found`` / ``invalid_bbox`` / etc.).
         self._last_ocr_row = None
-        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
+        current_screen = await _read_current_screen(instance_id, self.redis_client)
+        pair = (
+            screen_region_by_name(
+                area_doc,
+                region,
+                state_flat=self._state_flat(),
+                screen_id=current_screen or None,
+            )
+            if region
+            else None
+        )
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning(
                 "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
@@ -284,11 +299,17 @@ class DslOcrMixin:
     ) -> None:
         requests: list[tuple[dict[str, Any], str, dict[str, Any], Region]] = []
 
+        current_screen = await _read_current_screen(instance_id, self.redis_client)
         for step in steps:
             region = str(step.get("ocr") or "").strip()
             if not region:
                 continue
-            pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat())
+            pair = screen_region_by_name(
+                area_doc,
+                region,
+                state_flat=self._state_flat(),
+                screen_id=current_screen or None,
+            )
             if pair is None or not isinstance(pair[1].get("bbox"), dict):
                 logger.warning(
                     "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
