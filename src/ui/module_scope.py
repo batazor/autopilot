@@ -27,7 +27,7 @@ def render_module_scope_selector(
     *,
     sidebar: bool = True,
     in_sidebar: bool = False,
-    help: str | None = None,
+    help: str | None = None,  # noqa: A002 — mirrors streamlit's parameter name
 ) -> str:
     """Return active scope key: ``all`` | ``core`` | ``<module_id>``."""
 

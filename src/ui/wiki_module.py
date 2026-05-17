@@ -99,7 +99,7 @@ def active_references_prefix() -> str:
     return "references"
 
 
-def render_wiki_module_selector(*, help: str | None = None) -> WikiModuleContext:
+def render_wiki_module_selector(*, help: str | None = None) -> WikiModuleContext:  # noqa: A002 — mirrors streamlit's parameter name
     """Sidebar or inline selectbox; persists ``?module=`` query param."""
     ctxs = _selector_contexts()
     qp = wiki_module_from_query()

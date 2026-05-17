@@ -94,7 +94,9 @@ def _edge_status(src: str, dst: str) -> str:
 def _edge_action_summary(src: str, dst: str) -> str:
     key = (src, dst)
     if key in EDGE_TAPS:
-        return ", ".join(EDGE_TAPS[key])
+        # ``Tap = str | dict[str, Any]`` — dict taps surface as ``{...}`` so the
+        # caller sees that the edge carries non-trivial metadata.
+        return ", ".join(t if isinstance(t, str) else str(t) for t in EDGE_TAPS[key])
     if key in EDGE_DYNAMIC:
         spec = EDGE_DYNAMIC[key]
         resolver = str(spec.get("resolver", "?"))

@@ -158,7 +158,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ", "TC", "BLE", "ARG"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ", "TC", "BLE", "ARG", "ASYNC", "NPY", "A", "PGH"]
 ignore = [
     "ANN401",
     # Typographic glyphs are intentional in docstrings / log strings:
@@ -192,6 +192,12 @@ ignore = [
     # stays on — those are easy point fixes.
     "ARG001",  # unused-function-argument
     "ARG002",  # unused-method-argument
+    # ``Path.exists()`` / ``.is_file()`` / ``.read_text()`` inside async
+    # functions block the event loop, but the cost is microseconds for
+    # metadata calls and a one-shot config load. Migrating to ``aiofiles``
+    # would introduce a runtime dep for a non-issue at this codebase's
+    # workload (no hot-path file I/O in async tasks).
+    "ASYNC240", # blocking-path-method-in-async-function
 ]
 
 [tool.ruff.lint.per-file-ignores]
