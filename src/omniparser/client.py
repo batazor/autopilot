@@ -10,6 +10,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
+from typing import Any, Literal, cast
 
 import httpx
 from PIL import Image
@@ -56,7 +57,7 @@ def resolve_omniparser_timeout_seconds(settings: Settings | None = None) -> int:
     return max(5, int(cfg.omniparser.timeout_seconds))
 
 
-def _result_from_data(data: dict[str, object], fallback_size: tuple[int, int]) -> OmniparserParseResult:
+def _result_from_data(data: dict[str, Any], fallback_size: tuple[int, int]) -> OmniparserParseResult:
     width = int(data.get("width") or fallback_size[0])
     height = int(data.get("height") or fallback_size[1])
     raw_elements = data.get("elements")
@@ -64,23 +65,32 @@ def _result_from_data(data: dict[str, object], fallback_size: tuple[int, int]) -
         msg = "OmniParser response missing elements[]"
         raise ValueError(msg)
     elements: list[ParsedUiElement] = []
-    for item in raw_elements:
-        if not isinstance(item, dict):
+    for item_raw in raw_elements:
+        if not isinstance(item_raw, dict):
             continue
+        item: dict[str, Any] = cast("dict[str, Any]", item_raw)
         bbox_raw = item.get("bbox")
         if not isinstance(bbox_raw, (list, tuple)) or len(bbox_raw) < 4:
             continue
         try:
-            bbox = tuple(float(bbox_raw[i]) for i in range(4))  # type: ignore[misc]
+            bbox: tuple[float, float, float, float] = (
+                float(bbox_raw[0]),
+                float(bbox_raw[1]),
+                float(bbox_raw[2]),
+                float(bbox_raw[3]),
+            )
         except (TypeError, ValueError):
             continue
-        el_type = str(item.get("type") or "icon").strip().lower()
-        if el_type not in ("icon", "text"):
-            el_type = "icon"
+        el_type_raw = str(item.get("type") or "icon").strip().lower()
+        el_type: Literal["icon", "text"] = (
+            cast('Literal["icon", "text"]', el_type_raw)
+            if el_type_raw in ("icon", "text")
+            else "icon"
+        )
         elements.append(
             ParsedUiElement(
-                type=el_type,  # type: ignore[arg-type]
-                bbox=bbox,  # type: ignore[arg-type]
+                type=el_type,
+                bbox=bbox,
                 interactivity=bool(item.get("interactivity", False)),
                 content=str(item.get("content") or "").strip(),
             )

@@ -19,6 +19,7 @@ import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 
@@ -181,19 +182,21 @@ def upsert_device_gamer(
 
     with _devices_file_lock:
         raw = _load_devices_raw(path)
-        devices = raw.get("devices")
-        if not isinstance(devices, list):
-            devices = []
-            raw["devices"] = devices
+        devices_raw = raw.get("devices")
+        if not isinstance(devices_raw, list):
+            devices_raw = []
+            raw["devices"] = devices_raw
+        devices: list[Any] = cast("list[Any]", devices_raw)
 
         # Match by friendly name OR ADB serial — callers may pass either form
         # (UI passes `bs1`; runtime sometimes only has `127.0.0.1:5555`).
         # Without alias matching, the same physical device would get a second
         # entry under a different key and player→device lookups would split.
-        device: dict[str, object] | None = None
-        for d in devices:
-            if not isinstance(d, dict):
+        device: dict[str, Any] | None = None
+        for d_raw in devices:
+            if not isinstance(d_raw, dict):
                 continue
+            d = cast("dict[str, Any]", d_raw)
             name = str(d.get("name") or "").strip()
             serial = str(d.get("adb_serial") or "").strip()
             if device_name in (name, serial) and (name or serial):
@@ -203,18 +206,20 @@ def upsert_device_gamer(
             device = {"name": device_name, "profiles": []}
             devices.append(device)
 
-        profiles = device.get("profiles")
-        if not isinstance(profiles, list):
-            profiles = []
-            device["profiles"] = profiles
+        profiles_raw = device.get("profiles")
+        if not isinstance(profiles_raw, list):
+            profiles_raw = []
+            device["profiles"] = profiles_raw
+        profiles: list[Any] = cast("list[Any]", profiles_raw)
 
         if not profiles:
             profiles.append({"email": email, "gamer": []})
 
-        profile0 = profiles[0]
-        if not isinstance(profile0, dict):
-            profile0 = {"email": email, "gamer": []}
-            profiles[0] = profile0
+        profile0_raw = profiles[0]
+        if not isinstance(profile0_raw, dict):
+            profile0_raw = {"email": email, "gamer": []}
+            profiles[0] = profile0_raw
+        profile0: dict[str, Any] = cast("dict[str, Any]", profile0_raw)
 
         gamers = profile0.get("gamer")
         if not isinstance(gamers, list):

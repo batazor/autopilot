@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import redis as _redis_pkg
