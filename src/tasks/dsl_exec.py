@@ -414,13 +414,12 @@ _EVENT_BLOCKS_HASH_TTL_SECONDS = 30 * 60
 
 
 def _load_area_doc() -> dict[str, Any]:
-    path = repo_root() / "area.json"
-    if not path.is_file():
-        return {}
+    from layout.area_manifest import load_area_doc
+
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return load_area_doc(repo_root())
     except Exception:
-        logger.exception("dsl exec: failed to load area.json")
+        logger.exception("dsl exec: failed to load area manifest")
         return {}
 
 

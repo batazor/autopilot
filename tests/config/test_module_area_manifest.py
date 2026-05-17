@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import yaml
 
 from layout.area_manifest import load_area_doc
+from layout.area_lookup import screen_region_by_name
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 
 if TYPE_CHECKING:
@@ -76,3 +77,13 @@ def test_nested_module_reference_uses_nested_module_crop_directory(tmp_path: Pat
         tmp_path
         / "modules/events/trials/references/crop/main_city.trials_module.event.icon.png"
     )
+
+
+def test_dsl_load_area_json_includes_module_regions() -> None:
+    from config.paths import repo_root
+    from tasks.dsl_scenario_helpers import _load_area_json
+
+    doc = _load_area_json(repo_root())
+    pair = screen_region_by_name(doc, "main_city.to.backpack")
+    assert pair is not None
+    assert pair[1]["name"] == "main_city.to.backpack"

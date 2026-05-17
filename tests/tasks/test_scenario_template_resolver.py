@@ -100,6 +100,27 @@ def test_template_rejects_unknown_mail_tab() -> None:
     assert _tmpl.resolve(REPO_ROOT, "mail.claim.inbox") is None
 
 
+def test_template_resolves_known_backpack_tab() -> None:
+    resolved = _tmpl.resolve(REPO_ROOT, "backpack.tab.speedup")
+    assert resolved is not None
+    assert resolved.path.name == "backpack.tab.{tab}.yaml"
+    assert resolved.context == {"tab": "speedup", "tab_name": "Speedup"}
+
+
+def test_template_rejects_unknown_backpack_tab() -> None:
+    assert _tmpl.resolve(REPO_ROOT, "backpack.tab.inbox") is None
+
+
+def test_iter_resolved_keys_uses_navigation_nodes_for_tab_templates() -> None:
+    keys = _tmpl.iter_resolved_keys(REPO_ROOT)
+    by_key = {rk.key: rk for rk in keys}
+    assert "backpack.tab.resources" in by_key
+    assert "mail.claim.wars" in by_key
+    assert "backpack.tab.wars" not in by_key
+    assert "mail.claim.resources" not in by_key
+    assert _tmpl.resolve(REPO_ROOT, "mail.claim.inbox") is None
+
+
 def test_template_resolves_known_onboarding_pointer() -> None:
     resolved = _tmpl.resolve(REPO_ROOT, "onboarding.click.hand_pointer_small_reverse")
     assert resolved is not None

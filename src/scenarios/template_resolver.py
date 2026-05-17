@@ -10,6 +10,11 @@ a placeholder in the filename (e.g. ``level_up_{hero}.yaml``) and ``${hero_id}``
    the key, validates the captured value against the heroes wiki index,
    and returns ``(template_path, substitution_context)``.
 
+``{tab}`` templates validate against the navigation graph: the rendered
+``node:`` from the scenario body must name a known screen/node
+(``edge_taps`` + ``screen_verify``). Fan-out for startup/UI uses the same
+rule instead of a module-local enum file.
+
 Body rendering is plain ``${name}`` substitution before YAML parse — kept
 deliberately simple so it survives ``yaml.safe_load`` without escaping.
 """
@@ -30,21 +35,7 @@ _AXES = ("hero", "tab", "pointer", "day")
 _FILENAME_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(_AXES) + r")\}")
 # Hero ids in the heroes wiki index are lowercase ASCII + underscores.
 _AXIS_VALUE_RE = r"[a-z0-9_]+"
-_MAIL_TABS = {
-    "wars": "Wars",
-    "alliance": "Alliance",
-    "system": "System",
-    "reports": "Reports",
-    "starred": "Starred",
-}
-_BACKPACK_TABS = {
-    "resources": "Resources",
-    "speedup": "Speedup",
-    "bonus": "Bonus",
-    "gear": "Gear",
-    "other": "Other",
-}
-_TAB_LABELS = {**_MAIL_TABS, **_BACKPACK_TABS}
+_NODE_TEMPLATE_RE = re.compile(r"^\s*node:\s*(.+?)\s*$", re.MULTILINE)
 _POINTERS = {
     "hand_pointer": "Hand pointer",
     "hand_pointer_small": "Small hand pointer",
@@ -62,6 +53,53 @@ class ResolvedScenario:
 
     path: Path
     context: dict[str, str]
+
+
+def _axis_display_label(axis: str, value: str) -> str:
+    if axis == "tab":
+        return value.replace("_", " ").title()
+    return value
+
+
+@lru_cache(maxsize=1)
+def _known_navigation_nodes() -> frozenset[str]:
+    from navigation.screen_graph import EDGE_DYNAMIC, EDGE_TAPS, screen_verify_screen_names
+
+    nodes: set[str] = set(screen_verify_screen_names())
+    for src, dst in (*EDGE_TAPS.keys(), *EDGE_DYNAMIC.keys()):
+        nodes.add(src)
+        nodes.add(dst)
+    return frozenset(nodes)
+
+
+def _node_template_from_scenario_file(path: Path) -> str | None:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    match = _NODE_TEMPLATE_RE.search(text)
+    return match.group(1).strip() if match else None
+
+
+def _rendered_node_exists(node_template: str, ctx: dict[str, str]) -> bool:
+    node = render(node_template, ctx).strip()
+    return bool(node) and node in _known_navigation_nodes()
+
+
+def _tab_values_for_node_template(node_template: str) -> dict[str, str]:
+    """Map tab id → display label for ``node:`` patterns like ``mail.${tab}``."""
+    if "${tab}" not in node_template:
+        return {}
+    prefix, suffix = node_template.split("${tab}", 1)
+    out: dict[str, str] = {}
+    for node in _known_navigation_nodes():
+        if not node.startswith(prefix) or not node.endswith(suffix):
+            continue
+        tab = node[len(prefix) : len(node) - len(suffix) if suffix else None]
+        if not tab or not re.fullmatch(_AXIS_VALUE_RE, tab):
+            continue
+        out[tab] = _axis_display_label("tab", tab)
+    return out
 
 
 @lru_cache(maxsize=4)
@@ -86,6 +124,12 @@ def _hero_index(repo_root_s: str) -> dict[str, str]:
     return out
 
 
+def _tab_axis_context(value: str) -> dict[str, str] | None:
+    if not re.fullmatch(_AXIS_VALUE_RE, value or ""):
+        return None
+    return {"tab": value, "tab_name": _axis_display_label("tab", value)}
+
+
 def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | None:
     """Map a captured filename placeholder to ``${...}`` body substitutions.
 
@@ -99,11 +143,6 @@ def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | No
         if name is None:
             return None
         return {"hero_id": value, "hero_name": name}
-    if axis == "tab":
-        name = _TAB_LABELS.get(value)
-        if name is None:
-            return None
-        return {"tab": value, "tab_name": name}
     if axis == "pointer":
         name = _POINTERS.get(value)
         if name is None:
@@ -165,6 +204,15 @@ def _scenario_roots(repo_root: Path) -> list[Path]:
     return [r.path for r in scenario_roots(repo_root)]
 
 
+def _template_match_valid(tmpl: Path, axes: list[str], ctx: dict[str, str]) -> bool:
+    if "tab" not in axes:
+        return True
+    node_template = _node_template_from_scenario_file(tmpl)
+    if not node_template:
+        return False
+    return _rendered_node_exists(node_template, ctx)
+
+
 def resolve(repo_root: Path, scenario_key: str) -> ResolvedScenario | None:
     """Literal-then-template resolution across module scenario roots."""
     key = (scenario_key or "").strip()
@@ -195,12 +243,15 @@ def resolve(repo_root: Path, scenario_key: str) -> ResolvedScenario | None:
             ctx: dict[str, str] = {}
             ok = True
             for axis in axes:
-                sub = _axis_context(repo_root, axis, m.group(axis))
+                if axis == "tab":
+                    sub = _tab_axis_context(m.group(axis))
+                else:
+                    sub = _axis_context(repo_root, axis, m.group(axis))
                 if sub is None:
                     ok = False
                     break
                 ctx.update(sub)
-            if ok:
+            if ok and _template_match_valid(tmpl, axes, ctx):
                 return ResolvedScenario(path=tmpl, context=ctx)
     return None
 
@@ -325,7 +376,11 @@ def iter_resolved_keys(repo_root: Path) -> list[ResolvedKey]:
                         )
                     )
             elif axes == ["tab"]:
-                for tab, tab_name in _MAIL_TABS.items():
+                node_template = _node_template_from_scenario_file(p)
+                if not node_template:
+                    continue
+                tab_pool = _tab_values_for_node_template(node_template)
+                for tab, tab_name in tab_pool.items():
                     concrete_key = p.stem.replace("{tab}", tab)
                     if concrete_key in seen:
                         continue

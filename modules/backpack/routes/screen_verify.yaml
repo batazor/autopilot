@@ -1,0 +1,64 @@
+screens:
+  backpack:
+    priority: 30
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+
+  backpack.resources:
+    priority: 15
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.resources
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.resources
+
+  backpack.speedup:
+    priority: 15
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.speedup
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.speedup
+
+  backpack.bonus:
+    priority: 15
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.bonus
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.bonus
+
+  backpack.gear:
+    priority: 15
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.gear
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.gear
+
+  backpack.other:
+    priority: 15
+    landmarks:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.other
+    rules:
+      - match: backpack.title
+        threshold: 0.9
+        tab_active: page.backpack.other

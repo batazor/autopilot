@@ -454,14 +454,9 @@ def _load_yaml_cached(path_s: str, mtime_ns: int, size: int) -> dict[str, Any]:
 
 
 def _load_area_json(repo_root: Path) -> dict[str, Any]:
-    p = repo_root / "area.json"
-    if not p.is_file():
-        return {}
-    try:
-        raw = yaml.safe_load(p.read_text(encoding="utf-8"))  # JSON is valid YAML
-    except Exception:
-        return {}
-    return raw if isinstance(raw, dict) else {}
+    from layout.area_manifest import load_area_doc
+
+    return load_area_doc(repo_root.resolve())
 
 
 def _collect_ocr_store_targets(steps: Any) -> list[tuple[str, str]]:

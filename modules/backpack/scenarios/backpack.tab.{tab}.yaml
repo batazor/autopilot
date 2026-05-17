@@ -1,0 +1,10 @@
+enabled: true
+name: "Backpack ${tab_name}"
+node: backpack.${tab}
+steps:
+  - while_match: page.backpack.${tab}
+    max: 1
+    steps:
+      - click: page.backpack.${tab}
+      - wait: 2s
+  - exec: put_all_red_dots

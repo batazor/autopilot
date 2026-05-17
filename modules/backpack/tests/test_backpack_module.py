@@ -118,6 +118,51 @@ def test_page_backpack_resources_tab_is_active() -> None:
     assert active_tabs == [ACTIVE_TAB]
 
 
+@pytest.mark.asyncio
+async def test_backpack_title_matches_page_fixture() -> None:
+    image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
+    area = load_area_doc(REPO_ROOT)
+    rule = {
+        "name": "backpack.title.visible",
+        "region": "backpack.title",
+        "action": "exist",
+        "threshold": 0.9,
+    }
+
+    out = await evaluate_overlay_rules_async(
+        image_bgr,
+        area,
+        REPO_ROOT,
+        [rule],
+        current_screen="backpack",
+    )
+
+    row = out.get("backpack.title.visible")
+    assert isinstance(row, dict), out
+    assert row.get("matched") is True, row
+
+
+def test_backpack_screen_verify_uses_title_landmark() -> None:
+    import navigation.screen_graph as screen_graph
+
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        expected_base = [{"match": "backpack.title", "threshold": 0.9}]
+        assert screen_graph.screen_landmark_rules("backpack") == expected_base
+        assert screen_graph.screen_verify_rules("backpack") == expected_base
+        expected_tab = [
+            {
+                "match": "backpack.title",
+                "threshold": 0.9,
+                "tab_active": ACTIVE_TAB,
+            }
+        ]
+        assert screen_graph.screen_landmark_rules("backpack.resources") == expected_tab
+        assert screen_graph.screen_verify_rules("backpack.resources") == expected_tab
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
 @pytest.mark.parametrize("tab_name", TABS_WITHOUT_RED_DOT)
 def test_page_backpack_tabs_without_notification_dots(tab_name: str) -> None:
     image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)

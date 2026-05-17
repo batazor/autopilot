@@ -47,7 +47,11 @@ click_approvals_page = st.Page(
     title="Click approvals",
     default=True,
 )
-labeling_page = st.Page(str(_ui_dir / "views" / "labeling.py"), title="Labeling")
+labeling_page = st.Page(
+    str(_ui_dir / "views" / "labeling.py"),
+    title="Labeling",
+    url_path="labeling",
+)
 edit_scenarios_page = st.Page(
     str(_ui_dir / "views" / "edit_scenarios.py"),
     title="Scenarios editor",

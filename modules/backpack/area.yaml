@@ -1,0 +1,96 @@
+version: 2
+screens:
+- id: 53
+  screen_id: backpack
+  ocr: references/page.backpack.png
+  screen_region: backpack.title
+  regions:
+  - name: page.backpack.resources
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 1.505791505791506
+      y: 4.891304347826087
+      width: 21.227799227799228
+      height: 6.125
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.backpack.speedup
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 23.127413127413128
+      y: 5.543478260869565
+      width: 18.2007722007722
+      height: 5.9
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.backpack.bonus
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 41.85328185328186
+      y: 5.543478260869565
+      width: 18.0
+      height: 5.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.backpack.gear
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 60.19305019305019
+      y: 5.543478260869565
+      width: 19.0
+      height: 5.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.backpack.other
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 80.07722007722008
+      y: 5.434782608695652
+      width: 18.0
+      height: 6.0
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: backpack.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 11.930501930501931
+      y: 0.8695652173913043
+      width: 22.3996138996139
+      height: 3.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+
+- id: 52
+  screen_id: main_city
+  ocr: references/main_city_vip.png
+  regions:
+  - name: main_city.to.backpack
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 34.13127413127413
+      y: 91.95652173913044
+      width: 15.2007722007722
+      height: 7.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true

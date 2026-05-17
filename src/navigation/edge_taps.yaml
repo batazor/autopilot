@@ -12,7 +12,6 @@ edges:
     heroes: [main_city.to.heroes]
     survivor_status: [isWorkers]
     suggestion_box: [isPostman]
-    backpack: [main_city.to.backpack]
     vip: [page.vip]
     shop: [main_city.to.shop]
     # Tapping the chapter task banner navigates the camera to the active
@@ -363,23 +362,6 @@ edges:
     heroes: [icon.page.back]
   page.heroes.zinman:
     heroes: [icon.page.back]
-  backpack:
-    main_city: [icon.page.back]
-    backpack.resources: [page.backpack.resources]
-    backpack.speedup: [page.backpack.speedup]
-    backpack.bonus: [page.backpack.bonus]
-    backpack.gear: [page.backpack.gear]
-    backpack.other: [page.backpack.other]
-  backpack.resources:
-    main_city: [icon.page.back]
-  backpack.speedup:
-    main_city: [icon.page.back]
-  backpack.bonus:
-    main_city: [icon.page.back]
-  backpack.gear:
-    main_city: [icon.page.back]
-  backpack.other:
-    main_city: [icon.page.back]
   vip:
     main_city: [icon.page.back]
   shop:
