@@ -12,16 +12,18 @@ from config.paths import repo_root
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
-from layout.types import Region
+from layout.types import Point, Region
 
 # Side-effect imports: register dynamic-edge resolvers with screen_graph
 # so edges in edge_taps.yaml can resolve at runtime.
 from navigation import (
     event_blocks_resolver,  # noqa: F401
     hero_grid_resolver,  # noqa: F401
+    template_icon_resolver,  # noqa: F401
 )
 from navigation.detector import ScreenDetector, ScreenName
 from navigation.screen_graph import (
+    Tap,
     route_hops_async,
     screen_verify_retry,
     screen_verify_rules,
@@ -199,6 +201,112 @@ class Navigator:
                 from_screen=from_screen,
                 to_screen=to_screen,
                 state_flat=state_flat,
+                path_csv=path_csv,
+                hop_index=hop_index,
+            )
+        )
+
+    def _tap_template_icon(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        image: np.ndarray,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        hit = spec.get("_match")
+        if not isinstance(hit, dict) or not hit.get("matched"):
+            logger.info("Navigator: template_icon tap has no successful match: %s", spec)
+            return False
+        try:
+            x_pct = float(hit["tap_match_x_pct"])
+            y_pct = float(hit["tap_match_y_pct"])
+        except (KeyError, TypeError, ValueError):
+            logger.info("Navigator: template_icon match missing tap coordinates: %s", hit)
+            return False
+        h, w = int(image.shape[0]), int(image.shape[1])
+        point = Point(
+            int(round(x_pct / 100.0 * w)),
+            int(round(y_pct / 100.0 * h)),
+        )
+        approval_context: dict[str, Any] = {}
+        if from_screen:
+            approval_context["from_screen"] = from_screen
+        if to_screen:
+            approval_context["to_screen"] = to_screen
+        if path_csv:
+            approval_context["path"] = path_csv
+        if hop_index is not None:
+            approval_context["hop_index"] = str(hop_index)
+        region = str(spec.get("region") or hit.get("region") or "template_icon")
+        if self._tap_supports_approval_source():
+            return bool(
+                self._tap(
+                    instance_id,
+                    point,
+                    approval_region=region,
+                    approval_source="navigation",
+                    approval_context=approval_context,
+                )
+            )  # type: ignore[operator]
+        return bool(
+            self._tap(
+                instance_id,
+                point,
+                approval_region=region,
+            )
+        )  # type: ignore[operator]
+
+    async def _tap_template_icon_async(
+        self,
+        instance_id: str,
+        spec: dict[str, Any],
+        *,
+        from_screen: str | None = None,
+        to_screen: str | None = None,
+        state_flat: dict[str, Any] | None = None,
+        path_csv: str | None = None,
+        hop_index: int | None = None,
+    ) -> bool:
+        image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
+        rule: dict[str, Any] = {
+            "name": "navigator.template_icon",
+            "action": "findIcon",
+            "region": str(spec.get("region") or "").strip(),
+            "template": str(spec.get("template") or "").strip(),
+            "threshold": spec.get("threshold", 0.9),
+        }
+        for key in ("search_region",):
+            if key in spec:
+                rule[key] = spec[key]
+        try:
+            out = await evaluate_overlay_rules_async(
+                image,
+                self._load_area_doc(),
+                self._repo_root,
+                [rule],
+                state_flat=state_flat,
+            )
+        except Exception:
+            logger.debug("Navigator: template_icon match failed for %s", spec, exc_info=True)
+            return False
+        hit = out.get("navigator.template_icon")
+        if not isinstance(hit, dict) or not hit.get("matched"):
+            logger.info("Navigator: template_icon did not match: %s", hit)
+            return False
+        spec_with_match = dict(spec)
+        spec_with_match["_match"] = hit
+        return bool(
+            await asyncio.to_thread(
+                self._tap_template_icon,
+                instance_id,
+                spec_with_match,
+                image=image,
+                from_screen=from_screen,
+                to_screen=to_screen,
                 path_csv=path_csv,
                 hop_index=hop_index,
             )
@@ -767,7 +875,7 @@ class Navigator:
     async def _execute_hops(
         self,
         instance_id: str,
-        hop_sequences: list[tuple[str, list[str]]],
+        hop_sequences: list[tuple[str, list[Tap]]],
         *,
         from_screen: str | None = None,
     ) -> _HopExec:
@@ -785,18 +893,31 @@ class Navigator:
         path_csv = ",".join(s for s in full_path if s)
         for hop_idx, (dst_screen, taps) in enumerate(hop_sequences, start=1):
             for point in taps:
-                # Tap steps are always region names (strings).
-                if not await self._tap_region_name_async(
-                    instance_id,
-                    str(point),
-                    dev_w=dev_w,
-                    dev_h=dev_h,
-                    from_screen=src_screen,
-                    to_screen=str(dst_screen),
-                    state_flat=state_flat,
-                    path_csv=path_csv,
-                    hop_index=hop_idx,
-                ):
+                # Static taps are region names; dynamic resolvers may return
+                # structured specs that resolve against the current frame.
+                if isinstance(point, dict) and point.get("type") == "template_icon":
+                    tapped = await self._tap_template_icon_async(
+                        instance_id,
+                        point,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                else:
+                    tapped = await self._tap_region_name_async(
+                        instance_id,
+                        str(point),
+                        dev_w=dev_w,
+                        dev_h=dev_h,
+                        from_screen=src_screen,
+                        to_screen=str(dst_screen),
+                        state_flat=state_flat,
+                        path_csv=path_csv,
+                        hop_index=hop_idx,
+                    )
+                if not tapped:
                     logger.info(
                         "Navigator: navigation tap not executed (rejected, blocked, or bad region) "
                         "on %s — aborting route",

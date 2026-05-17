@@ -27,7 +27,6 @@ edges:
     # Redis hash `wos:instance:<id>:event_blocks` populated by the
     # scan_event_blocks DSL exec handler.
     event.trials:         { resolver: event_blocks, target: event.trials }
-    event.7-day:          { resolver: event_blocks, target: event.7-day }
     event.first_purchase: { resolver: event_blocks, target: event.first_purchase }
     event.shining_city_pack: { resolver: event_blocks, target: event.shining_city_pack }
     event.wild_brawl: { resolver: event_blocks, target: event.wild_brawl }
@@ -386,8 +385,6 @@ edges:
   shop:
     main_city: [icon.page.back]
   event.trials:
-    main_city: [icon.page.back]
-  event.7-day:
     main_city: [icon.page.back]
   event.first_purchase:
     main_city: [icon.page.back]

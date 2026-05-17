@@ -27,8 +27,10 @@ from typing import Any, cast
 
 import yaml
 
-# Tap steps are region names from `area.json` (no hardcoded coordinates).
-Tap = str
+# Tap steps are usually region names from `area.json`. Dynamic resolvers may
+# return structured tap specs when the final coordinate must be resolved from
+# the current framebuffer (for example, template-matched event icons).
+Tap = str | dict[str, Any]
 VerifyRule = dict[str, Any]
 VerifyConfig = dict[str, Any]
 ScreenVerifyEntry = dict[str, Any]

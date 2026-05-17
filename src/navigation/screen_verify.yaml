@@ -679,20 +679,6 @@ screens:
 #       - match: building.furnace
 #         threshold: 0.9
 
-#   event.7-day:
-#     # Detection landmark: template match the "7-day" banner in references/event.7-day.png.
-#     landmarks:
-#       - match: event.7-day
-#         threshold: 0.9
-#     # Verification: prefer template match on the screen-unique banner, fall back to
-#     # page_title OCR for cases where the banner is partially scrolled out.
-#     rules:
-#       - match: event.7-day
-#         threshold: 0.9
-#       - ocr: page_title
-#         contains: [7-day, 7 day, 7days]
-#         threshold: 0.8
-
 #   event.first_purchase:
 #     rules:
 #       - ocr: page_title

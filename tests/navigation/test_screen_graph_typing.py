@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import get_type_hints
 
-from navigation.screen_graph import route_taps
+import pytest
+
+from navigation import template_icon_resolver  # noqa: F401
+from navigation.screen_graph import route_hops_async, route_taps
 
 
 def test_route_taps_type_hints_are_resolvable() -> None:
@@ -60,6 +63,30 @@ def test_trials_day_routes() -> None:
     assert route_taps("event.trials", "event.trials.day.1") == [["trial.day.1"]]
     assert route_taps("event.trials.day.1", "event.trials.day.3") == [["trial.day.3"]]
     assert route_taps("event.trials.day.5", "main_city") == [["icon.page.back"]]
+
+
+@pytest.mark.asyncio
+async def test_7_day_routes_from_main_city_by_template_icon() -> None:
+    hops = await route_hops_async(
+        "main_city",
+        "event.7-day",
+        instance_id="bs1",
+        redis_client=None,
+    )
+
+    assert hops == [
+        (
+            "event.7-day",
+            [
+                {
+                    "type": "template_icon",
+                    "region": "main_city.icon_search",
+                    "template": "modules/events/7-day/references/main_city.event.7-day.png",
+                    "threshold": 0.9,
+                }
+            ],
+        )
+    ]
 
 
 def test_frostdragon_tyrant_routes_to_main_city() -> None:

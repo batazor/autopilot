@@ -1,0 +1,10 @@
+enabled: true
+name: 7-Day Login
+node: event.7-day
+icon: 7-day
+steps:
+  - while_match: button.claim.big
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - click: tapanywhereyoexit

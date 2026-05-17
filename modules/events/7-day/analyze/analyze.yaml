@@ -1,0 +1,12 @@
+overlay:
+  - name: event.7-day.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: modules/events/7-day/references/main_city.event.7-day.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: event.7-day
+        ttl: 1m
