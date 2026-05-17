@@ -5340,6 +5340,28 @@
           }
         }
       ]
+    },
+    {
+      "id": 79,
+      "screen_id": "",
+      "ocr": "modules/vip/references/page.vip.png",
+      "regions": [
+        {
+          "name": "vip.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.158301158301159,
+            "y": 0.7608695652173914,
+            "width": 10.200772200772201,
+            "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

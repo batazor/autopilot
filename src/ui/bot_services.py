@@ -193,6 +193,14 @@ def ensure_embedded_bot() -> None:
             logging.getLogger(__name__).exception(
                 "Failed to start IA preview refresher while embedded bot is disabled"
             )
+        try:
+            from ui.ia_queue_executor import ensure_ia_queue_executor
+
+            ensure_ia_queue_executor()
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Failed to start IA queue executor while embedded bot is disabled"
+            )
         return
     with _lock:
         # Streamlit / importlib can reload modules while the supervisor thread

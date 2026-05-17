@@ -71,6 +71,17 @@ def _draw_red_dot(frame: np.ndarray, region_name: str) -> None:
     cv2.circle(frame, center, max(3, radius // 3), (255, 255, 255), -1)
 
 
+def _clear_region(frame: np.ndarray, region_name: str) -> None:
+    bbox = _region_bbox(region_name)
+    width = frame.shape[1]
+    height = frame.shape[0]
+    x0 = int(width * float(bbox["x"]) / 100)
+    y0 = int(height * float(bbox["y"]) / 100)
+    w = int(width * float(bbox["width"]) / 100)
+    h = int(height * float(bbox["height"]) / 100)
+    cv2.rectangle(frame, (x0, y0), (x0 + w, y0 + h), (80, 80, 80), -1)
+
+
 def test_vip_daily_scenario_is_registered_with_expected_shape() -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "vip.daily")
     assert loaded is not None
@@ -84,22 +95,40 @@ def test_vip_daily_scenario_is_registered_with_expected_shape() -> None:
     guards = doc["steps"]
     assert [step["while_match"] for step in guards] == [
         "page.vip.box",
+        "button.claim",
         "page.vip.add",
+        "page.vip.unlock",
     ]
     assert guards[0].get("isRedDot") is True
-    assert guards[1].get("isRedDot") is True
-    assert all(step.get("max") == 1 for step in guards)
+    assert guards[2].get("isRedDot") is True
+    assert guards[3].get("isRedDot") is True
+    assert guards[0].get("max") == 3
+    assert guards[1].get("max") == 1
+    assert guards[2].get("max") == 3
+    assert guards[3].get("max") == 3
 
     box_steps = guards[0]["steps"]
     assert box_steps[0] == {"click": "page.vip.box"}
     assert box_steps[2]["while_match"] == "button.click_to_continue"
     assert box_steps[2]["steps"][0] == {"click": "button.click_to_continue"}
 
-    add_steps = guards[1]["steps"]
+    claim_steps = guards[1]["steps"]
+    assert claim_steps[0] == {"click": "button.claim"}
+    assert claim_steps[2] == {"click": "button.tap_anywhere_to_exit"}
+
+    add_steps = guards[2]["steps"]
     assert add_steps[0] == {"click": "page.vip.add"}
     assert add_steps[2]["while_match"] == "button.use"
     assert add_steps[2]["steps"][0] == {"click": "button.use"}
-    assert add_steps[2]["steps"][2] == {"click": "increase_level.icon.close"}
+    assert add_steps[3]["while_match"] == "increase_level.icon.close"
+    assert add_steps[3]["steps"][0] == {"click": "increase_level.icon.close"}
+
+    unlock_steps = guards[3]["steps"]
+    assert unlock_steps[0] == {"click": "page.vip.unlock"}
+    assert unlock_steps[2]["while_match"] == "button.use"
+    assert unlock_steps[2]["steps"][0] == {"click": "button.use"}
+    assert unlock_steps[3]["while_match"] == "increase_level.icon.close"
+    assert unlock_steps[3]["steps"][0] == {"click": "increase_level.icon.close"}
 
 
 @pytest.mark.asyncio
@@ -146,14 +175,25 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     1. main_city with VIP badge visible -> Navigator taps `page.vip`;
     2. VIP page with daily box red dot -> scenario taps `page.vip.box`;
     3. Rewards popup -> scenario taps `button.click_to_continue`;
-    4. VIP page again -> scenario taps `page.vip.add`;
-    5. Increase Level popup -> scenario taps `button.use`.
+    4. VIP page again -> scenario probes optional `button.claim`;
+    5. VIP page again -> scenario taps `page.vip.add`;
+    6. Increase Level popup -> scenario taps `button.use`.
+    7. VIP page again -> scenario taps `page.vip.unlock` with the same popup flow.
     """
 
     main_city = _load_reference_bgr("mcp.vip.rehearsal.08.start.png")
     vip_page = _load_reference_bgr("mcp.vip.rehearsal.09.after_vip_tap.png")
+    vip_after_box = vip_page.copy()
+    _clear_region(vip_after_box, "page.vip.box")
+    vip_after_add = vip_after_box.copy()
+    _clear_region(vip_after_add, "page.vip.add")
+    _draw_red_dot(vip_after_add, "page.vip.unlock")
+    vip_after_unlock = vip_after_add.copy()
+    _clear_region(vip_after_unlock, "page.vip.unlock")
     rewards_popup = _load_reference_bgr("mcp.vip.rehearsal.10.after_box.png")
     increase_level = _load_reference_bgr("page.increase_level.png")
+    increase_after_use = increase_level.copy()
+    _clear_region(increase_after_use, "button.use")
 
     detector = ScreenDetector(get_ocr_client())
     assert await detector.detect_screen(main_city) == "main_city"
@@ -173,8 +213,21 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
             vip_page,       # Navigator may re-check during route verification.
             vip_page,       # `while_match: page.vip.box`.
             rewards_popup,  # `while_match: button.click_to_continue`.
-            vip_page,       # Screen returns to VIP after `button.click_to_continue`.
+            vip_after_box,  # Box red dot is gone after `button.click_to_continue`.
+            vip_after_box,  # `while_match: button.claim` retry miss 1.
+            vip_after_box,  # `while_match: button.claim` retry miss 2.
+            vip_after_box,  # `while_match: button.claim` retry miss 3.
+            vip_after_box,  # `while_match: page.vip.add`.
             increase_level,  # `while_match: button.use` after tapping `page.vip.add`.
+            increase_after_use,  # `while_match: button.use` exits after use.
+            increase_after_use,  # `while_match: increase_level.icon.close`.
+            vip_after_add,  # Add red dot is gone after closing the add popup.
+            vip_after_add,  # `while_match: page.vip.unlock`.
+            vip_after_add,  # Unlock guard probes after the add loop settles.
+            increase_level,  # `while_match: button.use` after tapping unlock.
+            increase_after_use,  # `while_match: button.use` exits after use.
+            increase_after_use,  # `while_match: increase_level.icon.close`.
+            vip_after_unlock,  # Unlock red dot is gone after closing its popup.
         ]
     )
     monkeypatch.setattr(dsl, "_repo_root", lambda: REPO_ROOT)
@@ -196,6 +249,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
         ("bs1", 360, 1200, "button.click_to_continue"),
         ("bs1", 532, 279, "page.vip.add"),
         ("bs1", 584, 382, "button.use"),
-        ("bs1", 670, 138, "increase_level.icon.close"),
+        ("bs1", 360, 1194, "page.vip.unlock"),
+        ("bs1", 584, 382, "button.use"),
     ]
     assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]

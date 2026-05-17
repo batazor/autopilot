@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,8 @@ from omniparser.supervision_bridge import (
     parsed_element_to_dict,
 )
 from scenarios import template_resolver
-from services import get_bot_actions, get_repo_root, get_scheduler_async_redis
+from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
+from services import get_bot_actions, get_repo_root, get_scheduler_async_redis, get_scheduler_queue
 from tasks import dsl_runtime
 from tasks.dsl_scenario import DslScenarioTask
 from tasks.dsl_scenario_helpers import _read_active_player, _read_current_screen
@@ -334,6 +336,87 @@ async def tap_region(
         "x": int(point.x),
         "y": int(point.y),
         "ok": bool(ok),
+    }
+
+
+@mcp.tool()
+async def push_scenario(
+    scenario_key: str,
+    instance_id: str = "bs1",
+    player_id: str | None = None,
+    priority: int | None = None,
+    delay_seconds: float = 0.0,
+    start_step_index: int = 0,
+    force: bool = False,
+    wake_worker: bool = True,
+) -> dict[str, Any]:
+    """Enqueue a DSL scenario for the worker instead of running it inline."""
+
+    key = str(scenario_key or "").strip()
+    if not key:
+        raise ValueError("scenario_key is required")
+    iid = str(instance_id or "").strip()
+    if not iid:
+        raise ValueError("instance_id is required")
+
+    loaded = template_resolver.load_doc(_repo(), key)
+    if loaded is None:
+        raise ValueError(f"scenario not found: {key}")
+    path, doc = loaded
+
+    redis = await get_scheduler_async_redis()
+    is_device_level = dsl_scenario_yaml_device_level(_repo(), key)
+    if is_device_level:
+        pid = ""
+    else:
+        pid = str(player_id or "").strip() or await _read_active_player(iid, redis)
+        if not pid:
+            raise ValueError(
+                f"scenario {key!r} is player-bound; pass player_id or set active_player first"
+            )
+
+    scen_priority = dsl_scenario_yaml_priority(_repo(), key)
+    prio = int(priority if priority is not None else (scen_priority or DEFAULT_SCENARIO_PRIORITY))
+    run_at = time.time() + max(0.0, float(delay_seconds))
+    start_idx = max(0, int(start_step_index))
+    task_id = f"mcp:push:{iid}:{key}:{uuid.uuid4().hex[:8]}"
+
+    queue = await get_scheduler_queue()
+    enqueued = await queue.schedule(
+        task_id=task_id,
+        player_id=pid,
+        task_type=key,
+        priority=prio,
+        run_at=run_at,
+        instance_id=iid,
+        start_step_index=start_idx,
+        skip_if_duplicate=not bool(force),
+        dedup_ignore_region=True,
+    )
+
+    if enqueued and wake_worker:
+        await redis.lpush(
+            f"wos:ui:command:{iid}",
+            json.dumps({"cmd": "wake", "source": "mcp.push_scenario", "scenario": key}),
+        )
+
+    return {
+        "instance_id": iid,
+        "scenario": key,
+        "name": str(doc.get("name") or ""),
+        "enabled": bool(doc.get("enabled", False)),
+        "scenario_path": path.relative_to(_repo()).as_posix(),
+        "task_id": task_id if enqueued else None,
+        "queued": bool(enqueued),
+        "duplicate_skipped": not bool(enqueued),
+        "player_id": pid,
+        "device_level": bool(is_device_level),
+        "priority": prio,
+        "run_at": run_at,
+        "delay_seconds": max(0.0, float(delay_seconds)),
+        "start_step_index": start_idx,
+        "force": bool(force),
+        "worker_woken": bool(enqueued and wake_worker),
     }
 
 

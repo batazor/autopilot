@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 from config.paths import repo_root as default_repo_root
+from ui.ia_queue_executor import ensure_ia_queue_executor
 from ui.ia_preview_service import ensure_ia_preview_refresher
 
 logging.getLogger(
@@ -34,9 +35,10 @@ if _logo_path.exists():
 st.caption(
     "IA editor mode: embedded bot workers, scheduler, overlay loop, and health watchdog "
     "are disabled. A lightweight preview thread refreshes screenshots and current node; "
-    "live actions should come from MCP tools plus Click approvals."
+    "manual queue scenarios run through an isolated IA executor plus Click approvals."
 )
 ensure_ia_preview_refresher()
+ensure_ia_queue_executor()
 
 click_approvals_page = st.Page(
     str(_ui_dir / "views" / "click_approvals.py"),
