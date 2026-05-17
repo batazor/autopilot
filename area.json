@@ -2646,7 +2646,7 @@
     {
       "id": 45,
       "screen_id": "squad_settings",
-      "ocr": "references/page.squad_settings.status.victory.png",
+      "ocr": "references/page.exploration.victory.png",
       "regions": [
         {
           "name": "page.squad_settings.status",
@@ -5110,6 +5110,64 @@
             "y": 0.7608695652173914,
             "width": 10.200772200772201,
             "height": 4.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "screen_id": "",
+      "ocr": "modules/core/exploration/references/squad_fight.rehearsal.17.timeout.png",
+      "regions": [
+        {
+          "name": "defeat.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.58687258687259,
+            "y": 24.891304347826086,
+            "width": 34.2007722007722,
+            "height": 6.600000000000001,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "screen_id": "",
+      "ocr": "modules/core/exploration/references/page.exploration.defeat.png",
+      "regions": [
+        {
+          "name": "exploration.defeat.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.3938223938224,
+            "y": 25.108695652173914,
+            "width": 35.2007722007722,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.to_main_city",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.814671814671815,
+            "y": 81.52173913043478,
+            "width": 35.3996138996139,
+            "height": 4.5,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

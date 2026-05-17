@@ -82,9 +82,23 @@ def _build_screen_name_enum() -> type[StrEnum]:
 # sees a normal enum class; at runtime the dynamic factory still wins.
 if TYPE_CHECKING:
     class ScreenName(StrEnum):
+        # Sentinels + hubs (always present via ``_WELL_KNOWN_SCREEN_VALUES``).
         UNKNOWN = "unknown"
         MAIN_CITY = "main_city"
         SUGGESTION_BOX = "suggestion_box"
+        # Other landmarks referenced by name from Python — discovered via
+        # ``grep ScreenName\\.``. Values must match the slug used in
+        # ``screen_verify.yaml``. Adding a new ``ScreenName.<X>`` site means
+        # appending the matching member here so ty stops flagging it; the
+        # runtime factory composes the same member from the YAML.
+        ARENA = "arena"
+        BUILDING = "building"
+        CHIEF_PROFILE = "chief_profile"
+        LOADING = "loading"
+        MAIL = "mail"
+        MAIL_SYSTEM = "mail_system"
+        RECONNECT = "reconnect"
+        WELCOME_BACK = "welcome_back"
 else:
     ScreenName = _build_screen_name_enum()
 

@@ -12,6 +12,7 @@ global scan only runs when the hint is stale (the bot navigated away).
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +55,7 @@ class _FakeOcrClient:
 
 
 @pytest.fixture
-def _yaml_config(mocker, tmp_path: Path) -> None:
+def _yaml_config(mocker, tmp_path: Path) -> Iterator[None]:
     """Two screens (arena, main_city) with disjoint OCR landmarks + a shared
     ``page_title`` text_switch. Enough to tell sticky from full pipeline."""
     cfg = tmp_path / "screen_verify.yaml"
@@ -82,14 +83,14 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     yield
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 def _detector_with(text_by_region: dict[str, str]) -> ScreenDetector:
     detector = ScreenDetector(OcrClient(get_settings()))
-    detector._client = _FakeOcrClient(text_by_region)
+    detector._client = _FakeOcrClient(text_by_region)  # ty: ignore[invalid-assignment]
     detector._area_doc = {
         "screens": [
             {
@@ -130,8 +131,8 @@ async def test_sticky_verify_short_circuits_when_hint_still_holds(
     # text_switch case for arena) and arena_marker. It must NOT touch
     # city_marker — that's the per-screen scoping win.
     fake = detector._client  # type: ignore[assignment]
-    all_ocr_rids = {rid for call in fake.calls for rid in call}
-    assert "city_marker" not in all_ocr_rids, fake.calls
+    all_ocr_rids = {rid for call in fake.calls for rid in call}  # ty: ignore[unresolved-attribute]
+    assert "city_marker" not in all_ocr_rids, fake.calls  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -179,8 +180,8 @@ async def test_sticky_falls_back_to_full_pipeline_when_hint_stale(
     fake = detector._client  # type: ignore[assignment]
     # The verify path OCR'd arena_marker once and failed; the full pipeline
     # then OCR'd page_title (text_switch caught it as 'city' → main_city).
-    assert ["arena_marker"] in fake.calls
-    assert ["page_title"] in fake.calls
+    assert ["arena_marker"] in fake.calls  # ty: ignore[unresolved-attribute]
+    assert ["page_title"] in fake.calls  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -193,7 +194,7 @@ async def test_detect_with_no_hint_runs_full_pipeline(_yaml_config: None) -> Non
     assert result == ScreenName.ARENA
     assert detector.last_used_sticky_verify is False
     fake = detector._client  # type: ignore[assignment]
-    assert ["page_title"] in fake.calls
+    assert ["page_title"] in fake.calls  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -248,10 +249,10 @@ text_switch:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         detector = ScreenDetector(OcrClient(get_settings()))
-        detector._client = _FakeOcrClient({"page_title": "Arena"})
+        detector._client = _FakeOcrClient({"page_title": "Arena"})  # ty: ignore[invalid-assignment]
         detector._area_doc = {
             "screens": [
                 {
@@ -272,7 +273,7 @@ text_switch:
         assert result == ScreenName.ARENA
         assert detector.last_used_sticky_verify is True
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -301,10 +302,10 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         detector = ScreenDetector(OcrClient(get_settings()))
-        detector._client = _FakeOcrClient({"page_title": "Arena"})
+        detector._client = _FakeOcrClient({"page_title": "Arena"})  # ty: ignore[invalid-assignment]
         detector._area_doc = {
             "screens": [
                 {
@@ -325,7 +326,7 @@ screens:
         assert result == ScreenName.ARENA
         assert detector.last_used_sticky_verify is False
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio

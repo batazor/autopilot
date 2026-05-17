@@ -24,6 +24,24 @@ steps:
       cond: 'squad_status ~= "victory|defeat"'
       max: 90
       steps:
+        - while_match: page.squad_settings.next
+          max: 1
+          steps:
+            - push_scenario: squad_fight
+            - click: page.squad_settings.next
+            - break: loop
+        - while_match: page.squad_settings.status.defeat
+          max: 1
+          steps:
+            - click: button.to_main_city
+            - wait: 2s
+            - break: loop
+        - while_match: exploration.defeat.title
+          max: 1
+          steps:
+            - click: button.to_main_city
+            - wait: 2s
+            - break: loop
         - ocr: page.squad_settings.status
           store: squad_status
         - wait: 2s
@@ -44,5 +62,5 @@ steps:
 
   - cond: squad_status ~= "defeat"
     steps:
-      - click: page.squad_settings.status.defeat
+      - click: button.to_main_city
       - wait: 2s

@@ -48,6 +48,7 @@ dev = [
     "fastapi>=0.111",
     "syrupy>=5.2.0",
     "pytest-mock>=3.15.1",
+    "pytest-clarity>=1.0.1",
 ]
 ui = [
     "streamlit>=1.39",
@@ -194,6 +195,8 @@ invalid-await = "ignore"
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests", "modules"]
+# pytest-clarity: colourful assertion diffs (needs -vv; CI uses ``pytest -q``).
+addopts = ["-vv"]
 # Upstream RedisContainer still uses @wait_container_is_ready (deprecated) until
 # testcontainers-python 4.15+; silence import-time noise from the vendored module.
 filterwarnings = [

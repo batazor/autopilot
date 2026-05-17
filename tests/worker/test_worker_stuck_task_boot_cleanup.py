@@ -52,8 +52,8 @@ async def test_fail_stuck_running_writes_history_and_clears_state(
         "region": "chapter.new",
         "started_at": started_at,
     }
-    await r.set(running_key, json.dumps(payload))  # type: ignore[attr-defined]
-    await r.hset(  # type: ignore[attr-defined]
+    await r.set(running_key, json.dumps(payload))  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         state_key,
         mapping={
             "current_task_player": "765502864",
@@ -67,9 +67,9 @@ async def test_fail_stuck_running_writes_history_and_clears_state(
     worker = _make_worker(r)
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    assert await r.get(running_key) is None  # type: ignore[attr-defined]
+    assert await r.get(running_key) is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
-    state = await r.hgetall(state_key)  # type: ignore[attr-defined]
+    state = await r.hgetall(state_key)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     for field in (
         "current_task_player",
         "current_task_started_at",
@@ -79,7 +79,7 @@ async def test_fail_stuck_running_writes_history_and_clears_state(
     ):
         assert state.get(field, "") == "", f"{field} should be cleared, got {state.get(field)!r}"
 
-    history_raw = await r.lrange(history_key, 0, -1)  # type: ignore[attr-defined]
+    history_raw = await r.lrange(history_key, 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(history_raw) == 1
     row = json.loads(history_raw[0])
     assert row["task_id"] == "ovl:bs1:new_chapter:1a0d6aad"
@@ -102,7 +102,7 @@ async def test_fail_stuck_running_no_op_when_no_running_key(
     worker = _make_worker(redis_async)
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    history = await redis_async.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]
+    history = await redis_async.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert history == []
 
 
@@ -123,16 +123,16 @@ async def test_fail_stuck_running_only_touches_own_instance(
     r = redis_async
     payload_bs1 = json.dumps({"task_id": "t1", "task_type": "x", "started_at": time.time()})
     payload_bs2 = json.dumps({"task_id": "t2", "task_type": "y", "started_at": time.time()})
-    await r.set("wos:queue:running:bs1", payload_bs1)  # type: ignore[attr-defined]
-    await r.set("wos:queue:running:bs2", payload_bs2)  # type: ignore[attr-defined]
-    await r.hset("wos:instance:bs2:state", "current_scenario", "y")  # type: ignore[attr-defined]
+    await r.set("wos:queue:running:bs1", payload_bs1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    await r.set("wos:queue:running:bs2", payload_bs2)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    await r.hset("wos:instance:bs2:state", "current_scenario", "y")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     worker = _make_worker(r, instance_id="bs1")
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]
-    assert await r.get("wos:queue:running:bs2") is not None  # type: ignore[attr-defined]
-    bs2_state = await r.hgetall("wos:instance:bs2:state")  # type: ignore[attr-defined]
+    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await r.get("wos:queue:running:bs2") is not None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    bs2_state = await r.hgetall("wos:instance:bs2:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert bs2_state.get("current_scenario") == "y"
 
 
@@ -144,13 +144,13 @@ async def test_fail_stuck_running_tolerates_malformed_payload(
     write a best-effort history entry. Otherwise a single corrupt write would
     permanently wedge boot for that instance."""
     r = redis_async
-    await r.set("wos:queue:running:bs1", "not-json{")  # type: ignore[attr-defined]
+    await r.set("wos:queue:running:bs1", "not-json{")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     worker = _make_worker(r)
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]
-    history = await r.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]
+    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    history = await r.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(history) == 1
     row = json.loads(history[0])
     assert row["success"] is False
@@ -175,7 +175,7 @@ async def test_fail_stuck_running_recovers_from_state_hash_after_ttl(
     history_key = "wos:queue:history:bs1"
 
     started_at = time.time() - 600.0  # well past the 180s running-key TTL
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         state_key,
         mapping={
             "state": "busy",
@@ -188,12 +188,12 @@ async def test_fail_stuck_running_recovers_from_state_hash_after_ttl(
         },
     )
     # No running key — simulates expiry after the 180s TTL.
-    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]
+    assert await r.get("wos:queue:running:bs1") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     worker = _make_worker(r)
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    history_raw = await r.lrange(history_key, 0, -1)  # type: ignore[attr-defined]
+    history_raw = await r.lrange(history_key, 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(history_raw) == 1, "state-hash signal must still produce a history row"
     row = json.loads(history_raw[0])
     assert row["task_id"] == "ovl:bs1:assign_worker:c0ffee"
@@ -205,7 +205,7 @@ async def test_fail_stuck_running_recovers_from_state_hash_after_ttl(
     assert row["started_at"] == pytest.approx(started_at, abs=0.01)
     assert row["duration_s"] >= 600.0
 
-    state = await r.hgetall(state_key)  # type: ignore[attr-defined]
+    state = await r.hgetall(state_key)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     for field in (
         "current_task_id",
         "current_task_type",
@@ -224,7 +224,7 @@ async def test_fail_stuck_running_skips_state_hash_without_task_breadcrumbs(
     """Clean state hash (state may exist with non-task fields) is not an
     orphan signal — no history row, no errors."""
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"state": "ready", "active_player": "765502864"},
     )
@@ -232,5 +232,5 @@ async def test_fail_stuck_running_skips_state_hash_without_task_breadcrumbs(
     worker = _make_worker(r)
     await instance_worker.InstanceWorker._fail_stuck_running_on_boot(worker)
 
-    history = await r.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]
+    history = await r.lrange("wos:queue:history:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert history == []

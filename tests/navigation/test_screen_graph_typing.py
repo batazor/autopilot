@@ -27,6 +27,10 @@ def test_exploration_routes_squad_settings() -> None:
     assert route_taps("squad_settings", "exploration") == [["icon.page.back"]]
 
 
+def test_exploration_defeat_routes_main_city() -> None:
+    assert route_taps("exploration.defeat", "main_city") == [["button.to_main_city"]]
+
+
 def test_welcome_back_routes_to_main_city() -> None:
     assert route_taps("welcome_back", "main_city") == [["button.confirm.green"]]
 

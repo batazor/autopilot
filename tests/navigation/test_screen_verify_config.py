@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import navigation.screen_graph as screen_graph
 
@@ -206,6 +205,19 @@ def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
         {"match": "squad_settings.quick_deploy", "threshold": 0.9},
         {"match": "squad_settings.fight", "threshold": 0.9},
     ]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_exploration_defeat_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("exploration.defeat")
+        rules = screen_graph.screen_verify_rules("exploration.defeat")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [{"match": "exploration.defeat.title", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
 

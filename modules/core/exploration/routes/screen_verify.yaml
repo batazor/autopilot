@@ -20,3 +20,12 @@ screens:
         threshold: 0.9
       - match: squad_settings.fight
         threshold: 0.9
+
+  exploration.defeat:
+    priority: 20
+    landmarks:
+      - match: exploration.defeat.title
+        threshold: 0.9
+    rules:
+      - match: exploration.defeat.title
+        threshold: 0.9

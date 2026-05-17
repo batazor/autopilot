@@ -122,7 +122,8 @@ def render_wiki_module_selector(*, help: str | None = None) -> WikiModuleContext
     if qp != ctx.query_value:
         with st.spinner("Switching module…"):
             st.query_params[_QUERY_PARAM] = ctx.query_value
-            _sync_labeling_ref_for_module(ctx)
+            if not _has_repo_relative_reference_query(ctx.repo_root):
+                _sync_labeling_ref_for_module(ctx)
             ensure_wiki_module_session(ctx)
             st.rerun()
     if scope_changed:
@@ -141,3 +142,22 @@ def _sync_labeling_ref_for_module(ctx: WikiModuleContext) -> None:
             del st.query_params["ref"]
         if st.query_params.get("version"):
             del st.query_params["version"]
+
+
+def _has_repo_relative_reference_query(repo_root: Path) -> bool:
+    """Whether `?ref=` already points at a concrete repo-local reference PNG."""
+
+    raw = st.query_params.get("ref")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    rel = str(raw or "").replace("\\", "/").strip().lstrip("/")
+    if not rel or rel.startswith("..") or "/.." in rel:
+        return False
+    if "/references/" not in rel and not rel.startswith("references/"):
+        return False
+    path = (repo_root / rel).resolve()
+    try:
+        path.relative_to(repo_root.resolve())
+    except ValueError:
+        return False
+    return path.is_file() and path.suffix.lower() == ".png"
