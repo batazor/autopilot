@@ -1,0 +1,5 @@
+enabled: false
+name: "Alliance Championship"
+node: event.alliance_championship
+icon: alliance_championship
+steps: []

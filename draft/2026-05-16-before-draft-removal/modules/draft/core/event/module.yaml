@@ -1,0 +1,9 @@
+id: event
+title: Events
+description: >-
+  Main-city event blocks (open slot taps) and shared event automation. Generic
+  event block scenarios live in ``scenarios/``; concrete event pages can be
+  provided by nested modules under ``modules/events/<id>/``.
+area: ../../../area.json
+references: ../../../references
+wiki: false

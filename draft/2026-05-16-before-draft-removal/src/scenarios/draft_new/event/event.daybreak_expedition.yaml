@@ -1,0 +1,5 @@
+enabled: false
+name: "Daybreak Expedition"
+node: event.daybreak_expedition
+icon: daybreak_expedition
+steps: []

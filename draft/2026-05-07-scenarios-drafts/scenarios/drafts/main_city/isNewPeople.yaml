@@ -1,0 +1,8 @@
+enabled: true
+name: "New People"
+
+steps:
+  - click: isNewPeople
+  - wait: 1s
+  - click: welcome_in
+

@@ -1,0 +1,16 @@
+enabled: true
+name: 🎁 Tap claim button
+device_level: true
+steps:
+- while_match: button.claim
+  threshold: 0.98
+  min_match_saturation: 48
+  max: 20
+  steps:
+  - click: button.claim
+  - wait: 3s
+- while_match: claim_button_close
+  max: 1
+  steps:
+  - click: claim_button_close
+  - wait: 1s

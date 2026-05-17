@@ -1,0 +1,9 @@
+enabled: true
+name: ✅ Tap confirm (blue) button
+device_level: true
+steps:
+- match: ui.button.confirm_blue
+  threshold: 0.92
+  min_match_saturation: 48
+- click: ui.button.confirm_blue
+- wait: 1500ms

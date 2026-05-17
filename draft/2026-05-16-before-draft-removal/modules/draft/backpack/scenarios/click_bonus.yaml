@@ -1,0 +1,7 @@
+enabled: true
+name: "🎒 Open backpack: Bonus tab"
+node: backpack
+steps:
+  - click: page.backpack.bonus
+  - wait: 2s
+  - exec: put_all_red_dots

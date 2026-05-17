@@ -1,0 +1,5 @@
+enabled: false
+name: "Stand Of Arms"
+node: event.stand_of_arms
+icon: stand_of_arms
+steps: []

@@ -1,0 +1,5 @@
+enabled: false
+name: "Sunfire Castle"
+node: event.sunfire_castle
+icon: sunfire_castle
+steps: []

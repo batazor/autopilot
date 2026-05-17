@@ -1,0 +1,5 @@
+enabled: false
+name: "Alliance Showdown"
+node: event.alliance_showdown
+icon: alliance_showdown
+steps: []

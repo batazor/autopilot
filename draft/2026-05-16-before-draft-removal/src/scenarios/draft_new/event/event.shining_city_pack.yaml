@@ -1,0 +1,5 @@
+enabled: false
+name: "Shining City Pack"
+node: event.shining_city_pack
+icon: shining_city_pack
+steps: []

@@ -1,0 +1,5 @@
+enabled: false
+name: "Mercenary Prestige"
+node: event.mercenary_prestige
+icon: mercenary_prestige
+steps: []

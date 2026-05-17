@@ -2,35 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from unittest.mock import call
 
 import numpy as np
 import pytest
 import yaml
 
+from conftest import make_actions, patch_dsl
+
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    tapped: list[tuple[str, int, int, str | None]] = []
-    swipes: list[tuple[str, str, int, int]] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 1000, 1000
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return np.zeros((1000, 1000, 3), dtype=np.uint8)
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, int(point.x), int(point.y), approval_region))
-        return True
-
-    def swipe_direction(
-        self, instance_id: str, *, direction: str, delta: int, duration_ms: int
-    ) -> bool:
-        self.swipes.append((instance_id, str(direction), int(delta), int(duration_ms)))
-        return True
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -44,7 +24,7 @@ def _scenario_root(tmp_path: Path) -> Path:
 @pytest.mark.asyncio
 async def test_dsl_break_repeat_stops_swipe(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     scenario_root = _scenario_root(tmp_path)
@@ -123,12 +103,9 @@ async def test_dsl_break_repeat_stops_swipe(
             }
         }
 
-    fake_actions = make_actions()
-    fake_actions.tapped = []
-    fake_actions.swipes = []
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: fake_actions)
-    monkeypatch.setattr(dsl, "evaluate_overlay_rules_async", _fake_eval)
+    actions = make_actions()
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", side_effect=_fake_eval)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -139,6 +116,5 @@ async def test_dsl_break_repeat_stops_swipe(
 
     result = await task.execute("bs1")
     assert result.success is True
-    assert fake_actions.tapped  # click happened
-    assert fake_actions.swipes == []  # break stopped repeat before swipe
-
+    assert actions.tap.call_args_list  # click happened
+    assert actions.swipe_direction.call_args_list == []  # break stopped repeat before swipe

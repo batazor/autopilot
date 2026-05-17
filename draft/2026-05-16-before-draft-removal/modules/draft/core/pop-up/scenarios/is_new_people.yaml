@@ -1,0 +1,9 @@
+enabled: true
+name: 🆕 New People
+node: main_city
+device_level: true
+steps:
+- click: isNewPeople
+- wait: 3s
+- click: welcome_in
+- wait: 3s

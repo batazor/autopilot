@@ -1,0 +1,24 @@
+name: Alliance War
+priority: 300
+repeat: true
+enabled: false
+conditions:
+- type: time_range
+  from: '18:00'
+  to: '22:00'
+- type: player_level_min
+  value: 20
+steps:
+- id: step_defend_war
+  task: defend_ally
+  priority: 950
+  cooperative: true
+  cooldown: 5m
+  conditions:
+  - type: alliance_member_under_attack
+- id: step_beast_war
+  task: beast
+  priority: 900
+  cooperative: true
+  cooldown: 1h
+  max_attempts: 3

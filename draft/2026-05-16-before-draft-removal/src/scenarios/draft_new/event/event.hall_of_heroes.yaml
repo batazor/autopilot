@@ -1,0 +1,5 @@
+enabled: false
+name: "Hall Of Heroes"
+node: event.hall_of_heroes
+icon: hall_of_heroes
+steps: []

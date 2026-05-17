@@ -1,0 +1,8 @@
+enabled: true
+name: 👆 Tap tutorial hand pointer (small reverse)
+device_level: true
+steps:
+- while_match: hand_pointer_small_reverse
+  max: 1
+  steps:
+  - click: hand_pointer_small_reverse
