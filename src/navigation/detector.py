@@ -10,8 +10,8 @@ from tenacity import RetryError
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from config.paths import repo_root
-from layout.area_manifest import load_area_doc
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.types import Region
 from navigation.screen_graph import (
     screen_landmark_rules,

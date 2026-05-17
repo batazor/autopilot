@@ -10,7 +10,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 import redis as _redis_pkg
 import streamlit as st
-from streamlit_nested_table import nested_table, table_column
+from streamlit_nested_table import TableColumn, nested_table, table_column
 
 from config.devices import DeviceRegistry, load_devices
 from config.loader import InstanceConfig, load_settings
@@ -248,7 +248,7 @@ def _fleet_alert(row: dict[str, str]) -> str:
     return " · ".join(parts) if parts else ""
 
 
-def _fleet_players_nested_columns() -> list[dict[str, Any]]:
+def _fleet_players_nested_columns() -> list[TableColumn]:
     """Single schema for fleet parent rows + per-gamer sub-rows (same ``nested_table`` columns)."""
     return [
         table_column("who", "Instance / account", width=118),

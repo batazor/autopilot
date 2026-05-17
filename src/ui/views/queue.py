@@ -13,7 +13,7 @@ from urllib.parse import quote, urlencode, urlparse, urlunparse
 import pandas as pd
 import redis
 import streamlit as st
-from streamlit_nested_table import nested_table, table_column
+from streamlit_nested_table import TableColumn, nested_table, table_column
 
 from config.loader import load_settings
 from config.reference_naming import event_icon_abs_path
@@ -124,7 +124,7 @@ def _player_label(player_id: str) -> str:
     return player_id if player_id else _DEVICE_LABEL
 
 
-def _pending_nested_columns() -> list[dict[str, Any]]:
+def _pending_nested_columns() -> list[TableColumn]:
     """Column defs for queue plugin (Tailwind pills + links)."""
     return [
         table_column(
@@ -265,7 +265,7 @@ def _render_queue_actions(
         _render_clipboard_button("Copy JSON", payload_json)
 
 
-def _running_nested_columns() -> list[dict[str, Any]]:
+def _running_nested_columns() -> list[TableColumn]:
     return [
         table_column("instance", "Instance", width=118),
         table_column("scenario", "Scenario", width=248),
@@ -379,7 +379,7 @@ def _render_running_section(
             _render_running_progress(iid, r, inst_state, now)
 
 
-def _explain_nested_columns() -> list[dict[str, Any]]:
+def _explain_nested_columns() -> list[TableColumn]:
     return [
         table_column("#", "#", width=72, align="center", cell_type="pill", pill_preset="rank_indicator"),
         table_column("scenario", "Scenario", width=246),
@@ -410,7 +410,7 @@ def _explain_nested_columns() -> list[dict[str, Any]]:
     ]
 
 
-def _history_nested_columns() -> list[dict[str, Any]]:
+def _history_nested_columns() -> list[TableColumn]:
     return [
         table_column("#", "#", width=60, align="center"),
         table_column(

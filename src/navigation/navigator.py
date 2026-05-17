@@ -11,8 +11,8 @@ import numpy as np
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from config.loader import Settings
 from config.paths import repo_root
-from layout.area_manifest import load_area_doc
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
 from layout.types import Region
 

@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import streamlit as st
 from PIL import Image, ImageDraw
-from streamlit_nested_table import nested_table
+from streamlit_nested_table import NestedTableMultiSelection, NestedTableSelection, nested_table
 
 from config.module_registry import collect_reference_rels_from_doc
 from layout.area_regions import is_auxiliary_overlay_region
@@ -727,7 +727,7 @@ if not st.session_state.get("gallery_selected_rel") and filtered:
 
 _preview_col, _table_col = st.columns([1, 1.55], gap="medium")
 
-_table_selection: dict | None = None
+_table_selection: NestedTableSelection | NestedTableMultiSelection | None = None
 # Table column runs first so row-click updates selection before the preview renders.
 with _table_col:
     _table_selection = nested_table(

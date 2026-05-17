@@ -9,7 +9,7 @@ from typing import Any
 
 import streamlit as st
 import yaml
-from streamlit_nested_table import nested_table, table_column
+from streamlit_nested_table import TableColumn, nested_table, table_column
 
 from analysis.overlay_rules import optional_ttl_seconds, overlay_rule_screen_allowlist
 from config.devices import get_device_registry
@@ -272,7 +272,7 @@ def _rule_ttl_labels(
     return ttl_label, "in " + _humanize_seconds(remaining), True
 
 
-def _live_analyzer_columns() -> list[dict[str, Any]]:
+def _live_analyzer_columns() -> list[TableColumn]:
     return [
         table_column("current_screen", "Current screen", width=190),
         table_column("instance", "Instance", width=105),

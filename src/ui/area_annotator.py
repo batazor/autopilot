@@ -647,10 +647,7 @@ def load_json(path: Path) -> AreaDocDict:
     if not path.exists():
         return default_area_doc([])
     raw_text = path.read_text(encoding="utf-8")
-    if path.suffix.lower() in {".yaml", ".yml"}:
-        raw = yaml.safe_load(raw_text)
-    else:
-        raw = json.loads(raw_text)
+    raw = yaml.safe_load(raw_text) if path.suffix.lower() in {".yaml", ".yml"} else json.loads(raw_text)
     return normalize_area_file(raw)
 
 

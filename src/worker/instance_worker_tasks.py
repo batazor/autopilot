@@ -447,10 +447,7 @@ class InstanceWorkerTasksMixin(_Base):
         meta = result.metadata or {}
         raw_resume = meta.get("resume_from_step_index")
         try:
-            if isinstance(raw_resume, (int, float, str, bytes, bytearray)):
-                resume_step = int(raw_resume)
-            else:
-                resume_step = 0
+            resume_step = int(raw_resume) if isinstance(raw_resume, (int, float, str, bytes, bytearray)) else 0
         except (TypeError, ValueError):
             resume_step = 0
         if resume_step < 0:

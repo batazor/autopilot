@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -158,7 +159,7 @@ def build_gallery_nested_rows(
 
 
 def sync_gallery_selection(
-    selection: dict[str, Any] | None,
+    selection: Mapping[str, Any] | None,
     *,
     filtered_rels: set[str],
 ) -> str | None:

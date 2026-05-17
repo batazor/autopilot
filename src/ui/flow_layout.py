@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from typing import Any, cast
 
 import networkx as nx
-from streamlit_react_flow import FlowEdge, FlowNode  # ty: ignore[unresolved-import]
+from streamlit_react_flow import FlowEdge, FlowNode
 
 REGION_BG: dict[str, str] = {
     "Tundra Adventure": "#dbeafe",
@@ -227,12 +227,15 @@ def build_flow_graph(
         if node_type == "workflow":
             data["subtitle"] = grp
         nodes.append(
-            {
-                "id": nid,
-                "type": node_type,
-                "data": data,
-                "position": positions[nid],
-            }
+            cast(
+                "FlowNode",
+                {
+                    "id": nid,
+                    "type": node_type,
+                    "data": data,
+                    "position": positions[nid],
+                },
+            )
         )
 
     flow_edges: list[FlowEdge] = []
@@ -253,7 +256,7 @@ def build_flow_graph(
         elif tap_edge_keys is not None and pair not in tap_edge_keys:
             edge["style"] = dict(_NON_TAP_EDGE_STYLE)
             edge["label"] = "topology"
-        flow_edges.append(edge)
+        flow_edges.append(cast("FlowEdge", edge))
 
     return nodes, flow_edges, int(canvas_h), int(canvas_w)
 
@@ -331,7 +334,7 @@ def build_scenario_step_flow(
         if is_running and i == current_step - 1 and current_step > 0:
             edge["animated"] = True
             edge["style"] = {"stroke": "#6366f1", "strokeWidth": 2}
-        flow_edges.append(edge)
+        flow_edges.append(cast("FlowEdge", edge))
 
     width = int(min(4200, max(520, n * _STEP_FLOW_SLOT_W + 120)))
     return nodes, flow_edges, int(_STEP_FLOW_H), width
@@ -351,5 +354,5 @@ def merge_editor_positions(
         pid = copy["id"]
         if pid in pos_by_id:
             copy["position"] = pos_by_id[pid]
-        merged.append(copy)  # type: ignore[arg-type]
+        merged.append(cast("FlowNode", copy))
     return merged
