@@ -2645,11 +2645,11 @@
     },
     {
       "id": 45,
-      "screen_id": "squad_settings",
-      "ocr": "references/page.exploration.victory.png",
+      "screen_id": "exploration.victory",
+      "ocr": "modules/core/exploration/references/page.exploration.victory.png",
       "regions": [
         {
-          "name": "page.squad_settings.status",
+          "name": "page.exploration.victory.title",
           "action": "text",
           "type": "string",
           "threshold": 0.9,
@@ -2664,7 +2664,7 @@
           }
         },
         {
-          "name": "page.squad_settings.next",
+          "name": "page.exploration.victory.next",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {
@@ -2675,7 +2675,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },

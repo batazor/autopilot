@@ -52,7 +52,7 @@ async def test_loop_cond_breaks_when_state_field_matches(
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
     # Pre-seed the field so cond is True on the first probe and the loop exits.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"squad_status": "Victory!"},
     )
@@ -121,7 +121,7 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
     assert result.success is True
     # 3 iterations (step1, step2, exec writes "done"; cond True on iter 4's top check → exit).
     assert iterations["n"] == 3
-    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]
+    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final == "done"
 
 

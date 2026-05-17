@@ -76,7 +76,7 @@ async def test_vip_daily_scenario_clicks_claimable_vip_box(
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "p1", "current_screen": "vip"},
     )
@@ -139,7 +139,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     assert await detector.detect_screen(rewards_popup) == "rewards"
     assert await detector.detect_screen(increase_level) == "increase_level"
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "p1", "current_screen": "main_city"},
     )
@@ -195,4 +195,4 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
         call("bs1", ANY, approval_region="page.vip.unlock"),
         call("bs1", ANY, approval_region="button.use"),
     ]
-    assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

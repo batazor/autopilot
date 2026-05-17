@@ -142,7 +142,7 @@ async def test_scenario_start_wipes_stale_store_field(
 
     # Pre-seed the *exact* shape the OCR step would have written, including
     # all four sibling fields. All must be gone after scenario start.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:p1:state",
         mapping={
             "squad_status": "Defeat!",
@@ -162,12 +162,12 @@ async def test_scenario_start_wipes_stale_store_field(
     await task.execute("bs1")
 
     # Stale ``squad_status`` and its 3 siblings were wiped at scenario start.
-    assert await redis_async.hget("wos:player:p1:state", "squad_status") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_text") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_confidence") is None  # type: ignore[attr-defined]
-    assert await redis_async.hget("wos:player:p1:state", "squad_status_at") is None  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_text") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_confidence") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await redis_async.hget("wos:player:p1:state", "squad_status_at") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     # Unrelated fields on the same hash survive.
-    assert await redis_async.hget("wos:player:p1:state", "unrelated") == "must-stay"  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "unrelated") == "must-stay"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_resumed_scenario_does_not_wipe_store(
     )
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 
-    await redis_async.hset("wos:player:p1:state", "progress", "step3")  # type: ignore[attr-defined]
+    await redis_async.hset("wos:player:p1:state", "progress", "step3")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -201,4 +201,4 @@ async def test_resumed_scenario_does_not_wipe_store(
     )
     await task.execute("bs1")
 
-    assert await redis_async.hget("wos:player:p1:state", "progress") == "step3"  # type: ignore[attr-defined]
+    assert await redis_async.hget("wos:player:p1:state", "progress") == "step3"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

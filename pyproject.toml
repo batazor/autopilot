@@ -49,6 +49,8 @@ dev = [
     "syrupy>=5.2.0",
     "pytest-mock>=3.15.1",
     "pytest-clarity>=1.0.1",
+    "pytest-sugar>=1.1.1",
+    "pytest-timeout>=2.4.0",
 ]
 ui = [
     "streamlit>=1.39",
@@ -195,13 +197,21 @@ invalid-await = "ignore"
 asyncio_mode = "auto"
 pythonpath = ["."]
 testpaths = ["tests", "modules"]
-# pytest-clarity: colourful assertion diffs (needs -vv; CI uses ``pytest -q``).
+# pytest-sugar: progress + one-line failures; pytest-clarity: coloured diffs at -vv.
+# pytest-timeout: per-test limit; integration tests get 180s in conftest.py.
+# CI uses ``pytest -q`` (disables sugar/clarity; timeouts still apply).
 addopts = ["-vv"]
+timeout = 60
+# thread: avoid SIGALRM + tests that patch signal.signal (see test_bot_services_shutdown).
+timeout_method = "thread"
+timeout_func_only = true
+session_timeout = 1200
 # Upstream RedisContainer still uses @wait_container_is_ready (deprecated) until
 # testcontainers-python 4.15+; silence import-time noise from the vendored module.
 filterwarnings = [
     "ignore:The @wait_container_is_ready decorator is deprecated:DeprecationWarning:testcontainers.redis",
 ]
 markers = [
-    "integration: requires external services (OCR backend, Redis via testcontainers, ADB, etc.)",
+    "integration: requires external services (OCR backend, Redis via testcontainers, ADB, etc.); 180s timeout",
+    "timeout(timeout, method=None, func_only=False): per-test timeout override (pytest-timeout)",
 ]

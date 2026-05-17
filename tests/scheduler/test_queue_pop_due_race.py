@@ -76,7 +76,7 @@ async def test_pop_due_skips_race_loss_and_claims_next(
         run_at=now - 1,
         instance_id="bs1",
     )
-    real_items = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    real_items = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(real_items) == 1
     real_raw = real_items[0]
     real_data = json.loads(real_raw)
@@ -108,12 +108,12 @@ async def test_pop_due_skips_race_loss_and_claims_next(
     assert item is not None
     assert item.task_id == "real", "must skip the race-lost ghost and claim the real item"
 
-    remaining = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    remaining = await r.zrangebyscore(_queue_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert remaining == [], "claimed item must be gone from the queue"
 
     # ``_append_recent_run`` runs only on a successful claim — recent_runs must
     # have exactly one event tagged with the *real* task_type, never the ghost.
-    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(members) == 1
     assert str(members[0]).startswith("who_i_am|"), members
 
@@ -143,7 +143,7 @@ async def test_pop_due_returns_none_when_all_candidates_lost(
     item = await q.pop_due("bs1", current_screen="main_city")
     assert item is None, "all candidates lost → no claim, no phantom QueueItem"
 
-    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]
+    members = await r.zrangebyscore(_recent_runs_key("bs1"), "-inf", "+inf")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert members == [], "race-lost candidates must not pollute recent_runs"
 
 

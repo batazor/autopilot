@@ -170,3 +170,16 @@ def patch_dsl(
         mocker.patch.object(dsl, "_repo_root", return_value=repo_root)
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
     mocker.patch.object(dsl, "BotActions", return_value=actions)
+
+
+_INTEGRATION_TIMEOUT_S = 180
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Longer per-test limit for integration tests (Redis, OCR backend, etc.)."""
+    for item in items:
+        if not item.get_closest_marker("integration"):
+            continue
+        if item.get_closest_marker("timeout"):
+            continue
+        item.add_marker(pytest.mark.timeout(_INTEGRATION_TIMEOUT_S))

@@ -147,7 +147,7 @@ async def test_pop_due_releases_player_bound_scenario_once_active_player_set(
     q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
 
     # Mimic who_i_am writing active_player on instance state.
-    await r.hset("wos:instance:bs1:state", mapping={"active_player": "765502864"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"active_player": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     await q.schedule(
         task_id="t-assign",

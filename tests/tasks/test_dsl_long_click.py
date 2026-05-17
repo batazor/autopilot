@@ -156,7 +156,7 @@ async def test_dsl_missing_scenario_pushes_ui_notification(
 
     assert res.success is False
     assert res.metadata == {"reason": "scenario_not_found", "key": "missing_upgrade"}
-    raw = await redis_async.lrange("wos:ui:notifications:bs1", 0, -1)  # type: ignore[attr-defined]
+    raw = await redis_async.lrange("wos:ui:notifications:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(raw) == 1
     body = json.loads(raw[0])
     assert body["kind"] == "dsl.scenario_not_found"

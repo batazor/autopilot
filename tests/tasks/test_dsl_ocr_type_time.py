@@ -153,7 +153,7 @@ async def test_ocr_step_time_type_stores_seconds_as_int(
     result = await task.execute("bs1")
 
     assert result.success is True
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     # 1h 2m 3s = 3723 seconds.
     assert final["exploration_timer_s"] == "3723"
     # Raw OCR text is preserved alongside the coerced value.
@@ -231,7 +231,7 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
 
     # Seed active_player on the instance so throttle_push uses player-scoped key,
     # matching ``_enqueue_push_scenarios_from_overlay``'s scope resolution.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "active_player", "player_77"
     )
 
@@ -245,12 +245,12 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
 
     assert result.success is True
     # Player-scoped throttle key (active_player resolved from instance state).
-    throttle_val = await redis_async.get(  # type: ignore[attr-defined]
+    throttle_val = await redis_async.get(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_77:push_ttl:building.upgrade"
     )
     assert throttle_val == "1"
     # TTL is roughly 3600s (1h) — within a small slack window.
-    ttl = await redis_async.ttl(  # type: ignore[attr-defined]
+    ttl = await redis_async.ttl(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:player_77:push_ttl:building.upgrade"
     )
     assert 3590 <= int(ttl) <= 3600
@@ -333,11 +333,11 @@ async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
     result = await task.execute("bs1")
 
     assert result.success is True
-    throttle_val = await redis_async.get(  # type: ignore[attr-defined]
+    throttle_val = await redis_async.get(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:push_ttl:building.upgrade"
     )
     assert throttle_val == "1"
-    ttl = await redis_async.ttl(  # type: ignore[attr-defined]
+    ttl = await redis_async.ttl(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:push_ttl:building.upgrade"
     )
     assert 290 <= int(ttl) <= 300
@@ -456,11 +456,11 @@ async def test_ocr_step_time_building_upgrading_reference_image(
     assert captured["image_shape"] == (1280, 720, 3)
 
     # Throttle marker: scope picks the live player_id (task carries it).
-    throttle_val = await redis_async.get(  # type: ignore[attr-defined]
+    throttle_val = await redis_async.get(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:765502864:push_ttl:building.upgrade"
     )
     assert throttle_val == "1"
-    ttl = await redis_async.ttl(  # type: ignore[attr-defined]
+    ttl = await redis_async.ttl(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:765502864:push_ttl:building.upgrade"
     )
     # 27 seconds is small; allow ±2 for redis rounding / test scheduling.
@@ -500,5 +500,5 @@ async def test_ocr_step_time_unparseable_skips_persist(
     result = await task.execute("bs1")
 
     assert result.success is True
-    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]
+    final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert "exploration_timer_s" not in final

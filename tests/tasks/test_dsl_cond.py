@@ -54,7 +54,7 @@ async def test_cond_skips_when_async_redis_returns_bytes_main_city(redis_async: 
     """
 
     r = redis_async
-    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "main_city"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "main_city"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     step = {"wait": "1s", "cond": "currentNode != main_city"}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
@@ -63,7 +63,7 @@ async def test_cond_skips_when_async_redis_returns_bytes_main_city(redis_async: 
 @pytest.mark.asyncio
 async def test_cond_proceeds_when_async_redis_screen_differs(redis_async: object) -> None:
     r = redis_async
-    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "chief_profile"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"current_screen": "chief_profile"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     step = {"wait": "1s", "cond": "currentNode != main_city"}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is True
@@ -72,7 +72,7 @@ async def test_cond_proceeds_when_async_redis_screen_differs(redis_async: object
 @pytest.mark.asyncio
 async def test_cond_instance_text_substring_shelter_matches_ocr_noise(redis_async: object) -> None:
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"chapter.task": "ade2Bunk Beds in Shelter 2 to Lv. 4 1D ) 2)"},
     )
@@ -84,7 +84,7 @@ async def test_cond_instance_text_substring_shelter_matches_ocr_noise(redis_asyn
 @pytest.mark.asyncio
 async def test_cond_instance_text_substring_false_is_valid_syntax(redis_async: object) -> None:
     r = redis_async
-    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Build something else"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Build something else"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     step = {"push_scenario": {"name": "building.upgrade"}, "cond": 'chapter.task ~= "Shelter"'}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
@@ -94,7 +94,7 @@ async def test_cond_instance_text_substring_false_is_valid_syntax(redis_async: o
 async def test_cond_instance_text_substring_pipe_matches_any_alternative(redis_async: object) -> None:
     r = redis_async
     for text in ("Upgrade Wall", "Build Barracks", "ade2Upgrade x"):
-        await r.hset("wos:instance:bs1:state", mapping={"chapter.task": text})  # type: ignore[attr-defined]
+        await r.hset("wos:instance:bs1:state", mapping={"chapter.task": text})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         step = {"push_scenario": {"name": "building.upgrade"}, "cond": 'chapter.task ~= "Upgrade|Build"'}
         allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
         assert allowed is True, text
@@ -103,7 +103,7 @@ async def test_cond_instance_text_substring_pipe_matches_any_alternative(redis_a
 @pytest.mark.asyncio
 async def test_cond_instance_text_substring_pipe_all_miss(redis_async: object) -> None:
     r = redis_async
-    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Train troops"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Train troops"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     step = {"push_scenario": {"name": "building.upgrade"}, "cond": 'chapter.task ~= "Upgrade|Build"'}
     allowed = await dsl._dsl_cond_allows_step(step, "bs1", r)  # type: ignore[arg-type]
     assert allowed is False
@@ -112,7 +112,7 @@ async def test_cond_instance_text_substring_pipe_all_miss(redis_async: object) -
 @pytest.mark.asyncio
 async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: object) -> None:
     r = redis_async
-    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Bunk Beds in Shelter 2"})  # type: ignore[attr-defined]
+    await r.hset("wos:instance:bs1:state", mapping={"chapter.task": "Bunk Beds in Shelter 2"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     step = {
         "push_scenario": {"name": "building.upgrade"},
         "cond": "chapter.task ~= \u201cShelter\u201d",
@@ -130,10 +130,10 @@ async def test_cond_text_reads_player_state_for_ocr_default_scope(redis_async: o
     while OCR had written ``squad_status`` to ``wos:player:<pid>:state``.
     """
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", mapping={"active_player": "765502864"}
     )
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:765502864:state", mapping={"squad_status": "Victory!"}
     )
     step = {"cond": 'squad_status ~= "victory|defeat"'}
@@ -149,7 +149,7 @@ async def test_cond_text_falls_back_to_instance_state_when_player_field_missing(
     must still resolve when the player hash doesn't carry the field.
     """
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "765502864", "chapter.task": "Bunk Beds in Shelter 2"},
     )
@@ -163,11 +163,11 @@ async def test_cond_text_falls_back_to_instance_state_when_player_field_missing(
 async def test_cond_text_player_state_wins_over_instance_state(redis_async: object) -> None:
     """When both scopes have the field, player state wins (OCR-store default scope)."""
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "765502864", "squad_status": "stale"},
     )
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:player:765502864:state", mapping={"squad_status": "Victory!"}
     )
     step = {"cond": 'squad_status ~= "victory"'}
@@ -231,7 +231,7 @@ async def test_cond_arithmetic_without_state_flat_skips(redis_async: object) -> 
 @pytest.mark.asyncio
 async def test_cond_field_ne_null_true_when_field_is_set(redis_async: object) -> None:
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "765502864"},
     )
@@ -264,7 +264,7 @@ async def test_cond_quoted_null_preserves_literal_meaning(redis_async: object) -
     value happens to be the four-character word ``"null"``, not an empty cell.
     Used rarely but the escape hatch must work."""
     r = redis_async
-    await r.hset(  # type: ignore[attr-defined]
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "null"},
     )

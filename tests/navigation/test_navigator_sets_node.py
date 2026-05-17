@@ -58,7 +58,7 @@ async def test_navigator_writes_destination_node_after_route_hop(
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "chief_profile"
     assert taps
 
@@ -131,7 +131,7 @@ async def test_navigator_verifies_destination_with_match_rule(
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "chief_profile"
 
 
@@ -215,5 +215,5 @@ async def test_navigator_verifies_destination_with_ocr_contains(
 
     await nav.navigate_to(ScreenName.CHIEF_PROFILE, "bs1")
 
-    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "chief_profile"

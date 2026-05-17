@@ -300,7 +300,7 @@ async def test_player_bound_while_match_uses_implicit_search_region(
     assert tap_call[0][1].x == 75
     assert tap_call[0][1].y == 75
     assert tap_call[1]["approval_region"] == "page.worker.add"
-    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
 
 
@@ -323,7 +323,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     patch_dsl(mocker, actions, repo_root=repo_root)
     mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
     _patch_instant_sleep(mocker)
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"current_screen": "survivor_status"},
     )
@@ -341,7 +341,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     assert actions.tap.call_args_list
     md = result.metadata or {}
     assert md.get("scenario_completed") is True
-    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
 
 

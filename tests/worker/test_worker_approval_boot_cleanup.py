@@ -27,7 +27,7 @@ async def test_clear_pending_approval_on_boot_deletes_slot(
 ) -> None:
     r = redis_async
     key = "wos:ui:click_approval:current:bs1"
-    await r.set(key, '{"status":"waiting"}')  # type: ignore[attr-defined]
+    await r.set(key, '{"status":"waiting"}')  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1")
@@ -35,7 +35,7 @@ async def test_clear_pending_approval_on_boot_deletes_slot(
 
     await instance_worker.InstanceWorker._clear_pending_approval_on_boot(worker)
 
-    assert await r.get(key) is None  # type: ignore[attr-defined]
+    assert await r.get(key) is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 @pytest.mark.asyncio
@@ -70,8 +70,8 @@ async def test_clear_pending_approval_on_boot_only_touches_own_instance(
     """Each worker owns its own per-instance slot — cleanup must scope to
     ``self._cfg.instance_id`` and leave other instances untouched."""
     r = redis_async
-    await r.set("wos:ui:click_approval:current:bs1", '{"status":"waiting"}')  # type: ignore[attr-defined]
-    await r.set("wos:ui:click_approval:current:bs2", '{"status":"waiting"}')  # type: ignore[attr-defined]
+    await r.set("wos:ui:click_approval:current:bs1", '{"status":"waiting"}')  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    await r.set("wos:ui:click_approval:current:bs2", '{"status":"waiting"}')  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1")
@@ -79,5 +79,5 @@ async def test_clear_pending_approval_on_boot_only_touches_own_instance(
 
     await instance_worker.InstanceWorker._clear_pending_approval_on_boot(worker)
 
-    assert await r.get("wos:ui:click_approval:current:bs1") is None  # type: ignore[attr-defined]
-    assert await r.get("wos:ui:click_approval:current:bs2") is not None  # type: ignore[attr-defined]
+    assert await r.get("wos:ui:click_approval:current:bs1") is None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await r.get("wos:ui:click_approval:current:bs2") is not None  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

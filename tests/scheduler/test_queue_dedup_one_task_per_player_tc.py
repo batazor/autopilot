@@ -43,7 +43,7 @@ async def test_schedule_dedup_ignore_region_enforces_one_task_per_player(
     assert ok1 is True
     assert ok2 is False
 
-    items = await r.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    items = await r.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(items) == 1
     doc = json.loads(items[0])
     assert doc["task_type"] == "assign_worker"
@@ -78,7 +78,7 @@ async def test_schedule_does_not_write_legacy_dup_index(redis_async: object) -> 
     assert ok is True
 
     # No SET key should be created under the dedup-index namespace.
-    idx_keys = [k async for k in r.scan_iter(match="wos:queue:idx:*")]  # type: ignore[attr-defined]
+    idx_keys = [k async for k in r.scan_iter(match="wos:queue:idx:*")]  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert idx_keys == []
 
 
@@ -105,7 +105,7 @@ async def test_has_pending_duplicate_scans_queue_zset_directly(
             "region": "main_city.to.exploration",
         }
     )
-    await redis_async.zadd("wos:queue:bs1", {payload: 1.0})  # type: ignore[attr-defined]
+    await redis_async.zadd("wos:queue:bs1", {payload: 1.0})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     # Device-level dedup (player_id="") finds the queued payload via ZSET scan.
     assert (
@@ -162,7 +162,7 @@ async def test_schedule_concurrent_dedup_atomic(redis_async: object) -> None:
     assert results.count(True) == 1, f"exactly one winner expected, got {results}"
     assert results.count(False) == 7
 
-    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(items) == 1
 
 
@@ -205,7 +205,7 @@ async def test_schedule_cross_player_same_task_type_does_not_dedup(
     assert ok_a is True
     assert ok_b is True
 
-    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(items) == 2
     pids = sorted(json.loads(it)["player_id"] for it in items)
     assert pids == ["A", "B"]
@@ -249,6 +249,6 @@ async def test_schedule_device_level_blocks_subsequent_player_enqueue(
     assert ok_device is True
     assert ok_player is False
 
-    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]
+    items = await redis_async.zrange("wos:queue:bs1", 0, -1)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert len(items) == 1
     assert json.loads(items[0])["player_id"] == ""

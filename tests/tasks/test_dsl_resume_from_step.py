@@ -84,7 +84,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
         encoding="utf-8",
     )
     (tmp_path / "area.json").write_text(yaml.dump({"screens": []}), encoding="utf-8")
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={
             "last_active_scenario": "done_router",
@@ -106,7 +106,7 @@ async def test_completed_scenario_clears_stale_hand_pointer_resume(
     result = await task.execute("bs1")
 
     assert result.success is True
-    state = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    state = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert state["last_active_scenario"] == ""
     assert state["last_active_scenario_step"] == ""
 
@@ -140,7 +140,7 @@ async def test_navigation_failed_records_trace_row(
 
     # Seed current_screen so the trace row can capture it before the
     # navigation_failed branch blanks it.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "current_screen", "popup.claim"
     )
 
@@ -224,7 +224,7 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
     # ``DslScenarioExecuteMixin.execute``) lets the scenario proceed to its
     # first step. Empty ``current_screen`` would otherwise short-circuit
     # before the preempt-yield logic under test ever runs.
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "current_screen", "event.trials"
     )
 
@@ -239,7 +239,7 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
     # The fix: resume at the actually-yielded step, not 0.
     assert result.metadata["resume_from_step_index"] == 1
     # And the trace was persisted to Redis so the resumed slice can hydrate.
-    raw = await redis_async.hget(  # type: ignore[attr-defined]
+    raw = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "last_active_scenario_trace"
     )
     assert raw, "preempt-yield must persist steps_trace for resume"
@@ -283,7 +283,7 @@ async def test_resume_hydrates_trace_from_prior_slice(
             "reason": "preempted_by_higher_priority",
         },
     ]
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         "last_active_scenario_trace",
         json.dumps(prior),
@@ -306,7 +306,7 @@ async def test_resume_hydrates_trace_from_prior_slice(
     assert trace[0] == prior[0]
     assert trace[1] == prior[1]
     # Successful completion wipes the persisted trace via _clear_step_context.
-    raw = await redis_async.hget(  # type: ignore[attr-defined]
+    raw = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "last_active_scenario_trace"
     )
     assert raw in (None, "")
