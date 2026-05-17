@@ -266,6 +266,10 @@ def test_metric_instruments_lazy_create(_initialised_tracing: object) -> None:
     h2 = tracing.task_duration_histogram()
     assert h1 is h2
 
+    s1 = tracing.screenshot_analysis_duration_histogram()
+    s2 = tracing.screenshot_analysis_duration_histogram()
+    assert s1 is s2
+
     c1 = tracing.dsl_exec_counter()
     c2 = tracing.dsl_exec_counter()
     assert c1 is c2
@@ -277,6 +281,16 @@ def test_metric_instruments_record_does_not_raise(_initialised_tracing: object) 
 
     tracing.task_duration_histogram().record(
         1.5, attributes={"task_type": "x", "scenario": "y", "outcome": "finished"}
+    )
+    tracing.screenshot_analysis_duration_histogram().record(
+        0.4,
+        attributes={
+            "node": "main_city",
+            "source": "rolling",
+            "device_level_only": False,
+            "task_busy": False,
+            "outcome": "ok",
+        },
     )
     tracing.dsl_match_score_histogram().record(
         0.87, attributes={"region": "main_city.menu", "scenario": "x", "matched": True}

@@ -103,6 +103,15 @@ screens:
       - match: mail.title
         threshold: 0.9
 
+  vip:
+    priority: 30
+    landmarks:
+      - match: page.vip.box
+        threshold: 0.9
+    rules:
+      - match: page.vip.box
+        threshold: 0.9
+
   alliance.invitation:
     priority: 20
     landmarks:

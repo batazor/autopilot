@@ -1,0 +1,11 @@
+overlay:
+  - name: vip.main_city.badge.visible
+    region: page.vip
+    isRedDot: true
+    device_level: true
+    priority: 90_000
+    screens:
+      - main_city
+    ttl: 10m
+    pushScenario:
+      - name: vip.daily

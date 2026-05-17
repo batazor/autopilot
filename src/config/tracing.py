@@ -321,6 +321,22 @@ def task_duration_histogram() -> Histogram:
     return h
 
 
+def screenshot_analysis_duration_histogram() -> Histogram:
+    """Per-frame analysis duration, partitioned by detected ``node``."""
+    h = _METRICS_CACHE.get("screenshot_analysis_duration")
+    if h is None:
+        h = get_meter().create_histogram(
+            name="wos.screenshot.analysis.duration",
+            unit="s",
+            description=(
+                "Wall-clock time spent analyzing one captured screenshot "
+                "(screen detection + overlay analysis)."
+            ),
+        )
+        _METRICS_CACHE["screenshot_analysis_duration"] = h
+    return h
+
+
 def dsl_match_score_histogram() -> Histogram:
     """Distribution of ``score`` for every ``dsl.match`` step.
 

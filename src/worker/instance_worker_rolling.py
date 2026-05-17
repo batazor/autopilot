@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import tempfile
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ import numpy as np
 
 from config.paths import repo_root
 from config.reference_naming import reference_file_basename, reference_png_abs_path
+from config.tracing import screenshot_analysis_duration_histogram
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,32 @@ def _rolling_should_skip_screen_detect(cfg: Any, *, task_busy: bool) -> bool:
 def _rolling_should_skip_overlay(cfg: Any, *, task_busy: bool) -> bool:
     """Gate the overlay analyzer during a busy task."""
     return bool(task_busy) and not bool(cfg.overlay_analyze_when_busy)
+
+
+def _node_metric_value(node: str | None) -> str:
+    node_s = (node or "").strip()
+    return node_s if node_s else "unknown"
+
+
+def _record_screenshot_analysis_duration(
+    elapsed_s: float,
+    *,
+    node: str | None,
+    source: str,
+    device_level_only: bool,
+    task_busy: bool,
+    outcome: str,
+) -> None:
+    screenshot_analysis_duration_histogram().record(
+        max(0.0, float(elapsed_s)),
+        attributes={
+            "node": _node_metric_value(node),
+            "source": source,
+            "device_level_only": bool(device_level_only),
+            "task_busy": bool(task_busy),
+            "outcome": outcome,
+        },
+    )
 
 
 class InstanceWorkerRollingMixin:
@@ -171,28 +199,49 @@ class InstanceWorkerRollingMixin:
 
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
-        if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
-            # Keep the expensive normal pipeline gated during busy tasks, but
-            # still let device-level overlays (tutorial hands, blocking popups)
-            # interrupt the current work.
-            await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
-            logger.debug(
-                "screen-detect-after-snapshot skipped; ran device-level overlay only"
-            )
-            return
+        current_screen: str | None = None
+        device_level_only = False
+        outcome = "ok"
+        analysis_started = time.monotonic()
+        try:
+            if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
+                # Keep the expensive normal pipeline gated during busy tasks, but
+                # still let device-level overlays (tutorial hands, blocking popups)
+                # interrupt the current work.
+                device_level_only = True
+                await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
+                current_screen = getattr(self, "_last_current_screen", None)
+                logger.debug(
+                    "screen-detect-after-snapshot skipped; ran device-level overlay only"
+                )
+                return
 
-        current_screen = await self._detect_current_screen_on_frame(image_bgr)
+            current_screen = await self._detect_current_screen_on_frame(image_bgr)
 
-        if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
-            await self._overlay_analyze_bgr(
-                image_bgr,
-                current_screen_override=current_screen,
-                device_level_only=True,
+            if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
+                device_level_only = True
+                await self._overlay_analyze_bgr(
+                    image_bgr,
+                    current_screen_override=current_screen,
+                    device_level_only=True,
+                )
+                logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
+                return
+            await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
+            await self._maybe_enqueue_who_i_am_when_active_player_missing()
+        except Exception:
+            outcome = "error"
+            raise
+        finally:
+            current_screen = current_screen or getattr(self, "_last_current_screen", None)
+            _record_screenshot_analysis_duration(
+                time.monotonic() - analysis_started,
+                node=current_screen,
+                source="rolling",
+                device_level_only=device_level_only,
+                task_busy=task_busy,
+                outcome=outcome,
             )
-            logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
-            return
-        await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
-        await self._maybe_enqueue_who_i_am_when_active_player_missing()
 
     async def _overlay_tick_now(self, *, reason: str) -> None:
         """Take one screenshot and run overlay analysis immediately."""
@@ -218,14 +267,28 @@ class InstanceWorkerRollingMixin:
                     reason,
                 )
             return
+        analysis_started = time.monotonic()
+        current_screen: str | None = None
+        outcome = "ok"
         try:
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
             await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
         except Exception:
+            outcome = "error"
             logger.warning(
                 "[overlay] %s: analysis failed — skipping overlay tick (%s)",
                 self._cfg.instance_id,
                 reason,
+            )
+        finally:
+            current_screen = current_screen or getattr(self, "_last_current_screen", None)
+            _record_screenshot_analysis_duration(
+                time.monotonic() - analysis_started,
+                node=current_screen,
+                source="overlay_tick",
+                device_level_only=False,
+                task_busy=bool(self._task_busy.is_set()),
+                outcome=outcome,
             )
 
     async def _startup_overlay_tick(self) -> None:

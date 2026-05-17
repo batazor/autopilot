@@ -142,6 +142,41 @@ async def test_tick_idle_runs_full_pipeline(_isolated_refs: Any) -> None:
 
 
 @pytest.mark.asyncio
+async def test_tick_records_screenshot_analysis_duration(
+    _isolated_refs: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import worker.instance_worker_rolling as rolling_mod
+
+    records: list[tuple[float, dict[str, object]]] = []
+
+    class _Histogram:
+        def record(self, value: float, *, attributes: dict[str, object]) -> None:
+            records.append((value, attributes))
+
+    histogram = _Histogram()
+    monkeypatch.setattr(
+        rolling_mod,
+        "screenshot_analysis_duration_histogram",
+        lambda: histogram,
+    )
+
+    h = _Harness(cfg=_Cfg())
+    await h._device_reference_snapshot_tick()
+
+    assert len(records) == 1
+    value, attrs = records[0]
+    assert value >= 0.0
+    assert attrs == {
+        "node": "main_city",
+        "source": "rolling",
+        "device_level_only": False,
+        "task_busy": False,
+        "outcome": "ok",
+    }
+
+
+@pytest.mark.asyncio
 async def test_tick_busy_skips_detect_and_overlay_by_default(_isolated_refs: Any) -> None:
     """Default config: both gates closed → after the screenshot the tick
     skips detect and the full overlay pipeline, but still checks device-level

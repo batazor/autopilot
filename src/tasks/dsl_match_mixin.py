@@ -38,6 +38,7 @@ from layout.white_border_detector import (
     has_white_border_in_bbox_percent,
 )
 from tasks.dsl_scenario_helpers import (
+    _read_current_screen,
     _step_red_dot_requirement,
     _step_tab_active_requirement,
     _step_white_border_requirement,
@@ -270,7 +271,17 @@ class DslMatchMixin:
         step: dict[str, Any],
         region: str,
     ) -> dict[str, Any] | None:
-        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
+        current_screen = await _read_current_screen(instance_id, self.redis_client)
+        pair = (
+            screen_region_by_name(
+                area_doc,
+                region,
+                state_flat=self._state_flat(),
+                screen_id=current_screen or None,
+            )
+            if region
+            else None
+        )
         if pair is None:
             logger.warning("dsl_scenario: match region not found in area.json: %s", region)
             await self._persist_dsl_last_match(
