@@ -53,7 +53,7 @@ async def test_dsl_click_uses_overlay_tap_override(
         encoding="utf-8",
     )
 
-    actions = make_actions()
+    actions = make_actions(resolution=(1000, 1000))
     patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
@@ -119,6 +119,7 @@ async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
                                 "action": "exist",
                                 "type": "string",
                                 "threshold": 0.9,
+                                "isSearch": True,
                                 "bbox": {"x": 10, "y": 10, "width": 10, "height": 10},
                             },
                             # Search companion → triggers implicit match-on-click.
@@ -160,9 +161,9 @@ async def test_dsl_click_forwards_min_match_saturation_to_implicit_match(
             }
         }
 
-    actions = make_actions(np.zeros((1000, 1000, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((1000, 1000, 3), dtype=np.uint8), resolution=(1000, 1000))
     patch_dsl(mocker, actions, repo_root=tmp_path)
-    mocker.patch.object(dsl, "evaluate_overlay_rules_async", side_effect=_fake_eval)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fake_eval)
 
     task = dsl.DslScenarioTask(
         task_id="t1",

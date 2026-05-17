@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import ANY, MagicMock, call
+from unittest.mock import ANY, call
 
 import cv2
 import numpy as np
 import pytest
 import yaml
 
-from adb import BotActions
+from conftest import make_actions, patch_dsl
+
 import tasks.dsl_scenario as dsl
-from tasks import dsl_runtime
 from navigation.detector import ScreenDetector
 from scenarios import template_resolver
 from services import get_ocr_client
@@ -18,23 +18,6 @@ from services import get_ocr_client
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]
 REFERENCES_DIR = MODULE_DIR / "references"
-
-
-def make_actions(frames: list[np.ndarray]) -> MagicMock:
-    actions = MagicMock(spec=BotActions)
-    actions.screen_resolution.return_value = (720, 1280)
-
-    it = iter(frames)
-    last = [frames[-1]]
-
-    def next_frame(*_args: object, **_kwargs: object) -> np.ndarray:
-        last[0] = next(it, last[0])
-        return last[0]
-
-    actions.capture_screen_bgr.side_effect = next_frame
-    actions.capture_screen_bgr_cached.side_effect = next_frame
-    actions.tap.return_value = True
-    return actions
 
 
 def _load_reference_bgr(name: str) -> np.ndarray:
@@ -104,9 +87,7 @@ async def test_vip_daily_scenario_clicks_claimable_vip_box(
     blank = np.zeros((1280, 720, 3), dtype=np.uint8)
 
     actions = make_actions([visible, blank])
-    mocker.patch.object(dsl, "_repo_root", return_value=REPO_ROOT)
-    mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl, "BotActions", return_value=actions)
+    patch_dsl(mocker, actions, repo_root=REPO_ROOT)
 
     task = dsl.DslScenarioTask(
         task_id="vip-daily-test",
@@ -188,9 +169,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
             vip_after_unlock,  # Unlock red dot is gone after closing its popup.
         ]
     )
-    mocker.patch.object(dsl, "_repo_root", return_value=REPO_ROOT)
-    mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
-    mocker.patch.object(dsl, "BotActions", return_value=actions)
+    patch_dsl(mocker, actions, repo_root=REPO_ROOT)
 
     task = dsl.DslScenarioTask(
         task_id="vip-daily-real-frame-rehearsal",

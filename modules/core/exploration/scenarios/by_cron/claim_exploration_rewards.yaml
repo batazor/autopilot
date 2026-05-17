@@ -1,0 +1,18 @@
+enabled: true
+name: Claim Exploration Rewards
+
+node: exploration
+
+cron: "0 */4 * * *"
+
+steps:
+  - click: button.claim
+  - wait: 2s
+  - while_match: button.claim.big
+    steps:
+      - click: button.claim.big
+      - wait: 2s
+      - match: button.tap_anywhere_to_exit
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 0.5s

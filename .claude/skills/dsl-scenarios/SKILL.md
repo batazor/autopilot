@@ -173,13 +173,13 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
 6. **Add overlay trigger if needed** — in `modules/*/analyze/analyze.yaml` or `modules/core/*/analyze/analyze.yaml`, use `screens`, `region`, `action: findIcon|text|color_check`, optional `isRedDot`, `ttl`, and `pushScenario`. Analyzer YAML uses `findIcon`; `area.json` uses editor action `exist`.
 7. **Stub the scenario YAML** — start with `enabled: false`, add `name`, optional `device_level`, `priority`, `node`, `cron`/`cond`, then `steps:`.
 8. **Compose with guards** — use `match + steps` or `while_match + max: 1` for optional UI. Do not use bare `match:` for elements that may be absent.
-9. **Rehearse live before broadening** — use IA Editor / MCP handles to capture screen, inspect current state, run or enqueue the scenario, then capture again after each click. Prefer `push_scenario` / UI queue semantics over inline one-off execution when validating real worker behavior.
+9. **Rehearse live before broadening** — use AI Editor / MCP handles to capture screen, inspect current state, run or enqueue the scenario, then capture again after each click. Do not start `uv run wos` for scenario development/rehearsal; AI Editor owns this isolated flow.
 10. **Add reference regression coverage** — save module-local screenshots/crops and write a focused test for the expected matches/clicks/node transitions.
 11. **Validate**:
    - `uv run pytest tests/test_scenario_loader_declarative.py tests/test_startup_validation.py -q`
    - For new while_match work: `uv run pytest tests/test_dsl_while_match.py tests/test_dsl_while_match_strict.py -q`
    - For screenshot regression: run the new module/scenario test directly.
-12. **Inspect at runtime** — start `docker compose up` (or local worker). Useful Redis state via `redis-cli` on `127.0.0.1:6379`:
+12. **Inspect AI Editor runtime state** — use Redis state from the AI Editor / IA queue executor flow:
    - `HGETALL wos:instance:<id>:state` — current node, last screen, last match outcome
    - `HGETALL wos:player:<player>` — `store:` fields
    - Queues / current scenario / history: see `MEMORY.md → reference_redis_cli`
@@ -187,7 +187,7 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
 
 ## Live rehearsal workflow
 
-Use this loop when developing against a real device:
+Use this loop when developing against a real device. Scenario rehearsal runs through AI Editor, not the full `uv run wos` bot:
 
 1. Capture the current screen and inspect `current_state` / `current_screen` before clicking.
 2. Check whether the next DSL guard should match on the captured frame.
@@ -195,7 +195,7 @@ Use this loop when developing against a real device:
 4. Capture again and verify the next frame before continuing.
 5. Repeat until the scenario exits; then write a regression test from the screenshots.
 
-IA Editor can execute manual/UI-pushed scenarios through `src/ui/ia_queue_executor.py` without starting the full `uv run wos` bot. The embedded preview refresher must keep `current_screen` updated independently; if it is empty, a node-bound scenario can exit as `awaiting_screen_identity`. For step-level rehearsal, seed the correct node/screen only when the fake/live environment cannot update it itself.
+AI Editor executes manual/UI-pushed scenarios through `src/ui/ia_queue_executor.py` without starting the full `uv run wos` bot. The embedded preview refresher must keep `current_screen` updated independently; if it is empty, a node-bound scenario can exit as `awaiting_screen_identity`. For step-level rehearsal, seed the correct node/screen only when the fake/live environment cannot update it itself.
 
 ## Region naming
 

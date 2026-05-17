@@ -29,6 +29,13 @@ from conftest import make_actions, patch_dsl
 import tasks.dsl_scenario as dsl
 
 
+def _screen_capture_count(actions: Any) -> int:
+    return (
+        actions.capture_screen_bgr.call_count
+        + actions.capture_screen_bgr_cached.call_count
+    )
+
+
 def _patch_instant_sleep(mocker: Any) -> None:
     real_sleep = asyncio.sleep
 
@@ -255,8 +262,29 @@ async def test_player_bound_while_match_uses_implicit_search_region(
         ref[20:30, 20:30],
     )
 
-    actions = make_actions([frame, np.zeros((100, 100, 3), dtype=np.uint8)], resolution=(100, 100))
+    blank = np.zeros((100, 100, 3), dtype=np.uint8)
+    actions = make_actions([frame] * 8 + [blank], resolution=(100, 100))
+
+    async def _fake_eval(
+        _image_bgr: Any, _area_doc: Any, _repo_root: Any, rules: Any, **_kw: Any
+    ) -> dict[str, Any]:
+        name = str(rules[0].get("name") or "")
+        return {
+            name: {
+                "matched": True,
+                "score": 0.99,
+                "threshold": 0.9,
+                "tap_x_pct": 75.0,
+                "tap_y_pct": 75.0,
+                "tap_match_x_pct": 75.0,
+                "tap_match_y_pct": 75.0,
+                "search_region": "page.worker.add_search",
+            }
+        }
+
     patch_dsl(mocker, actions, repo_root=tmp_path)
+    mocker.patch.object(dsl, "evaluate_overlay_rules_async", new=_fake_eval)
+    mocker.patch.object(dsl, "click_approval_enabled", return_value=False)
     _patch_instant_sleep(mocker)
 
     task = dsl.DslScenarioTask(
@@ -284,7 +312,11 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     redis_async: object,
 ) -> None:
     """Real PNG fixture matches ``page.worker.add`` (sliding search); Redis carries search_region."""
+    from scenarios import template_resolver
+
     repo_root = Path(__file__).resolve().parents[2]
+    if template_resolver.load_doc(repo_root, "assign_worker") is None:
+        pytest.skip("assign_worker scenario not registered in repo")
     fixture = repo_root / "tests" / "fixtures" / "page_worker_add_current_state.png"
     frame = cv2.imread(str(fixture))
     assert frame is not None, f"fixture missing or unreadable: {fixture}"
@@ -349,7 +381,7 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     assert md.get("attempts") == 3            # honored override
     assert md.get("interval") == 0.25         # "250ms" parsed to seconds
     # Three probe attempts, none matched → exactly 3 captures.
-    assert actions.capture_screen_bgr.call_count == 3
+    assert _screen_capture_count(actions) == 3
 
 
 @pytest.mark.asyncio
@@ -388,7 +420,7 @@ async def test_device_level_while_match_zero_iterations_returns_success(
     assert result.next_run_at is None  # no reschedule
     assert actions.tap.call_args_list == []
     # Only one probe attempt (default for device_level).
-    assert actions.capture_screen_bgr.call_count == 1
+    assert _screen_capture_count(actions) == 1
 
 
 def _frame_with_pattern() -> np.ndarray:

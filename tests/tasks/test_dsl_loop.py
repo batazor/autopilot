@@ -111,7 +111,7 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
 
     import tasks.dsl_exec as dsl_exec
 
-    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {advance_progress: _advance})
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"advance_progress": _advance})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -154,7 +154,7 @@ async def test_loop_max_caps_iteration_count(
 
     import tasks.dsl_exec as dsl_exec
 
-    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {tick: _tick})
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"tick": _tick})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -195,7 +195,7 @@ async def test_loop_break_repeat_exits_loop(
 
     import tasks.dsl_exec as dsl_exec
 
-    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {tick: _tick})
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"tick": _tick})
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -244,8 +244,7 @@ async def test_loop_inner_step_cond_skips_individual_step(
 
     import tasks.dsl_exec as dsl_exec
 
-    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {always: _always})
-    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {only_when_yes: _only_when_yes})
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"always": _always, "only_when_yes": _only_when_yes})
 
     task = dsl.DslScenarioTask(
         task_id="t1",

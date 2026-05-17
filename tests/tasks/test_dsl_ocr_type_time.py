@@ -16,6 +16,8 @@ import numpy as np
 import pytest
 import yaml
 
+from conftest import make_actions, patch_dsl
+
 import tasks.dsl_scenario as dsl
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
@@ -59,22 +61,6 @@ def test_parse_hms_valid(text: str, expected: int) -> None:
 )
 def test_parse_hms_invalid(text: object) -> None:
     assert _parse_hms_to_seconds(text) is None  # type: ignore[arg-type]
-
-
-class _FakeActions:
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 200, 100
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return self.frame
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        return True
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -141,7 +127,7 @@ def _write_timer_repo(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_ocr_step_time_type_stores_seconds_as_int(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``type: time`` OCR step converts "01:02:03" → 3723 in Redis."""
@@ -156,9 +142,8 @@ async def test_ocr_step_time_type_stores_seconds_as_int(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-time",
@@ -179,7 +164,7 @@ async def test_ocr_step_time_type_stores_seconds_as_int(
 @pytest.mark.asyncio
 async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """``type: time`` + ``throttle_push: <scenario>`` writes the push_ttl
@@ -242,9 +227,8 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     # Seed active_player on the instance so throttle_push uses player-scoped key,
     # matching ``_enqueue_push_scenarios_from_overlay``'s scope resolution.
@@ -276,7 +260,7 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
 @pytest.mark.asyncio
 async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """When no ``active_player`` is set anywhere, throttle key falls back to
@@ -338,9 +322,8 @@ async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-throttle-noap",
@@ -361,33 +344,10 @@ async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
     assert 290 <= int(ttl) <= 300
 
 
-class _RealFrameActions:
-    """``_FakeActions`` clone that returns a caller-supplied frame at the
-    frame's real resolution. Lets the integration test below exercise the
-    bbox→px math (``_persist_ocr_result``) against the production
-    ``references/building.upgrading.png`` reference.
-    """
-
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-        self._h, self._w = frame.shape[:2]
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return self._w, self._h
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return self.frame
-
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        return True
-
-
 @pytest.mark.asyncio
 async def test_ocr_step_time_building_upgrading_reference_image(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """Lock in the production bbox + parse round-trip for the real WOS
@@ -460,7 +420,7 @@ async def test_ocr_step_time_building_upgrading_reference_image(
         encoding="utf-8",
     )
 
-    actions = _RealFrameActions(img)
+    actions = make_actions(img, resolution=(w, h))
     captured: dict[str, Any] = {}
 
     class _StubOcrClient:
@@ -480,9 +440,8 @@ async def test_ocr_step_time_building_upgrading_reference_image(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-bu-real",
@@ -512,7 +471,7 @@ async def test_ocr_step_time_building_upgrading_reference_image(
 @pytest.mark.asyncio
 async def test_ocr_step_time_unparseable_skips_persist(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     """OCR text that can't be parsed as HH:MM:SS / MM:SS is logged + skipped,
@@ -530,9 +489,8 @@ async def test_ocr_step_time_unparseable_skips_persist(
 
     import ocr.client as ocr_client_module
 
-    monkeypatch.setattr(ocr_client_module, "OcrClient", _StubOcrClient)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t-ocr-time-bad",

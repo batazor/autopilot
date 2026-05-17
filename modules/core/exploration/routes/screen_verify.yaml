@@ -1,0 +1,9 @@
+screens:
+  exploration:
+    priority: 30
+    landmarks:
+      - match: exploration.to.squad_settings
+        threshold: 0.9
+    rules:
+      - match: exploration.to.squad_settings
+        threshold: 0.9

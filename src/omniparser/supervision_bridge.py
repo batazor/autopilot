@@ -11,6 +11,7 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
+from typing import Any, Literal, cast
 
 import numpy as np
 from PIL import Image
@@ -128,14 +129,14 @@ def detections_to_regions(
     image_width: int,
     image_height: int,
     existing_names: set[str] | None = None,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     if len(detections) == 0:
         return []
     taken = {str(n).strip() for n in (existing_names or set()) if str(n).strip()}
     ow = max(1, int(image_width))
     oh = max(1, int(image_height))
 
-    out: list[dict[str, object]] = []
+    out: list[dict[str, Any]] = []
     for i in range(len(detections)):
         px1, py1, px2, py2 = detections.xyxy[i].tolist()
         x1_r = px1 / ow
@@ -191,9 +192,9 @@ filter_detections = filter_detections_nms
 
 def filter_blacklisted_regions(
     image: Image.Image,
-    regions: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], int]:
-    kept: list[dict[str, object]] = []
+    regions: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
+    kept: list[dict[str, Any]] = []
     skipped = 0
     for region in regions:
         if is_blacklisted_omniparser_region(image, region):
@@ -203,7 +204,7 @@ def filter_blacklisted_regions(
     return kept, skipped
 
 
-def _bbox_rect(region: dict[str, object]) -> tuple[float, float, float, float] | None:
+def _bbox_rect(region: dict[str, Any]) -> tuple[float, float, float, float] | None:
     bbox = region.get("bbox")
     if not isinstance(bbox, dict):
         return None
@@ -246,14 +247,14 @@ def _overlap_ratio_of_smaller(
     return _intersection_area(a, b) / smaller
 
 
-def _has_bbox_intersection(region: dict[str, object], existing_rects: list[tuple[float, float, float, float]]) -> bool:
+def _has_bbox_intersection(region: dict[str, Any], existing_rects: list[tuple[float, float, float, float]]) -> bool:
     rect = _bbox_rect(region)
     if rect is None:
         return False
     return any(_rects_intersect(rect, existing) for existing in existing_rects)
 
 
-def _region_names(region: dict[str, object]) -> list[str]:
+def _region_names(region: dict[str, Any]) -> list[str]:
     out: list[str] = []
     name = str(region.get("name") or "").strip()
     if name:
@@ -267,13 +268,13 @@ def _region_names(region: dict[str, object]) -> list[str]:
     return out
 
 
-def _is_matching_auxiliary_region(region: dict[str, object]) -> bool:
+def _is_matching_auxiliary_region(region: dict[str, Any]) -> bool:
     if bool(region.get("overlay_auxiliary")):
         return True
     return any(name.endswith(("_search", "_tap")) for name in _region_names(region))
 
 
-def _region_identity_hashes(region: dict[str, object]) -> set[str]:
+def _region_identity_hashes(region: dict[str, Any]) -> set[str]:
     h = str(region.get("hash") or "").strip()
     hashes = {region_hash(region)}
     if h:
@@ -282,8 +283,8 @@ def _region_identity_hashes(region: dict[str, object]) -> set[str]:
 
 
 def _copy_bbox_from_existing(
-    proposal: dict[str, object],
-    existing_bbox: dict[str, object],
+    proposal: dict[str, Any],
+    existing_bbox: dict[str, Any],
 ) -> bool:
     before = proposal.get("bbox")
     proposal["bbox"] = dict(existing_bbox)
@@ -291,11 +292,11 @@ def _copy_bbox_from_existing(
     return before != proposal["bbox"]
 
 
-def _mark_matched_existing(proposal: dict[str, object]) -> None:
+def _mark_matched_existing(proposal: dict[str, Any]) -> None:
     proposal[OMNIPARSER_MATCHED_EXISTING_KEY] = True
 
 
-def _strip_internal_proposal_fields(region: dict[str, object]) -> dict[str, object]:
+def _strip_internal_proposal_fields(region: dict[str, Any]) -> dict[str, Any]:
     return {
         key: value
         for key, value in region.items()
@@ -303,7 +304,7 @@ def _strip_internal_proposal_fields(region: dict[str, object]) -> dict[str, obje
     }
 
 
-def _region_crop_pixel_hash(image: Image.Image, region: dict[str, object]) -> str | None:
+def _region_crop_pixel_hash(image: Image.Image, region: dict[str, Any]) -> str | None:
     bbox = region.get("bbox")
     if not isinstance(bbox, dict):
         return None
@@ -331,7 +332,7 @@ def _region_crop_pixel_hash(image: Image.Image, region: dict[str, object]) -> st
     return hashlib.sha256(crop.tobytes()).hexdigest()
 
 
-def is_blacklisted_omniparser_region(image: Image.Image, region: dict[str, object]) -> bool:
+def is_blacklisted_omniparser_region(image: Image.Image, region: dict[str, Any]) -> bool:
     name = str(region.get("name") or "").strip().lower()
     if any(name == prefix or name.startswith(f"{prefix}.") for prefix in OMNIPARSER_NAME_BLACKLIST_PREFIXES):
         return True
@@ -341,9 +342,9 @@ def is_blacklisted_omniparser_region(image: Image.Image, region: dict[str, objec
 
 def reuse_proposal_names_from_existing_crops(
     image: Image.Image,
-    proposals: list[dict[str, object]],
-    existing: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], int]:
+    proposals: list[dict[str, Any]],
+    existing: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
     """If a proposal overlaps an existing region and crop pixels match, use that region name.
 
     Compared hashes are from :func:`_region_crop_pixel_hash` (RGBA crop SHA-256), not
@@ -352,7 +353,7 @@ def reuse_proposal_names_from_existing_crops(
     """
 
     reused = 0
-    existing_entries: list[tuple[tuple[float, float, float, float], str, str, dict[str, object]]] = []
+    existing_entries: list[tuple[tuple[float, float, float, float], str, str, dict[str, Any]]] = []
     for er in existing:
         if _is_matching_auxiliary_region(er):
             continue
@@ -396,11 +397,11 @@ def reuse_proposal_names_from_existing_crops(
 
 
 def reuse_proposal_names_from_overlapping_regions(
-    proposals: list[dict[str, object]],
-    existing: list[dict[str, object]],
+    proposals: list[dict[str, Any]],
+    existing: list[dict[str, Any]],
     *,
     threshold: float = 0.8,
-) -> tuple[list[dict[str, object]], int, int]:
+) -> tuple[list[dict[str, Any]], int, int]:
     """Rename proposal regions to existing names when bbox overlap proves identity.
 
     If multiple proposal boxes map to the same existing region, keep the strongest
@@ -408,7 +409,7 @@ def reuse_proposal_names_from_overlapping_regions(
     """
 
     score_tie_epsilon = 0.05
-    existing_entries: list[tuple[tuple[float, float, float, float], str, float, dict[str, object]]] = []
+    existing_entries: list[tuple[tuple[float, float, float, float], str, float, dict[str, Any]]] = []
     for er in existing:
         if _is_matching_auxiliary_region(er):
             continue
@@ -422,7 +423,7 @@ def reuse_proposal_names_from_overlapping_regions(
             existing_entries.append((rect, primary, _rect_area(rect), bbox))
 
     best_by_name: dict[str, tuple[float, int]] = {}
-    match_by_idx: dict[int, tuple[str, float, dict[str, object]]] = {}
+    match_by_idx: dict[int, tuple[str, float, dict[str, Any]]] = {}
     threshold = float(threshold)
     for idx, reg in enumerate(proposals):
         prop_rect = _bbox_rect(reg)
@@ -431,7 +432,7 @@ def reuse_proposal_names_from_overlapping_regions(
         best_name = ""
         best_score = 0.0
         best_area = float("inf")
-        best_bbox: dict[str, object] | None = None
+        best_bbox: dict[str, Any] | None = None
         for ex_rect, primary, existing_area, existing_bbox in existing_entries:
             score = _overlap_ratio_of_smaller(prop_rect, ex_rect)
             if score < threshold:
@@ -454,7 +455,7 @@ def reuse_proposal_names_from_overlapping_regions(
         winner_idx
         for _score, winner_idx in best_by_name.values()
     }
-    out: list[dict[str, object]] = []
+    out: list[dict[str, Any]] = []
     reused = 0
     dropped = 0
     for idx, reg in enumerate(proposals):
@@ -479,9 +480,9 @@ def reuse_proposal_names_from_overlapping_regions(
 
 
 def merge_omniparser_regions(
-    existing: list[dict[str, object]],
-    proposed: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], int, int, int]:
+    existing: list[dict[str, Any]],
+    proposed: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, int, int]:
     """Merge proposed OmniParser regions into the current screen only.
 
     Returns ``(merged, added, aliased, skipped_intersections)``. If a proposed
@@ -490,14 +491,14 @@ def merge_omniparser_regions(
     """
     merged = list(existing)
     names = {name for region in merged for name in _region_names(region)}
-    by_hash: dict[str, dict[str, object]] = {}
+    by_hash: dict[str, dict[str, Any]] = {}
     for region in merged:
         if _is_matching_auxiliary_region(region):
             continue
         for h in _region_identity_hashes(region):
             by_hash.setdefault(h, region)
 
-    existing_rects: list[tuple[dict[str, object], tuple[float, float, float, float]]] = [
+    existing_rects: list[tuple[dict[str, Any], tuple[float, float, float, float]]] = [
         (region, rect)
         for region in merged
         if not _is_matching_auxiliary_region(region) and (rect := _bbox_rect(region)) is not None
@@ -506,7 +507,7 @@ def merge_omniparser_regions(
     aliased = 0
     skipped_intersections = 0
 
-    def _add_region_alias(region: dict[str, object], alias: str, taken_names: set[str]) -> bool:
+    def _add_region_alias(region: dict[str, Any], alias: str, taken_names: set[str]) -> bool:
         alias_s = alias.strip()
         if not alias_s or alias_s in _region_names(region) or alias_s in taken_names:
             return False
@@ -555,9 +556,9 @@ def merge_omniparser_regions(
 def merge_detected_regions(
     *,
     merge_mode: str,
-    existing: list[dict[str, object]],
-    proposed_regions: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], int, int, int]:
+    existing: list[dict[str, Any]],
+    proposed_regions: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, int, int]:
     """Apply merge or replace semantics to prepared proposal regions."""
 
     if merge_mode == "replace":
@@ -577,7 +578,7 @@ def build_omniparser_proposal_regions(
     height: int,
     min_area_pct: float,
     nms_iou_threshold: float,
-) -> tuple[list[dict[str, object]], OmniParserProposalStats]:
+) -> tuple[list[dict[str, Any]], OmniParserProposalStats]:
     """OmniParser → min-area → NMS (supervision-compatible) → ``area.json`` style regions."""
 
     raw_list = list(elements)
@@ -606,7 +607,7 @@ def build_omniparser_proposal_regions(
     return filtered, stats
 
 
-def parsed_element_to_dict(el: ParsedUiElement) -> dict[str, object]:
+def parsed_element_to_dict(el: ParsedUiElement) -> dict[str, Any]:
     return {
         "type": el.type,
         "bbox": list(el.bbox),
@@ -615,22 +616,31 @@ def parsed_element_to_dict(el: ParsedUiElement) -> dict[str, object]:
     }
 
 
-def parsed_element_from_dict(obj: dict[str, object]) -> ParsedUiElement:
+def parsed_element_from_dict(obj: dict[str, Any]) -> ParsedUiElement:
     bbox_raw = obj.get("bbox")
     if not isinstance(bbox_raw, (list, tuple)) or len(bbox_raw) < 4:
         msg = "invalid bbox"
         raise ValueError(msg)
-    bbox = tuple(float(bbox_raw[i]) for i in range(4))  # type: ignore[misc]
+    bbox: tuple[float, float, float, float] = (
+        float(bbox_raw[0]),
+        float(bbox_raw[1]),
+        float(bbox_raw[2]),
+        float(bbox_raw[3]),
+    )
     el_type_raw = str(obj.get("type") or "icon").strip().lower()
-    el_type: object = el_type_raw if el_type_raw in ("icon", "text") else "icon"
+    el_type: Literal["icon", "text"] = (
+        cast('Literal["icon", "text"]', el_type_raw)
+        if el_type_raw in ("icon", "text")
+        else "icon"
+    )
     return ParsedUiElement(
-        type=el_type,  # type: ignore[arg-type]
-        bbox=bbox,  # type: ignore[arg-type]
+        type=el_type,
+        bbox=bbox,
         interactivity=bool(obj.get("interactivity", False)),
         content=str(obj.get("content") or "").strip(),
     )
 
 
-def deserialize_parsed_elements(raw: list[dict[str, object]]) -> list[ParsedUiElement]:
+def deserialize_parsed_elements(raw: list[dict[str, Any]]) -> list[ParsedUiElement]:
     return [parsed_element_from_dict(d) for d in raw]
 

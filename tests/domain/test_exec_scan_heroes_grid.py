@@ -26,6 +26,8 @@ import cv2
 import numpy as np
 import pytest
 
+from conftest import make_actions
+
 import ocr.client as ocr_client_module
 import tasks.dsl_exec as dsl_exec
 from layout.types import Region
@@ -79,19 +81,6 @@ def _load_frame(label: str) -> np.ndarray:
     frame = cv2.imread(str(path))
     assert frame is not None, f"cannot decode {path}"
     return frame
-
-
-class _FakeActions:
-    """Stubbed ``BotActions`` that hands back the fixture frame on capture."""
-
-    def __init__(self, frame: np.ndarray) -> None:
-        self.frame = frame
-        self.captures = 0
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        self.captures += 1
-        return self.frame
 
 
 class _FakeStore:
@@ -167,7 +156,7 @@ async def test_scan_heroes_grid_persists_full_snapshot_and_positions(
 ) -> None:
     """Happy path on each fixture: 12 heroes land in state.yaml + Redis."""
     expected = _FRAMES[frame_label][1]
-    actions = _FakeActions(_load_frame(frame_label))
+    actions = make_actions(_load_frame(frame_label))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
@@ -182,7 +171,7 @@ async def test_scan_heroes_grid_persists_full_snapshot_and_positions(
     )
 
     # --- state.yaml side ------------------------------------------------
-    assert actions.captures == 1
+    assert actions.capture_screen_bgr.call_count == 1
     assert store.captured_player_id == "player_42"
     flat = store.captured_flat
     assert flat is not None
@@ -229,7 +218,7 @@ async def test_scan_heroes_grid_three_unlocked_with_red_dots_persisted(
     shard counters) — that's the signal downstream ``sync_hero_unit``
     scheduling relies on to decide which hero card to open next.
     """
-    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
@@ -284,7 +273,7 @@ async def test_scan_heroes_grid_resort_replaces_position_hash(
     }
     await redis_async.hset(pos_key, mapping=stale_mapping)
 
-    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
@@ -320,7 +309,7 @@ async def test_scan_heroes_grid_preserves_existing_level_on_locked_card(
     one. The handler must read, merge, and write — not blow away — that
     field.
     """
-    actions = _FakeActions(_load_frame("frame_2_unlocked"))
+    actions = make_actions(_load_frame("frame_2_unlocked"))
     store = _FakeStore(existing={
         "jeronimo": {"name": "Jeronimo", "level": 9, "stars": 6},
     })
@@ -353,7 +342,7 @@ async def test_scan_heroes_grid_clears_stale_shard_counts_when_unlocked(
     """Stale ``shards_*`` from a past locked-state snapshot must be cleared
     once the card flips to unlocked, so callers don't see "needs 9/10"
     next to a playable hero."""
-    actions = _FakeActions(_load_frame("frame_2_unlocked"))
+    actions = make_actions(_load_frame("frame_2_unlocked"))
     store = _FakeStore(existing={
         "bahiti": {"shards_current": 9, "shards_required": 10, "stars": 4},
     })
@@ -424,7 +413,7 @@ async def test_scan_heroes_grid_persists_shards_for_ready_to_recruit(
                 out.append(SimpleNamespace(region_id=rid, text=text, confidence=0.95))
             return out
 
-    actions = _FakeActions(frame)
+    actions = make_actions(frame)
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
@@ -485,7 +474,7 @@ async def test_scan_heroes_grid_enqueues_red_dot_hero_scenarios(
     (the ``modules/core/heroes/scenarios/{hero}.yaml`` template keys) for the active
     player. No queue items for the locked heroes without a dot.
     """
-    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)
@@ -517,7 +506,7 @@ async def test_scan_heroes_grid_skips_red_dot_push_when_already_queued(
     is a no-op (otherwise repeat scans would stack ``N`` copies of the
     same hero card visit per minute).
     """
-    actions = _FakeActions(_load_frame("frame_3_unlocked"))
+    actions = make_actions(_load_frame("frame_3_unlocked"))
     store = _FakeStore()
     monkeypatch.setattr(dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(dsl_exec, "get_state_store", lambda: store)

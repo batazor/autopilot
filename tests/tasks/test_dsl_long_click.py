@@ -18,6 +18,7 @@ async def test_dsl_long_click_uses_wait_as_duration(
     tmp_path: Path,
     mocker,
     redis_async: object,
+    pin_click_to_center: None,
 ) -> None:
     module_dir = tmp_path / "modules" / "core" / "test_scenarios"
     scenario_root = module_dir / "scenarios"
@@ -52,7 +53,7 @@ async def test_dsl_long_click_uses_wait_as_duration(
         encoding="utf-8",
     )
 
-    actions = make_actions()
+    actions = make_actions(resolution=(1000, 1000))
     patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(

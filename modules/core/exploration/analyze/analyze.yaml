@@ -1,0 +1,10 @@
+overlay:
+  - name: main_city.to.exploration.has_reward
+    region: main_city.to.exploration
+    threshold: 0.98
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: claim_exploration_rewards
+        ttl: 1m

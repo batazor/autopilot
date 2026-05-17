@@ -181,6 +181,19 @@ def test_production_screen_verify_yaml_contains_mail_rule() -> None:
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("exploration")
+        rules = screen_graph.screen_verify_rules("exploration")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "exploration.to.squad_settings", "threshold": 0.9}]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:

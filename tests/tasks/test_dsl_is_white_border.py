@@ -118,74 +118,58 @@ def test_build_white_border_only_row_errors_without_bbox() -> None:
     assert out["reason"] == "missing_bbox_for_white_border"
 
 
-def test_white_border_falls_back_to_search_sibling_bbox() -> None:
-    """When the primary bbox yields no slide-find candidate, the matcher must
-    retry against the ``{region}_search`` sibling bbox passed by the caller.
-
-    Regression guard for the ``claim_trials`` issue: ``button.claim``'s
-    primary bbox is narrow and misses VIP-style popups where the highlighted
-    claim button lives outside it. The findIcon path already auto-resolves
-    ``button.claim_search``; the white_border guard must do the same.
-    """
+def test_white_border_slide_find_on_wide_primary_bbox() -> None:
+    """Slide-find runs on the region's primary bbox only — a narrow bbox may
+    miss while a wide search-zone bbox finds the highlighted control."""
     img = cv2.imread(str(_DYN_FIXTURE))
     assert img is not None, f"missing fixture: {_DYN_FIXTURE}"
 
-    # Bottom-right corner — no highlight, no halo (verified empirically).
-    primary = {
+    narrow_primary = {
         "name": "button.claim",
         "bbox": {"x": 85.0, "y": 92.0, "width": 10.0, "height": 5.0},
     }
-    # Search sibling covers (almost) the whole popup — includes row 1 highlight.
-    search_bbox = {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
+    wide_primary = {
+        "name": "button.claim",
+        "bbox": {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0},
+    }
 
-    # Without the sibling: misses (this is the pre-fix behavior).
-    no_sibling = dsl.DslScenarioTask._build_white_border_only_row(
+    narrow = dsl.DslScenarioTask._build_white_border_only_row(
         region="button.claim",
-        region_def=primary,
+        region_def=narrow_primary,
         image_bgr=img,
         requirement=True,
     )
-    assert no_sibling["matched"] is False
+    assert narrow["matched"] is False
 
-    # With the sibling: slide-find finds the highlighted row, matched=True,
-    # and the row is tagged with the source so debug UIs can show provenance.
-    with_sibling = dsl.DslScenarioTask._build_white_border_only_row(
+    wide = dsl.DslScenarioTask._build_white_border_only_row(
         region="button.claim",
-        region_def=primary,
+        region_def=wide_primary,
         image_bgr=img,
         requirement=True,
-        search_bbox=search_bbox,
     )
-    assert with_sibling["matched"] is True
-    assert with_sibling["white_border_present"] is True
-    assert with_sibling.get("search_source") == "search_sibling"
-    # Tap coords land on row 1 (around 22-35% x, 23-30% y in the 720×1280 frame).
-    assert 15.0 <= with_sibling["tap_x_pct"] <= 45.0
-    assert 18.0 <= with_sibling["tap_y_pct"] <= 35.0
+    assert wide["matched"] is True
+    assert wide["white_border_present"] is True
+    assert wide.get("search_source") == "primary"
+    assert 15.0 <= wide["tap_x_pct"] <= 45.0
+    assert 18.0 <= wide["tap_y_pct"] <= 35.0
 
 
-def test_white_border_prefers_primary_over_search_sibling() -> None:
-    """When the primary bbox already yields a slide-find candidate, the
-    sibling fallback must not run — the primary match wins and the row is
-    tagged ``source="primary"``.
-    """
+def test_white_border_slide_find_tags_primary_source() -> None:
+    """When the primary bbox yields a slide-find candidate, the row is tagged
+    ``search_source=primary``."""
     img = cv2.imread(str(_DYN_FIXTURE))
     assert img is not None
 
-    # Primary bbox covers row 1 directly (where the highlight is).
     primary = {
         "name": "button.claim",
         "bbox": {"x": 15.0, "y": 18.0, "width": 30.0, "height": 17.0},
     }
-    # Unrelated wider search sibling (must not override primary).
-    search_bbox = {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
 
     out = dsl.DslScenarioTask._build_white_border_only_row(
         region="button.claim",
         region_def=primary,
         image_bgr=img,
         requirement=True,
-        search_bbox=search_bbox,
     )
     assert out["matched"] is True
     assert out.get("search_source") == "primary"

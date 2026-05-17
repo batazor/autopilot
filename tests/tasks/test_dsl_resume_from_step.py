@@ -51,7 +51,7 @@ async def test_resume_from_step_skips_root_node_navigation(
         raise AssertionError("root node navigation should be skipped on resumed steps")
 
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
-    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", side_effect=_fail_navigation)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_fail_navigation)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -151,7 +151,7 @@ async def test_navigation_failed_records_trace_row(
         return False
 
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
-    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", side_effect=_navfail)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_navfail)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -216,11 +216,11 @@ async def test_preempt_yield_with_target_node_resumes_at_actual_step(
         return None
 
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
-    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", side_effect=_navok)
+    mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_navok)
     mocker.patch.object(
         dsl.DslScenarioTask,
         "_preempted_by_higher_priority",
-        side_effect=_yield_at_step_1,
+        new=_yield_at_step_1,
     )
 
     # Seed ``current_screen`` so the entry-time screen-identity gate (see
