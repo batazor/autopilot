@@ -119,3 +119,25 @@ def test_load_doc_substitutes_onboarding_pointer(snapshot) -> None:
     assert loaded is not None
     _path, doc = loaded
     assert doc == snapshot
+
+
+def test_template_resolves_known_trials_day() -> None:
+    resolved = _tmpl.resolve(REPO_ROOT, "claim_trials.3")
+    assert resolved is not None
+    assert resolved.path.name == "claim_trials.{day}.yaml"
+    assert resolved.context == {"day": "3", "day_name": "Day 3"}
+
+
+def test_template_rejects_unknown_trials_day() -> None:
+    assert _tmpl.resolve(REPO_ROOT, "claim_trials.6") is None
+
+
+def test_load_doc_substitutes_trials_day() -> None:
+    loaded = _tmpl.load_doc(REPO_ROOT, "claim_trials.4")
+    assert loaded is not None
+    _path, doc = loaded
+
+    assert doc["name"] == "Claim Trials Day 4"
+    assert doc["node"] == "event.trials.day.4"
+    assert doc["steps"][1]["while_match"] == "trial.day.4"
+    assert doc["steps"][1]["steps"][0]["click"] == "trial.day.4"

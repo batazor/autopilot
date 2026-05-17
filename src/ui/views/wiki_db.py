@@ -244,10 +244,12 @@ def _render_gear(gear: dict[str, Any]) -> None:
         lv_keys = sorted(int(k) for k in levels)
     except (TypeError, ValueError):
         return
-    stat_list = (
-        list(stat_names) if isinstance(stat_names, list) and stat_names else []
+    stat_list: list[str] = (
+        [str(s) for s in stat_names] if isinstance(stat_names, list) and stat_names else []
     )
-    tier_list = list(tier_names) if isinstance(tier_names, list) else _TIERS_DEFAULT
+    tier_list: list[str] = (
+        [str(t) for t in tier_names] if isinstance(tier_names, list) else list(_TIERS_DEFAULT)
+    )
 
     tab_labels = [t.capitalize() for t in tier_list]
     tabs = st.tabs(tab_labels)
@@ -261,7 +263,7 @@ def _render_gear(gear: dict[str, Any]) -> None:
                 tier_entry = entry.get(tier)
                 if not isinstance(tier_entry, dict):
                     continue
-                row = {"level": lv}
+                row: dict[str, Any] = {"level": lv}
                 for stat in stat_list:
                     row[stat] = tier_entry.get(stat)
                 rows.append(row)

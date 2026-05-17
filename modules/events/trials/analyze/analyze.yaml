@@ -8,5 +8,83 @@ overlay:
     screens:
       - main_city
     pushScenario:
-      - name: claim_trials
+      - name: claim_trials.1
         ttl: 1m
+      - name: claim_trials.2
+        ttl: 1m
+      - name: claim_trials.3
+        ttl: 1m
+      - name: claim_trials.4
+        ttl: 1m
+      - name: claim_trials.5
+        ttl: 1m
+
+  - name: trials.day.1.has_red_dot
+    region: trial.day.1
+    isRedDot: true
+    screens:
+      - event.trials
+      - event.trials.day.1
+      - event.trials.day.2
+      - event.trials.day.3
+      - event.trials.day.4
+      - event.trials.day.5
+    pushScenario:
+      - name: claim_trials.1
+        ttl: 5m
+
+  - name: trials.day.2.has_red_dot
+    region: trial.day.2
+    isRedDot: true
+    screens:
+      - event.trials
+      - event.trials.day.1
+      - event.trials.day.2
+      - event.trials.day.3
+      - event.trials.day.4
+      - event.trials.day.5
+    pushScenario:
+      - name: claim_trials.2
+        ttl: 5m
+
+  - name: trials.day.3.has_red_dot
+    region: trial.day.3
+    isRedDot: true
+    screens:
+      - event.trials
+      - event.trials.day.1
+      - event.trials.day.2
+      - event.trials.day.3
+      - event.trials.day.4
+      - event.trials.day.5
+    pushScenario:
+      - name: claim_trials.3
+        ttl: 5m
+
+  - name: trials.day.4.has_red_dot
+    region: trial.day.4
+    isRedDot: true
+    screens:
+      - event.trials
+      - event.trials.day.1
+      - event.trials.day.2
+      - event.trials.day.3
+      - event.trials.day.4
+      - event.trials.day.5
+    pushScenario:
+      - name: claim_trials.4
+        ttl: 5m
+
+  - name: trials.day.5.has_red_dot
+    region: trial.day.5
+    isRedDot: true
+    screens:
+      - event.trials
+      - event.trials.day.1
+      - event.trials.day.2
+      - event.trials.day.3
+      - event.trials.day.4
+      - event.trials.day.5
+    pushScenario:
+      - name: claim_trials.5
+        ttl: 5m

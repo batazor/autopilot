@@ -26,7 +26,7 @@ import yaml
 # Extend when a new substitution axis lands. Each axis must:
 #   * appear as ``{axis}`` in template filenames,
 #   * resolve to one or more ``${...}`` body placeholders via ``_axis_context``.
-_AXES = ("hero", "tab", "pointer")
+_AXES = ("hero", "tab", "pointer", "day")
 _FILENAME_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(_AXES) + r")\}")
 # Hero ids in the heroes wiki index are lowercase ASCII + underscores.
 _AXIS_VALUE_RE = r"[a-z0-9_]+"
@@ -42,6 +42,7 @@ _POINTERS = {
     "hand_pointer_small": "Small hand pointer",
     "hand_pointer_small_reverse": "Small reverse hand pointer",
 }
+_TRIAL_DAYS = {str(i): f"Day {i}" for i in range(1, 6)}
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,11 @@ def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | No
         if name is None:
             return None
         return {"pointer": value, "pointer_name": name}
+    if axis == "day":
+        name = _TRIAL_DAYS.get(value)
+        if name is None:
+            return None
+        return {"day": value, "day_name": name}
     return None
 
 
@@ -337,6 +343,19 @@ def iter_resolved_keys(repo_root: Path) -> list[ResolvedKey]:
                                 "pointer": pointer,
                                 "pointer_name": pointer_name,
                             },
+                        )
+                    )
+            elif axes == ["day"]:
+                for day, day_name in _TRIAL_DAYS.items():
+                    concrete_key = p.stem.replace("{day}", day)
+                    if concrete_key in seen:
+                        continue
+                    seen.add(concrete_key)
+                    out.append(
+                        ResolvedKey(
+                            key=concrete_key,
+                            path=p,
+                            context={"day": day, "day_name": day_name},
                         )
                     )
     return out

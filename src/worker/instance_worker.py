@@ -551,8 +551,10 @@ class InstanceWorker(
         that died more than 180s ago. Returns ``None`` when the hash carries
         no in-flight evidence (legit clean boot).
         """
+        if self._redis is None:
+            return None
         try:
-            raw_state = await self._redis.hgetall(state_key)  # type: ignore[union-attr]
+            raw_state = await self._redis.hgetall(state_key)
         except Exception:
             logger.debug(
                 "stuck task cleanup at boot: state hash read failed", exc_info=True
@@ -742,9 +744,9 @@ class InstanceWorker(
                 while True:
                     # Heartbeat for UI: lets us distinguish "stale restarting" from "actually down".
                     now_m = time.monotonic()
-                    if now_m - last_heartbeat >= 2.0:
+                    if now_m - last_heartbeat >= 2.0 and self._redis is not None:
                         try:
-                            await self._redis.hset(  # type: ignore[union-attr]
+                            await self._redis.hset(
                                 _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
                                 "last_seen_at",
                                 str(time.time()),

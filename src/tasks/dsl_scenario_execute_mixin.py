@@ -7,7 +7,7 @@ import logging
 import time
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
@@ -541,9 +541,10 @@ class DslScenarioExecuteMixin(_Base):
                 and not _DSL_STEP_ACTION_KEYS.intersection(step.keys())
             ):
                 await self._write_step_context(instance_id, scenario=key)
-                for inner_idx, inner in enumerate(grouped):
-                    if not isinstance(inner, dict):
+                for inner_idx, raw_inner in enumerate(grouped):
+                    if not isinstance(raw_inner, dict):
                         continue
+                    inner: dict[str, Any] = cast("dict[str, Any]", raw_inner)
                     if not await _dsl_cond_allows_step(
                         inner,
                         instance_id,

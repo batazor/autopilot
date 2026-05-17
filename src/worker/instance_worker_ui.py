@@ -76,11 +76,13 @@ class InstanceWorkerUiMixin(_Base):
         match cmd:
             case "pause":
                 self._ui_paused = True
-                await self._redis.hset(inst_key, "paused", "1")  # type: ignore[union-attr]
+                if self._redis is not None:
+                    await self._redis.hset(inst_key, "paused", "1")
                 logger.info("UI pause enabled for %s", self._cfg.instance_id)
             case "resume":
                 self._ui_paused = False
-                await self._redis.hset(inst_key, "paused", "0")  # type: ignore[union-attr]
+                if self._redis is not None:
+                    await self._redis.hset(inst_key, "paused", "0")
                 logger.info("UI pause cleared for %s", self._cfg.instance_id)
             case "screenshot":
                 try:

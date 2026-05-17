@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -69,9 +69,9 @@ def _normalize_ui_entries(
             return []
         return [{"path": path}]
     if isinstance(raw_ui, dict):
-        return [raw_ui]
+        return [cast("dict[str, Any]", raw_ui)]
     if isinstance(raw_ui, list):
-        return [e for e in raw_ui if isinstance(e, dict)]
+        return [cast("dict[str, Any]", e) for e in raw_ui if isinstance(e, dict)]
     logger.warning("module ui: %s has invalid `ui:` — expected str, dict, or list", module_id)
     return []
 

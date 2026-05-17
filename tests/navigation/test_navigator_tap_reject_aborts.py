@@ -108,11 +108,11 @@ async def test_navigate_to_persists_intermediate_screen_identity(
     )
 
     # Seed an empty current_screen the way a prior UNKNOWN tick would have.
-    await redis.hset("wos:instance:bs1:state", "current_screen", "")
+    await redis.hset("wos:instance:bs1:state", "current_screen", "")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     await nav.navigate_to(ScreenName.MAIN_CITY, "bs1")
 
-    current = await redis.hget("wos:instance:bs1:state", "current_screen")
+    current = await redis.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     current_s = current.decode() if isinstance(current, bytes) else str(current or "")
     assert current_s == "mail", (
         f"expected current_screen='mail', got {current_s!r}"

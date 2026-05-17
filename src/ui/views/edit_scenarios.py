@@ -260,7 +260,8 @@ def _step_summary_one_line(step: dict[str, Any]) -> str:
             return f"max={spec.get('max')} inner={n_inner}"
         return str(spec or "")
     if stype == "cond":
-        inner = step.get("steps") if isinstance(step.get("steps"), list) else []
+        raw_inner = step.get("steps")
+        inner = raw_inner if isinstance(raw_inner, list) else []
         return str(step.get("cond") or "").strip() or f"steps={len(inner)}"
     return ""
 

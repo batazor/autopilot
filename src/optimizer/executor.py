@@ -82,17 +82,21 @@ def _deduct_resource(
         return
     for key in _GLOBAL_RESOURCE_KEYS.get(resource, ()):
         if key in state:
+            raw = state[key]
             try:
-                cur = int(state[key])
+                cur = int(raw) if isinstance(raw, (int, float, str, bytes, bytearray)) else None
             except (TypeError, ValueError):
+                cur = None
+            if cur is None:
                 continue
             state[key] = max(0, cur - amount)
             return
     if resource.endswith("_shard") and hero_id:
         key = f"heroes.entries.{hero_id}.shards_current"
         if key in state:
+            raw = state[key]
             try:
-                cur = int(state[key])
+                cur = int(raw) if isinstance(raw, (int, float, str, bytes, bytearray)) else 0
             except (TypeError, ValueError):
                 cur = 0
             state[key] = max(0, cur - amount)

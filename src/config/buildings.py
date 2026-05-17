@@ -11,6 +11,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 import yaml
 
@@ -91,11 +92,14 @@ def load_buildings(path: Path | None = None) -> BuildingRegistry:
             if isinstance(req_raw, dict):
                 for level_k, level_v in req_raw.items():
                     try:
-                        level = int(level_k)
-                    except Exception:
+                        if isinstance(level_k, (int, float, str, bytes, bytearray)):
+                            level = int(level_k)
+                        else:
+                            continue
+                    except (TypeError, ValueError):
                         continue
                     if isinstance(level_v, dict):
-                        req_by_level[level] = dict(level_v)
+                        req_by_level[level] = cast("dict[str, object]", level_v)
 
             buildings.append(
                 BuildingDef(

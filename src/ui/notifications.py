@@ -66,7 +66,7 @@ async def push_ui_notification(
     if not inst:
         return None
     eid = (event_id or uuid.uuid4().hex).strip()
-    body = {
+    body: dict[str, Any] = {
         "id": eid,
         "ts": time.time(),
         "kind": str(kind or "").strip() or "info",
@@ -114,7 +114,7 @@ def push_ui_notification_sync(
     if not inst:
         return None
     eid = (event_id or uuid.uuid4().hex).strip()
-    body = {
+    body: dict[str, Any] = {
         "id": eid,
         "ts": time.time(),
         "kind": str(kind or "").strip() or "info",

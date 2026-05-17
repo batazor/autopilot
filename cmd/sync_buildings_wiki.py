@@ -59,7 +59,7 @@ def _extract_building_links(index_html: str) -> dict[str, str]:
     for a in soup.find_all("a"):
         if not isinstance(a, Tag):
             continue
-        href = (a.get("href") or "").strip()
+        href = str(a.get("href") or "").strip()
         text = (a.get_text(" ", strip=True) or "").strip()
         if not href or not text:
             continue
@@ -151,7 +151,7 @@ def _parse_build_cost_cell(td: Tag) -> list[CostItem]:
 
     for node in td.descendants:
         if isinstance(node, Tag) and node.name == "img":
-            src = (node.get("src") or "").strip()
+            src = str(node.get("src") or "").strip()
             # Use filename stem as item id (e.g. item_icon_103)
             m = re.search(r"/([^/]+?)\.(png|webp|jpg|jpeg)$", src, flags=re.I)
             current_item = m.group(1) if m else (src or "unknown_item")
