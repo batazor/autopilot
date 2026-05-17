@@ -5,13 +5,67 @@ import json
 import time
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import redis
 import streamlit as st
 
 from config.loader import load_settings
 from config.redis_health import format_redis_unreachable_message
+
+# ``redis-py`` stubs union sync + async return types as ``ResponseT``
+# (``Awaitable[T] | T``). This module uses only the sync client with
+# ``decode_responses=True``, so the values are always concrete strs /
+# ints / dicts / lists. These tiny ``cast`` wrappers narrow back to the
+# concrete sync arm — same approach as in ``adb/approvals.py``.
+
+
+def _r_get(client: redis.Redis, key: str) -> str | None:
+    return cast("str | None", client.get(key))
+
+
+def _r_hgetall(client: redis.Redis, key: str) -> dict[str, str]:
+    return cast("dict[str, str]", client.hgetall(key))
+
+
+def _r_zcard(client: redis.Redis, key: str) -> int:
+    return cast("int", client.zcard(key))
+
+
+def _r_zrange_with_scores(
+    client: redis.Redis, key: str, start: int, stop: int
+) -> list[tuple[str, float]]:
+    return cast(
+        "list[tuple[str, float]]",
+        client.zrange(key, start, stop, withscores=True),
+    )
+
+
+def _r_zrange(client: redis.Redis, key: str, start: int, stop: int) -> list[str]:
+    return cast("list[str]", client.zrange(key, start, stop))
+
+
+def _r_lrange(client: redis.Redis, key: str, start: int, stop: int) -> list[str]:
+    return cast("list[str]", client.lrange(key, start, stop))
+
+
+def _r_zrangebyscore(
+    client: redis.Redis, key: str, lo: str | float, hi: str | float
+) -> list[str]:
+    return cast("list[str]", client.zrangebyscore(key, lo, hi))
+
+
+def _r_zrangebyscore_with_scores(
+    client: redis.Redis, key: str, lo: str | float, hi: str | float
+) -> list[tuple[str, float]]:
+    return cast(
+        "list[tuple[str, float]]",
+        client.zrangebyscore(key, lo, hi, withscores=True),
+    )
+
+
+def _r_incr(client: redis.Redis, key: str) -> int:
+    return cast("int", client.incr(key))
 
 
 @dataclass(frozen=True)
@@ -245,7 +299,7 @@ def count_queue_tasks(client: redis.Redis) -> int:
         if not _is_queue_zset_key(k):
             continue
         try:
-            total += int(client.zcard(k))
+            total += _r_zcard(client, k)
         except redis.RedisError:
             continue
     return total
@@ -278,7 +332,7 @@ def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
     rows: list[QueueRow] = []
     for key in keys:
         try:
-            raw_items = client.zrangebyscore(key, "-inf", "+inf", withscores=True)
+            raw_items = _r_zrangebyscore_with_scores(client, key, "-inf", "+inf")
         except redis.RedisError:
             continue
         for payload, score in raw_items:
@@ -300,7 +354,7 @@ def _running_row_from_instance_state(
     keeps reporting what's active.
     """
     try:
-        raw = client.hgetall(f"wos:instance:{instance_id}:state") or {}
+        raw = _r_hgetall(client, f"wos:instance:{instance_id}:state") or {}
     except redis.RedisError:
         return None
     state_map: dict[str, str] = {
@@ -338,7 +392,7 @@ def fetch_running_queue_row(
     client: redis.Redis, *, instance_id: str | None = None
 ) -> RunningQueueRow | None:
     key = f"wos:queue:running:{instance_id}" if instance_id else "wos:queue:running"
-    raw = client.get(key)
+    raw = _r_get(client, key)
     if not raw:
         # Running key TTL (180s) often outlasts long tasks — fall back to
         # the per-instance state hash, which the worker keeps current.
@@ -371,7 +425,7 @@ def fetch_queue_history_rows(
     client: redis.Redis, *, instance_id: str, limit: int = 20
 ) -> list[QueueHistoryRow]:
     try:
-        raw_items = client.lrange(_history_key(instance_id), 0, max(0, int(limit) - 1))
+        raw_items = _r_lrange(client, _history_key(instance_id), 0, max(0, int(limit) - 1))
     except redis.RedisError:
         return []
     rows: list[QueueHistoryRow] = []
@@ -399,7 +453,7 @@ def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
         if _is_queue_zset_key(k):
             keys.append(k)
     for key in keys:
-        payloads = client.zrangebyscore(key, "-inf", "+inf")
+        payloads = _r_zrangebyscore(client, key, "-inf", "+inf")
         for payload in payloads:
             try:
                 data = json.loads(payload)
@@ -433,7 +487,7 @@ def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
             keys.append(k)
     now = time.time()
     for key in keys:
-        payloads = client.zrangebyscore(key, "-inf", "+inf")
+        payloads = _r_zrangebyscore(client, key, "-inf", "+inf")
         for payload in payloads:
             try:
                 data = json.loads(payload)
@@ -452,7 +506,7 @@ def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
 
 def count_queue_tasks_for_instance(client: redis.Redis, *, instance_id: str) -> int:
     """Count queued items for a single instance."""
-    return int(client.zcard(_queue_key(instance_id)))
+    return _r_zcard(client, _queue_key(instance_id))
 
 
 def clear_queue_tasks(client: redis.Redis) -> int:
@@ -479,7 +533,7 @@ def clear_queue_tasks(client: redis.Redis) -> int:
             continue
         if ktype == "zset":
             with suppress(redis.RedisError):
-                removed_total += int(client.zcard(k))
+                removed_total += _r_zcard(client, k)
         targets.append(k)
     if targets:
         with suppress(redis.RedisError):
@@ -491,7 +545,7 @@ def fetch_next_queue_row_for_instance(
     client: redis.Redis, *, instance_id: str
 ) -> QueueRow | None:
     """Fetch the earliest scheduled row (by ZSET score) for an instance."""
-    items = client.zrange(_queue_key(instance_id), 0, 0, withscores=True)
+    items = _r_zrange_with_scores(client, _queue_key(instance_id), 0, 0)
     if not items:
         return None
     payload, score = items[0]
@@ -501,7 +555,7 @@ def fetch_next_queue_row_for_instance(
 def get_instance_state(client: redis.Redis, instance_id: str) -> dict[str, str]:
     """All hash fields at ``wos:instance:{id}:state`` (worker publishes paused, task, uptime)."""
     key = f"wos:instance:{instance_id}:state"
-    raw = client.hgetall(key)
+    raw = _r_hgetall(client, key)
     if not raw:
         return {}
     return {str(k): str(v) if v is not None else "" for k, v in raw.items()}
@@ -513,7 +567,7 @@ def get_player_state_hash(client: redis.Redis, player_id: str) -> dict[str, str]
     if not pid:
         return {}
     try:
-        raw = client.hgetall(f"wos:player:{pid}:state") or {}
+        raw = _r_hgetall(client, f"wos:player:{pid}:state") or {}
     except redis.RedisError:
         return {}
     return {
@@ -526,7 +580,7 @@ def get_player_state_hash(client: redis.Redis, player_id: str) -> dict[str, str]
 
 def get_player_scenario(client: redis.Redis, player_id: str) -> str | None:
     key = f"wos:player:{player_id}:scenario"
-    raw = client.get(key)
+    raw = _r_get(client, key)
     if raw is None or raw == "":
         return None
     return str(raw)
@@ -578,7 +632,7 @@ def _running_task_types(client: redis.Redis, instance_id: str) -> set[str]:
     out: set[str] = set()
     key = f"wos:queue:running:{instance_id}"
     try:
-        raw = client.get(key)
+        raw = _r_get(client, key)
     except redis.RedisError:
         return out
     if not raw:
@@ -615,7 +669,7 @@ def purge_scenarios_from_redis(
     for pid in player_ids:
         key = f"wos:player:{pid}:scenario"
         try:
-            raw = client.get(key)
+            raw = _r_get(client, key)
         except redis.RedisError:
             continue
         if raw is None:
@@ -632,7 +686,7 @@ def purge_scenarios_from_redis(
         if not _is_pending_queue_zset_key(client, ks):
             continue
         try:
-            payloads = client.zrange(ks, 0, -1)
+            payloads = _r_zrange(client, ks, 0, -1)
         except redis.RedisError:
             continue
         for payload in payloads:
@@ -666,7 +720,7 @@ def purge_scenarios_from_redis(
     for iid in instance_ids:
         rr_key = f"wos:instance:{iid}:recent_runs"
         try:
-            members = client.zrange(rr_key, 0, -1)
+            members = _r_zrange(client, rr_key, 0, -1)
         except redis.RedisError:
             continue
         for member in members:
@@ -697,17 +751,17 @@ def purge_scenarios_from_redis(
             continue
         state_key = f"wos:instance:{iid}:state"
         try:
-            state = client.hgetall(state_key) or {}
+            state = _r_hgetall(client, state_key) or {}
         except redis.RedisError:
             continue
         if not state:
             continue
-        cur_scenario = str(
-            state.get("current_scenario") or state.get(b"current_scenario") or ""
-        ).strip()
-        cur_task = str(
-            state.get("current_task_type") or state.get(b"current_task_type") or ""
-        ).strip()
+        # All Redis clients in this module use ``decode_responses=True``, so
+        # values are always ``str``. The legacy ``state.get(b"...")`` arms
+        # were a defensive bytes-fallback that ``ty`` rightly flags as
+        # ``invalid-argument-type`` against the typed dict; dropped.
+        cur_scenario = str(state.get("current_scenario") or "").strip()
+        cur_task = str(state.get("current_task_type") or "").strip()
         if cur_scenario not in scenario_ids and cur_task not in scenario_ids:
             continue
         with suppress(redis.RedisError):
@@ -758,7 +812,7 @@ def dsl_preempt_gen_key(instance_id: str) -> str:
 def bump_dsl_preempt_generation(client: redis.Redis, instance_id: str) -> int:
     """Increment so any running DSL task can cooperatively exit before the next queue pop."""
 
-    return int(client.incr(dsl_preempt_gen_key(instance_id)))
+    return _r_incr(client, dsl_preempt_gen_key(instance_id))
 
 
 def push_instance_command(client: redis.Redis, instance_id: str, cmd: dict[str, Any]) -> None:

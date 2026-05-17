@@ -41,7 +41,6 @@
   "src/ui/module_pages.py": 6,
   "src/ui/module_scope.py": 3,
   "src/ui/notifications.py": 2,
-  "src/ui/redis_client.py": 20,
   "src/ui/roboflow_upload.py": 1,
   "src/ui/streamlit_canvas_compat.py": 1,
   "src/ui/views/click_approvals/idle_overlay_probe.py": 7,
