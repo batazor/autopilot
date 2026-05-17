@@ -7,7 +7,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -81,7 +81,14 @@ def _record_screenshot_analysis_duration(
     )
 
 
-class InstanceWorkerRollingMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerRollingMixin(_Base):
     _cfg: Any
     _settings: Any
     _stopping: bool

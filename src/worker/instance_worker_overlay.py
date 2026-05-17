@@ -6,7 +6,7 @@ import re
 import time
 import uuid
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
@@ -47,7 +47,14 @@ def _overlay_metric_float(value: object) -> float | None:
     return x
 
 
-class InstanceWorkerOverlayMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerOverlayMixin(_Base):
     _cfg: Any
     _redis: Any
     _queue: Any

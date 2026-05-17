@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from opentelemetry import trace
 
@@ -44,7 +44,14 @@ def _redis_float_str(value: float | None) -> str:
     return s
 
 
-class InstanceWorkerTasksMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerTasksMixin(_Base):
     _cfg: Any
     _redis: Any
     _queue: Any

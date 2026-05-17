@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
@@ -15,7 +15,14 @@ from navigation.detector import ScreenName
 logger = logging.getLogger(__name__)
 
 
-class InstanceWorkerScreenMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerScreenMixin(_Base):
     _cfg: Any
     _redis: Any
     _bot_actions: Any
@@ -230,7 +237,7 @@ class InstanceWorkerScreenMixin:
             )
 
 
-class InstanceWorkerScreenDetectMixin:
+class InstanceWorkerScreenDetectMixin(_Base):
     """Extracted screen detection + Redis `current_screen` persistence."""
 
     _cfg: Any

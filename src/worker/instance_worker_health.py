@@ -4,12 +4,19 @@ import asyncio
 import logging
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
 
-class InstanceWorkerHealthMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerHealthMixin(_Base):
     _cfg: Any
     _settings: Any
     _redis: Any

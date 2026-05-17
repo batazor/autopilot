@@ -4,10 +4,15 @@ import asyncio
 import concurrent.futures
 import functools
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
 
 
-class InstanceWorkerBlockingMixin:
+class InstanceWorkerBlockingMixin(_Base):
     _stopping: bool
     _blocking_executor_live: bool
     _blocking_pool: concurrent.futures.ThreadPoolExecutor

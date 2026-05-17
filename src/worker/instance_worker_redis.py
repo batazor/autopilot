@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as aioredis
 
@@ -21,7 +21,14 @@ logger = logging.getLogger(__name__)
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
 
-class InstanceWorkerRedisMixin:
+
+if TYPE_CHECKING:
+    from worker._instance_worker_host import _InstanceWorkerHost as _Base
+else:
+    _Base = object
+
+
+class InstanceWorkerRedisMixin(_Base):
     _cfg: Any
     _redis: aioredis.Redis | None
     _queue: RedisQueue | None
