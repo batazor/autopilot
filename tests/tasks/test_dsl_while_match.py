@@ -10,6 +10,9 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from scenarios import template_resolver
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _claim_pattern() -> np.ndarray:
@@ -288,17 +291,9 @@ async def test_dsl_while_match_skips_else_when_iterations_ran(
     assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="button.claim")]
 
 
-def test_tap_claim_button_while_match_has_nested_steps() -> None:
-    repo = Path(__file__).resolve().parents[2]
-    scenario_path = repo / "modules/core/pop-up/scenarios/tap_claim_button.yaml"
-    if not scenario_path.is_file():
-        pytest.skip("legacy pop-up tap_claim_button scenario removed")
-    doc = yaml.safe_load(scenario_path.read_text())
-    loop = doc["steps"][0]
-
-    assert loop["while_match"] == "button.claim"
-    assert loop["steps"] == [{"click": "button.claim"}, {"wait": "3s"}]
-    close = doc["steps"][1]
-    assert close["while_match"] == "claim_button_close"
-    assert close["max"] == 1
-    assert close["steps"] == [{"click": "claim_button_close"}, {"wait": "1s"}]
+def test_tap_claim_button_while_match_has_nested_steps(snapshot) -> None:
+    loaded = template_resolver.load_doc(REPO_ROOT, "tap_claim_button")
+    if loaded is None:
+        pytest.skip("tap_claim_button scenario not in repo")
+    _path, doc = loaded
+    assert doc == snapshot

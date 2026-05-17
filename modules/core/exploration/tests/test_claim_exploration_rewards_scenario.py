@@ -25,16 +25,13 @@ def _load_reference_bgr(name: str) -> np.ndarray:
     return frame
 
 
-def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape() -> None:
+def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape(snapshot) -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "claim_exploration_rewards")
     assert loaded is not None
 
     path, doc = loaded
-
     assert path == MODULE_DIR / "scenarios" / "by_cron" / "claim_exploration_rewards.yaml"
-    assert doc["enabled"] is True
-    assert doc["node"] == "exploration"
-    assert [next(iter(step)) for step in doc["steps"]] == ["click", "wait", "while_match"]
+    assert doc == snapshot
 
 
 @pytest.mark.asyncio
