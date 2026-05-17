@@ -173,7 +173,7 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
 6. **Add overlay trigger if needed** — in `modules/*/analyze/analyze.yaml` or `modules/core/*/analyze/analyze.yaml`, use `screens`, `region`, `action: findIcon|text|color_check`, optional `isRedDot`, `ttl`, and `pushScenario`. Analyzer YAML uses `findIcon`; `area.json` uses editor action `exist`.
 7. **Stub the scenario YAML** — start with `enabled: false`, add `name`, optional `device_level`, `priority`, `node`, `cron`/`cond`, then `steps:`.
 8. **Compose with guards** — use `match + steps` or `while_match + max: 1` for optional UI. Do not use bare `match:` for elements that may be absent.
-9. **Rehearse live before broadening** — use AI Editor / MCP handles to capture screen, inspect current state, run or enqueue the scenario, then capture again after each click. Do not start `uv run wos` for scenario development/rehearsal; AI Editor owns this isolated flow.
+9. **Rehearse live before broadening** — run startup validation, then use AI Editor / MCP handles to capture screen, inspect current state, run or enqueue the scenario, then capture again after each click. Do not start `uv run wos` for scenario development/rehearsal; AI Editor owns this isolated flow.
 10. **Add reference regression coverage** — save module-local screenshots/crops and write a focused test for the expected matches/clicks/node transitions.
 11. **Validate**:
    - `uv run pytest tests/test_scenario_loader_declarative.py tests/test_startup_validation.py -q`
@@ -189,11 +189,13 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
 
 Use this loop when developing against a real device. Scenario rehearsal runs through AI Editor, not the full `uv run wos` bot:
 
-1. Capture the current screen and inspect `current_state` / `current_screen` before clicking.
-2. Check whether the next DSL guard should match on the captured frame.
-3. Perform the click via MCP/UI handle, not raw `adb`, so approvals, frame bus, and preview state stay in sync.
-4. Capture again and verify the next frame before continuing.
-5. Repeat until the scenario exits; then write a regression test from the screenshots.
+1. Run startup validation before restarting AI Editor; it catches stale region references after renames (for example old victory/defeat button names).
+2. Capture the current screen and inspect `current_state` / `current_screen` before clicking.
+3. Check whether the next DSL guard should match on the captured frame.
+4. Perform the click via MCP/UI handle, not raw `adb`, so approvals, frame bus, and preview state stay in sync.
+5. Capture again and verify the next frame before continuing.
+6. Repeat until the scenario exits; then write a regression test from the screenshots.
+7. After the run, rename saved frames by what they show (`exploration`, `squad_settings`, `victory`, `defeat`, `after_history`) instead of leaving only generic `state_<n>` names. Delete approval frames that show the same page as a kept semantic screenshot.
 
 AI Editor executes manual/UI-pushed scenarios through `src/ui/ia_queue_executor.py` without starting the full `uv run wos` bot. The embedded preview refresher must keep `current_screen` updated independently; if it is empty, a node-bound scenario can exit as `awaiting_screen_identity`. For step-level rehearsal, seed the correct node/screen only when the fake/live environment cannot update it itself.
 
@@ -232,6 +234,7 @@ When moving an old core scenario into a clearer module name, update every contra
 - Test pattern: fabricate a `tmp_path` repo (scenarios + area data + reference crops), run `DslScenarioTask.execute("bs1")` with fake actions, and assert recorded taps/matches. For overlay-only behavior, test the overlay rule against the saved screenshot/reference.
 - Fake frame sequences must model the UI after every tap. If a red dot or button disappears after click, clear it in the next frame; if retries are expected, include enough miss/hit frames.
 - Do not assert final `current_screen` in a pure fake-actions test unless the test explicitly runs the same updater that writes it.
+- Prefer semantic rehearsal filenames over raw state counters once the flow is understood. Keep only screenshots that represent distinct UI states; approval screenshots are useful during debugging but should not duplicate a kept screen in regression fixtures.
 
 ## Scenario templates
 

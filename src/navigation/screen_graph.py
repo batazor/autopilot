@@ -315,15 +315,20 @@ def _load_screen_verify_config_cached(
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
     if fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
-        yaml_fps, area_fp = fp  # type: ignore[assignment]
-        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps]
-        area_path = Path(area_fp[0])
+        yaml_fps_, area_fp_ = cast(
+            "tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]", fp
+        )
+        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
+        area_path = Path(area_fp_[0])
     elif fp and isinstance(fp[0], tuple):
-        yaml_fp, area_fp = fp  # type: ignore[assignment]
-        paths = [Path(yaml_fp[0])]
-        area_path = Path(area_fp[0])
+        yaml_fp_, area_fp_ = cast(
+            "tuple[tuple[str, int, int], tuple[str, int, int]]", fp
+        )
+        paths = [Path(yaml_fp_[0])]
+        area_path = Path(area_fp_[0])
     else:
-        paths = [Path(fp[0])]  # type: ignore[index]
+        fp_single = cast("tuple[str, int, int]", fp)
+        paths = [Path(fp_single[0])]
         area_path = _area_json_path()
 
     docs: list[dict[str, Any]] = []
@@ -432,11 +437,11 @@ def screen_verify_rules(screen: str) -> list[VerifyRule]:
         return []
     entry = screens.get(screen)
     if isinstance(entry, list):
-        return list(entry)
+        return cast("list[VerifyRule]", list(entry))
     if not isinstance(entry, dict):
         return []
     rules = entry.get("rules")
-    return list(rules) if isinstance(rules, list) else []
+    return cast("list[VerifyRule]", list(rules)) if isinstance(rules, list) else []
 
 
 def screen_landmark_rules(screen: str) -> list[VerifyRule]:
@@ -445,11 +450,11 @@ def screen_landmark_rules(screen: str) -> list[VerifyRule]:
         return []
     entry = screens.get(screen)
     if isinstance(entry, list):
-        return list(entry)
+        return cast("list[VerifyRule]", list(entry))
     if not isinstance(entry, dict):
         return []
     rules = entry.get("landmarks")
-    return list(rules) if isinstance(rules, list) else []
+    return cast("list[VerifyRule]", list(rules)) if isinstance(rules, list) else []
 
 
 def screen_verify_screen_names() -> list[str]:
@@ -468,12 +473,13 @@ def _parse_retry(
 ) -> tuple[int, float]:
     if not isinstance(raw, dict):
         return default_attempts, default_interval
+    raw_d = cast("dict[str, Any]", raw)
     try:
-        attempts = int(raw.get("attempts", default_attempts))
+        attempts = int(raw_d.get("attempts", default_attempts))
     except (TypeError, ValueError):
         attempts = default_attempts
     try:
-        interval = float(raw.get("interval_seconds", default_interval))
+        interval = float(raw_d.get("interval_seconds", default_interval))
     except (TypeError, ValueError):
         interval = default_interval
     return max(1, attempts), max(0.0, interval)

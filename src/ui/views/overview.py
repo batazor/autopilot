@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
+import redis as _redis_pkg
 import streamlit as st
 from streamlit_nested_table import nested_table, table_column
 
-from config.devices import load_devices
-from config.loader import load_settings
+from config.devices import DeviceRegistry, load_devices
+from config.loader import InstanceConfig, load_settings
 from config.module_registry import list_wiki_modules
 from config.module_ui_registry import iter_module_ui_page_specs
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
@@ -176,7 +177,7 @@ def _is_recent(ts_str: str, *, max_age_s: float) -> bool:
 
 def _format_age(unix_ts: object) -> str:
     try:
-        ts = float(unix_ts)  # type: ignore[arg-type]
+        ts = float(unix_ts)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return "—"
     if ts <= 0:
@@ -193,9 +194,12 @@ def _format_age(unix_ts: object) -> str:
     return f"{int(delta // 86400)}d ago"
 
 
-def _read_player_state_decoded(redis_client: object, pid: str) -> dict[str, str]:
+def _read_player_state_decoded(redis_client: _redis_pkg.Redis, pid: str) -> dict[str, str]:
     try:
-        raw = redis_client.hgetall(f"wos:player:{pid}:state") or {}  # type: ignore[attr-defined]
+        # redis-py stubs union sync + async returns. Narrow back to the
+        # concrete sync ``dict[str, str]`` — every client in this module
+        # is built with ``decode_responses=True``.
+        raw = cast("dict[str, str]", redis_client.hgetall(f"wos:player:{pid}:state")) or {}
     except Exception:
         return {}
     return {
@@ -279,7 +283,7 @@ def _fleet_players_nested_columns() -> list[dict[str, Any]]:
 
 
 def _player_row_fleet_nested(
-    client: object,
+    client: _redis_pkg.Redis,
     instance_id: str,
     player_id: str,
     *,
@@ -316,9 +320,9 @@ def _player_row_fleet_nested(
 
 
 def _build_fleet_players_rows(
-    client: object,
-    instances: list[object],
-    db_registry: object,
+    client: _redis_pkg.Redis,
+    instances: list[InstanceConfig],
+    db_registry: DeviceRegistry,
 ) -> tuple[list[dict[str, Any]], set[str]]:
     """Fleet table rows with ``subRows`` = gamers for that instance (devices.yaml)."""
     by_name = {str(d.name): d for d in db_registry.devices}
@@ -373,7 +377,7 @@ def _build_fleet_players_rows(
 
 
 def _render_fleet_actions(
-    client: object,
+    client: _redis_pkg.Redis,
     fleet_rows: list[dict[str, Any]],
 ) -> None:
     if not fleet_rows:
@@ -461,8 +465,8 @@ def _render_hero() -> None:
 
 
 def _count_live_instances(
-    client: object,
-    instances: list[object],
+    client: _redis_pkg.Redis,
+    instances: list[InstanceConfig],
 ) -> tuple[int, int, int]:
     live = paused = busy = 0
     for inst in instances:
