@@ -24,7 +24,7 @@ class QueueRow:
     instance_id: str
     cooperative: bool
     region: str | None = None
-    payload: dict[str, object] | None = None
+    payload: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -36,7 +36,7 @@ class RunningQueueRow:
     instance_id: str
     started_at: float
     region: str | None = None
-    payload: dict[str, object] | None = None
+    payload: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class QueueHistoryRow:
     error: str = ""
     trace_id: str = ""
     span_id: str = ""
-    payload: dict[str, object] | None = None
+    payload: dict[str, Any] | None = None
     # DSL scenario execution trace (from ``metadata``); None for non-DSL tasks.
     scenario_completed: bool | None = None
     steps_total: int | None = None
@@ -553,7 +553,7 @@ class ScenarioRedisPurgeResult:
 
 
 def _queue_payload_matches_scenario_ids(
-    data: dict[str, object], scenario_ids: set[str]
+    data: dict[str, Any], scenario_ids: set[str]
 ) -> bool:
     for field in ("task_type", "dsl_scenario", "scenario"):
         val = str(data.get(field) or "").strip()
@@ -761,10 +761,10 @@ def bump_dsl_preempt_generation(client: redis.Redis, instance_id: str) -> int:
     return int(client.incr(dsl_preempt_gen_key(instance_id)))
 
 
-def push_instance_command(client: redis.Redis, instance_id: str, cmd: dict[str, object]) -> None:
+def push_instance_command(client: redis.Redis, instance_id: str, cmd: dict[str, Any]) -> None:
     client.lpush(f"wos:ui:command:{instance_id}", json.dumps(cmd))
 
 
-def push_scheduler_command(client: redis.Redis, cmd: dict[str, object]) -> None:
+def push_scheduler_command(client: redis.Redis, cmd: dict[str, Any]) -> None:
     client.lpush("wos:ui:command:scheduler", json.dumps(cmd))
 

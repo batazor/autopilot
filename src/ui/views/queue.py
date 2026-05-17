@@ -345,7 +345,7 @@ def _render_running_section(
         return
 
     st.subheader("Running now")
-    table_rows: list[dict[str, object]] = []
+    table_rows: list[dict[str, Any]] = []
     for iid, r in running_rows:
         dur = _rel_time(r.started_at, now) if r.started_at > 0 else "—"
         scen = _scenario_display_label(str(_REPO), r.task_type)
@@ -600,7 +600,7 @@ def _queue_fragment() -> None:
                 if not explain_rows_raw:
                     st.info("No due candidates ranked for this instance.")
                     continue
-                explain_data: list[dict[str, object]] = []
+                explain_data: list[dict[str, Any]] = []
                 for seq, er in enumerate(explain_rows_raw, start=1):
                     key = str(er.get("task_type") or "")
                     explain_data.append(
@@ -680,7 +680,7 @@ def _queue_fragment() -> None:
                 if not hist:
                     st.caption("No completed tasks match the current filter.")
                     continue
-                hist_data: list[dict[str, object]] = []
+                hist_data: list[dict[str, Any]] = []
                 for seq, h in enumerate(hist, start=1):
                     started_str = (
                         time.strftime("%H:%M:%S", time.localtime(h.started_at))

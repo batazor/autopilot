@@ -39,7 +39,7 @@ _RARITY_ALIAS: dict[str, str] = {
 
 
 def generate_candidates(
-    state_flat: dict[str, object],
+    state_flat: dict[str, Any],
     ctx: BalanceContext,
 ) -> list[Candidate]:
     """Walk ``heroes.entries.*`` in the flat state and produce one
@@ -70,7 +70,7 @@ def hero_db_entry(hero_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _hero_ids_from_state(state_flat: dict[str, object]) -> set[str]:
+def _hero_ids_from_state(state_flat: dict[str, Any]) -> set[str]:
     """Hero ids that have any ``heroes.entries.<id>.<field>`` key in the
     flat state. We also include heroes flagged ``available=True`` even
     when no other fields are set."""
@@ -87,7 +87,7 @@ def _hero_ids_from_state(state_flat: dict[str, object]) -> set[str]:
     return seen
 
 
-def _hero_level(state_flat: dict[str, object], hid: str) -> int:
+def _hero_level(state_flat: dict[str, Any], hid: str) -> int:
     v = state_flat.get(f"heroes.entries.{hid}.level")
     try:
         return int(v) if v is not None else 1
@@ -95,14 +95,14 @@ def _hero_level(state_flat: dict[str, object], hid: str) -> int:
         return 1
 
 
-def _hero_is_available(state_flat: dict[str, object], hid: str) -> bool:
+def _hero_is_available(state_flat: dict[str, Any], hid: str) -> bool:
     v = state_flat.get(f"heroes.entries.{hid}.available")
     if isinstance(v, bool):
         return v
     return bool(v)
 
 
-def _furnace_level(state_flat: dict[str, object]) -> int:
+def _furnace_level(state_flat: dict[str, Any]) -> int:
     for key in ("chief.furnace_level", "furnace.level", "buildings.furnace.level"):
         v = state_flat.get(key)
         try:
@@ -164,7 +164,7 @@ def _interpolate_xp(table: dict[Any, Any], target_level: int) -> int:
     return anchors[-1][1]
 
 
-def _hero_star_progress(state_flat: dict[str, object], hid: str) -> int:
+def _hero_star_progress(state_flat: dict[str, Any], hid: str) -> int:
     v = state_flat.get(f"heroes.entries.{hid}.star_progress")
     try:
         if v is None:
@@ -180,7 +180,7 @@ def _hero_star_progress(state_flat: dict[str, object], hid: str) -> int:
 
 
 def _generate_star_tier_up(
-    state_flat: dict[str, object], ctx: BalanceContext
+    state_flat: dict[str, Any], ctx: BalanceContext
 ) -> list[Candidate]:
     """One ``star_tier_up`` candidate per unlocked hero, sized at the
     very next slot of the 5★ × 6-tier path (see the ``shards`` table in
@@ -248,7 +248,7 @@ def _generate_star_tier_up(
 
 
 def _hero_skill_level(
-    state_flat: dict[str, object], hid: str, track: str, slot: int
+    state_flat: dict[str, Any], hid: str, track: str, slot: int
 ) -> int:
     """Current level of ``heroes.entries.<hid>.skills.<track>.<slot>``.
     Returns 0 (= unlearned) when missing."""
@@ -316,7 +316,7 @@ def _skill_manual_cost(
 
 
 def _generate_skill_up(
-    state_flat: dict[str, object], ctx: BalanceContext
+    state_flat: dict[str, Any], ctx: BalanceContext
 ) -> list[Candidate]:
     """One ``skill_up`` candidate per (hero, track, slot) listed in the
     hero's ``skill_priority``. Caps at the per-★ skill-level cap so the
@@ -369,7 +369,7 @@ def _generate_skill_up(
 
 
 def _generate_level_up(
-    state_flat: dict[str, object], ctx: BalanceContext
+    state_flat: dict[str, Any], ctx: BalanceContext
 ) -> list[Candidate]:
     hero_xp_table = (
         (ctx.cost_tables.get(_HERO_XP_TABLE) or {}).get("per_level") or {}

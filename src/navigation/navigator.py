@@ -135,7 +135,7 @@ class Navigator:
             logger.warning("Navigator: region %r missing bbox", region_name)
             return False
         pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
-        approval_context: dict[str, object] = {}
+        approval_context: dict[str, Any] = {}
         if from_screen:
             approval_context["from_screen"] = from_screen
         if to_screen:
@@ -271,7 +271,7 @@ class Navigator:
     async def _verify_match_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -309,7 +309,7 @@ class Navigator:
     async def _verify_ocr_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -368,7 +368,7 @@ class Navigator:
     async def _verify_tab_active_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
     ) -> bool:
@@ -397,7 +397,7 @@ class Navigator:
     async def _verify_rule(
         self,
         image: np.ndarray,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         state_flat: dict[str, Any] | None = None,
         instance_id: str | None = None,
@@ -416,7 +416,7 @@ class Navigator:
 
     async def _verify_from_screen_rule(
         self,
-        rule: dict[str, object],
+        rule: dict[str, Any],
         *,
         instance_id: str | None,
     ) -> bool:

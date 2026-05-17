@@ -65,7 +65,7 @@ def _stable_hash_value(value: Any) -> Any:
     return value
 
 
-def region_hash(region: dict[str, object]) -> str:
+def region_hash(region: dict[str, Any]) -> str:
     """Stable identity hash for an OmniParser region.
 
     The display ``name`` is intentionally excluded so a later OmniParser pass
@@ -88,11 +88,11 @@ def elements_to_regions(
     image_height: int,
     min_area_pct: float = 0.04,
     existing_names: set[str] | None = None,
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     """Convert parsed UI elements to labeling ``regions[]`` entries."""
 
     taken = {n.strip() for n in (existing_names or set()) if str(n).strip()}
-    out: list[dict[str, object]] = []
+    out: list[dict[str, Any]] = []
     for i, el in enumerate(elements):
         x1, y1, x2, y2 = el.bbox
         w_pct = 100.0 * (x2 - x1)

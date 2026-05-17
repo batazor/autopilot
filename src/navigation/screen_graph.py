@@ -29,9 +29,9 @@ import yaml
 
 # Tap steps are region names from `area.json` (no hardcoded coordinates).
 Tap = str
-VerifyRule = dict[str, object]
-VerifyConfig = dict[str, object]
-ScreenVerifyEntry = dict[str, object]
+VerifyRule = dict[str, Any]
+VerifyConfig = dict[str, Any]
+ScreenVerifyEntry = dict[str, Any]
 DynamicEdgeSpec = dict[str, Any]
 """Per-edge spec for runtime-resolved taps.
 
