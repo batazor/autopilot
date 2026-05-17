@@ -163,6 +163,31 @@ ignore = ["ANN401"]
 # Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
 "src/ui/area_annotator.py" = ["E402"]
 
+[tool.ty]
+# Strategy: baseline + ratchet (see scripts/ty-ratchet.py).
+# 1164 pre-existing diagnostics frozen at the snapshot date — the CI gate
+# fails only if a file's diagnostic count goes UP relative to the
+# baseline (.ty-baseline.json). Touching a file is allowed; making it
+# worse is not.
+
+[tool.ty.src]
+exclude = [
+    "streamlit-plugin/streamlit-drawable-canvas",
+    "streamlit-plugin/streamlit-nested-table",
+    "streamlit-plugin/streamlit-react-flow",
+    "streamlit-plugin/streamlit-dnd-sortable",
+]
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.rules]
+# redis-py's async client returns Awaitable[...], but the stubs union it
+# with the sync return — ty sees `Awaitable[T] | T` and flags every
+# `await client.method(...)`. Suppressing globally rather than per-call
+# is the lesser evil until stubs improve.
+invalid-await = "ignore"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["."]
