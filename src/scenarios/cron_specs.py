@@ -28,7 +28,9 @@ def resolve_cron_priority(raw: object) -> int:
     if raw is None or isinstance(raw, bool):
         return DEFAULT_SCENARIO_PRIORITY
     try:
-        return int(raw)  # ty: ignore[invalid-argument-type]
+        if isinstance(raw, (int, float, str, bytes, bytearray)):
+            return int(raw)
+        return DEFAULT_SCENARIO_PRIORITY
     except (TypeError, ValueError):
         return DEFAULT_SCENARIO_PRIORITY
 

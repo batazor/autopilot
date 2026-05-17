@@ -115,6 +115,10 @@ class AllianceSection(BaseModel):
     isNotify: bool = False
 
 
+def _alliance_tech_default() -> dict[str, object]:
+    return {"isNotify": False, "favorite": True}
+
+
 class Alliance(BaseModel):
     name: str = ""
     myLevel: int = 0
@@ -126,7 +130,7 @@ class Alliance(BaseModel):
     shop: dict[str, object] = Field(default_factory=dict)
     chests: AllianceSection = Field(default_factory=AllianceSection)
     battle: AllianceSection = Field(default_factory=AllianceSection)
-    tech: dict[str, object] = Field(default_factory=lambda: {"isNotify": False, "favorite": True})  # ty: ignore[invalid-assignment]
+    tech: dict[str, object] = Field(default_factory=_alliance_tech_default)
     help: AllianceSection = Field(default_factory=AllianceSection)
 
 
@@ -171,8 +175,12 @@ class TundraAdventure(BaseModel):
     state: TundraAdventureState = Field(default_factory=TundraAdventureState)
 
 
+def _frosty_fortune_state_default() -> dict[str, object]:
+    return {"isExist": False}
+
+
 class FrostyFortune(BaseModel):
-    state: dict[str, object] = Field(default_factory=lambda: {"isExist": False})  # ty: ignore[invalid-assignment]
+    state: dict[str, object] = Field(default_factory=_frosty_fortune_state_default)
 
 
 class RecruitmentEvent(BaseModel):
@@ -292,6 +300,10 @@ class HealInjured(BaseModel):
     state: HealInjuredState = Field(default_factory=HealInjuredState)
 
 
+def _gamer_shop_default() -> dict[str, object]:
+    return {"isnotify": False}
+
+
 class GamerState(BaseModel):
     id: int
     nickname: str = ""
@@ -316,7 +328,7 @@ class GamerState(BaseModel):
     troops: Troops = Field(default_factory=Troops)
     tech: Tech = Field(default_factory=Tech)
     mail: Mail = Field(default_factory=Mail)
-    shop: dict[str, object] = Field(default_factory=lambda: {"isnotify": False})  # ty: ignore[invalid-assignment]
+    shop: dict[str, object] = Field(default_factory=_gamer_shop_default)
     dailyMissions: DailyMissions = Field(default_factory=DailyMissions)
     growthMissions: GrowthMissions = Field(default_factory=GrowthMissions)
     chief: Chief = Field(default_factory=Chief)

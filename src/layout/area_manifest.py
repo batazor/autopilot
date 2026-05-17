@@ -77,6 +77,7 @@ def load_area_doc(repo_root: Path, area_path: Path | None = None) -> dict[str, A
         return {}
 
     merged = _load_area_mapping(path)
+    merged.pop("fsm", None)
     screens = merged.get("screens")
     if not isinstance(screens, list):
         screens = []

@@ -1,11 +1,9 @@
 version: 2
-fsm:
-  initial_screen: ''
-  transitions: []
 screens:
 - id: 54
   screen_id: event.trials
   ocr: references/page.trials.png
+  screen_region: trials.title
   regions:
   - name: trial.task.1
     action: exist
@@ -116,3 +114,14 @@ screens:
       original_width: 720
       original_height: 1280
     has_red_dot: true
+  - name: trials.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 11.737451737451737
+      y: 0.7608695652173914
+      width: 14.200772200772201
+      height: 4.1
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280

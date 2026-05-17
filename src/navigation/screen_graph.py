@@ -18,7 +18,6 @@ Adding a new screen
 """
 from __future__ import annotations
 
-import json
 from collections import deque
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
@@ -215,6 +214,21 @@ def _area_json_path() -> Path:
     return repo_root() / "area.json"
 
 
+def _area_yaml_paths() -> list[Path]:
+    from config.module_discovery import iter_module_area_manifests
+    from config.paths import repo_root
+
+    root = repo_root()
+    area_path = _area_json_path()
+    paths = [area_path]
+    if (
+        area_path.is_file()
+        and area_path.resolve() == (root / "area.json").resolve()
+    ):
+        paths.extend(iter_module_area_manifests(root))
+    return paths
+
+
 def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     if not isinstance(raw, dict):
         return None
@@ -259,14 +273,17 @@ def _file_fingerprint(path: Path) -> tuple[str, int, int]:
     return (str(path), int(st.st_mtime_ns), int(st.st_size))
 
 
-def _combined_config_fingerprint() -> tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]:
+def _combined_config_fingerprint() -> tuple[
+    tuple[tuple[str, int, int], ...],
+    tuple[tuple[str, int, int], ...],
+]:
     return (
         tuple(_file_fingerprint(path) for path in _screen_verify_yaml_paths()),
-        _file_fingerprint(_area_json_path()),
+        tuple(_file_fingerprint(path) for path in _area_yaml_paths()),
     )
 
 
-def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]]:
+def _area_screen_region_landmarks(root: Path) -> dict[str, list[VerifyRule]]:
     """Build screen landmark rules from ``area.json`` screen entries.
 
     ``screen_region`` is an optional entry-level pointer to the region that
@@ -274,12 +291,9 @@ def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]
     one-region screen detection close to the labeled regions instead of forcing
     every screen into ``screen_verify.yaml``.
     """
-    try:
-        raw = json.loads(area_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    if not isinstance(raw, dict):
-        return {}
+    from layout.area_manifest import load_area_doc
+
+    raw = load_area_doc(root)
     out: dict[str, list[VerifyRule]] = {}
     for entry in raw.get("screens") or []:
         if not isinstance(entry, dict):
@@ -303,7 +317,8 @@ def _area_screen_region_landmarks(area_path: Path) -> dict[str, list[VerifyRule]
 
 @lru_cache(maxsize=8)
 def _load_screen_verify_config_cached(
-    fp: tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
+    fp: tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]
+    | tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
     | tuple[tuple[str, int, int], tuple[str, int, int]]
     | tuple[str, int, int]
     | None = None,
@@ -314,22 +329,39 @@ def _load_screen_verify_config_cached(
     """
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
-    if fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
+    if (
+        fp
+        and isinstance(fp[0], tuple)
+        and fp[0]
+        and isinstance(fp[0][0], tuple)
+        and isinstance(fp[1], tuple)
+        and (not fp[1] or isinstance(fp[1][0], tuple))
+    ):
+        yaml_fps_, area_fps_ = cast(
+            "tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]", fp
+        )
+        paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
+        from config.paths import repo_root
+
+        root = Path(area_fps_[0][0]).parent if area_fps_ else repo_root()
+    elif fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
         yaml_fps_, area_fp_ = cast(
             "tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]", fp
         )
         paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
-        area_path = Path(area_fp_[0])
+        root = Path(area_fp_[0]).parent
     elif fp and isinstance(fp[0], tuple):
         yaml_fp_, area_fp_ = cast(
             "tuple[tuple[str, int, int], tuple[str, int, int]]", fp
         )
         paths = [Path(yaml_fp_[0])]
-        area_path = Path(area_fp_[0])
+        root = Path(area_fp_[0]).parent
     else:
         fp_single = cast("tuple[str, int, int]", fp)
         paths = [Path(fp_single[0])]
-        area_path = _area_json_path()
+        from config.paths import repo_root
+
+        root = repo_root()
 
     docs: list[dict[str, Any]] = []
     for path in paths:
@@ -379,7 +411,7 @@ def _load_screen_verify_config_cached(
             if rules or landmarks or "retry" in entry:
                 out_screens[str(screen).strip()] = entry
 
-    for screen, landmarks in _area_screen_region_landmarks(area_path).items():
+    for screen, landmarks in _area_screen_region_landmarks(root).items():
         entry = out_screens.setdefault(screen, {"rules": [], "landmarks": [], "priority": 100})
         existing = entry.setdefault("landmarks", [])
         if not isinstance(existing, list):
@@ -416,7 +448,8 @@ def _load_screen_verify_config_cached(
 
 
 def load_screen_verify_config(
-    fp: tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
+    fp: tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]
+    | tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]
     | tuple[tuple[str, int, int], tuple[str, int, int]]
     | tuple[str, int, int]
     | None = None,

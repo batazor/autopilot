@@ -19,7 +19,8 @@ from .ctx import ClickApprovalsCtx
 
 def _fmt_ratio(value: object) -> str:
     try:
-        return f"{float(value):.3f}"  # ty: ignore[invalid-argument-type]
+        f = float(value) if isinstance(value, (int, float, str, bytes, bytearray)) else float(str(value))
+        return f"{f:.3f}"
     except (TypeError, ValueError):
         return "—"
 

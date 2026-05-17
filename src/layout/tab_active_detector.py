@@ -1,11 +1,11 @@
 """Programmatic "active tab" detector.
 
-Mail / event UIs use a tab strip where the selected tab is drawn with a light
-cream / white background while inactive tabs use the saturated blue base. The
-difference shows up cleanly in HSV statistics over the labeled tab bbox:
+Most tab strips draw the selected tab with a light cream / white background
+while inactive tabs use the saturated blue base. Some event pages (Trials)
+instead draw the active tab yellow. Both variants show up cleanly in HSV stats:
 
-* active tab — mean saturation drops (cream is near-grey in HSV);
-* active tab — mean value rises (background goes from mid-blue to near-white).
+* cream active tab — mean saturation drops and mean value rises;
+* yellow active tab — a large share of pixels falls into the yellow hue band.
 
 Calibration on ``references/mail_page.png`` (System tab active):
 
@@ -27,6 +27,23 @@ TAB_ACTIVE_MAX_MEAN_SATURATION = 120.0
 TAB_ACTIVE_MIN_MEAN_VALUE = 180.0
 """Mean HSV value must be **above** this to call the tab active."""
 
+TAB_ACTIVE_MIN_YELLOW_RATIO = 0.25
+"""Minimum yellow-pixel share for yellow active tabs."""
+
+
+def yellow_tab_ratio(patch_bgr: np.ndarray) -> float:
+    """Return the fraction of yellow-ish pixels in ``patch_bgr``."""
+    if patch_bgr is None or patch_bgr.ndim != 3 or patch_bgr.size == 0:
+        return 0.0
+    hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    mask = (
+        (hsv[..., 0] >= 15)
+        & (hsv[..., 0] <= 40)
+        & (hsv[..., 1] >= 80)
+        & (hsv[..., 2] >= 120)
+    )
+    return float(mask.mean())
+
 
 def tab_activity_stats(patch_bgr: np.ndarray) -> tuple[float, float]:
     """Return ``(mean_saturation, mean_value)`` for ``patch_bgr`` (HSV)."""
@@ -42,13 +59,13 @@ def is_tab_active_in_bbox_percent(
     *,
     max_mean_saturation: float = TAB_ACTIVE_MAX_MEAN_SATURATION,
     min_mean_value: float = TAB_ACTIVE_MIN_MEAN_VALUE,
+    min_yellow_ratio: float = TAB_ACTIVE_MIN_YELLOW_RATIO,
 ) -> bool:
-    """Return ``True`` iff the labeled tab bbox shows the active (light) background.
+    """Return ``True`` iff the labeled tab bbox shows an active-tab background.
 
-    Both gates must pass: low saturation **and** high value. Either alone is
-    not enough — bright white text on a saturated blue tab still drives V high
-    while S stays high (rejecting it correctly), and a desaturated dark patch
-    could trick S alone (rejected by the V floor).
+    The light-tab path requires low saturation **and** high value. The yellow
+    path is separate so event tabs with yellow active backgrounds can reuse
+    ``isTabActive`` without changing routing semantics.
     """
     if image_bgr is None or image_bgr.ndim != 3 or image_bgr.size == 0:
         return False
@@ -61,4 +78,6 @@ def is_tab_active_in_bbox_percent(
     if patch.size == 0:
         return False
     mean_s, mean_v = tab_activity_stats(patch)
-    return mean_s < float(max_mean_saturation) and mean_v > float(min_mean_value)
+    light_active = mean_s < float(max_mean_saturation) and mean_v > float(min_mean_value)
+    yellow_active = yellow_tab_ratio(patch) >= float(min_yellow_ratio)
+    return light_active or yellow_active

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -59,15 +60,20 @@ from ui.settings_state import ensure_ui_settings_session_defaults
 from ui.wiki_module import render_wiki_module_selector
 
 
-def _labeling_has_version_query_param(params: object) -> bool:
+def _labeling_has_version_query_param(params: Any) -> bool:
+    """``params`` is ``st.query_params`` or a dict — both expose ``__contains__``."""
     try:
-        return "version" in params  # type: ignore[operator]  # ty: ignore[unsupported-operator]
+        return "version" in params
     except Exception:
         return False
 
 
-def _labeling_query_version_raw(params: object) -> str:
-    raw = params.get("version")  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+def _labeling_query_version_raw(params: Any) -> str:
+    """``params`` is ``st.query_params`` or a dict — both expose ``.get``."""
+    try:
+        raw = params.get("version")
+    except Exception:
+        return ""
     if isinstance(raw, list):
         raw = raw[0] if raw else ""
     if raw is None:
@@ -660,11 +666,15 @@ if write_crops:
     else:
         with st.status("Writing region crops…", expanded=True) as status:
             prog = st.progress(0)
+
+            def _emit_progress(x: float) -> None:
+                prog.progress(x)
+
             try:
                 written, warns = export_all_region_crops_for_area_doc(
                     doc,
                     repo_root=REPO_ROOT,
-                    progress=lambda x: prog.progress(x),  # ty: ignore[invalid-argument-type]
+                    progress=_emit_progress,
                 )
             except (OSError, ValueError) as e:
                 status.update(label=f"Crop export failed: {e}", state="error")

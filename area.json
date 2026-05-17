@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "fsm": {
-    "initial_screen": "",
-    "transitions": []
-  },
   "screens": [
     {
       "id": 1,

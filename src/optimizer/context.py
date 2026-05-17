@@ -32,8 +32,10 @@ class BalanceContext:
     """``hero_meta.defaults`` — applied to heroes not in ``overrides``."""
     hero_overrides: dict[str, dict[str, Any]]
     """``hero_meta.overrides`` — per-hero priors."""
-    cost_tables: dict[str, dict[str, Any]] = field(default_factory=dict)
-    """All tables from ``cost_tables.yaml`` (``hero_xp_v1`` etc.)."""
+    cost_tables: dict[str, dict[Any, Any]] = field(default_factory=dict)
+    """All tables from ``cost_tables.yaml`` (``hero_xp_v1`` etc.). Inner keys are
+    YAML-loaded (``int`` for ``skill_level_cap_by_star_v1`` star levels, ``str``
+    elsewhere) — declared as ``Any`` to match the heterogeneous on-disk shape."""
 
     @property
     def active_profile(self) -> dict[str, Any]:

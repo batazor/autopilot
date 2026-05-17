@@ -240,6 +240,27 @@ def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
+def test_production_screen_verify_yaml_contains_trials_day_rules() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        for day in range(1, 6):
+            screen = f"event.trials.day.{day}"
+            expected = [
+                {
+                    "match": "trials.title",
+                    "threshold": 0.9,
+                    "tab_active": f"trial.day.{day}",
+                }
+            ]
+            assert screen_graph.screen_landmark_rules(screen) == expected
+            assert screen_graph.screen_verify_rules(screen) == expected
+        expected_base = [{"match": "trials.title", "threshold": 0.9}]
+        assert screen_graph.screen_landmark_rules("event.trials") == expected_base
+        assert screen_graph.screen_verify_rules("event.trials") == expected_base
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
 def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

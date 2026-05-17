@@ -359,6 +359,8 @@ class SchedulerRunner:
                     )
 
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
+        # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
+        assert self._redis is not None  # noqa: S101
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
             for player_id in player_ids_for_device_candidates(
@@ -366,7 +368,7 @@ class SchedulerRunner:
                 inst.instance_id,
             ):
                 key = f"wos:player:{player_id}:state"
-                raw = await self._redis.hgetall(key)  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                raw = await self._redis.hgetall(key)
                 state = {
                     (k.decode() if isinstance(k, bytes) else k): (
                         v.decode() if isinstance(v, bytes) else v
@@ -388,7 +390,8 @@ class SchedulerRunner:
         return mapping
 
     async def _active_scenario_id(self, player_id: str) -> str | None:
-        raw = await self._redis.get(f"wos:player:{player_id}:scenario")  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+        assert self._redis is not None  # noqa: S101
+        raw = await self._redis.get(f"wos:player:{player_id}:scenario")
         if raw is None:
             return None
         s = raw.decode() if isinstance(raw, bytes) else raw
@@ -416,6 +419,9 @@ class SchedulerRunner:
         return filtered
 
     async def _run_once(self) -> None:
+        # ``_connect`` runs before any tick, so both ``_queue`` and ``_redis``
+        # are always populated here.
+        assert self._queue is not None  # noqa: S101
         await self._run_cron_specs()
         player_states = await self._load_player_states()
         scenarios = self._scenario_loader.load_all()
@@ -461,7 +467,7 @@ class SchedulerRunner:
                     task_type=task.task_type,
                 ):
                     continue
-                await self._queue.schedule(  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
+                await self._queue.schedule(
                     task_id=task.task_id,
                     player_id=player_id,
                     task_type=task.task_type,

@@ -15,8 +15,10 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from types import FrameType
+from typing import Any
 
 import psutil
 
@@ -36,7 +38,10 @@ _thread: threading.Thread | None = None
 _health_proc: subprocess.Popen[bytes] | None = None
 _known_health_watchdog_pid: int | None = None
 _hooks_installed = False
-_previous_signal_handlers: dict[int, signal.Handlers] = {}
+# ``signal.getsignal`` returns either a callable, ``signal.SIG_DFL``/``SIG_IGN``
+# (ints), ``signal.Handlers`` enum, or ``None``. Keep the dict permissive so the
+# restoration site in ``_handle_shutdown_signal`` can branch on the runtime kind.
+_previous_signal_handlers: dict[int, Callable[[int, FrameType | None], Any] | int | signal.Handlers | None] = {}
 
 
 _state_wake_registered = False
@@ -321,7 +326,7 @@ def _install_shutdown_hooks() -> None:
         atexit.register(stop_embedded_bot)
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGINT, signal.SIGTERM):
-                _previous_signal_handlers[int(sig)] = signal.getsignal(sig)  # ty: ignore[invalid-assignment]
+                _previous_signal_handlers[int(sig)] = signal.getsignal(sig)
                 signal.signal(sig, _handle_shutdown_signal)
         _hooks_installed = True
 
@@ -330,7 +335,7 @@ def _handle_shutdown_signal(signum: int, frame: FrameType | None) -> None:
     stop_embedded_bot(join_timeout_s=2.0)
 
     previous = _previous_signal_handlers.get(signum)
-    if callable(previous):
+    if callable(previous) and not isinstance(previous, int):
         previous(signum, frame)
     elif previous == signal.SIG_DFL:
         if signum == signal.SIGINT:

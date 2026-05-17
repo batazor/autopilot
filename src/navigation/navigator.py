@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import json
 import logging
 from collections.abc import Callable
 from typing import Any, Literal
@@ -12,6 +11,7 @@ import numpy as np
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from config.loader import Settings
 from config.paths import repo_root
+from layout.area_manifest import load_area_doc
 from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_random_point_to_device_point
 from layout.types import Region
@@ -74,7 +74,7 @@ class Navigator:
         if self._area_doc is not None:
             return self._area_doc
 
-        self._area_doc = json.loads((self._repo_root / "area.json").read_text(encoding="utf-8"))
+        self._area_doc = load_area_doc(self._repo_root)
         return self._area_doc
 
     async def _active_player_state_flat(

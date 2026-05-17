@@ -445,8 +445,12 @@ class InstanceWorkerTasksMixin(_Base):
         # ``start_step_index`` so the re-enqueued slice continues where it
         # stopped instead of restarting at step 0.
         meta = result.metadata or {}
+        raw_resume = meta.get("resume_from_step_index")
         try:
-            resume_step = int(meta.get("resume_from_step_index") or 0)  # ty: ignore[invalid-argument-type]
+            if isinstance(raw_resume, (int, float, str, bytes, bytearray)):
+                resume_step = int(raw_resume)
+            else:
+                resume_step = 0
         except (TypeError, ValueError):
             resume_step = 0
         if resume_step < 0:

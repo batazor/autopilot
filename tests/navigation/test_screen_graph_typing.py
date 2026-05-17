@@ -56,6 +56,12 @@ def test_mail_tab_routes() -> None:
     assert route_taps("mail.starred", "main_city") == [["icon.page.back"]]
 
 
+def test_trials_day_routes() -> None:
+    assert route_taps("event.trials", "event.trials.day.1") == [["trial.day.1"]]
+    assert route_taps("event.trials.day.1", "event.trials.day.3") == [["trial.day.3"]]
+    assert route_taps("event.trials.day.5", "main_city") == [["icon.page.back"]]
+
+
 def test_frostdragon_tyrant_routes_to_main_city() -> None:
     assert route_taps("text.frostdragon_tyrant", "main_city") == [
         ["text.tap_any_blank_space_to_close"]

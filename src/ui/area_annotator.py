@@ -153,16 +153,8 @@ class AreaEntryDict(TypedDict, total=False):
     versions: list[VersionDict]
 
 
-class FSMDict(TypedDict, total=False):
-    """Directed transitions between game nodes (node graph topology)."""
-
-    initial_screen: str
-    transitions: list[dict[str, str]]
-
-
 class AreaDocDict(TypedDict, total=False):
     version: int
-    fsm: FSMDict
     screens: list[AreaEntryDict]
 
 
@@ -579,15 +571,11 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
 
 
 def default_area_doc(screens: list[AreaEntryDict] | None = None) -> AreaDocDict:
-    return AreaDocDict(
-        version=2,
-        fsm=FSMDict(initial_screen="", transitions=[]),
-        screens=list(screens or []),
-    )
+    return AreaDocDict(version=2, screens=list(screens or []))
 
 
 def normalize_area_file(raw: Any) -> AreaDocDict:
-    """Accept legacy ``[ {...}, ... ]`` or ``{ "screens": [...], "fsm": {...} }``."""
+    """Accept legacy ``[ {...}, ... ]`` or ``{ "screens": [...] }`` (ignores removed ``fsm``)."""
     if isinstance(raw, list):
         return default_area_doc(raw)  # type: ignore[arg-type]
 
@@ -595,30 +583,8 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
         screens = raw.get("screens")
         if not isinstance(screens, list):
             raise ValueError("area.json object must include a 'screens' array")
-        fsm_raw = raw.get("fsm") if isinstance(raw.get("fsm"), dict) else {}
-        trans_raw = fsm_raw.get("transitions")
-        transitions: list[dict[str, str]] = []
-        if isinstance(trans_raw, list):
-            for item in trans_raw:
-                if not isinstance(item, dict):
-                    continue
-                fr = str(item.get("from", "")).strip()
-                to = str(item.get("to", "")).strip()
-                if not fr or not to:
-                    continue
-                transitions.append(
-                    {
-                        "from": fr,
-                        "to": to,
-                        "event": str(item.get("event", "") or "").strip(),
-                    }
-                )
         return AreaDocDict(
             version=int(raw.get("version", 2)),
-            fsm=FSMDict(
-                initial_screen=str(fsm_raw.get("initial_screen", "") or "").strip(),
-                transitions=transitions,
-            ),
             screens=screens,  # type: ignore[arg-type]
         )
 
@@ -652,7 +618,7 @@ def strip_exist_region_types(doc: dict[str, Any]) -> int:
 
 
 def save_json(path: Path, doc: AreaDocDict) -> int:
-    """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``).
+    """Write ``area.json`` / module ``area.yaml`` (``version`` + ``screens``).
 
     Returns how many version-specific regions were dropped because they matched
     the base region (same geometry/options).
@@ -688,35 +654,18 @@ def load_json(path: Path) -> AreaDocDict:
     return normalize_area_file(raw)
 
 
-def all_fsm_screen_ids(doc: AreaDocDict) -> list[str]:
+def all_screen_ids(doc: AreaDocDict) -> list[str]:
     ids: set[str] = set()
     for s in doc.get("screens") or []:
         sid = str(s.get("screen_id", "") or "").strip()
         if sid:
             ids.add(sid)
-    fsm = doc.get("fsm") or {}
-    for t in fsm.get("transitions") or []:
-        ids.add(str(t.get("from", "")).strip())
-        ids.add(str(t.get("to", "")).strip())
-    ini = str(fsm.get("initial_screen", "") or "").strip()
-    if ini:
-        ids.add(ini)
     return sorted(ids)
-
-
-def successor_screens(screen_id: str, doc: AreaDocDict) -> list[str]:
-    if not screen_id.strip():
-        return []
-    fsm = doc.get("fsm") or {}
-    hits = sorted(
-        {str(t.get("to")) for t in (fsm.get("transitions") or []) if t.get("from") == screen_id}
-    )
-    return hits
 
 
 def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[str]:
     """Options for Screen ID: ``""`` = None; then sorted node ids from area + entries (always includes ``current``)."""
-    ids: set[str] = set(all_fsm_screen_ids(doc))
+    ids: set[str] = set(all_screen_ids(doc))
     # Seed options with the "known" node ids from runtime navigation config.
     # Use screen_verify_screen_names() directly instead of ScreenName: the enum
     # is built once at import, while the config loader tracks YAML mtimes.
@@ -930,10 +879,6 @@ def _render_screen_id_and_ocr_fields(
             key=f"ocr_{entry_idx}_{_sk}",
         )
         cur["ocr"] = ocr_path.strip()
-    if sid:
-        nxt = successor_screens(sid, doc)
-        if nxt:
-            st.caption("Transitions from this screen: **" + "**, **".join(nxt) + "**")
 
 
 ACTIVE_VERSION_DEFAULT = "default"

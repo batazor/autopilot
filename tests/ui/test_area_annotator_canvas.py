@@ -79,7 +79,7 @@ def test_ensure_entry_stores_new_module_ocr_as_local_reference() -> None:
     entries = []
 
     idx = ensure_entry_for_reference_path(
-        entries,  # ty: ignore[invalid-argument-type]
+        entries,
         "modules/events/trials/references/new.png",
         references_prefix="modules/events/trials/references",
     )

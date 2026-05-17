@@ -26,7 +26,9 @@ from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.tab_active_detector import (
     TAB_ACTIVE_MAX_MEAN_SATURATION,
     TAB_ACTIVE_MIN_MEAN_VALUE,
+    TAB_ACTIVE_MIN_YELLOW_RATIO,
     tab_activity_stats,
+    yellow_tab_ratio,
 )
 from layout.template_match import (
     TemplateMatchResult,
@@ -519,12 +521,18 @@ async def evaluate_overlay_rules_async(
             min_v = float(
                 rule.get("min_mean_value", TAB_ACTIVE_MIN_MEAN_VALUE)
             )
+            min_yellow_ratio = float(
+                rule.get("min_yellow_ratio", TAB_ACTIVE_MIN_YELLOW_RATIO)
+            )
             hi_ta, wi_ta = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             region_px_ta = _bbox_percent_to_region_px(bbox_ta, wi_ta, hi_ta)
             x1, y1, x2, y2 = _region_to_xyxy(region_px_ta)
             patch_ta = image_bgr[y1:y2, x1:x2]
             mean_s_ta, mean_v_ta = tab_activity_stats(patch_ta)
-            active_ta = mean_s_ta < max_s and mean_v_ta > min_v
+            yellow_ratio_ta = yellow_tab_ratio(patch_ta)
+            active_ta = (
+                mean_s_ta < max_s and mean_v_ta > min_v
+            ) or yellow_ratio_ta >= min_yellow_ratio
             matched_ta = active_ta if want_active else not active_ta
 
             bx = float(bbox_ta.get("x") or 0.0)
@@ -555,8 +563,10 @@ async def evaluate_overlay_rules_async(
                 "tab_active": active_ta,
                 "mean_saturation": mean_s_ta,
                 "mean_value": mean_v_ta,
+                "yellow_ratio": yellow_ratio_ta,
                 "max_mean_saturation": max_s,
                 "min_mean_value": min_v,
+                "min_yellow_ratio": min_yellow_ratio,
                 "tap_x_pct": tap_x_pct_ta,
                 "tap_y_pct": tap_y_pct_ta,
                 "tap_match_x_pct": mx_pct_ta,

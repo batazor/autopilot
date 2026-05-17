@@ -24,7 +24,6 @@ def test_export_all_writes_one_crop_per_screen(tmp_path: Path) -> None:
 
     doc = {
         "version": 2,
-        "fsm": {"initial_screen": "", "transitions": []},
         "screens": [
             {
                 "id": 1,

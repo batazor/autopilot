@@ -1,6 +1,6 @@
 enabled: false
 name: Claim Trials
-node: event.trials
+node: event.trials.day.1
 icon: trials
 steps:
 - while_match: button.claim

@@ -34,10 +34,10 @@ alwaysApply: false
 ## Terminology: "node" vs "FSM"
 
 - The user-visible vocabulary is **node** / **node graph** (DSL uses `currentNode`,
-  `set_node:`). "FSM" survives only in legacy internal identifiers
-  (`FSMDict`, `area.json` top-level `fsm:` key, `ui/views/routes.py`).
-- When writing docs, captions, scenarios — prefer **node**. Don't rename internal
-  Python identifiers / JSON keys (would break loaders).
+  `set_node:`). Runtime routing lives in `navigation/screen_graph.py` and
+  `ui/views/routes.py`; area manifests (`area.json`, module `area.yaml`) hold
+  only `version` + `screens`.
+- When writing docs, captions, scenarios — prefer **node**.
 
 ## Overlay screen gate (`screens`)
 

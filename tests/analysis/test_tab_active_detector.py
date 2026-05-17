@@ -20,6 +20,8 @@ import cv2
 import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from layout.area_manifest import load_area_doc
+from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.tab_active_detector import (
     is_tab_active_in_bbox_percent,
     tab_activity_stats,
@@ -28,6 +30,7 @@ from layout.tab_active_detector import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAIL_FIXTURE = REPO_ROOT / "references" / "mail_page.png"
 MAIL_MODULE_REFERENCES = REPO_ROOT / "modules" / "mail" / "references"
+TRIALS_FIXTURE = REPO_ROOT / "modules" / "events" / "trials" / "references" / "page.trials.png"
 
 ACTIVE_TAB = "mail.tab.system"
 INACTIVE_TABS = (
@@ -93,6 +96,94 @@ def test_activity_stats_gap_holds() -> None:
         s, v = tab_activity_stats(patch)
         assert s > s_active + 30, f"{name}: S gap too small (active={s_active}, inactive={s})"
         assert v < v_active, f"{name}: V should be lower than active (active={v_active}, inactive={v})"
+
+
+def test_detector_marks_yellow_trials_tab_active() -> None:
+    image_bgr = cv2.imread(str(TRIALS_FIXTURE))
+    assert image_bgr is not None
+    area = load_area_doc(REPO_ROOT)
+
+    active_tabs = [
+        tab_name
+        for tab_name in (
+            "trial.day.1",
+            "trial.day.2",
+            "trial.day.3",
+            "trial.day.4",
+            "trial.day.5",
+        )
+        if is_tab_active_in_bbox_percent(image_bgr, _bbox_for(area, tab_name))
+    ]
+
+    assert active_tabs == ["trial.day.1"]
+
+
+@pytest.mark.parametrize(
+    "task_region",
+    ("trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"),
+)
+def test_detector_marks_trials_task_red_dots(task_region: str) -> None:
+    image_bgr = cv2.imread(str(TRIALS_FIXTURE))
+    assert image_bgr is not None
+    area = load_area_doc(REPO_ROOT)
+
+    assert has_red_dot_in_bbox_percent(image_bgr, _bbox_for(area, task_region)) is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "task_region",
+    ("trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"),
+)
+async def test_overlay_isreddot_matches_trials_task_red_dots(task_region: str) -> None:
+    image_bgr = cv2.imread(str(TRIALS_FIXTURE))
+    assert image_bgr is not None
+    area = load_area_doc(REPO_ROOT)
+    rule = {
+        "name": f"{task_region}.has_red_dot",
+        "region": task_region,
+        "isRedDot": True,
+    }
+
+    out = await evaluate_overlay_rules_async(
+        image_bgr,
+        area,
+        REPO_ROOT,
+        [rule],
+        current_screen="event.trials.day.1",
+    )
+
+    row = out.get(f"{task_region}.has_red_dot")
+    assert isinstance(row, dict), out
+    assert row.get("matched") is True, row
+    assert row.get("red_dot_present") is True
+
+
+@pytest.mark.asyncio
+async def test_overlay_istabactive_true_matches_yellow_trials_tab() -> None:
+    image_bgr = cv2.imread(str(TRIALS_FIXTURE))
+    assert image_bgr is not None
+    area = load_area_doc(REPO_ROOT)
+    rule = {
+        "name": "trial.day.1.is_active",
+        "region": "trial.day.1",
+        "isTabActive": True,
+        "screens": ["event.trials"],
+    }
+
+    out = await evaluate_overlay_rules_async(
+        image_bgr,
+        area,
+        REPO_ROOT,
+        [rule],
+        current_screen="event.trials",
+    )
+
+    row = out.get("trial.day.1.is_active")
+    assert isinstance(row, dict), out
+    assert row.get("matched") is True, row
+    assert row.get("tab_active") is True
+    assert row.get("yellow_ratio", 0.0) > 0.25
 
 
 @pytest.mark.parametrize("expected_tab, fixture_path", MAIL_TAB_FIXTURES.items())

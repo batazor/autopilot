@@ -123,9 +123,9 @@ class InstanceWorkerRedisMixin(_Base):
             current_screen=current_screen,
         )
         if item is not None or self._redis is None:
-            if item is not None:
+            if item is not None and self._redis is not None:
                 with suppress(Exception):
-                    await self._redis.hset(inst_key, "queue_blocked_reason", "")  # ty: ignore[unresolved-attribute]
+                    await self._redis.hset(inst_key, "queue_blocked_reason", "")
             return item
 
         reason = await self._queue_blocked_reason(current_screen=current_screen)

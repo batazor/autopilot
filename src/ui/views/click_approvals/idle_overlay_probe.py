@@ -55,7 +55,8 @@ _ACTION_TYPES: tuple[str, ...] = (
 
 def _fmt_ratio(value: object) -> str:
     try:
-        return f"{float(value):.3f}"  # ty: ignore[invalid-argument-type]
+        f = float(value) if isinstance(value, (int, float, str, bytes, bytearray)) else float(str(value))
+        return f"{f:.3f}"
     except (TypeError, ValueError):
         return "—"
 
@@ -305,7 +306,9 @@ def _coerce_float(value: object) -> float | None:
     try:
         if value is None or str(value).strip() == "":
             return None
-        return float(value)  # ty: ignore[invalid-argument-type]
+        if isinstance(value, (int, float, str, bytes, bytearray)):
+            return float(value)
+        return float(str(value))
     except (TypeError, ValueError):
         return None
 

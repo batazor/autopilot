@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter, OrderedDict
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 from PIL import Image, ImageDraw
@@ -106,7 +106,7 @@ def _load_area_doc_cached(mtime: float, area_path_str: str) -> dict[str, Any]:
     if not area_path.is_file():
         return {}
     try:
-        return load_json(area_path)  # ty: ignore[invalid-return-type]
+        return cast("dict[str, Any]", load_json(area_path))
     except Exception:
         return {}
 

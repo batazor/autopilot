@@ -5,10 +5,12 @@ import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import yaml
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 
 from scenarios.models import Scenario
 
@@ -35,7 +37,8 @@ def _is_declarative_scenario_doc(raw: object) -> bool:
     """
     if not isinstance(raw, dict):
         return False
-    steps = raw.get("steps")  # ty: ignore[invalid-argument-type]
+    raw_doc: dict[str, Any] = cast("dict[str, Any]", raw)
+    steps = raw_doc.get("steps")
     if not isinstance(steps, list) or not steps:
         return False
 
@@ -47,7 +50,7 @@ def _is_declarative_scenario_doc(raw: object) -> bool:
     return True
 
 
-def _observer_for_platform() -> Observer:  # ty: ignore[invalid-type-form]
+def _observer_for_platform() -> BaseObserver:
     """macOS FSEvents can error with "already scheduled" if the same tree is watched twice
     (e.g. scheduler restart without tearing down the previous native watch). Polling avoids that.
     """
@@ -102,7 +105,7 @@ class ScenarioLoader:
             self._paths = list(path)
         self._scenarios: list[Scenario] = []
         self._lock = threading.RLock()
-        self._observers: list[Observer] = []  # ty: ignore[invalid-type-form]
+        self._observers: list[BaseObserver] = []
         self._on_reload: Callable[[], None] | None = None
         self.reload(fire_callback=False)
 

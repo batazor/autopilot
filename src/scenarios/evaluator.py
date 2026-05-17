@@ -13,6 +13,18 @@ logger = logging.getLogger(__name__)
 _TASK_FACTORIES: dict[str, type] = {}
 
 
+def _coerce_int(value: object, default: int = 0) -> int:
+    """Best-effort ``int`` parse for YAML-loaded condition values (``object``)."""
+    if value is None:
+        return default
+    if isinstance(value, (int, float, str, bytes, bytearray)):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
 class ScenarioEvaluator:
     def evaluate_conditions(
         self,
@@ -41,15 +53,11 @@ class ScenarioEvaluator:
                     player_id = str(player_state.get("player_id", ""))
                     gamer = get_device_registry().get_gamer(player_id)
                     level = gamer.level if gamer else 0
-                    if level < int(cond.value or 0):  # ty: ignore[invalid-argument-type]
+                    if level < _coerce_int(cond.value):
                         return False
                 case "resource_min":
-                    raw_resource = player_state.get(str(cond.resource or ""))
-                    try:
-                        resource_val = int(raw_resource) if raw_resource is not None else 0  # ty: ignore[invalid-argument-type]
-                    except (TypeError, ValueError):
-                        resource_val = 0
-                    if resource_val < int(cond.value or 0):  # ty: ignore[invalid-argument-type]
+                    resource_val = _coerce_int(player_state.get(str(cond.resource or "")))
+                    if resource_val < _coerce_int(cond.value):
                         return False
                 case "alliance_member_under_attack":
                     # Evaluated at runtime by the task itself
