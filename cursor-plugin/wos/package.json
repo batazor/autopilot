@@ -1,0 +1,93 @@
+{
+  "name": "wos",
+  "displayName": "WOS",
+  "description": "Quick links from references and scenarios to the WOS Streamlit UI",
+  "version": "0.2.1",
+  "publisher": "wos",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:yaml",
+    "onCustomEditor:imagePreview.previewEditor"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "wos.openInLabeling",
+        "title": "WOS: Open in Labeling",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "wos.copyLabelingLink",
+        "title": "WOS: Copy Labeling Link"
+      },
+      {
+        "command": "wos.runScenario",
+        "title": "WOS: Run Scenario",
+        "icon": "$(play)"
+      },
+      {
+        "command": "wos.copyScenarioRunLink",
+        "title": "WOS: Copy Scenario Runner Link"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "wos.openInLabeling",
+          "when": "resourcePath =~ /[\\/]references[\\/].*\\.png$/i",
+          "group": "navigation"
+        },
+        {
+          "command": "wos.runScenario",
+          "when": "(resourceExtname == .yaml || resourceExtname == .yml) && resourcePath =~ /[\\/]scenarios[\\/]/i && resourcePath !~ /[\\/]drafts[\\/]/i",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "wos.openInLabeling",
+          "when": "resourceExtname == .png && resourcePath =~ /[\\/]references[\\/]/i",
+          "group": "navigation@1"
+        },
+        {
+          "command": "wos.copyLabelingLink",
+          "when": "resourceExtname == .png && resourcePath =~ /[\\/]references[\\/]/i",
+          "group": "navigation@2"
+        },
+        {
+          "command": "wos.runScenario",
+          "when": "(resourceExtname == .yaml || resourceExtname == .yml) && resourcePath =~ /[\\/]scenarios[\\/]/i && resourcePath !~ /[\\/]drafts[\\/]/i",
+          "group": "navigation@1"
+        },
+        {
+          "command": "wos.copyScenarioRunLink",
+          "when": "(resourceExtname == .yaml || resourceExtname == .yml) && resourcePath =~ /[\\/]scenarios[\\/]/i && resourcePath !~ /[\\/]drafts[\\/]/i",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "WOS",
+      "properties": {
+        "wos.labeling.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "Streamlit host for the WOS UI (uv run wos)."
+        },
+        "wos.labeling.port": {
+          "type": "number",
+          "default": 8501,
+          "description": "Streamlit port for the WOS UI."
+        }
+      }
+    }
+  }
+}
