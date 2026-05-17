@@ -7,3 +7,16 @@ screens:
     rules:
       - match: exploration.to.squad_settings
         threshold: 0.9
+
+  squad_settings:
+    priority: 30
+    landmarks:
+      - match: squad_settings.quick_deploy
+        threshold: 0.9
+      - match: squad_settings.fight
+        threshold: 0.9
+    rules:
+      - match: squad_settings.quick_deploy
+        threshold: 0.9
+      - match: squad_settings.fight
+        threshold: 0.9

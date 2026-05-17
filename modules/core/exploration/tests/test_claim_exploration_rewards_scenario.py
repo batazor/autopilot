@@ -6,7 +6,6 @@ from unittest.mock import ANY, call
 import cv2
 import numpy as np
 import pytest
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
@@ -58,7 +57,7 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
     assert await detector.detect_screen(rewards) == "rewards"
     assert await detector.detect_screen(after_rewards) == "exploration"
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "p1", "current_screen": "main_city"},
     )

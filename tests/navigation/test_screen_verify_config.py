@@ -36,7 +36,7 @@ screens:
     )
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
     monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
         assert screen_graph.screen_verify_retry() == (9, 1.25)
@@ -52,7 +52,7 @@ screens:
             {"ocr": "page_title", "contains": ["chief"]}
         ]
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 def test_screen_verify_config_merges_module_yaml(monkeypatch: Any, tmp_path: Path) -> None:
@@ -85,7 +85,7 @@ screens:
         encoding="utf-8",
     )
     monkeypatch.setattr(screen_graph, "_screen_verify_yaml_paths", lambda: [root_cfg, module_cfg])
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
         assert screen_graph.screen_verify_rules("main_city") == [{"match": "icon.world"}]
@@ -93,16 +93,16 @@ screens:
             {"match": "chief_profile_title", "threshold": 0.9}
         ]
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("chief_profile")
         rules = screen_graph.screen_verify_rules("chief_profile")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "chief_profile_title", "threshold": 0.9}]
     assert expected[0] in landmarks
@@ -110,12 +110,12 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("main_city")
         rules = screen_graph.screen_verify_rules("main_city")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "icon.world", "threshold": 0.9}]
     assert {"match": "icon.world"} in landmarks
@@ -123,11 +123,11 @@ def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
 
 
 def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         screens = screen_graph.load_screen_verify_config().get("screens")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert isinstance(screens, dict)
     for entry in screens.values():
@@ -141,12 +141,12 @@ def test_production_screen_verify_yaml_active_rules_are_template_matches() -> No
 
 
 def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("welcome_back")
         rules = screen_graph.screen_verify_rules("welcome_back")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
         {"match": "text.welcome_back", "threshold": 0.9}
@@ -156,12 +156,12 @@ def test_production_screen_verify_yaml_contains_welcome_back_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_loading_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("loading")
         rules = screen_graph.screen_verify_rules("loading")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "text.survival", "threshold": 0.9}]
     assert landmarks == expected
@@ -169,12 +169,12 @@ def test_production_screen_verify_yaml_contains_loading_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_mail_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("mail")
         rules = screen_graph.screen_verify_rules("mail")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "mail.title", "threshold": 0.9}]
     assert landmarks == expected
@@ -182,20 +182,36 @@ def test_production_screen_verify_yaml_contains_mail_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_exploration_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("exploration")
         rules = screen_graph.screen_verify_rules("exploration")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "exploration.to.squad_settings", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
 
 
+def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        landmarks = screen_graph.screen_landmark_rules("squad_settings")
+        rules = screen_graph.screen_verify_rules("squad_settings")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    expected = [
+        {"match": "squad_settings.quick_deploy", "threshold": 0.9},
+        {"match": "squad_settings.fight", "threshold": 0.9},
+    ]
+    assert landmarks == expected
+    assert rules == expected
+
+
 def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         checks = {
             "mail.wars": "mail.tab.wars",
@@ -209,16 +225,16 @@ def test_production_screen_verify_yaml_contains_mail_tab_rules() -> None:
             assert screen_graph.screen_landmark_rules(screen) == expected
             assert screen_graph.screen_verify_rules(screen) == expected
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
 def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("alliance.invitation")
         rules = screen_graph.screen_verify_rules("alliance.invitation")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "alliance.title", "threshold": 0.9}]
     assert landmarks == expected
@@ -226,12 +242,12 @@ def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> No
 
 
 def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("rewards")
         rules = screen_graph.screen_verify_rules("rewards")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
         {"match": "rewards.title", "threshold": 0.9},
@@ -242,12 +258,12 @@ def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_increase_level_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("increase_level")
         rules = screen_graph.screen_verify_rules("increase_level")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "increase_level.title", "threshold": 0.9}]
     assert landmarks == expected
@@ -255,12 +271,12 @@ def test_production_screen_verify_yaml_contains_increase_level_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_heroes_sr_new_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("heroes.sr.new")
         rules = screen_graph.screen_verify_rules("heroes.sr.new")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "heroes.sr.new.close", "threshold": 0.9}]
     assert landmarks == expected
@@ -268,12 +284,12 @@ def test_production_screen_verify_yaml_contains_heroes_sr_new_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_frostdragon_tyrant_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("text.frostdragon_tyrant")
         rules = screen_graph.screen_verify_rules("text.frostdragon_tyrant")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "text.frostdragon_tyrant", "threshold": 0.9}]
     assert landmarks == expected
@@ -281,12 +297,12 @@ def test_production_screen_verify_yaml_contains_frostdragon_tyrant_rule() -> Non
 
 
 def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("ads.natalia")
         rules = screen_graph.screen_verify_rules("ads.natalia")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "ads.natalia", "threshold": 0.9}]
     assert landmarks == expected
@@ -294,12 +310,12 @@ def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
 
 
 def test_production_screen_verify_yaml_contains_is_new_people_rule() -> None:
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         landmarks = screen_graph.screen_landmark_rules("isNewPeople")
         rules = screen_graph.screen_verify_rules("isNewPeople")
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "button.welcome_in", "threshold": 0.9}]
     assert landmarks == expected

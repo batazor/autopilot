@@ -423,7 +423,7 @@ def load_screen_verify_config(
     )
 
 
-load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]
+load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def screen_verify_rules(screen: str) -> list[VerifyRule]:

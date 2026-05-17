@@ -25,7 +25,6 @@ from typing import Any
 import cv2
 import numpy as np
 import pytest
-
 from conftest import make_actions
 
 import ocr.client as ocr_client_module

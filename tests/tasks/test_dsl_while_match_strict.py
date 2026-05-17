@@ -17,13 +17,11 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 from typing import Any
-from unittest.mock import ANY
 
 import cv2
 import numpy as np
 import pytest
 import yaml
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl

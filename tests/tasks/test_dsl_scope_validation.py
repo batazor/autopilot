@@ -112,8 +112,8 @@ async def test_execute_fails_fast_on_invalid_scope(
     Previously the OCR step would log a warning, write to the wrong scope,
     and keep going."""
     import yaml as _yaml
-
     from conftest import make_actions, patch_dsl
+
     from tasks import dsl_scenario as dsl
 
     module_dir = tmp_path / "modules" / "core" / "test_scenarios"

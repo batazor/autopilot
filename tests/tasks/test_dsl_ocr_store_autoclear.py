@@ -16,10 +16,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
@@ -27,7 +25,6 @@ from tasks.dsl_scenario_helpers import (
     _collect_ocr_store_targets,
     _ocr_store_redis_fields,
 )
-
 
 
 def _write_minimal_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:

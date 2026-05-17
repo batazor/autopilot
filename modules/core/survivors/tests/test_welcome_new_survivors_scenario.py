@@ -6,7 +6,6 @@ from unittest.mock import ANY, call
 import cv2
 import numpy as np
 import pytest
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl

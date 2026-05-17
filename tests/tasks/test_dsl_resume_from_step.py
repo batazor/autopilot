@@ -4,15 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 import yaml
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from tasks.base import TaskResult
-
 
 
 def _scenario_root(tmp_path: Path) -> Path:

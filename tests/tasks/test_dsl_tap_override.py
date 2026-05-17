@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from unittest.mock import call
 
 import numpy as np
 import pytest
 import yaml
-
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl

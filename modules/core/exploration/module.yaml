@@ -1,7 +1,7 @@
 id: exploration
 title: Exploration
 description: >-
-  Exploration screen automation, including reward claims.
+  Exploration screen automation, including reward claims and squad fights.
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 wiki: false
