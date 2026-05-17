@@ -84,6 +84,7 @@ omniparser = [
 [project.scripts]
 wos = "worker.launch:main"
 wos-bot = "worker.supervisor:main"
+wos-ia-editor = "worker.ia_editor:main"
 wos-mcp = "wos_mcp.server:main"
 
 [build-system]

@@ -1,4 +1,4 @@
-"""Old deep-links pointed at a version-specific reference PNG (``main_city_v2.png``).
+"""Redirect version-specific reference links to base ref + ``?version=...``.
 
 After the v3 schema flip, the canonical link is the base reference image plus a
 ``?version=<vid>`` selector. This module computes the redirect target purely
@@ -16,7 +16,8 @@ def resolve_version_ref_redirect(
 ) -> tuple[str, str] | None:
     """Return ``(base_ref, version_id)`` if ``current_ref`` matches a ``versions[].ocr``.
 
-    ``current_ref`` is the raw ``?ref=`` value (path under ``references/``).
+    ``current_ref`` is the raw canonical ``?ref=`` value: repo-relative path to
+    a PNG under a ``references`` directory.
     Returns ``None`` when no redirect is needed — including the cases of empty /
     invalid / non-version paths.
     """
@@ -25,7 +26,6 @@ def resolve_version_ref_redirect(
     cand = current_ref.replace("\\", "/").strip().lstrip("/")
     if not cand or cand.startswith("..") or "/.." in cand:
         return None
-    target_full = f"references/{cand}"
 
     screens = area_doc.get("screens") if isinstance(area_doc, dict) else None
     if not isinstance(screens, list):
@@ -37,14 +37,11 @@ def resolve_version_ref_redirect(
             if not isinstance(ver, dict):
                 continue
             ver_ocr = str(ver.get("ocr") or "").replace("\\", "/").strip().lstrip("/")
-            if not ver_ocr or ver_ocr != target_full:
+            if not ver_ocr or ver_ocr != cand:
                 continue
             base_ocr = str(entry.get("ocr") or "").replace("\\", "/").strip().lstrip("/")
-            if not base_ocr.startswith("references/"):
-                return None
-            base_rel = base_ocr.removeprefix("references/")
             vid = str(ver.get("id") or "").strip()
-            if not vid or not base_rel:
+            if not vid or not base_ocr:
                 return None
-            return base_rel, vid
+            return base_ocr, vid
     return None

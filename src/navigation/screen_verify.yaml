@@ -108,8 +108,16 @@ screens:
     landmarks:
       - match: page.vip.box
         threshold: 0.9
+      - match: page.vip.add
+        threshold: 0.9
+      - match: page.vip.unlock
+        threshold: 0.9
     rules:
       - match: page.vip.box
+        threshold: 0.9
+      - match: page.vip.add
+        threshold: 0.9
+      - match: page.vip.unlock
         threshold: 0.9
 
   alliance.invitation:
@@ -126,8 +134,21 @@ screens:
     landmarks:
       - match: rewards.title
         threshold: 0.9
+      - match: rewards.title.v2
+        threshold: 0.9
     rules:
       - match: rewards.title
+        threshold: 0.9
+      - match: rewards.title.v2
+        threshold: 0.9
+
+  increase_level:
+    priority: 5
+    landmarks:
+      - match: increase_level.title
+        threshold: 0.9
+    rules:
+      - match: increase_level.title
         threshold: 0.9
 
   welcome_back:

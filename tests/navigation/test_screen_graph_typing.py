@@ -62,5 +62,9 @@ def test_rewards_routes_to_main_city() -> None:
     assert route_taps("rewards", "main_city") == [["button.tap_anywhere_to_exit"]]
 
 
+def test_increase_level_routes_back_to_vip() -> None:
+    assert route_taps("increase_level", "vip") == [["increase_level.icon.close"]]
+
+
 def test_heroes_sr_new_routes_to_main_city() -> None:
     assert route_taps("heroes.sr.new", "main_city") == [["heroes.sr.new.close"]]

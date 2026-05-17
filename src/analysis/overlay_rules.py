@@ -176,13 +176,11 @@ def centers_delta_pct_between_regions(
         area_doc,
         from_region,
         state_flat=state_flat,
-        screen_id=screen_id,
     )
     pb = screen_region_by_name(
         area_doc,
         to_region,
         state_flat=state_flat,
-        screen_id=screen_id,
     )
     if pa is None or pb is None:
         return None

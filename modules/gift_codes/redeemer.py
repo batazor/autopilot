@@ -19,11 +19,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-from modules.gift_codes.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
 
 from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
 from config.devices import load_devices
+from modules.gift_codes.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
 
 logger = logging.getLogger(__name__)
 

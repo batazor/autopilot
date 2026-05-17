@@ -46,6 +46,7 @@ from ui.keys import (
 from ui.labeling_helpers import _count_regions, labeling_workflow_steps
 from ui.labeling_reference_panel import (
     labeling_basename_widget_key,
+    labeling_query_ref,
     labeling_resolve_sel,
     purge_reference_png_and_area_entries,
 )
@@ -72,6 +73,57 @@ def _labeling_query_version_raw(params: object) -> str:
     if raw is None:
         return ""
     return str(raw)
+
+
+def _safe_ref_query_value(raw: object) -> str:
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return str(raw or "").replace("\\", "/").strip().lstrip("/")
+
+
+def _resolve_labeling_ref_query(
+    raw: object,
+) -> tuple[Path, str, str] | None:
+    """Resolve ``?ref=`` to ``(reference_root, repo_prefix, rel_under_root)``.
+
+    Canonical URL format is repo-relative and always includes a ``references``
+    directory, for example ``references/foo.png`` or
+    ``modules/vip/references/foo.png``.
+    """
+
+    cand = _safe_ref_query_value(raw)
+    if not cand or cand.startswith("..") or "/.." in cand:
+        return None
+
+    repo_candidate = (REPO_ROOT / cand).resolve()
+    try:
+        repo_rel = repo_candidate.relative_to(REPO_ROOT.resolve())
+    except ValueError:
+        return None
+    if not repo_candidate.is_file() or repo_candidate.suffix.lower() != ".png":
+        return None
+
+    parts = repo_rel.parts
+    for idx in range(len(parts) - 1, -1, -1):
+        if parts[idx] != "references":
+            continue
+        rel_parts = parts[idx + 1 :]
+        if not rel_parts:
+            continue
+        ref_root = (REPO_ROOT / Path(*parts[: idx + 1])).resolve()
+        ref_prefix = Path(*parts[: idx + 1]).as_posix()
+        rel_under_root = Path(*rel_parts).as_posix()
+        return ref_root, ref_prefix, rel_under_root
+    return None
+
+
+def _labeling_ref_query_value(
+    rel_under_root: str,
+    *,
+    ref_prefix: str,
+) -> str:
+    ref_root = (REPO_ROOT / str(ref_prefix or "").replace("\\", "/").strip().strip("/")).resolve()
+    return labeling_query_ref(rel_under_root, ref_root)
 
 
 def _refresh_rel_and_note_for_session(rel_disp: str) -> tuple[str, str | None]:
@@ -189,6 +241,10 @@ if st.session_state.get(LABELING_LAST_INSTANCE) != instance_id:
 
 ref_root = wiki_ctx.references_dir
 ref_prefix = wiki_ctx.references_prefix
+_ref_query_resolution = _resolve_labeling_ref_query(st.query_params.get("ref"))
+if _ref_query_resolution is not None:
+    ref_root, ref_prefix, _ref_query_rel = _ref_query_resolution
+    st.session_state[LABELING_TREE_SELECTION] = _ref_query_rel
 existing = list_reference_pngs(
     exclude_temporal=True,
     exclude_crop=True,
@@ -210,20 +266,17 @@ if _redir is not None:
     st.query_params["version"] = _redir[1]
     st.rerun()
 
-# Optional deep-link / persistence: `?ref=<path under references/>` and `?version=v2|default`
+# Optional deep-link / persistence:
+# `?ref=<repo-relative .../references/file.png>` and `?version=v2|default`
 params = st.query_params
 ref_param = params.get("ref")
-if isinstance(ref_param, str):
-    cand = ref_param.replace("\\", "/").strip().lstrip("/")
-    if (
-        cand
-        and not cand.startswith("..")
-        and "/.." not in cand
-        and (ref_root / cand).is_file()
-    ):
+if ref_param is not None:
+    resolved_ref = _resolve_labeling_ref_query(ref_param)
+    if resolved_ref is not None:
+        ref_root, ref_prefix, cand = resolved_ref
         # Two cases:
-        # - Regular reference under `references/`: select it in the tree.
-        # - Pending capture under `references/temporal/`: restore pending + make it the active ref.
+        # - Regular reference under the active references root: select it in the tree.
+        # - Pending capture under `temporal/`: restore pending + make it the active ref.
         if cand == TEMPORAL_SUBDIR or cand.startswith(f"{TEMPORAL_SUBDIR}/"):
             st.session_state[LABELING_PENDING_CAPTURE_REL] = cand
             st.session_state[LABELING_TREE_SELECTION] = cand
@@ -429,7 +482,10 @@ if new_screenshot:
         st.session_state[LABELING_PENDING_CAPTURE_REL] = fname
         st.session_state[LABELING_TREE_SELECTION] = fname
         try:
-            st.query_params["ref"] = fname
+            st.query_params["ref"] = _labeling_ref_query_value(
+                fname,
+                ref_prefix=ref_prefix,
+            )
             if _labeling_has_version_query_param(st.query_params):
                 del st.query_params["version"]
         except Exception:
@@ -465,7 +521,10 @@ if sel:
     if not new_screenshot and last_ref != sel:
         st.session_state["_labeling_last_ref_param"] = sel
         with contextlib.suppress(Exception):
-            st.query_params["ref"] = sel
+            st.query_params["ref"] = _labeling_ref_query_value(
+                sel,
+                ref_prefix=ref_prefix,
+            )
     sel_norm = str(sel).replace("\\", "/").strip()
     temporal_sel = sel_norm == TEMPORAL_SUBDIR or sel_norm.startswith(f"{TEMPORAL_SUBDIR}/")
     if not new_screenshot and not temporal_sel:

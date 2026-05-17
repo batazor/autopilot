@@ -111,6 +111,8 @@ edges:
     main_city: [text.tap_any_blank_space_to_close]
   rewards:
     main_city: [button.tap_anywhere_to_exit]
+  increase_level:
+    vip: [increase_level.icon.close]
   chief_profile:
     main_city: [icon.page.back]
   mail:

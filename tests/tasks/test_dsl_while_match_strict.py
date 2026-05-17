@@ -21,9 +21,9 @@ import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import patch_dsl_bot_actions
 
 import tasks.dsl_scenario as dsl
-from conftest import patch_dsl_bot_actions
 
 
 class _FakeActions:

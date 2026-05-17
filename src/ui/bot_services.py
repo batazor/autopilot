@@ -172,6 +172,28 @@ def _stop_health_watchdog() -> None:
 def ensure_embedded_bot() -> None:
     """Start ``run_forever_async`` in a daemon thread if not already running."""
     global _started, _stop_event, _thread
+    if os.environ.get("WOS_DISABLE_EMBEDDED_BOT", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        try:
+            get_settings()
+        except RuntimeError:
+            set_settings(load_settings())
+        logging.getLogger(__name__).info(
+            "Embedded bot disabled by WOS_DISABLE_EMBEDDED_BOT"
+        )
+        try:
+            from ui.ia_preview_service import ensure_ia_preview_refresher
+
+            ensure_ia_preview_refresher()
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "Failed to start IA preview refresher while embedded bot is disabled"
+            )
+        return
     with _lock:
         # Streamlit / importlib can reload modules while the supervisor thread
         # keeps running; fresh copies of ``config.loader`` then have no bound

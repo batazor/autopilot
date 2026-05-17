@@ -220,7 +220,23 @@ def test_production_screen_verify_yaml_contains_rewards_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
-    expected = [{"match": "rewards.title", "threshold": 0.9}]
+    expected = [
+        {"match": "rewards.title", "threshold": 0.9},
+        {"match": "rewards.title.v2", "threshold": 0.9},
+    ]
+    assert landmarks == expected
+    assert rules == expected
+
+
+def test_production_screen_verify_yaml_contains_increase_level_rule() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()
+    try:
+        landmarks = screen_graph.screen_landmark_rules("increase_level")
+        rules = screen_graph.screen_verify_rules("increase_level")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()
+
+    expected = [{"match": "increase_level.title", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
 

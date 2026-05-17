@@ -6,12 +6,12 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.navigation.conftest_nav import make_navigator
 
 from config.loader import Settings
 from navigation.detector import ScreenName
 from navigation.navigator import Navigator
 from ocr.client import OcrClient
+from tests.navigation.conftest_nav import make_navigator
 
 
 @pytest.mark.asyncio

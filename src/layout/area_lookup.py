@@ -14,10 +14,9 @@ def screen_region_by_name(
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
     """Return ``(screen_entry, region_dict)`` for a region ``name``.
 
-    When ``screen_id`` is provided, lookup is scoped to matching
-    ``screens[].screen_id`` entries. That lets different screens reuse the same
-    OmniParser-derived button names without the first entry in ``area.json``
-    shadowing the active screen.
+    Region names are globally unique in ``area.json``. ``screen_id`` is accepted
+    for backwards-compatible call sites, but intentionally ignored: node context
+    must not change what a region name resolves to.
 
     With ``state_flat`` provided, the lookup honors the screen-entry's
     ``versions`` metadata: the first version whose ``cond`` is truthy activates,
@@ -31,16 +30,7 @@ def screen_region_by_name(
     if not key:
         return None
     entries = [entry for entry in area_doc.get("screens") or [] if isinstance(entry, dict)]
-    all_entries = entries
-    screen_key = str(screen_id or "").strip()
-    if screen_key:
-        scoped = [
-            entry
-            for entry in entries
-            if str(entry.get("screen_id") or "").strip() == screen_key
-        ]
-        if scoped:
-            entries = scoped
+    _ = screen_id
     for entry in entries:
         if not isinstance(entry, dict):
             continue
@@ -48,12 +38,4 @@ def screen_region_by_name(
         reg = resolve_region_with_version(entry, key, active)
         if reg is not None:
             return entry, reg
-    if screen_key:
-        for entry in all_entries:
-            if str(entry.get("screen_id") or "").strip():
-                continue
-            active = pick_active_version(entry, state_flat) if state_flat is not None else None
-            reg = resolve_region_with_version(entry, key, active)
-            if reg is not None:
-                return entry, reg
     return None

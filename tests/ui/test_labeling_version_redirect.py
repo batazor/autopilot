@@ -1,4 +1,4 @@
-"""Old ``?ref=main_city_v2.png`` deep-links should redirect to base ref + ``?version=v2``."""
+"""Version-specific ``?ref=...`` links redirect to base ref + ``?version=...``."""
 
 from __future__ import annotations
 
@@ -27,18 +27,18 @@ def _doc_with_v2() -> dict:
 
 
 def test_redirects_version_png_to_base_with_version_param() -> None:
-    assert resolve_version_ref_redirect(_doc_with_v2(), "main_city_v2.png") == (
-        "main_city.png",
+    assert resolve_version_ref_redirect(_doc_with_v2(), "references/main_city_v2.png") == (
+        "references/main_city.png",
         "v2",
     )
 
 
 def test_no_redirect_when_ref_is_already_base() -> None:
-    assert resolve_version_ref_redirect(_doc_with_v2(), "main_city.png") is None
+    assert resolve_version_ref_redirect(_doc_with_v2(), "references/main_city.png") is None
 
 
 def test_no_redirect_when_ref_unknown() -> None:
-    assert resolve_version_ref_redirect(_doc_with_v2(), "totally_unrelated.png") is None
+    assert resolve_version_ref_redirect(_doc_with_v2(), "references/totally_unrelated.png") is None
 
 
 def test_no_redirect_for_empty_or_invalid_ref() -> None:
@@ -47,11 +47,12 @@ def test_no_redirect_for_empty_or_invalid_ref() -> None:
     assert resolve_version_ref_redirect(doc, None) is None
     assert resolve_version_ref_redirect(doc, "..") is None
     assert resolve_version_ref_redirect(doc, "../escape.png") is None
+    assert resolve_version_ref_redirect(doc, "main_city_v2.png") is None
 
 
 def test_strips_leading_slash_and_backslashes() -> None:
-    assert resolve_version_ref_redirect(_doc_with_v2(), "/main_city_v2.png") == (
-        "main_city.png",
+    assert resolve_version_ref_redirect(_doc_with_v2(), "/references\\main_city_v2.png") == (
+        "references/main_city.png",
         "v2",
     )
 
@@ -62,7 +63,7 @@ def test_no_redirect_when_doc_missing_versions() -> None:
             {"ocr": "references/x.png", "regions": []},
         ]
     }
-    assert resolve_version_ref_redirect(doc, "x.png") is None
+    assert resolve_version_ref_redirect(doc, "references/x.png") is None
 
 
 def test_picks_correct_version_among_multiple() -> None:
@@ -78,5 +79,34 @@ def test_picks_correct_version_among_multiple() -> None:
             }
         ]
     }
-    assert resolve_version_ref_redirect(doc, "screen_v3.png") == ("screen.png", "v3")
-    assert resolve_version_ref_redirect(doc, "screen_v2.png") == ("screen.png", "v2")
+    assert resolve_version_ref_redirect(doc, "references/screen_v3.png") == (
+        "references/screen.png",
+        "v3",
+    )
+    assert resolve_version_ref_redirect(doc, "references/screen_v2.png") == (
+        "references/screen.png",
+        "v2",
+    )
+
+
+def test_redirects_module_local_version_ref() -> None:
+    doc = {
+        "screens": [
+            {
+                "ocr": "modules/vip/references/page.vip.png",
+                "regions": [],
+                "versions": [
+                    {
+                        "id": "v2",
+                        "cond": "True",
+                        "ocr": "modules/vip/references/page.vip.v2.png",
+                    }
+                ],
+            }
+        ]
+    }
+
+    assert resolve_version_ref_redirect(
+        doc,
+        "modules/vip/references/page.vip.v2.png",
+    ) == ("modules/vip/references/page.vip.png", "v2")

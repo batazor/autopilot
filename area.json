@@ -1237,7 +1237,7 @@
           "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.big_claim_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1929,7 +1929,7 @@
           "hash": "a9d418581c84514ae6e32592c48fb1d229f2cd18e0a590152e5df29c30242f1a"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.big_claim",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1945,7 +1945,7 @@
           "hash": "51db066391daf3035435c75bf9692afc39eeac8a371152b6b3081fe5d3dc2cac"
         },
         {
-          "name": "icon.2026_05_0815_20_42",
+          "name": "icon.2026_05_0815_20_42.big_claim",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1961,7 +1961,7 @@
           "hash": "37110693d3a3804bc21dd2c6a1f5fd2982b6abe8365d2e1f211abf96cc7e7fd7"
         },
         {
-          "name": "mail.next",
+          "name": "mail.next.big_claim",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1977,7 +1977,7 @@
           "hash": "0f78da716b4f921cd674e9061b70cd0f5b34b34072589707e3beae59e1621dec"
         },
         {
-          "name": "mail.delete",
+          "name": "mail.delete.big_claim",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -1993,7 +1993,7 @@
           "hash": "80a4da74a0e99dc06ce1d59f09ac58641169cd12399cbfc8735e4945df186918"
         },
         {
-          "name": "icon.close",
+          "name": "icon.close.big_claim",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -2035,7 +2035,7 @@
           "isSearch": true
         },
         {
-          "name": "icon.2026_05_0815_20_42",
+          "name": "icon.2026_05_0815_20_42.go_big_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -2131,7 +2131,7 @@
           "hash": "87d382241df2010b3948a06c04cbb95d75ae48b1be296bdb1741eedf0470f085"
         },
         {
-          "name": "button.claim.big",
+          "name": "button.claim.big.go_big_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -2163,7 +2163,7 @@
           "hash": "3b7551413ff9ad427dc4b7b6d8d455e288b5e43515ca007f2d68d243f29fd537"
         },
         {
-          "name": "mail.delete",
+          "name": "mail.delete.go_big_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -2179,7 +2179,7 @@
           "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
         },
         {
-          "name": "mail.title",
+          "name": "mail.title.go_big_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -2227,7 +2227,7 @@
           "hash": "833ff62600babe239e7280c0a3c74f3aae142cb1d9c0463c6dde4d657c3e3ff0"
         },
         {
-          "name": "icon.close",
+          "name": "icon.close.go_big_button",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4293,7 +4293,7 @@
           "hash": "ddbcfc90ee904bb639adf6e675241d070c0fcc629be7d3154f6dc8a2bf616a1a"
         },
         {
-          "name": "chapter.task",
+          "name": "chapter.task.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4341,7 +4341,7 @@
           "hash": "a11ca764adf16934644faf1af06cf95796b43c980e2b6bf286f99ddcfa0f9d6f"
         },
         {
-          "name": "main_city.to.backpack",
+          "name": "main_city.to.backpack.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4421,7 +4421,7 @@
           "hash": "3701fd6531ed7256b8078bdc8145a5200209cf0df7cdc9fa1287c2dbed3ce9cd"
         },
         {
-          "name": "main_city.title",
+          "name": "main_city.title.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4485,7 +4485,7 @@
           "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
         },
         {
-          "name": "page.vip",
+          "name": "page.vip.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4517,7 +4517,7 @@
           "hash": "c6739bae331b1e847c01e07a13433cffd36bbdba1e334c2c1f549c382f9c4a07"
         },
         {
-          "name": "is_main_city",
+          "name": "is_main_city.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4549,7 +4549,7 @@
           "hash": "407f0fec9b763135162e35bce25dd997f79c5426444a74348f0ad848d239b068"
         },
         {
-          "name": "to_chief_profile",
+          "name": "to_chief_profile.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4597,7 +4597,7 @@
           "hash": "d5e0c44e2954e72128573e29960d854926ea8dae05db76931a6039528d0dd72a"
         },
         {
-          "name": "main_city.to.shop",
+          "name": "main_city.to.shop.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -4661,7 +4661,7 @@
           "hash": "74d9e46ae4be3113d93a2b3ee71c6e41da3cee694d1c21b96f0449690e7d2d7b"
         },
         {
-          "name": "mail.new",
+          "name": "mail.new.main_city_v3",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -5148,7 +5148,7 @@
           "hash": "579dce7ec6142fc34d92d2358b7845cc16541722e3558a396acfb22bce589fc4"
         },
         {
-          "name": "icon.a_simple_icon_or_symbol",
+          "name": "icon.a_simple_icon_or_symbol.alliance.invitation",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -5242,6 +5242,98 @@
             "y": 72.28260869565217,
             "width": 8.0,
             "height": 4.6,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "screen_id": "",
+      "ocr": "modules/vip/references/mcp.vip.rehearsal.10.after_box.png",
+      "regions": [
+        {
+          "name": "rewards.title.v2",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.86872586872587,
+            "y": 27.065217391304348,
+            "width": 27.6003861003861,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.click_to_continue",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.51737451737452,
+            "y": 91.52173913043478,
+            "width": 31.000000000000004,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "screen_region": "rewards.title.v2"
+    },
+    {
+      "id": 78,
+      "screen_id": "increase_level",
+      "ocr": "modules/vip/references/page.increase_level.png",
+      "regions": [
+        {
+          "name": "increase_level.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.0965250965251,
+            "y": 8.478260869565217,
+            "width": 30.0,
+            "height": 3.8760869565217386,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "button.use",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 71.1969111969112,
+            "y": 27.608695652173914,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "increase_level.icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.42084942084942,
+            "y": 8.26086956521739,
+            "width": 7.142857142857142,
+            "height": 5.0,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

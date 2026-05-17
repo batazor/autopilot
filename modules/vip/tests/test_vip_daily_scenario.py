@@ -7,13 +7,16 @@ import cv2
 import numpy as np
 import pytest
 import yaml
+from conftest import patch_dsl_bot_actions
 
 import tasks.dsl_scenario as dsl
-from conftest import patch_dsl_bot_actions
+from navigation.detector import ScreenDetector
 from scenarios import template_resolver
+from services import get_ocr_client
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]
+REFERENCES_DIR = MODULE_DIR / "references"
 
 
 class _FakeActions:
@@ -35,6 +38,13 @@ class _FakeActions:
     def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
         self.tapped.append((instance_id, point.x, point.y, approval_region))
         return True
+
+
+def _load_reference_bgr(name: str) -> np.ndarray:
+    path = REFERENCES_DIR / name
+    frame = cv2.imread(str(path))
+    assert frame is not None, f"failed to load reference screenshot: {path}"
+    return frame
 
 
 def _region_bbox(region_name: str) -> dict[str, float]:
@@ -69,12 +79,27 @@ def test_vip_daily_scenario_is_registered_with_expected_shape() -> None:
     assert path == MODULE_DIR / "scenarios" / "by_cron" / "vip.daily.yaml"
     assert doc["enabled"] is True
     assert doc["node"] == "vip"
-    assert doc["cron"] == "0 */6 * * *"
+    assert doc["cron"] == "0 */12 * * *"
 
     guards = doc["steps"]
-    assert [step["while_match"] for step in guards] == ["page.vip.box", "page.vip.add"]
-    assert all(step.get("isRedDot") is True for step in guards)
+    assert [step["while_match"] for step in guards] == [
+        "page.vip.box",
+        "page.vip.add",
+    ]
+    assert guards[0].get("isRedDot") is True
+    assert guards[1].get("isRedDot") is True
     assert all(step.get("max") == 1 for step in guards)
+
+    box_steps = guards[0]["steps"]
+    assert box_steps[0] == {"click": "page.vip.box"}
+    assert box_steps[2]["while_match"] == "button.click_to_continue"
+    assert box_steps[2]["steps"][0] == {"click": "button.click_to_continue"}
+
+    add_steps = guards[1]["steps"]
+    assert add_steps[0] == {"click": "page.vip.add"}
+    assert add_steps[2]["while_match"] == "button.use"
+    assert add_steps[2]["steps"][0] == {"click": "button.use"}
+    assert add_steps[2]["steps"][2] == {"click": "increase_level.icon.close"}
 
 
 @pytest.mark.asyncio
@@ -107,3 +132,70 @@ async def test_vip_daily_scenario_clicks_claimable_vip_box(
 
     assert result.success is True
     assert actions.tapped == [("bs1", 630, 275, "page.vip.box")]
+
+
+@pytest.mark.asyncio
+async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: object,
+    pin_click_to_center: None,
+) -> None:
+    """Replay real rehearsal frames as the bot's screen source.
+
+    Frame flow:
+    1. main_city with VIP badge visible -> Navigator taps `page.vip`;
+    2. VIP page with daily box red dot -> scenario taps `page.vip.box`;
+    3. Rewards popup -> scenario taps `button.click_to_continue`;
+    4. VIP page again -> scenario taps `page.vip.add`;
+    5. Increase Level popup -> scenario taps `button.use`.
+    """
+
+    main_city = _load_reference_bgr("mcp.vip.rehearsal.08.start.png")
+    vip_page = _load_reference_bgr("mcp.vip.rehearsal.09.after_vip_tap.png")
+    rewards_popup = _load_reference_bgr("mcp.vip.rehearsal.10.after_box.png")
+    increase_level = _load_reference_bgr("page.increase_level.png")
+
+    detector = ScreenDetector(get_ocr_client())
+    assert await detector.detect_screen(main_city) == "main_city"
+    assert await detector.detect_screen(vip_page) == "vip"
+    assert await detector.detect_screen(rewards_popup) == "rewards"
+    assert await detector.detect_screen(increase_level) == "increase_level"
+
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs1:state",
+        mapping={"active_player": "p1", "current_screen": "main_city"},
+    )
+
+    actions = _FakeActions(
+        [
+            main_city,      # Navigator detects current node.
+            vip_page,       # Navigator verifies the page after tapping `page.vip`.
+            vip_page,       # Navigator may re-check during route verification.
+            vip_page,       # `while_match: page.vip.box`.
+            rewards_popup,  # `while_match: button.click_to_continue`.
+            vip_page,       # Screen returns to VIP after `button.click_to_continue`.
+            increase_level,  # `while_match: button.use` after tapping `page.vip.add`.
+        ]
+    )
+    monkeypatch.setattr(dsl, "_repo_root", lambda: REPO_ROOT)
+    patch_dsl_bot_actions(monkeypatch, actions)
+
+    task = dsl.DslScenarioTask(
+        task_id="vip-daily-real-frame-rehearsal",
+        player_id="p1",
+        scenario_key="vip.daily",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    assert actions.tapped == [
+        ("bs1", 502, 68, "page.vip"),
+        ("bs1", 630, 275, "page.vip.box"),
+        ("bs1", 360, 1200, "button.click_to_continue"),
+        ("bs1", 532, 279, "page.vip.add"),
+        ("bs1", 584, 382, "button.use"),
+        ("bs1", 670, 138, "increase_level.icon.close"),
+    ]
+    assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]

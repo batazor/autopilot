@@ -493,7 +493,7 @@ def has_red_dot_in_bbox_percent(
         T3 = max(0, T - top_extra)
         R3 = min(wi, L + patch_w + side_extra)
         B3 = min(hi, T + patch_h + pad_px)
-        if T3 < T or L3 < L or R3 > L + patch_w:
+        if T3 < T or L3 < L or L + patch_w < R3:
             expanded = image_bgr[T3:B3, L3:R3]
             if len(find_red_dots(expanded, image_h_for_norm=hi)) > 0:
                 return True

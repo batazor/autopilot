@@ -12,11 +12,11 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.navigation.conftest_nav import make_navigator
 
 from config.loader import Settings
 from navigation.navigator import _SCREEN_HISTORY_MAX
 from ocr.client import OcrClient
+from tests.navigation.conftest_nav import make_navigator
 
 
 def _fake_capture_and_tap() -> tuple[Any, Any]:
