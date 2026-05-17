@@ -29,6 +29,7 @@ from layout.tab_active_detector import (
     tab_activity_stats,
 )
 from layout.template_match import (
+    TemplateMatchResult,
     match_crop_1to1_at_bbox_percent,
     match_patch_bgr_at_top_left,
     match_template_full_frame_cached,
@@ -57,6 +58,7 @@ from ocr.preprocess import resolve_preprocess
 # cover the active overlay rule fleet (~hundreds of distinct crops).
 _TEMPLATE_CACHE_MAX = 512
 _template_cache: dict[tuple[str, int], np.ndarray] = {}
+_template_mask_cache: dict[tuple[str, int], tuple[np.ndarray, np.ndarray | None]] = {}
 
 
 def _load_template_cached(path: Path) -> np.ndarray | None:
@@ -81,6 +83,75 @@ def _load_template_cached(path: Path) -> np.ndarray | None:
             _template_cache.pop(old_key, None)
     _template_cache[key] = tpl
     return tpl
+
+
+def _load_template_with_mask_cached(path: Path) -> tuple[np.ndarray, np.ndarray | None] | None:
+    """Decode a direct PNG template, preserving alpha as an optional match mask."""
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    key = (str(path), mtime_ns)
+    cached = _template_mask_cache.get(key)
+    if cached is not None:
+        return cached
+    raw = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+    if raw is None:
+        return None
+    if raw.ndim == 3 and raw.shape[2] == 4:
+        alpha = raw[:, :, 3]
+        bgr = raw[:, :, :3]
+        mask = (alpha > 8).astype(np.uint8) * 255
+        ys, xs = np.where(mask > 0)
+        if len(xs) and len(ys):
+            bgr = bgr[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1]
+            mask = mask[int(ys.min()) : int(ys.max()) + 1, int(xs.min()) : int(xs.max()) + 1]
+        if mask.size and bool(np.all(mask == 255)):
+            mask = None
+        out = (bgr, mask)
+    else:
+        out = (raw, None)
+    if len(_template_mask_cache) >= _TEMPLATE_CACHE_MAX:
+        for old_key in list(_template_mask_cache.keys())[: _TEMPLATE_CACHE_MAX // 4]:
+            _template_mask_cache.pop(old_key, None)
+    _template_mask_cache[key] = out
+    return out
+
+
+def _match_direct_template_in_bbox(
+    image_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    template_mask: np.ndarray | None,
+    search_bbox: dict[str, float],
+) -> TemplateMatchResult:
+    search, (left, top) = patch_bgr_from_bbox_percent(image_bgr, search_bbox)
+    tw = int(template_bgr.shape[1])
+    th = int(template_bgr.shape[0])
+    if tw <= search.shape[1] and th <= search.shape[0]:
+        heat = cv2.matchTemplate(search, template_bgr, cv2.TM_CCORR_NORMED, mask=template_mask)
+        _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(heat)
+        if not np.isfinite(max_val):
+            max_val = 0.0
+        return TemplateMatchResult(
+            score=float(max_val),
+            top_left=(int(left + max_loc[0]), int(top + max_loc[1])),
+            score_ncc=float(max_val),
+            score_ncc_second=None,
+            match_source="direct_template",
+            hash_distance=None,
+            template_w=tw,
+            template_h=th,
+        )
+    return TemplateMatchResult(
+        score=0.0,
+        top_left=(int(left), int(top)),
+        score_ncc=0.0,
+        score_ncc_second=None,
+        match_source="direct_template",
+        hash_distance=None,
+        template_w=tw,
+        template_h=th,
+    )
 
 
 def _apply_min_saturation_gate(
@@ -164,6 +235,48 @@ def _region_to_xyxy(region: Region) -> tuple[int, int, int, int]:
     x2 = int(region.x + region.w)
     y2 = int(region.y + region.h)
     return x1, y1, x2, y2
+
+
+def _relative_bbox_percent_from_top_left(
+    top_left: tuple[int, int],
+    width_px: int,
+    height_px: int,
+    rel_bbox: dict[str, float],
+    *,
+    image_w: int,
+    image_h: int,
+) -> dict[str, float]:
+    x, y = top_left
+    left = x + float(rel_bbox.get("x") or 0.0) / 100.0 * float(width_px)
+    top = y + float(rel_bbox.get("y") or 0.0) / 100.0 * float(height_px)
+    width = float(rel_bbox.get("width") or 0.0) / 100.0 * float(width_px)
+    height = float(rel_bbox.get("height") or 0.0) / 100.0 * float(height_px)
+    return {
+        "x": 100.0 * left / float(image_w),
+        "y": 100.0 * top / float(image_h),
+        "width": 100.0 * width / float(image_w),
+        "height": 100.0 * height / float(image_h),
+        "rotation": 0.0,
+        "original_width": image_w,
+        "original_height": image_h,
+    }
+
+
+def _direct_template_red_dot_bbox(rule: dict[str, Any]) -> dict[str, float]:
+    raw = rule.get("red_dot_bbox")
+    if isinstance(raw, dict):
+        try:
+            return {
+                "x": float(raw.get("x")),
+                "y": float(raw.get("y")),
+                "width": float(raw.get("width")),
+                "height": float(raw.get("height")),
+            }
+        except (TypeError, ValueError):
+            pass
+    # Default notification badge slot for event icons: top-right, slightly
+    # above the icon bbox. Percentages are relative to the matched template.
+    return {"x": 68.0, "y": -32.0, "width": 56.0, "height": 63.0}
 
 
 def _tap_region_delta_pct(
@@ -275,9 +388,11 @@ async def evaluate_overlay_rules_async(
         # Only `text` is supported for OCR.
 
         # YAML may use ``isRedDot: true|false`` instead of ``action:`` (same keys as DSL).
-        if rule.get("isRedDot") is True:
+        # When an explicit findIcon/template action is present, keep findIcon and
+        # use isRedDot as an additional gate on the found icon.
+        if rule.get("isRedDot") is True and action != "findIcon":
             action = "red_dot"
-        elif rule.get("isRedDot") is False:
+        elif rule.get("isRedDot") is False and action != "findIcon":
             action = "red_dot_absent"
 
         # YAML may use ``isTabActive: true|false`` to gate on tab highlight state.
@@ -596,6 +711,122 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
+            min_sat = optional_min_match_saturation(rule)
+            push_tasks = optional_push_scenario_tasks(rule)
+
+            direct_template = str(rule.get("template") or "").replace("\\", "/").strip()
+            if direct_template:
+                template_path = (repo_root / direct_template.lstrip("/")).resolve()
+                try:
+                    template_path.relative_to(repo_root.resolve())
+                except ValueError:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "template_outside_repo",
+                        "template": direct_template,
+                    }
+                    continue
+                tpl_pair = _load_template_with_mask_cached(template_path)
+                if tpl_pair is None:
+                    out[logical_name] = {
+                        "matched": False,
+                        "reason": "template_load_failed",
+                        "template": direct_template,
+                    }
+                    continue
+                search_bbox = bbox
+                search_region_name = str(rule.get("search_region") or "").strip() or region_name
+                if search_region_name != region_name:
+                    pair_s = _lookup_region(search_region_name)
+                    if pair_s is None:
+                        out[logical_name] = {
+                            "matched": False,
+                            "reason": "unknown_search_region",
+                            "search_region": search_region_name,
+                            "region": region_name,
+                        }
+                        continue
+                    search_bbox_raw = pair_s[1].get("bbox")
+                    if not isinstance(search_bbox_raw, dict):
+                        out[logical_name] = {
+                            "matched": False,
+                            "reason": "missing_search_bbox",
+                            "search_region": search_region_name,
+                        }
+                        continue
+                    search_bbox = search_bbox_raw
+                tpl_bgr, tpl_mask = tpl_pair
+                res = _match_direct_template_in_bbox(
+                    image_bgr,
+                    tpl_bgr,
+                    tpl_mask,
+                    search_bbox,
+                )
+                tw_tpl = int(res.get("template_w") or tpl_bgr.shape[1])
+                th_tpl = int(res.get("template_h") or tpl_bgr.shape[0])
+                cx_px = int(res["top_left"][0]) + tw_tpl / 2.0
+                cy_px = int(res["top_left"][1]) + th_tpl / 2.0
+                mx_pct = 100.0 * cx_px / int(image_bgr.shape[1])
+                my_pct = 100.0 * cy_px / int(image_bgr.shape[0])
+                score = float(res["score"])
+                matched = score >= threshold
+                red_dot_required = rule.get("isRedDot") if isinstance(rule.get("isRedDot"), bool) else None
+                red_dot_present: bool | None = None
+                red_dot_bbox: dict[str, float] | None = None
+                if matched and red_dot_required is not None:
+                    icon_bbox = _relative_bbox_percent_from_top_left(
+                        (int(res["top_left"][0]), int(res["top_left"][1])),
+                        tw_tpl,
+                        th_tpl,
+                        _direct_template_red_dot_bbox(rule),
+                        image_w=int(image_bgr.shape[1]),
+                        image_h=int(image_bgr.shape[0]),
+                    )
+                    red_dot_bbox = icon_bbox
+                    red_dot_present = bool(
+                        has_red_dot_in_bbox_percent(
+                            image_bgr,
+                            icon_bbox,
+                            pad_px=0,
+                            edge_badge_pad_ratio=0.0,
+                        )
+                    )
+                    matched = red_dot_present if red_dot_required else not red_dot_present
+                hit: dict[str, Any] = {
+                    "matched": matched,
+                    "score": score,
+                    "score_ncc": res.get("score_ncc"),
+                    "score_ncc_second": res.get("score_ncc_second"),
+                    "threshold": threshold,
+                    "top_left": list(res["top_left"]),
+                    "template_w": tw_tpl,
+                    "template_h": th_tpl,
+                    "action": "findIcon",
+                    "region": region_name,
+                    "resolved_region": resolved_region_name,
+                    "resolved_version": region_version_of(entry, reg),
+                    "search_region": search_region_name,
+                    "match_source": res.get("match_source"),
+                    "tap_x_pct": mx_pct,
+                    "tap_y_pct": my_pct,
+                    "tap_match_x_pct": mx_pct,
+                    "tap_match_y_pct": my_pct,
+                    "template": direct_template,
+                }
+                if red_dot_required is not None:
+                    hit["red_dot_required"] = red_dot_required
+                    hit["red_dot_present"] = bool(red_dot_present)
+                    if red_dot_bbox is not None:
+                        hit["red_dot_bbox"] = red_dot_bbox
+                if push_tasks:
+                    hit["pushScenario"] = push_tasks
+                if set_node_s:
+                    hit["set_node"] = set_node_s
+                if priority is not None:
+                    hit["priority"] = priority
+                out[logical_name] = hit
+                continue
+
             crop_path = exported_crop_png(repo_root, ref_rel, resolved_region_name)
             if not crop_path.is_file():
                 # Auto-export crop from the reference screenshot on demand.
@@ -770,13 +1001,18 @@ async def evaluate_overlay_rules_async(
                         continue
                     entry_s, reg_s = pair_s
                     ref_search = str(entry_s.get("ocr") or "").strip()
-                    if ref_search != ref_rel:
+                    same_screen = (
+                        str(entry_s.get("screen_id") or "").strip()
+                        and str(entry_s.get("screen_id") or "").strip()
+                        == str(entry.get("screen_id") or "").strip()
+                    )
+                    if ref_search != ref_rel and not same_screen:
                         out[logical_name] = {
                             "matched": False,
                             "reason": "search_region_screen_mismatch",
                             "region": region_name,
                             "search_region": search_region_name,
-                            "detail": "search_region must use the same ocr frame as region",
+                            "detail": "search_region must use the same ocr frame or screen_id as region",
                         }
                         continue
                     search_bbox = reg_s.get("bbox")

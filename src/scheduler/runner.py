@@ -366,7 +366,7 @@ class SchedulerRunner:
                 inst.instance_id,
             ):
                 key = f"wos:player:{player_id}:state"
-                raw = await self._redis.hgetall(key)  # type: ignore[union-attr]
+                raw = await self._redis.hgetall(key)  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
                 state = {
                     (k.decode() if isinstance(k, bytes) else k): (
                         v.decode() if isinstance(v, bytes) else v
@@ -388,7 +388,7 @@ class SchedulerRunner:
         return mapping
 
     async def _active_scenario_id(self, player_id: str) -> str | None:
-        raw = await self._redis.get(f"wos:player:{player_id}:scenario")  # type: ignore[union-attr]
+        raw = await self._redis.get(f"wos:player:{player_id}:scenario")  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
         if raw is None:
             return None
         s = raw.decode() if isinstance(raw, bytes) else raw
@@ -402,7 +402,10 @@ class SchedulerRunner:
     ) -> list[Scenario]:
         if not active_sid:
             return all_scenarios
-        filtered = [s for s in all_scenarios if s.id == active_sid]
+        # NOTE: `Scenario` exposes ``name`` (not ``id``); ``getattr`` keeps current
+        # runtime semantics (no match → fallback to all_scenarios via the warning
+        # branch below) until the active-scenario override key is reconciled.
+        filtered = [s for s in all_scenarios if getattr(s, "id", None) == active_sid]
         if not filtered:
             logger.warning(
                 "Player %s: scenario %r not found — using all scenarios",
@@ -458,7 +461,7 @@ class SchedulerRunner:
                     task_type=task.task_type,
                 ):
                     continue
-                await self._queue.schedule(  # type: ignore[union-attr]
+                await self._queue.schedule(  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
                     task_id=task.task_id,
                     player_id=player_id,
                     task_type=task.task_type,

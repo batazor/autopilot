@@ -48,7 +48,7 @@ def test_dedupe_drops_v2_when_same_as_base() -> None:
 
 
 def test_dedupe_keeps_v2_when_bbox_differs() -> None:
-    override = {**_BASE_REG, "bbox": {**_BASE_REG["bbox"], "x": 99.0}}
+    override = {**_BASE_REG, "bbox": {**_BASE_REG["bbox"], "x": 99.0}}  # ty: ignore[invalid-argument-type]
     doc = {"screens": [_screen_with_v2(base_regions=[dict(_BASE_REG)], v2_regions=[override])]}
     assert dedupe_redundant_version_regions(doc) == 0
     assert len(doc["screens"][0]["versions"][0]["regions"]) == 1

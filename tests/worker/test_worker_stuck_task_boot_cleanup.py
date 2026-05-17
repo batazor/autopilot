@@ -26,10 +26,10 @@ import pytest
 import worker.instance_worker as instance_worker
 
 
-def _make_worker(redis_client: object, instance_id: str = "bs1") -> object:
+def _make_worker(redis_client: object, instance_id: str = "bs1") -> instance_worker.InstanceWorker:
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id=instance_id)
-    worker._redis = redis_client
+    worker._cfg = SimpleNamespace(instance_id=instance_id)  # type: ignore[attr-defined]
+    worker._redis = redis_client  # type: ignore[assignment]
     return worker
 
 

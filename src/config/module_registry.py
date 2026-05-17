@@ -28,12 +28,15 @@ class WikiModuleContext:
     area_path: Path
     default_ref: str | None = None
     is_all: bool = False
+    storage_key_override: str | None = None
 
     @property
     def storage_key(self) -> str:
         if self.is_all:
             return ALL_MODULES_KEY
-        return CORE_MODULE_KEY if self.module_id is None else self.module_id
+        if self.module_id is None:
+            return CORE_MODULE_KEY
+        return self.storage_key_override or self.module_id
 
     @property
     def query_value(self) -> str:
@@ -161,6 +164,7 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
         references_prefix=_references_repo_prefix(repo_root, references_dir),
         area_path=area_path,
         default_ref=_module_default_ref(meta),
+        storage_key_override=_module_discovery.module_storage_key(module_dir, repo_root),
     )
 
 
@@ -214,7 +218,7 @@ def get_wiki_module(repo_root: Path | None, module_key: str | None) -> WikiModul
     if key == CORE_MODULE_KEY:
         return core_module_context(repo_root)
     for ctx in list_wiki_modules(repo_root):
-        if ctx.storage_key == key:
+        if ctx.storage_key == key or ctx.module_id == key:
             return ctx
     return all_modules_context(repo_root)
 
@@ -245,42 +249,9 @@ def path_matches_module_scope(path: Path, repo_root: Path, module_scope: str | N
 def merge_all_area_docs(repo_root: Path | None = None) -> dict[str, Any]:
     """Union of screens from core ``area.json`` and each module area manifest."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    core_path = root / "area.json"
-    if core_path.is_file():
-        raw = yaml.safe_load(core_path.read_text(encoding="utf-8"))
-        merged: dict[str, Any] = copy.deepcopy(raw) if isinstance(raw, dict) else {}
-    else:
-        merged = {"screens": []}
-    screens = merged.get("screens")
-    if not isinstance(screens, list):
-        screens = []
-        merged["screens"] = screens
-    seen: set[str] = set()
-    for screen in screens:
-        if isinstance(screen, dict):
-            sid = str(screen.get("id") or "").strip()
-            if sid:
-                seen.add(sid)
+    from layout.area_manifest import load_area_doc
 
-    for area_path in _module_discovery.iter_module_area_manifests(root):
-        if not area_path.is_file():
-            continue
-        try:
-            doc = yaml.safe_load(area_path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError):
-            continue
-        if not isinstance(doc, dict):
-            continue
-        for screen in doc.get("screens") or []:
-            if not isinstance(screen, dict):
-                continue
-            sid = str(screen.get("id") or "").strip()
-            if sid and sid in seen:
-                continue
-            if sid:
-                seen.add(sid)
-            screens.append(copy.deepcopy(screen))
-    return merged
+    return load_area_doc(root)
 
 
 def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:

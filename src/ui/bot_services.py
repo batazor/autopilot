@@ -321,7 +321,7 @@ def _install_shutdown_hooks() -> None:
         atexit.register(stop_embedded_bot)
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGINT, signal.SIGTERM):
-                _previous_signal_handlers[int(sig)] = signal.getsignal(sig)
+                _previous_signal_handlers[int(sig)] = signal.getsignal(sig)  # ty: ignore[invalid-assignment]
                 signal.signal(sig, _handle_shutdown_signal)
         _hooks_installed = True
 

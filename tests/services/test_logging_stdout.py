@@ -18,7 +18,7 @@ def test_log_context_filter_supplies_otel_defaults_for_stdout_format() -> None:
 
     assert LogContextFilter().filter(record)
 
-    assert record.otelTraceID == "0"
-    assert record.otelSpanID == "0"
-    assert record.otelTraceSampled is False
+    assert record.otelTraceID == "0"  # ty: ignore[unresolved-attribute]
+    assert record.otelSpanID == "0"  # ty: ignore[unresolved-attribute]
+    assert record.otelTraceSampled is False  # ty: ignore[unresolved-attribute]
 

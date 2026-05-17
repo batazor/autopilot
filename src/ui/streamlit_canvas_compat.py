@@ -31,5 +31,5 @@ def ensure_drawable_canvas_compat() -> None:
             image_id,
         )
 
-    st_image_module.image_to_url = image_to_url  # type: ignore[attr-defined]
+    st_image_module.image_to_url = image_to_url  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     _PATCHED = True

@@ -594,8 +594,11 @@ def _render_ttl_tab(rules: list[dict[str, Any]]) -> None:
     except Exception:
         raw_ttl = {}
 
+    # Sync ``redis.Redis.hgetall`` is typed ``Awaitable | dict`` in the stubs — narrow
+    # to the runtime dict shape before iterating.
+    ttl_map: dict[Any, Any] = raw_ttl if isinstance(raw_ttl, dict) else {}
     last_eval_at: dict[str, float] = {}
-    for k, v in (raw_ttl or {}).items():
+    for k, v in ttl_map.items():
         ks = k.decode() if isinstance(k, bytes) else str(k)
         vs = v.decode() if isinstance(v, bytes) else str(v)
         try:
@@ -717,7 +720,7 @@ with st.sidebar:
     )
 
 selected_paths: set[Path] = {
-    chip_label_to_path[c] for c in (selected_chips or []) if c in chip_label_to_path
+    chip_label_to_path[c] for c in (selected_chips or []) if c in chip_label_to_path  # ty: ignore[invalid-argument-type]
 }
 name_filter = st.text_input(
     "Filter (name/action contains)",

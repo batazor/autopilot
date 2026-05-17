@@ -46,6 +46,8 @@ class TemplateMatchResult(TypedDict, total=False):
     score_ncc_second: float | None
     match_source: str
     hash_distance: int | None
+    template_w: int
+    template_h: int
 
 
 def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> float:

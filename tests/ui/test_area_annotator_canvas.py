@@ -6,7 +6,10 @@ from ui.area_annotator import (
     OMNIPARSER_PROPOSAL_CANVAS_FLAG,
     OMNIPARSER_PROPOSAL_STROKE,
     draw_omni_proposal_overlay,
+    ensure_entry_for_reference_path,
+    load_json,
     regions_to_initial_drawing,
+    save_json,
     sync_regions_from_canvas,
 )
 
@@ -20,7 +23,7 @@ def test_regions_to_initial_drawing_does_not_add_omni_proposals_as_canvas_object
     ]
 
     drawing = regions_to_initial_drawing(
-        regions,
+        regions,  # ty: ignore[invalid-argument-type]
         canvas_w=200,
         canvas_h=100,
         selected_idx=0,
@@ -31,6 +34,60 @@ def test_regions_to_initial_drawing_does_not_add_omni_proposals_as_canvas_object
     assert objects[0]["wos_region_name"] == "main.button"
 
 
+def test_load_and_save_json_supports_module_area_yaml(tmp_path) -> None:
+    area_path = tmp_path / "area.yaml"
+    doc = {
+        "screens": [
+            {
+                "id": 54,
+                "screen_id": "event.trials",
+                "ocr": "references/page.trials.png",
+                "regions": [],
+            }
+        ]
+    }
+
+    removed = save_json(area_path, doc)  # ty: ignore[invalid-argument-type]
+    loaded = load_json(area_path)
+
+    assert removed == 0
+    assert loaded["screens"][0]["screen_id"] == "event.trials"
+    assert area_path.read_text(encoding="utf-8").startswith("screens:")
+
+
+def test_ensure_entry_matches_module_local_ocr_by_reference_prefix() -> None:
+    entries = [
+        {
+            "id": 54,
+            "screen_id": "event.trials",
+            "ocr": "references/page.trials.png",
+            "regions": [{"name": "trial.day.1"}],
+        }
+    ]
+
+    idx = ensure_entry_for_reference_path(
+        entries,  # ty: ignore[invalid-argument-type]
+        "modules/events/trials/references/page.trials.png",
+        references_prefix="modules/events/trials/references",
+    )
+
+    assert idx == 0
+    assert len(entries) == 1
+
+
+def test_ensure_entry_stores_new_module_ocr_as_local_reference() -> None:
+    entries = []
+
+    idx = ensure_entry_for_reference_path(
+        entries,  # ty: ignore[invalid-argument-type]
+        "modules/events/trials/references/new.png",
+        references_prefix="modules/events/trials/references",
+    )
+
+    assert idx == 0
+    assert entries[0]["ocr"] == "references/new.png"
+
+
 def test_draw_omni_proposal_overlay_draws_on_background_image() -> None:
     image = Image.new("RGB", (200, 100), (255, 255, 255))
 
@@ -39,9 +96,9 @@ def test_draw_omni_proposal_overlay_draws_on_background_image() -> None:
         [
             {
                 "name": "mail.title",
-                "bbox": {"x": 50.0, "y": 60.0, "width": 10.0, "height": 5.0},
+                "bbox": {"x": 50.0, "y": 60.0, "width": 10.0, "height": 5.0},  # ty: ignore[missing-typed-dict-key]
             }
-        ],
+        ],  # ty: ignore[invalid-argument-type]
     )
 
     assert out.getpixel((100, 60)) != image.getpixel((100, 60))
@@ -55,7 +112,7 @@ def test_sync_regions_from_canvas_ignores_omni_proposal_overlay() -> None:
         }
     ]
     drawing = regions_to_initial_drawing(
-        regions,
+        regions,  # ty: ignore[invalid-argument-type]
         canvas_w=200,
         canvas_h=100,
         selected_idx=0,
@@ -73,7 +130,7 @@ def test_sync_regions_from_canvas_ignores_omni_proposal_overlay() -> None:
     )
 
     synced = sync_regions_from_canvas(
-        regions,
+        regions,  # ty: ignore[invalid-argument-type]
         drawing,
         canvas_w=200,
         canvas_h=100,
@@ -96,7 +153,7 @@ def test_sync_regions_from_canvas_removes_region_when_canvas_object_is_deleted()
         },
     ]
     drawing = regions_to_initial_drawing(
-        regions,
+        regions,  # ty: ignore[invalid-argument-type]
         canvas_w=200,
         canvas_h=100,
         selected_idx=0,
@@ -108,7 +165,7 @@ def test_sync_regions_from_canvas_removes_region_when_canvas_object_is_deleted()
     ]
 
     synced = sync_regions_from_canvas(
-        regions,
+        regions,  # ty: ignore[invalid-argument-type]
         drawing,
         canvas_w=200,
         canvas_h=100,

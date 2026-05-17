@@ -225,6 +225,37 @@ steps:
     assert issues == []
 
 
+def test_startup_validation_accepts_regions_from_module_area_yaml(tmp_path: Path) -> None:
+    scenario_root = _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
+    (scenario_root.parent / "area.yaml").write_text(
+        """
+screens:
+  - id: 1
+    screen_id: test.module
+    ocr: references/page.test.png
+    regions:
+      - name: module.button
+        bbox: {x: 1, y: 1, width: 1, height: 1}
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (scenario_root / "tap_module.yaml").write_text(
+        """
+name: tap module
+steps:
+  - click: module.button
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert issues == []
+
+
 def test_startup_validation_reports_missing_red_dot_capability_on_dsl_step(
     tmp_path: Path,
 ) -> None:

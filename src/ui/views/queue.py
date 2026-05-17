@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import quote, urlencode, urlparse, urlunparse
 
 import pandas as pd
+import redis
 import streamlit as st
 from streamlit_nested_table import nested_table, table_column
 
@@ -208,7 +209,7 @@ def _render_clipboard_button(label: str, text: str) -> None:
 
 
 def _render_queue_actions(
-    client: object,
+    client: redis.Redis,
     rows: list[QueueRow],
     selected_task_ids: set[str],
 ) -> None:
@@ -331,7 +332,7 @@ def _render_running_progress(
 
 
 def _render_running_section(
-    client: object,
+    client: redis.Redis,
     inst_ids: list[str],
     now: float,
 ) -> None:

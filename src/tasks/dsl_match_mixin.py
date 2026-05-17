@@ -579,13 +579,13 @@ class DslMatchMixin(_Base):
         match_source = "primary"
         if match is not None:
             base["white_border_present"] = True
-            x, y, w, h = match["px_rect"]  # type: ignore[index]
+            x, y, w, h = match["px_rect"]  # type: ignore[index]  # ty: ignore[not-iterable]
             base["top_left"] = [int(x), int(y)]
             base["template_w"] = int(w)
             base["template_h"] = int(h)
-            cx = float(match["cx_pct"])  # type: ignore[arg-type]
-            cy = float(match["cy_pct"])  # type: ignore[arg-type]
-            inner_s = float(match.get("interior_saturation") or 0.0)  # type: ignore[arg-type]
+            cx = float(match["cx_pct"])  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+            cy = float(match["cy_pct"])  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+            inner_s = float(match.get("interior_saturation") or 0.0)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
             logger.info(
                 "white_border slide-find: region=%s source=%s contour=(%d,%d,%dx%d) "
                 "center=(%.2f%%,%.2f%%) inner_S=%.0f required=%s",

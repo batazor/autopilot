@@ -263,7 +263,7 @@ def validate_dsl_steps(steps: Any, *, path: str = "") -> list[str]:
             )
 
         if "ocr" in step:
-            scope_raw = step.get("scope")
+            scope_raw = step.get("scope")  # ty: ignore[invalid-argument-type]
             if scope_raw is not None:
                 scope_s = (
                     str(scope_raw).strip()
@@ -278,13 +278,13 @@ def validate_dsl_steps(steps: Any, *, path: str = "") -> list[str]:
                     )
 
         for nested_key in ("steps", "else"):
-            nested = step.get(nested_key)
+            nested = step.get(nested_key)  # ty: ignore[invalid-argument-type]
             if isinstance(nested, list):
                 out.extend(
                     validate_dsl_steps(nested, path=f"{step_path}.{nested_key}")
                 )
         for container_key in ("loop", "repeat"):
-            spec = step.get(container_key)
+            spec = step.get(container_key)  # ty: ignore[invalid-argument-type]
             if isinstance(spec, dict):
                 inner = spec.get("steps")
                 if isinstance(inner, list):

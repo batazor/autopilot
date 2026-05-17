@@ -23,7 +23,7 @@ def hr_sync():
 
 
 def test_parse_hud_count(hr_sync: object) -> None:
-    p = hr_sync.parse_hud_count
+    p = hr_sync.parse_hud_count  # ty: ignore[unresolved-attribute]
     assert p("") is None
     assert p("123") == 123
     assert p("1,234") == 1234

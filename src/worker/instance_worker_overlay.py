@@ -39,7 +39,7 @@ def _overlay_metric_float(value: object) -> float | None:
     if value is None:
         return None
     try:
-        x = float(value)
+        x = float(value)  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return None
     if not math.isfinite(x):

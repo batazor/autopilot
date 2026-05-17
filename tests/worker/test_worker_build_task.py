@@ -22,10 +22,10 @@ from scheduler.queue import QueueItem
 from tasks.dsl_scenario import DslScenarioTask
 
 
-def _make_worker() -> object:
+def _make_worker() -> instance_worker.InstanceWorker:
     """Bare worker instance — ``_build_task`` only reads ``self._redis``."""
     worker = object.__new__(instance_worker.InstanceWorker)
-    worker._cfg = SimpleNamespace(instance_id="bs1")
+    worker._cfg = SimpleNamespace(instance_id="bs1")  # type: ignore[attr-defined]
     worker._redis = None
     return worker
 

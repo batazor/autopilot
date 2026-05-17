@@ -116,7 +116,7 @@ def test_module_mail_tab_fixtures_detect_current_tab(
 def test_invalid_inputs_return_false() -> None:
     image_bgr = cv2.imread(str(MAIL_FIXTURE))
     assert image_bgr is not None
-    assert is_tab_active_in_bbox_percent(None, {"x": 0, "y": 0, "width": 1, "height": 1}) is False
+    assert is_tab_active_in_bbox_percent(None, {"x": 0, "y": 0, "width": 1, "height": 1}) is False  # ty: ignore[invalid-argument-type]
     assert is_tab_active_in_bbox_percent(image_bgr, {}) is False
     assert is_tab_active_in_bbox_percent(image_bgr, {"x": 0, "y": 0}) is False
 

@@ -195,7 +195,7 @@ def test_log_context_filter_now_carries_scenario() -> None:
         exc_info=None,
     )
     filt.filter(record)
-    assert record.scenario == "hero.recall"
+    assert record.scenario == "hero.recall"  # ty: ignore[unresolved-attribute]
 
 
 def test_bind_log_context_reverts_on_exit() -> None:

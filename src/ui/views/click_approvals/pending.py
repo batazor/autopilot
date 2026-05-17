@@ -119,7 +119,7 @@ def _is_navigation_approval(payload: dict[str, Any], ctx0: object) -> bool:
     if src == "navigation":
         return True
     if isinstance(ctx0, dict):
-        return str(ctx0.get("approval_source") or "").strip().lower() == "navigation"
+        return str(ctx0.get("approval_source") or "").strip().lower() == "navigation"  # ty: ignore[invalid-argument-type]
     return False
 
 

@@ -131,7 +131,7 @@ def get_ocr_client() -> OcrClient:
     try:
         c = ctor(get_settings())
     except TypeError:
-        c = ctor()
+        c = ctor()  # ty: ignore[missing-argument]
     _state.set_(_K_OCR, c)
     return c
 

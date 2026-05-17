@@ -26,7 +26,7 @@ def solve_captcha(img_b64: str) -> str:
 
     img_bytes = base64.b64decode(img_b64)
     ocr = _get_ocr()
-    result: str = ocr.classification(img_bytes)  # type: ignore[attr-defined]
+    result: str = ocr.classification(img_bytes)  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     text = result.strip().upper()
     logger.debug("Captcha solved: %r", text)
     return text

@@ -41,15 +41,15 @@ class ScenarioEvaluator:
                     player_id = str(player_state.get("player_id", ""))
                     gamer = get_device_registry().get_gamer(player_id)
                     level = gamer.level if gamer else 0
-                    if level < int(cond.value or 0):
+                    if level < int(cond.value or 0):  # ty: ignore[invalid-argument-type]
                         return False
                 case "resource_min":
                     raw_resource = player_state.get(str(cond.resource or ""))
                     try:
-                        resource_val = int(raw_resource) if raw_resource is not None else 0
+                        resource_val = int(raw_resource) if raw_resource is not None else 0  # ty: ignore[invalid-argument-type]
                     except (TypeError, ValueError):
                         resource_val = 0
-                    if resource_val < int(cond.value or 0):
+                    if resource_val < int(cond.value or 0):  # ty: ignore[invalid-argument-type]
                         return False
                 case "alliance_member_under_attack":
                     # Evaluated at runtime by the task itself

@@ -121,7 +121,7 @@ async def test_loop_cond_breaks_after_inner_step_flips_state(
     assert result.success is True
     # 3 iterations (step1, step2, exec writes "done"; cond True on iter 4's top check → exit).
     assert iterations["n"] == 3
-    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    final = await redis_async.hget("wos:instance:bs1:state", "progress")  # type: ignore[attr-defined]
     assert final == "done"
 
 

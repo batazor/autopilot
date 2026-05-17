@@ -115,7 +115,7 @@ async def run_scraper_loop(
             new = await poll_once(codes_path)
             if new and on_new_codes is not None:
                 try:
-                    await on_new_codes(new)  # type: ignore[operator]
+                    await on_new_codes(new)  # type: ignore[operator]  # ty: ignore[call-non-callable]
                 except Exception:
                     logger.exception("on_new_codes callback failed for %s", new)
         except asyncio.CancelledError:

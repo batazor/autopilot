@@ -1,0 +1,9 @@
+id: trials
+title: Trials
+description: Beginning-game Trial Event automation; the event rewards Jessie, a Generation 1 hero.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: ../../../area.json
+references: references
+icon: trials
+wiki_url: https://www.whiteoutsurvival.wiki/events/trial-event/

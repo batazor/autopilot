@@ -20,7 +20,12 @@ def exported_crop_png(repo_root: Path, reference_repo_rel: str, region_name: str
     filename = f"{stem}_{label}.png"
     ref_parts = Path(reference_repo_rel).parts
     if len(ref_parts) >= 3 and ref_parts[0] == "modules":
-        module_crop = repo_root / ref_parts[0] / ref_parts[1] / "references" / "crop" / filename
+        try:
+            references_idx = ref_parts.index("references")
+        except ValueError:
+            references_idx = 2
+        module_root = repo_root.joinpath(*ref_parts[:references_idx])
+        module_crop = module_root / "references" / "crop" / filename
         if module_crop.is_file():
             return module_crop
         return module_crop

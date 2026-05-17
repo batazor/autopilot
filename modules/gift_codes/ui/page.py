@@ -225,7 +225,7 @@ def _render_gift_codes_table(
     df = pd.DataFrame(rows).reindex(columns=col_order).fillna("—")
     st.dataframe(
         _style_gift_codes_table(df),
-        column_config=_gift_codes_column_config(player_ids, registry),
+        column_config=_gift_codes_column_config(player_ids, registry),  # ty: ignore[invalid-argument-type]
         column_order=col_order,
         hide_index=True,
         width="stretch",

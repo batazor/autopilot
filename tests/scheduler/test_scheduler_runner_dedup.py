@@ -59,10 +59,10 @@ def _wire_runner(
     async def _active_scenario_id(player_id: str) -> str | None:
         return None
 
-    runner._run_cron_specs = _no_cron  # type: ignore[assignment]
-    runner._load_player_states = _player_states  # type: ignore[assignment]
-    runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]
-    runner._active_scenario_id = _active_scenario_id  # type: ignore[assignment]
+    runner._run_cron_specs = _no_cron  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    runner._load_player_states = _player_states  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    runner._active_scenario_id = _active_scenario_id  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     monkeypatch.setattr(runner._scenario_loader, "load_all", lambda: [])
 

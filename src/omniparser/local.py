@@ -79,7 +79,7 @@ def load_models() -> dict[str, Any]:
             sys.path.insert(0, root_s)
         os.chdir(root)
         try:
-            from util.utils import (  # type: ignore[import-not-found]
+            from util.utils import (  # type: ignore[import-not-found]  # ty: ignore[unresolved-import]
                 check_ocr_box,
                 get_som_labeled_img,
                 get_yolo_model,
@@ -118,8 +118,8 @@ def load_models() -> dict[str, Any]:
 
 
 def _get_florence2_caption_model_processor(model_path: Path) -> dict[str, Any]:
-    import torch
-    from transformers import AutoModelForCausalLM, AutoProcessor
+    import torch  # ty: ignore[unresolved-import]
+    from transformers import AutoModelForCausalLM, AutoProcessor  # ty: ignore[unresolved-import]
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     processor = AutoProcessor.from_pretrained(
@@ -288,7 +288,7 @@ def parse_icon_detect_image(
         msg = f"Missing YOLO weights at {model_path} - see OmniParser README"
         raise RuntimeError(msg)
     if _icon_model is None:
-        from ultralytics import YOLO
+        from ultralytics import YOLO  # ty: ignore[unresolved-import]
 
         _icon_model = YOLO(str(model_path))
 

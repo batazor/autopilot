@@ -223,14 +223,14 @@ def test_log_record_factory_injects_otel_ids(_initialised_tracing: object) -> No
     import config.tracing as tracing
 
     rec = logging.makeLogRecord({})
-    assert rec.otelTraceID == "0"
-    assert rec.otelSpanID == "0"
+    assert rec.otelTraceID == "0"  # ty: ignore[unresolved-attribute]
+    assert rec.otelSpanID == "0"  # ty: ignore[unresolved-attribute]
 
     with tracing.traced("log_corr_test") as span:
         rec_in = logging.makeLogRecord({})
         expected = format(span.get_span_context().trace_id, "032x")
-        assert rec_in.otelTraceID == expected
-        assert rec_in.otelSpanID == format(
+        assert rec_in.otelTraceID == expected  # ty: ignore[unresolved-attribute]
+        assert rec_in.otelSpanID == format(  # ty: ignore[unresolved-attribute]
             span.get_span_context().span_id, "016x"
         )
 
@@ -242,7 +242,7 @@ def test_add_event_attaches_span_event(_initialised_tracing: object) -> None:
     with tracing.traced("event_test") as span:
         tracing.add_event("milestone_a", count=3, label="hello")
         tracing.add_event("milestone_b")
-        events = list(span.events)
+        events = list(span.events)  # ty: ignore[unresolved-attribute]
 
     names = [e.name for e in events]
     assert "milestone_a" in names

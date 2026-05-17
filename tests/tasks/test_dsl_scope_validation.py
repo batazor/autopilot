@@ -147,6 +147,6 @@ async def test_execute_fails_fast_on_invalid_scope(
     md = result.metadata or {}
     assert md["reason"] == "scenario_invalid"
     errs = md.get("errors") or []
-    assert len(errs) == 1
-    assert "scope" in errs[0]
-    assert "instnace" in errs[0]
+    assert len(errs) == 1  # ty: ignore[invalid-argument-type]
+    assert "scope" in errs[0]  # ty: ignore[not-subscriptable]
+    assert "instnace" in errs[0]  # ty: ignore[not-subscriptable]

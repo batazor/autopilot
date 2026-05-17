@@ -55,7 +55,7 @@ _ACTION_TYPES: tuple[str, ...] = (
 
 def _fmt_ratio(value: object) -> str:
     try:
-        return f"{float(value):.3f}"
+        return f"{float(value):.3f}"  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return "—"
 
@@ -252,7 +252,8 @@ def _probe_area_region_exist(
         pay["reason"] = f"exist_probe_failed: {cached.get('error', '')}"
         return
 
-    row = cached.get("row") or {}
+    row_raw = cached.get("row")
+    row: dict[str, Any] = row_raw if isinstance(row_raw, dict) else {}
     for k in _EXIST_PROBE_FIELDS:
         if k in row:
             pay[k] = row[k]
@@ -304,7 +305,7 @@ def _coerce_float(value: object) -> float | None:
     try:
         if value is None or str(value).strip() == "":
             return None
-        return float(value)
+        return float(value)  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return None
 
@@ -484,7 +485,7 @@ def _render_metrics_white_border(pay: dict[str, Any]) -> None:
         )
     with m4:
         try:
-            ring_str = f"{int(ring_count)} / {int(min_ring)}"
+            ring_str = f"{int(ring_count)} / {int(min_ring)}"  # ty: ignore[invalid-argument-type]
         except (TypeError, ValueError):
             ring_str = "—"
         excess_str = f"{excess:+.1f}" if excess is not None else "—"

@@ -14,6 +14,7 @@ from analysis.overlay_manifest import (
 )
 from analysis.overlay_rules import optional_push_scenario_tasks
 from config.paths import repo_root as default_repo_root
+from layout.area_manifest import load_area_doc
 from layout.area_regions import region_names_for
 from scenarios import template_resolver as _tmpl
 from scenarios.cron_specs import (
@@ -701,17 +702,20 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     issues: list[StartupValidationIssue] = []
 
     area_path = root / "area.json"
-    area_doc = _load_yaml_dict(area_path) if area_path.is_file() else {}
+    area_doc: dict[str, Any] = {}
     if not area_path.is_file():
         issues.append(StartupValidationIssue("error", area_path.as_posix(), "area.json not found"))
-    elif "__load_error__" in area_doc:
-        issues.append(
-            StartupValidationIssue(
-                "error",
-                area_path.as_posix(),
-                f"cannot parse area.json: {area_doc['__load_error__']}",
+    else:
+        try:
+            area_doc = load_area_doc(root)
+        except Exception as exc:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    area_path.as_posix(),
+                    f"cannot parse merged area docs: {exc}",
+                )
             )
-        )
 
     region_names = _area_region_names(area_doc)
     red_dot_regions = _area_regions_with_red_dot_capability(area_doc)

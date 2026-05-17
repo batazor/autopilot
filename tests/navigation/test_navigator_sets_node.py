@@ -171,7 +171,7 @@ async def test_navigator_verifies_destination_with_ocr_contains(
         return {name: {"matched": False}}
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    nav._ocr = _FakeOcr()
+    nav._ocr = _FakeOcr()  # ty: ignore[invalid-assignment]
     mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
     mocker.patch.object(
         navigator_module,

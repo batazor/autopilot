@@ -156,7 +156,7 @@ class InstanceWorkerScreenMixin(_Base):
         if (time.monotonic() - unknown_since) < 10.0:
             return
         for payload in overlay_results.values():
-            if isinstance(payload, dict) and payload.get("matched"):
+            if isinstance(payload, dict) and payload.get("matched"):  # ty: ignore[invalid-argument-type]
                 return
         if self._queue is None:
             return

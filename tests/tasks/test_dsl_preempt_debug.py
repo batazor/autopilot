@@ -25,5 +25,5 @@ async def test_preempt_generation_detects_incr_after_snapshot(redis_async: objec
     t._preempt_gen_at_start = snap
     assert await t._preempted_by_new_debug(inst) is False
 
-    await redis_async.incr(key)  # type: ignore[union-attr]
+    await redis_async.incr(key)  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
     assert await t._preempted_by_new_debug(inst) is True

@@ -228,7 +228,7 @@ def _render_gamer_panels(g: GamerState) -> None:
     if g.buildings.furnace.level and "furnace" not in yaml_levels:
         yaml_levels["furnace"] = g.buildings.furnace.level
     _render_building_levels_table(
-        _building_level_rows(yaml_levels),
+        _building_level_rows(yaml_levels),  # ty: ignore[invalid-argument-type]
         filter_key=f"player_state_bldg_yaml_{g.id}",
         empty_message="No building levels in ``db/state.yaml`` yet — sync from Century or run building OCR scenarios.",
     )
@@ -542,7 +542,7 @@ def _wiki_building_url(building_id: str) -> str:
 
 def _format_seen_at(ts: object) -> str:
     try:
-        seen = float(ts)  # type: ignore[arg-type]
+        seen = float(ts)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     except (TypeError, ValueError):
         return "—"
     if seen <= 0:
@@ -837,7 +837,7 @@ def _building_level_rows_from_redis(state: dict[str, str]) -> list[dict[str, Any
         bid = key[len(_LEVEL_PREFIX) :].strip()
         if bid:
             levels[bid] = val
-    return _building_level_rows(levels)
+    return _building_level_rows(levels)  # ty: ignore[invalid-argument-type]
 
 
 def _render_building_levels_table(

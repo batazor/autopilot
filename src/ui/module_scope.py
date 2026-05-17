@@ -51,11 +51,11 @@ def render_module_scope_selector(
     )
     if in_sidebar:
         # Caller already opened ``with st.sidebar:`` — render in that context.
-        picked = st.selectbox(**selectbox_kwargs)
+        picked = st.selectbox(**selectbox_kwargs)  # ty: ignore[no-matching-overload]
     else:
         container = st.sidebar if sidebar else st
-        with container:
-            picked = st.selectbox(**selectbox_kwargs)
+        with container:  # ty: ignore[invalid-context-manager]
+            picked = st.selectbox(**selectbox_kwargs)  # ty: ignore[no-matching-overload]
     scope = keys[labels.index(picked)]
     if qp != scope:
         st.query_params[_QUERY_PARAM] = scope

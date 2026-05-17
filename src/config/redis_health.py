@@ -35,7 +35,7 @@ async def ping_async_redis_or_exit(
 ) -> None:
     """Ping the async client; on failure close it and raise ``SystemExit`` with guidance."""
     try:
-        await asyncio.wait_for(client.ping(), timeout=connect_timeout_s + 2.0)
+        await asyncio.wait_for(client.ping(), timeout=connect_timeout_s + 2.0)  # ty: ignore[invalid-argument-type]
     except (RedisError, OSError, TimeoutError) as exc:
         msg = format_redis_unreachable_message(url, exc)
         logger.critical("%s", " | ".join(msg.splitlines()))

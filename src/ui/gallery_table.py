@@ -294,7 +294,7 @@ def render_gallery_detail(
     )
     st.caption(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts_raw)))
     try:
-        _sid_opts = screen_id_select_options(area_doc, sid or "")
+        _sid_opts = screen_id_select_options(area_doc, sid or "")  # ty: ignore[invalid-argument-type]
     except Exception:
         _sid_opts = [""]
     _cur = (sid or "").strip()

@@ -96,7 +96,7 @@ def main() -> None:
         else:
             signal.signal(signal.SIGQUIT, signal_handler)
 
-    bootstrap._set_up_signal_handler = _set_up_signal_handler  # type: ignore[attr-defined]
+    bootstrap._set_up_signal_handler = _set_up_signal_handler  # type: ignore[attr-defined]  # ty: ignore[invalid-assignment]
     bootstrap.run(
         str(src_root() / "ui" / "app.py"),
         False,

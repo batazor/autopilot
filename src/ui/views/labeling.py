@@ -61,13 +61,13 @@ from ui.wiki_module import render_wiki_module_selector
 
 def _labeling_has_version_query_param(params: object) -> bool:
     try:
-        return "version" in params  # type: ignore[operator]
+        return "version" in params  # type: ignore[operator]  # ty: ignore[unsupported-operator]
     except Exception:
         return False
 
 
 def _labeling_query_version_raw(params: object) -> str:
-    raw = params.get("version")  # type: ignore[union-attr]
+    raw = params.get("version")  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
     if isinstance(raw, list):
         raw = raw[0] if raw else ""
     if raw is None:
@@ -189,7 +189,11 @@ def _handle_discard_pending_capture(*, ref_root: Path) -> None:
         doc["screens"] = entries
     if restored:
         ocr_norm = (Path("references") / restored).as_posix()
-        st.session_state.entry_idx = ensure_entry_for_reference_path(entries, ocr_norm)
+        st.session_state.entry_idx = ensure_entry_for_reference_path(
+            entries,
+            ocr_norm,
+            references_prefix=ref_root.relative_to(REPO_ROOT).as_posix(),
+        )
     else:
         st.session_state.entry_idx = 0 if entries else -1
 
@@ -302,7 +306,11 @@ if _labeling_has_version_query_param(params):
             and (ref_root / rs).is_file()
         ):
             ocr_norm = f"{ref_prefix}/{rs}".replace("\\", "/")
-            ei0 = ensure_entry_for_reference_path(entries0, ocr_norm)
+            ei0 = ensure_entry_for_reference_path(
+                entries0,
+                ocr_norm,
+                references_prefix=ref_prefix,
+            )
             if 0 <= ei0 < len(entries0):
                 ent0 = entries0[ei0]
                 if isinstance(ent0, dict):
@@ -656,7 +664,7 @@ if write_crops:
                 written, warns = export_all_region_crops_for_area_doc(
                     doc,
                     repo_root=REPO_ROOT,
-                    progress=lambda x: prog.progress(x),
+                    progress=lambda x: prog.progress(x),  # ty: ignore[invalid-argument-type]
                 )
             except (OSError, ValueError) as e:
                 status.update(label=f"Crop export failed: {e}", state="error")

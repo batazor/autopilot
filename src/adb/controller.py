@@ -620,7 +620,7 @@ class AdbController:
         try:
             raw = _redis().get(current_key)
             if raw:
-                doc = json.loads(raw)
+                doc = json.loads(raw)  # ty: ignore[invalid-argument-type]
                 doc["executed_at"] = time.time()
                 doc["status"] = "executing"
                 _redis().set(

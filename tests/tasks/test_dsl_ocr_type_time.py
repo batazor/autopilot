@@ -59,7 +59,7 @@ def test_parse_hms_valid(text: str, expected: int) -> None:
     ],
 )
 def test_parse_hms_invalid(text: object) -> None:
-    assert _parse_hms_to_seconds(text) is None  # type: ignore[arg-type]
+    assert _parse_hms_to_seconds(text) is None  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
 
 def _scenario_root(tmp_path: Path) -> Path:

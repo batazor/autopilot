@@ -42,7 +42,7 @@ def _module_labels(ctxs: list[WikiModuleContext]) -> list[str]:
 def _index_for_key(ctxs: list[WikiModuleContext], key: str) -> int:
     scope = normalize_module_scope(key)
     for i, c in enumerate(ctxs):
-        if c.storage_key == scope:
+        if c.storage_key == scope or c.module_id == scope:
             return i
     return 0
 

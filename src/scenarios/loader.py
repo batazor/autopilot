@@ -35,7 +35,7 @@ def _is_declarative_scenario_doc(raw: object) -> bool:
     """
     if not isinstance(raw, dict):
         return False
-    steps = raw.get("steps")
+    steps = raw.get("steps")  # ty: ignore[invalid-argument-type]
     if not isinstance(steps, list) or not steps:
         return False
 
@@ -47,7 +47,7 @@ def _is_declarative_scenario_doc(raw: object) -> bool:
     return True
 
 
-def _observer_for_platform() -> Observer:
+def _observer_for_platform() -> Observer:  # ty: ignore[invalid-type-form]
     """macOS FSEvents can error with "already scheduled" if the same tree is watched twice
     (e.g. scheduler restart without tearing down the previous native watch). Polling avoids that.
     """
@@ -102,7 +102,7 @@ class ScenarioLoader:
             self._paths = list(path)
         self._scenarios: list[Scenario] = []
         self._lock = threading.RLock()
-        self._observers: list[Observer] = []
+        self._observers: list[Observer] = []  # ty: ignore[invalid-type-form]
         self._on_reload: Callable[[], None] | None = None
         self.reload(fire_callback=False)
 

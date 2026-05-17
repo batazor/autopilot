@@ -20,7 +20,7 @@ async def test_pop_due_blocks_player_bound_scenario_when_active_player_missing(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     # active_player is missing/empty by default
     await q.schedule(
@@ -43,7 +43,7 @@ async def test_pop_due_allows_device_level_scenario_when_active_player_missing(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     await q.schedule(
         task_id="t-who",
@@ -66,7 +66,7 @@ async def test_pop_due_allows_template_device_level_scenario_when_active_player_
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     await q.schedule(
         task_id="t-onboarding",
@@ -87,7 +87,7 @@ async def test_pop_due_allows_template_device_level_scenario_when_active_player_
 @pytest.mark.asyncio
 async def test_pop_due_blocks_all_scenarios_while_loading(redis_async: object) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     await q.schedule(
         task_id="t-who-loading",
@@ -109,7 +109,7 @@ async def test_pop_due_prefers_device_level_when_player_bound_outranks(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     # Higher-priority routine task must NOT preempt seed when player is unknown.
     now = time.time()
@@ -144,7 +144,7 @@ async def test_pop_due_releases_player_bound_scenario_once_active_player_set(
     redis_async: object,
 ) -> None:
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     # Mimic who_i_am writing active_player on instance state.
     await r.hset("wos:instance:bs1:state", mapping={"active_player": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

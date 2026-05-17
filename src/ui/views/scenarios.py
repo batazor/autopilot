@@ -190,7 +190,7 @@ def _purge_disabled_in_redis(
     if not scenario_ids:
         return ""
     purge = purge_scenarios_from_redis(
-        client,  # type: ignore[arg-type]
+        client,  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
         scenario_ids=scenario_ids,
         player_ids=_all_player_ids(settings),
         instance_ids=[inst.instance_id for inst in settings.instances],
@@ -397,7 +397,7 @@ with st.sidebar:
         help="Limit **Scenario files** and **Cron jobs** lists. Empty = all folders.",
     )
 _selected_folders: set[str] = {
-    _folder_label_to_name[lab] for lab in (_folder_pick or []) if lab in _folder_label_to_name
+    _folder_label_to_name[lab] for lab in (_folder_pick or []) if lab in _folder_label_to_name  # ty: ignore[invalid-argument-type]
 }
 
 path_by_file: dict[str, Path] = {}

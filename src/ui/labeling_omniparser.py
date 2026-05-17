@@ -168,7 +168,7 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                     proposal_regions, crop_name_reused = reuse_proposal_names_from_existing_crops(
                         pil_run,
                         proposal_regions,
-                        current_regions(),
+                        current_regions(),  # ty: ignore[invalid-argument-type]
                     )
                     (
                         proposal_regions,
@@ -176,7 +176,7 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                         current_overlap_duplicate_dropped,
                     ) = reuse_proposal_names_from_overlapping_regions(
                         proposal_regions,
-                        current_regions(),
+                        current_regions(),  # ty: ignore[invalid-argument-type]
                     )
                     (
                         proposal_regions,
@@ -277,10 +277,10 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 existing = current_regions()
                 merged, added, aliased, skipped_ix = merge_detected_regions(
                     merge_mode=mode_apply,
-                    existing=existing,
+                    existing=existing,  # ty: ignore[invalid-argument-type]
                     proposed_regions=preg,
                 )
-                set_current_regions(merged)
+                set_current_regions(merged)  # ty: ignore[invalid-argument-type]
                 st.session_state.canvas_rev = int(st.session_state.get("canvas_rev", 0)) + 1
                 applied_msg = (
                     f"Applied ({mode_apply}): **{added}** region(s) added / replaced; "

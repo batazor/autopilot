@@ -232,6 +232,7 @@ async def test_scan_heroes_grid_three_unlocked_with_red_dots_persisted(
     )
 
     flat = store.captured_flat
+    assert flat is not None
     unlocked_with_dot = {
         hid for hid, entry in flat.items()
         if entry["available"] is True and entry["red_dot"] is True
@@ -324,6 +325,7 @@ async def test_scan_heroes_grid_preserves_existing_level_on_locked_card(
         )
     )
 
+    assert store.captured_flat is not None
     entry = store.captured_flat["heroes.entries.jeronimo"]
     assert entry["level"] == 9
     assert entry["stars"] == 6
@@ -357,6 +359,7 @@ async def test_scan_heroes_grid_clears_stale_shard_counts_when_unlocked(
         )
     )
 
+    assert store.captured_flat is not None
     entry = store.captured_flat["heroes.entries.bahiti"]
     assert entry["available"] is True
     assert entry["level"] == 12
@@ -426,6 +429,7 @@ async def test_scan_heroes_grid_persists_shards_for_ready_to_recruit(
         )
     )
 
+    assert store.captured_flat is not None
     cloris = store.captured_flat["heroes.entries.cloris"]
     assert cloris["available"] is True
     assert cloris["shards_current"] == 10

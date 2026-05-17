@@ -55,5 +55,5 @@ def test_jitter_stays_non_negative() -> None:
         def uniform(self, a: float, b: float) -> float:
             return a  # most negative
 
-    restart_backoff._rng = _Rng()  # type: ignore[assignment]
+    restart_backoff._rng = _Rng()  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     assert compute_restart_delay(1, base_seconds=4.0, jitter=2.0) >= 0.0

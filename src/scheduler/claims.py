@@ -36,9 +36,7 @@ class CooperativeClaims:
 
     async def release(self, task_type: str, player_id: str) -> None:
         key = self._key(task_type)
-        # ``redis.asyncio.Redis.eval`` is async — stubs union it with the sync
-        # return for source compat, which trips ty's await analyzer.
-        released = await self._redis.eval(_RELEASE_LUA, 1, key, player_id)  # ty: ignore[invalid-await]
+        released = await self._redis.eval(_RELEASE_LUA, 1, key, player_id)
         if released:
             logger.debug("Released cooperative task %s by %s", task_type, player_id)
 

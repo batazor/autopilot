@@ -20,6 +20,7 @@ from typing import Any, TypedDict, cast
 import cv2
 import numpy as np
 import streamlit as st
+import yaml
 from PIL import Image, ImageDraw
 
 from config.paths import repo_root
@@ -663,7 +664,10 @@ def save_json(path: Path, doc: AreaDocDict) -> int:
     removed = dedupe_redundant_version_regions(doc_dict)
     validate_unique_region_names(doc_dict)
     validate_versions(doc_dict)
-    content = json.dumps(doc, indent=2)
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        content = yaml.safe_dump(dict(doc), sort_keys=False, allow_unicode=True)
+    else:
+        content = json.dumps(doc, indent=2)
     with tempfile.NamedTemporaryFile(
         "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
     ) as f:
@@ -676,7 +680,11 @@ def save_json(path: Path, doc: AreaDocDict) -> int:
 def load_json(path: Path) -> AreaDocDict:
     if not path.exists():
         return default_area_doc([])
-    raw = json.loads(path.read_text(encoding="utf-8"))
+    raw_text = path.read_text(encoding="utf-8")
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        raw = yaml.safe_load(raw_text)
+    else:
+        raw = json.loads(raw_text)
     return normalize_area_file(raw)
 
 
@@ -2498,26 +2506,51 @@ def set_current_regions(regions: list[RegionDict]) -> None:
     st.session_state[LABELING_AREA_DIRTY] = True
 
 
-def ensure_entry_for_reference_path(entries: list[AreaEntryDict], ocr_repo_rel: str) -> int:
-    """Find or create ``area.json`` entry whose ``ocr`` matches ``references/...`` path."""
+def _normalize_references_prefix(references_prefix: str) -> str:
+    return references_prefix.replace("\\", "/").strip().strip("/") or "references"
+
+
+def _module_local_ocr_for_reference_path(ocr_repo_rel: str, references_prefix: str) -> str:
+    ocr_norm = ocr_repo_rel.replace("\\", "/").strip()
+    prefix = _normalize_references_prefix(references_prefix)
+    if prefix != "references" and ocr_norm.startswith(f"{prefix}/"):
+        return f"references/{ocr_norm.removeprefix(f'{prefix}/')}"
+    return ocr_norm
+
+
+def _resolve_ocr_path_in_reference_context(ocr_rel: str, references_prefix: str) -> Path:
+    raw = ocr_rel.replace("\\", "/").strip()
+    path = Path(raw)
+    if path.is_absolute():
+        return path.resolve()
+    prefix = _normalize_references_prefix(references_prefix)
+    if prefix != "references" and raw.startswith("references/"):
+        return (REPO_ROOT / prefix / raw.removeprefix("references/")).resolve()
+    return (REPO_ROOT / raw).resolve()
+
+
+def ensure_entry_for_reference_path(
+    entries: list[AreaEntryDict],
+    ocr_repo_rel: str,
+    *,
+    references_prefix: str = "references",
+) -> int:
+    """Find or create an entry whose ``ocr`` points at the selected reference PNG."""
     ocr_norm = ocr_repo_rel.replace("\\", "/").strip()
     target = (REPO_ROOT / ocr_norm).resolve()
     for i, e in enumerate(entries):
         raw = str(e.get("ocr") or "").strip()
         if not raw:
             continue
-        p = Path(raw)
-        if not p.is_absolute():
-            p = REPO_ROOT / p
         try:
-            if p.resolve() == target:
+            if _resolve_ocr_path_in_reference_context(raw, references_prefix) == target:
                 return i
         except OSError:
             continue
     new_e: AreaEntryDict = {
         "id": _next_entry_id(entries),
         "screen_id": "",
-        "ocr": ocr_norm,
+        "ocr": _module_local_ocr_for_reference_path(ocr_norm, references_prefix),
         "regions": [],
     }
     entries.append(new_e)
@@ -2714,7 +2747,11 @@ def render_area_annotator_ui(
             # Pending captures live under `references/temporal/` and should not create `area.json` entries.
             _is_temporal = "/temporal/" in effective_forced_ref.replace("\\", "/")
             if not _is_temporal:
-                ei_new = ensure_entry_for_reference_path(entries, effective_forced_ref)
+                ei_new = ensure_entry_for_reference_path(
+                    entries,
+                    effective_forced_ref,
+                    references_prefix=labeling_references_prefix,
+                )
                 st.session_state.entry_idx = ei_new
             prev_ref = st.session_state.get(ANNOT_LABELING_REF)
             if prev_ref != effective_forced_ref:
@@ -2768,8 +2805,10 @@ def render_area_annotator_ui(
             if pending:
                 load_path = Path(pending)
             elif image_rel:
-                cand = Path(image_rel)
-                load_path = cand if cand.is_file() else (REPO_ROOT / cand)
+                load_path = _resolve_ocr_path_in_reference_context(
+                    str(image_rel),
+                    labeling_references_prefix,
+                )
 
             if load_path and load_path.is_file():
                 try:

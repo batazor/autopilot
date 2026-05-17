@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -502,7 +503,7 @@ def find_and_tap_hero(
     max_swipes: int = 3,
     swipe_delta: int = _DEFAULT_SWIPE_DELTA,
     swipe_duration_ms: int = _DEFAULT_SWIPE_DURATION_MS,
-    on_scan: callable[[dict[str, HeroMatch]], None] | None = None,
+    on_scan: Callable[[dict[str, HeroMatch]], None] | None = None,
 ) -> bool:
     """Find ``hero_id`` on the heroes roster and tap its portrait.
 

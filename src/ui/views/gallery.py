@@ -57,7 +57,7 @@ def _set_screen_id_for_ref(
             continue
         if any(
             r == ref_rel
-            for r, _ in _refs_from_screen_entry(e, references_prefix=references_prefix)
+            for r, _ in _refs_from_screen_entry(e, references_prefix=references_prefix)  # ty: ignore[invalid-argument-type]
         ):
             target = e
             break
@@ -106,7 +106,7 @@ def _load_area_doc_cached(mtime: float, area_path_str: str) -> dict[str, Any]:
     if not area_path.is_file():
         return {}
     try:
-        return load_json(area_path)
+        return load_json(area_path)  # ty: ignore[invalid-return-type]
     except Exception:
         return {}
 
@@ -673,7 +673,7 @@ with st.sidebar:
         "Empty = all nodes.",
     )
 _selected_nodes: set[str] = {
-    _node_label_to_id[lab] for lab in (_node_pick or []) if lab in _node_label_to_id
+    _node_label_to_id[lab] for lab in (_node_pick or []) if lab in _node_label_to_id  # ty: ignore[invalid-argument-type]
 }
 
 ql = q.strip().lower()

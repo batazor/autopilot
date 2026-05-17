@@ -82,7 +82,7 @@ class ORToolsUpgradeOptimizer:
         map; at most one candidate per group is selected.
         """
         model = cp_model.CpModel()
-        x = {c.id: model.NewBoolVar(c.id) for c in candidates}
+        x = {c.id: model.NewBoolVar(c.id) for c in candidates}  # ty: ignore[unresolved-attribute]
 
         # Resource capacities: Σ cost[r] * x ≤ capacity[r] for every
         # resource any candidate touches. Resources missing from
@@ -102,18 +102,18 @@ class ORToolsUpgradeOptimizer:
             pairs = [(amount, var) for amount, var in pairs if amount > 0]
             if not pairs:
                 continue
-            model.Add(sum(amount * var for amount, var in pairs) <= cap)
+            model.Add(sum(amount * var for amount, var in pairs) <= cap)  # ty: ignore[unresolved-attribute]
 
         for child_id, parent_id in implications:
             if child_id in x and parent_id in x:
-                model.Add(x[child_id] <= x[parent_id])
+                model.Add(x[child_id] <= x[parent_id])  # ty: ignore[unresolved-attribute]
 
         for ids in (mutex_groups or {}).values():
             in_model = [cid for cid in ids if cid in x]
             if in_model:
-                model.Add(sum(x[cid] for cid in in_model) <= 1)
+                model.Add(sum(x[cid] for cid in in_model) <= 1)  # ty: ignore[unresolved-attribute]
 
-        model.Maximize(sum(int(scores.get(c.id, 0)) * x[c.id] for c in candidates))
+        model.Maximize(sum(int(scores.get(c.id, 0)) * x[c.id] for c in candidates))  # ty: ignore[unresolved-attribute]
 
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.time_limit_seconds

@@ -446,7 +446,7 @@ class InstanceWorkerTasksMixin(_Base):
         # stopped instead of restarting at step 0.
         meta = result.metadata or {}
         try:
-            resume_step = int(meta.get("resume_from_step_index") or 0)
+            resume_step = int(meta.get("resume_from_step_index") or 0)  # ty: ignore[invalid-argument-type]
         except (TypeError, ValueError):
             resume_step = 0
         if resume_step < 0:

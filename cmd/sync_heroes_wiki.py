@@ -50,7 +50,7 @@ def _extract_hero_links(index_html: str) -> dict[str, str]:
     for a in soup.find_all("a"):
         if not isinstance(a, Tag):
             continue
-        href = (a.get("href") or "").strip()
+        href = (a.get("href") or "").strip()  # ty: ignore[unresolved-attribute]
         text = (a.get_text(" ", strip=True) or "").strip()
         if not href or not text:
             continue

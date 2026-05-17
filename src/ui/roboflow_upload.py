@@ -48,7 +48,7 @@ def _optional_csv_env(name: str) -> list[str] | None:
     if not raw:
         return None
     values = [part.strip() for part in raw.split(",") if part.strip()]
-    return values or None
+    return values or None  # ty: ignore[invalid-return-type]
 
 
 def load_roboflow_upload_config() -> tuple[RoboflowUploadConfig | None, list[str]]:

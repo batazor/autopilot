@@ -126,7 +126,7 @@ class Alliance(BaseModel):
     shop: dict[str, object] = Field(default_factory=dict)
     chests: AllianceSection = Field(default_factory=AllianceSection)
     battle: AllianceSection = Field(default_factory=AllianceSection)
-    tech: dict[str, object] = Field(default_factory=lambda: {"isNotify": False, "favorite": True})
+    tech: dict[str, object] = Field(default_factory=lambda: {"isNotify": False, "favorite": True})  # ty: ignore[invalid-assignment]
     help: AllianceSection = Field(default_factory=AllianceSection)
 
 
@@ -172,7 +172,7 @@ class TundraAdventure(BaseModel):
 
 
 class FrostyFortune(BaseModel):
-    state: dict[str, object] = Field(default_factory=lambda: {"isExist": False})
+    state: dict[str, object] = Field(default_factory=lambda: {"isExist": False})  # ty: ignore[invalid-assignment]
 
 
 class RecruitmentEvent(BaseModel):
@@ -316,7 +316,7 @@ class GamerState(BaseModel):
     troops: Troops = Field(default_factory=Troops)
     tech: Tech = Field(default_factory=Tech)
     mail: Mail = Field(default_factory=Mail)
-    shop: dict[str, object] = Field(default_factory=lambda: {"isnotify": False})
+    shop: dict[str, object] = Field(default_factory=lambda: {"isnotify": False})  # ty: ignore[invalid-assignment]
     dailyMissions: DailyMissions = Field(default_factory=DailyMissions)
     growthMissions: GrowthMissions = Field(default_factory=GrowthMissions)
     chief: Chief = Field(default_factory=Chief)

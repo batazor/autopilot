@@ -56,7 +56,7 @@ def _extract_requirements_table_images(html: str) -> list[str]:
         for img in table.find_all("img"):
             if not isinstance(img, Tag):
                 continue
-            src = (img.get("src") or "").strip()
+            src = (img.get("src") or "").strip()  # ty: ignore[unresolved-attribute]
             if src.startswith("//"):
                 src = "https:" + src
             if src.startswith("/"):
@@ -74,7 +74,7 @@ def _extract_page_images(html: str) -> list[str]:
     for img in soup.find_all("img"):
         if not isinstance(img, Tag):
             continue
-        src = (img.get("src") or "").strip()
+        src = (img.get("src") or "").strip()  # ty: ignore[unresolved-attribute]
         if src.startswith("//"):
             src = "https:" + src
         if src.startswith("http"):
@@ -107,8 +107,8 @@ def _extract_hero_icons(index_html: str) -> dict[str, str]:
         img = card.find("img")
         if not isinstance(a, Tag) or not isinstance(img, Tag):
             continue
-        href = (a.get("href") or "").strip()
-        src = (img.get("src") or img.get("data-src") or img.get("data-original") or "").strip()
+        href = (a.get("href") or "").strip()  # ty: ignore[unresolved-attribute]
+        src = (img.get("src") or img.get("data-src") or img.get("data-original") or "").strip()  # ty: ignore[unresolved-attribute]
         if not href or not src:
             continue
         if src.startswith("//"):
@@ -141,7 +141,7 @@ def _download_hero_icons(client: httpx.Client, repo: Path) -> int:
     assets_dir = repo / "db" / "assets" / "wiki" / "heroes"
     downloaded = 0
     missing: list[str] = []
-    for it in entries:
+    for it in entries:  # ty: ignore[not-iterable]
         if not isinstance(it, dict):
             continue
         hid = str(it.get("id") or "").strip()

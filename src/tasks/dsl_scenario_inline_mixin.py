@@ -168,7 +168,7 @@ class DslScenarioInlineMixin(_Base):
             return
         ctx = DslExecContext(
             redis_client=self.redis_client,
-            player_id=self.player_id,
+            player_id=self.player_id,  # ty: ignore[invalid-argument-type]
             instance_id=instance_id,
             args=dict(args or {}),
         )
@@ -719,7 +719,7 @@ class DslScenarioInlineMixin(_Base):
                         if not isinstance(inner, dict):
                             continue
                         result = await self._run_inline_step(
-                            inner,
+                            inner,  # ty: ignore[invalid-argument-type]
                             actions=actions,
                             area_doc=area_doc,
                             repo_root=repo_root,
@@ -806,14 +806,14 @@ class DslScenarioInlineMixin(_Base):
                         # inner steps can be conditionally skipped without
                         # blocking the whole loop.
                         if not await _dsl_cond_allows_step(
-                            inner,
+                            inner,  # ty: ignore[invalid-argument-type]
                             instance_id,
                             self.redis_client,
                             state_flat=self._state_flat(),
                         ):
                             continue
                         result = await self._run_inline_step(
-                            inner,
+                            inner,  # ty: ignore[invalid-argument-type]
                             actions=actions,
                             area_doc=area_doc,
                             repo_root=repo_root,
@@ -928,7 +928,7 @@ class DslScenarioInlineMixin(_Base):
                         else f"else.{else_idx}"
                     )
                     result = await self._run_inline_step(
-                        else_step,
+                        else_step,  # ty: ignore[invalid-argument-type]
                         actions=actions,
                         area_doc=area_doc,
                         repo_root=repo_root,
@@ -1075,7 +1075,7 @@ class DslScenarioInlineMixin(_Base):
                 await _enqueue_scenario(
                     redis_async=self.redis_client,
                     instance_id=instance_id,
-                    player_id=self.player_id,
+                    player_id=self.player_id,  # ty: ignore[invalid-argument-type]
                     scenario=name,
                     priority=pr,
                     run_at=time.time() + max(0.0, delay_s),
@@ -1139,7 +1139,7 @@ class DslScenarioInlineMixin(_Base):
                         else f"{branch_label}.{inner_idx}"
                     )
                     result = await self._run_inline_step(
-                        inner,
+                        inner,  # ty: ignore[invalid-argument-type]
                         actions=actions,
                         area_doc=area_doc,
                         repo_root=repo_root,

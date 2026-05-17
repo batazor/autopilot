@@ -273,7 +273,7 @@ def _skill_level_cap(ctx: BalanceContext, star_progress: int) -> int:
     if not isinstance(table, dict):
         return _SKILL_MAX_LEVEL
     try:
-        return int(table.get(star_level, _SKILL_MAX_LEVEL))
+        return int(table.get(star_level, _SKILL_MAX_LEVEL))  # ty: ignore[no-matching-overload]
     except (TypeError, ValueError):
         return _SKILL_MAX_LEVEL
 

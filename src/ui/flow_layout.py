@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, cast
 
 import networkx as nx
-from streamlit_react_flow import FlowEdge, FlowNode
+from streamlit_react_flow import FlowEdge, FlowNode  # ty: ignore[unresolved-import]
 
 REGION_BG: dict[str, str] = {
     "Tundra Adventure": "#dbeafe",
@@ -142,7 +142,7 @@ def layout_hierarchical(
         generations = list(nx.topological_generations(g))
         raw: dict[str, tuple[float, float]] = {}
         for row, layer in enumerate(generations):
-            ordered = sorted(layer, key=str)
+            ordered = cast("list[str]", sorted(layer, key=str))
             n_l = len(ordered)
             row_width = max((n_l - 1) * slot_w, 0)
             x0 = -row_width / 2
@@ -238,7 +238,7 @@ def build_flow_graph(
     flow_edges: list[FlowEdge] = []
     for i, (src, dst) in enumerate(pairs):
         pair = (src, dst)
-        edge: FlowEdge = {
+        edge: dict[str, Any] = {
             "id": f"e{i}",
             "source": src,
             "target": dst,
@@ -322,7 +322,7 @@ def build_scenario_step_flow(
 
     flow_edges: list[FlowEdge] = []
     for i in range(n - 1):
-        edge: FlowEdge = {
+        edge: dict[str, Any] = {
             "id": f"se{i}",
             "source": f"step-{i}",
             "target": f"step-{i + 1}",

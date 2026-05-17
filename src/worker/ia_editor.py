@@ -91,7 +91,7 @@ def main() -> None:
         stop_immediately_for_testing=False,
     )
     try:
-        server = bootstrap._server  # type: ignore[attr-defined]
+        server = bootstrap._server  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         if server is not None:
             _set_up_signal_handler(server)
     except Exception:

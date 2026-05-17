@@ -64,7 +64,7 @@ async def test_pop_due_skips_race_loss_and_claims_next(
     pop_due must skip it (zrem=0) and claim the second-ranked item instead.
     """
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     now = time.time()
     # Real item — only this one is actually in the sorted set.
@@ -125,7 +125,7 @@ async def test_pop_due_returns_none_when_all_candidates_lost(
 ) -> None:
     """Every ranked candidate has already been popped by a peer → None."""
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     g1_raw, g1_data = _ghost(task_id="g1")
     g2_raw, g2_data = _ghost(task_id="g2", priority=10)
@@ -160,7 +160,7 @@ async def test_concurrent_pop_due_yields_each_task_once(redis_async: object) -> 
     import asyncio
 
     r = redis_async
-    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]
+    q = RedisQueue(r, get_settings())  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     now = time.time()
     n = 5

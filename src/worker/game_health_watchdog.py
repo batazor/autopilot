@@ -12,6 +12,7 @@ import signal
 import sys
 import threading
 import time
+from typing import Any
 
 import redis
 
@@ -244,9 +245,11 @@ def run_forever(stop: threading.Event | None = None) -> None:
             is_live = serial_canon in live_canonical
 
             try:
-                state_row = r.hgetall(key) or {}
+                raw_state = r.hgetall(key)
             except redis.RedisError:
-                state_row = {}
+                raw_state = {}
+            # Sync ``hgetall`` is typed ``Awaitable | dict`` in redis-py stubs.
+            state_row: dict[Any, Any] = raw_state if isinstance(raw_state, dict) else {}
             is_paused = str(state_row.get("paused") or "").strip() == "1"
             was_auto_paused = str(state_row.get("auto_paused") or "").strip() == "1"
 

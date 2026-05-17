@@ -104,7 +104,7 @@ def test_export_all_writes_one_crop_per_screen(tmp_path: Path) -> None:
         ],
     }
 
-    written, warns = export_all_region_crops_for_area_doc(doc, repo_root=tmp_path)
+    written, warns = export_all_region_crops_for_area_doc(doc, repo_root=tmp_path)  # ty: ignore[invalid-argument-type]
     assert len(written) == 2
     assert (crop_dir / "one_r1.png").is_file()
     assert (crop_dir / "two_r2.png").is_file()
@@ -117,7 +117,7 @@ def test_crop_path_uses_default_ocr_stem_for_base_region(tmp_path: Path) -> None
         "regions": [{"name": "mailBox", "bbox": {}}],
     }
 
-    p = crop_path_for_entry_region(tmp_path, entry, "mailBox")
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox")  # ty: ignore[invalid-argument-type]
 
     assert p == tmp_path / "references" / "crop" / "main_city_v1_mailBox.png"
 
@@ -136,7 +136,7 @@ def test_crop_path_picks_version_ocr_for_version_region(tmp_path: Path) -> None:
         ],
     }
 
-    p = crop_path_for_entry_region(tmp_path, entry, "mailBox", active_version="v2")
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox", active_version="v2")  # ty: ignore[invalid-argument-type]
 
     assert p == tmp_path / "references" / "crop" / "main_city_v2_mailBox.png"
 
@@ -154,7 +154,7 @@ def test_crop_path_falls_back_to_default_ocr_when_version_missing_image(tmp_path
         ],
     }
 
-    p = crop_path_for_entry_region(tmp_path, entry, "mailBox", active_version="v2")
+    p = crop_path_for_entry_region(tmp_path, entry, "mailBox", active_version="v2")  # ty: ignore[invalid-argument-type]
 
     assert p == tmp_path / "references" / "crop" / "main_city_v1_mailBox.png"
 

@@ -496,7 +496,7 @@ def _render_scenario_history(
             )
             sel_rows = []
             with suppress(AttributeError, KeyError):
-                sel_rows = list(event.selection.get("rows", []))  # type: ignore[union-attr]
+                sel_rows = list(event.selection.get("rows", []))  # type: ignore[union-attr]  # ty: ignore[unresolved-attribute]
             if sel_rows:
                 row_idx = int(sel_rows[0])
                 sel_row = last.steps_trace[row_idx] if 0 <= row_idx < len(last.steps_trace) else {}

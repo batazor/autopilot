@@ -59,6 +59,6 @@ def dominant_color_label_bgr(patch_bgr: np.ndarray) -> tuple[ColorLabel, dict[st
         "green": c_green / n,
         "gray": c_gray / n,
     }
-    dominant: ColorLabel = max(shares.items(), key=lambda kv: kv[1])[0]  # type: ignore[assignment]
+    dominant: ColorLabel = max(shares.items(), key=lambda kv: kv[1])[0]  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     return dominant, shares
 

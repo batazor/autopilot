@@ -644,6 +644,21 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "main_city.icon_search",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 65.27799227799228,
+            "y": 7.608695652173913,
+            "width": 32.63899613899614,
+            "height": 33.04673913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
         }
       ],
       "versions": [
@@ -3272,149 +3287,6 @@
             "y": 5.434782608695652,
             "width": 18.0,
             "height": 6.0,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        }
-      ]
-    },
-    {
-      "id": 54,
-      "screen_id": "event.trials",
-      "ocr": "references/page.trials.png",
-      "regions": [
-        {
-          "name": "trial.task.1",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 3.8223938223938223,
-            "y": 48.47826086956522,
-            "width": 30.6003861003861,
-            "height": 5.5,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.task.2",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 41.66023166023166,
-            "y": 48.47826086956522,
-            "width": 23.7992277992278,
-            "height": 5.4,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.task.3",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 68.68725868725869,
-            "y": 48.47826086956522,
-            "width": 27.2007722007722,
-            "height": 5.3,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.day.1",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 10.193050193050192,
-            "y": 37.93478260869565,
-            "width": 13.3996138996139,
-            "height": 7.3,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.day.2",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 26.21621621621622,
-            "y": 37.82608695652174,
-            "width": 15.2007722007722,
-            "height": 7.4,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.day.3",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 44.55598455598456,
-            "y": 37.608695652173914,
-            "width": 14.200772200772201,
-            "height": 7.6,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.day.4",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 61.351351351351354,
-            "y": 37.391304347826086,
-            "width": 15.0,
-            "height": 7.999999999999999,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.day.5",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 79.34362934362935,
-            "y": 37.28260869565217,
-            "width": 14.6003861003861,
-            "height": 7.900000000000001,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "trial.box",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 85.9073359073359,
-            "y": 26.847826086956523,
-            "width": 11.519305019305019,
-            "height": 4.293478260869565,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

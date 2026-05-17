@@ -50,6 +50,24 @@ def test_module_local_references_prefix(tmp_path: Path) -> None:
     assert vip.references_prefix == "modules/vip/references"
 
 
+def test_nested_module_context_uses_storage_key_and_area_yaml(tmp_path: Path) -> None:
+    mod = tmp_path / "modules" / "events" / "trials"
+    (mod / "references").mkdir(parents=True)
+    (mod / "area.yaml").write_text("screens: []\n", encoding="utf-8")
+    (mod / "module.yaml").write_text(
+        yaml.safe_dump({"id": "trials", "title": "Trials", "references": "references"}),
+        encoding="utf-8",
+    )
+
+    trials = get_wiki_module(tmp_path, "events/trials")
+
+    assert trials.module_id == "trials"
+    assert trials.storage_key == "events/trials"
+    assert trials.references_prefix == "modules/events/trials/references"
+    assert trials.area_path.resolve() == (mod / "area.yaml").resolve()
+    assert get_wiki_module(tmp_path, "trials").storage_key == "events/trials"
+
+
 def test_core_module_defaults_to_root_area_and_references(tmp_path: Path) -> None:
     (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
     (tmp_path / "references").mkdir()

@@ -161,8 +161,8 @@ async def test_navigation_failed_records_trace_row(
     assert result.success is False
     assert result.metadata["reason"] == "navigation_failed"
     trace = result.metadata["steps_trace"]
-    assert len(trace) == 1, f"expected single explanatory row, got {trace!r}"
-    row = trace[0]
+    assert len(trace) == 1, f"expected single explanatory row, got {trace!r}"  # ty: ignore[invalid-argument-type]
+    row = trace[0]  # ty: ignore[not-subscriptable]
     assert row["status"] == "early_exit"
     assert row["reason"] == "navigation_failed"
     assert row["target"] == "event.trials"
@@ -302,9 +302,9 @@ async def test_resume_hydrates_trace_from_prior_slice(
 
     assert result.success is True
     trace = result.metadata["steps_trace"]
-    assert len(trace) >= 3
-    assert trace[0] == prior[0]
-    assert trace[1] == prior[1]
+    assert len(trace) >= 3  # ty: ignore[invalid-argument-type]
+    assert trace[0] == prior[0]  # ty: ignore[not-subscriptable]
+    assert trace[1] == prior[1]  # ty: ignore[not-subscriptable]
     # Successful completion wipes the persisted trace via _clear_step_context.
     raw = await redis_async.hget(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state", "last_active_scenario_trace"
@@ -361,7 +361,7 @@ async def test_nested_steps_emit_trace_rows_with_path_indices(
     assert result.success is True
     trace = result.metadata["steps_trace"]
 
-    triples = [(r["i"], r["summary"], r["status"]) for r in trace]
+    triples = [(r["i"], r["summary"], r["status"]) for r in trace]  # ty: ignore[not-iterable]
 
     # Per-iteration marker rows.
     assert ("0.0", "iter 0", "iter") in triples
@@ -372,7 +372,7 @@ async def test_nested_steps_emit_trace_rows_with_path_indices(
     assert ("0.1.0", "wait:0s", "ok") in triples
     assert ("0.1.1", "wait:0s", "ok") in triples
     # Final top-level aggregate row with iterations count.
-    repeat_rows = [r for r in trace if r["i"] == "0" and r["status"] == "ok"]
+    repeat_rows = [r for r in trace if r["i"] == "0" and r["status"] == "ok"]  # ty: ignore[not-iterable]
     assert len(repeat_rows) == 1
     assert repeat_rows[0]["iterations"] == 2
 

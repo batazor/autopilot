@@ -195,8 +195,8 @@ def test_bear_threshold_bonus_applies_to_joiner_only(ctx):
         and c.payload.get("to_level") == 5
         and c.payload.get("track") == "expedition"
     )
-    br_jasser = score_candidate(jasser_skill, ctx, state, server_age_days=10)
-    br_bahiti = score_candidate(bahiti_skill, ctx, state, server_age_days=10)
+    br_jasser = score_candidate(jasser_skill, ctx, state, server_age_days=10)  # ty: ignore[invalid-argument-type]
+    br_bahiti = score_candidate(bahiti_skill, ctx, state, server_age_days=10)  # ty: ignore[invalid-argument-type]
     assert br_jasser.threshold_bonus > 0, "joiner should receive bear_join_skill_5 bonus"
     assert br_bahiti.threshold_bonus == 0, "core hero (no joiner tag) should not"
 
@@ -223,8 +223,8 @@ def test_score_resource_penalty_uses_capacity_resolver_for_manuals(ctx):
         and c.payload.get("slot") == 1
         and c.payload.get("to_level") == 5
     )
-    low = score_candidate(skill, ctx, low_manual_state, server_age_days=10)
-    high = score_candidate(skill, ctx, high_manual_state, server_age_days=10)
+    low = score_candidate(skill, ctx, low_manual_state, server_age_days=10)  # ty: ignore[invalid-argument-type]
+    high = score_candidate(skill, ctx, high_manual_state, server_age_days=10)  # ty: ignore[invalid-argument-type]
 
     assert high.resource_rarity_penalty < low.resource_rarity_penalty
     assert high.final_score > low.final_score
@@ -269,7 +269,7 @@ def test_unknown_resource_starves_candidate(ctx):
         "heroes.entries.molly.star_progress": 0,
         "chief.furnace_level": 25,
     }
-    result, prune, brs = solve_optimal(state, ctx, server_age_days=10)
+    result, prune, brs = solve_optimal(state, ctx, server_age_days=10)  # ty: ignore[invalid-argument-type]
     molly_star = next(
         (c for c in prune.kept if c.action == "star_tier_up" and c.hero_id == "molly"),
         None,
@@ -307,7 +307,7 @@ def test_apply_command_deducts_hero_xp(ctx, basic_state):
     )
     after = apply_command(basic_state, molly_level)
     assert (
-        int(after["resources.hero_xp"])
+        int(after["resources.hero_xp"])  # ty: ignore[invalid-argument-type]
         == int(basic_state["resources.hero_xp"]) - molly_level.costs[0].amount
     )
 
@@ -353,7 +353,7 @@ def test_reasons_flag_bear_threshold(ctx):
         and c.payload.get("slot") == 1
         and c.payload.get("to_level") == 5
     )
-    br = score_candidate(skill5, ctx, state, server_age_days=10)
+    br = score_candidate(skill5, ctx, state, server_age_days=10)  # ty: ignore[invalid-argument-type]
     reasons = generate_reasons(skill5, br, ctx, is_selected=True)
     assert "bear_joiner_threshold" in reasons
     assert "bear_joiner_hero" in reasons
@@ -369,7 +369,7 @@ def test_rejection_reason_falls_through_to_score(ctx):
     }
     cands = generate_candidates(state, ctx)
     star = next(c for c in cands if c.action == "star_tier_up" and c.hero_id == "molly")
-    br = score_candidate(star, ctx, state, server_age_days=10)
+    br = score_candidate(star, ctx, state, server_age_days=10)  # ty: ignore[invalid-argument-type]
     why = rejection_reason(star, br)
     # No mythic shards in state → final_score should be 0 → starved
     if br.final_score == 0 and br.base_value > 0:

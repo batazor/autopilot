@@ -865,7 +865,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     recruit_ready_heroes: list[str] = []
     for hid, match in hits.items():
         prev = existing_entries.get(hid)
-        entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
+        entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}  # ty: ignore[no-matching-overload]
 
         hero_def = registry.by_id(hid)
         if hero_def is not None:

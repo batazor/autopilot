@@ -163,7 +163,7 @@ def test_bbox_at_image_edge_abstains() -> None:
 
 def test_malformed_input_returns_false() -> None:
     assert not has_white_border_in_bbox_percent(
-        None, {"x": 10, "y": 10, "width": 10, "height": 10}  # type: ignore[arg-type]
+        None, {"x": 10, "y": 10, "width": 10, "height": 10}  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     )
     assert not has_white_border_in_bbox_percent(np.zeros((10, 10), dtype=np.uint8), {})
     assert not has_white_border_in_bbox_percent(
@@ -197,8 +197,8 @@ def test_slide_find_locates_row1_on_full_screen(fixture: Path) -> None:
     h, w = img.shape[:2]
     result = find_white_border_match_in_search_roi(img, None)
     assert result is not None, f"slide-find returned None on {fixture.name}"
-    cx_pct = float(result["cx_pct"])  # type: ignore[arg-type]
-    cy_pct = float(result["cy_pct"])  # type: ignore[arg-type]
+    cx_pct = float(result["cx_pct"])  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
+    cy_pct = float(result["cy_pct"])  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     cx_px = int(round(cx_pct / 100.0 * w))
     cy_px = int(round(cy_pct / 100.0 * h))
     assert _center_inside(cx_px, cy_px, _ROW1_TRUE_RECT_PX), (
@@ -237,7 +237,7 @@ def test_slide_find_respects_search_roi() -> None:
 
 
 def test_slide_find_malformed_input_returns_none() -> None:
-    assert find_white_border_match_in_search_roi(None) is None  # type: ignore[arg-type]
+    assert find_white_border_match_in_search_roi(None) is None  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     assert find_white_border_match_in_search_roi(
         np.zeros((10, 10), dtype=np.uint8)
     ) is None

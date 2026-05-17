@@ -288,10 +288,13 @@ def render_labeling_reference_column(
                                 if isinstance(entries, list):
                                     from ui.wiki_module import active_references_prefix
 
-                                    ocr = f"{active_references_prefix()}/{new_rel}".replace(
-                                        "\\", "/"
+                                    ref_prefix = active_references_prefix()
+                                    ocr = f"{ref_prefix}/{new_rel}".replace("\\", "/")
+                                    ei = ensure_entry_for_reference_path(
+                                        entries,
+                                        ocr,
+                                        references_prefix=ref_prefix,
                                     )
-                                    ei = ensure_entry_for_reference_path(entries, ocr)
                                     regs = st.session_state.get(LABELING_TEMPORAL_REGIONS)
                                     if isinstance(regs, list):
                                         entries[ei]["regions"] = regs  # type: ignore[index]
@@ -585,7 +588,7 @@ def delete_reference_completely(
     try:
         from ui.area_annotator import crop_path_for_entry_region
     except Exception:
-        crop_path_for_entry_region = None  # type: ignore[assignment]
+        crop_path_for_entry_region = None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
     for entry in doc.get("screens") or []:
         if not isinstance(entry, dict):

@@ -62,3 +62,14 @@ def test_module_reference_uses_module_crop_directory(tmp_path: Path) -> None:
 
     assert crop == tmp_path / "modules/vip/references/crop/page.vip_vip.claim.png"
     assert ref_path == tmp_path / ref_rel
+
+
+def test_nested_module_reference_uses_nested_module_crop_directory(tmp_path: Path) -> None:
+    ref_rel = "modules/events/trials/references/main_city.trials.png"
+
+    crop = exported_crop_png(tmp_path, ref_rel, "module.event.icon")
+
+    assert crop == (
+        tmp_path
+        / "modules/events/trials/references/crop/main_city.trials_module.event.icon.png"
+    )
