@@ -80,7 +80,7 @@ async def test_welcome_new_survivors_rehearses_main_city_to_welcome_in(
     assert await detector.detect_screen(welcome_in) == "isNewPeople"
     assert await detector.detect_screen(after_welcome) == "main_city"
 
-    await redis_async.hset(  # type: ignore[attr-defined]
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
         mapping={"active_player": "p1", "current_screen": "main_city"},
     )

@@ -35,7 +35,7 @@
   "src/tasks/dsl_match_mixin.py": 4,
   "src/tasks/dsl_scenario_execute_mixin.py": 2,
   "src/tasks/dsl_scenario_inline_mixin.py": 7,
-  "src/ui/area_annotator.py": 28,
+  "src/ui/area_annotator.py": 1,
   "src/ui/bot_services.py": 1,
   "src/ui/flow_layout.py": 8,
   "src/ui/gallery_table.py": 2,

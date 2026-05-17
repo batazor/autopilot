@@ -15,7 +15,7 @@ import tempfile
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import cv2
 import numpy as np
@@ -112,6 +112,11 @@ class RegionDict(TypedDict, total=False):
     Detection is purely programmatic via :mod:`layout.red_dot_detector` — no template,
     no per-region tuning. Without this flag, ``isRedDot`` errors with
     ``red_dot_capability_disabled`` to catch typos / unintended use."""
+    isSearch: bool
+    """When True, the region is matched via the full-frame cached matcher
+    (``isSearch`` overlay rule). Used by DSL ``match`` / ``while_match``
+    steps and overlay rules — see ``analysis.overlay_engine`` and
+    ``tasks.dsl_match_mixin``."""
 
 
 class VersionDict(TypedDict, total=False):
@@ -334,7 +339,10 @@ def crop_path_for_entry_region(
         return None
 
     if active_version:
-        ver_block = get_version_block(entry, active_version)
+        # ``get_version_block`` is typed ``dict[str, Any]``; TypedDicts are
+        # not implicit subtypes of ``dict[str, Any]`` in ty, so cast at the
+        # boundary rather than weakening the callee signature.
+        ver_block = get_version_block(cast("dict[str, Any]", entry), active_version)
         if ver_block is not None:
             for reg in ver_block.get("regions") or []:
                 if isinstance(reg, dict) and str(reg.get("name", "") or "").strip() == name:
@@ -434,8 +442,11 @@ def export_all_region_crops_for_area_doc(
         default_ocr = str(entry.get("ocr") or "").strip()
 
         base_regions_raw = entry.get("regions")
-        base_regions = (
-            [r for r in base_regions_raw if isinstance(r, dict)]
+        base_regions: list[RegionDict] = (
+            cast(
+                "list[RegionDict]",
+                [r for r in base_regions_raw if isinstance(r, dict)],
+            )
             if isinstance(base_regions_raw, list)
             else []
         )
@@ -454,8 +465,11 @@ def export_all_region_crops_for_area_doc(
             if not vid:
                 continue
             ver_regions_raw = ver.get("regions")
-            ver_regions = (
-                [r for r in ver_regions_raw if isinstance(r, dict)]
+            ver_regions: list[RegionDict] = (
+                cast(
+                    "list[RegionDict]",
+                    [r for r in ver_regions_raw if isinstance(r, dict)],
+                )
                 if isinstance(ver_regions_raw, list)
                 else []
             )
@@ -532,10 +546,15 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
     with st.status("Writing region crops…", expanded=True) as status:
         prog = st.progress(0)
         try:
+            def _bump_progress(x: float) -> None:
+                # ``st.progress(...)`` returns a DeltaGenerator; the
+                # ``Callable[[float], None]`` contract expects ``None``.
+                prog.progress(x)
+
             written, warns = export_all_region_crops_for_area_doc(
                 doc,
                 repo_root=REPO_ROOT,
-                progress=lambda x: prog.progress(x),
+                progress=_bump_progress,
             )
         except (OSError, ValueError) as e:
             status.update(label=f"Crop export failed: {e}", state="error")
@@ -605,15 +624,45 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
     raise ValueError("area.json must be a JSON array or an object with 'screens'")
 
 
+def strip_exist_region_types(doc: dict[str, Any]) -> int:
+    """Remove obsolete ``type`` from template-match regions."""
+    removed = 0
+    for screen in doc.get("screens") or []:
+        if not isinstance(screen, dict):
+            continue
+        region_groups: list[Any] = [screen.get("regions")]
+        versions = screen.get("versions")
+        if isinstance(versions, list):
+            region_groups.extend(
+                version.get("regions")
+                for version in versions
+                if isinstance(version, dict)
+            )
+        for regions in region_groups:
+            if not isinstance(regions, list):
+                continue
+            for region in regions:
+                if not isinstance(region, dict):
+                    continue
+                if str(region.get("action") or "").strip() == "exist" and "type" in region:
+                    region.pop("type", None)
+                    removed += 1
+    return removed
+
+
 def save_json(path: Path, doc: AreaDocDict) -> int:
     """Write ``area.json`` (wrapped format with ``fsm`` + ``screens``).
 
     Returns how many version-specific regions were dropped because they matched
     the base region (same geometry/options).
     """
-    removed = dedupe_redundant_version_regions(doc)
-    validate_unique_region_names(doc)
-    validate_versions(doc)
+    # ``AreaDocDict`` (TypedDict) is not implicitly assignable to ``dict[str, Any]``
+    # in ty; cast once at the boundary so the layout validators can run.
+    doc_dict = cast("dict[str, Any]", doc)
+    strip_exist_region_types(doc_dict)
+    removed = dedupe_redundant_version_regions(doc_dict)
+    validate_unique_region_names(doc_dict)
+    validate_versions(doc_dict)
     content = json.dumps(doc, indent=2)
     with tempfile.NamedTemporaryFile(
         "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
@@ -697,13 +746,13 @@ def _entry_region_names(entry: AreaEntryDict) -> list[str]:
     names: set[str] = set()
     for reg in entry.get("regions") or []:
         if isinstance(reg, dict):
-            names.update(region_names_for(reg))
+            names.update(region_names_for(cast("dict[str, Any]", reg)))
     for version in entry.get("versions") or []:
         if not isinstance(version, dict):
             continue
         for reg in version.get("regions") or []:
             if isinstance(reg, dict):
-                names.update(region_names_for(reg))
+                names.update(region_names_for(cast("dict[str, Any]", reg)))
     return sorted(names)
 
 
@@ -1149,6 +1198,11 @@ def _render_versions_block(
             if err:
                 st.error(err)
             else:
+                # The ``if new_id_norm is None or not VERSION_ID_RE.match(...)``
+                # branch above sets ``err`` in the None case, so reaching this
+                # arm guarantees ``new_id_norm`` is a non-empty str. Assert so
+                # ty can narrow it for the downstream call signatures.
+                assert new_id_norm is not None
                 # Atomic: bind the live preview FIRST. If anything is wrong (worker not running,
                 # target file collision), abort the whole add — no half-created version.
                 try:
@@ -1441,6 +1495,7 @@ def _render_regions_expander(
             threshold = st.number_input(
                 "threshold", min_value=0.0, max_value=1.0, value=float(reg.get("threshold", 0.9)), step=0.05
             )
+            rtype: str | None = None
             if action == "color_check":
                 # Show computed dominant color from the current screenshot so the user
                 # can see what the region "looks like" right now.
@@ -1468,7 +1523,7 @@ def _render_regions_expander(
                 cur_type = str(reg.get("type") or "").strip().lower()
                 idx_type = COLOR_TYPES.index(cur_type) if cur_type in COLOR_TYPES else 0
                 rtype = st.selectbox("expected color (type)", COLOR_TYPES, index=idx_type)
-            else:
+            elif action != "exist":
                 cur_type = str(reg.get("type") or "").strip().lower()
                 idx_type = TYPES.index(cur_type) if cur_type in TYPES else 1
                 rtype = st.selectbox("type", TYPES, index=idx_type)
@@ -1498,7 +1553,10 @@ def _render_regions_expander(
                 touched_restore.append((reg, old_name))
                 reg["name"] = new_name
                 reg["action"] = action
-                reg["type"] = rtype
+                if action == "exist":
+                    reg.pop("type", None)
+                elif rtype is not None:
+                    reg["type"] = rtype
                 reg["threshold"] = threshold
                 if has_red_dot_chk:
                     reg["has_red_dot"] = True
@@ -1566,7 +1624,7 @@ def _render_regions_expander(
                             "action": "click",
                             "type": "string",
                             "threshold": 0.9,
-                            "bbox": dict(bbox_src),
+                            "bbox": cast("BBoxDict", dict(bbox_src)),
                             "overlay_auxiliary": True,
                         }
                         regions.append(aux_t)
@@ -1765,7 +1823,7 @@ def _render_regions_expander(
                 try:
                     arr_rd = np.array(pil_original.convert("RGBA"))
                     bgr_rd = cv2.cvtColor(arr_rd, cv2.COLOR_RGBA2BGR)
-                    found_rd = has_red_dot_in_bbox_percent(bgr_rd, bbox)
+                    found_rd = has_red_dot_in_bbox_percent(bgr_rd, cast("dict[str, int | float]", bbox))
                 except Exception:
                     found_rd = False
                 st.caption(
@@ -1808,12 +1866,16 @@ def _render_regions_expander(
                     f"Cropping regions for `{ref_rel}` …", expanded=True
                 ) as status:
                     prog = st.progress(0)
+
+                    def _bump(x: float, _p: Any = prog) -> None:
+                        _p.progress(x)
+
                     try:
                         outs = export_region_crops(
                             pil_original,
                             ref_rel,
                             regions,
-                            progress=lambda x: prog.progress(x),
+                            progress=_bump,
                         )
                     except OSError as e:
                         status.update(label=str(e), state="error")
@@ -1859,7 +1921,6 @@ def _default_region(orig_w: int, orig_h: int, *, name: str = "region") -> Region
     return RegionDict(
         name=name,
         action="exist",
-        type="string",
         threshold=0.9,
         bbox=bbox,
     )
@@ -1879,7 +1940,7 @@ def _sync_default_regions_into_version(
     """
     import copy as _copy
 
-    ver_block = get_version_block(entry, version_id)
+    ver_block = get_version_block(cast("dict[str, Any]", entry), version_id)
     if ver_block is None:
         return 0, 0
 
@@ -1902,7 +1963,7 @@ def _sync_default_regions_into_version(
         name = str(r.get("name", "") or "").strip()
         if not name:
             continue
-        if is_auxiliary_overlay_region(r):
+        if is_auxiliary_overlay_region(cast("dict[str, Any]", r)):
             skipped += 1
             continue
         if name in existing:
@@ -2159,7 +2220,7 @@ def sync_regions_from_canvas(
         if tag and tag in by_name and tag not in used_names:
             base = dict(by_name[tag])
             base["bbox"] = bbox
-            new_regions.append(base)  # type: ignore[arg-type]
+            new_regions.append(cast("RegionDict", base))
             used_names.add(tag)
             continue
 
@@ -2167,7 +2228,7 @@ def sync_regions_from_canvas(
         if i < len(regions) and i not in used_idx:
             base = dict(regions[i])
             base["bbox"] = bbox
-            new_regions.append(base)  # type: ignore[arg-type]
+            new_regions.append(cast("RegionDict", base))
             used_idx.add(i)
             continue
 
@@ -2359,7 +2420,7 @@ def current_regions() -> list[RegionDict]:
     ref = str(st.session_state.get(ANNOT_LABELING_REF) or "")
     if "/temporal/" in ref.replace("\\", "/"):
         v = st.session_state.get(LABELING_TEMPORAL_REGIONS)
-        return list(v) if isinstance(v, list) else []
+        return cast("list[RegionDict]", list(v)) if isinstance(v, list) else []
     entries: list[AreaEntryDict] = st.session_state.area_doc["screens"]
     idx: int = st.session_state.entry_idx
     if idx < 0 or idx >= len(entries):
@@ -2368,7 +2429,7 @@ def current_regions() -> list[RegionDict]:
     cur = entries[idx]
     av = get_active_version(cur)
     if av:
-        ver = get_version_block(cur, av)
+        ver = get_version_block(cast("dict[str, Any]", cur), av)
         if ver is not None:
             regs = ver.get("regions")
             if not isinstance(regs, list):
@@ -2428,7 +2489,7 @@ def set_current_regions(regions: list[RegionDict]) -> None:
     cur = entries[idx]
     av = get_active_version(cur)
     if av:
-        ver = get_version_block(cur, av)
+        ver = get_version_block(cast("dict[str, Any]", cur), av)
         if ver is not None:
             ver["regions"] = list(regions)
             st.session_state[LABELING_AREA_DIRTY] = True
@@ -2506,7 +2567,7 @@ def render_area_annotator_ui(
     entries: list[AreaEntryDict] = doc["screens"]
 
     try:
-        validate_unique_region_names(doc)
+        validate_unique_region_names(cast("dict[str, Any]", doc))
     except ValueError as e:
         st.error(str(e))
 
