@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
@@ -9,7 +10,7 @@ from config.module_ui_registry import ModuleUiPageSpec, group_module_ui_page_spe
 
 
 def streamlit_page_from_spec(spec: ModuleUiPageSpec) -> st.Page:
-    kwargs: dict[str, object] = {"title": spec.title}
+    kwargs: dict[str, Any] = {"title": spec.title}
     if spec.url_path:
         kwargs["url_path"] = spec.url_path
     return st.Page(str(spec.path), **kwargs)

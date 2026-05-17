@@ -1,6 +1,8 @@
 """Game node routing graph backed by the runtime tap registry."""
 from __future__ import annotations
 
+from typing import Any
+
 import streamlit as st
 from streamlit_nested_table import nested_table, table_column
 from streamlit_react_flow import FlowLegendItem, react_flow
@@ -212,7 +214,7 @@ with tab_graph:
             if len(path) <= 1:
                 st.caption("Already on target screen.")
             else:
-                hop_rows: list[dict[str, object]] = []
+                hop_rows: list[dict[str, Any]] = []
                 for i, (a, b) in enumerate(zip(path, path[1:], strict=False)):
                     hop_rows.append(
                         {
@@ -250,7 +252,7 @@ with tab_edges:
         default=["static tap", "dynamic tap"],
         key="routes_edge_status",
     )
-    edge_rows: list[dict[str, object]] = []
+    edge_rows: list[dict[str, Any]] = []
     for idx, (src, dst) in enumerate(sorted_edge_pairs(_TAP_GRAPH)):
         status = _edge_status(src, dst)
         action = _edge_action_summary(src, dst)

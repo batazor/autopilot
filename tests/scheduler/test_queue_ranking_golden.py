@@ -11,6 +11,7 @@ which need testcontainers.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 
@@ -26,8 +27,8 @@ def _due_item(
     created_at: float = 1000.0,
     player_id: str = "",
     task_id: str = "",
-) -> tuple[str, dict[str, object]]:
-    data: dict[str, object] = {
+) -> tuple[str, dict[str, Any]]:
+    data: dict[str, Any] = {
         "task_id": task_id or f"id:{task_type}:{priority}",
         "player_id": player_id,
         "task_type": task_type,
@@ -40,7 +41,7 @@ def _due_item(
 
 
 def _rank(
-    due: list[tuple[str, dict[str, object]]],
+    due: list[tuple[str, dict[str, Any]]],
     *,
     current_screen: str = "main_city",
     recent_counts: dict[tuple[str, str], int] | None = None,

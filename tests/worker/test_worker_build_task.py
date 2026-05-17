@@ -15,6 +15,7 @@ These tests pin the routing so that regression can't sneak back in.
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import worker.instance_worker as instance_worker
 from scheduler.queue import QueueItem
@@ -30,7 +31,7 @@ def _make_worker() -> object:
 
 
 def _qitem(**overrides: object) -> QueueItem:
-    defaults: dict[str, object] = {
+    defaults: dict[str, Any] = {
         "task_id": "t-x",
         "player_id": "p1",
         "task_type": "dsl_scenario",

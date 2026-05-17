@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections import Counter, OrderedDict
 from io import BytesIO
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import streamlit as st
 from PIL import Image, ImageDraw

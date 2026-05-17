@@ -6,6 +6,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import streamlit as st
@@ -778,7 +779,7 @@ with tab_assign:
             st.success(f"Set `wos:player:{pid}:scenario` → {choice}")
 
     st.subheader("Current overrides")
-    rows_nt: list[dict[str, object]] = []
+    rows_nt: list[dict[str, Any]] = []
     for p in all_players:
         sc = get_player_scenario(client, p)
         rows_nt.append(

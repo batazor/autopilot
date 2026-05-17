@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import streamlit as st
 from PIL import Image
 
@@ -33,7 +35,7 @@ from ui.area_annotator import (
 OMNIPARSER_LABELING_SESSION = "omniparser_labeling_proposal"
 
 
-def _related_regions_for_current_screen() -> list[dict[str, object]]:
+def _related_regions_for_current_screen() -> list[dict[str, Any]]:
     doc = st.session_state.get("area_doc")
     if not isinstance(doc, dict):
         return []
@@ -51,7 +53,7 @@ def _related_regions_for_current_screen() -> list[dict[str, object]]:
         return []
 
     current_ids = {id(r) for r in current_regions() if isinstance(r, dict)}
-    out: list[dict[str, object]] = []
+    out: list[dict[str, Any]] = []
     for entry in entries:
         if not isinstance(entry, dict) or str(entry.get("screen_id") or "").strip() != screen_id:
             continue
@@ -69,8 +71,8 @@ def _related_regions_for_current_screen() -> list[dict[str, object]]:
 
 def _filter_blacklisted_omniparser_regions(
     image: Image.Image,
-    regions: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], int]:
+    regions: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int]:
     from omniparser.supervision_bridge import filter_blacklisted_regions
 
     return filter_blacklisted_regions(image, regions)

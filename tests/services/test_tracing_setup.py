@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import textwrap
+from typing import Any
 
 import pytest
 from opentelemetry import trace
@@ -115,7 +116,7 @@ def test_inject_context_into_writes_traceparent(_initialised_tracing: object) ->
     """With an active recording span, search-friendly trace ids land in the carrier."""
     import config.tracing as tracing
 
-    carrier: dict[str, object] = {}
+    carrier: dict[str, Any] = {}
     with tracing.traced("inject_test") as span:
         expected = format(span.get_span_context().trace_id, "032x")
         tracing.inject_context_into(carrier)
@@ -135,7 +136,7 @@ def test_inject_extract_round_trip(_initialised_tracing: object) -> None:
     """
     import config.tracing as tracing
 
-    carrier: dict[str, object] = {}
+    carrier: dict[str, Any] = {}
     with tracing.traced("producer") as parent_span:
         parent_trace_id = parent_span.get_span_context().trace_id
         tracing.inject_context_into(carrier)

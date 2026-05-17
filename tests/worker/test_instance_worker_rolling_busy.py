@@ -148,10 +148,10 @@ async def test_tick_records_screenshot_analysis_duration(
 ) -> None:
     import worker.instance_worker_rolling as rolling_mod
 
-    records: list[tuple[float, dict[str, object]]] = []
+    records: list[tuple[float, dict[str, Any]]] = []
 
     class _Histogram:
-        def record(self, value: float, *, attributes: dict[str, object]) -> None:
+        def record(self, value: float, *, attributes: dict[str, Any]) -> None:
             records.append((value, attributes))
 
     histogram = _Histogram()

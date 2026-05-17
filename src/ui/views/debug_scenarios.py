@@ -207,7 +207,7 @@ def _enqueue_debug_scenario(
 ) -> str:
     now = time.time()
     task_id = f"ui:debug:{instance_id}:{_slug(scenario_key)}:{int(now)}"
-    payload: dict[str, object] = {
+    payload: dict[str, Any] = {
         "task_id": task_id,
         "player_id": player_id,
         "task_type": scenario_key,

@@ -31,7 +31,7 @@ class _FakeActions:
         self.frames = frames
         self.capture_count = 0
         self.tapped: list[tuple[str, int, int, str | None]] = []
-        self.approval_previews: list[tuple[str, dict[str, object]]] = []
+        self.approval_previews: list[tuple[str, dict[str, Any]]] = []
         self.swipes: list[tuple[str, str, int, int]] = []
 
     def screen_resolution(self, instance_id: str) -> tuple[int, int]:
@@ -63,7 +63,7 @@ class _FakeActions:
         self.swipes.append((instance_id, direction, int(delta), int(duration_ms)))
         return True
 
-    def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
+    def attach_approval_preview(self, instance_id: str, payload: dict[str, Any]) -> None:
         self.approval_previews.append((instance_id, dict(payload)))
 
 
@@ -187,7 +187,7 @@ async def test_player_bound_while_match_zero_iterations_pauses_in_approval_mode(
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _frame_with_pattern())
     actions = _FakeActions([blank, blank, blank, blank, blank])
-    approvals: list[tuple[str, dict[str, object]]] = []
+    approvals: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: True)
