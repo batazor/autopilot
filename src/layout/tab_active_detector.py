@@ -16,10 +16,14 @@ The defaults below sit in the middle of that gap with comfortable headroom.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import cv2
-import numpy as np
 
 from layout.template_match import patch_bgr_from_bbox_percent
+
+if TYPE_CHECKING:
+    import numpy as np
 
 TAB_ACTIVE_MAX_MEAN_SATURATION = 120.0
 """Mean HSV saturation must be **below** this to call the tab active."""

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -14,7 +14,9 @@ from ui.preview_display import png_bytes_fitted
 from ui.reference_preview import load_rolling_instance_preview, references_root
 
 from .common import active_player_state_flat, load_area_doc
-from .ctx import ClickApprovalsCtx
+
+if TYPE_CHECKING:
+    from .ctx import ClickApprovalsCtx
 
 
 def _fmt_ratio(value: object) -> str:

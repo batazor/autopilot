@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import time
+from typing import TYPE_CHECKING
 
 import pytest
-from testcontainers.redis import RedisContainer
 
 from ui.redis_client import fetch_queue_explain_rows
+
+if TYPE_CHECKING:
+    from testcontainers.redis import RedisContainer
 
 
 @pytest.mark.integration

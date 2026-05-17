@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import ANY, call
 
 import cv2
-import numpy as np
 import pytest
 from conftest import make_actions, patch_dsl
 
@@ -12,6 +12,9 @@ import tasks.dsl_scenario as dsl
 from navigation.detector import ScreenDetector
 from scenarios import template_resolver
 from services import get_ocr_client
+
+if TYPE_CHECKING:
+    import numpy as np
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[2]

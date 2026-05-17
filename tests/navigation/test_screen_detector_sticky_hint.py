@@ -12,18 +12,21 @@ global scan only runs when the hint is stale (the bot navigated away).
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
 
 import navigation.screen_graph as screen_graph
 from config.loader import get_settings
-from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
 from ocr.client import OcrClient, OCRResult
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
+    from layout.types import Region
 
 pytestmark = pytest.mark.skip(
     reason="legacy text_switch detector coverage; rewrite for template landmarks"

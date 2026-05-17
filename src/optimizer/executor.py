@@ -13,13 +13,16 @@ state semantics.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from optimizer import generate_candidates, prune_candidates, score_candidate
 from optimizer.capacities import _GLOBAL_RESOURCE_KEYS, compute_capacities
 from optimizer.context import BalanceContext, load_balance_context
-from optimizer.scorer import ScoreBreakdown
 from optimizer.solver import solve_with_context
-from optimizer.types import Candidate
+
+if TYPE_CHECKING:
+    from optimizer.scorer import ScoreBreakdown
+    from optimizer.types import Candidate
 
 
 @dataclass(frozen=True)

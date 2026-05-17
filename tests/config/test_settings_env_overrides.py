@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from config.loader import load_settings
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_load_settings_applies_runtime_env_overrides(

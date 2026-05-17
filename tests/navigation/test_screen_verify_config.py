@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import navigation.screen_graph as screen_graph
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_screen_verify_config_loads_rules_from_yaml(mocker, tmp_path: Path) -> None:

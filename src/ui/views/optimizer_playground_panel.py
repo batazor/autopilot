@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import streamlit as st
@@ -16,7 +16,6 @@ from optimizer import (
     rejection_reason,
     solve_optimal,
 )
-from optimizer.context import BalanceContext
 from ui.views.optimizer_ui import (
     candidate_table_rows,
     command_label,
@@ -24,6 +23,9 @@ from ui.views.optimizer_ui import (
     reasons_for,
     render_solver_metrics,
 )
+
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
 
 
 def _heroes_index() -> list[tuple[str, str]]:

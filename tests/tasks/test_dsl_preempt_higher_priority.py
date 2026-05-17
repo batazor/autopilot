@@ -9,8 +9,9 @@ exercised end-to-end instead of mocked.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-import redis.asyncio as aioredis
 
 from scheduler.queue import QueueItem
 from tasks import dsl_scenario_helpers as dsl_helpers
@@ -23,6 +24,9 @@ from tasks.dsl_scenario_preempt_mixin import (
     PREEMPT_YIELD_COUNT_TTL_SECONDS,
     _yield_count_key,
 )
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
 
 
 def _make_task(

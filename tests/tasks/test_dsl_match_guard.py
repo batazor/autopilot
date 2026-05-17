@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import ANY, call
 
 import cv2
@@ -10,6 +10,9 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_skip_text_repo(tmp_path: Path, frame: np.ndarray) -> None:

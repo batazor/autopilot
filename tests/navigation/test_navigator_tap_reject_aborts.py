@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
 
-from config.loader import Settings
 from navigation.detector import ScreenName
 from navigation.navigator import Navigator
-from ocr.client import OcrClient
 from tests.navigation.conftest_nav import make_navigator
+
+if TYPE_CHECKING:
+    from config.loader import Settings
+    from ocr.client import OcrClient
 
 
 @pytest.mark.asyncio

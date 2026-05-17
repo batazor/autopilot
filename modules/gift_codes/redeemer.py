@@ -14,9 +14,8 @@ import asyncio
 import logging
 import random
 from collections import Counter
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -24,6 +23,10 @@ from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
 from config.devices import load_devices
 from modules.gift_codes.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

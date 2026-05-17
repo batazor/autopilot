@@ -20,7 +20,6 @@ import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
-from adb import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
@@ -30,6 +29,7 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds, _read_current_scre
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from adb import BotActions
     from tasks._dsl_task_host import _DslTaskHost as _Base
 else:
     _Base = object

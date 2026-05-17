@@ -4,8 +4,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
@@ -22,6 +21,9 @@ from scenarios.cron_specs import (
     resolve_cron_task_type,
 )
 from scenarios.dsl_schema import validate_dsl_steps
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +295,7 @@ def _validate_analyze_manifest(
     for idx, raw_rule in enumerate(overlay):
         if not isinstance(raw_rule, dict):
             continue
-        rule = cast(dict[str, Any], raw_rule)
+        rule = cast("dict[str, Any]", raw_rule)
         rule_name = str(rule.get("name") or f"overlay[{idx}]").strip()
         source = f"analyze:{rule_name}"
         _check_region(
@@ -347,7 +349,7 @@ def _walk_steps(
     for idx, raw_step in enumerate(steps):
         if not isinstance(raw_step, dict):
             continue
-        step = cast(dict[str, Any], raw_step)
+        step = cast("dict[str, Any]", raw_step)
         step_source = f"{source}:step[{idx}]"
         for key in _REGION_STEP_KEYS:
             if key in step:

@@ -2,11 +2,14 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import networkx as nx
-from streamlit_react_flow import FlowEdge, FlowNode
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from streamlit_react_flow import FlowEdge, FlowNode
 
 REGION_BG: dict[str, str] = {
     "Tundra Adventure": "#dbeafe",

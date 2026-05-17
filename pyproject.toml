@@ -158,7 +158,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ", "TC", "BLE", "ARG"]
 ignore = [
     "ANN401",
     # Typographic glyphs are intentional in docstrings / log strings:
@@ -180,6 +180,18 @@ ignore = [
     # The ``_``-prefix already signals an unused-but-needed fixture; rewriting
     # every test to ``@pytest.mark.usefixtures(...)`` would just be churn.
     "PT019",   # pytest-fixture-param-without-value
+    # ``except Exception: logger.debug("...", exc_info=True)`` is the project's
+    # chosen idiom for defensive paths (Redis flaps, file I/O, OCR drift). Ruff
+    # only accepts ``logger.exception(...)`` (ERROR-level) which would be far
+    # too loud for paths where failure is *expected* and recovered.
+    "BLE001",  # blind-except
+    # ARG001/002 fire on callback signatures, abstract method overrides, pytest
+    # hooks, and mock substitutions where the parameter is required by the
+    # contract but not used by this implementation. Underscore-prefixing every
+    # such param across hundreds of sites would be pure churn. ARG005 (lambdas)
+    # stays on — those are easy point fixes.
+    "ARG001",  # unused-function-argument
+    "ARG002",  # unused-method-argument
 ]
 
 [tool.ruff.lint.per-file-ignores]

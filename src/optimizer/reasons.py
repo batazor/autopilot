@@ -13,9 +13,12 @@ underscore-separated; one code = one observable game-mechanic fact.
 """
 from __future__ import annotations
 
-from optimizer.context import BalanceContext
-from optimizer.scorer import ScoreBreakdown
-from optimizer.types import Candidate
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
+    from optimizer.scorer import ScoreBreakdown
+    from optimizer.types import Candidate
 
 _CORE_TAGS = {"core", "exploration_carry", "arena_carry", "expedition_frontline", "expedition_dps"}
 _BEAR_JOINER_TAGS = {"joiner_only", "bear_joiner", "bear_specialist", "dual_role_support"}

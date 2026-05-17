@@ -15,10 +15,8 @@ import signal
 import subprocess
 import sys
 import threading
-from collections.abc import Callable
 from pathlib import Path
-from types import FrameType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psutil
 
@@ -27,6 +25,10 @@ from config.paths import repo_root
 from config.redis_health import verify_sync_redis_url
 from config.state_store import register_on_save
 from scheduler.wake import wake_scheduler
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from types import FrameType
 
 _THREAD_NAME = "wos-async-services"
 _HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"

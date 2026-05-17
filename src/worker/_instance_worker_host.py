@@ -13,10 +13,12 @@ Protocol under ``TYPE_CHECKING`` only, so the runtime MRO of
 """
 from __future__ import annotations
 
-import asyncio
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
-import redis.asyncio as aioredis  # type: ignore[import-untyped]
+if TYPE_CHECKING:
+    import asyncio
+
+    import redis.asyncio as aioredis
 
 
 class _InstanceWorkerHost(Protocol):

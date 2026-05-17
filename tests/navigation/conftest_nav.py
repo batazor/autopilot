@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
-from config.loader import Settings
 from navigation.navigator import Navigator
-from ocr.client import OcrClient
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    import numpy as np
+
+    from config.loader import Settings
+    from ocr.client import OcrClient
 
 
 def make_navigator(

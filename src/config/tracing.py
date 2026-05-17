@@ -30,15 +30,18 @@ from __future__ import annotations
 import logging
 import os
 import socket
-from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib import metadata as _md
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from opentelemetry import context as _otel_context
 from opentelemetry import metrics, propagate, trace
-from opentelemetry.metrics import Counter, Histogram
-from opentelemetry.trace import Span
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from opentelemetry.metrics import Counter, Histogram
+    from opentelemetry.trace import Span
 
 logger = logging.getLogger(__name__)
 

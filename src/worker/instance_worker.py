@@ -7,9 +7,7 @@ import time
 import uuid
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Any
-
-import redis.asyncio as aioredis
+from typing import TYPE_CHECKING, Any
 
 from adb import BotActions, click_approval_enabled
 from adb.screencap import DEFAULT_ADB_BIN
@@ -24,13 +22,10 @@ from config.devices import (  # noqa: F401 — re-exported for redis/test monkey
     player_ids_for_device,
     player_ids_for_device_candidates,
 )
-from config.loader import InstanceConfig, Settings
 from config.paths import repo_root
 from config.reference_naming import reference_file_basename, reference_png_abs_path
 from navigation.detector import ScreenDetector
 from navigation.lifecycle_states import InstanceState
-from ocr.client import OcrClient
-from scheduler.queue import QueueItem, RedisQueue
 from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
 from worker.instance_worker_blocking import InstanceWorkerBlockingMixin
@@ -48,6 +43,13 @@ from worker.instance_worker_tasks import (
     _running_key_for_instance,
 )
 from worker.instance_worker_ui import InstanceWorkerUiMixin
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
+    from config.loader import InstanceConfig, Settings
+    from ocr.client import OcrClient
+    from scheduler.queue import QueueItem, RedisQueue
 
 logger = logging.getLogger(__name__)
 

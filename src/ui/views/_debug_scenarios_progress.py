@@ -12,9 +12,8 @@ as a script" hint to readers.
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-import redis
 import streamlit as st
 
 from scenarios import template_resolver as _tmpl
@@ -23,6 +22,11 @@ from ui.redis_client import (
     fetch_running_queue_row,
     get_instance_state,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import redis
 
 
 @st.fragment(run_every=timedelta(seconds=1))

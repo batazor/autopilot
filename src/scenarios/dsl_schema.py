@@ -8,10 +8,12 @@ fields the executor still understands.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 OCR_SCOPES: tuple[str, ...] = ("player", "instance")
 """Valid values for the ``ocr: scope:`` field. A typo (``instnace``) used to

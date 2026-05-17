@@ -18,12 +18,14 @@ import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.paths import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _HISTORY_PATH = repo_root() / "db" / "optimizer_history.yaml"
 _DEFAULT_MAX_ENTRIES = 500

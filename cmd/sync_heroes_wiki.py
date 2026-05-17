@@ -3,13 +3,15 @@ from __future__ import annotations
 import re
 import sys
 import time
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import yaml
 from bs4 import BeautifulSoup, Tag
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _BASE = "https://www.whiteoutsurvival.wiki"
 _INDEX = f"{_BASE}/heroes/"

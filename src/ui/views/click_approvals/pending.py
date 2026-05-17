@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
@@ -14,8 +14,10 @@ from .common import (
     load_area_doc,
     scenario_display_name,
 )
-from .ctx import ClickApprovalsCtx
 from .preview import render_preview_with_point
+
+if TYPE_CHECKING:
+    from .ctx import ClickApprovalsCtx
 
 CLICK_APPROVAL_PENDING_SNAP = "click_approvals_pending_snap"
 

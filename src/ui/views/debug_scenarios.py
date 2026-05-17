@@ -7,8 +7,7 @@ import time
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import timedelta
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import pandas as pd
@@ -43,6 +42,9 @@ from ui.views.click_approvals.pending import (
     fragment_sync_pending_presence,
 )
 from ui.views.click_approvals.preview import render_preview_with_point
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DEBUG_PRIORITY_DEFAULT = 1_000_000
 PREVIEW_MAX_SIDE = 360

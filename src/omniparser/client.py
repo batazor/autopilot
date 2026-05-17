@@ -10,14 +10,16 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import httpx
-from PIL import Image
 
 from config.env_loader import load_env_once
 from config.loader import Settings, load_settings
 from omniparser.types import ParsedUiElement
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 logger = logging.getLogger(__name__)
 

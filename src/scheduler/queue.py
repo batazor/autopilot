@@ -5,13 +5,15 @@ import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
-
-import redis.asyncio as aioredis
+from typing import TYPE_CHECKING, Any
 
 from config.devices import player_ids_for_device_candidates
-from config.loader import Settings
 from config.paths import repo_root
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
+    from config.loader import Settings
 
 logger = logging.getLogger(__name__)
 

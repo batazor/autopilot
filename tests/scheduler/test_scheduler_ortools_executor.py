@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
-from concurrent.futures import Future, ThreadPoolExecutor
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from concurrent.futures import Future, ThreadPoolExecutor
 
 
 class _RaceLoop:

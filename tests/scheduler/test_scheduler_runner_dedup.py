@@ -3,18 +3,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-import redis.asyncio as aioredis
 
-from config.loader import Settings
 from scenarios.cron_specs import scenario_loader_paths
 from scenarios.evaluator import ScenarioEvaluator
 from scenarios.loader import ScenarioLoader
 from scheduler.optimizer import TaskOptimizer
 from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
+    from config.loader import Settings
 
 
 def _make_scheduler_runner(settings: Settings) -> SchedulerRunner:

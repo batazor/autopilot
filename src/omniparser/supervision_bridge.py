@@ -11,10 +11,9 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
-from PIL import Image
 
 from omniparser._nms import non_max_suppression
 from omniparser.convert import (
@@ -23,6 +22,9 @@ from omniparser.convert import (
     region_name_for_element,
 )
 from omniparser.types import ParsedUiElement
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 OMNIPARSER_CROP_HASH_BLACKLIST: frozenset[str] = frozenset(
     {

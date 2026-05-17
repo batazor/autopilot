@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import os
-from collections.abc import AsyncIterator, Iterator
-from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -18,6 +16,9 @@ from config.loader import Settings, load_settings, reset_settings, set_settings
 from ocr.client import OcrClient
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator
+    from pathlib import Path
+
     from pytest_mock import MockerFixture
 
 

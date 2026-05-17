@@ -5,10 +5,12 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Callable
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import redis
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 

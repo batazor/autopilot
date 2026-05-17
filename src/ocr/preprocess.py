@@ -1,9 +1,13 @@
 from __future__ import annotations
 
-import cv2  # type: ignore[import-untyped]
-import numpy as np
+from typing import TYPE_CHECKING
 
-from layout.types import Region
+import cv2  # type: ignore[import-untyped]
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from layout.types import Region
 
 
 def crop_region(image: np.ndarray, region: Region) -> np.ndarray:

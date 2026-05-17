@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import threading
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from adb import BotActions
 from worker.game_health_watchdog import _is_game_foreground_after_retries
+
+if TYPE_CHECKING:
+    from adb import BotActions
 
 
 class _FakeBotActions:

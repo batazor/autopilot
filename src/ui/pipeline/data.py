@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import json
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
-import numpy as np
 import streamlit as st
 import yaml
 
@@ -20,6 +18,11 @@ from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from ui.keys import PIPELINE_OVERLAY_CACHE
 from ui.reference_preview import rolling_live_preview_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import numpy as np
 
 
 def force_nonce() -> int:

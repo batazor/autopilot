@@ -15,14 +15,16 @@ re-injected from constants below so they don't drift away.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 import yaml
 
 from config.heroes import get_hero_registry
 from config.paths import balance_config_dir
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _BALANCE = balance_config_dir()
 _DEFAULTS_PATH = _BALANCE / "defaults.yaml"

@@ -5,7 +5,6 @@ import logging
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
 from tenacity import RetryError
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
@@ -81,6 +80,7 @@ def _build_screen_name_enum() -> type[StrEnum]:
 # ``StrEnum`` subclass with the three well-known members so static analysis
 # sees a normal enum class; at runtime the dynamic factory still wins.
 if TYPE_CHECKING:
+    import numpy as np
     class ScreenName(StrEnum):
         # Sentinels + hubs (always present via ``_WELL_KNOWN_SCREEN_VALUES``).
         UNKNOWN = "unknown"

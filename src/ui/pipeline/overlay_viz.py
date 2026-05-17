@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
-import numpy as np
 
 from layout.area_lookup import screen_region_by_name
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 def region_area_action(area_doc: dict[str, Any], region_name: str) -> str:

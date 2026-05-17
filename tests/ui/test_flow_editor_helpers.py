@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import cast
-
-from streamlit_react_flow import FlowNode
+from typing import TYPE_CHECKING, cast
 
 from ui.flow_layout import edges_to_adjacency, merge_editor_positions
+
+if TYPE_CHECKING:
+    from streamlit_react_flow import FlowNode
 
 
 def test_edges_to_adjacency() -> None:

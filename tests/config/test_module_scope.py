@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from config.module_registry import (
     ALL_MODULES_KEY,
@@ -13,6 +13,9 @@ from config.module_registry import (
     path_matches_module_scope,
 )
 from scenarios.registry import scenario_roots
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_normalize_module_scope_defaults_to_all() -> None:

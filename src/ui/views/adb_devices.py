@@ -8,8 +8,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import streamlit as st
@@ -37,6 +36,9 @@ from ui.settings_state import (
     ensure_ui_settings_session_defaults,
     get_ui_adb_bin,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 ensure_ui_settings_session_defaults()
 

@@ -4,7 +4,10 @@ from __future__ import annotations
 import re
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _REF_NAME_MAX = 120
 _DEFAULT_BASE_SUFFIX = "current_state"

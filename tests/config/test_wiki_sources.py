@@ -7,12 +7,14 @@ to keep the real project tree out of the assertions.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.wiki_sources import CORE_SOURCE, find_entry, load_merged_entries
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_yaml(path: Path, doc: dict[str, Any]) -> None:

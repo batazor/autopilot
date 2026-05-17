@@ -7,11 +7,10 @@ import os
 import time
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, urlencode, urlparse, urlunparse
 
 import pandas as pd
-import redis
 import streamlit as st
 from streamlit_nested_table import TableColumn, nested_table, table_column
 
@@ -34,6 +33,9 @@ from ui.redis_client import (
     run_queue_task_now,
 )
 from ui.views._debug_scenarios_progress import _load_scenario_step_summaries
+
+if TYPE_CHECKING:
+    import redis
 
 _REPO = Path(__file__).resolve().parents[2]
 _DEVICE_LABEL = "(device)"

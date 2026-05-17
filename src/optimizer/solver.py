@@ -10,14 +10,17 @@ existing :mod:`optimizer.scorer` returns floats so we scale by
 """
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model
 
-from optimizer.context import BalanceContext
-from optimizer.scorer import ScoreBreakdown
-from optimizer.types import Candidate
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from optimizer.context import BalanceContext
+    from optimizer.scorer import ScoreBreakdown
+    from optimizer.types import Candidate
 
 _SCORE_SCALE = 100
 """Multiply float ``final_score`` by this before rounding to int — keeps

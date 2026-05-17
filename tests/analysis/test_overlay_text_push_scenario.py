@@ -2,14 +2,16 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
 
 from analysis import overlay_engine
-from layout.types import Region
 from ocr.client import OCRResult
+
+if TYPE_CHECKING:
+    from layout.types import Region
 
 
 def _patch_overlay_ocr_getter(monkeypatch: Any, client: Any) -> None:

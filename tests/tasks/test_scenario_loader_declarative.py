@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from scenarios.loader import ScenarioLoader, _is_declarative_scenario_doc
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_declarative_scenario_doc_requires_task_and_cooldown_steps() -> None:

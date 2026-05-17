@@ -1,9 +1,12 @@
 """Streamlit widgets for Labeling workflow status."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import streamlit as st
 
-from ui.labeling_helpers import LabelingWorkflowStep
+if TYPE_CHECKING:
+    from ui.labeling_helpers import LabelingWorkflowStep
 
 
 def render_labeling_workflow_strip(steps: list[LabelingWorkflowStep]) -> None:

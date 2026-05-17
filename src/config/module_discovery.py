@@ -6,13 +6,15 @@ group sorted by relative path (case-insensitive).
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.paths import repo_root as default_repo_root
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
 
 CORE_MODULES_DIR = "core"
 MODULE_MANIFEST = "module.yaml"

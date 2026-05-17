@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import streamlit as st
@@ -13,6 +12,9 @@ from streamlit_nested_table import table_column
 from ui.area_annotator import _format_screen_id_choice, screen_id_select_options
 from ui.labeling_gallery_query import open_in_labeling_query_params
 from ui.preview_display import png_bytes_fitted
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 def gallery_page_url(page: str, query: dict[str, str]) -> str:

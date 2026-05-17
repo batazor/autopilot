@@ -14,14 +14,15 @@ intentionally small so its own mtime almost never changes.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from services import _state
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+    from pathlib import Path
+
     import redis as redis_sync
     import redis.asyncio as aioredis
 

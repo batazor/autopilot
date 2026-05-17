@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from layout.area_manifest import load_area_doc
 from layout.crop_paths import exported_crop_png, resolve_reference_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_default_area_doc_includes_module_area_manifests(tmp_path: Path) -> None:

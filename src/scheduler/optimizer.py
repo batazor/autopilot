@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ortools.sat.python import cp_model  # type: ignore[import-untyped]
 
-from config.loader import Settings
-from tasks.base import BaseTask
+if TYPE_CHECKING:
+    from config.loader import Settings
+    from tasks.base import BaseTask
 
 logger = logging.getLogger(__name__)
 

@@ -22,10 +22,10 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from optimizer.types import Candidate
-
 if TYPE_CHECKING:
     import redis
+
+    from optimizer.types import Candidate
 
 
 @dataclass(frozen=True)

@@ -12,9 +12,10 @@ inventory we'd rather under-execute than over-spend.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from optimizer.context import BalanceContext
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
 
 # Global resources whose spendable count lives at a fixed flat-state key
 # (or a small list of fallbacks — first non-empty wins).

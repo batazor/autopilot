@@ -11,9 +11,7 @@ from config.log_context import set_log_context
 from config.tracing import set_span_attributes, traced_root
 from navigation.lifecycle_states import InstanceState
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
-from scheduler.queue import QueueItem
 from scheduler.wake import wake_scheduler_async
-from tasks.base import BaseTask, TaskResult
 from tasks.dsl_scenario import DslScenarioTask
 
 logger = logging.getLogger(__name__)
@@ -45,6 +43,8 @@ def _redis_float_str(value: float | None) -> str:
 
 
 if TYPE_CHECKING:
+    from scheduler.queue import QueueItem
+    from tasks.base import BaseTask, TaskResult
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
 else:
     _Base = object

@@ -20,8 +20,9 @@ history-based verify rule are exercised in
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
-import redis.asyncio as aioredis
 
 from navigation.screen_graph import (
     EDGE_TAPS,
@@ -33,6 +34,9 @@ from worker.instance_worker_overlay import (
     _PAGE_HEROES_SCREEN_RE,
     InstanceWorkerOverlayMixin,
 )
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
 
 
 def test_wiki_forward_edge_exists_for_known_hero() -> None:

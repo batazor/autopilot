@@ -20,17 +20,20 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
-import numpy as np
 import pytest
 from conftest import make_actions
 
 import ocr.client as ocr_client_module
 import tasks.dsl_exec as dsl_exec
-from layout.types import Region
 from tasks import dsl_runtime
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from layout.types import Region
 
 _FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 

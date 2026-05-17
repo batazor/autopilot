@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import itertools
 from functools import lru_cache
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from optimizer.context import BalanceContext
 from optimizer.types import Candidate, Cost
+
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
 
 _DEFAULT_HERO_LEVEL_CAP = 80
 _HERO_XP_TABLE = "hero_xp_v1"

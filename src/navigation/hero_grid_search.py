@@ -27,7 +27,6 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -40,6 +39,8 @@ from config.paths import repo_root as default_repo_root
 from layout.red_dot_detector import find_red_dots
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from adb import BotActions
     from layout.types import Point
 

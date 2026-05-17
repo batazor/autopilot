@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from ui.overlay_analyze_audit import audit_overlay_rules
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_audit_flags_missing_region_and_exist_action(tmp_path: Path) -> None:

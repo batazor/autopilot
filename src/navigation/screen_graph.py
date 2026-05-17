@@ -90,11 +90,11 @@ def _load_edge_taps() -> tuple[
         edges_raw = raw.get("edges", {})
         if not isinstance(edges_raw, dict):
             continue
-        edges = cast(dict[str, Any], edges_raw)
+        edges = cast("dict[str, Any]", edges_raw)
         for src, dsts_raw in edges.items():
             if not isinstance(dsts_raw, dict):
                 continue
-            dsts = cast(dict[str, Any], dsts_raw)
+            dsts = cast("dict[str, Any]", dsts_raw)
             for dst, taps in dsts.items():
                 key = (str(src), str(dst))
                 if isinstance(taps, list):
@@ -233,7 +233,7 @@ def _area_yaml_paths() -> list[Path]:
 def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     if not isinstance(raw, dict):
         return None
-    raw_d = cast(dict[str, Any], raw)
+    raw_d = cast("dict[str, Any]", raw)
     rule: VerifyRule = {}
     for key in ("match", "ocr", "tab_active"):
         value = raw_d.get(key)

@@ -13,11 +13,14 @@ non-atomically with a hand-rolled match-by-(player, task_type), which
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import pytest
-import redis.asyncio as aioredis
 
 from tasks.dsl_scenario_helpers import _enqueue_scenario
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
 
 
 async def _queue_payloads(redis: aioredis.Redis, instance_id: str) -> list[dict]:

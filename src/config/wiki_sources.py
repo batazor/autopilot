@@ -15,14 +15,16 @@ can show an "owned by module" badge.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
 
 from config.module_discovery import is_core_nested_module, iter_module_dirs, module_meta_id
 from config.module_registry import ALL_MODULES_KEY, CORE_MODULE_KEY, normalize_module_scope
 from config.paths import repo_root as default_repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 CORE_SOURCE = "core"
 EntityKey = Literal["buildings", "heroes", "items"]

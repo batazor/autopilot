@@ -1,10 +1,14 @@
 """ADB screenshot into references/ for Streamlit (show immediately in the UI)."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_to_file
-from config.loader import InstanceConfig
 from config.paths import repo_root
 from config.reference_naming import reference_file_basename, reference_png_abs_path
+
+if TYPE_CHECKING:
+    from config.loader import InstanceConfig
 
 
 def capture_reference_adb(

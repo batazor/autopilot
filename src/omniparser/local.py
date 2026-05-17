@@ -8,11 +8,12 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any
-
-from PIL import Image
+from typing import TYPE_CHECKING, Any
 
 from config.env_loader import load_env_once
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 load_env_once()
 

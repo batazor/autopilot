@@ -15,11 +15,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
-import numpy as np
 
 from navigation.hero_grid_search import HeroMatch, scan_grid_frame
+
+if TYPE_CHECKING:
+    import numpy as np
 
 _REF = "references/page.heroes.png"
 _OUT = "/tmp/heroes_grid_debug.png"

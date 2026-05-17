@@ -14,13 +14,15 @@ from __future__ import annotations
 import importlib.util
 import logging
 from collections.abc import Awaitable, Callable
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.module_discovery import iter_module_dirs, module_meta_id
 from config.paths import repo_root as default_repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

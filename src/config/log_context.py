@@ -13,9 +13,12 @@ Set at boundaries the worker knows things change:
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _inst: ContextVar[str] = ContextVar("wos_log_inst", default="")
 _player: ContextVar[str] = ContextVar("wos_log_player", default="")

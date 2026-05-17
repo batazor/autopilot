@@ -6,9 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import threading
 import time
-from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from config.loader import InstanceConfig, Settings, get_settings
 from config.log_context import set_log_context
@@ -22,6 +21,10 @@ from services import (
     instance_worker_session,
 )
 from worker.restart_backoff import compute_restart_delay
+
+if TYPE_CHECKING:
+    import threading
+    from collections.abc import Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 

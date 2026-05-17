@@ -6,10 +6,7 @@ This module is a stable public facade. Implementation is split into small
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
-from typing import Any
-
-import numpy as np
+from typing import TYPE_CHECKING, Any
 
 from analysis.overlay_duration import parse_duration_seconds
 from analysis.overlay_engine import (
@@ -18,7 +15,13 @@ from analysis.overlay_engine import (
 )
 from analysis.overlay_manifest import load_analyze_yaml, load_merged_analyze_yaml
 from analysis.overlay_rules import centers_delta_pct_between_regions
-from ocr.client import OcrClient
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import numpy as np
+
+    from ocr.client import OcrClient
 
 
 async def run_overlay_analysis(

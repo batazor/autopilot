@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
@@ -9,6 +8,9 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _scenario_root(tmp_path: Path) -> Path:

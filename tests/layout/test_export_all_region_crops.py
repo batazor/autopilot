@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
@@ -11,6 +11,9 @@ from ui.area_annotator import (
     crop_path_for_entry_region,
     export_all_region_crops_for_area_doc,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_export_all_writes_one_crop_per_screen(tmp_path: Path) -> None:

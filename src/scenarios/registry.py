@@ -6,7 +6,7 @@ Runnable YAMLs live in module-owned ``scenarios`` directories under
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from config.module_discovery import (
     is_core_nested_module,
@@ -15,6 +15,9 @@ from config.module_discovery import (
     module_meta_id,
 )
 from config.module_registry import ALL_MODULES_KEY, CORE_MODULE_KEY, normalize_module_scope
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @dataclass(frozen=True)

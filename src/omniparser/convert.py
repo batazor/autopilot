@@ -4,9 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from omniparser.types import ParsedUiElement
+if TYPE_CHECKING:
+    from omniparser.types import ParsedUiElement
 
 _SLUG_RE = re.compile(r"[^a-z0-9_]+")
 

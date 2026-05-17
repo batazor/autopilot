@@ -12,14 +12,16 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import cv2  # type: ignore[import-untyped]
 import numpy as np
 
-from config.loader import Settings
-from layout.types import Region
 from ocr.preprocess import enhance_for_ocr
+
+if TYPE_CHECKING:
+    from config.loader import Settings
+    from layout.types import Region
 
 logger = logging.getLogger(__name__)
 

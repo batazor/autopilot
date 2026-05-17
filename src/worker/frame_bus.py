@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-import numpy as np
+if TYPE_CHECKING:
+    import numpy as np
 
 
 class FrameBusTimeout(RuntimeError):

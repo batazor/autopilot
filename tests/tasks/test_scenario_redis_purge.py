@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 import pytest
-import redis
 
 from ui.redis_client import purge_scenarios_from_redis
+
+if TYPE_CHECKING:
+    import redis
 
 
 @pytest.mark.usefixtures("redis_sync")

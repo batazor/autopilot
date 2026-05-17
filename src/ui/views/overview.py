@@ -5,10 +5,9 @@ import time
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlencode, urlparse, urlunparse
 
-import redis as _redis_pkg
 import streamlit as st
 from streamlit_nested_table import TableColumn, nested_table, table_column
 
@@ -25,6 +24,9 @@ from ui.redis_client import (
     push_instance_command,
     require_redis_connection,
 )
+
+if TYPE_CHECKING:
+    import redis as _redis_pkg
 
 ensure_embedded_bot()
 

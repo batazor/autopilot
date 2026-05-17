@@ -5,12 +5,12 @@ import json
 import logging
 import re
 import time
+from typing import TYPE_CHECKING
 
 import redis as _redis_sync
 import redis.asyncio as aioredis
 
 from config.devices import player_ids_for_device_candidates
-from config.loader import Settings
 from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
 from scenarios.cron_specs import (
@@ -18,13 +18,16 @@ from scenarios.cron_specs import (
     resolve_cron_priority,
     resolve_cron_task_type,
 )
-from scenarios.evaluator import ScenarioEvaluator
-from scenarios.loader import ScenarioLoader
-from scenarios.models import Scenario
 from scheduler.optimizer import OptimizationInput, TaskOptimizer
 from scheduler.ortools_executor import run_in_ortools_executor, shutdown_ortools_executor
 from scheduler.queue import RedisQueue
 from scheduler.wake import WAKE_CHANNEL, wake_scheduler
+
+if TYPE_CHECKING:
+    from config.loader import Settings
+    from scenarios.evaluator import ScenarioEvaluator
+    from scenarios.loader import ScenarioLoader
+    from scenarios.models import Scenario
 
 logger = logging.getLogger(__name__)
 

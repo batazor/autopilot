@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.paths import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 MAX_POSITIONS = 20
 

@@ -1,14 +1,16 @@
 """Shared Streamlit helpers for optimizer debug + playground pages."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
 from optimizer import generate_reasons
-from optimizer.context import BalanceContext
-from optimizer.scorer import ScoreBreakdown
-from optimizer.types import Candidate
+
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
+    from optimizer.scorer import ScoreBreakdown
+    from optimizer.types import Candidate
 
 
 def command_label(c: Candidate) -> tuple[str, str, str]:

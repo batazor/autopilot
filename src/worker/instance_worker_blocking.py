@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import functools
-from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    import concurrent.futures
+    from collections.abc import Callable
+
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
 else:
     _Base = object

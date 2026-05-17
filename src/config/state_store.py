@@ -5,15 +5,17 @@ import logging
 import os
 import tempfile
 import threading
-from collections.abc import Callable
 from contextlib import suppress
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.paths import repo_root
 from config.state_schema import GamerState, StateDB
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

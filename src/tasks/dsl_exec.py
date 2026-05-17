@@ -9,9 +9,8 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from century.api import CenturyAPIError, CenturyClient, PlayerData
 from config.buildings import BuildingDef, get_building_registry
@@ -26,6 +25,9 @@ from layout.types import Point, Region
 from navigation.hero_grid_search import scan_grid_frame
 from tasks import dsl_runtime
 from ui.notifications import push_ui_notification
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

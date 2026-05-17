@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -51,9 +50,13 @@ from layout.white_border_detector import (
     has_white_border_in_bbox_percent,
     white_border_halo_stats,
 )
-from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
 from ocr.preprocess import resolve_preprocess
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from ocr.client import OcrClient
 
 # Cap entry count; PNG crops are small (typically <10 KB each), so the upper
 # bound on memory is well under 10 MB even when full. Sized to comfortably

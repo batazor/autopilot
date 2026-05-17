@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from functools import lru_cache
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 from config.paths import balance_config_dir
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:

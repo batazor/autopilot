@@ -9,14 +9,16 @@ downstream Redis-touching helper can assume a non-empty ``player_id``.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:

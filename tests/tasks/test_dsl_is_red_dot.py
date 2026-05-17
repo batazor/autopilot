@@ -13,8 +13,7 @@ on edge-cases without spinning up Redis.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 import numpy as np
@@ -23,6 +22,9 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Pure helpers — no Redis, no asyncio

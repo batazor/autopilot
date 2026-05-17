@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
@@ -12,7 +12,9 @@ from ui.notifications import pop_new_notifications
 from ui.redis_client import get_instance_state
 
 from .common import ocr_health_status
-from .ctx import ClickApprovalsCtx
+
+if TYPE_CHECKING:
+    from .ctx import ClickApprovalsCtx
 
 
 def _clear_click_approval_current_keys(*, client: Any) -> None:

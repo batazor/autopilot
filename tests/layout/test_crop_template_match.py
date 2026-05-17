@@ -77,11 +77,11 @@ def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.Monkey
     cached: list[tuple[int, int, float]] = []
     monkeypatch.setattr(
         "layout.template_match.read_positions",
-        lambda key: [{"x": 6, "y": 13, "score": 0.99, "last_seen": 1.0, "hits": 3}],
+        lambda _key: [{"x": 6, "y": 13, "score": 0.99, "last_seen": 1.0, "hits": 3}],
     )
     monkeypatch.setattr(
         "layout.template_match.record_position",
-        lambda key, *, x, y, score: cached.append((x, y, score)),
+        lambda _key, *, x, y, score: cached.append((x, y, score)),
     )
 
     # Use an exact cached top-left from the fixture bbox.
@@ -93,7 +93,7 @@ def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.Monkey
     y = int(float(region["bbox"]["y"]) / 100.0 * hi)
     monkeypatch.setattr(
         "layout.template_match.read_positions",
-        lambda key: [{"x": x, "y": y, "score": 0.99, "last_seen": 1.0, "hits": 3}],
+        lambda _key: [{"x": x, "y": y, "score": 0.99, "last_seen": 1.0, "hits": 3}],
     )
 
     row = match_template_full_frame_cached(
@@ -116,10 +116,10 @@ def test_full_frame_cached_match_falls_back_to_full_frame(monkeypatch: pytest.Mo
         pytest.skip("skip_button reference assets missing")
 
     recorded: list[tuple[int, int, float]] = []
-    monkeypatch.setattr("layout.template_match.read_positions", lambda key: [])
+    monkeypatch.setattr("layout.template_match.read_positions", lambda _key: [])
     monkeypatch.setattr(
         "layout.template_match.record_position",
-        lambda key, *, x, y, score: recorded.append((x, y, score)),
+        lambda _key, *, x, y, score: recorded.append((x, y, score)),
     )
 
     row = match_template_full_frame_cached(

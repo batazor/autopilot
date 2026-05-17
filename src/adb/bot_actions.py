@@ -4,14 +4,17 @@ from __future__ import annotations
 import logging
 import time
 from datetime import timedelta
-
-import numpy as np
+from typing import TYPE_CHECKING
 
 from adb.controller import AdbController
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr
-from config.loader import Settings
-from layout.types import Point
 from worker import frame_bus
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from config.loader import Settings
+    from layout.types import Point
 
 logger = logging.getLogger(__name__)
 

@@ -8,15 +8,17 @@ OCR landmark on the wiki popup, so the navigator decides we're on
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
 
-from config.loader import Settings
 from navigation.navigator import _SCREEN_HISTORY_MAX
-from ocr.client import OcrClient
 from tests.navigation.conftest_nav import make_navigator
+
+if TYPE_CHECKING:
+    from config.loader import Settings
+    from ocr.client import OcrClient
 
 
 def _fake_capture_and_tap() -> tuple[Any, Any]:

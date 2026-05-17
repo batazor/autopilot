@@ -12,8 +12,7 @@ Covers two perf paths introduced in ``analysis/overlay_engine.py``:
 from __future__ import annotations
 
 import os
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
@@ -21,6 +20,9 @@ import pytest
 
 from analysis import overlay_engine
 from analysis.overlay_engine import _load_template_cached, evaluate_overlay_rules_async
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_png(path: Path, fill: int) -> None:

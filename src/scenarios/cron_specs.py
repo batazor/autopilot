@@ -5,13 +5,16 @@ determined only by the presence of ``cron`` in the parsed root mapping.
 """
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from config.module_registry import ALL_MODULES_KEY
 from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scenarios.registry import iter_scenario_yaml_files, scenario_roots
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def resolve_cron_priority(raw: object) -> int:

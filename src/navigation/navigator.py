@@ -3,13 +3,11 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
-from collections.abc import Callable
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
-from config.loader import Settings
 from config.paths import repo_root
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
@@ -28,8 +26,13 @@ from navigation.screen_graph import (
     screen_verify_retry,
     screen_verify_rules,
 )
-from ocr.client import OcrClient
 from ocr.fuzzy import match as fuzzy_match
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from config.loader import Settings
+    from ocr.client import OcrClient
 
 logger = logging.getLogger(__name__)
 

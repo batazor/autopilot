@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
-from PIL import Image
 
 from omniparser.client import (
     check_omniparser_health,
@@ -31,6 +30,9 @@ from ui.area_annotator import (
     save_json,
     set_current_regions,
 )
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 OMNIPARSER_LABELING_SESSION = "omniparser_labeling_proposal"
 

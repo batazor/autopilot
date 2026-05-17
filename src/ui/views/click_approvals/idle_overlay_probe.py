@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import streamlit as st
@@ -44,7 +44,9 @@ from ui.preview_display import png_bytes_fitted
 from ui.redis_client import get_instance_state
 
 from .common import labeling_query_ref_from_area_ocr
-from .ctx import ClickApprovalsCtx
+
+if TYPE_CHECKING:
+    from .ctx import ClickApprovalsCtx
 
 _ACTION_TYPES: tuple[str, ...] = (
     "findIcon",

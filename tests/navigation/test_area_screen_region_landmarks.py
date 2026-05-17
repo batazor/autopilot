@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import navigation.screen_graph as screen_graph
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_area_screen_region_adds_screen_landmark(mocker, tmp_path: Path) -> None:

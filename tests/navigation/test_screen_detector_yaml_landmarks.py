@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pytest
@@ -11,6 +10,9 @@ from config.loader import get_settings
 from layout.types import Region
 from navigation.detector import ScreenDetector, ScreenName
 from ocr.client import OcrClient, OCRResult
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class _FakeOcrClient:

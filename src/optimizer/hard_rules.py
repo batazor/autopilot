@@ -17,10 +17,11 @@ The doc lists these rules:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from optimizer.context import BalanceContext
-from optimizer.types import Candidate
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
+    from optimizer.types import Candidate
 
 
 @dataclass(frozen=True)

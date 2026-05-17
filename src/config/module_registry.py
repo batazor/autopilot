@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 import config.module_discovery as _module_discovery
 from config.paths import repo_root as default_repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 CORE_MODULE_KEY = "core"
 ALL_MODULES_KEY = "all"

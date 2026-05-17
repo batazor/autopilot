@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
 from analysis.overlay import evaluate_overlay_rules
 from layout.crop_paths import exported_crop_png
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_findicon_implicit_search_region_matches_without_yaml_key(tmp_path: Path) -> None:

@@ -9,10 +9,10 @@ import shlex
 import subprocess
 import tempfile
 import time
-from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from adb.approvals import (
     APPROVAL_CURRENT_TTL_SECONDS,
@@ -34,6 +34,9 @@ from config.reference_naming import (
     temporal_png_abs_path,
 )
 from layout.types import Point
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 logger = logging.getLogger(__name__)
 

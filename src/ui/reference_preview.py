@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import shutil
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from config.paths import repo_root
 from config.reference_naming import (
@@ -11,6 +11,9 @@ from config.reference_naming import (
     reference_file_basename,
     rolling_preview_basename,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # UI capture buttons (labeling "Take screenshot", area annotator "Capture",
 # operator-on-demand "fetch screenshot") all need a fresh frame. Rather than

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ui.labeling_helpers import (
     build_reference_leaf_meta_index,
@@ -11,6 +11,9 @@ from ui.labeling_helpers import (
     preview_delete_reference_impact,
     suggest_basename_from_entry,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_build_reference_leaf_meta_index(tmp_path: Path) -> None:

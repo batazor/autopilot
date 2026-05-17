@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 import yaml
 from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 
 from modules.gift_codes.models import GiftCode, GiftCodeDB, gift_db_to_yaml_dict
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

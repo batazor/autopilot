@@ -19,12 +19,12 @@ import asyncio
 import logging
 import time
 from contextlib import suppress
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from adb import BotActions
-
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from adb import BotActions
     from tasks._dsl_task_host import _DslTaskHost as _Base
 else:
     _Base = object

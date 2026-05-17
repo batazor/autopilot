@@ -6,8 +6,6 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
-import redis.asyncio as aioredis
-
 from adb.screencap import adb_screencap_to_file
 from config.paths import repo_root
 from config.reference_naming import reference_file_basename, reference_png_abs_path
@@ -17,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
+    import redis.asyncio as aioredis
+
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
 else:
     _Base = object

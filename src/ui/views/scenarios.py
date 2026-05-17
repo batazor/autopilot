@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import streamlit as st
@@ -31,6 +30,9 @@ from ui.redis_client import (
     require_redis_connection,
     set_player_scenario,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _set_scenario_enabled(path: Path, enabled: bool) -> None:

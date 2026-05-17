@@ -13,9 +13,8 @@ import os
 import re
 import tempfile
 import time
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypedDict, cast
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import cv2
 import numpy as np
@@ -81,6 +80,9 @@ from ui.overlay_yaml_sync import (
     rename_findicon_overlay_primary,
 )
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 # -----------------------------------------------------------------------------
 # Types

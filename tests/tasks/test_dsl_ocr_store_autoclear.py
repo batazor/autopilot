@@ -13,8 +13,7 @@ its inner OCR even ran.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import yaml
@@ -25,6 +24,9 @@ from tasks.dsl_scenario_helpers import (
     _collect_ocr_store_targets,
     _ocr_store_redis_fields,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_minimal_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:

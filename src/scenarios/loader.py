@@ -3,16 +3,19 @@ from __future__ import annotations
 import logging
 import sys
 import threading
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
-from watchdog.observers.api import BaseObserver
 
 from scenarios.models import Scenario
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from watchdog.observers.api import BaseObserver
 
 logger = logging.getLogger(__name__)
 

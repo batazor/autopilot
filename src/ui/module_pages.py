@@ -1,13 +1,16 @@
 """Build ``st.Page`` objects from module ``module.yaml`` UI declarations."""
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import streamlit as st
-from streamlit.navigation.page import StreamlitPage
 
 from config.module_ui_registry import ModuleUiPageSpec, group_module_ui_page_specs
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from streamlit.navigation.page import StreamlitPage
 
 
 def streamlit_page_from_spec(spec: ModuleUiPageSpec) -> StreamlitPage:

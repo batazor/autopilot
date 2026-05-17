@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from adb import BotActions
-from config.loader import Settings
 from navigation.navigator import Navigator
-from ocr.client import OcrClient
 from services import get_ocr_client, get_settings
+
+if TYPE_CHECKING:
+    from adb import BotActions
+    from config.loader import Settings
+    from ocr.client import OcrClient
 
 
 def settings() -> Settings:

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from ui.gallery_table import build_gallery_nested_rows, gallery_page_url
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_gallery_page_url_builds_labeling_link(monkeypatch) -> None:

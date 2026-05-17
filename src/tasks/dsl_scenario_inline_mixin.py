@@ -9,12 +9,10 @@ import logging
 import time
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import cv2
 
-from adb import BotActions
 from config.log_ansi import scenario_log_label as _scen
 from config.paths import repo_root as default_repo_root
 from layout.area_lookup import screen_region_by_name
@@ -40,6 +38,9 @@ from tasks.dsl_scenario_helpers import (
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from adb import BotActions
     from tasks._dsl_task_host import _DslTaskHost as _Base
 else:
     _Base = object

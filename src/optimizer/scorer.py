@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from optimizer.candidates import hero_db_entry
 from optimizer.capacities import compute_capacities
-from optimizer.context import BalanceContext
-from optimizer.types import Candidate
+
+if TYPE_CHECKING:
+    from optimizer.context import BalanceContext
+    from optimizer.types import Candidate
 
 
 @dataclass(frozen=True)

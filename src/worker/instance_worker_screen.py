@@ -5,8 +5,6 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-import numpy as np
-
 from analysis.overlay import run_overlay_analysis
 from config.log_context import set_log_context
 from config.paths import repo_root
@@ -17,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
+    import numpy as np
+
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
 else:
     _Base = object

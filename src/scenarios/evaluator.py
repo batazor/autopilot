@@ -3,10 +3,13 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from config.devices import get_device_registry
-from scenarios.models import Scenario, StepCondition
-from tasks.base import BaseTask
+
+if TYPE_CHECKING:
+    from scenarios.models import Scenario, StepCondition
+    from tasks.base import BaseTask
 
 logger = logging.getLogger(__name__)
 
