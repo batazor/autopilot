@@ -134,6 +134,46 @@ async def test_player_bound_scenario_runs_with_explicit_player_id(
 
 
 @pytest.mark.asyncio
+async def test_node_bound_scenario_retries_when_screen_identity_empty(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """A node-bound scenario should not be consumed when screen identity is blank.
+
+    The queue item has already been popped by the time the DSL preflight runs, so
+    the task must return ``next_run_at`` to be re-enqueued instead of reporting a
+    successful no-op.
+    """
+
+    _write_scenario(tmp_path, {"node": "event.trials.day.1", "steps": [{"exec": "do_work"}]})
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    fired = {"count": 0}
+
+    async def _do_work(_ctx: Any) -> None:
+        fired["count"] += 1
+
+    import tasks.dsl_exec as dsl_exec
+
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"do_work": _do_work})
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="765502864",
+        scenario_key="scn",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert result.next_run_at is not None
+    assert result.metadata["reason"] == "awaiting_screen_identity"
+    assert result.metadata["scenario_completed"] is False
+    assert fired["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_gate_skipped_on_resume(
     tmp_path: Path,
     mocker,

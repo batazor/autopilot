@@ -111,13 +111,13 @@ _registry_lock = threading.Lock()
 
 
 def invalidate_hero_registry() -> None:
-    global _registry  # noqa: PLW0603
+    global _registry
     with _registry_lock:
         _registry = None
 
 
 def get_hero_registry() -> HeroRegistry:
-    global _registry  # noqa: PLW0603
+    global _registry
     if _registry is None:
         with _registry_lock:
             if _registry is None:

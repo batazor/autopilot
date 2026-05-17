@@ -78,7 +78,7 @@ def _capture_after_next_publish(
     return out[0]
 
 
-@pytest.fixture()
+@pytest.fixture
 def actions_with_stub(mocker) -> tuple[BotActions, list[int]]:
     """Real BotActions wired to a stub controller; ``counter`` tracks frame_bus publishes."""
     counter = [0]
@@ -116,7 +116,7 @@ def test_tap_invalidates_frame_cache(actions_with_stub: tuple[BotActions, list[i
 
 
 @pytest.mark.parametrize(
-    "action_name,call",
+    ("action_name", "call"),
     [
         ("swipe", lambda b: b.swipe("bs1", Point(0, 0), Point(10, 10))),
         ("swipe_direction", lambda b: b.swipe_direction("bs1", "up", 100)),

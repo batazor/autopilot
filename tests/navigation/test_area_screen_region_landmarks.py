@@ -34,7 +34,7 @@ def test_area_screen_region_adds_screen_landmark(mocker, tmp_path: Path) -> None
     mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     # Per-hero wiki screens are synthesized from the real heroes index; the
     # test wants to assert the area-region path in isolation, so suppress them.
-    mocker.patch.object(screen_graph, "_hero_ids", new=lambda: [])
+    mocker.patch.object(screen_graph, "_hero_ids", new=list)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:

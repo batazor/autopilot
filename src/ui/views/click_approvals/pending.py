@@ -87,7 +87,7 @@ def _payload_action_label(payload: dict[str, Any]) -> str:
         return "system back"
     if kind == "tap":
         return "click"
-    return kind or "действие"
+    return kind or "action"
 
 
 def _render_labeling_region_link(

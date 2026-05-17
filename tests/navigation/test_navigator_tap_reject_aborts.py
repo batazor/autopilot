@@ -143,7 +143,7 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     mocker.patch.object(nav._detector, "detect_screen", new=detect_unknown)
     # Force the "page back visible" branch deterministically.
-    async def _back_visible(_self, _img):  # noqa: ANN001
+    async def _back_visible(_self, _img):
         return True
 
     mocker.patch.object(Navigator, "_ui_page_back_visible", new=_back_visible)
@@ -200,7 +200,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     mocker.patch.object(nav._detector, "detect_screen", new=detect_unknown)
 
-    async def _no_back(_self, _img):  # noqa: ANN001
+    async def _no_back(_self, _img):
         return False
 
     mocker.patch.object(Navigator, "_ui_page_back_visible", new=_no_back)
@@ -240,17 +240,17 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
 
     # Screen with no edge in edge_taps.yaml → ``route_hops(...)`` returns None.
     class _UnroutedScreen:
-        def __str__(self) -> str:  # noqa: D401
+        def __str__(self) -> str:
             return "screen_with_no_edges"
 
     unrouted = _UnroutedScreen()
 
-    async def detect_unrouted(_image: np.ndarray):  # noqa: ANN202
+    async def detect_unrouted(_image: np.ndarray):
         return unrouted
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     mocker.patch.object(nav._detector, "detect_screen", new=detect_unrouted)
-    async def _back_visible(_self, _img):  # noqa: ANN001
+    async def _back_visible(_self, _img):
         return True
 
     mocker.patch.object(Navigator, "_ui_page_back_visible", new=_back_visible)

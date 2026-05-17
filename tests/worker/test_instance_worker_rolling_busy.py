@@ -29,7 +29,7 @@ class _Cfg:
 
 
 @pytest.mark.parametrize(
-    "task_busy,flag,expected",
+    ("task_busy", "flag", "expected"),
     [
         # Idle never skips, regardless of flag.
         (False, False, False),
@@ -50,7 +50,7 @@ def test_skip_screen_detect_gate(task_busy: bool, flag: bool, expected: bool) ->
 
 
 @pytest.mark.parametrize(
-    "task_busy,flag,expected",
+    ("task_busy", "flag", "expected"),
     [
         (False, False, False),
         (False, True, False),

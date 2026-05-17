@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 _THREAD_NAME = "wos-ia-preview-refresher"
 _SCREEN_HISTORY_MAX = 5
+_SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES = 3
+_SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS = 2.0
 
 
 def _existing_preview_thread() -> threading.Thread | None:
@@ -49,6 +51,14 @@ def _write_png_atomic(path: Path, data: bytes) -> None:
 def _png_to_bgr(data: bytes) -> np.ndarray | None:
     arr = np.frombuffer(data, dtype=np.uint8)
     return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+
+async def _detect_screen_with_hint(
+    detector: ScreenDetector,
+    image_bgr: np.ndarray,
+    hint: str | None,
+) -> ScreenName:
+    return await detector.detect_screen(image_bgr, hint=hint)
 
 
 def _write_detected_screen(
@@ -79,6 +89,10 @@ def _preview_loop() -> None:
     instances = list(settings.instances)
     detector = ScreenDetector(OcrClient(settings))
     redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    last_detected_screen: dict[str, str] = {}
+    last_detected_screen_at: dict[str, float] = {}
+    unknown_since: dict[str, float] = {}
+    unknown_streak: dict[str, int] = {}
 
     logger.info(
         "IA preview refresher started for %d instance(s), interval=%.2fs",
@@ -125,11 +139,44 @@ def _preview_loop() -> None:
                 )
                 continue
             try:
-                detected = anyio.run(detector.detect_screen, image_bgr)
-                screen = "" if detected == ScreenName.UNKNOWN else str(detected)
+                inst_id = inst.instance_id
+                hint = last_detected_screen.get(inst_id) or None
+                detected = anyio.run(_detect_screen_with_hint, detector, image_bgr, hint)
+                if detected != ScreenName.UNKNOWN:
+                    screen = str(detected)
+                    last_detected_screen[inst_id] = screen
+                    last_detected_screen_at[inst_id] = time.monotonic()
+                    unknown_since.pop(inst_id, None)
+                    unknown_streak[inst_id] = 0
+                    _write_detected_screen(
+                        redis_client,
+                        instance_id=inst_id,
+                        screen=screen,
+                    )
+                    continue
+
+                unknown_streak[inst_id] = unknown_streak.get(inst_id, 0) + 1
+                now_mono = time.monotonic()
+                unknown_since.setdefault(inst_id, now_mono)
+                last_seen_at = last_detected_screen_at.get(inst_id, 0.0)
+                unknown_age = now_mono - unknown_since[inst_id]
+                should_clear = (
+                    last_seen_at <= 0.0
+                    or (
+                        unknown_streak[inst_id] >= _SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES
+                        and unknown_age >= _SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS
+                    )
+                )
+                if not should_clear:
+                    continue
+
+                screen = ""
+                last_detected_screen.pop(inst_id, None)
+                last_detected_screen_at.pop(inst_id, None)
+                unknown_since.pop(inst_id, None)
                 _write_detected_screen(
                     redis_client,
-                    instance_id=inst.instance_id,
+                    instance_id=inst_id,
                     screen=screen,
                 )
             except Exception:

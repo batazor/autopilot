@@ -262,13 +262,13 @@ def invalidate_device_registry() -> None:
 
 
 def _invalidate() -> None:
-    global _registry  # noqa: PLW0603
+    global _registry
     with _registry_lock:
         _registry = None
 
 
 def get_device_registry() -> DeviceRegistry:
-    global _registry  # noqa: PLW0603
+    global _registry
     if _registry is None:
         with _registry_lock:
             if _registry is None:

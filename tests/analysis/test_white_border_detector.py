@@ -230,7 +230,7 @@ def test_slide_find_respects_search_roi() -> None:
     when the ROI is bounded away from it."""
     img = cv2.imread(str(DYN_FIXTURES[0]))
     assert img is not None
-    h, w = img.shape[:2]
+    _h, _w = img.shape[:2]
     # ROI = bottom-right quadrant — row 1 highlight is upper-left, not here.
     roi = {"x": 50.0, "y": 50.0, "width": 50.0, "height": 50.0}
     assert find_white_border_match_in_search_roi(img, roi) is None

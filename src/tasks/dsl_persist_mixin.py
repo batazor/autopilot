@@ -301,6 +301,6 @@ class DslPersistMixin(_Base):
         try:
             store = get_state_store().get_or_create(pid)
             return store.to_flat_dict()
-        except Exception as exc:  # noqa: BLE001 — diagnostic, fallback to default
+        except Exception as exc:
             logger.debug("dsl: _state_flat fallback for player=%s: %s", pid, exc)
             return None

@@ -28,7 +28,7 @@ def is_auxiliary_overlay_region(reg: dict[str, Any]) -> bool:
     if reg.get("overlay_auxiliary"):
         return True
     nm = str(reg.get("name", "") or "").strip()
-    return nm.endswith("_search") or nm.endswith("_tap")
+    return nm.endswith(("_search", "_tap"))
 
 
 def _region_names_in(regions: Any) -> list[str]:
@@ -319,10 +319,11 @@ def all_region_names(doc: dict[str, Any]) -> list[str]:
 
     Used by autocompletes (DSL editor, scenario authoring).
     """
-    return sorted({n for n in collect_region_name_counts(doc)})
+    return sorted(set(collect_region_name_counts(doc)))
 
 
 __all__ = [
+    "VERSION_ID_RE",
     "all_region_names",
     "collect_region_name_counts",
     "dedupe_redundant_version_regions",
@@ -334,5 +335,4 @@ __all__ = [
     "resolve_region_with_version",
     "validate_unique_region_names",
     "validate_versions",
-    "VERSION_ID_RE",
 ]

@@ -67,11 +67,6 @@ _COLOR_WORD_ALIASES: dict[str, str] = {
     "gray": "gray",
     "grey": "gray",
     "green": "green",
-    "красный": "red",
-    "синий": "blue",
-    "серый": "gray",
-    "зелёный": "green",
-    "зеленый": "green",
 }
 
 # Simple guard for DSL steps, e.g. ``cond: currentNode != main_city`` (skip when false).

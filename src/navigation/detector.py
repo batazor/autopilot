@@ -471,7 +471,7 @@ class ScreenDetector:
         # so a single dropped/error slot would shift every subsequent index and
         # silently score the wrong screen.
         by_rid = {t[3]: t for t in region_map}
-        scores: dict[ScreenName, int] = {s: 0 for s in ScreenName}
+        scores: dict[ScreenName, int] = dict.fromkeys(ScreenName, 0)
         for result in results:
             entry = by_rid.get(result.region_id)
             if entry is None:

@@ -64,7 +64,7 @@ def _wire_runner(
     runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     runner._active_scenario_id = _active_scenario_id  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
-    monkeypatch.setattr(runner._scenario_loader, "load_all", lambda: [])
+    monkeypatch.setattr(runner._scenario_loader, "load_all", list)
 
     async def _fake_executor(_loop: Any, _func: Any, _inp: Any) -> dict[str, list[Any]]:
         return {"p1": list(tasks)}

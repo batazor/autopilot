@@ -16,7 +16,7 @@ def _reset_module_state(mocker) -> Any:
     mocker.patch.object(bot_services, "_stop_event", new=None)
     mocker.patch.object(bot_services, "_thread", new=None)
     mocker.patch.object(bot_services, "_stop_health_watchdog", new=lambda: None)
-    yield
+    return
 
 
 def test_stop_embedded_bot_returns_true_when_nothing_running() -> None:

@@ -141,3 +141,14 @@ def test_load_doc_substitutes_trials_day() -> None:
     assert doc["node"] == "event.trials.day.4"
     assert doc["steps"][1]["while_match"] == "trial.day.4"
     assert doc["steps"][1]["steps"][0]["click"] == "trial.day.4"
+
+
+def test_trials_event_opener_searches_current_icon_position() -> None:
+    loaded = _tmpl.load_doc(REPO_ROOT, "event.trials")
+    assert loaded is not None
+    _path, doc = loaded
+
+    assert doc["node"] == "main_city"
+    assert doc["steps"][0]["while_match"] == "main_city.icon_search"
+    assert doc["steps"][0]["template"] == "modules/events/trials/references/event.trials.png"
+    assert doc["steps"][0]["steps"][0]["click"] == "main_city.icon_search"

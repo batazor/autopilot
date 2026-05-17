@@ -132,7 +132,7 @@ def _parse_screenshot_local(
             cmd.extend(["--imgsz", str(int(imgsz))])
         if not use_paddleocr:
             cmd.append("--no-paddleocr")
-        proc = subprocess.run(  # noqa: S603
+        proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,

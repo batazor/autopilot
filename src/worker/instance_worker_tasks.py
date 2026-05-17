@@ -40,8 +40,7 @@ def _history_key_for_instance(instance_id: str) -> str:
 def _redis_float_str(value: float | None) -> str:
     if value is None:
         return ""
-    s = f"{float(value):.6g}"
-    return s
+    return f"{float(value):.6g}"
 
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 import streamlit as st
 
 from config.paths import repo_root as default_repo_root
+from ui.ia_overlay_executor import ensure_ia_overlay_analyzer
 from ui.ia_preview_service import ensure_ia_preview_refresher
 from ui.ia_queue_executor import ensure_ia_queue_executor
 
@@ -39,6 +40,7 @@ st.caption(
 )
 ensure_ia_preview_refresher()
 ensure_ia_queue_executor()
+ensure_ia_overlay_analyzer()
 
 click_approvals_page = st.Page(
     str(_ui_dir / "views" / "click_approvals.py"),

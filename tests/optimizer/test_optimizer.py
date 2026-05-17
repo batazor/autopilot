@@ -242,7 +242,7 @@ def test_rank_candidates_sorted_desc(ctx, basic_state):
 
 
 def test_solve_respects_hero_xp_capacity(ctx, basic_state):
-    result, prune, brs = solve_optimal(basic_state, ctx, server_age_days=10)
+    result, _prune, _brs = solve_optimal(basic_state, ctx, server_age_days=10)
     capacities = compute_capacities(basic_state, ctx)
     spent = 0
     for c in result.selected:
@@ -269,7 +269,7 @@ def test_unknown_resource_starves_candidate(ctx):
         "heroes.entries.molly.star_progress": 0,
         "chief.furnace_level": 25,
     }
-    result, prune, brs = solve_optimal(state, ctx, server_age_days=10)  # ty: ignore[invalid-argument-type]
+    result, prune, _brs = solve_optimal(state, ctx, server_age_days=10)  # ty: ignore[invalid-argument-type]
     molly_star = next(
         (c for c in prune.kept if c.action == "star_tier_up" and c.hero_id == "molly"),
         None,

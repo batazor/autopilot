@@ -46,8 +46,7 @@ def _blank_frame(w: int = REFERENCE_W, h: int = REFERENCE_H) -> np.ndarray:
     notification badge sits on. The detector's surround-saturation gate
     expects ring S ≥ 45; pure grey (S=0) would trip the gate and turn every
     synthetic dot into a false negative."""
-    img = np.full((h, w, 3), (90, 60, 30), dtype=np.uint8)  # BGR → HSV S≈170
-    return img
+    return np.full((h, w, 3), (90, 60, 30), dtype=np.uint8)  # BGR → HSV S≈170
 
 
 def _draw_red_dot(img: np.ndarray, cx: int, cy: int, radius: int) -> None:
@@ -379,7 +378,7 @@ def test_has_frost_badge_false_on_plain_main_city_v2_bboxes() -> None:
     ordinary play screens — even when the patch happens to be cyan-rich
     (e.g. ``buildHeroHall`` ≈ 27 % cyan)."""
     img = _load_main_city_v2()
-    h, w = img.shape[:2]
+    _h, _w = img.shape[:2]
     cases = [
         ("mailBox",       (610, 980, 90, 100)),
         ("buildHeroHall", (10,  980, 90, 100)),

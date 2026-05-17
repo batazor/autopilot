@@ -629,7 +629,7 @@ def _render_faq() -> None:
             stats = st.empty()
 
             try:
-                proc = subprocess.Popen(  # noqa: S603
+                proc = subprocess.Popen(
                     cmd,
                     cwd=str(repo),
                     stdout=subprocess.PIPE,
@@ -665,7 +665,7 @@ def _render_faq() -> None:
                         status.update(label=f"{title} — {done}/{total}")
 
                 # Summary extractor
-                if line.startswith("updated ") or line.startswith("downloaded "):
+                if line.startswith(("updated ", "downloaded ")):
                     extracted_summary = line
 
             rc = proc.wait()

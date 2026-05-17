@@ -17,6 +17,7 @@ of game stats (Power/Attack/etc.) once the executor lands.
 """
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass, field
 
 from optimizer.candidates import hero_db_entry
@@ -106,7 +107,7 @@ def _replacement_risk(
         return anchors[0][1]
     if server_age_days >= anchors[-1][0]:
         return anchors[-1][1]
-    for (d_a, r_a), (d_b, r_b) in zip(anchors, anchors[1:], strict=False):
+    for (d_a, r_a), (d_b, r_b) in itertools.pairwise(anchors):
         if d_a <= server_age_days <= d_b:
             span = d_b - d_a
             if span <= 0:

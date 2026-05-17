@@ -6,7 +6,7 @@ import logging
 import os
 import sys
 from io import UnsupportedOperation
-from typing import TextIO
+from typing import ClassVar, TextIO
 
 from config.log_context import LogContextFilter
 
@@ -33,7 +33,7 @@ def _try_line_buffer(stream: object) -> None:
 
 class _AnsiLevelFormatter(logging.Formatter):
     _RESET = "\x1b[0m"
-    _COLORS: dict[int, str] = {
+    _COLORS: ClassVar[dict[int, str]] = {
         logging.DEBUG: "\x1b[90m",  # bright black / grey
         logging.INFO: "\x1b[32m",  # green
         logging.WARNING: "\x1b[33m",  # yellow

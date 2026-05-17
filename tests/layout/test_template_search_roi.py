@@ -137,7 +137,7 @@ def test_match_template_small_primary_requires_exact_template_size() -> None:
         "original_width": wi,
         "original_height": hi,
     }
-    with pytest.raises(ValueError, match="Small-region:.*template PNG"):
+    with pytest.raises(ValueError, match=r"Small-region:.*template PNG"):
         match_template_in_search_roi_bbox_percent(
             frame,
             tpl,
@@ -240,7 +240,7 @@ def test_sliding_search_finds_patch_outside_primary_bbox_with_primary_dims_gate(
         "original_width": wi,
         "original_height": hi,
     }
-    primary_patch, (pl, pt) = patch_bgr_from_bbox_percent(frame, primary_bbox)
+    primary_patch, (_pl, _pt) = patch_bgr_from_bbox_percent(frame, primary_bbox)
     th, tw = int(primary_patch.shape[0]), int(primary_patch.shape[1])
 
     tpl = np.zeros((th, tw, 3), dtype=np.uint8)

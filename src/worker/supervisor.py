@@ -75,7 +75,7 @@ def _scheduler_process() -> None:
 
 
 def _handle_sigterm(signum: int, frame: object) -> None:
-    global _shutdown  # noqa: PLW0603
+    global _shutdown
     logger.info("SIGTERM received — initiating graceful shutdown")
     _shutdown = True
 

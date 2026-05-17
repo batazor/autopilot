@@ -600,7 +600,7 @@ class AdbController:
             return
         if self._capture_to_rolling_preview(tmp_prefix=".post-action-") is None:
             logger.debug(
-                "Failed to refresh rolling preview for %s", self._instance_id, exc_info=True
+                "Failed to refresh rolling preview for %s", self._instance_id
             )
 
     @contextmanager
@@ -646,7 +646,7 @@ class AdbController:
     def _shell(self, *args: str, timeout: float = 15.0) -> str:
         try:
             result = subprocess.run(
-                [self._adb_exe, "-s", self._serial, "shell"] + list(args),
+                [self._adb_exe, "-s", self._serial, "shell", *list(args)],
                 capture_output=True,
                 text=True,
                 timeout=timeout,

@@ -24,7 +24,7 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
 
 
 @pytest.mark.parametrize(
-    "text,expected",
+    ("text", "expected"),
     [
         ("00:00:00", 0),
         ("00:01:23", 83),

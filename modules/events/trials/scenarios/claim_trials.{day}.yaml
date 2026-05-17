@@ -8,11 +8,10 @@ steps:
   - while_match: button.claim
     steps:
       - click: button.claim
-      - wait: 0.5s
+      - wait: 2s
 
   - while_match: trial.day.${day}
     isRedDot: true
-    max: 1
     steps:
       - click: trial.day.${day}
       - wait: 1s
@@ -25,7 +24,7 @@ steps:
           - while_match: button.claim
             steps:
               - click: button.claim
-              - wait: 0.5s
+              - wait: 2s
 
       - while_match: trial.task.2
         isRedDot: true
@@ -35,7 +34,7 @@ steps:
           - while_match: button.claim
             steps:
               - click: button.claim
-              - wait: 0.5s
+              - wait: 2s
 
       - while_match: trial.task.3
         isRedDot: true
@@ -45,7 +44,7 @@ steps:
           - while_match: button.claim
             steps:
               - click: button.claim
-              - wait: 0.5s
+              - wait: 2s
 
       - while_match: trial.box
         isRedDot: true
@@ -62,5 +61,5 @@ steps:
             max: 1
             steps:
               - click: button.claim
-              - wait: 1s
+              - wait: 2s
               - click: page.vip.increase.close

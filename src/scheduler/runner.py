@@ -360,7 +360,7 @@ class SchedulerRunner:
 
     async def _load_player_states(self) -> dict[str, dict[str, object]]:
         # ``_connect`` runs before any tick, so ``_redis`` is always populated here.
-        assert self._redis is not None  # noqa: S101
+        assert self._redis is not None
         states: dict[str, dict[str, object]] = {}
         for inst in self._settings.instances:
             for player_id in player_ids_for_device_candidates(
@@ -390,7 +390,7 @@ class SchedulerRunner:
         return mapping
 
     async def _active_scenario_id(self, player_id: str) -> str | None:
-        assert self._redis is not None  # noqa: S101
+        assert self._redis is not None
         raw = await self._redis.get(f"wos:player:{player_id}:scenario")
         if raw is None:
             return None
@@ -421,7 +421,7 @@ class SchedulerRunner:
     async def _run_once(self) -> None:
         # ``_connect`` runs before any tick, so both ``_queue`` and ``_redis``
         # are always populated here.
-        assert self._queue is not None  # noqa: S101
+        assert self._queue is not None
         await self._run_cron_specs()
         player_states = await self._load_player_states()
         scenarios = self._scenario_loader.load_all()

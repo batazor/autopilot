@@ -64,7 +64,7 @@ def _isolate_caches():
     clear = getattr(queue_mod._bfs_hops, "cache_clear", None)
     if clear:
         clear()
-    yield
+    return
 
 
 def _patch_required_nodes(monkeypatch, mapping: dict[str, str]) -> None:

@@ -11,7 +11,7 @@ _lock = threading.RLock()
 
 
 def get_ortools_executor() -> ThreadPoolExecutor:
-    global _pool  # noqa: PLW0603
+    global _pool
     with _lock:
         if _pool is None:
             _pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="wos-ortools")
@@ -37,7 +37,7 @@ def shutdown_ortools_executor(*, wait: bool = False, cancel_futures: bool = True
     Not registered on ``atexit``: embedded asyncio runs in a daemon thread; process exit
     runs exit handlers while that thread may still schedule work — avoid shutdown races.
     """
-    global _pool  # noqa: PLW0603
+    global _pool
     with _lock:
         if _pool is not None:
             _pool.shutdown(wait=wait, cancel_futures=cancel_futures)

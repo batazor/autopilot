@@ -381,6 +381,9 @@ class DslMatchMixin(_Base):
             min_sat = step.get("min_match_saturation")
             if min_sat is not None:
                 rule["min_match_saturation"] = min_sat
+            template = str(step.get("template") or "").replace("\\", "/").strip()
+            if template:
+                rule["template"] = template
             # Lazy import via main module so monkeypatches against
             # ``tasks.dsl_scenario.evaluate_overlay_rules_async`` apply here too.
             from tasks import dsl_scenario as _dsl

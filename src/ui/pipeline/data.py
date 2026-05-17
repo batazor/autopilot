@@ -63,10 +63,15 @@ def mtimes(
     )
 
 
-def pipeline_overlay_cache_key(instance_id: str, current_screen: str | None) -> tuple[str, str]:
+def pipeline_overlay_cache_key(
+    instance_id: str,
+    current_screen: str | None,
+    module_scope: str | None = None,
+) -> tuple[str, str, str]:
     """Cache bucket for rolling-overlay analysis (instance + node)."""
     sk = (current_screen or "").strip()
-    return (instance_id, sk)
+    scope = (module_scope or "").strip()
+    return (instance_id, sk, scope)
 
 
 def clear_pipeline_overlay_cache_entries(instance_id: str) -> None:
@@ -75,7 +80,7 @@ def clear_pipeline_overlay_cache_entries(instance_id: str) -> None:
     if not isinstance(cache, dict):
         return
     for k in list(cache.keys()):
-        if k == instance_id or isinstance(k, tuple) and len(k) >= 1 and k[0] == instance_id:
+        if k == instance_id or (isinstance(k, tuple) and len(k) >= 1 and k[0] == instance_id):
             cache.pop(k, None)
 
 
@@ -86,6 +91,7 @@ def get_or_build_pipeline_cache(
     area_path: Path,
     current_screen: str | None = None,
     state_flat: dict[str, Any] | None = None,
+    module_scope: str | None = None,
 ) -> tuple[dict[str, Any] | None, bool]:
     """Return analysis data for *instance_id*, rebuilding only when a source file changes.
 
@@ -99,14 +105,14 @@ def get_or_build_pipeline_cache(
     yet — this works because the active player rarely changes per instance during a session;
     if it does, callers should bump ``force_nonce`` to invalidate.
     """
-    preview_mtime, area_mtime, analyze_mtime = mtimes(
-        instance_id, repo_root=repo_root, area_path=area_path
-    )
+    preview_mtime, area_mtime, _ = mtimes(instance_id, repo_root=repo_root, area_path=area_path)
+    analyze_mtime = analyze_manifests_mtime(repo_root, module_scope=module_scope)
     if preview_mtime is None:
         return None, False
 
     screen_key = (current_screen or "").strip()
-    overlay_ck = pipeline_overlay_cache_key(instance_id, current_screen)
+    scope_key = (module_scope or "").strip()
+    overlay_ck = pipeline_overlay_cache_key(instance_id, current_screen, module_scope)
 
     cache: dict = st.session_state.setdefault(PIPELINE_OVERLAY_CACHE, {})
     entry = cache.get(overlay_ck)
@@ -118,6 +124,7 @@ def get_or_build_pipeline_cache(
         and entry["area_mtime"] == area_mtime
         and entry["analyze_mtime"] == analyze_mtime
         and entry.get("current_screen", "") == screen_key
+        and entry.get("module_scope", "") == scope_key
         and entry.get("nonce", 0) == nonce
     ):
         return entry, False
@@ -131,6 +138,7 @@ def get_or_build_pipeline_cache(
         repo_root=repo_root,
         current_screen=screen_key or None,
         state_flat=state_flat,
+        module_scope=module_scope,
     )
 
     area_doc: dict = {}
@@ -143,7 +151,7 @@ def get_or_build_pipeline_cache(
     rule_node: dict[str, str] = {}
     if analyze_mtime is not None:
         try:
-            raw_yaml = load_merged_analyze_yaml(repo_root)
+            raw_yaml = load_merged_analyze_yaml(repo_root, module_scope=module_scope)
             ov = raw_yaml.get("overlay") if isinstance(raw_yaml, dict) else None
             for r in ov if isinstance(ov, list) else []:
                 if not isinstance(r, dict):
@@ -184,6 +192,7 @@ def get_or_build_pipeline_cache(
         "analyze_mtime": analyze_mtime,
         "nonce": nonce,
         "current_screen": screen_key,
+        "module_scope": scope_key,
         "image_bgr": image_bgr,
         "results": results,
         "area_doc": area_doc,

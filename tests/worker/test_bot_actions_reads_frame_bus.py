@@ -25,7 +25,7 @@ def _reset_bus():
     frame_bus.reset_for_test()
 
 
-@pytest.fixture()
+@pytest.fixture
 def _fake_settings() -> Settings:
     """Minimal Settings stub so ``BotActions()`` constructs without YAML I/O."""
     from config.loader import OcrConfig, OmniparserConfig, RedisConfig, SchedulerConfig

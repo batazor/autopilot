@@ -114,7 +114,7 @@ async def run_forever_async(*, stop_event: threading.Event | None = None) -> Non
 
         stop_task = asyncio.create_task(_wait_for_stop(), name="supervisor-stop-wait")
         try:
-            done, pending = await asyncio.wait(
+            done, _pending = await asyncio.wait(
                 [*tasks, stop_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )

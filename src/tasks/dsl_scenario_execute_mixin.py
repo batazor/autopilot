@@ -334,20 +334,11 @@ class DslScenarioExecuteMixin(_Base):
 
         # Pre-flight screen identity gate. When a scenario declares
         # ``node: <screen>`` it expects ``current_screen`` to be *known* on
-        # entry — firing it from an unknown state means the navigator does a
-        # blind detect-from-image while the UI shows ``node: —``. Hard policy:
-        # if ``current_screen`` is empty, defer the scenario and do nothing
-        # else. No queued screen probe — the worker's rolling tick already
-        # runs screen detection on every frame
-        # (``_detect_current_screen_on_frame`` in
-        # ``worker/instance_worker_screen.py``), so a one-shot probe here is
-        # redundant. No history recovery — we don't trust a stale
-        # ``screen_history[0]`` as identity. The 10 s "tap close/back" escape
-        # valve is handled by ``_maybe_dismiss_unknown_popup`` →
-        # ``dismiss_unknown_popup`` once ``current_screen`` stays empty for
-        # ≥10 s with no global overlay match. ``device_level: true`` scenarios
-        # (overlay-pushed ad dismissals, identity probe, unstuck fallback) opt
-        # out and run regardless of FSM state.
+        # entry. If identity is temporarily blank, do not burn the queued
+        # scenario: yield it back with a short retry so the rolling detector can
+        # restore the node. ``device_level: true`` scenarios (overlay-pushed ad
+        # dismissals, identity probe, unstuck fallback) opt out and run
+        # regardless of FSM state.
         if (
             target_node
             and self.start_step_index <= 0
@@ -370,15 +361,15 @@ class DslScenarioExecuteMixin(_Base):
                     _scen(key), instance_id,
                 )
                 return TaskResult(
-                    success=True,
-                    next_run_at=None,
+                    success=False,
+                    next_run_at=datetime.now() + timedelta(seconds=5),
                     metadata=_fin(
                         {
                             "scenario": key,
                             "reason": "awaiting_screen_identity",
                             "target_node": target_node,
                         },
-                        completed=True,
+                        completed=False,
                     ),
                 )
 

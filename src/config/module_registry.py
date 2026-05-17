@@ -267,7 +267,7 @@ def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:
         if raw.startswith("modules/"):
             return False
         return raw.startswith("references/")
-    return raw.startswith(prefix) or raw.startswith(f"modules/{ctx.module_id}/")
+    return raw.startswith((prefix, f"modules/{ctx.module_id}/"))
 
 
 def filter_area_doc_for_context(doc: dict[str, Any], ctx: WikiModuleContext) -> dict[str, Any]:

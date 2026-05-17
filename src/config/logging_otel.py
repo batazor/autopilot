@@ -187,7 +187,7 @@ def shutdown_otel_logging() -> None:
     try:
         logging.getLogger().removeHandler(_HANDLER)
         _HANDLER.close()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.debug("shutdown_otel_logging: cleanup failed", exc_info=True)
     finally:
         if os.environ.get(_PROCESS_GUARD_ENV) == str(os.getpid()):

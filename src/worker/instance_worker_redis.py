@@ -165,7 +165,7 @@ class InstanceWorkerRedisMixin(_Base):
             except Exception:
                 continue
             sample.append(
-                f"{str(data.get('task_type') or '?')}[{str(data.get('player_id') or 'device')}]"
+                f"{data.get('task_type') or '?'!s}[{data.get('player_id') or 'device'!s}]"
             )
         detail = ", ".join(sample)
         return f"{len(rows)} due item(s) not runnable for this instance/player: {detail}"

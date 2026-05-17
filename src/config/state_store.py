@@ -216,7 +216,7 @@ _global_store_lock = threading.Lock()
 
 
 def get_state_store() -> StateStore:
-    global _global_store  # noqa: PLW0603
+    global _global_store
     if _global_store is None:
         with _global_store_lock:
             if _global_store is None:

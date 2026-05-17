@@ -158,8 +158,29 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "ANN"]
-ignore = ["ANN401"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF"]
+ignore = [
+    "ANN401",
+    # Typographic glyphs are intentional in docstrings / log strings:
+    # ``1280×720`` (×, U+00D7) reads cleaner than ``1280x720``, em-dash
+    # in prose, ``ℹ`` in UI captions, etc.
+    "RUF001",  # ambiguous-unicode-character-string
+    "RUF002",  # ambiguous-unicode-character-docstring
+    "RUF003",  # ambiguous-unicode-character-comment
+    # ``int(round(...))`` is defensive style for pixel math / OpenCV interop —
+    # ``round()`` returns int today but documents intent and survives refactors.
+    "RUF046",  # unnecessary-cast-to-int
+    # Narrow ``assert _redis is not None and _queue is not None`` style is
+    # intentional in callsites that need both invariants for a single block.
+    "PT018",   # pytest-composite-assertion
+    # ``mocker.patch.object(.., new=lambda ..: x)`` is the legitimate form when
+    # the patched symbol is called and must return a value (``return_value=`` only
+    # works on ``MagicMock`` autospec).
+    "PT008",   # pytest-patch-with-lambda
+    # The ``_``-prefix already signals an unused-but-needed fixture; rewriting
+    # every test to ``@pytest.mark.usefixtures(...)`` would just be churn.
+    "PT019",   # pytest-fixture-param-without-value
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Re-export helpers and tap/overlay symbols for tests that monkeypatch ``tasks.dsl_scenario``.

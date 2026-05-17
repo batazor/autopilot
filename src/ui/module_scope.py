@@ -40,15 +40,15 @@ def render_module_scope_selector(
     )
     if default_key not in keys:
         default_key = ALL_MODULES_KEY
-    selectbox_kwargs = dict(
-        label="Module",
-        options=labels,
-        index=keys.index(default_key),
-        key="module_scope_select",
-        help=help
+    selectbox_kwargs = {
+        "label": "Module",
+        "options": labels,
+        "index": keys.index(default_key),
+        "key": "module_scope_select",
+        "help": help
         or "All — core + every feature module. Core — repo root only. "
         "A module — only that module's scenarios, overlay rules, wiki, and areas.",
-    )
+    }
     if in_sidebar:
         # Caller already opened ``with st.sidebar:`` — render in that context.
         picked = st.selectbox(**selectbox_kwargs)  # ty: ignore[no-matching-overload]

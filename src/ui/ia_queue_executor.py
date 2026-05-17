@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import os
@@ -21,7 +22,7 @@ from tasks.dsl_scenario import DslScenarioTask
 logger = logging.getLogger(__name__)
 
 _THREAD_NAME = "wos-ia-manual-scenario-executor"
-_MANUAL_PREFIXES = ("manual:", "ui:")
+_IA_SCENARIO_PREFIXES = ("manual:", "ui:", "ovl:")
 
 
 def _existing_executor_thread() -> threading.Thread | None:
@@ -43,15 +44,38 @@ def _history_key(instance_id: str) -> str:
     return f"wos:queue:history:{str(instance_id or '').strip() or 'unknown'}"
 
 
-def _is_manual_scenario_payload(data: dict[str, Any], *, repo_root: Any) -> bool:
+def _is_ia_scenario_payload(data: dict[str, Any], *, repo_root: Any) -> bool:
     task_id = str(data.get("task_id") or "").strip()
-    if not task_id.startswith(_MANUAL_PREFIXES):
+    if not task_id.startswith(_IA_SCENARIO_PREFIXES):
         return False
     scenario_key = str(data.get("dsl_scenario") or data.get("task_type") or "").strip()
     return bool(scenario_key and template_resolver.load_doc(repo_root, scenario_key))
 
 
-async def _pop_manual_item(
+async def _resolve_overlay_player(
+    redis: aioredis.Redis,  # type: ignore[type-arg]
+    item: Any,
+) -> Any:
+    """Resolve overlay-pushed device-level DSL items to the current active player."""
+
+    if str(getattr(item, "player_id", "") or "").strip():
+        return item
+    task_id = str(getattr(item, "task_id", "") or "")
+    if not task_id.startswith("ovl:"):
+        return item
+    instance_id = str(getattr(item, "instance_id", "") or "").strip()
+    if not instance_id:
+        return item
+    active = ""
+    with suppress(Exception):
+        raw = await redis.hget(f"wos:instance:{instance_id}:state", "active_player")
+        active = (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
+    if not active:
+        return item
+    return dataclasses.replace(item, player_id=active)
+
+
+async def _pop_ia_item(
     redis: aioredis.Redis,  # type: ignore[type-arg]
     queue: RedisQueue,
     *,
@@ -74,7 +98,7 @@ async def _pop_manual_item(
             continue
         if str(data.get("instance_id") or "") != instance_id:
             continue
-        if not _is_manual_scenario_payload(data, repo_root=repo_root):
+        if not _is_ia_scenario_payload(data, repo_root=repo_root):
             continue
         try:
             claimed = int(await redis.zrem(key, raw))
@@ -82,12 +106,14 @@ async def _pop_manual_item(
             claimed = 0
         if claimed != 1:
             continue
-        return queue._build_queue_item(data, default_run_at=float(score))  # noqa: SLF001
+        item = queue._build_queue_item(data, default_run_at=float(score))
+        return await _resolve_overlay_player(redis, item)
     return None
 
 
 async def _execute_item(
     redis: aioredis.Redis,  # type: ignore[type-arg]
+    queue: RedisQueue,
     item: Any,
 ) -> None:
     instance_id = str(item.instance_id or "").strip()
@@ -164,6 +190,36 @@ async def _execute_item(
         with suppress(Exception):
             await redis.lpush(_history_key(instance_id), json.dumps(history, ensure_ascii=False))
             await redis.ltrim(_history_key(instance_id), 0, 99)
+        if result is not None and result.next_run_at is not None:
+            metadata = dict(getattr(result, "metadata", None) or {})
+            try:
+                resume_step = int(metadata.get("resume_from_step_index") or 0)
+            except (TypeError, ValueError):
+                resume_step = 0
+            with suppress(Exception):
+                await queue.schedule(
+                    task_id=item.task_id,
+                    player_id=item.player_id,
+                    task_type=item.task_type,
+                    priority=item.priority,
+                    run_at=result.next_run_at.timestamp(),
+                    instance_id=instance_id,
+                    region=item.region,
+                    tap_x_pct=item.tap_x_pct,
+                    tap_y_pct=item.tap_y_pct,
+                    threshold=item.threshold,
+                    score=item.score,
+                    match_top_left_x=item.match_top_left_x,
+                    match_top_left_y=item.match_top_left_y,
+                    template_w=item.template_w,
+                    template_h=item.template_h,
+                    tap_match_x_pct=item.tap_match_x_pct,
+                    tap_match_y_pct=item.tap_match_y_pct,
+                    dsl_scenario=item.dsl_scenario,
+                    start_step_index=max(0, resume_step),
+                    skip_if_duplicate=False,
+                    dedup_ignore_region=True,
+                )
         with suppress(Exception):
             await redis.delete(_running_key(instance_id))
         await redis.hset(
@@ -190,7 +246,7 @@ async def _executor_loop() -> None:
         while True:
             did_work = False
             for inst in settings.instances:
-                item = await _pop_manual_item(
+                item = await _pop_ia_item(
                     redis,
                     queue,
                     instance_id=inst.instance_id,
@@ -199,7 +255,7 @@ async def _executor_loop() -> None:
                 if item is None:
                     continue
                 did_work = True
-                await _execute_item(redis, item)
+                await _execute_item(redis, queue, item)
             await asyncio.sleep(0.2 if did_work else 0.8)
     finally:
         await redis.aclose()

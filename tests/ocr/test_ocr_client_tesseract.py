@@ -62,7 +62,7 @@ def test_fast_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
 
-    def _fake_run(cmd, **kwargs):  # noqa: ANN001, ANN202
+    def _fake_run(cmd, **kwargs):
         captured_cmd.append(list(cmd))
 
         class _Proc:

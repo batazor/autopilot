@@ -687,7 +687,7 @@ def screen_id_select_options(doc: AreaDocDict, current_screen_id: str) -> list[s
     cur = (current_screen_id or "").strip()
     if cur:
         ids.add(cur)
-    return [""] + sorted(x for x in ids if x)
+    return ["", *sorted(x for x in ids if x)]
 
 
 def _format_screen_id_choice(value: str) -> str:
@@ -836,7 +836,7 @@ def _render_screen_id_and_ocr_fields(
     )
     cur["screen_id"] = str(screen_id).strip()
     sid = str(cur.get("screen_id", "") or "").strip()
-    region_opts = [""] + _entry_region_names(cur)
+    region_opts = ["", *_entry_region_names(cur)]
     region_default = str(cur.get("screen_region", "") or "").strip()
     try:
         region_index = region_opts.index(region_default)

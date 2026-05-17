@@ -65,7 +65,7 @@ def redis_container() -> Iterator[RedisContainer]:
             c.stop()
 
 
-@pytest.fixture()
+@pytest.fixture
 async def redis_async(redis_container: RedisContainer) -> AsyncIterator[aioredis.Redis]:
     """Async redis client flushed per test."""
     url = _redis_url_from_container(redis_container)
@@ -77,7 +77,7 @@ async def redis_async(redis_container: RedisContainer) -> AsyncIterator[aioredis
         await r.aclose()
 
 
-@pytest.fixture()
+@pytest.fixture
 def redis_sync(redis_container: RedisContainer) -> Iterator[redis.Redis]:
     """Sync redis client flushed per test (for code using redis.Redis, not asyncio)."""
     url = _redis_url_from_container(redis_container)
@@ -90,7 +90,7 @@ def redis_sync(redis_container: RedisContainer) -> Iterator[redis.Redis]:
             r.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def pin_click_to_center(monkeypatch: pytest.MonkeyPatch) -> None:
     """Disable random-in-bbox click jitter so tests can pin exact pixel coords.
 

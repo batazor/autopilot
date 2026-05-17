@@ -17,6 +17,7 @@ defaults baked into :mod:`navigation.hero_grid_search`.
 
 from __future__ import annotations
 
+import itertools
 import json
 import sys
 from pathlib import Path
@@ -120,8 +121,8 @@ def main() -> int:
         return 4
 
     # Derive cell pitches from the column / row gap midpoints.
-    col_pitch_samples = [b - a for a, b in zip(inner_col_gaps, inner_col_gaps[1:], strict=False)]
-    row_pitch_samples = [b - a for a, b in zip(inner_row_gaps, inner_row_gaps[1:], strict=False)]
+    col_pitch_samples = [b - a for a, b in itertools.pairwise(inner_col_gaps)]
+    row_pitch_samples = [b - a for a, b in itertools.pairwise(inner_row_gaps)]
     col_pitch = int(round(float(np.mean(col_pitch_samples))))
     row_pitch = int(
         round(float(np.mean(row_pitch_samples)))

@@ -231,7 +231,7 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
     scheduled: list[dict] = []
 
     class _FakeQueue:
-        async def schedule(self, **kwargs):  # noqa: ANN003
+        async def schedule(self, **kwargs):
             scheduled.append(kwargs)
             return True
 
@@ -260,7 +260,7 @@ async def test_dismiss_unknown_popup_skipped_when_a_global_rule_matched(
     scheduled: list[dict] = []
 
     class _FakeQueue:
-        async def schedule(self, **kwargs):  # noqa: ANN003
+        async def schedule(self, **kwargs):
             scheduled.append(kwargs)
             return True
 
@@ -285,7 +285,7 @@ async def test_dismiss_unknown_popup_skipped_when_screen_is_known(
     scheduled: list[dict] = []
 
     class _FakeQueue:
-        async def schedule(self, **kwargs):  # noqa: ANN003
+        async def schedule(self, **kwargs):
             scheduled.append(kwargs)
             return True
 
@@ -307,7 +307,7 @@ async def test_dismiss_unknown_popup_skipped_below_dwell_threshold(
     scheduled: list[dict] = []
 
     class _FakeQueue:
-        async def schedule(self, **kwargs):  # noqa: ANN003
+        async def schedule(self, **kwargs):
             scheduled.append(kwargs)
             return True
 

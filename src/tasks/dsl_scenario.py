@@ -52,10 +52,10 @@ from tasks.dsl_scenario_preempt_mixin import (
 )
 
 __all__ = [
-    "DslScenarioTask",
     "PREEMPT_MARGIN",
     "PREEMPT_MAX_YIELDS",
     "PREEMPT_YIELD_COUNT_TTL_SECONDS",
+    "DslScenarioTask",
 ]
 
 

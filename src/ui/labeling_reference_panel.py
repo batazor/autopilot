@@ -143,7 +143,7 @@ def render_labeling_reference_column(
                     meta_by_rel,
                 )
             if is_temporal_sel and isinstance(stored_raw, str) and stored_raw.strip():
-                tree_data = [temporal_capture_tree_node(stored_raw)] + tree_data
+                tree_data = [temporal_capture_tree_node(stored_raw), *tree_data]
             tree_nonce = int(st.session_state.get(LABELING_REF_TREE_NONCE, 0))
             picked = st_ant_tree(
                 treeData=tree_data,

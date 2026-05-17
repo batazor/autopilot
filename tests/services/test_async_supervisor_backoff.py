@@ -19,7 +19,7 @@ def _stub_settings(monkeypatch: pytest.MonkeyPatch) -> Any:
 
     settings = _Settings()
     monkeypatch.setattr(async_supervisor, "get_settings", lambda: settings)
-    yield settings
+    return settings
 
 
 @pytest.mark.asyncio

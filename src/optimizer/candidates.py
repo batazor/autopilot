@@ -8,6 +8,7 @@ action specifics.
 """
 from __future__ import annotations
 
+import itertools
 from functools import lru_cache
 from typing import Any
 
@@ -154,7 +155,7 @@ def _interpolate_xp(table: dict[Any, Any], target_level: int) -> int:
     if target_level >= anchors[-1][0]:
         return anchors[-1][1]
     # Linear interpolation between bracketing anchors.
-    for (lv_a, cost_a), (lv_b, cost_b) in zip(anchors, anchors[1:], strict=False):
+    for (lv_a, cost_a), (lv_b, cost_b) in itertools.pairwise(anchors):
         if lv_a <= target_level <= lv_b:
             span = lv_b - lv_a
             if span <= 0:

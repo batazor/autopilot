@@ -87,13 +87,13 @@ _registry_lock = threading.Lock()
 
 
 def invalidate_item_registry() -> None:
-    global _registry  # noqa: PLW0603
+    global _registry
     with _registry_lock:
         _registry = None
 
 
 def get_item_registry() -> ItemRegistry:
-    global _registry  # noqa: PLW0603
+    global _registry
     if _registry is None:
         with _registry_lock:
             if _registry is None:

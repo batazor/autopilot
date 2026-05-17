@@ -32,10 +32,11 @@ async def run_overlay_analysis(
     state_flat: dict[str, Any] | None = None,
     ocr_client: OcrClient | None = None,
     device_level_only: bool = False,
+    module_scope: str | None = None,
 ) -> dict[str, Any]:
     """Load module overlay manifests (unless overridden) and evaluate ``overlay`` rules."""
     if analyze_yaml is None:
-        cfg = load_merged_analyze_yaml(repo_root)
+        cfg = load_merged_analyze_yaml(repo_root, module_scope=module_scope)
     elif analyze_yaml.is_file():
         cfg = load_analyze_yaml(analyze_yaml)
     else:
@@ -78,6 +79,7 @@ def run_overlay_analysis_sync(
     state_flat: dict[str, Any] | None = None,
     ocr_client: OcrClient | None = None,
     device_level_only: bool = False,
+    module_scope: str | None = None,
 ) -> dict[str, Any]:
     """Sync wrapper for contexts that cannot await (e.g. some Streamlit pages)."""
     return asyncio.run(
@@ -91,6 +93,7 @@ def run_overlay_analysis_sync(
             state_flat=state_flat,
             ocr_client=ocr_client,
             device_level_only=device_level_only,
+            module_scope=module_scope,
         )
     )
 
@@ -134,13 +137,13 @@ def evaluate_overlay_rules(
 
 
 __all__ = [
-    "parse_duration_seconds",
+    "_apply_min_saturation_gate",
+    "centers_delta_pct_between_regions",
+    "evaluate_overlay_rules",
+    "evaluate_overlay_rules_async",
     "load_analyze_yaml",
     "load_merged_analyze_yaml",
-    "centers_delta_pct_between_regions",
-    "evaluate_overlay_rules_async",
-    "evaluate_overlay_rules",
+    "parse_duration_seconds",
     "run_overlay_analysis",
     "run_overlay_analysis_sync",
-    "_apply_min_saturation_gate",
 ]

@@ -120,7 +120,7 @@ def test_detector_marks_yellow_trials_tab_active() -> None:
 
 @pytest.mark.parametrize(
     "task_region",
-    ("trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"),
+    ["trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"],
 )
 def test_detector_marks_trials_task_red_dots(task_region: str) -> None:
     image_bgr = cv2.imread(str(TRIALS_FIXTURE))
@@ -133,7 +133,7 @@ def test_detector_marks_trials_task_red_dots(task_region: str) -> None:
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "task_region",
-    ("trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"),
+    ["trial.day.1", "trial.task.1", "trial.task.2", "trial.task.3"],
 )
 async def test_overlay_isreddot_matches_trials_task_red_dots(task_region: str) -> None:
     image_bgr = cv2.imread(str(TRIALS_FIXTURE))
@@ -186,7 +186,7 @@ async def test_overlay_istabactive_true_matches_yellow_trials_tab() -> None:
     assert row.get("yellow_ratio", 0.0) > 0.25
 
 
-@pytest.mark.parametrize("expected_tab, fixture_path", MAIL_TAB_FIXTURES.items())
+@pytest.mark.parametrize(("expected_tab", "fixture_path"), MAIL_TAB_FIXTURES.items())
 def test_module_mail_tab_fixtures_detect_current_tab(
     expected_tab: str,
     fixture_path: Path,

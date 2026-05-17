@@ -47,7 +47,7 @@ from optimizer.types import Candidate, Cost
 # ``# isort: split`` tells ruff/isort to treat this as a separate import block
 # and not lift it to the top of the file.
 # isort: split
-from optimizer.executor import PlanStep, apply_command, plan_top_k  # noqa: E402
+from optimizer.executor import PlanStep, apply_command, plan_top_k
 
 
 def rank_candidates(

@@ -8,15 +8,7 @@ overlay:
     screens:
       - main_city
     pushScenario:
-      - name: claim_trials.1
-        ttl: 1m
-      - name: claim_trials.2
-        ttl: 1m
-      - name: claim_trials.3
-        ttl: 1m
-      - name: claim_trials.4
-        ttl: 1m
-      - name: claim_trials.5
+      - name: event.trials
         ttl: 1m
 
   - name: trials.day.1.has_red_dot

@@ -18,8 +18,7 @@ def enhance_for_ocr(image: np.ndarray) -> np.ndarray:
 
     _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    upscaled = cv2.resize(binary, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
-    return upscaled
+    return cv2.resize(binary, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
 
 
 # Region ``type:`` values that imply short, single-line, digit-heavy content

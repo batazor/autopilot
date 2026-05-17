@@ -488,8 +488,7 @@ def _select_with_freetext(label: str, current: str, options: list[str], key: str
     if not opts:
         return st.text_input(label, value=cur, key=key + "::txt")
     idx = opts.index(cur) if cur in opts else 0
-    chosen = st.selectbox(label, opts, index=idx, key=key + "::sel")
-    return chosen
+    return st.selectbox(label, opts, index=idx, key=key + "::sel")
 
 
 def _render_steps_list(
@@ -537,7 +536,7 @@ def _render_steps_list(
         if not isinstance(step, dict):
             steps[i] = {"wait": "0s"}
             step = steps[i]
-        path = parent_path + (i,)
+        path = (*parent_path, i)
         stype = _detect_step_type(step)
         with st.container(border=True):
             head = st.columns([0.5, 4, 0.4, 0.4, 0.4])
@@ -742,7 +741,7 @@ sel_default = st.session_state.get(_selected_path_key()) or rels[0]
 if sel_default not in rels:
     sel_default = rels[0]
 
-path_by_rel = {r: f for r, f in zip(rels, files, strict=True)}
+path_by_rel = dict(zip(rels, files, strict=True))
 
 
 def _build_scenario_tree_data(rel_paths: list[str]) -> list[dict[str, Any]]:

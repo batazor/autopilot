@@ -156,13 +156,13 @@ _settings: Settings | None = None
 
 def set_settings(settings: Settings) -> None:
     """Bind settings from Dishka bootstrap (or tests)."""
-    global _settings  # noqa: PLW0603
+    global _settings
     _settings = settings
 
 
 def reset_settings() -> None:
     """Clear cached settings (tests)."""
-    global _settings  # noqa: PLW0603
+    global _settings
     _settings = None
 
 

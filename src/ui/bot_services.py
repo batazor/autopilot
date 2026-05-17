@@ -53,7 +53,7 @@ def _register_state_save_wake() -> None:
     Idempotent — the state_store registry already dedups, and we guard here
     too so repeated ``ensure_embedded_bot`` calls don't construct extra
     Redis clients."""
-    global _state_wake_registered  # noqa: PLW0603
+    global _state_wake_registered
     if _state_wake_registered:
         return
     try:

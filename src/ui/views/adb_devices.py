@@ -554,7 +554,7 @@ with st.form("settings_yaml_form", clear_on_submit=False):
 
         try:
             _atomic_write_yaml(_SETTINGS_PATH, new_doc)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             st.error(f"Failed to save: {exc}")
         else:
             st.success(
@@ -733,7 +733,7 @@ with st.form("devices_yaml_form", clear_on_submit=False):
             new_doc["devices"] = new_devices
             try:
                 _atomic_write_yaml(_DEVICES_PATH, new_doc)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 st.error(f"Failed to save: {exc}")
             else:
                 invalidate_device_registry()

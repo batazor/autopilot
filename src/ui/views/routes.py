@@ -1,6 +1,7 @@
 """Game node routing graph backed by the runtime tap registry."""
 from __future__ import annotations
 
+import itertools
 from typing import Any
 
 import streamlit as st
@@ -78,7 +79,7 @@ def _plan_bot_route(src: str, dst: str) -> tuple[list[str] | None, str]:
 def _route_edge_pairs(path: list[str] | None) -> frozenset[tuple[str, str]]:
     if not path:
         return frozenset()
-    return frozenset((a, b) for a, b in zip(path, path[1:], strict=False))
+    return frozenset((a, b) for a, b in itertools.pairwise(path))
 
 
 def _edge_status(src: str, dst: str) -> str:
@@ -184,7 +185,7 @@ with tab_graph:
         with col_c:
             focus = st.selectbox(
                 "Focus node",
-                [""] + nodes,
+                ["", *nodes],
                 index=0,
                 key="routes_focus_node",
             )
@@ -215,7 +216,7 @@ with tab_graph:
                 st.caption("Already on target screen.")
             else:
                 hop_rows: list[dict[str, Any]] = []
-                for i, (a, b) in enumerate(zip(path, path[1:], strict=False)):
+                for i, (a, b) in enumerate(itertools.pairwise(path)):
                     hop_rows.append(
                         {
                             "id": f"routes_hop_{i}",

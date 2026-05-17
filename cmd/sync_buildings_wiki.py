@@ -45,8 +45,7 @@ def _slugify_id(s: str) -> str:
     s = s.strip().lower()
     s = s.replace("’", "'")
     s = re.sub(r"[^a-z0-9]+", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    return re.sub(r"_+", "_", s).strip("_")
 
 
 def _extract_building_links(index_html: str) -> dict[str, str]:
@@ -136,8 +135,7 @@ def _ensure_registry_from_index(
 def _parse_amount(raw: str) -> str:
     s = (raw or "").strip()
     s = s.replace("\xa0", " ")
-    s = re.sub(r"\s+", " ", s)
-    return s
+    return re.sub(r"\s+", " ", s)
 
 
 def _parse_build_cost_cell(td: Tag) -> list[CostItem]:

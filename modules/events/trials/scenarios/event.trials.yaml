@@ -1,0 +1,12 @@
+enabled: true
+name: Open Trials
+node: main_city
+icon: trials
+steps:
+  - while_match: main_city.icon_search
+    template: modules/events/trials/references/event.trials.png
+    threshold: 0.9
+    max: 1
+    steps:
+      - click: main_city.icon_search
+      - wait: 1s

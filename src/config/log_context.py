@@ -69,7 +69,7 @@ def bind_log_context(
 class LogContextFilter(logging.Filter):
     """Attach context attrs expected by stdout / OTLP log formatters."""
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+    def filter(self, record: logging.LogRecord) -> bool:
         record.inst = _inst.get() or "-"
         record.player = _player.get() or "-"
         record.node = _node.get() or "-"

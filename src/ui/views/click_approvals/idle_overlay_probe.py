@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 from typing import Any
 
 import cv2
 import streamlit as st
 
+from config.module_registry import module_scope_options
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png
@@ -26,6 +28,7 @@ from layout.white_border_detector import (
     has_white_border_in_bbox_percent,
     white_border_halo_stats,
 )
+from ui.ia_overlay_executor import analyzer_events_key, analyzer_scope_key, analyzer_status_key
 from ui.pipeline.data import (
     clear_pipeline_overlay_cache_entries,
     force_nonce,
@@ -99,6 +102,100 @@ def _area_region_names(area_doc: dict[str, Any]) -> list[str]:
     return sorted(out, key=str.lower)
 
 
+def _redis_text(value: Any) -> str:
+    return value.decode() if isinstance(value, (bytes, bytearray)) else str(value or "")
+
+
+def _render_analyzer_scope_controls(
+    *,
+    ctx: ClickApprovalsCtx,
+    client: Any,
+    instance_id: str,
+) -> str:
+    scope_key = analyzer_scope_key(instance_id)
+    raw_scope = _redis_text(client.get(scope_key)).strip() or "disabled"
+    options = [("disabled", "Disabled")]
+    options.extend(module_scope_options(ctx.repo_root))
+    option_values = [value for value, _label in options]
+    if raw_scope not in option_values:
+        raw_scope = "disabled"
+    labels = dict(options)
+    widget_key = f"ia_analyzer_scope::{instance_id}"
+    if st.session_state.get(widget_key) != raw_scope:
+        st.session_state[widget_key] = raw_scope
+
+    def _save_scope() -> None:
+        client.set(scope_key, st.session_state.get(widget_key, "disabled"))
+        clear_pipeline_overlay_cache_entries(instance_id)
+        st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
+
+    selected = st.selectbox(
+        "Analyzer module scope",
+        option_values,
+        index=option_values.index(raw_scope),
+        format_func=lambda value: labels.get(value, value),
+        key=widget_key,
+        on_change=_save_scope,
+        help=(
+            "IA Editor runs overlay analyzer only for this module scope. "
+            "Pushed scenarios still execute through the normal queue and approvals."
+        ),
+    )
+
+    raw_status = client.get(analyzer_status_key(instance_id))
+    status: dict[str, Any] = {}
+    if raw_status:
+        try:
+            status = json.loads(_redis_text(raw_status))
+        except json.JSONDecodeError:
+            status = {}
+    if status:
+        skipped = str(status.get("skipped") or "").strip()
+        matched = status.get("matched") if isinstance(status.get("matched"), list) else []
+        pushed = status.get("pushed") if isinstance(status.get("pushed"), list) else []
+        throttled = status.get("throttled") if isinstance(status.get("throttled"), list) else []
+        bits: list[str] = [f"scope `{status.get('scope') or 'disabled'}`"]
+        if skipped:
+            bits.append(f"skipped `{skipped}`")
+        else:
+            bits.append(f"matched `{len(matched)}`")
+            bits.append(f"pushed `{len(pushed)}`")
+            bits.append(f"throttled `{len(throttled)}`")
+        st.caption("Analyzer: " + " · ".join(bits))
+        if matched or pushed or throttled:
+            with st.expander("Recent analyzer result", expanded=False):
+                if matched:
+                    st.markdown("**Matched rules**")
+                    for row in matched[:8]:
+                        st.caption(
+                            f"`{row.get('rule')}` · `{row.get('region')}` · "
+                            f"push `{', '.join(row.get('pushScenario') or []) or '—'}`"
+                        )
+                if pushed:
+                    st.markdown("**Pushed scenarios**")
+                    for row in pushed[:8]:
+                        st.caption(f"`{row.get('task_id')}` · `{row.get('task_type')}`")
+                if throttled:
+                    st.markdown("**Throttled pushes**")
+                    for row in throttled[:8]:
+                        st.caption(f"`{row.get('scenario')}` · ttl `{row.get('ttl')}`s")
+
+    raw_events = client.lrange(analyzer_events_key(instance_id), 0, 2)
+    if raw_events:
+        with st.expander("Analyzer event history", expanded=False):
+            for raw in raw_events:
+                try:
+                    event = json.loads(_redis_text(raw))
+                except json.JSONDecodeError:
+                    continue
+                pushed = event.get("pushed") if isinstance(event.get("pushed"), list) else []
+                matched = event.get("matched") if isinstance(event.get("matched"), list) else []
+                st.caption(
+                    f"`{event.get('scope')}` · matched `{len(matched)}` · pushed `{len(pushed)}`"
+                )
+    return selected
+
+
 def _probe_area_region_ocr(
     *,
     pay: dict[str, Any],
@@ -142,7 +239,7 @@ def _probe_area_region_ocr(
                 "text": str(getattr(res, "text", "") or "").strip(),
                 "confidence": float(getattr(res, "confidence", 0.0) or 0.0),
             }
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             cached = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         st.session_state[cache_key] = cached
 
@@ -245,7 +342,7 @@ def _probe_area_region_exist(
             )
             row = out.get(str(rule["name"]))
             cached = {"ok": True, "row": row if isinstance(row, dict) else {}}
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             cached = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
         st.session_state[cache_key] = cached
 
@@ -843,6 +940,9 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         "Uses the same rolling PNG and overlay evaluation as the worker, "
         "including Redis **`current_screen`** for YAML **`screens`** rules."
     )
+    analyzer_scope = _render_analyzer_scope_controls(
+        ctx=ctx, client=client, instance_id=instance_id
+    )
     if st.button(
         "Reload overlay scores",
         width="stretch",
@@ -864,6 +964,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         repo_root=ctx.repo_root,
         area_path=ctx.area_path,
         current_screen=current_screen or None,
+        module_scope=None if analyzer_scope == "disabled" else analyzer_scope,
     )
     if rebuilt:
         st.caption("Overlay recomputed on rolling PNG.")

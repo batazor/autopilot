@@ -26,7 +26,7 @@ def test_returns_none_for_empty_input() -> None:
 
 
 def test_returns_none_when_detector_unknown(mocker) -> None:
-    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:
         return ScreenName.UNKNOWN
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
@@ -36,7 +36,7 @@ def test_returns_none_when_detector_unknown(mocker) -> None:
 
 
 def test_returns_screen_id_string_on_full_detect_hit(mocker) -> None:
-    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:
         return ScreenName.MAIN_CITY
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)
@@ -47,10 +47,10 @@ def test_returns_screen_id_string_on_full_detect_hit(mocker) -> None:
 
 def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
     """OCR backend down → full path raises → template-only path is consulted."""
-    async def _broken(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _broken(self: object, _img: np.ndarray) -> ScreenName:
         raise RuntimeError("ocr backend offline")
 
-    async def _template_hit(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _template_hit(self: object, _img: np.ndarray) -> ScreenName:
         return ScreenName.MAIL
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_broken)
@@ -63,7 +63,7 @@ def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
 
 
 def test_returns_none_when_both_paths_fail(mocker) -> None:
-    async def _broken(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _broken(self: object, _img: np.ndarray) -> ScreenName:
         raise RuntimeError("dead")
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_broken)
@@ -96,7 +96,7 @@ def _screen_param(name: str, expected: str) -> Any:
 
 
 @pytest.mark.parametrize(
-    "screen,expected",
+    ("screen", "expected"),
     [
         _screen_param("MAIL", "mail"),
         _screen_param("HERO_RECRUTMENT", "hero.recrutment"),
@@ -106,7 +106,7 @@ def _screen_param(name: str, expected: str) -> Any:
 def test_returns_canonical_screen_id_string(
     mocker, screen: ScreenName, expected: str
 ) -> None:
-    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:  # noqa: ARG001
+    async def _fake_detect(self: object, _img: np.ndarray) -> ScreenName:
         return screen
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_fake_detect)

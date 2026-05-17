@@ -214,8 +214,7 @@ def _red_mask(patch_bgr: np.ndarray) -> np.ndarray:
     m2 = cv2.inRange(hsv, lo2, hi2)
     mask = cv2.bitwise_or(m1, m2)
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
-    return mask
+    return cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
 
 
 def find_red_dots(

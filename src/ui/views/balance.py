@@ -115,7 +115,7 @@ def _render_hero_meta_tab() -> None:
         )
         if idx is None:
             return
-        hid, name = heroes[int(idx)]
+        hid, _name = heroes[int(idx)]
     with col_action:
         is_override = hid in overrides
         if is_override:

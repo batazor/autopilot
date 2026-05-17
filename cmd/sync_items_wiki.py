@@ -39,14 +39,12 @@ def _slugify_id(s: str) -> str:
     s = (s or "").strip().lower()
     s = s.replace("’", "'")
     s = re.sub(r"[^a-z0-9]+", "_", s)
-    s = re.sub(r"_+", "_", s).strip("_")
-    return s
+    return re.sub(r"_+", "_", s).strip("_")
 
 
 def _clean_text(s: str) -> str:
     s = (s or "").replace("\xa0", " ")
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def _extract_item_links(index_html: str) -> dict[str, str]:

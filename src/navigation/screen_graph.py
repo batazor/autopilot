@@ -18,6 +18,7 @@ Adding a new screen
 """
 from __future__ import annotations
 
+import itertools
 from collections import deque
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
@@ -559,7 +560,7 @@ def bfs_route(src: str, dst: str) -> list[str] | None:
         for nb in sorted(_TAPS_GRAPH.get(path[-1], set())):
             if nb in visited:
                 continue
-            new_path = path + [nb]
+            new_path = [*path, nb]
             if nb == dst:
                 return new_path
             visited.add(nb)
@@ -579,7 +580,7 @@ def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
     if path is None:
         return None
     result: list[list[Tap]] = []
-    for a, b in zip(path, path[1:], strict=False):
+    for a, b in itertools.pairwise(path):
         taps = EDGE_TAPS.get((a, b))
         if taps is None:
             return None
@@ -593,7 +594,7 @@ def route_hops(src: str, dst: str) -> list[tuple[str, list[Tap]]] | None:
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []
-    for a, b in zip(path, path[1:], strict=False):
+    for a, b in itertools.pairwise(path):
         taps = EDGE_TAPS.get((a, b))
         if taps is None:
             return None
@@ -619,7 +620,7 @@ async def route_taps_async(
     if path is None:
         return None
     result: list[list[Tap]] = []
-    for a, b in zip(path, path[1:], strict=False):
+    for a, b in itertools.pairwise(path):
         taps = EDGE_TAPS.get((a, b))
         if taps is None:
             taps = await _resolve_dynamic_edge(
@@ -643,7 +644,7 @@ async def route_hops_async(
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []
-    for a, b in zip(path, path[1:], strict=False):
+    for a, b in itertools.pairwise(path):
         taps = EDGE_TAPS.get((a, b))
         if taps is None:
             taps = await _resolve_dynamic_edge(

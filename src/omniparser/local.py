@@ -25,7 +25,7 @@ _omniparser_root: Path | None = None
 
 
 def resolve_omniparser_root() -> Path:
-    global _omniparser_root  # noqa: PLW0603
+    global _omniparser_root
     if _omniparser_root is not None:
         return _omniparser_root
     raw = (os.environ.get("OMNIPARSER_ROOT") or "").strip()
@@ -69,7 +69,7 @@ def _resolve_device() -> str | None:
 
 
 def load_models() -> dict[str, Any]:
-    global _models  # noqa: PLW0603
+    global _models
     with _models_lock:
         if _models is not None:
             return _models
@@ -281,7 +281,7 @@ def parse_icon_detect_image(
     imgsz: int | None,
 ) -> list[dict[str, Any]]:
     """Fast one-shot path: use OmniParser's YOLO icon detector only."""
-    global _icon_model  # noqa: PLW0603
+    global _icon_model
     root = resolve_omniparser_root()
     model_path = root / "weights" / "icon_detect" / "model.pt"
     if not model_path.is_file():

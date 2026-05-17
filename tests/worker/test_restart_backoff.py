@@ -14,7 +14,7 @@ def _deterministic_rng(mocker) -> Any:
     """Pin the RNG so jitter is reproducible across runs."""
     rng = random.Random(0xDEADBEEF)
     mocker.patch.object(restart_backoff, "_rng", new=rng)
-    yield
+    return
 
 
 def test_attempt_1_uses_base_plus_jitter() -> None:

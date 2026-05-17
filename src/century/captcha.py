@@ -10,7 +10,7 @@ _ocr: object = None
 
 
 def _get_ocr() -> object:
-    global _ocr  # noqa: PLW0603
+    global _ocr
     if _ocr is None:
         import ddddocr  # type: ignore[import-untyped]
         _ocr = ddddocr.DdddOcr(show_ad=False)

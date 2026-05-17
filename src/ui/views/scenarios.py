@@ -259,7 +259,7 @@ def _folder_node_to_nested_rows(node: _FolderNode, prefix: tuple[str, ...]) -> l
     out: list[dict] = []
     for name in sorted(node.subfolders.keys()):
         child = node.subfolders[name]
-        folder_parts = prefix + (name,)
+        folder_parts = (*prefix, name)
         folder_id = "folder:" + "/".join(folder_parts)
         children = _folder_node_to_nested_rows(child, folder_parts)
         out.append(

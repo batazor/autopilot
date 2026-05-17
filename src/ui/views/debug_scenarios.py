@@ -119,8 +119,7 @@ def _scenario_param_value(raw: object | None) -> str:
     if raw is None:
         return ""
     s = raw[0] if isinstance(raw, list) and raw else raw
-    s = str(s or "").strip().replace("\\", "/")
-    return s
+    return str(s or "").strip().replace("\\", "/")
 
 
 def _list_scenario_files(repo_root: Path, module_scope: str) -> list[ScenarioFile]:
@@ -778,8 +777,8 @@ if player_param:
             break
 if (
     player_pick_key not in st.session_state
-    or player_param
-    and st.session_state.get(player_pick_key) != player_idx_default
+    or (player_param
+    and st.session_state.get(player_pick_key) != player_idx_default)
 ):
     st.session_state[player_pick_key] = player_idx_default
 

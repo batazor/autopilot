@@ -34,7 +34,7 @@ def cascade_aux_region_names(
     name = (primary_name or "").strip()
     if not name:
         return []
-    if name.endswith("_search") or name.endswith("_tap"):
+    if name.endswith(("_search", "_tap")):
         return []
     out: list[str] = []
     for aux in (overlay_tap_region_name(name),):
