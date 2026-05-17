@@ -101,7 +101,7 @@ async def test_ocr_step_persists_integer_to_player_state(
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     captured: dict[str, Any] = {}
@@ -150,7 +150,7 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     class _StubOcrClient:
@@ -186,7 +186,7 @@ async def test_ocr_step_skips_persist_below_threshold(
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
 
     class _LowConfStub:
@@ -219,7 +219,7 @@ async def test_device_level_who_i_am_retries_when_identity_not_resolved(
     redis_async: object,
 ) -> None:
     _write_who_i_am_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _LowConfStub:
         async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
@@ -291,7 +291,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         ),
         encoding="utf-8",
     )
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     redis_client = redis_async
     captured: dict[str, Any] = {"calls": 0}
 
@@ -648,7 +648,7 @@ async def test_exec_fetch_player_syncs_century_fields(
     monkeypatch.setattr(
         dsl,
         "BotActions",
-        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
+        lambda: make_actions(np.zeros((10, 10, 3), dtype=np.uint8)),
     )
 
     from century.api import CenturyClient
@@ -699,7 +699,7 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     monkeypatch.setattr(
         dsl,
         "BotActions",
-        lambda: _FakeActions(np.zeros((10, 10, 3), dtype=np.uint8)),
+        lambda: make_actions(np.zeros((10, 10, 3), dtype=np.uint8)),
     )
 
     from century.api import CenturyClient
@@ -859,7 +859,7 @@ async def test_ocr_step_state_keyword_writes_to_state_yaml(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     captured: dict[str, Any] = {"flat": None, "player_id": None}
 
@@ -951,7 +951,7 @@ async def test_ocr_step_state_and_store_together_write_both_targets(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
     captured: dict[str, Any] = {"flat": None}
 
     class _FakeStore:
@@ -1041,7 +1041,7 @@ async def test_ocr_step_without_state_keyword_skips_state_store(
         encoding="utf-8",
     )
 
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     state_store_called = False
 

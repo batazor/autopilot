@@ -146,7 +146,7 @@ async def test_ocr_step_time_type_stores_seconds_as_int(
 ) -> None:
     """``type: time`` OCR step converts "01:02:03" → 3723 in Redis."""
     _write_timer_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _StubOcrClient:
         async def ocr_region(
@@ -232,7 +232,7 @@ async def test_ocr_step_time_with_throttle_push_writes_push_ttl(
         ),
         encoding="utf-8",
     )
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _StubOcrClient:
         async def ocr_region(
@@ -328,7 +328,7 @@ async def test_ocr_step_time_throttle_push_no_active_player_uses_instance_scope(
         ),
         encoding="utf-8",
     )
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _StubOcrClient:
         async def ocr_region(
@@ -520,7 +520,7 @@ async def test_ocr_step_time_unparseable_skips_persist(
     arithmetic ``cond`` checks).
     """
     _write_timer_repo(tmp_path)
-    actions = _FakeActions(np.zeros((100, 200, 3), dtype=np.uint8))
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
 
     class _StubOcrClient:
         async def ocr_region(

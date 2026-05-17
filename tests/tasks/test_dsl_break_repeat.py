@@ -123,7 +123,7 @@ async def test_dsl_break_repeat_stops_swipe(
             }
         }
 
-    fake_actions = _FakeActions()
+    fake_actions = make_actions()
     fake_actions.tapped = []
     fake_actions.swipes = []
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)

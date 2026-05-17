@@ -150,7 +150,7 @@ async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     """All probes miss → scenario reschedules itself instead of silent success."""
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _claim_pattern_frame := _frame_with_pattern())
-    actions = _FakeActions([blank, blank, blank, blank, blank, blank, blank])
+    actions = make_actions([blank, blank, blank, blank, blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
@@ -186,7 +186,7 @@ async def test_player_bound_while_match_zero_iterations_pauses_in_approval_mode(
 ) -> None:
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_player_bound_scenario(tmp_path, _frame_with_pattern())
-    actions = _FakeActions([blank, blank, blank, blank, blank])
+    actions = make_actions([blank, blank, blank, blank, blank])
     approvals: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
@@ -236,7 +236,7 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
     _write_player_bound_scenario(tmp_path, visible)
     # Sequence: blank, blank, visible, blank → retry exhausted on 3rd probe (matches),
     # click, then probe again (blank) → exit, iterations=1, success.
-    actions = _FakeActions([blank, blank, visible, blank])
+    actions = make_actions([blank, blank, visible, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     real_sleep = dsl.asyncio.sleep
@@ -303,7 +303,7 @@ async def test_player_bound_while_match_uses_implicit_search_region(
         ref[20:30, 20:30],
     )
 
-    actions = _FakeActions([frame, np.zeros((100, 100, 3), dtype=np.uint8)])
+    actions = make_actions([frame, np.zeros((100, 100, 3), dtype=np.uint8)])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     real_sleep = dsl.asyncio.sleep
@@ -339,7 +339,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     frame = cv2.imread(str(fixture))
     assert frame is not None, f"fixture missing or unreadable: {fixture}"
     blank = np.zeros_like(frame)
-    actions = _FakeActions([frame, blank])
+    actions = make_actions([frame, blank])
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
     real_sleep = dsl.asyncio.sleep
@@ -385,7 +385,7 @@ async def test_player_bound_while_match_honors_explicit_retry_block(
     raw["steps"][0]["retry"] = {"attempts": 3, "interval": "250ms"}
     yaml_path.write_text(yaml.dump(raw), encoding="utf-8")
 
-    actions = _FakeActions([blank, blank, blank, blank, blank])
+    actions = make_actions([blank, blank, blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     monkeypatch.setattr(dsl, "click_approval_enabled", lambda _instance_id: False)
@@ -432,7 +432,7 @@ async def test_device_level_while_match_zero_iterations_returns_success(
         s.pop("strict", None)
     yaml_path.write_text(yaml.dump(raw), encoding="utf-8")
 
-    actions = _FakeActions([blank, blank])
+    actions = make_actions([blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
     real_sleep = dsl.asyncio.sleep
@@ -535,7 +535,7 @@ async def test_red_dot_guard_with_zero_matches_skips_silently_not_strict(
     _write_red_dot_guard_scenario(tmp_path)
     # Blank frame → red dot detector finds nothing → guard matches 0 times.
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
-    actions = _FakeActions([blank, blank, blank])
+    actions = make_actions([blank, blank, blank])
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     patch_dsl_bot_actions(monkeypatch, actions)
 

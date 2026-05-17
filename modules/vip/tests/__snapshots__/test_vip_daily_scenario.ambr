@@ -1,0 +1,162 @@
+# serializer version: 1
+# name: test_vip_daily_scenario_is_registered_with_expected_shape
+  dict({
+    'cond': 'active_player != null',
+    'cron': '0 */12 * * *',
+    'enabled': True,
+    'name': 'VIP: Daily Rewards',
+    'node': 'vip',
+    'priority': 80000,
+    'steps': list([
+      dict({
+        'isRedDot': True,
+        'max': 3,
+        'retry': dict({
+          'attempts': 1,
+          'interval': '100ms',
+        }),
+        'steps': list([
+          dict({
+            'click': 'page.vip.box',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+          dict({
+            'max': 1,
+            'retry': dict({
+              'attempts': 3,
+              'interval': '500ms',
+            }),
+            'steps': list([
+              dict({
+                'click': 'button.click_to_continue',
+              }),
+              dict({
+                'wait': '0.5s',
+              }),
+            ]),
+            'while_match': 'button.click_to_continue',
+          }),
+        ]),
+        'while_match': 'page.vip.box',
+      }),
+      dict({
+        'max': 1,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
+        'steps': list([
+          dict({
+            'click': 'button.claim',
+          }),
+          dict({
+            'wait': '0.8s',
+          }),
+          dict({
+            'click': 'button.tap_anywhere_to_exit',
+          }),
+          dict({
+            'wait': '0.3s',
+          }),
+        ]),
+        'while_match': 'button.claim',
+      }),
+      dict({
+        'isRedDot': True,
+        'max': 3,
+        'retry': dict({
+          'attempts': 1,
+          'interval': '100ms',
+        }),
+        'steps': list([
+          dict({
+            'click': 'page.vip.add',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+          dict({
+            'retry': dict({
+              'attempts': 3,
+              'interval': '500ms',
+            }),
+            'steps': list([
+              dict({
+                'click': 'button.use',
+              }),
+              dict({
+                'wait': '1s',
+              }),
+            ]),
+            'while_match': 'button.use',
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'increase_level.icon.close',
+              }),
+              dict({
+                'wait': '300ms',
+              }),
+            ]),
+            'while_match': 'increase_level.icon.close',
+          }),
+          dict({
+            'wait': '300ms',
+          }),
+        ]),
+        'while_match': 'page.vip.add',
+      }),
+      dict({
+        'isRedDot': True,
+        'max': 3,
+        'retry': dict({
+          'attempts': 1,
+          'interval': '100ms',
+        }),
+        'steps': list([
+          dict({
+            'click': 'page.vip.unlock',
+          }),
+          dict({
+            'wait': '0.5s',
+          }),
+          dict({
+            'retry': dict({
+              'attempts': 3,
+              'interval': '500ms',
+            }),
+            'steps': list([
+              dict({
+                'click': 'button.use',
+              }),
+              dict({
+                'wait': '1s',
+              }),
+            ]),
+            'while_match': 'button.use',
+          }),
+          dict({
+            'max': 1,
+            'steps': list([
+              dict({
+                'click': 'increase_level.icon.close',
+              }),
+              dict({
+                'wait': '300ms',
+              }),
+            ]),
+            'while_match': 'increase_level.icon.close',
+          }),
+          dict({
+            'wait': '300ms',
+          }),
+        ]),
+        'while_match': 'page.vip.unlock',
+      }),
+    ]),
+  })
+# ---

@@ -70,7 +70,7 @@ async def test_dsl_long_click_uses_wait_as_duration(
         encoding="utf-8",
     )
 
-    actions = _FakeActions()
+    actions = make_actions()
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: actions)
 

@@ -111,11 +111,9 @@ def elements_to_regions(
         # OmniParser text boxes are labels, not OCR tasks for the bot. Persist
         # every auto-labeled region as a template/hash match to avoid runtime OCR.
         action = "exist"
-        rtype = "string"
         region = {
             "name": name,
             "action": action,
-            "type": rtype,
             "threshold": 0.9,
             "bbox": ratio_xyxy_to_bbox(
                 x1, y1, x2, y2,

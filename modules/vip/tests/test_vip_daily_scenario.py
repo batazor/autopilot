@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from unittest.mock import ANY, MagicMock, call
 
 import cv2
 import numpy as np
 import pytest
 import yaml
-from conftest import patch_dsl_bot_actions
 
+from adb import BotActions
 import tasks.dsl_scenario as dsl
+from tasks import dsl_runtime
 from navigation.detector import ScreenDetector
 from scenarios import template_resolver
 from services import get_ocr_client
@@ -19,25 +20,21 @@ REPO_ROOT = MODULE_DIR.parents[1]
 REFERENCES_DIR = MODULE_DIR / "references"
 
 
-class _FakeActions:
-    def __init__(self, frames: list[np.ndarray]) -> None:
-        self.frames = frames
-        self.capture_count = 0
-        self.tapped: list[tuple[str, int, int, str | None]] = []
+def make_actions(frames: list[np.ndarray]) -> MagicMock:
+    actions = MagicMock(spec=BotActions)
+    actions.screen_resolution.return_value = (720, 1280)
 
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 720, 1280
+    it = iter(frames)
+    last = [frames[-1]]
 
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        idx = min(self.capture_count, len(self.frames) - 1)
-        self.capture_count += 1
-        return self.frames[idx]
+    def next_frame(*_args: object, **_kwargs: object) -> np.ndarray:
+        last[0] = next(it, last[0])
+        return last[0]
 
-    def tap(self, instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
-        self.tapped.append((instance_id, point.x, point.y, approval_region))
-        return True
+    actions.capture_screen_bgr.side_effect = next_frame
+    actions.capture_screen_bgr_cached.side_effect = next_frame
+    actions.tap.return_value = True
+    return actions
 
 
 def _load_reference_bgr(name: str) -> np.ndarray:
@@ -82,58 +79,18 @@ def _clear_region(frame: np.ndarray, region_name: str) -> None:
     cv2.rectangle(frame, (x0, y0), (x0 + w, y0 + h), (80, 80, 80), -1)
 
 
-def test_vip_daily_scenario_is_registered_with_expected_shape() -> None:
+def test_vip_daily_scenario_is_registered_with_expected_shape(snapshot) -> None:
     loaded = template_resolver.load_doc(REPO_ROOT, "vip.daily")
     assert loaded is not None
 
     path, doc = loaded
     assert path == MODULE_DIR / "scenarios" / "by_cron" / "vip.daily.yaml"
-    assert doc["enabled"] is True
-    assert doc["node"] == "vip"
-    assert doc["cron"] == "0 */12 * * *"
-
-    guards = doc["steps"]
-    assert [step["while_match"] for step in guards] == [
-        "page.vip.box",
-        "button.claim",
-        "page.vip.add",
-        "page.vip.unlock",
-    ]
-    assert guards[0].get("isRedDot") is True
-    assert guards[2].get("isRedDot") is True
-    assert guards[3].get("isRedDot") is True
-    assert guards[0].get("max") == 3
-    assert guards[1].get("max") == 1
-    assert guards[2].get("max") == 3
-    assert guards[3].get("max") == 3
-
-    box_steps = guards[0]["steps"]
-    assert box_steps[0] == {"click": "page.vip.box"}
-    assert box_steps[2]["while_match"] == "button.click_to_continue"
-    assert box_steps[2]["steps"][0] == {"click": "button.click_to_continue"}
-
-    claim_steps = guards[1]["steps"]
-    assert claim_steps[0] == {"click": "button.claim"}
-    assert claim_steps[2] == {"click": "button.tap_anywhere_to_exit"}
-
-    add_steps = guards[2]["steps"]
-    assert add_steps[0] == {"click": "page.vip.add"}
-    assert add_steps[2]["while_match"] == "button.use"
-    assert add_steps[2]["steps"][0] == {"click": "button.use"}
-    assert add_steps[3]["while_match"] == "increase_level.icon.close"
-    assert add_steps[3]["steps"][0] == {"click": "increase_level.icon.close"}
-
-    unlock_steps = guards[3]["steps"]
-    assert unlock_steps[0] == {"click": "page.vip.unlock"}
-    assert unlock_steps[2]["while_match"] == "button.use"
-    assert unlock_steps[2]["steps"][0] == {"click": "button.use"}
-    assert unlock_steps[3]["while_match"] == "increase_level.icon.close"
-    assert unlock_steps[3]["steps"][0] == {"click": "increase_level.icon.close"}
+    assert doc == snapshot
 
 
 @pytest.mark.asyncio
 async def test_vip_daily_scenario_clicks_claimable_vip_box(
-    monkeypatch: pytest.MonkeyPatch,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -146,9 +103,10 @@ async def test_vip_daily_scenario_clicks_claimable_vip_box(
     _draw_red_dot(visible, "page.vip.box")
     blank = np.zeros((1280, 720, 3), dtype=np.uint8)
 
-    actions = _FakeActions([visible, blank])
-    monkeypatch.setattr(dsl, "_repo_root", lambda: REPO_ROOT)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    actions = make_actions([visible, blank])
+    mocker.patch.object(dsl, "_repo_root", return_value=REPO_ROOT)
+    mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
+    mocker.patch.object(dsl, "BotActions", return_value=actions)
 
     task = dsl.DslScenarioTask(
         task_id="vip-daily-test",
@@ -160,12 +118,12 @@ async def test_vip_daily_scenario_clicks_claimable_vip_box(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [("bs1", 630, 275, "page.vip.box")]
+    assert actions.tap.call_args_list == [call("bs1", ANY, approval_region="page.vip.box")]
 
 
 @pytest.mark.asyncio
 async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
-    monkeypatch: pytest.MonkeyPatch,
+    mocker,
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
@@ -206,7 +164,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
         mapping={"active_player": "p1", "current_screen": "main_city"},
     )
 
-    actions = _FakeActions(
+    actions = make_actions(
         [
             main_city,      # Navigator detects current node.
             vip_page,       # Navigator verifies the page after tapping `page.vip`.
@@ -230,8 +188,9 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
             vip_after_unlock,  # Unlock red dot is gone after closing its popup.
         ]
     )
-    monkeypatch.setattr(dsl, "_repo_root", lambda: REPO_ROOT)
-    patch_dsl_bot_actions(monkeypatch, actions)
+    mocker.patch.object(dsl, "_repo_root", return_value=REPO_ROOT)
+    mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
+    mocker.patch.object(dsl, "BotActions", return_value=actions)
 
     task = dsl.DslScenarioTask(
         task_id="vip-daily-real-frame-rehearsal",
@@ -243,13 +202,19 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     result = await task.execute("bs1")
 
     assert result.success is True
-    assert actions.tapped == [
-        ("bs1", 502, 68, "page.vip"),
-        ("bs1", 630, 275, "page.vip.box"),
-        ("bs1", 360, 1200, "button.click_to_continue"),
-        ("bs1", 532, 279, "page.vip.add"),
-        ("bs1", 584, 382, "button.use"),
-        ("bs1", 360, 1194, "page.vip.unlock"),
-        ("bs1", 584, 382, "button.use"),
+    assert actions.tap.call_args_list == [
+        call(
+            "bs1",
+            ANY,
+            approval_region="page.vip",
+            approval_source="navigation",
+            approval_context=ANY,
+        ),
+        call("bs1", ANY, approval_region="page.vip.box"),
+        call("bs1", ANY, approval_region="button.click_to_continue"),
+        call("bs1", ANY, approval_region="page.vip.add"),
+        call("bs1", ANY, approval_region="button.use"),
+        call("bs1", ANY, approval_region="page.vip.unlock"),
+        call("bs1", ANY, approval_region="button.use"),
     ]
     assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]

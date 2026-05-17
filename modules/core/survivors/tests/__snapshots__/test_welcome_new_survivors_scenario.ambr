@@ -1,0 +1,27 @@
+# serializer version: 1
+# name: test_welcome_new_survivors_scenario_is_registered_with_expected_shape
+  dict({
+    'enabled': True,
+    'name': 'Welcome new survivors',
+    'node': 'isNewPeople',
+    'priority': 100000,
+    'steps': list([
+      dict({
+        'max': 1,
+        'retry': dict({
+          'attempts': 3,
+          'interval': '500ms',
+        }),
+        'steps': list([
+          dict({
+            'click': 'button.welcome_in',
+          }),
+          dict({
+            'wait': '2s',
+          }),
+        ]),
+        'while_match': 'button.welcome_in',
+      }),
+    ]),
+  })
+# ---

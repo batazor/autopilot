@@ -159,12 +159,10 @@ def detections_to_regions(
         # OmniParser may call the element text, but the generated area region
         # should still be a cheap template/hash check at runtime.
         action = "exist"
-        rtype = "string"
 
         region = {
             "name": name,
             "action": action,
-            "type": rtype,
             "threshold": 0.9,
             "bbox": ratio_xyxy_to_bbox(x1_r, y1_r, x2_r, y2_r, image_width=ow, image_height=oh),
         }

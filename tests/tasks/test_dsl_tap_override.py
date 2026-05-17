@@ -61,7 +61,7 @@ async def test_dsl_click_uses_overlay_tap_override(
         encoding="utf-8",
     )
 
-    fake_actions = _FakeActions()
+    fake_actions = make_actions()
     fake_actions.tapped = []
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(dsl, "BotActions", lambda: fake_actions)

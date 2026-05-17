@@ -6,8 +6,8 @@ from pathlib import Path
 import streamlit as st
 
 from config.paths import repo_root as default_repo_root
-from ui.ia_queue_executor import ensure_ia_queue_executor
 from ui.ia_preview_service import ensure_ia_preview_refresher
+from ui.ia_queue_executor import ensure_ia_queue_executor
 
 logging.getLogger(
     "streamlit.runtime.scriptrunner_utils.script_run_context"

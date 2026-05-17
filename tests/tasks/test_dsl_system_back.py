@@ -6,26 +6,9 @@ from typing import Any
 import numpy as np
 import pytest
 import yaml
+from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-
-
-class _FakeActions:
-    def __init__(self, *, approve: bool = True) -> None:
-        self.approve = approve
-        self.system_backs: list[str] = []
-
-    def screen_resolution(self, instance_id: str) -> tuple[int, int]:
-        assert instance_id == "bs1"
-        return 1000, 1000
-
-    def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        assert instance_id == "bs1"
-        return np.zeros((1000, 1000, 3), dtype=np.uint8)
-
-    def system_back(self, instance_id: str) -> bool:
-        self.system_backs.append(instance_id)
-        return self.approve
 
 
 def _write_scenario(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
@@ -46,7 +29,7 @@ def _write_scenario(tmp_path: Path, steps: list[dict[str, Any]]) -> None:
 @pytest.mark.asyncio
 async def test_dsl_system_back_runs_top_level_and_nested(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_scenario(
@@ -56,9 +39,10 @@ async def test_dsl_system_back_runs_top_level_and_nested(
             {"steps": [{"system_back": True}]},
         ],
     )
-    actions = _FakeActions()
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    system_backs: list[str] = []
+    actions = make_actions(resolution=(1000, 1000))
+    actions.system_back.side_effect = lambda instance_id: system_backs.append(instance_id) or True
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -70,19 +54,20 @@ async def test_dsl_system_back_runs_top_level_and_nested(
     res = await task.execute("bs1")
 
     assert res.success is True
-    assert actions.system_backs == ["bs1", "bs1"]
+    assert system_backs == ["bs1", "bs1"]
 
 
 @pytest.mark.asyncio
 async def test_dsl_system_back_rejection_aborts_scenario(
     tmp_path: Path,
-    monkeypatch: Any,
+    mocker,
     redis_async: object,
 ) -> None:
     _write_scenario(tmp_path, [{"system_back": True}])
-    actions = _FakeActions(approve=False)
-    monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
-    monkeypatch.setattr(dsl, "BotActions", lambda: actions)
+    system_backs: list[str] = []
+    actions = make_actions(resolution=(1000, 1000))
+    actions.system_back.side_effect = lambda instance_id: system_backs.append(instance_id) or False
+    patch_dsl(mocker, actions, repo_root=tmp_path)
 
     task = dsl.DslScenarioTask(
         task_id="t1",
@@ -95,4 +80,4 @@ async def test_dsl_system_back_rejection_aborts_scenario(
 
     assert res.success is False
     assert res.metadata["reason"] == "system_back_not_approved"
-    assert actions.system_backs == ["bs1"]
+    assert system_backs == ["bs1"]

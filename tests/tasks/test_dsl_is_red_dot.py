@@ -239,7 +239,7 @@ async def test_dsl_is_red_dot_true_clicks_when_dot_present(
 ) -> None:
     frame = _mailbox_frame(with_red_dot=True)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
-    actions = _FakeActions(frame)
+    actions = make_actions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     patch_dsl_bot_actions(monkeypatch, actions)
 
@@ -264,7 +264,7 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
 ) -> None:
     frame = _mailbox_frame(with_red_dot=False)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=True, is_red_dot_step=True)
-    actions = _FakeActions(frame)
+    actions = make_actions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     patch_dsl_bot_actions(monkeypatch, actions)
 
@@ -294,7 +294,7 @@ async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
 ) -> None:
     frame = _mailbox_frame(with_red_dot=True)
     _write_red_dot_repo(tmp_path, frame, has_red_dot=False, is_red_dot_step=True)
-    actions = _FakeActions(frame)
+    actions = make_actions(frame)
     monkeypatch.setattr(dsl, "_repo_root", lambda: tmp_path)
     patch_dsl_bot_actions(monkeypatch, actions)
 
