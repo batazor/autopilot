@@ -7,7 +7,7 @@ import logging
 import time
 from contextlib import suppress
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
@@ -29,8 +29,16 @@ from ui.notifications import push_ui_notification
 
 logger = logging.getLogger(__name__)
 
+# TYPE_CHECKING-only base: gives ty visibility into every host attribute and
+# sibling-mixin method without changing the runtime MRO of DslScenarioTask.
+# See ``tasks/_dsl_task_host.py`` for the rationale.
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
-class DslScenarioExecuteMixin:
+
+class DslScenarioExecuteMixin(_Base):
     """Main scenario YAML runner (load doc → navigate → step loop)."""
 
     async def execute(self, instance_id: str) -> TaskResult:

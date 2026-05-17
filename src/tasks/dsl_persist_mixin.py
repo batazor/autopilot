@@ -15,12 +15,17 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.state_store import get_state_store
 from tasks.dsl_scenario_helpers import _dsl_step_summary
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
 
 _TERMINAL_TRACE_STATUSES: frozenset[str] = frozenset(
@@ -98,7 +103,7 @@ def _trace_enrich_with_ocr_row(row: dict[str, Any], ocr_row: dict[str, Any]) -> 
         row.setdefault("ocr_status", status_ocr.strip())
 
 
-class DslPersistMixin:
+class DslPersistMixin(_Base):
     redis_client: Any
     player_id: str | None
     # Shared trace state owned by ``DslScenarioExecuteMixin._execute`` —

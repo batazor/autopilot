@@ -20,9 +20,14 @@ import logging
 import time
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from adb import BotActions
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
@@ -46,7 +51,7 @@ from tasks.dsl_scenario_helpers import (
 logger = logging.getLogger(__name__)
 
 
-class DslMatchMixin:
+class DslMatchMixin(_Base):
     redis_client: Any
     _last_match_region: str
     _last_match_row: dict[str, Any] | None

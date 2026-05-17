@@ -10,7 +10,7 @@ import time
 from contextlib import suppress
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 
@@ -39,8 +39,13 @@ from tasks.dsl_scenario_helpers import (
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
-class DslScenarioInlineMixin:
+
+class DslScenarioInlineMixin(_Base):
     """Navigation + per-step actions shared by top-level and nested DSL blocks."""
 
     redis_client: Any | None

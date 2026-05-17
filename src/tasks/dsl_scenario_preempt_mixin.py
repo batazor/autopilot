@@ -8,7 +8,7 @@ import logging
 import time
 from contextlib import suppress
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from config.log_ansi import scenario_log_label as _scen
 from tasks.base import TaskResult
@@ -16,6 +16,11 @@ from tasks.dsl_scenario_helpers import _read_current_screen
 from ui.redis_client import dsl_preempt_gen_key
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from tasks._dsl_task_host import _DslTaskHost as _Base
+else:
+    _Base = object
 
 # Cooperative preemption knobs (ADR 0001 §5). Margin is large enough that two
 # tasks within the same band don't ping-pong; immunity threshold caps the worst
@@ -37,7 +42,7 @@ def _yield_count_key(instance_id: str, task_id: str) -> str:
     return f"wos:instance:{instance_id}:yield_count:{task_id}"
 
 
-class DslScenarioPreemptMixin:
+class DslScenarioPreemptMixin(_Base):
     """Debug / rank-time cooperative yield checks."""
 
     redis_client: Any | None
