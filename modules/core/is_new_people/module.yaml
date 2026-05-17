@@ -1,7 +1,0 @@
-id: is_new_people
-title: New survivors
-description: >-
-  Main-city prompt for welcoming newly arrived survivors.
-scenarios: scenarios
-analyze: analyze/analyze.yaml
-wiki: false

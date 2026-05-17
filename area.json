@@ -1785,9 +1785,8 @@
       "ocr": "references/isNewPeople.welcome_in.png",
       "regions": [
         {
-          "name": "welcome_in",
-          "action": "text",
-          "type": "string",
+          "name": "button.welcome_in",
+          "action": "exist",
           "threshold": 0.9,
           "bbox": {
             "x": 33.552123552123554,

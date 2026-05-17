@@ -288,6 +288,6 @@ def test_production_screen_verify_yaml_contains_is_new_people_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()
 
-    expected = [{"match": "welcome_in", "threshold": 0.9}]
+    expected = [{"match": "button.welcome_in", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected

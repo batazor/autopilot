@@ -2,8 +2,8 @@ screens:
   isNewPeople:
     priority: 5
     landmarks:
-      - match: welcome_in
+      - match: button.welcome_in
         threshold: 0.9
     rules:
-      - match: welcome_in
+      - match: button.welcome_in
         threshold: 0.9

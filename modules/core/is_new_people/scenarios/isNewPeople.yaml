@@ -1,8 +1,0 @@
-enabled: true
-name: Welcome new survivors
-
-priority: 100_000
-
-node: isNewPeople
-
-steps: []

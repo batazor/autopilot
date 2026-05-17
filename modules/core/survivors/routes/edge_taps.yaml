@@ -2,4 +2,4 @@ edges:
   main_city:
     isNewPeople: [isNewPeople]
   isNewPeople:
-    main_city: [welcome_in]
+    main_city: [button.welcome_in]
