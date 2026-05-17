@@ -144,9 +144,8 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
     area_path = _default_module_area_path(repo_root, module_dir)
     if area_decl:
         resolved_area = _resolve_under_module(module_dir, area_decl, "area.yaml")
-        if resolved_area.resolve() != (repo_root / "area.json").resolve():
-            area_path = resolved_area
-        elif _module_discovery.is_core_nested_module(module_dir, repo_root):
+        is_external = resolved_area.resolve() != (repo_root / "area.json").resolve()
+        if is_external or _module_discovery.is_core_nested_module(module_dir, repo_root):
             area_path = resolved_area
         elif area_path.is_file():
             pass

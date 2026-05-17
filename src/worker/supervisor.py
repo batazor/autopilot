@@ -28,6 +28,10 @@ _shutdown = False
 class _RestartTracker:
     attempt: int = 0
     started_at: float = 0.0
+    # Wall-clock (monotonic) instant when the next respawn becomes eligible.
+    # 0 means "no pending restart". Tracked per-process so backoff for one
+    # crashed worker doesn't stall detection / restart of others.
+    restart_at: float = 0.0
 
 
 def _worker_process(instance_config: InstanceConfig) -> None:
@@ -129,25 +133,36 @@ class Supervisor:
         self._processes["scheduler"] = self._spawn_scheduler()
 
         while not _shutdown:
+            now = time.monotonic()
             for name, proc in list(self._processes.items()):
-                if not proc.is_alive():
+                if proc.is_alive():
+                    continue
+                # ``proc.is_alive()`` on POSIX polls via ``waitpid(WNOHANG)``
+                # which already reaps the child, so no explicit join() is
+                # needed here for zombie collection.
+                tracker = self._restart.setdefault(name, _RestartTracker())
+                if tracker.restart_at == 0.0:
                     delay = self._restart_delay_for(name)
-                    attempt = self._restart[name].attempt
+                    tracker.restart_at = now + delay
                     logger.warning(
                         "Process %s (pid=%s) died (attempt=%d) — restart in %.1fs",
                         name,
                         proc.pid,
-                        attempt,
+                        tracker.attempt,
                         delay,
                     )
-                    time.sleep(delay)
-                    if name == "scheduler":
-                        self._processes["scheduler"] = self._spawn_scheduler()
-                    else:
-                        instance = self._find_instance(name)
-                        if instance:
-                            self._processes[name] = self._spawn_worker(instance)
-            time.sleep(5.0)
+                    continue
+                if now < tracker.restart_at:
+                    # Still in backoff window — keep checking other processes.
+                    continue
+                tracker.restart_at = 0.0
+                if name == "scheduler":
+                    self._processes["scheduler"] = self._spawn_scheduler()
+                else:
+                    instance = self._find_instance(name)
+                    if instance:
+                        self._processes[name] = self._spawn_worker(instance)
+            time.sleep(1.0)
 
         logger.info("Supervisor shutting down — waiting for workers to finish")
         for name, proc in self._processes.items():

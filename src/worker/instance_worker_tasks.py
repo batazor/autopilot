@@ -202,6 +202,7 @@ class InstanceWorkerTasksMixin:
         )
         _task_result: TaskResult | None = None
         _task_error = ""
+        _crashed = False
         _trace_name = (
             f"scenario.run {scenario_for_job}"
             if scenario_for_job
@@ -250,6 +251,7 @@ class InstanceWorkerTasksMixin:
                 _task_span.record_exception(exc)
                 _task_span.set_status(trace.Status(trace.StatusCode.ERROR, _task_error))
                 await self._set_instance_state(InstanceState.CRASHED, error=f"unhandled task failure: {exc!s}")
+                _crashed = True
                 await self._handle_failure(item, exc)
             finally:
                 _finished_at = float(time.time())
@@ -299,7 +301,11 @@ class InstanceWorkerTasksMixin:
                     error=_task_error,
                 )
                 self._task_busy.clear()
-                await self._set_instance_state(InstanceState.READY)
+                # Preserve CRASHED state + last_error so operators / UI can see the
+                # terminal failure. The next successful task run will flip it back
+                # to READY via the normal lifecycle.
+                if not _crashed:
+                    await self._set_instance_state(InstanceState.READY)
             # Re-enqueue only if the hand-pointer task actually matched and clicked
             # (not a false-positive overlay detection that failed the match guard).
             _hand_pointer_hit = _task_result is not None and str(
@@ -421,7 +427,11 @@ class InstanceWorkerTasksMixin:
     async def _reschedule_if_needed(self, item: QueueItem, result: TaskResult | None) -> None:
         if result is None or result.next_run_at is None or self._queue is None:
             return
-        run_at = time.mktime(result.next_run_at.timetuple())
+        # ``datetime.timestamp()`` correctly handles both tz-aware and naive
+        # datetimes (naive treated as local) and survives DST transitions.
+        # The previous ``time.mktime(...timetuple())`` silently dropped tz
+        # info, so an aware datetime would be misinterpreted as local.
+        run_at = result.next_run_at.timestamp()
         # When a DSL scenario yields to a higher-priority task it returns
         # ``resume_from_step_index`` in its metadata (see
         # ``tasks/dsl_scenario_execute_mixin.py``). Forward it as

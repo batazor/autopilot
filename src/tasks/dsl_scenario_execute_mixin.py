@@ -11,7 +11,6 @@ from typing import Any
 
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
-from layout.types import Point
 from scenarios import template_resolver as _tmpl
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
@@ -154,7 +153,12 @@ class DslScenarioExecuteMixin:
                             x for x in prior if isinstance(x, dict)
                         )
 
-        self._preempt_gen_at_start = await self._read_dsl_preempt_gen(instance_id)
+        # Sentinel -1 = "seed read failed, re-seed lazily on first probe".
+        # See ``_preempted_by_new_debug`` — distinguishing a transient Redis
+        # error from a true 0 prevents spurious dsl_preempted_debug on every
+        # subsequent step when the live key is > 0.
+        seed = await self._read_dsl_preempt_gen(instance_id)
+        self._preempt_gen_at_start = -1 if seed is None else seed
 
         raw_root_cond = doc.get("cond")
         if raw_root_cond is not None and not isinstance(raw_root_cond, bool):
@@ -753,6 +757,12 @@ class DslScenarioExecuteMixin:
                     probe_attempts = initial_attempts if iterations == 0 else 1
                     matched = False
                     for attempt in range(probe_attempts):
+                        # Force a fresh capture on each retry — _match_region reads
+                        # capture_screen_bgr_cached, so without invalidation every
+                        # attempt probes the same frame and the retry is a no-op.
+                        if attempt > 0 and hasattr(actions, "invalidate_frame_cache"):
+                            with suppress(Exception):
+                                actions.invalidate_frame_cache(instance_id)
                         row = await self._match_region(
                             actions=actions,
                             area_doc=area_doc,
@@ -1210,12 +1220,24 @@ class DslScenarioExecuteMixin:
                             region=reg,
                         )
                     active_player = await _read_active_player(instance_id, self.redis_client)
-                    if require_identity_resolution and reg == "player_id" and not active_player:
+                    # Check every region in the bulk batch — not just the first.
+                    # ``reg`` here is the OUTER step's region; a bulk batch like
+                    # ``[{ocr: a}, {ocr: player_id}, ...]`` would otherwise skip
+                    # the identity gate because ``reg == "a"``, even though OCR
+                    # *did* try to populate ``player_id``.
+                    identity_regions = {
+                        str(s.get("ocr") or "").strip() for s in ocr_steps
+                    }
+                    if (
+                        require_identity_resolution
+                        and "player_id" in identity_regions
+                        and not active_player
+                    ):
                         logger.info(
                             "dsl_scenario: identity OCR did not set active_player "
-                            "scenario=%s region=%s — retry",
+                            "scenario=%s regions=%s — retry",
                             _scen(key),
-                            reg,
+                            sorted(identity_regions),
                         )
                         await self._clear_step_context(instance_id)
                         _trace_row(

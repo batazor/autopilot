@@ -9,8 +9,8 @@ import cv2
 import pytest
 
 from layout.template_match import (
-    match_template_full_frame_cached,
     match_crop_1to1_at_bbox_percent,
+    match_template_full_frame_cached,
     validate_live_bbox_patch_vs_reference_dims,
 )
 
@@ -103,7 +103,7 @@ def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.Monkey
         threshold=0.99,
     )
 
-    assert row["matched"] if "matched" in row else True
+    assert row.get("matched", True)
     assert row["top_left"] == (x, y)
     assert row["match_source"] == "cache"
     assert cached and cached[0][0:2] == (x, y)

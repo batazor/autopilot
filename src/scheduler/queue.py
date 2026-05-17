@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import redis.asyncio as aioredis
 
@@ -86,11 +87,13 @@ def _recent_runs_key(instance_id: str) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _bfs_hops(src: str, dst: str) -> int | None:
+def _bfs_hops_cached(src: str, dst: str, fp: tuple[Any, ...] | None) -> int | None:
     """Shortest-path hop count over the screen graph, or None if unreachable.
 
-    Process-cached on (src, dst). Topology is loaded once at import; the cache
-    only needs to be cleared if ``screen_graph`` is reloaded — out of scope here.
+    ``fp`` is the screen-graph config fingerprint (file mtimes/sizes) — including
+    it in the cache key invalidates stale paths whenever ``screen_verify.yaml``
+    or ``area.json`` is edited on disk. Without this, the cache returned stale
+    paths after hot-reload until the process restarted.
     """
     from navigation.screen_graph import bfs_route
 
@@ -100,6 +103,16 @@ def _bfs_hops(src: str, dst: str) -> int | None:
     if path is None:
         return None
     return max(0, len(path) - 1)
+
+
+def _bfs_hops(src: str, dst: str) -> int | None:
+    try:
+        from navigation.screen_graph import _combined_config_fingerprint
+
+        fp = _combined_config_fingerprint()
+    except Exception:
+        fp = None
+    return _bfs_hops_cached(src, dst, fp)
 
 
 @dataclass(frozen=True)

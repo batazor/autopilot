@@ -708,7 +708,12 @@ async def _exec_put_all_red_dots(ctx: DslExecContext) -> None:
                 )
         try:
             tapped = bool(
-                await asyncio.to_thread(actions.tap, ctx.instance_id, point)
+                await asyncio.to_thread(
+                    actions.tap,
+                    ctx.instance_id,
+                    point,
+                    approval_region="put_all_red_dots",
+                )
             )
         except Exception:
             logger.exception(
@@ -825,6 +830,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     for hid, match in unlocked_items:
         regions.append(Region(*match.level_bbox))
         ids.append(f"hero_level_{hid}")
+    ocr_ok = True
     if regions:
         try:
             results = await dsl_runtime.ocr_client().ocr_regions(frame, regions, region_ids=ids)
@@ -838,6 +844,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
                 "dsl exec scan_heroes_grid: badge OCR failed instance=%s",
                 ctx.instance_id,
             )
+            ocr_ok = False
 
     registry = get_hero_registry()
     try:
@@ -918,11 +925,17 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
                 )
 
         # Shards full to the cap = "Recruit / N/N" state — the hero card
-        # is one tap on the Recruit button away from being claimed.
-        cur = entry.get("shards_current")
-        req = entry.get("shards_required")
-        if isinstance(cur, int) and isinstance(req, int) and req > 0 and cur >= req:
-            recruit_ready_heroes.append(hid)
+        # is one tap on the Recruit button away from being claimed. Only
+        # trust this when the current OCR pass actually succeeded: a failed
+        # bulk OCR leaves badge_text/level_text empty, so the entry's
+        # shards_* values are carried over from the previous snapshot —
+        # firing recruit_ready off stale counts pushes spurious recruit
+        # scenarios that the live UI does not back.
+        if ocr_ok:
+            cur = entry.get("shards_current")
+            req = entry.get("shards_required")
+            if isinstance(cur, int) and isinstance(req, int) and req > 0 and cur >= req:
+                recruit_ready_heroes.append(hid)
 
         flat[f"heroes.entries.{hid}"] = entry
 

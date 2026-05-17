@@ -178,7 +178,15 @@ class DslOcrMixin:
         # doesn't paint this row with stale values when the OCR call bails on
         # an early gate (``region_not_found`` / ``invalid_bbox`` / etc.).
         self._last_ocr_row = None
-        pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat()) if region else None
+        pair = (
+            screen_region_by_name(
+                area_doc,
+                region,
+                state_flat=self._state_flat(),
+            )
+            if region
+            else None
+        )
         if pair is None or not isinstance(pair[1].get("bbox"), dict):
             logger.warning(
                 "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",
@@ -288,7 +296,11 @@ class DslOcrMixin:
             region = str(step.get("ocr") or "").strip()
             if not region:
                 continue
-            pair = screen_region_by_name(area_doc, region, state_flat=self._state_flat())
+            pair = screen_region_by_name(
+                area_doc,
+                region,
+                state_flat=self._state_flat(),
+            )
             if pair is None or not isinstance(pair[1].get("bbox"), dict):
                 logger.warning(
                     "dsl_scenario: ocr region not found in area.json: %s (scenario=%s)",

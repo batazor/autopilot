@@ -439,9 +439,17 @@ class ScreenDetector:
             logger.exception("OCR failed during screen detection")
             return ScreenName.UNKNOWN
 
+        # Pair OCR results back to landmarks by region_id, not by position.
+        # ``OcrClient.ocr_regions`` filters out ``None`` slots before returning,
+        # so a single dropped/error slot would shift every subsequent index and
+        # silently score the wrong screen.
+        by_rid = {t[3]: t for t in region_map}
         scores: dict[ScreenName, int] = {s: 0 for s in ScreenName}
-        for i, result in enumerate(results):
-            screen_name, candidates, threshold, _region_name = region_map[i]
+        for result in results:
+            entry = by_rid.get(result.region_id)
+            if entry is None:
+                continue
+            screen_name, candidates, threshold, _region_name = entry
             if match(result.text, candidates, threshold=threshold):
                 scores[screen_name] += 1
 

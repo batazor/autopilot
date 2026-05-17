@@ -145,7 +145,10 @@ class InstanceWorkerHealthMixin:
 
         try:
             try:
-                self._bot_actions.restart_application(self._cfg.instance_id)
+                await self._run_blocking(
+                    self._bot_actions.restart_application,
+                    self._cfg.instance_id,
+                )
                 await asyncio.sleep(3.0)
                 await self._run_blocking(
                     self._bot_actions.ensure_game_foreground,

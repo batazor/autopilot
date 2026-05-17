@@ -517,6 +517,13 @@ def _collect_ocr_store_targets(steps: Any) -> list[tuple[str, str]]:
         nested = step.get("steps")
         if isinstance(nested, list):
             out.extend(_collect_ocr_store_targets(nested))
+        # ``else:`` branches are also executed at runtime (while_match/match
+        # fall-through), so store targets buried inside them must be cleared
+        # at scenario start too — otherwise the else-branch OCR reads stale
+        # values from the previous run.
+        else_steps = step.get("else")
+        if isinstance(else_steps, list):
+            out.extend(_collect_ocr_store_targets(else_steps))
         for spec_key in ("loop", "repeat"):
             spec = step.get(spec_key)
             if isinstance(spec, dict):

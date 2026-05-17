@@ -212,12 +212,17 @@ class InstanceWorkerRedisMixin:
         return dataclasses.replace(item, player_id=resolved)
 
     async def _ensure_account(self, player_id: str) -> None:
-        if self._redis is not None:
-            await self._redis.hset(
-                _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
-                "active_player",
-                player_id,
-            )
+        # An empty id here means the caller could not resolve identity (no
+        # active_player in Redis, no device→pid mapping). Writing "" would
+        # wipe the previously-identified player from the instance state and
+        # desync identity until the next who_i_am probe re-bootstraps it.
+        if self._redis is None or not str(player_id or "").strip():
+            return
+        await self._redis.hset(
+            _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
+            "active_player",
+            player_id,
+        )
 
     async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
         """Re-bootstrap identity when ``active_player`` is empty so the queue does not stall.

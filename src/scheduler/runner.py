@@ -483,6 +483,12 @@ class SchedulerRunner:
                 data = json.loads(text)
             except json.JSONDecodeError:
                 continue
+            # Tolerate non-dict payloads (a future producer could push a list
+            # or scalar) — without this guard ``data.get("cmd")`` raises
+            # AttributeError and kills the drain loop, stranding any later
+            # wake messages until the next heartbeat.
+            if not isinstance(data, dict):
+                continue
             if str(data.get("cmd")) == "optimize_now":
                 saw_optimize_now = True
 

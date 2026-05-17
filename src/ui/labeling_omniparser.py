@@ -225,9 +225,15 @@ def render_omniparser_labeling_controls(*, labeling_mode: bool) -> None:
                 if crop_name_reused:
                     summ += f" Reused **{crop_name_reused}** name(s) from current regions (overlap + crop hash)."
                 if current_overlap_name_reused:
-                    summ += f" Reused **{current_overlap_name_reused}** name(s) from current canvas regions (80% overlap)."
+                    summ += (
+                        f" Reused **{current_overlap_name_reused}** name(s) "
+                        "from current canvas regions (80% overlap)."
+                    )
                 if sibling_overlap_name_reused:
-                    summ += f" Reused **{sibling_overlap_name_reused}** name(s) from sibling screen regions (80% overlap)."
+                    summ += (
+                        f" Reused **{sibling_overlap_name_reused}** name(s) "
+                        "from sibling screen regions (80% overlap)."
+                    )
                 if overlap_duplicate_dropped:
                     summ += f" Dropped **{overlap_duplicate_dropped}** duplicate overlap proposal(s)."
                 summ += " Use **Apply proposal** below to update regions."

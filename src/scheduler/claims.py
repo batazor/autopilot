@@ -8,6 +8,15 @@ logger = logging.getLogger(__name__)
 
 _KEY_PREFIX = "wos:claimed"
 
+# Atomic compare-and-delete: only release the lock if we still own it.
+_RELEASE_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+else
+    return 0
+end
+"""
+
 
 class CooperativeClaims:
     """Redis-based cooperative task locks using SET NX with TTL."""
@@ -27,9 +36,10 @@ class CooperativeClaims:
 
     async def release(self, task_type: str, player_id: str) -> None:
         key = self._key(task_type)
-        current = await self._redis.get(key)
-        if current and (current.decode() if isinstance(current, bytes) else current) == player_id:
-            await self._redis.delete(key)
+        # ``redis.asyncio.Redis.eval`` is async — stubs union it with the sync
+        # return for source compat, which trips ty's await analyzer.
+        released = await self._redis.eval(_RELEASE_LUA, 1, key, player_id)  # ty: ignore[invalid-await]
+        if released:
             logger.debug("Released cooperative task %s by %s", task_type, player_id)
 
     async def is_claimed(self, task_type: str) -> bool:

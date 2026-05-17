@@ -844,10 +844,11 @@ class DslScenarioInlineMixin:
             except (TypeError, ValueError):
                 initial_attempts = 1
             initial_attempts = max(1, initial_attempts)
-            if "interval" in retry_cfg:
-                attempt_interval_s = _parse_wait_seconds(retry_cfg.get("interval"))
-            else:
-                attempt_interval_s = 0.0
+            attempt_interval_s = (
+                _parse_wait_seconds(retry_cfg.get("interval"))
+                if "interval" in retry_cfg
+                else 0.0
+            )
             attempt_interval_s = max(0.0, attempt_interval_s)
 
             iterations = 0
