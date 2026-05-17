@@ -307,9 +307,9 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         LayoutRegion(20, 10, 40, 10),
         LayoutRegion(80, 50, 60, 20),
     ]
-    pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
     assert pid == "765502864"
-    task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]
     assert task_txt == "Upgrade Furnace to Lv. 8"
 
 

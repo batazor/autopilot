@@ -14,7 +14,7 @@ on edge-cases without spinning up Redis.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import cv2
 import numpy as np
@@ -257,7 +257,8 @@ async def test_dsl_is_red_dot_true_skips_click_when_dot_absent(
     assert actions.tap.call_args_list == []
     match_row = result.metadata.get("match")
     assert isinstance(match_row, dict)
-    assert match_row.get("reason") == "red_dot_missing"
+    match_dict: dict[str, Any] = cast("dict[str, Any]", match_row)
+    assert match_dict.get("reason") == "red_dot_missing"
 
 
 @pytest.mark.asyncio
@@ -285,4 +286,5 @@ async def test_dsl_is_red_dot_without_capability_flag_fails_guard(
     assert actions.tap.call_args_list == []
     match_row = result.metadata.get("match")
     assert isinstance(match_row, dict)
-    assert match_row.get("reason") == "red_dot_capability_disabled"
+    match_dict: dict[str, Any] = cast("dict[str, Any]", match_row)
+    assert match_dict.get("reason") == "red_dot_capability_disabled"

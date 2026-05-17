@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import threading
+from typing import cast
 
+from adb import BotActions
 from worker.game_health_watchdog import _is_game_foreground_after_retries
 
 
@@ -21,7 +23,7 @@ def test_foreground_retry_recovers_without_restart() -> None:
     ba = _FakeBotActions([False, True])
 
     assert _is_game_foreground_after_retries(
-        ba,
+        cast("BotActions", ba),
         "bs1",
         stop=threading.Event(),
         retries=3,
@@ -34,7 +36,7 @@ def test_foreground_retry_fails_after_all_attempts() -> None:
     ba = _FakeBotActions([False, False, False, False])
 
     assert not _is_game_foreground_after_retries(
-        ba,
+        cast("BotActions", ba),
         "bs1",
         stop=threading.Event(),
         retries=3,

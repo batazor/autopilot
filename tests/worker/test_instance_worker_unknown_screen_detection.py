@@ -124,7 +124,7 @@ async def test_detect_clears_log_node_during_detect_and_restores_after(
             seen_during.append(log_context._node.get())
             return ScreenName.MAIL
 
-    worker = _worker(_ProbingDetector(), redis_async)  # type: ignore[arg-type]
+    worker = _worker(_ProbingDetector(), redis_async)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
 
     result = await worker._detect_current_screen_on_frame(
         np.zeros((10, 10, 3), dtype=np.uint8),
@@ -267,7 +267,7 @@ async def test_dismiss_unknown_popup_skipped_when_a_global_rule_matched(
     worker._queue = _FakeQueue()
     worker._unknown_since = _t.monotonic() - 30.0
 
-    overlay_results = {"some_global_rule": {"matched": True}}
+    overlay_results: dict[str, object] = {"some_global_rule": {"matched": True}}
     await worker._maybe_dismiss_unknown_popup(
         overlay_results, current_screen=None
     )
