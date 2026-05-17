@@ -6,7 +6,6 @@
   "modules/gift_codes/scraper.py": 1,
   "modules/gift_codes/ui/page.py": 1,
   "modules/vip/tests/test_vip_daily_scenario.py": 3,
-  "src/adb/approvals.py": 36,
   "src/adb/controller.py": 1,
   "src/century/captcha.py": 1,
   "src/config/buildings.py": 2,

@@ -5,6 +5,8 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
+from typing import cast
 
 import redis
 
@@ -67,7 +69,7 @@ def click_approval_enabled(instance_id: str) -> bool:
     ``false`` / ``no`` / ``off``).
     """
     enabled_key = f"wos:ui:click_approval:enabled:{instance_id}"
-    raw = str(_redis().get(enabled_key) or "").strip().lower()
+    raw = str(_r_get(enabled_key) or "").strip().lower()
     if not raw:
         return True
     return raw not in _CLICK_APPROVAL_DISABLED
@@ -82,6 +84,20 @@ def _redis() -> redis.Redis:
         settings = load_settings()
         _redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
     return _redis_client
+
+
+# ``redis-py`` stubs declare return types as ``ResponseT`` (``Awaitable[T] | T``)
+# so the same source compiles for the sync and async clients. ty flags every
+# ``_r_get(...)`` / ``hgetall(...)`` callsite because of the ``Awaitable``
+# arm of that union. These tiny wrappers narrow back to the concrete sync
+# return — this module only ever uses ``redis.Redis`` (sync), and
+# ``decode_responses=True`` guarantees ``str`` rather than ``bytes``.
+def _r_get(key: str) -> str | None:
+    return cast("str | None", _redis().get(key))
+
+
+def _r_hgetall(key: str) -> dict[str, str]:
+    return cast("dict[str, str]", _redis().hgetall(key))
 
 
 def _clear_stale_approval_current(
@@ -101,7 +117,7 @@ def _clear_stale_approval_current(
     different from the owner captured on the existing waiting request.
     """
     try:
-        raw = _redis().get(current_key)
+        raw = _r_get(current_key)
         if not raw:
             return
         doc = json.loads(raw)
@@ -169,19 +185,23 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         if not force and (now - last_preview_refresh_at) < _APPROVAL_PREVIEW_REFRESH_SECONDS:
             return
         try:
-            preview_capturer(target)
+            # ``payload`` is ``dict[str, object]`` so ``_preview_capturer`` lands
+            # here as ``object`` — narrow via ``callable(...)`` above, then
+            # ``cast`` so ty knows the call is safe. Adb tap helpers stuff a
+            # ``Callable[[dict[str, object]], None]`` in this slot.
+            cast("Callable[[dict[str, object]], None]", preview_capturer)(target)
         except Exception:
             logger.debug("approval preview refresh failed for %s", instance_id, exc_info=True)
             return
         last_preview_refresh_at = now
 
     hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
-    if not _redis().get(hb_key):
+    if not _r_get(hb_key):
         # Approval always required — wait until the approvals page is opened.
         logger.info(
             "Click approval: page not open, waiting for operator to open it (%s)", instance_id
         )
-        while not _redis().get(hb_key):
+        while not _r_get(hb_key):
             _refresh_preview_if_due(payload)
             time.sleep(_APPROVAL_POLL_SECONDS)
         logger.info("Click approval: page opened — proceeding (%s)", instance_id)
@@ -201,10 +221,10 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         approval_source = str(payload.get("approval_source") or "").strip().lower()
         raw_approval_context = payload.get("approval_context")
         if isinstance(raw_approval_context, dict):
-            approval_context = dict(raw_approval_context)
+            approval_context = cast("dict[str, object]", dict(raw_approval_context))
     try:
         inst_state_key = f"wos:instance:{instance_id}:state"
-        raw = _redis().hgetall(inst_state_key)
+        raw = _r_hgetall(inst_state_key)
         if raw:
             # ``current_task_region`` is the task-level region (set by the worker once
             # per task item). For screen-node updates it is irrelevant: they only
@@ -395,12 +415,12 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # "reject" from a foreign / missing ``current`` payload.
     decision: str | None = None
     while True:
-        raw_resp = _redis().get(resp_key)
+        raw_resp = _r_get(resp_key)
         if raw_resp:
             decision = str(raw_resp).strip().lower()
             break
         try:
-            raw_cur = _redis().get(current_key)
+            raw_cur = _r_get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") != req_id:
                 decision = "reject"
                 break
@@ -412,7 +432,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         # boot cleanup are responsible for clearing invalid requests.
         try:
             _refresh_preview_if_due(p)
-            raw_cur = _redis().get(current_key)
+            raw_cur = _r_get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") == req_id:
                 _redis().set(
                     current_key,
@@ -426,7 +446,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     if decision in {"approve", "reject", "skip"}:
         # Persist decision time on the current payload for UI/debug.
         try:
-            raw_cur = _redis().get(current_key)
+            raw_cur = _r_get(current_key)
             if raw_cur:
                 doc = json.loads(raw_cur)
                 if doc.get("request_id") == req_id:
@@ -450,7 +470,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # On reject/skip/timeout, clear slot so the bot can proceed.
     if decision != "approve":
         try:
-            raw_cur = _redis().get(current_key)
+            raw_cur = _r_get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") == req_id:
                 _redis().delete(current_key)
             _redis().delete(resp_key)
