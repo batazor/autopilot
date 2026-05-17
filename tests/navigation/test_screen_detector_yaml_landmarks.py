@@ -42,11 +42,11 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
     fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr
+    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
     detector._area_doc = {
         "screens": [
             {
@@ -64,7 +64,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.ARENA
     assert fake_ocr.regions == [Region(10, 40, 30, 20)]
@@ -93,11 +93,11 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
     fake_ocr = _FakeOcrClient()
-    detector._client = fake_ocr
+    detector._client = fake_ocr  # ty: ignore[invalid-assignment]
     detector._area_doc = {
         "screens": [
             {
@@ -119,7 +119,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.ARENA
     assert fake_ocr.regions == [Region(11, 4, 70, 10)]
@@ -142,7 +142,7 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -167,7 +167,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.MAIN_CITY
 
@@ -194,7 +194,7 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -223,7 +223,7 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.UNKNOWN
 
@@ -260,7 +260,7 @@ screens:
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
     mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -287,7 +287,7 @@ screens:
             hint=ScreenName.RECONNECT,
         )
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.WELCOME_BACK
     assert detector.last_used_sticky_verify is False
@@ -311,7 +311,7 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
-    screen_graph.load_screen_verify_config.cache_clear()
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -337,6 +337,6 @@ screens:
     try:
         detected = await detector.detect_screen(np.zeros((200, 100, 3), dtype=np.uint8))
     finally:
-        screen_graph.load_screen_verify_config.cache_clear()
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.BUILDING

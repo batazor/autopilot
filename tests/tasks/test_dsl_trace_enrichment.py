@@ -19,12 +19,22 @@ class _Host(DslPersistMixin):
     """Minimal harness — every attribute the mixin reads is right here so
     the test isn't coupled to ``DslScenarioTask``'s full dataclass."""
 
+    # Tighten the protocol-inherited Optional types so tests can directly
+    # index ``h._steps_trace[0]`` / mutate ``h._step_start_times["k"]``
+    # without an Optional narrow on every line.
+    _steps_trace: list[dict[str, Any]]
+    _step_start_times: dict[str, float]
+
     def __init__(self, *, with_timing: bool = True) -> None:
         self.redis_client = None
         self.player_id = ""
-        self._steps_trace: list[dict[str, Any]] = []
+        self._steps_trace = []
         self._scenario_started_at = time.time() if with_timing else None
-        self._step_start_times = {} if with_timing else None
+        # ``with_timing=False`` deliberately leaves the timing maps as None
+        # to exercise the appender's "older fixture without active scenario"
+        # path. The narrowed class annotation above declares the active-
+        # scenario shape; mypy + ty ignores quiet the None branch.
+        self._step_start_times = {} if with_timing else None  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
 
 
 def test_append_extracts_region_from_action_key() -> None:
