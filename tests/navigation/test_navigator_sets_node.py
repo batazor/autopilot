@@ -14,8 +14,11 @@ from tests.navigation.conftest_nav import make_navigator
 
 @pytest.mark.asyncio
 async def test_navigator_writes_destination_node_after_route_hop(
-    monkeypatch: Any,
-    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
     redis = redis_async
     taps: list[str] = []
 
@@ -33,11 +36,11 @@ async def test_navigator_writes_destination_node_after_route_hop(
         return detections.pop(0) if detections else ScreenName.CHIEF_PROFILE
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
-    monkeypatch.setattr(
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,
@@ -62,8 +65,11 @@ async def test_navigator_writes_destination_node_after_route_hop(
 
 @pytest.mark.asyncio
 async def test_navigator_verifies_destination_with_match_rule(
-    monkeypatch: Any,
-    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -89,22 +95,22 @@ async def test_navigator_verifies_destination_with_match_rule(
         return {name: {"matched": True, "region": "chief_profile_title"}}
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
-    monkeypatch.setattr(
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
+    mocker.patch.object(
         navigator_module,
         "screen_verify_rules",
-        lambda _target: [{"match": "chief_profile_title", "threshold": 0.92}],
+        new=lambda _target: [{"match": "chief_profile_title", "threshold": 0.92}],
     )
-    monkeypatch.setattr(navigator_module, "screen_verify_retry", lambda _target: (1, 0.0))
-    monkeypatch.setattr(
+    mocker.patch.object(navigator_module, "screen_verify_retry", new=lambda _target: (1, 0.0))
+    mocker.patch.object(
         navigator_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
-    monkeypatch.setattr(
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,
@@ -131,8 +137,11 @@ async def test_navigator_verifies_destination_with_match_rule(
 
 @pytest.mark.asyncio
 async def test_navigator_verifies_destination_with_ocr_contains(
-    monkeypatch: Any,
-    redis_async: object, settings: Settings, ocr_client: OcrClient) -> None:
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
     redis = redis_async
 
     def capture(_instance_id: str) -> np.ndarray:
@@ -163,16 +172,25 @@ async def test_navigator_verifies_destination_with_ocr_contains(
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     nav._ocr = _FakeOcr()
-    monkeypatch.setattr(nav._detector, "detect_screen", detect_screen)
-    monkeypatch.setattr(
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
+    mocker.patch.object(
+        navigator_module,
+        "screen_verify_rules",
+        new=lambda _target: [
+            {"match": "chief_profile_title", "threshold": 0.92},
+            {"ocr": "page_title", "contains": "Chief Profile"},
+        ],
+    )
+    mocker.patch.object(navigator_module, "screen_verify_retry", new=lambda _target: (1, 0.0))
+    mocker.patch.object(
         navigator_module,
         "evaluate_overlay_rules_async",
-        evaluate_overlay_rules_async,
+        new=evaluate_overlay_rules_async,
     )
-    monkeypatch.setattr(
+    mocker.patch.object(
         nav,
         "_load_area_doc",
-        lambda: {
+        new=lambda: {
             "screens": [
                 {
                     "id": 1,

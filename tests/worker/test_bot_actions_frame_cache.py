@@ -79,16 +79,16 @@ def _capture_after_next_publish(
 
 
 @pytest.fixture()
-def actions_with_stub(monkeypatch: pytest.MonkeyPatch) -> tuple[BotActions, list[int]]:
+def actions_with_stub(mocker) -> tuple[BotActions, list[int]]:
     """Real BotActions wired to a stub controller; ``counter`` tracks frame_bus publishes."""
     counter = [0]
 
     from config.loader import get_settings
 
     bot = BotActions(get_settings())
-    monkeypatch.setattr(bot, "_get_serial", lambda _id: "stub-serial")
-    monkeypatch.setattr(bot, "_adb_bin", lambda: "adb")
-    monkeypatch.setattr(bot, "_controller", lambda _id: _StubController())
+    mocker.patch.object(bot, "_get_serial", new=lambda _id: "stub-serial")
+    mocker.patch.object(bot, "_adb_bin", new=lambda: "adb")
+    mocker.patch.object(bot, "_controller", new=lambda _id: _StubController())
 
     return bot, counter
 
@@ -163,7 +163,7 @@ def test_explicit_capture_warms_cache(actions_with_stub: tuple[BotActions, list[
 
 def test_max_age_ms_recaptures_when_cache_too_old(
     actions_with_stub: tuple[BotActions, list[int]],
-    monkeypatch: pytest.MonkeyPatch,
+    mocker,
 ) -> None:
     bot, counter = actions_with_stub
     fake_now = [1000.0]
@@ -171,7 +171,7 @@ def test_max_age_ms_recaptures_when_cache_too_old(
     def _now() -> float:
         return fake_now[0]
 
-    monkeypatch.setattr(tap_module.time, "monotonic", _now)
+    mocker.patch.object(tap_module.time, "monotonic", new=_now)
 
     _publish(counter, "bs1")
     bot.capture_screen_bgr_cached("bs1", max_age_ms=300.0)
@@ -192,7 +192,7 @@ def test_max_age_ms_recaptures_when_cache_too_old(
 
 def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
     actions_with_stub: tuple[BotActions, list[int]],
-    monkeypatch: pytest.MonkeyPatch,
+    mocker,
 ) -> None:
     bot, counter = actions_with_stub
     fake_now = [1000.0]
@@ -200,7 +200,7 @@ def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
     def _now() -> float:
         return fake_now[0]
 
-    monkeypatch.setattr(tap_module.time, "monotonic", _now)
+    mocker.patch.object(tap_module.time, "monotonic", new=_now)
 
     _publish(counter, "bs1")
     bot.capture_screen_bgr_cached("bs1")

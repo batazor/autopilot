@@ -115,7 +115,7 @@ class _Harness(InstanceWorkerRollingMixin):
 
 
 @pytest.fixture
-def _isolated_refs(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> Any:
+def _isolated_refs(mocker, tmp_path: Any) -> Any:
     """Redirect rolling-preview PNG writes to ``tmp_path`` so tests don't
     dirty the repo's real ``references/temporal/`` directory."""
     import worker.instance_worker_rolling as rolling_mod
@@ -129,8 +129,8 @@ def _isolated_refs(monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> Any:
     def _fake_abs_path(_root: Any, base: str, _iid: str) -> Any:
         return base_dir / f"{base}.png"
 
-    monkeypatch.setattr(rolling_mod, "reference_file_basename", _fake_basename)
-    monkeypatch.setattr(rolling_mod, "reference_png_abs_path", _fake_abs_path)
+    mocker.patch.object(rolling_mod, "reference_file_basename", new=_fake_basename)
+    mocker.patch.object(rolling_mod, "reference_png_abs_path", new=_fake_abs_path)
     return base_dir
 
 
@@ -144,7 +144,7 @@ async def test_tick_idle_runs_full_pipeline(_isolated_refs: Any) -> None:
 @pytest.mark.asyncio
 async def test_tick_records_screenshot_analysis_duration(
     _isolated_refs: Any,
-    monkeypatch: pytest.MonkeyPatch,
+    mocker,
 ) -> None:
     import worker.instance_worker_rolling as rolling_mod
 
@@ -155,10 +155,10 @@ async def test_tick_records_screenshot_analysis_duration(
             records.append((value, attributes))
 
     histogram = _Histogram()
-    monkeypatch.setattr(
+    mocker.patch.object(
         rolling_mod,
         "screenshot_analysis_duration_histogram",
-        lambda: histogram,
+        new=lambda: histogram,
     )
 
     h = _Harness(cfg=_Cfg())

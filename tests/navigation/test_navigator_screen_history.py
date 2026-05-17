@@ -147,7 +147,7 @@ async def test_recover_screen_returns_empty_when_history_empty(
 
 @pytest.mark.asyncio
 async def test_recover_screen_uses_detector_short_circuit(
-    monkeypatch: Any, redis_async: Any
+    mocker, redis_async: Any
 , settings: Settings, ocr_client: OcrClient) -> None:
     """When the screen detector classifies the live frame as the head of
     history, we trust that identity without iterating verify rules."""
@@ -162,7 +162,7 @@ async def test_recover_screen_uses_detector_short_circuit(
     async def fake_detect(_image: np.ndarray) -> ScreenName:
         return ScreenName.MAIL
 
-    monkeypatch.setattr(nav._detector, "detect_screen", fake_detect)
+    mocker.patch.object(nav._detector, "detect_screen", new=fake_detect)
 
     recovered = await nav.recover_screen_from_history("bs1")
     assert recovered == "mail"
@@ -187,7 +187,7 @@ async def test_recover_screen_skips_from_screen_only_destinations(
 
 @pytest.mark.asyncio
 async def test_recover_screen_returns_empty_when_detection_fails(
-    monkeypatch: Any, redis_async: Any
+    mocker, redis_async: Any
 , settings: Settings, ocr_client: OcrClient) -> None:
     """Detector says UNKNOWN and the verify rules don't match → no recovery."""
     cap, tap = _fake_capture_and_tap()
@@ -203,7 +203,7 @@ async def test_recover_screen_returns_empty_when_detection_fails(
     async def fake_verify_rule(*_args: Any, **_kwargs: Any) -> bool:
         return False
 
-    monkeypatch.setattr(nav._detector, "detect_screen", fake_detect)
-    monkeypatch.setattr(nav, "_verify_rule", fake_verify_rule)
+    mocker.patch.object(nav._detector, "detect_screen", new=fake_detect)
+    mocker.patch.object(nav, "_verify_rule", new=fake_verify_rule)
 
     assert await nav.recover_screen_from_history("bs1") == ""

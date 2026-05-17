@@ -54,7 +54,7 @@ class _FakeOcrClient:
 
 
 @pytest.fixture
-def _yaml_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def _yaml_config(mocker, tmp_path: Path) -> None:
     """Two screens (arena, main_city) with disjoint OCR landmarks + a shared
     ``page_title`` text_switch. Enough to tell sticky from full pipeline."""
     cfg = tmp_path / "screen_verify.yaml"
@@ -81,7 +81,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
     screen_graph.load_screen_verify_config.cache_clear()
     yield
     screen_graph.load_screen_verify_config.cache_clear()
@@ -229,7 +229,7 @@ async def test_detect_with_bogus_hint_string_runs_full_pipeline(
 
 @pytest.mark.asyncio
 async def test_sticky_text_switch_scoped_to_hint_only(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    mocker, tmp_path: Path
 ) -> None:
     """When hint's only rule is via text_switch (no landmark block), the
     sticky path still resolves it — and only checks the hint's own case,
@@ -247,7 +247,7 @@ text_switch:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
     screen_graph.load_screen_verify_config.cache_clear()
     try:
         detector = ScreenDetector(OcrClient(get_settings()))
@@ -277,7 +277,7 @@ text_switch:
 
 @pytest.mark.asyncio
 async def test_sticky_verify_returns_false_when_no_rules_for_hint(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    mocker, tmp_path: Path
 ) -> None:
     """A screen with no landmarks AND not named in any text_switch case
     can't be sticky-verified — fall through to the global pipeline."""
@@ -300,7 +300,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
     screen_graph.load_screen_verify_config.cache_clear()
     try:
         detector = ScreenDetector(OcrClient(get_settings()))
@@ -330,7 +330,7 @@ screens:
 
 @pytest.mark.asyncio
 async def test_worker_passes_last_detected_screen_as_hint(
-    monkeypatch: pytest.MonkeyPatch, redis_async: Any
+    mocker, redis_async: Any
 ) -> None:
     """End-to-end: the worker's screen mixin must propagate
     ``_last_detected_screen`` as ``hint`` to the detector."""

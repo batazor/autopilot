@@ -7,7 +7,7 @@ from typing import Any
 import navigation.screen_graph as screen_graph
 
 
-def test_area_screen_region_adds_screen_landmark(monkeypatch: Any, tmp_path: Path) -> None:
+def test_area_screen_region_adds_screen_landmark(mocker, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
     cfg.write_text("screens: []\n", encoding="utf-8")
     area = tmp_path / "area.json"
@@ -31,11 +31,11 @@ def test_area_screen_region_adds_screen_landmark(monkeypatch: Any, tmp_path: Pat
         ),
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     # Per-hero wiki screens are synthesized from the real heroes index; the
     # test wants to assert the area-region path in isolation, so suppress them.
-    monkeypatch.setattr(screen_graph, "_hero_ids", lambda: [])
+    mocker.patch.object(screen_graph, "_hero_ids", new=lambda: [])
     screen_graph.load_screen_verify_config.cache_clear()
 
     try:

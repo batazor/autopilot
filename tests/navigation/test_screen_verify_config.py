@@ -6,7 +6,7 @@ from typing import Any
 import navigation.screen_graph as screen_graph
 
 
-def test_screen_verify_config_loads_rules_from_yaml(monkeypatch: Any, tmp_path: Path) -> None:
+def test_screen_verify_config_loads_rules_from_yaml(mocker, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
     area = tmp_path / "area.json"
     area.write_text('{"screens":[]}', encoding="utf-8")
@@ -34,8 +34,8 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_path", lambda: cfg)
-    monkeypatch.setattr(screen_graph, "_area_json_path", lambda: area)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
@@ -55,7 +55,7 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
-def test_screen_verify_config_merges_module_yaml(monkeypatch: Any, tmp_path: Path) -> None:
+def test_screen_verify_config_merges_module_yaml(mocker, tmp_path: Path) -> None:
     root_cfg = tmp_path / "screen_verify.yaml"
     root_cfg.write_text(
         """
@@ -84,7 +84,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    monkeypatch.setattr(screen_graph, "_screen_verify_yaml_paths", lambda: [root_cfg, module_cfg])
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [root_cfg, module_cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
