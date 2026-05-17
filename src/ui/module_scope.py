@@ -36,7 +36,7 @@ def render_module_scope_selector(
     labels = [label for _, label in opts]
     qp = module_scope_from_query()
     default_key = normalize_module_scope(
-        qp if qp else str(st.session_state.get(_STORAGE_KEY) or ALL_MODULES_KEY)
+        qp or str(st.session_state.get(_STORAGE_KEY) or ALL_MODULES_KEY)
     )
     if default_key not in keys:
         default_key = ALL_MODULES_KEY

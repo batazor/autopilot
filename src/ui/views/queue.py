@@ -123,7 +123,7 @@ def _nested_table_height(n: int, *, cap: int = 520) -> int:
 
 
 def _player_label(player_id: str) -> str:
-    return player_id if player_id else _DEVICE_LABEL
+    return player_id or _DEVICE_LABEL
 
 
 def _pending_nested_columns() -> list[TableColumn]:

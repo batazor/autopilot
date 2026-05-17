@@ -4,11 +4,11 @@
 """
 from __future__ import annotations
 
-import os
 import re
 import tempfile
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -37,9 +37,6 @@ from ui.settings_state import (
     get_ui_adb_bin,
 )
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
 ensure_ui_settings_session_defaults()
 
 _REPO_ROOT = repo_root()
@@ -67,7 +64,7 @@ def _atomic_write_yaml(path: Path, data: dict[str, Any]) -> None:
     ) as f:
         f.write(content)
         tmp = f.name
-    os.replace(tmp, path)
+    Path(tmp).replace(path)
 
 
 # ---------------------------------------------------------------------------

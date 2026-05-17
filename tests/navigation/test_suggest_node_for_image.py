@@ -48,7 +48,8 @@ def test_returns_screen_id_string_on_full_detect_hit(mocker) -> None:
 def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
     """OCR backend down → full path raises → template-only path is consulted."""
     async def _broken(self: object, _img: np.ndarray) -> ScreenName:
-        raise RuntimeError("ocr backend offline")
+        msg = "ocr backend offline"
+        raise RuntimeError(msg)
 
     async def _template_hit(self: object, _img: np.ndarray) -> ScreenName:
         return ScreenName.MAIL
@@ -64,7 +65,8 @@ def test_falls_back_to_template_when_full_detect_raises(mocker) -> None:
 
 def test_returns_none_when_both_paths_fail(mocker) -> None:
     async def _broken(self: object, _img: np.ndarray) -> ScreenName:
-        raise RuntimeError("dead")
+        msg = "dead"
+        raise RuntimeError(msg)
 
     mocker.patch.object(detector_mod.ScreenDetector, "detect_screen", new=_broken)
     mocker.patch.object(

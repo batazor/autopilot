@@ -181,15 +181,19 @@ class OcrClient:
         if crop is None or crop.size == 0:
             return "", 0.0
         if shutil.which(self._tesseract_cmd) is None and not Path(self._tesseract_cmd).exists():
-            raise RuntimeError(
+            msg = (
                 f"tesseract executable not found: {self._tesseract_cmd!r}. "
                 "Install Tesseract with eng.traineddata or set WOS_TESSERACT_CMD."
+            )
+            raise RuntimeError(
+                msg
             )
 
         work = self._prepare_crop(crop, preprocess)
         ok, buf = cv2.imencode(".png", work)
         if not ok or buf is None:
-            raise RuntimeError("cv2.imencode('.png', crop) failed")
+            msg = "cv2.imencode('.png', crop) failed"
+            raise RuntimeError(msg)
 
         psm = "7" if (preprocess or "").strip().lower() == "fast_line" else "6"
         with tempfile.NamedTemporaryFile(suffix=".png") as tmp:

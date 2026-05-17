@@ -115,7 +115,7 @@ class ScenarioLoader:
     @property
     def _path(self) -> Path:
         """Primary root (compat) — first watched directory."""
-        return self._paths[0] if self._paths else Path(".")
+        return self._paths[0] if self._paths else Path()
 
     def set_on_reload(self, callback: Callable[[], None] | None) -> None:
         """Register a no-arg callback fired after every reload()."""

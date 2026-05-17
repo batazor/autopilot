@@ -96,13 +96,15 @@ def wait_for_next(instance_id: str, *, timeout: float) -> np.ndarray:
                     break
             remaining = deadline - time.monotonic()
             if remaining <= 0 or not cond.wait(timeout=remaining):
+                msg = f"frame_bus: no new frame for {instance_id!r} within {timeout:.2f}s"
                 raise FrameBusTimeout(
-                    f"frame_bus: no new frame for {instance_id!r} within {timeout:.2f}s"
+                    msg
                 )
     snap = latest(instance_id)
     if snap is None:
+        msg = f"frame_bus: event fired but no frame stored for {instance_id!r}"
         raise FrameBusTimeout(
-            f"frame_bus: event fired but no frame stored for {instance_id!r}"
+            msg
         )
     return snap[1]
 

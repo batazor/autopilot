@@ -202,7 +202,7 @@ with tab_graph:
             highlight_edges=highlight_edges,
             key="flow-tap-graph",
         )
-        _render_node_details(selected or (focus if focus else None), _TAP_GRAPH)
+        _render_node_details(selected or (focus or None), _TAP_GRAPH)
 
         if path is None:
             st.error(f"No bot route found for `{src}` -> `{dst}` (and no route via `main_city`).")

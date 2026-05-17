@@ -191,8 +191,9 @@ def test_context_from_carrier_with_traceparent_only() -> None:
 def test_traced_records_exception(_initialised_tracing: object) -> None:
     import config.tracing as tracing
 
-    with pytest.raises(ValueError, match="kaboom"), tracing.traced("boom"):
-        raise ValueError("kaboom")
+    msg = "kaboom"
+    with pytest.raises(ValueError, match=msg), tracing.traced("boom"):
+        raise ValueError(msg)
 
 
 def test_set_span_attributes_coerces_non_primitives(

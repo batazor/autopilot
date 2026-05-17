@@ -120,9 +120,12 @@ class DslStep(BaseModel):
     @model_validator(mode="after")
     def _exactly_one_action(self) -> DslStep:
         if "set_node" in (self.model_extra or {}):
-            raise ValueError(
+            msg = (
                 "set_node is no longer a DSL action; screen state is detected "
                 "automatically"
+            )
+            raise ValueError(
+                msg
             )
         present = [k for k in DSL_ACTION_KEYS if self._has(k)]
         # ``long_click`` consumes the step-level ``wait`` (or ``duration``) as
@@ -141,15 +144,21 @@ class DslStep(BaseModel):
         if is_group:
             return self
         if not present:
-            raise ValueError(
+            msg = (
                 "step must carry exactly one action key "
                 f"(one of {', '.join(DSL_ACTION_KEYS)}) or a non-empty 'steps' "
                 "group (optionally guarded by 'cond')"
             )
-        if len(present) > 1:
             raise ValueError(
+                msg
+            )
+        if len(present) > 1:
+            msg = (
                 f"step carries multiple action keys: {', '.join(present)} — "
                 "split into separate steps"
+            )
+            raise ValueError(
+                msg
             )
         return self
 
@@ -229,7 +238,8 @@ class DslScenario(BaseModel):
 def parse_scenario(raw: dict[str, Any] | None) -> DslScenario:
     """Parse a YAML-loaded mapping into a ``DslScenario``."""
     if not isinstance(raw, dict):
-        raise TypeError(f"scenario root must be a mapping, got {type(raw).__name__}")
+        msg = f"scenario root must be a mapping, got {type(raw).__name__}"
+        raise TypeError(msg)
     return DslScenario.model_validate(raw)
 
 

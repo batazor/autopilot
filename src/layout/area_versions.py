@@ -52,9 +52,12 @@ _COND_ALLOWED_NODES: frozenset[type[ast.AST]] = frozenset({
 def _validate_cond_ast(tree: ast.AST) -> None:
     for node in ast.walk(tree):
         if type(node) not in _COND_ALLOWED_NODES:
-            raise SyntaxError(
+            msg = (
                 f"cond: disallowed node {type(node).__name__} "
                 "(only literals, comparisons, boolean/arith ops and dotted-state lookups allowed)"
+            )
+            raise SyntaxError(
+                msg
             )
 
 
@@ -181,7 +184,8 @@ def compile_cond(expr: str) -> None:
     """Validate cond syntax without state. Raises ``SyntaxError`` if malformed."""
     expr_str = (expr or "").strip()
     if not expr_str:
-        raise SyntaxError("cond expression is empty")
+        msg = "cond expression is empty"
+        raise SyntaxError(msg)
     rewritten = _rewrite_dotted_idents(expr_str)
     _compile_cond_cached(rewritten)
 

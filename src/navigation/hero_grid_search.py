@@ -152,7 +152,8 @@ def _heroes_grid_bbox_percent() -> dict[str, float]:
         for region in screen.get("regions", []):
             if region.get("name") == "heroes.grid":
                 return dict(region["bbox"])
-    raise RuntimeError("heroes.grid region not found in area.json")
+    msg = "heroes.grid region not found in area.json"
+    raise RuntimeError(msg)
 
 
 def _grid_roi_pixels(frame_h: int, frame_w: int) -> tuple[int, int, int, int]:
@@ -168,16 +169,19 @@ def _grid_roi_pixels(frame_h: int, frame_w: int) -> tuple[int, int, int, int]:
 def _load_hero_template_gray(hero_id: str, scale_px: int = _TEMPLATE_PX) -> np.ndarray:
     icons_dir = default_repo_root() / "db" / "assets" / "wiki" / "heroes" / hero_id
     if not icons_dir.is_dir():
-        raise FileNotFoundError(f"no wiki icons for hero {hero_id!r} at {icons_dir}")
+        msg = f"no wiki icons for hero {hero_id!r} at {icons_dir}"
+        raise FileNotFoundError(msg)
     candidates = sorted(
         p for p in icons_dir.iterdir()
         if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
     )
     if not candidates:
-        raise FileNotFoundError(f"no image files in {icons_dir}")
+        msg = f"no image files in {icons_dir}"
+        raise FileNotFoundError(msg)
     icon = cv2.imread(str(candidates[0]))
     if icon is None:
-        raise RuntimeError(f"cannot decode {candidates[0]}")
+        msg = f"cannot decode {candidates[0]}"
+        raise RuntimeError(msg)
     gray = cv2.cvtColor(icon, cv2.COLOR_BGR2GRAY)
     return cv2.resize(gray, (scale_px, scale_px), interpolation=cv2.INTER_AREA)
 
@@ -366,7 +370,8 @@ def find_hero_in_frame(
     ``None`` when no cell scores above ``threshold``.
     """
     if frame_bgr.ndim != 3:
-        raise ValueError("frame_bgr must be HxWx3 BGR")
+        msg = "frame_bgr must be HxWx3 BGR"
+        raise ValueError(msg)
     fh, fw = frame_bgr.shape[:2]
     rx, ry, rw, rh = _grid_roi_pixels(fh, fw)
     if rw < scale_px or rh < scale_px:
@@ -422,7 +427,8 @@ def scan_grid_cells(
     """
     targets = hero_ids if hero_ids is not None else _all_hero_ids()
     if frame_bgr.ndim != 3:
-        raise ValueError("frame_bgr must be HxWx3 BGR")
+        msg = "frame_bgr must be HxWx3 BGR"
+        raise ValueError(msg)
     fh, fw = frame_bgr.shape[:2]
     rx, ry, rw, rh = _grid_roi_pixels(fh, fw)
     if rw < scale_px or rh < scale_px:

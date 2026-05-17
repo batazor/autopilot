@@ -169,8 +169,11 @@ def reset_settings() -> None:
 def get_settings() -> Settings:
     """Return settings bound by :func:`set_settings` / Dishka bootstrap."""
     if _settings is None:
-        raise RuntimeError(
+        msg = (
             "Settings are not initialized — call set_settings(load_settings()) "
             "or bootstrap_app_di() before get_settings()"
+        )
+        raise RuntimeError(
+            msg
         )
     return _settings

@@ -675,7 +675,8 @@ def test_require_approval_survives_capturer_exception(
     _patch_redis(monkeypatch, r)
 
     def _explode(_payload: dict[str, Any]) -> None:
-        raise RuntimeError("ADB unreachable")
+        msg = "ADB unreachable"
+        raise RuntimeError(msg)
 
     ok, _req_id = tap._require_approval(
         "bs1",

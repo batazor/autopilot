@@ -808,4 +808,5 @@ def assert_startup_configs_valid(repo_root: Path | None = None) -> None:
         )
         return
 
-    raise RuntimeError(f"startup config validation failed: {len(issues)} issue(s)")
+    msg = f"startup config validation failed: {len(issues)} issue(s)"
+    raise RuntimeError(msg)

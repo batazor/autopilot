@@ -128,7 +128,8 @@ def build_coco_annotation(
     try:
         from PIL import Image
     except ImportError as exc:
-        raise RuntimeError("Pillow is not installed; run `uv sync`.") from exc
+        msg = "Pillow is not installed; run `uv sync`."
+        raise RuntimeError(msg) from exc
 
     with Image.open(image_path) as image:
         width, height = image.size
@@ -139,7 +140,8 @@ def build_coco_annotation(
         if not is_auxiliary_overlay_region(region) and isinstance(region.get("bbox"), dict)
     ]
     if not regions:
-        raise ValueError("selected screenshot has no non-auxiliary bbox annotations")
+        msg = "selected screenshot has no non-auxiliary bbox annotations"
+        raise ValueError(msg)
 
     category_ids: dict[str, int] = {}
     annotations: list[dict[str, Any]] = []
@@ -166,7 +168,8 @@ def build_coco_annotation(
         )
 
     if not annotations:
-        raise ValueError("selected screenshot has no valid bbox annotations")
+        msg = "selected screenshot has no valid bbox annotations"
+        raise ValueError(msg)
 
     return {
         "images": [
@@ -197,7 +200,8 @@ def upload_screenshot_to_roboflow(
     try:
         from roboflow import Roboflow
     except ImportError as exc:
-        raise RuntimeError("roboflow package is not installed; run `uv sync`.") from exc
+        msg = "roboflow package is not installed; run `uv sync`."
+        raise RuntimeError(msg) from exc
 
     rf = Roboflow(api_key=config.api_key)
     workspace = rf.workspace(config.workspace) if config.workspace else rf.workspace()

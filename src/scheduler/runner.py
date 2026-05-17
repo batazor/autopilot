@@ -398,7 +398,7 @@ class SchedulerRunner:
         if raw is None:
             return None
         s = raw.decode() if isinstance(raw, bytes) else raw
-        return s.strip() if s.strip() else None
+        return s.strip() or None
 
     @staticmethod
     def _filter_scenarios_for_player(

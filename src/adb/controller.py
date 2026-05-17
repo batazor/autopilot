@@ -125,9 +125,12 @@ class AdbController:
             parts = line.split()
             if len(parts) >= 2 and parts[0] == self._serial and parts[1] == "device":
                 return
-        raise RuntimeError(
+        msg = (
             f"ADB device '{self._serial}' not found or not in 'device' state.\n"
             f"Connected devices:\n{out}"
+        )
+        raise RuntimeError(
+            msg
         )
 
     # ------------------------------------------------------------------
@@ -153,7 +156,8 @@ class AdbController:
                     w_str, _, h_str = parts[-1].partition("x")
                     if w_str.isdigit() and h_str.isdigit():
                         return int(w_str), int(h_str)
-        raise RuntimeError(f"Cannot parse screen resolution from: {out!r}")
+        msg = f"Cannot parse screen resolution from: {out!r}"
+        raise RuntimeError(msg)
 
     # ------------------------------------------------------------------
     # App lifecycle
@@ -446,7 +450,8 @@ class AdbController:
             case "down":
                 start, end = Point(cx, cy), Point(cx, cy + delta)
             case _:
-                raise ValueError(f"Unknown swipe direction: {direction!r}")
+                msg = f"Unknown swipe direction: {direction!r}"
+                raise ValueError(msg)
         return self.swipe(start, end, duration)
 
     def long_tap(self, point: Point, duration: timedelta = timedelta(milliseconds=800)) -> bool:
@@ -535,7 +540,7 @@ class AdbController:
         tmp = Path(tmp_name)
         try:
             tmp.write_bytes(png)
-            os.replace(tmp, path)
+            tmp.replace(path)
         except Exception:
             tmp.unlink(missing_ok=True)
             raise

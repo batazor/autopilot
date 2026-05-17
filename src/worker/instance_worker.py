@@ -164,7 +164,7 @@ class InstanceWorker(
 
     def _worker_adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
-        return pref if pref else DEFAULT_ADB_BIN
+        return pref or DEFAULT_ADB_BIN
 
     def _build_task(self, item: QueueItem) -> BaseTask | None:
         factory = _TASK_REGISTRY.get(item.task_type)
@@ -230,7 +230,7 @@ class InstanceWorker(
             return result
 
         except TimeoutError:
-            logger.error("Task %s timed out on %s", item.task_id, self._cfg.instance_id)
+            logger.exception("Task %s timed out on %s", item.task_id, self._cfg.instance_id)
             return None
 
         except asyncio.CancelledError:
@@ -303,7 +303,7 @@ class InstanceWorker(
                             },
                         )
                 return None
-            logger.exception("Task %s failed: %s", item.task_id, exc)
+            logger.exception("Task %s failed", item.task_id)
             return None
 
         finally:
@@ -373,7 +373,7 @@ class InstanceWorker(
                     payload = {}
                 reason = str(payload.get("reason") or "external abort request")
                 await self._cancel_current_task(reason)
-        except asyncio.CancelledError:
+        except asyncio.CancelledError:  # noqa: TRY203 — explicit cancellation pass-through
             raise
         finally:
             with suppress(Exception):

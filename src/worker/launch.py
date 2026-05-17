@@ -71,8 +71,9 @@ def main() -> None:
     try:
         from streamlit.web import bootstrap
     except ImportError as exc:
+        msg = "Streamlit is required: run `uv sync` (see README), then `uv run wos`."
         raise SystemExit(
-            "Streamlit is required: run `uv sync` (see README), then `uv run wos`."
+            msg
         ) from exc
 
     def _set_up_signal_handler(server: Any) -> None:

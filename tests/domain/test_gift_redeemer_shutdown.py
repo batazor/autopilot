@@ -39,17 +39,20 @@ class _ShutdownStubClient:
 
     async def fetch_player(self, fid: int):
         if self.fail_on == "fetch_player":
-            raise RuntimeError("cannot schedule new futures after shutdown")
+            msg = "cannot schedule new futures after shutdown"
+            raise RuntimeError(msg)
         return type("P", (), {"nickname": "x", "stove_level": 1, "fid": fid, "kid": 1, "stove_lv_content": 0, "avatar_image": ""})()
 
     async def fetch_captcha(self, fid: int):
         if self.fail_on == "fetch_captcha":
-            raise RuntimeError("cannot schedule new futures after shutdown")
+            msg = "cannot schedule new futures after shutdown"
+            raise RuntimeError(msg)
         return type("C", (), {"img_b64": "data:image/png;base64,xxx"})()
 
     async def redeem(self, fid: int, code: str, captcha_text: str):
         if self.fail_on == "redeem":
-            raise RuntimeError("cannot schedule new futures after shutdown")
+            msg = "cannot schedule new futures after shutdown"
+            raise RuntimeError(msg)
         raise NotImplementedError
 
 

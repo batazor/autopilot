@@ -208,7 +208,8 @@ async def test_redis_failure_is_safe_no_yield(
 ) -> None:
     """peek_top_due raising must not crash the step loop — preempt = no-op."""
     async def boom(self, instance_id, *, current_screen=""):
-        raise RuntimeError("redis down")
+        msg = "redis down"
+        raise RuntimeError(msg)
 
     monkeypatch.setattr(
         "scheduler.queue.RedisQueue.peek_top_due", boom, raising=True

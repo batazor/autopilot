@@ -37,6 +37,14 @@ _MAIL_TABS = {
     "reports": "Reports",
     "starred": "Starred",
 }
+_BACKPACK_TABS = {
+    "resources": "Resources",
+    "speedup": "Speedup",
+    "bonus": "Bonus",
+    "gear": "Gear",
+    "other": "Other",
+}
+_TAB_LABELS = {**_MAIL_TABS, **_BACKPACK_TABS}
 _POINTERS = {
     "hand_pointer": "Hand pointer",
     "hand_pointer_small": "Small hand pointer",
@@ -92,7 +100,7 @@ def _axis_context(repo_root: Path, axis: str, value: str) -> dict[str, str] | No
             return None
         return {"hero_id": value, "hero_name": name}
     if axis == "tab":
-        name = _MAIL_TABS.get(value)
+        name = _TAB_LABELS.get(value)
         if name is None:
             return None
         return {"tab": value, "tab_name": name}

@@ -17,7 +17,8 @@ def test_shutdown_hooks_skip_signals_outside_main_thread(mocker) -> None:
     mocker.patch.object(bot_services.threading, "main_thread", new=lambda: main_thread)
 
     def fail_signal(*_args: object) -> None:
-        raise AssertionError("signal.signal must not be called outside the main thread")
+        msg = "signal.signal must not be called outside the main thread"
+        raise AssertionError(msg)
 
     mocker.patch.object(bot_services.signal, "signal", new=fail_signal)
 

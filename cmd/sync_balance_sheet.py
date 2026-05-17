@@ -244,7 +244,8 @@ def _parse_gear_table(rows: list[list[str]]) -> dict[str, Any]:
     row 3+: ``<level>, <values...>``
     """
     if len(rows) < 4:
-        raise ValueError("gear table too short")
+        msg = "gear table too short"
+        raise ValueError(msg)
     title = (rows[0][1] if len(rows[0]) > 1 else "").strip()
     header = rows[2]
     # First 4 stats after column 0; same names repeat per tier.

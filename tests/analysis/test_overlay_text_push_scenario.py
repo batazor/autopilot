@@ -90,7 +90,8 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
 
     class _StubOcr:
         async def ocr_region(self, _image_bgr: Any, _region_px: Region, **_kwargs: Any) -> OCRResult:
-            raise AssertionError("OCR must not run when screen gate fails")
+            msg = "OCR must not run when screen gate fails"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -100,7 +101,8 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
             region_ids: list[str] | None = None,
             region_preprocess: list[str | None] | None = None,
         ) -> list[OCRResult]:
-            raise AssertionError("OCR must not run when screen gate fails")
+            msg = "OCR must not run when screen gate fails"
+            raise AssertionError(msg)
 
     _patch_overlay_ocr_getter(monkeypatch, _StubOcr())
 
@@ -193,7 +195,8 @@ async def test_text_rules_batch_into_two_ocr_calls(monkeypatch: Any) -> None:
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("text rules must go through ocr_regions, not ocr_region")
+            msg = "text rules must go through ocr_regions, not ocr_region"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -278,7 +281,8 @@ async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> No
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("text rules must go through ocr_regions, not ocr_region")
+            msg = "text rules must go through ocr_regions, not ocr_region"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -339,7 +343,8 @@ async def test_type_time_auto_enables_fast_line_preprocess(monkeypatch: Any) -> 
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("must go through ocr_regions")
+            msg = "must go through ocr_regions"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -387,7 +392,8 @@ async def test_explicit_preprocess_overrides_type_derived_default(monkeypatch: A
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("must go through ocr_regions")
+            msg = "must go through ocr_regions"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -433,7 +439,8 @@ async def test_no_preprocess_keyword_when_flag_absent(monkeypatch: Any) -> None:
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("must go through ocr_regions")
+            msg = "must go through ocr_regions"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,
@@ -490,7 +497,8 @@ async def test_text_rules_skip_fallback_batch_when_all_primaries_match(
 
     class _RecordingOcr:
         async def ocr_region(self, *_a: Any, **_k: Any) -> OCRResult:
-            raise AssertionError("text rules must go through ocr_regions, not ocr_region")
+            msg = "text rules must go through ocr_regions, not ocr_region"
+            raise AssertionError(msg)
 
         async def ocr_regions(
             self,

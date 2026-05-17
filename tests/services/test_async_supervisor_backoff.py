@@ -45,7 +45,8 @@ async def test_guard_loop_increments_attempt_on_quick_crash(
     )
 
     async def _crash() -> None:
-        raise RuntimeError("boom")
+        msg = "boom"
+        raise RuntimeError(msg)
 
     with pytest.raises(asyncio.CancelledError):
         await async_supervisor._guard_loop("test", _crash, settings=_stub_settings)
@@ -94,7 +95,8 @@ async def test_guard_loop_resets_attempt_after_stable_run(
     )
 
     async def _crash() -> None:
-        raise RuntimeError("boom")
+        msg = "boom"
+        raise RuntimeError(msg)
 
     with pytest.raises(asyncio.CancelledError):
         await async_supervisor._guard_loop("test", _crash, settings=_stub_settings)

@@ -47,7 +47,8 @@ async def test_resume_from_step_skips_root_node_navigation(
     (tmp_path / "area.json").write_text(yaml.dump({"screens": []}), encoding="utf-8")
 
     async def _fail_navigation(*_args: Any, **_kwargs: Any) -> bool:
-        raise AssertionError("root node navigation should be skipped on resumed steps")
+        msg = "root node navigation should be skipped on resumed steps"
+        raise AssertionError(msg)
 
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
     mocker.patch.object(dsl.DslScenarioTask, "_navigate_to_node", new=_fail_navigation)

@@ -12,20 +12,17 @@ doesn't grow without bound.
 """
 from __future__ import annotations
 
-import os
 import tempfile
 import threading
 import time
 from contextlib import suppress
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import yaml
 
 from config.paths import repo_root
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _HISTORY_PATH = repo_root() / "db" / "optimizer_history.yaml"
 _DEFAULT_MAX_ENTRIES = 500
@@ -54,12 +51,12 @@ def _atomic_write(path: Path, content: str) -> None:
         ) as f:
             f.write(content)
             tmp = f.name
-        os.replace(tmp, path)
+        Path(tmp).replace(path)
         tmp = None
     finally:
         if tmp is not None:
             with suppress(OSError):
-                os.unlink(tmp)
+                Path(tmp).unlink()
 
 
 @dataclass(frozen=True)

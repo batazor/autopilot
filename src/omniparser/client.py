@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -65,7 +66,7 @@ def _result_from_data(data: dict[str, Any], fallback_size: tuple[int, int]) -> O
     raw_elements = data.get("elements")
     if not isinstance(raw_elements, list):
         msg = "OmniParser response missing elements[]"
-        raise ValueError(msg)
+        raise TypeError(msg)
     elements: list[ParsedUiElement] = []
     for item_raw in raw_elements:
         if not isinstance(item_raw, dict):
@@ -112,17 +113,18 @@ def _parse_screenshot_local(
     timeout = float(timeout_seconds if timeout_seconds is not None else resolve_omniparser_timeout_seconds())
     rgb = image.convert("RGB")
     with TemporaryDirectory() as tmp_dir:
-        image_path = os.path.join(tmp_dir, "screenshot.png")
-        output_path = os.path.join(tmp_dir, "omniparser.json")
+        tmp_root = Path(tmp_dir)
+        image_path = tmp_root / "screenshot.png"
+        output_path = tmp_root / "omniparser.json"
         rgb.save(image_path, format="PNG")
         cmd = [
             sys.executable,
             "-m",
             "omniparser.oneshot",
             "--image",
-            image_path,
+            str(image_path),
             "--output",
-            output_path,
+            str(output_path),
             "--box-threshold",
             str(float(box_threshold)),
             "--iou-threshold",
@@ -145,11 +147,11 @@ def _parse_screenshot_local(
             detail = (proc.stderr or proc.stdout or "").strip()
             msg = f"OmniParser local subprocess failed ({proc.returncode}): {detail}"
             raise RuntimeError(msg)
-        with open(output_path, encoding="utf-8") as fh:
+        with output_path.open(encoding="utf-8") as fh:
             data = json.load(fh)
         if not isinstance(data, dict):
             msg = "invalid OmniParser local response"
-            raise ValueError(msg)
+            raise TypeError(msg)
     logger.info("OmniParser local: %d elements", len(data.get("elements") or []))
     return _result_from_data(data, rgb.size)
 
@@ -201,7 +203,7 @@ def parse_screenshot(
         data = resp.json()
     if not isinstance(data, dict):
         msg = "invalid OmniParser response"
-        raise ValueError(msg)
+        raise TypeError(msg)
     result = _result_from_data(data, rgb.size)
     logger.info("OmniParser: %d elements from %s", len(result.elements), base)
     return result

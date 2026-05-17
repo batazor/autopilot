@@ -14,16 +14,13 @@ Format mirrors db/devices.yaml:
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 import threading
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from pathlib import Path
+from typing import Any, cast
 
 import yaml
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +149,7 @@ def _save_devices_raw(path: Path, raw: dict[str, object]) -> bool:
         ) as f:
             f.write(content)
             tmp = f.name
-        os.replace(tmp, path)
+        Path(tmp).replace(path)
         return True
     except Exception:
         logger.exception("Failed to persist devices to %s", path)

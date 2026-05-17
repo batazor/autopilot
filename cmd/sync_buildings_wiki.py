@@ -151,7 +151,7 @@ def _parse_build_cost_cell(td: Tag) -> list[CostItem]:
         if isinstance(node, Tag) and node.name == "img":
             src = str(node.get("src") or "").strip()
             # Use filename stem as item id (e.g. item_icon_103)
-            m = re.search(r"/([^/]+?)\.(png|webp|jpg|jpeg)$", src, flags=re.I)
+            m = re.search(r"/([^/]+?)\.(png|webp|jpg|jpeg)$", src, flags=re.IGNORECASE)
             current_item = m.group(1) if m else (src or "unknown_item")
             continue
 
@@ -164,7 +164,7 @@ def _parse_build_cost_cell(td: Tag) -> list[CostItem]:
                 continue
 
             # Numbers like 2.2k, 130k etc.
-            if re.fullmatch(r"[0-9]+(\.[0-9]+)?k?", txt, flags=re.I):
+            if re.fullmatch(r"[0-9]+(\.[0-9]+)?k?", txt, flags=re.IGNORECASE):
                 if current_item is None:
                     # Some rows omit icons (e.g. level 1) and only have time in the markdown conversion.
                     # We keep an explicit unknown item in that case.
@@ -175,7 +175,7 @@ def _parse_build_cost_cell(td: Tag) -> list[CostItem]:
     # Sometimes the cell is just plain text (no icons). Handle that too.
     if not items:
         txt = _parse_amount(td.get_text(" ", strip=True))
-        if txt and re.fullmatch(r"[0-9]+(\.[0-9]+)?k?(\s+[0-9]+(\.[0-9]+)?k?)*", txt, flags=re.I):
+        if txt and re.fullmatch(r"[0-9]+(\.[0-9]+)?k?(\s+[0-9]+(\.[0-9]+)?k?)*", txt, flags=re.IGNORECASE):
             items.extend(CostItem(item="unknown_item", amount=p) for p in txt.split())
 
     return items

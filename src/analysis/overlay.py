@@ -120,9 +120,12 @@ def evaluate_overlay_rules(
         pass
     else:
         if loop.is_running():
-            raise RuntimeError(
+            msg = (
                 "evaluate_overlay_rules() called from an event loop; "
                 "use await evaluate_overlay_rules_async(...) instead."
+            )
+            raise RuntimeError(
+                msg
             )
 
     return asyncio.run(

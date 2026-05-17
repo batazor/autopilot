@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import logging
-import os
 import tempfile
 import threading
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
@@ -15,7 +15,6 @@ from config.state_schema import GamerState, StateDB
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +198,7 @@ def _save_state_db(db: StateDB, path: Path) -> None:
         ) as f:
             f.write(content)
             tmp = f.name
-        os.replace(tmp, path)
+        Path(tmp).replace(path)
         tmp = None  # rename succeeded — nothing left to clean up
     except Exception:
         logger.exception("Failed to persist state to %s", path)
@@ -209,7 +208,7 @@ def _save_state_db(db: StateDB, path: Path) -> None:
         # repeated failures slowly fill db/ with stale *.tmp siblings.
         if tmp is not None:
             with suppress(OSError):
-                os.unlink(tmp)
+                Path(tmp).unlink()
     _fire_on_save_callbacks()
 
 

@@ -57,11 +57,12 @@ class BotActions:
         for inst in self._settings.instances:
             if inst.instance_id == instance_id:
                 return inst.bluestacks_window_title  # ADB serial for BlueStacks
-        raise ValueError(f"Unknown instance_id: {instance_id!r}")
+        msg = f"Unknown instance_id: {instance_id!r}"
+        raise ValueError(msg)
 
     def _adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
-        return pref if pref else DEFAULT_ADB_BIN
+        return pref or DEFAULT_ADB_BIN
 
     def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
         """Drop the cached framebuffer for ``instance_id`` (or all instances)."""

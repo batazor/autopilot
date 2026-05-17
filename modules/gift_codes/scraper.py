@@ -47,8 +47,8 @@ def _load_codes(path: Path) -> GiftCodeDB:
         return GiftCodeDB()
     try:
         raw = yaml.safe_load(path.read_text()) or {}
-    except yaml.YAMLError as e:
-        logger.error("gift codes YAML is malformed at %s: %s", path, e)
+    except yaml.YAMLError:
+        logger.exception("gift codes YAML is malformed at %s", path)
         raise
     return GiftCodeDB.model_validate(raw)
 

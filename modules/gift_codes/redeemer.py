@@ -185,7 +185,7 @@ class GiftCodeRedeemer:
                     progress_cb(done, total_work, f"{code.name} → {nick}")
                 if api_ec is not None:
                     code.last_api_err_code = api_ec
-                    code.last_api_msg = api_msg if api_msg else None
+                    code.last_api_msg = api_msg or None
 
                 if status in (RedeemStatus.CDK_EXPIRED, RedeemStatus.CDK_NOT_FOUND):
                     for pid in all_player_ids:

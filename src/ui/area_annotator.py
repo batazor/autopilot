@@ -9,7 +9,6 @@ from __future__ import annotations
 import io
 import json
 import math
-import os
 import re
 import tempfile
 import time
@@ -241,7 +240,8 @@ def convert_bbox(
     w = max(0.0, float(width) * scale_x)
     h = max(0.0, float(height) * scale_y)
     if canvas_w <= 0 or canvas_h <= 0:
-        raise ValueError("canvas dimensions must be positive")
+        msg = "canvas dimensions must be positive"
+        raise ValueError(msg)
     return BBoxDict(
         x=100.0 * float(left) / canvas_w,
         y=100.0 * float(top) / canvas_h,
@@ -370,7 +370,8 @@ def export_region_crops(
     crop_out_dir = root / "references" / "crop"
     stem = Path(reference_repo_rel).stem
     if not stem:
-        raise ValueError("Invalid reference path for crop export.")
+        msg = "Invalid reference path for crop export."
+        raise ValueError(msg)
     crop_out_dir.mkdir(parents=True, exist_ok=True)
     ow, oh = pil_original.size
     indexed = [
@@ -584,13 +585,15 @@ def normalize_area_file(raw: Any) -> AreaDocDict:
     if isinstance(raw, dict):
         screens = raw.get("screens")
         if not isinstance(screens, list):
-            raise ValueError("area.json object must include a 'screens' array")
+            msg = "area.json object must include a 'screens' array"
+            raise TypeError(msg)
         return AreaDocDict(
             version=int(raw.get("version", 2)),
             screens=screens,  # type: ignore[arg-type]
         )
 
-    raise ValueError("area.json must be a JSON array or an object with 'screens'")
+    msg = "area.json must be a JSON array or an object with 'screens'"
+    raise ValueError(msg)
 
 
 def strip_exist_region_types(doc: dict[str, Any]) -> int:
@@ -641,7 +644,7 @@ def save_json(path: Path, doc: AreaDocDict) -> int:
     ) as f:
         f.write(content)
         tmp = f.name
-    os.replace(tmp, path)
+    Path(tmp).replace(path)
     return removed
 
 
@@ -970,17 +973,20 @@ def _copy_live_preview_to_version_reference(
     target_rel = f"references/{stem}_{version_id}.png"
     dest = (REPO_ROOT / target_rel).resolve()
     if dest.is_file():
-        raise RuntimeError(f"target already exists: {target_rel}")
+        msg = f"target already exists: {target_rel}"
+        raise RuntimeError(msg)
 
     iid = str(st.session_state.get("labeling_active_instance_id", "") or "").strip()
     if not iid:
-        raise RuntimeError("no active labeling instance — cannot locate the live preview")
+        msg = "no active labeling instance — cannot locate the live preview"
+        raise RuntimeError(msg)
 
     from ui.reference_preview import rolling_live_preview_path
 
     rolling = rolling_live_preview_path(iid)
     if not rolling.is_file():
-        raise RuntimeError(f"live preview not found at `{rolling}`")
+        msg = f"live preview not found at `{rolling}`"
+        raise RuntimeError(msg)
 
     import shutil
 

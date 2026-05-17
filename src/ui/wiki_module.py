@@ -103,7 +103,7 @@ def render_wiki_module_selector(*, help: str | None = None) -> WikiModuleContext
     """Sidebar or inline selectbox; persists ``?module=`` query param."""
     ctxs = _selector_contexts()
     qp = wiki_module_from_query()
-    default_key = qp if qp else str(st.session_state.get(WIKI_MODULE_STORAGE_KEY) or ALL_MODULES_KEY)
+    default_key = qp or str(st.session_state.get(WIKI_MODULE_STORAGE_KEY) or ALL_MODULES_KEY)
     labels = _module_labels(ctxs)
     picked = st.selectbox(
         "Module",

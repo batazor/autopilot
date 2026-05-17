@@ -54,7 +54,7 @@ def _rolling_should_skip_overlay(cfg: Any, *, task_busy: bool) -> bool:
 
 def _node_metric_value(node: str | None) -> str:
     node_s = (node or "").strip()
-    return node_s if node_s else "unknown"
+    return node_s or "unknown"
 
 
 def _record_screenshot_analysis_duration(
@@ -181,7 +181,7 @@ class InstanceWorkerRollingMixin(_Base):
                 if not cv2.imwrite(str(tmp), img):
                     tmp.unlink(missing_ok=True)
                     return False
-                os.replace(tmp, p)
+                tmp.replace(p)
                 return True
             except OSError:
                 tmp.unlink(missing_ok=True)

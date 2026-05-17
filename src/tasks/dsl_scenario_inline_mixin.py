@@ -906,8 +906,10 @@ class DslScenarioInlineMixin(_Base):
                         )
                         if result is not None:
                             return result
-                except _BreakRepeat:
-                    # Propagate to the nearest `repeat:` handler.
+                except _BreakRepeat:  # noqa: TRY203
+                    # Explicit propagation marker — ``_BreakRepeat`` must exit
+                    # the iteration loop *without* incrementing ``iterations``
+                    # so the enclosing ``repeat:`` handler sees the right count.
                     raise
                 iterations += 1
 

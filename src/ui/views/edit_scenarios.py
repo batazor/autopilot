@@ -160,7 +160,8 @@ def _safe_filename(s: str) -> str:
 def _load_doc(path: Path) -> dict[str, Any]:
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if not isinstance(raw, dict):
-        raise ValueError(f"{path.name}: root is not a mapping")
+        msg = f"{path.name}: root is not a mapping"
+        raise TypeError(msg)
     raw.setdefault("steps", [])
     return raw
 

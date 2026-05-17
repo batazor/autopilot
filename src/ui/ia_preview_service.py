@@ -42,7 +42,7 @@ def _write_png_atomic(path: Path, data: bytes) -> None:
     tmp = Path(tmp_name)
     try:
         tmp.write_bytes(data)
-        os.replace(tmp, path)
+        tmp.replace(path)
     except Exception:
         tmp.unlink(missing_ok=True)
         raise

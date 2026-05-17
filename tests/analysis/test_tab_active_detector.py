@@ -60,7 +60,8 @@ def _bbox_for(area_doc: dict[str, Any], name: str) -> dict[str, float]:
                 bbox = r.get("bbox")
                 assert isinstance(bbox, dict), f"{name} has no bbox"
                 return bbox
-    raise AssertionError(f"region {name!r} not found in area.json")
+    msg = f"region {name!r} not found in area.json"
+    raise AssertionError(msg)
 
 
 def test_detector_marks_system_tab_active() -> None:

@@ -158,7 +158,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ", "TC", "BLE", "ARG", "ASYNC", "NPY", "A", "PGH"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ", "TC", "BLE", "ARG", "ASYNC", "NPY", "A", "PGH", "FURB", "PTH", "EM", "TRY", "SLF", "G"]
 ignore = [
     "ANN401",
     # Typographic glyphs are intentional in docstrings / log strings:
@@ -198,14 +198,33 @@ ignore = [
     # would introduce a runtime dep for a non-issue at this codebase's
     # workload (no hot-path file I/O in async tasks).
     "ASYNC240", # blocking-path-method-in-async-function
+    # The codebase uses ``_underscore`` for module-internal API (re-exporters
+    # like ``tasks.dsl_scenario._redis()``, mixin host attrs, streamlit
+    # ``session_state._foo`` slots, fake objects in IA overlay executor). All
+    # current access is intentional intra-package coupling; the rule's actual
+    # value (cross-package leakage into third-party code) doesn't apply at
+    # this codebase's boundary granularity.
+    "SLF001",  # private-member-access
+    # TRY003 fires on every ``raise ValueError("msg")`` and wants a custom
+    # exception class per message. Codebase chooses message-driven errors with
+    # context in the message body, not type hierarchies. EM101/102 (now in the
+    # fixed set) already give us clean tracebacks by hoisting the message.
+    "TRY003",  # raise-vanilla-args
+    # ``try: ... except: ... `` *can* be a ``try: ... else: ...`` per TRY300,
+    # but the "code that runs after success" pattern is often clearer inline
+    # than as an ``else`` clause, especially around early-return / multi-line
+    # bodies. Style not bug.
+    "TRY300",  # try-consider-else
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Re-export helpers and tap/overlay symbols for tests that monkeypatch ``tasks.dsl_scenario``.
 "src/tasks/dsl_scenario.py" = ["F401"]
-# Tests: relaxed typing and long golden / inline YAML strings.
-"tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501"]
-"modules/**/tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501"]
+# Tests: relaxed typing, long golden / inline YAML strings, and intentional
+# private-member access (``obj._foo``) for white-box assertions on the unit
+# under test — that's literally what unit tests are for.
+"tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501", "SLF001"]
+"modules/**/tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501", "SLF001"]
 # Canvas compat patch must run before importing ``streamlit_drawable_canvas``.
 "src/ui/area_annotator.py" = ["E402"]
 

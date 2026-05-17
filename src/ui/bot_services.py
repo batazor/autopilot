@@ -313,9 +313,12 @@ def restart_embedded_bot(*, join_timeout_s: float = 5.0) -> None:
     """
     logging.getLogger(__name__).warning("Restarting embedded bot thread")
     if not stop_embedded_bot(join_timeout_s=join_timeout_s):
-        raise RuntimeError(
+        msg = (
             f"Embedded bot thread did not stop within {join_timeout_s:.1f}s; "
             "refusing to start a duplicate supervisor"
+        )
+        raise RuntimeError(
+            msg
         )
     ensure_embedded_bot()
 

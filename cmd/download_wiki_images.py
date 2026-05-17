@@ -23,7 +23,7 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 def _safe_name(name: str) -> str:
     name = (name or "").strip()
-    name = re.sub(r"[^\w.\-]+", "_", name, flags=re.U)
+    name = re.sub(r"[^\w.\-]+", "_", name, flags=re.UNICODE)
     return name.strip("_") or "asset"
 
 

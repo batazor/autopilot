@@ -39,7 +39,7 @@ def _set_scenario_enabled(path: Path, enabled: bool) -> None:
     raw = yaml.safe_load(path.read_text())
     if not isinstance(raw, dict):
         msg = "expected YAML mapping"
-        raise ValueError(msg)
+        raise TypeError(msg)
     raw["enabled"] = enabled
     path.write_text(
         yaml.dump(
@@ -168,7 +168,7 @@ def _apply_bulk_enabled_to_ids(
         raw = yaml.safe_load(path.read_text())
         if not isinstance(raw, dict):
             msg = f"{rel}: expected YAML mapping"
-            raise ValueError(msg)
+            raise TypeError(msg)
         was = bool(raw.get("enabled", False))
         if was == enabled:
             unchanged.append(rel)

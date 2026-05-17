@@ -217,7 +217,8 @@ def test_bind_log_context_reverts_on_exception() -> None:
     """Even if the body raises, the prior value is restored."""
     log_context.set_log_context(player="alice")
     with contextlib.suppress(RuntimeError), log_context.bind_log_context(player="bob"):
-        raise RuntimeError("boom")
+        msg = "boom"
+        raise RuntimeError(msg)
     assert log_context._player.get() == "alice"
 
 

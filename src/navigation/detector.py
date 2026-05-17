@@ -460,7 +460,7 @@ class ScreenDetector:
         except RetryError as exc:
             # Tenacity wraps the root exception; surface the actual cause for faster diagnosis.
             root = exc.last_attempt.exception() if exc.last_attempt else exc
-            logger.error("OCR failed during screen detection: %s", root, exc_info=True)
+            logger.exception("OCR failed during screen detection: %s", root)
             return ScreenName.UNKNOWN
         except Exception:
             logger.exception("OCR failed during screen detection")

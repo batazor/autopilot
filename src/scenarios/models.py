@@ -25,7 +25,8 @@ def parse_cooldown(value: object) -> timedelta:
                     return timedelta(hours=amount)
                 case "d":
                     return timedelta(days=amount)
-    raise ValueError(f"Cannot parse cooldown: {value!r}")
+    msg = f"Cannot parse cooldown: {value!r}"
+    raise ValueError(msg)
 
 
 class StepCondition(BaseModel):

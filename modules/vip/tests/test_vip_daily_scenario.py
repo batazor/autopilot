@@ -32,7 +32,8 @@ def _region_bbox(region_name: str) -> dict[str, float]:
         for region in screen.get("regions", []):
             if region.get("name") == region_name:
                 return region["bbox"]
-    raise AssertionError(f"missing region {region_name!r}")
+    msg = f"missing region {region_name!r}"
+    raise AssertionError(msg)
 
 
 def _draw_red_dot(frame: np.ndarray, region_name: str) -> None:

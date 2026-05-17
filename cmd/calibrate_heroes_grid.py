@@ -52,7 +52,8 @@ def _heroes_grid_bbox_percent(area_path: Path) -> dict[str, float]:
         for region in screen.get("regions", []):
             if region.get("name") == "heroes.grid":
                 return dict(region["bbox"])
-    raise SystemExit("heroes.grid region not found in area.json")
+    msg = "heroes.grid region not found in area.json"
+    raise SystemExit(msg)
 
 
 def _group_runs(indices: np.ndarray, max_gap: int = 3) -> list[tuple[int, int]]:

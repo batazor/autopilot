@@ -20,5 +20,5 @@ def open_in_labeling_query_params(
         qp["version"] = "default"
     else:
         vid = normalize_version_id(card_ver)
-        qp["version"] = vid if vid else "default"
+        qp["version"] = vid or "default"
     return qp

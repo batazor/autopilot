@@ -102,7 +102,8 @@ def _check_unique_within(regions: Any, scope: str) -> None:
     dups = sorted(n for n, c in counts.items() if c > 1)
     if dups:
         joined = ", ".join(repr(n) for n in dups)
-        raise ValueError(f"Duplicate region name(s) in {scope}: {joined}.")
+        msg = f"Duplicate region name(s) in {scope}: {joined}."
+        raise ValueError(msg)
 
 
 def _deep_almost_equal(
@@ -226,7 +227,8 @@ def validate_versions(doc: dict[str, Any]) -> None:
         entry_label = f"screen id={entry.get('id')!r} screen_id={entry.get('screen_id')!r}"
         versions = entry.get("versions") or []
         if not isinstance(versions, list):
-            raise ValueError(f"{entry_label}: 'versions' must be a list")
+            msg = f"{entry_label}: 'versions' must be a list"
+            raise TypeError(msg)
 
         base_names = {
             str(r.get("name", "") or "").strip()
@@ -238,79 +240,94 @@ def validate_versions(doc: dict[str, Any]) -> None:
         seen_ids: set[str] = set()
         for ver in versions:
             if not isinstance(ver, dict):
-                raise ValueError(
-                    f"{entry_label}: version entry must be an object, got {type(ver).__name__}"
+                msg = f"{entry_label}: version entry must be an object, got {type(ver).__name__}"
+                raise TypeError(
+                    msg
                 )
             vid = str(ver.get("id", "") or "").strip()
             if not VERSION_ID_RE.match(vid):
-                raise ValueError(
-                    f"{entry_label}: version id {vid!r} must match pattern '^v\\d+$' (e.g. 'v2')"
-                )
+                msg = f"{entry_label}: version id {vid!r} must match pattern '^v\\d+$' (e.g. 'v2')"
+                raise ValueError(msg)
             if vid in seen_ids:
-                raise ValueError(f"{entry_label}: duplicate version id {vid!r}")
+                msg = f"{entry_label}: duplicate version id {vid!r}"
+                raise ValueError(msg)
             seen_ids.add(vid)
 
             cond = str(ver.get("cond", "") or "").strip()
             if not cond:
-                raise ValueError(f"{entry_label}: version {vid!r} has empty 'cond'")
+                msg = f"{entry_label}: version {vid!r} has empty 'cond'"
+                raise ValueError(msg)
             try:
                 compile_cond(cond)
             except SyntaxError as exc:
+                msg = f"{entry_label}: version {vid!r} cond syntax error: {exc}"
                 raise ValueError(
-                    f"{entry_label}: version {vid!r} cond syntax error: {exc}"
+                    msg
                 ) from exc
 
             ver_regions = ver.get("regions")
             if ver_regions is not None and not isinstance(ver_regions, list):
+                msg = f"{entry_label}: version {vid!r} 'regions' must be a list"
                 raise ValueError(
-                    f"{entry_label}: version {vid!r} 'regions' must be a list"
+                    msg
                 )
             ver_region_names: set[str] = set()
             if isinstance(ver_regions, list):
                 for r in ver_regions:
                     if not isinstance(r, dict):
-                        raise ValueError(
-                            f"{entry_label}: version {vid!r} region entry must be an object"
+                        msg = f"{entry_label}: version {vid!r} region entry must be an object"
+                        raise TypeError(
+                            msg
                         )
                     nm = str(r.get("name", "") or "").strip()
                     if not nm:
                         continue
                     if nm in ver_region_names:
-                        raise ValueError(
-                            f"{entry_label}: version {vid!r} duplicate region name {nm!r}"
-                        )
+                        msg = f"{entry_label}: version {vid!r} duplicate region name {nm!r}"
+                        raise ValueError(msg)
                     ver_region_names.add(nm)
 
             removed = ver.get("removed")
             if removed is not None:
                 if not isinstance(removed, list):
-                    raise ValueError(
-                        f"{entry_label}: version {vid!r} 'removed' must be a list of strings"
+                    msg = f"{entry_label}: version {vid!r} 'removed' must be a list of strings"
+                    raise TypeError(
+                        msg
                     )
                 seen_removed: set[str] = set()
                 for item in removed:
                     if not isinstance(item, str):
-                        raise ValueError(
+                        msg = (
                             f"{entry_label}: version {vid!r} 'removed' entry must be a string, "
                             f"got {type(item).__name__}"
+                        )
+                        raise TypeError(
+                            msg
                         )
                     nm = item.strip()
                     if not nm:
                         continue
                     if nm in seen_removed:
+                        msg = f"{entry_label}: version {vid!r} 'removed' has duplicate {nm!r}"
                         raise ValueError(
-                            f"{entry_label}: version {vid!r} 'removed' has duplicate {nm!r}"
+                            msg
                         )
                     seen_removed.add(nm)
                     if nm not in base_names:
-                        raise ValueError(
+                        msg = (
                             f"{entry_label}: version {vid!r} 'removed' references "
                             f"non-existent base region {nm!r}"
                         )
-                    if nm in ver_region_names:
                         raise ValueError(
+                            msg
+                        )
+                    if nm in ver_region_names:
+                        msg = (
                             f"{entry_label}: version {vid!r} cannot both override and remove "
                             f"region {nm!r} — pick one"
+                        )
+                        raise ValueError(
+                            msg
                         )
 
 

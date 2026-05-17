@@ -58,8 +58,9 @@ def _color_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> 
     yellow border, blue button, etc.).
     """
     if patch_bgr.shape != template_bgr.shape:
+        msg = f"Color score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
         raise ValueError(
-            f"Color score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
+            msg
         )
     diff = np.abs(patch_bgr.astype(np.float32) - template_bgr.astype(np.float32))
     mae = float(np.mean(diff))
@@ -73,8 +74,9 @@ def _edge_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> f
     Edges from glyphs ("Claim") and borders are far more discriminative than flat fills.
     """
     if patch_bgr.shape != template_bgr.shape:
+        msg = f"Edge score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
         raise ValueError(
-            f"Edge score shape mismatch: patch {patch_bgr.shape} vs template {template_bgr.shape}."
+            msg
         )
     pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
     tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
@@ -131,7 +133,8 @@ def patch_bgr_from_bbox_percent(
 ) -> tuple[np.ndarray, tuple[int, int]]:
     """Cut out the bbox rectangle in pixels (percent of frame); mirrors labeling crop rounding."""
     if image_bgr.ndim != 3:
-        raise ValueError("Expected HxWx3 BGR image.")
+        msg = "Expected HxWx3 BGR image."
+        raise ValueError(msg)
     hi, wi = image_bgr.shape[:2]
 
     left = bbox_percent["x"] / 100.0 * wi
@@ -174,19 +177,25 @@ def validate_live_bbox_patch_vs_reference_dims(
     )
     if small_region:
         if live_pw != ref_pw or live_ph != ref_ph:
-            raise ValueError(
+            msg = (
                 f"Small-region: live bbox patch {live_pw}×{live_ph} must match {reference_label} "
                 f"{ref_pw}×{ref_ph} exactly (1:1)."
+            )
+            raise ValueError(
+                msg
             )
         return
     if (
         abs(live_pw - ref_pw) > _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX
         or abs(live_ph - ref_ph) > _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX
     ):
-        raise ValueError(
+        msg = (
             f"Live bbox patch vs {reference_label} size mismatch (max Δ "
             f"{_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX}px per axis): "
             f"live {live_pw}×{live_ph} vs {reference_label} {ref_pw}×{ref_ph}."
+        )
+        raise ValueError(
+            msg
         )
 
 
@@ -218,13 +227,17 @@ def match_crop_1to1_at_bbox_percent(
     No margin/pyramid: template must match what labeling exported from this bbox.
     """
     if template_bgr.ndim != 3:
-        raise ValueError("Expected HxWx3 BGR template.")
+        msg = "Expected HxWx3 BGR template."
+        raise ValueError(msg)
     patch, (L, T) = patch_bgr_from_bbox_percent(image_bgr, bbox_percent)
 
     if patch.shape != template_bgr.shape:
-        raise ValueError(
+        msg = (
             f"1:1 shape mismatch: bbox patch {patch.shape} vs template {template_bgr.shape}. "
             "Use the same frame size as when exporting references/crop."
+        )
+        raise ValueError(
+            msg
         )
 
     score, score_ncc, score_color, score_edge = _combined_match_score(patch, template_bgr)
@@ -259,7 +272,8 @@ def match_template_in_search_roi_bbox_percent(
     exact width/height equality (see module docstring).
     """
     if template_bgr.ndim != 3:
-        raise ValueError("Expected HxWx3 BGR template.")
+        msg = "Expected HxWx3 BGR template."
+        raise ValueError(msg)
     if primary_bbox_percent is not None:
         _validate_template_vs_primary_bbox_patch_sizes(
             image_bgr, template_bgr, primary_bbox_percent
@@ -268,9 +282,12 @@ def match_template_in_search_roi_bbox_percent(
     rh, rw = roi.shape[:2]
     th, tw = template_bgr.shape[:2]
     if th > rh or tw > rw or th < 1 or tw < 1:
-        raise ValueError(
+        msg = (
             f"Template {tw}×{th} must fit inside search ROI {rw}×{rh} "
             "(draw a larger **search_region** in Labeling)."
+        )
+        raise ValueError(
+            msg
         )
 
     rg = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
@@ -390,11 +407,13 @@ def match_template_full_frame_cached(
     and used as a cheap prefilter for cached positions.
     """
     if template_bgr.ndim != 3:
-        raise ValueError("Expected HxWx3 BGR template.")
+        msg = "Expected HxWx3 BGR template."
+        raise ValueError(msg)
     h, w = image_bgr.shape[:2]
     th, tw = template_bgr.shape[:2]
     if th > h or tw > w or th < 1 or tw < 1:
-        raise ValueError(f"Template {tw}×{th} must fit inside frame {w}×{h}.")
+        msg = f"Template {tw}×{th} must fit inside frame {w}×{h}."
+        raise ValueError(msg)
 
     template_hash = _ahash64(template_bgr)
 
@@ -542,6 +561,7 @@ def match_patch_bgr_at_top_left(
 def patch_mean_hsv_saturation(patch_bgr: np.ndarray) -> float:
     """Mean HSV saturation (S channel, 0–255). Grey UI is usually low vs saturated blue buttons."""
     if patch_bgr.ndim != 3 or patch_bgr.size == 0:
-        raise ValueError("Expected non-empty HxWx3 BGR patch.")
+        msg = "Expected non-empty HxWx3 BGR patch."
+        raise ValueError(msg)
     hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
     return float(np.mean(hsv[:, :, 1]))

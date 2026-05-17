@@ -46,7 +46,8 @@ def _safe_output_path(output: str | None, *, default_name: str) -> Path:
     rel = str(output or "").strip() or f"references/temporal/{default_name}"
     path = Path(rel)
     if path.is_absolute() or ".." in path.parts:
-        raise ValueError("output must be a repo-relative path without '..'")
+        msg = "output must be a repo-relative path without '..'"
+        raise ValueError(msg)
     return _repo() / path
 
 
@@ -105,7 +106,8 @@ async def capture_screen(
     path.parent.mkdir(parents=True, exist_ok=True)
     ok = cv2.imwrite(str(path), frame)
     if not ok:
-        raise RuntimeError(f"failed to write screenshot: {path}")
+        msg = f"failed to write screenshot: {path}"
+        raise RuntimeError(msg)
     return {
         "instance_id": instance_id,
         "path": path.relative_to(_repo()).as_posix(),
@@ -224,7 +226,8 @@ async def navigate_to(
     try:
         target = ScreenName(str(target_node).strip())
     except ValueError as exc:
-        raise ValueError(f"unknown node {target_node!r}; add it to screen_verify.yaml first") from exc
+        msg = f"unknown node {target_node!r}; add it to screen_verify.yaml first"
+        raise ValueError(msg) from exc
     ok = await nav.navigate_to(target, instance_id)
     redis = await get_scheduler_async_redis()
     current = await _read_current_screen(instance_id, redis)
@@ -250,17 +253,21 @@ async def check_scenario_step(
 
     loaded = template_resolver.load_doc(_repo(), scenario_key)
     if loaded is None:
-        raise ValueError(f"scenario not found: {scenario_key}")
+        msg = f"scenario not found: {scenario_key}"
+        raise ValueError(msg)
     path, doc = loaded
     steps = doc.get("steps")
     if not isinstance(steps, list):
-        raise ValueError(f"scenario has no steps list: {scenario_key}")
+        msg = f"scenario has no steps list: {scenario_key}"
+        raise TypeError(msg)
     idx = int(step_index)
     if idx < 0 or idx >= len(steps):
-        raise IndexError(f"step_index {idx} out of range for {scenario_key} ({len(steps)} steps)")
+        msg = f"step_index {idx} out of range for {scenario_key} ({len(steps)} steps)"
+        raise IndexError(msg)
     step = steps[idx]
     if not isinstance(step, dict):
-        raise ValueError(f"step {idx} is not a mapping")
+        msg = f"step {idx} is not a mapping"
+        raise TypeError(msg)
 
     redis = await get_scheduler_async_redis()
     actions = get_bot_actions()
@@ -309,15 +316,18 @@ async def tap_region(
     redis = await get_scheduler_async_redis()
     current = str(screen_id or "").strip() or await _read_current_screen(instance_id, redis)
     if not current:
-        raise RuntimeError("current_screen is unknown; run detect_screen or pass screen_id")
+        msg = "current_screen is unknown; run detect_screen or pass screen_id"
+        raise RuntimeError(msg)
 
     pair = screen_region_by_name(_area_doc(), region)
     if pair is None:
-        raise ValueError(f"region {region!r} not found on screen {current!r}")
+        msg = f"region {region!r} not found on screen {current!r}"
+        raise ValueError(msg)
     _entry, reg = pair
     bbox = reg.get("bbox")
     if not isinstance(bbox, dict):
-        raise ValueError(f"region {region!r} has no bbox")
+        msg = f"region {region!r} has no bbox"
+        raise TypeError(msg)
 
     actions = get_bot_actions()
     dev_w, dev_h = actions.screen_resolution(instance_id)
@@ -354,14 +364,17 @@ async def push_scenario(
 
     key = str(scenario_key or "").strip()
     if not key:
-        raise ValueError("scenario_key is required")
+        msg = "scenario_key is required"
+        raise ValueError(msg)
     iid = str(instance_id or "").strip()
     if not iid:
-        raise ValueError("instance_id is required")
+        msg = "instance_id is required"
+        raise ValueError(msg)
 
     loaded = template_resolver.load_doc(_repo(), key)
     if loaded is None:
-        raise ValueError(f"scenario not found: {key}")
+        msg = f"scenario not found: {key}"
+        raise ValueError(msg)
     path, doc = loaded
 
     redis = await get_scheduler_async_redis()
@@ -371,8 +384,9 @@ async def push_scenario(
     else:
         pid = str(player_id or "").strip() or await _read_active_player(iid, redis)
         if not pid:
+            msg = f"scenario {key!r} is player-bound; pass player_id or set active_player first"
             raise ValueError(
-                f"scenario {key!r} is player-bound; pass player_id or set active_player first"
+                msg
             )
 
     scen_priority = dsl_scenario_yaml_priority(_repo(), key)

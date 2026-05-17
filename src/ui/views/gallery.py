@@ -123,7 +123,7 @@ def _ocr_to_ref_rel(ocr: str, references_prefix: str | None = None) -> str | Non
         return Path(path).relative_to("references").as_posix()
     except Exception:
         name = Path(path).name
-        return name if name else None
+        return name or None
 
 
 def _declared_version_ids(entry: dict[str, Any]) -> set[str]:
@@ -317,7 +317,7 @@ def _display_ref_rel_for_card(
         return listed_rel
     if preview_mode == "default":
         dr = _ocr_to_ref_rel(str(entry.get("ocr") or ""), references_prefix)
-        return dr if dr else listed_rel
+        return dr or listed_rel
     vid = normalize_version_id(preview_mode)
     if not vid:
         return listed_rel

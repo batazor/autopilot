@@ -31,7 +31,8 @@ def _load_bbox(name: str) -> dict[str, float]:
                 bbox = r.get("bbox")
                 assert isinstance(bbox, dict)
                 return bbox
-    raise AssertionError(f"region {name!r} not found in area.json")
+    msg = f"region {name!r} not found in area.json"
+    raise AssertionError(msg)
 
 
 def test_step_tab_active_requirement_reads_bool_only() -> None:

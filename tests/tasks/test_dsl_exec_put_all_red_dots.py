@@ -182,7 +182,8 @@ async def test_put_all_red_dots_region_arg_missing_region_aborts(
     mocker.patch.object(dsl_exec, "screen_region_by_name", return_value=None)
 
     def _fail_find(*_a: Any, **_k: Any) -> list[Any]:
-        raise AssertionError("find_red_dots must not run when region is unresolved")
+        msg = "find_red_dots must not run when region is unresolved"
+        raise AssertionError(msg)
 
     mocker.patch.object(dsl_exec, "find_red_dots", _fail_find)
 

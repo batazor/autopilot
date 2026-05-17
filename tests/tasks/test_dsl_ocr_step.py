@@ -667,7 +667,8 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
-        raise CenturyAPIError("player HTTP 403: Forbidden")
+        msg = "player HTTP 403: Forbidden"
+        raise CenturyAPIError(msg)
 
     patch_dsl(mocker, make_actions(), repo_root=tmp_path)
 

@@ -99,8 +99,9 @@ def _raise_for_status(resp: httpx.Response, *, endpoint: str) -> None:
         text = exc.response.text.strip()
         if len(text) > 200:
             text = f"{text[:197]}..."
+        msg = f"{endpoint} HTTP {status}: {text or exc.response.reason_phrase}"
         raise CenturyAPIError(
-            f"{endpoint} HTTP {status}: {text or exc.response.reason_phrase}"
+            msg
         ) from exc
 
 
@@ -126,8 +127,9 @@ class CenturyClient:
             body = resp.json()
 
         if body.get("msg", "").lower() != "success":
+            msg = f"player fetch failed: {body.get('msg')} err_code={body.get('err_code')}"
             raise CenturyAPIError(
-                f"player fetch failed: {body.get('msg')} err_code={body.get('err_code')}"
+                msg
             )
 
         d = body["data"]
@@ -156,7 +158,8 @@ class CenturyClient:
             body = resp.json()
 
         if body.get("msg", "").upper() != "SUCCESS":
-            raise CenturyAPIError(f"captcha request failed: {body.get('msg')}")
+            msg = f"captcha request failed: {body.get('msg')}"
+            raise CenturyAPIError(msg)
 
         return CaptchaData(img_b64=body["data"]["img"])
 
@@ -191,7 +194,8 @@ class CenturyClient:
         try:
             ec = ErrCode(int(ec_raw))
         except ValueError as exc:
+            msg_0 = f"unexpected err_code={ec_raw} msg={body.get('msg')!r}"
             raise CenturyAPIError(
-                f"unexpected err_code={ec_raw} msg={body.get('msg')!r}"
+                msg_0
             ) from exc
         return ec, msg

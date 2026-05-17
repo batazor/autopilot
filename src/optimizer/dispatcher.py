@@ -53,7 +53,8 @@ class TaskEnvelope:
 def scenario_name_for(c: Candidate) -> str:
     """Return the scenario filename (no extension) the bot should run."""
     if not c.hero_id:
-        raise ValueError(f"candidate {c.id!r} has no hero_id")
+        msg = f"candidate {c.id!r} has no hero_id"
+        raise ValueError(msg)
     return f"{c.action}_{c.hero_id}"
 
 
@@ -128,7 +129,8 @@ def build_envelope(
     hero's screen before the steps fire.
     """
     if c.hero_id is None:
-        raise ValueError(f"candidate {c.id!r} cannot be dispatched without hero_id")
+        msg = f"candidate {c.id!r} cannot be dispatched without hero_id"
+        raise ValueError(msg)
     return TaskEnvelope(
         task_id=f"optimizer:{uuid.uuid4().hex[:12]}",
         task_type="dsl_scenario",
