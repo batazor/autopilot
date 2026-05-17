@@ -7,6 +7,7 @@ import json
 import time
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import streamlit as st
@@ -77,9 +78,9 @@ def _player_state_table_height(n: int, cap: int) -> int:
 
 
 def _load_owned_hero_nested_rows(
-    owned_visible: list[dict[str, object]],
-) -> list[dict[str, object]]:
-    out: list[dict[str, object]] = []
+    owned_visible: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
     for r in owned_visible:
         row = {k: r.get(k) for k in _OWNED_HERO_COL_ORDER}
         row["id"] = str(r.get("id") or "")
@@ -88,9 +89,9 @@ def _load_owned_hero_nested_rows(
 
 
 def _load_locked_hero_nested_rows(
-    locked_visible: list[dict[str, object]],
-) -> list[dict[str, object]]:
-    out: list[dict[str, object]] = []
+    locked_visible: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
     for r in locked_visible:
         row = {k: r.get(k) for k in _LOCKED_HERO_COL_ORDER}
         row["id"] = str(r.get("id") or "")
@@ -163,7 +164,7 @@ def _load_state(path: Path) -> tuple[StateDB | None, str | None, str]:
         return None, f"{type(exc).__name__}: {exc}", text
 
 
-def _gamer_summary_row(g: GamerState) -> dict[str, object]:
+def _gamer_summary_row(g: GamerState) -> dict[str, Any]:
     b = g.buildings
     hud = b.state.text or ""
     bldg_hud = (hud[:40] + "…") if len(hud) > 40 else (hud or "—")
@@ -557,8 +558,8 @@ def _format_seen_at(ts: object) -> str:
 
 
 def _hero_entries_rows(
-    entries: dict[str, object],
-) -> list[dict[str, object]]:
+    entries: dict[str, Any],
+) -> list[dict[str, Any]]:
     """Flatten ``heroes.entries`` into UI rows.
 
     ``available`` is the discriminator the panel uses to split Owned vs
@@ -567,7 +568,7 @@ def _hero_entries_rows(
     Owned — those were only written for cards the player actually opened.
     """
     reg = get_hero_registry()
-    rows: list[dict[str, object]] = []
+    rows: list[dict[str, Any]] = []
     for hid, raw in entries.items():
         if not isinstance(raw, dict):
             continue
@@ -609,14 +610,14 @@ def _hero_entries_rows(
     return rows
 
 
-def _shard_progress(row: dict[str, object]) -> float:
+def _shard_progress(row: dict[str, Any]) -> float:
     cur = int(row.get("shards_current") or 0)
     req = int(row.get("shards_required") or 0)
     return (cur / req) if req > 0 else 0.0
 
 
 def _render_hero_tiles(
-    rows: list[dict[str, object]],
+    rows: list[dict[str, Any]],
     *,
     locked: bool,
     cols_per_row: int = 4,
@@ -678,7 +679,7 @@ def _render_hero_tiles(
 
 def _render_heroes_panel(g: GamerState) -> None:
     entries_raw = g.heroes.entries or {}
-    entries: dict[str, object] = {
+    entries: dict[str, Any] = {
         str(k): v for k, v in entries_raw.items() if isinstance(v, dict)
     }
     reg = get_hero_registry()
@@ -706,7 +707,7 @@ def _render_heroes_panel(g: GamerState) -> None:
             key=f"player_state_heroes_filter_{g.id}",
         ).strip().lower()
 
-        def _passes_filter(r: dict[str, object]) -> bool:
+        def _passes_filter(r: dict[str, Any]) -> bool:
             if not show_filter:
                 return True
             hay = " ".join(str(v) for v in r.values()).lower()
@@ -801,9 +802,9 @@ def _render_heroes_panel(g: GamerState) -> None:
         st.json(entries_raw)
 
 
-def _building_level_rows(levels: dict[str, int | str]) -> list[dict[str, object]]:
+def _building_level_rows(levels: dict[str, int | str]) -> list[dict[str, Any]]:
     reg = get_building_registry()
-    rows: list[dict[str, object]] = []
+    rows: list[dict[str, Any]] = []
     for bid_raw, val in levels.items():
         bid = str(bid_raw).strip()
         if not bid:
@@ -828,7 +829,7 @@ def _building_level_rows(levels: dict[str, int | str]) -> list[dict[str, object]
     return rows
 
 
-def _building_level_rows_from_redis(state: dict[str, str]) -> list[dict[str, object]]:
+def _building_level_rows_from_redis(state: dict[str, str]) -> list[dict[str, Any]]:
     levels: dict[str, str] = {}
     for key, val in state.items():
         if not key.startswith(_LEVEL_PREFIX):
@@ -840,7 +841,7 @@ def _building_level_rows_from_redis(state: dict[str, str]) -> list[dict[str, obj
 
 
 def _render_building_levels_table(
-    rows: list[dict[str, object]],
+    rows: list[dict[str, Any]],
     *,
     filter_key: str,
     empty_message: str,

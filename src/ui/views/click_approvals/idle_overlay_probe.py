@@ -60,7 +60,7 @@ def _fmt_ratio(value: object) -> str:
         return "—"
 
 
-def _pct_bbox_to_px_rect(bb: dict[str, object], w: int, h: int) -> tuple[int, int, int, int]:
+def _pct_bbox_to_px_rect(bb: dict[str, Any], w: int, h: int) -> tuple[int, int, int, int]:
     x = float(bb.get("x") or 0.0)
     y = float(bb.get("y") or 0.0)
     bw = float(bb.get("width") or 0.0)
@@ -263,7 +263,7 @@ def _ensure_fresh_reference_crop(
     repo_root: Any,
     ref_rel: str,
     region_name: str,
-    bbox_pct: dict[str, object],
+    bbox_pct: dict[str, Any],
     crop_path: Any,
     area_mtime: float,
 ) -> None:

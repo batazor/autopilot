@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import Counter, OrderedDict
 from io import BytesIO
 from pathlib import Path
+from typing import Any, cast
 
 import streamlit as st
 from PIL import Image, ImageDraw
@@ -97,7 +98,7 @@ def _node_group_for(rel: str, sid: str | None) -> str:
 
 
 @st.cache_data(ttl=60)
-def _load_area_doc_cached(mtime: float, area_path_str: str) -> dict[str, object]:
+def _load_area_doc_cached(mtime: float, area_path_str: str) -> dict[str, Any]:
     """Cache parsed area manifest keyed by mtime (fast reruns)."""
     if mtime <= 0:
         return {}
@@ -125,7 +126,7 @@ def _ocr_to_ref_rel(ocr: str, references_prefix: str | None = None) -> str | Non
         return name if name else None
 
 
-def _declared_version_ids(entry: dict[str, object]) -> set[str]:
+def _declared_version_ids(entry: dict[str, Any]) -> set[str]:
     out: set[str] = set()
     raw = entry.get("versions")
     if not isinstance(raw, list):
@@ -140,7 +141,7 @@ def _declared_version_ids(entry: dict[str, object]) -> set[str]:
 
 
 def _refs_from_screen_entry(
-    entry: dict[str, object],
+    entry: dict[str, Any],
     *,
     references_prefix: str = "references",
 ) -> list[tuple[str, str | None]]:
@@ -164,7 +165,7 @@ def _refs_from_screen_entry(
 
 def _active_version_for_ref(
     ref_rel: str,
-    entry: dict[str, object],
+    entry: dict[str, Any],
     preview_mode: str,
     *,
     references_prefix: str = "references",
@@ -180,12 +181,12 @@ def _active_version_for_ref(
 
 
 def _merged_bbox_entries_for_ref(
-    entry: dict[str, object],
+    entry: dict[str, Any],
     ref_rel: str,
     preview_mode: str,
     *,
     references_prefix: str = "references",
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     """Collect bbox rows for ``ref_rel`` under ``preview_mode``.
 
     For **auto** / **default**, keep worker parity: only regions whose
@@ -216,7 +217,7 @@ def _merged_bbox_entries_for_ref(
                     if nm:
                         candidate_names.add(nm)
 
-    by_name: dict[str, dict[str, object]] = {}
+    by_name: dict[str, dict[str, Any]] = {}
     for name in candidate_names:
         resolved = resolve_region_with_version(entry, name, av)
         if resolved is None or not isinstance(resolved, dict):
@@ -234,11 +235,11 @@ def _merged_bbox_entries_for_ref(
 
 
 def _screen_entry_for_ref(
-    doc: dict[str, object],
+    doc: dict[str, Any],
     ref_rel: str,
     *,
     references_prefix: str = "references",
-) -> dict[str, object] | None:
+) -> dict[str, Any] | None:
     screens = doc.get("screens") if isinstance(doc, dict) else None
     if not isinstance(screens, list):
         return None
@@ -252,7 +253,7 @@ def _screen_entry_for_ref(
 
 
 def _screen_has_layout_versions(
-    entry: dict[str, object] | None,
+    entry: dict[str, Any] | None,
     *,
     references_prefix: str = "references",
 ) -> bool:
@@ -273,7 +274,7 @@ def _screen_has_layout_versions(
 
 
 def _layout_ver_labels_for_entry(
-    entry: dict[str, object] | None,
+    entry: dict[str, Any] | None,
     *,
     references_prefix: str = "references",
 ) -> OrderedDict[str, str]:
@@ -302,7 +303,7 @@ def _layout_ver_labels_for_entry(
 
 
 def _display_ref_rel_for_card(
-    doc: dict[str, object],
+    doc: dict[str, Any],
     listed_rel: str,
     preview_mode: str,
     *,
@@ -335,18 +336,18 @@ def _display_ref_rel_for_card(
 
 
 def _gallery_slice_for_ref(
-    doc: dict[str, object],
+    doc: dict[str, Any],
     listed_rel: str,
     preview_mode: str,
     *,
     references_prefix: str = "references",
-) -> tuple[set[str], list[dict[str, object]], str]:
+) -> tuple[set[str], list[dict[str, Any]], str]:
     """Resolve regions against the **displayed** reference (layout-matched screenshot)."""
     layout_ref = _display_ref_rel_for_card(
         doc, listed_rel, preview_mode, references_prefix=references_prefix
     )
     regions: set[str] = set()
-    boxes_by_name: dict[str, dict[str, object]] = {}
+    boxes_by_name: dict[str, dict[str, Any]] = {}
     sid_out = ""
     screens = doc.get("screens") if isinstance(doc, dict) else None
     if not isinstance(screens, list):
@@ -377,7 +378,7 @@ def _gallery_slice_cached(
     ref_rel: str,
     preview_mode: str,
     references_prefix: str,
-) -> tuple[frozenset[str], list[dict[str, object]], str]:
+) -> tuple[frozenset[str], list[dict[str, Any]], str]:
     doc = _load_area_doc_cached(mtime, area_path_str)
     regs, boxes, sid = _gallery_slice_for_ref(
         doc, ref_rel, preview_mode, references_prefix=references_prefix
@@ -385,7 +386,7 @@ def _gallery_slice_cached(
     return frozenset(regs), boxes, sid
 
 
-def _refs_exclusive_to_versions(doc: dict[str, object]) -> frozenset[str]:
+def _refs_exclusive_to_versions(doc: dict[str, Any]) -> frozenset[str]:
     """Reference paths that appear only under ``versions[].ocr``, never as screen ``ocr``.
 
     Those files are not listed as separate gallery rows — use **Layout → Force vN**
@@ -420,7 +421,7 @@ def _refs_exclusive_to_versions_cached(mtime: float, area_path_str: str) -> froz
     return _refs_exclusive_to_versions(doc)
 
 
-def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
+def _primary_region_names_for_filter(doc: dict[str, Any]) -> list[str]:
     """Region names for Gallery filter: exclude overlay search ROIs and tap helpers.
 
     Walks base ``regions[]`` and every ``versions[].regions[]`` so version-only
@@ -449,7 +450,7 @@ def _primary_region_names_for_filter(doc: dict[str, object]) -> list[str]:
     return sorted(names)
 
 
-def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, int, int, int] | None:
+def _bbox_pct_to_px(bbox: dict[str, Any], *, w: int, h: int) -> tuple[int, int, int, int] | None:
     try:
         x = float(bbox.get("x", 0.0))
         y = float(bbox.get("y", 0.0))
@@ -472,7 +473,7 @@ def _bbox_pct_to_px(bbox: dict[str, object], *, w: int, h: int) -> tuple[int, in
     return x1, y1, x2, y2
 
 
-def _annotate_regions_png(png: bytes, regions: list[dict[str, object]]) -> bytes:
+def _annotate_regions_png(png: bytes, regions: list[dict[str, Any]]) -> bytes:
     """Red outlines from ``area.json`` bboxes (native resolution, same downscale as thumb)."""
     im = Image.open(BytesIO(png)).convert("RGBA")
     draw = ImageDraw.Draw(im)
@@ -606,7 +607,7 @@ region_sel = st.multiselect(
 )
 
 def _sync_query_params() -> None:
-    qp: dict[str, object] = {"module": wiki_ctx.query_value}
+    qp: dict[str, Any] = {"module": wiki_ctx.query_value}
     ql = q.strip()
     if ql:
         qp["q"] = ql
