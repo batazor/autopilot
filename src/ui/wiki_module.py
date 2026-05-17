@@ -54,9 +54,7 @@ def _selector_contexts() -> list[WikiModuleContext]:
 
     root = REPO_ROOT
     out: list[WikiModuleContext] = [all_modules_context(root), core_module_context(root)]
-    for ctx in list_wiki_modules(root):
-        if ctx.module_id is not None:
-            out.append(ctx)
+    out.extend(ctx for ctx in list_wiki_modules(root) if ctx.module_id is not None)
     return out
 
 

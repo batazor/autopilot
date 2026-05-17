@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
 from config.log_ansi import scenario_log_label as _scen
@@ -362,7 +362,7 @@ class DslScenarioExecuteMixin(_Base):
                 )
                 return TaskResult(
                     success=False,
-                    next_run_at=datetime.now() + timedelta(seconds=5),
+                    next_run_at=datetime.now(tz=UTC) + timedelta(seconds=5),
                     metadata=_fin(
                         {
                             "scenario": key,
@@ -915,7 +915,7 @@ class DslScenarioExecuteMixin(_Base):
                     )
                     return TaskResult(
                         success=False,
-                        next_run_at=datetime.now() + timedelta(seconds=30),
+                        next_run_at=datetime.now(tz=UTC) + timedelta(seconds=30),
                         metadata=_fin(
                             {
                                 "scenario": key,
@@ -1248,7 +1248,7 @@ class DslScenarioExecuteMixin(_Base):
                         )
                         return TaskResult(
                             success=False,
-                            next_run_at=datetime.now() + timedelta(seconds=30),
+                            next_run_at=datetime.now(tz=UTC) + timedelta(seconds=30),
                             metadata=_fin(
                                 {
                                     "scenario": key,
@@ -1406,7 +1406,7 @@ class DslScenarioExecuteMixin(_Base):
                 )
                 return TaskResult(
                     success=True,
-                    next_run_at=datetime.now() + timedelta(seconds=ttl_s),
+                    next_run_at=datetime.now(tz=UTC) + timedelta(seconds=ttl_s),
                     metadata=_fin(
                         {
                             "scenario": key,

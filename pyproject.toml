@@ -158,7 +158,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF"]
+select = ["E", "F", "I", "UP", "B", "SIM", "ANN", "C4", "PIE", "RET", "PT", "LOG", "RUF", "PERF", "ISC", "DTZ"]
 ignore = [
     "ANN401",
     # Typographic glyphs are intentional in docstrings / log strings:

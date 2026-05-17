@@ -69,9 +69,10 @@ def dir_node_to_ant_tree_data(
     Leaf nodes use repo-relative paths under ``references/`` as ``value`` (posix).
     Folder nodes are structural only (``value`` is a stable placeholder; use ``only_children_select``).
     """
-    items: list[dict] = []
-    for rel in sorted(node.files):
-        items.append({"value": rel, "title": _leaf_title(rel, meta_by_rel)})
+    items: list[dict] = [
+        {"value": rel, "title": _leaf_title(rel, meta_by_rel)}
+        for rel in sorted(node.files)
+    ]
     for dirname, child in sorted(node.dirs.items()):
         children = dir_node_to_ant_tree_data(child, meta_by_rel)
         if not children:

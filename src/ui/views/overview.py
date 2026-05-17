@@ -90,16 +90,14 @@ _QUICK_SECTIONS: tuple[_QuickSection, ...] = (
 def _module_quick_links(repo_root: Path) -> tuple[_QuickLink, ...]:
     """Module UI pages (absolute paths for ``st.page_link``)."""
 
-    out: list[_QuickLink] = []
-    for spec in iter_module_ui_page_specs(repo_root):
-        out.append(
-            _QuickLink(
-                str(spec.path),
-                spec.title,
-                f"Module `{spec.module_id}` — {spec.nav_group}",
-            )
+    return tuple(
+        _QuickLink(
+            str(spec.path),
+            spec.title,
+            f"Module `{spec.module_id}` — {spec.nav_group}",
         )
-    return tuple(out)
+        for spec in iter_module_ui_page_specs(repo_root)
+    )
 
 
 def _quick_sections_for_repo(repo_root: Path) -> tuple[_QuickSection, ...]:

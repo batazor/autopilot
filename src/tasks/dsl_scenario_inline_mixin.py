@@ -8,7 +8,7 @@ import asyncio
 import logging
 import time
 from contextlib import suppress
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -1009,7 +1009,7 @@ class DslScenarioInlineMixin(_Base):
             )
             return TaskResult(
                 success=True,
-                next_run_at=datetime.now() + timedelta(seconds=ttl_s),
+                next_run_at=datetime.now(tz=UTC) + timedelta(seconds=ttl_s),
                 metadata={
                     "scenario": scenario_key,
                     "reason": "ttl_exit",

@@ -146,9 +146,9 @@ def _attach_or_register_serials(
         entry = devices[idx]
         # Rebuild dict so YAML serializes ``name`` → ``adb_serial`` → rest.
         new_entry: dict[str, Any] = {"name": entry["name"], "adb_serial": serial}
-        for k, v in entry.items():
-            if k not in ("name", "adb_serial"):
-                new_entry[k] = v
+        new_entry.update(
+            {k: v for k, v in entry.items() if k not in ("name", "adb_serial")}
+        )
         devices[idx] = new_entry
         attached.append((str(new_entry["name"]), serial))
 

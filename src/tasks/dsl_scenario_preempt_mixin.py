@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from config.log_ansi import scenario_log_label as _scen
@@ -196,7 +196,7 @@ class DslScenarioPreemptMixin(_Base):
         )
         return TaskResult(
             success=False,
-            next_run_at=datetime.now(),
+            next_run_at=datetime.now(tz=UTC),
             metadata={
                 "scenario": self.scenario_key,
                 "reason": "preempted_by_higher_priority",

@@ -82,9 +82,11 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
         (ALL_MODULES_KEY, "All"),
         (CORE_MODULE_KEY, "Core"),
     ]
-    for ctx in list_wiki_modules(root):
-        if ctx.module_id is not None:
-            opts.append((ctx.storage_key, ctx.title))
+    opts.extend(
+        (ctx.storage_key, ctx.title)
+        for ctx in list_wiki_modules(root)
+        if ctx.module_id is not None
+    )
     return opts
 
 

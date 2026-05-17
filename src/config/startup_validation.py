@@ -548,8 +548,10 @@ def _validate_scenarios(
             # Mirrors the runtime gate in ``DslScenarioTask.execute`` so a typo
             # like ``scope: instnace`` fails at startup instead of silently
             # corrupting state during the first run.
-            for err in validate_dsl_steps(doc.get("steps")):
-                issues.append(StartupValidationIssue("error", source, err))
+            issues.extend(
+                StartupValidationIssue("error", source, err)
+                for err in validate_dsl_steps(doc.get("steps"))
+            )
             _walk_steps(
                 doc.get("steps"),
                 source=source,

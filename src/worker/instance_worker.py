@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from contextlib import suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -270,7 +270,7 @@ class InstanceWorker(
                             )
                 return TaskResult(
                     success=False,
-                    next_run_at=datetime.now() if reschedule else None,
+                    next_run_at=datetime.now(tz=UTC) if reschedule else None,
                     metadata=metadata,
                 )
             raise

@@ -176,9 +176,7 @@ def _parse_build_cost_cell(td: Tag) -> list[CostItem]:
     if not items:
         txt = _parse_amount(td.get_text(" ", strip=True))
         if txt and re.fullmatch(r"[0-9]+(\.[0-9]+)?k?(\s+[0-9]+(\.[0-9]+)?k?)*", txt, flags=re.I):
-            parts = txt.split()
-            for p in parts:
-                items.append(CostItem(item="unknown_item", amount=p))
+            items.extend(CostItem(item="unknown_item", amount=p) for p in txt.split())
 
     return items
 

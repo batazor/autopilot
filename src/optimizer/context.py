@@ -46,8 +46,7 @@ class BalanceContext:
         merged: dict[str, Any] = dict(self.hero_defaults)
         override = self.hero_overrides.get(hero_id)
         if isinstance(override, dict):
-            for k, v in override.items():
-                merged[k] = v
+            merged.update(override)
         return merged
 
 

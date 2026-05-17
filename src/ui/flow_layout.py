@@ -37,11 +37,11 @@ _DYNAMIC_EDGE_STYLE: dict[str, Any] = {
 
 
 def sorted_edge_pairs(edges: dict[str, frozenset[str]]) -> list[tuple[str, str]]:
-    rows: list[tuple[str, str]] = []
-    for src in sorted(edges.keys()):
-        for dst in sorted(edges[src]):
-            rows.append((src, dst))
-    return rows
+    return [
+        (src, dst)
+        for src in sorted(edges.keys())
+        for dst in sorted(edges[src])
+    ]
 
 
 def screen_to_regions(

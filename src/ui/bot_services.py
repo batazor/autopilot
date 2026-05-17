@@ -110,11 +110,11 @@ def _is_health_watchdog_process(proc: psutil.Process, repo: Path) -> bool:
 
 
 def _health_watchdog_processes(repo: Path) -> list[psutil.Process]:
-    found: list[psutil.Process] = []
-    for proc in psutil.process_iter():
-        if _is_health_watchdog_process(proc, repo):
-            found.append(proc)
-    return found
+    return [
+        proc
+        for proc in psutil.process_iter()
+        if _is_health_watchdog_process(proc, repo)
+    ]
 
 
 def _existing_health_watchdog_process(repo: Path) -> psutil.Process | None:

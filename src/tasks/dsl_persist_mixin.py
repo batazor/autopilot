@@ -197,9 +197,7 @@ class DslPersistMixin(_Base):
 
         # Explicit caller kwargs still win — they override auto-extracted
         # values so per-step overrides (e.g. ``threshold=…`` set inline) stick.
-        for k, v in kw.items():
-            if v is not None:
-                row[k] = v
+        row.update({k: v for k, v in kw.items() if v is not None})
         trace.append(row)
 
     async def _write_step_context(self, instance_id: str, *, scenario: str) -> None:

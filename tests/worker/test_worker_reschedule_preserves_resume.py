@@ -12,7 +12,7 @@ claimed.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -62,7 +62,7 @@ async def test_reschedule_forwards_resume_from_step_index() -> None:
     item = _qitem()
     result = TaskResult(
         success=False,
-        next_run_at=datetime.now(),
+        next_run_at=datetime.now(tz=UTC),
         metadata={
             "reason": "preempted_by_higher_priority",
             "preempted": True,
@@ -86,7 +86,7 @@ async def test_reschedule_defaults_to_zero_when_no_resume_index() -> None:
     item = _qitem(task_type="periodic_check")
     result = TaskResult(
         success=True,
-        next_run_at=datetime.now(),
+        next_run_at=datetime.now(tz=UTC),
         metadata={"reason": "ok"},
     )
 
@@ -104,7 +104,7 @@ async def test_reschedule_tolerates_garbage_resume_index() -> None:
     item = _qitem()
     result = TaskResult(
         success=False,
-        next_run_at=datetime.now(),
+        next_run_at=datetime.now(tz=UTC),
         metadata={"resume_from_step_index": "not-an-int"},
     )
 
@@ -121,7 +121,7 @@ async def test_reschedule_clamps_negative_resume_index() -> None:
     item = _qitem()
     result = TaskResult(
         success=False,
-        next_run_at=datetime.now(),
+        next_run_at=datetime.now(tz=UTC),
         metadata={"resume_from_step_index": -3},
     )
 

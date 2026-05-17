@@ -57,15 +57,19 @@ def _related_regions_for_current_screen() -> list[dict[str, Any]]:
     for entry in entries:
         if not isinstance(entry, dict) or str(entry.get("screen_id") or "").strip() != screen_id:
             continue
-        for reg in entry.get("regions") or []:
-            if isinstance(reg, dict) and id(reg) not in current_ids:
-                out.append(reg)
+        out.extend(
+            reg
+            for reg in entry.get("regions") or []
+            if isinstance(reg, dict) and id(reg) not in current_ids
+        )
         for ver in entry.get("versions") or []:
             if not isinstance(ver, dict):
                 continue
-            for reg in ver.get("regions") or []:
-                if isinstance(reg, dict) and id(reg) not in current_ids:
-                    out.append(reg)
+            out.extend(
+                reg
+                for reg in ver.get("regions") or []
+                if isinstance(reg, dict) and id(reg) not in current_ids
+            )
     return out
 
 

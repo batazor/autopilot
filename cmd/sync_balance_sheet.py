@@ -247,10 +247,11 @@ def _parse_gear_table(rows: list[list[str]]) -> dict[str, Any]:
         raise ValueError("gear table too short")
     title = (rows[0][1] if len(rows[0]) > 1 else "").strip()
     header = rows[2]
-    stat_names = []
     # First 4 stats after column 0; same names repeat per tier.
-    for cell in header[1:5]:
-        stat_names.append((cell or "").strip().lower().replace(" ", "_").replace(".", ""))
+    stat_names = [
+        (cell or "").strip().lower().replace(" ", "_").replace(".", "")
+        for cell in header[1:5]
+    ]
     levels: dict[int, dict[str, dict[str, Any]]] = {}
     for raw in rows[3:]:
         if not raw or not (raw[0] or "").strip():

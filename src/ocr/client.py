@@ -10,7 +10,7 @@ import tempfile
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import ClassVar
 
@@ -291,7 +291,7 @@ class OcrClient:
             # Verbose at default log levels — use DEBUG (e.g. ``LOGLEVEL=DEBUG``)
             # when investigating cache behavior.
             try:
-                ts = datetime.now().strftime("%H:%M:%S")
+                ts = datetime.now(tz=UTC).strftime("%H:%M:%S")
                 if len(regions) == 1:
                     r = regions[0]
                     extra = f" bbox=({r.x},{r.y},{r.w}x{r.h})"
@@ -325,15 +325,14 @@ class OcrClient:
         rep_indices = [key_to_fanout[k][0] for k in unique_keys]
 
         t0 = time.perf_counter()
-        raw_results = []
-        for idx in rep_indices:
-            raw_results.append(
-                await self._ocr_crop(
-                    self._clamped_crop(image, regions[idx]),
-                    region_id=_rid(idx),
-                    preprocess=_pre(idx) or None,
-                )
+        raw_results = [
+            await self._ocr_crop(
+                self._clamped_crop(image, regions[idx]),
+                region_id=_rid(idx),
+                preprocess=_pre(idx) or None,
             )
+            for idx in rep_indices
+        ]
         elapsed_ms = 1000.0 * (time.perf_counter() - t0)
 
         # Stitch OCR responses back by ``region_id``. Keeping this explicit
@@ -388,7 +387,7 @@ class OcrClient:
                     f"{_ocr_tty_yellow_name(rid)} conf={conf_f:.3f} text={txt!r}"
                 )
             if parts:
-                ts = datetime.now().strftime("%H:%M:%S")
+                ts = datetime.now(tz=UTC).strftime("%H:%M:%S")
                 extra = ""
                 if len(rep_indices) == 1:
                     r = regions[rep_indices[0]]

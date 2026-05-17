@@ -337,15 +337,16 @@ def iter_all_regions(
     Used by validation, autocomplete, and crop export — anything that needs to
     walk every region regardless of which version is active.
     """
-    out: list[tuple[dict[str, Any], str | None]] = []
-    for reg in screen_entry.get("regions") or []:
-        if isinstance(reg, dict):
-            out.append((reg, None))
+    out: list[tuple[dict[str, Any], str | None]] = [
+        (reg, None)
+        for reg in screen_entry.get("regions") or []
+        if isinstance(reg, dict)
+    ]
     for ver in screen_entry.get("versions") or []:
         if not isinstance(ver, dict):
             continue
         vid = str(ver.get("id", "") or "").strip() or None
-        for reg in ver.get("regions") or []:
-            if isinstance(reg, dict):
-                out.append((reg, vid))
+        out.extend(
+            (reg, vid) for reg in ver.get("regions") or [] if isinstance(reg, dict)
+        )
     return out

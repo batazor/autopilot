@@ -312,8 +312,6 @@ def _run_subprocess_assert(snippet: str, env: dict[str, str]) -> None:
     full_env = dict(os.environ)
     full_env.update(env)
     full_env.pop("OTEL_EXPORTER_OTLP_ENDPOINT", None)  # default for these tests
-    for k, v in env.items():
-        full_env[k] = v
     proc = subprocess.run(
         [sys.executable, "-c", textwrap.dedent(snippet)],
         env=full_env,

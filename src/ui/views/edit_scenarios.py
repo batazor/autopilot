@@ -10,7 +10,7 @@ import json
 import re
 import shutil
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -113,9 +113,11 @@ def _region_names_cached(area_mtime: float) -> list[str]:
         if not isinstance(screen, dict):
             continue
         sources = [screen.get("regions") or []]
-        for ver in screen.get("versions") or []:
-            if isinstance(ver, dict):
-                sources.append(ver.get("regions") or [])
+        sources.extend(
+            ver.get("regions") or []
+            for ver in screen.get("versions") or []
+            if isinstance(ver, dict)
+        )
         for regs in sources:
             for reg in regs or []:
                 name = str((reg or {}).get("name") or "").strip()
@@ -170,7 +172,7 @@ def _save_doc(path: Path, doc: dict[str, Any]) -> Path:
 
     scenario_root = _scenario_root_for_path(path)
     backups_root = scenario_root / ".backups"
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
     backup_dir = backups_root / ts
     if path.is_file():
         rel = path.relative_to(scenario_root)
@@ -586,11 +588,7 @@ def _name_collisions(current_rel: str, current_name: str) -> list[str]:
     if not nm:
         return []
     dups = duplicate_scenario_names_for_repo(default_repo_root())
-    others: list[str] = []
-    for rel in dups.get(nm, []):
-        if rel != current_rel:
-            others.append(rel)
-    return others
+    return [rel for rel in dups.get(nm, []) if rel != current_rel]
 
 
 def _render_header_form(doc: dict[str, Any], current_rel: str) -> None:
@@ -761,9 +759,10 @@ def _build_scenario_tree_data(rel_paths: list[str]) -> list[dict[str, Any]]:
         node["files"].append(rel)
 
     def _walk(node: dict[str, Any], prefix: str) -> list[dict[str, Any]]:
-        out: list[dict[str, Any]] = []
-        for rel in sorted(node["files"]):
-            out.append({"value": rel, "title": Path(rel).stem})
+        out: list[dict[str, Any]] = [
+            {"value": rel, "title": Path(rel).stem}
+            for rel in sorted(node["files"])
+        ]
         for dirname in sorted(node["dirs"]):
             children = _walk(node["dirs"][dirname], f"{prefix}{dirname}/")
             if not children:

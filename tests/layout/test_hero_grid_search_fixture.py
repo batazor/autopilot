@@ -97,11 +97,11 @@ def _frame_hero_params() -> list[Any]:
     Using ``pytest.param`` so the test id reads ``[frame_2_unlocked-bahiti]``
     — easy to grep when a single combination regresses.
     """
-    out: list[Any] = []
-    for frame_label, (_, expected) in _FRAMES.items():
-        for hero_id in sorted(expected):
-            out.append(pytest.param(frame_label, hero_id, id=f"{frame_label}-{hero_id}"))
-    return out
+    return [
+        pytest.param(frame_label, hero_id, id=f"{frame_label}-{hero_id}")
+        for frame_label, (_, expected) in _FRAMES.items()
+        for hero_id in sorted(expected)
+    ]
 
 
 @pytest.fixture(scope="module")

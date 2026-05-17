@@ -36,11 +36,9 @@ def cascade_aux_region_names(
         return []
     if name.endswith(("_search", "_tap")):
         return []
-    out: list[str] = []
-    for aux in (overlay_tap_region_name(name),):
-        if aux in existing_names:
-            out.append(aux)
-    return out
+    return [
+        aux for aux in (overlay_tap_region_name(name),) if aux in existing_names
+    ]
 
 
 def _load_yaml_dict(path: Path) -> dict:

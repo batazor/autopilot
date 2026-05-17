@@ -31,10 +31,11 @@ class TaskOptimizer:
             return {}
 
         # Build flat task list per player
-        all_tasks: list[tuple[str, BaseTask, int]] = []
-        for player_id, tasks in inp.player_tasks.items():
-            for task in tasks:
-                all_tasks.append((player_id, task, task.priority))
+        all_tasks: list[tuple[str, BaseTask, int]] = [
+            (player_id, task, task.priority)
+            for player_id, tasks in inp.player_tasks.items()
+            for task in tasks
+        ]
 
         if not all_tasks:
             return {pid: [] for pid in players}
@@ -62,7 +63,7 @@ class TaskOptimizer:
         for player_id, instance_id in inp.player_instance_map.items():
             instances.setdefault(instance_id, []).append(player_id)
 
-        for _instance_id, instance_players in instances.items():
+        for instance_players in instances.values():
             instance_vars = [
                 x[i]
                 for i, (pid, _t, _p) in enumerate(all_tasks)

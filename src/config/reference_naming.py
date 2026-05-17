@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 _REF_NAME_MAX = 120
@@ -65,7 +65,7 @@ def is_preview_snapshot_stem(stem: str, instance_id: str) -> bool:
 
 def unique_label_capture_basename(instance_id: str) -> str:
     """Basename for a new Labeling capture under ``references/`` (not rolling preview)."""
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
     short = uuid.uuid4().hex[:6]
     return reference_file_basename(f"{instance_id}_shot_{stamp}_{short}", instance_id)
 

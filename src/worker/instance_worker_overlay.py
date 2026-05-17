@@ -103,7 +103,7 @@ class InstanceWorkerOverlayMixin(_Base):
         if self._queue is None:
             return
         now = time.time()
-        for _name, payload in overlay_results.items():
+        for payload in overlay_results.values():
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
