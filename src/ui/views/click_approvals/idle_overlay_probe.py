@@ -151,9 +151,12 @@ def _render_analyzer_scope_controls(
             status = {}
     if status:
         skipped = str(status.get("skipped") or "").strip()
-        matched = status.get("matched") if isinstance(status.get("matched"), list) else []
-        pushed = status.get("pushed") if isinstance(status.get("pushed"), list) else []
-        throttled = status.get("throttled") if isinstance(status.get("throttled"), list) else []
+        raw_matched = status.get("matched")
+        matched = raw_matched if isinstance(raw_matched, list) else []
+        raw_pushed = status.get("pushed")
+        pushed = raw_pushed if isinstance(raw_pushed, list) else []
+        raw_throttled = status.get("throttled")
+        throttled = raw_throttled if isinstance(raw_throttled, list) else []
         bits: list[str] = [f"scope `{status.get('scope') or 'disabled'}`"]
         if skipped:
             bits.append(f"skipped `{skipped}`")
@@ -188,8 +191,10 @@ def _render_analyzer_scope_controls(
                     event = json.loads(_redis_text(raw))
                 except json.JSONDecodeError:
                     continue
-                pushed = event.get("pushed") if isinstance(event.get("pushed"), list) else []
-                matched = event.get("matched") if isinstance(event.get("matched"), list) else []
+                raw_pushed = event.get("pushed")
+                pushed = raw_pushed if isinstance(raw_pushed, list) else []
+                raw_matched = event.get("matched")
+                matched = raw_matched if isinstance(raw_matched, list) else []
                 st.caption(
                     f"`{event.get('scope')}` · matched `{len(matched)}` · pushed `{len(pushed)}`"
                 )
