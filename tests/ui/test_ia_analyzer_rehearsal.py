@@ -9,8 +9,72 @@ import pytest
 from config.loader import get_settings
 from config.paths import repo_root
 from scheduler.queue import RedisQueue
+from ui import ia_preview_service
 from ui import ia_overlay_executor
 from ui.ia_queue_executor import _pop_ia_item
+
+
+class _SyncRedis:
+    def __init__(self) -> None:
+        self.hashes: dict[str, dict[str, str]] = {}
+
+    def hget(self, key: str, field: str) -> str | None:
+        return self.hashes.get(key, {}).get(field)
+
+    def hset(
+        self,
+        key: str,
+        field: str | None = None,
+        value: str | None = None,
+        mapping: dict[str, str] | None = None,
+    ) -> int:
+        row = self.hashes.setdefault(key, {})
+        if mapping is not None:
+            row.update({str(k): str(v) for k, v in mapping.items()})
+            return len(mapping)
+        if field is not None:
+            row[str(field)] = str(value or "")
+            return 1
+        return 0
+
+
+def test_ia_preview_bootstrap_sets_active_player_from_device_registry(mocker) -> None:
+    client = _SyncRedis()
+    mocker.patch.object(
+        ia_preview_service,
+        "player_ids_for_device_candidates",
+        return_value=["765502864"],
+    )
+
+    player_id = ia_preview_service._ensure_active_player_for_instance(
+        client,  # type: ignore[arg-type]
+        instance_id="bs1",
+        adb_serial="127.0.0.1:5555",
+    )
+
+    assert player_id == "765502864"
+    assert client.hashes["wos:instance:bs1:state"]["active_player"] == "765502864"
+    assert client.hashes["wos:instance:bs1:state"]["active_player_at"]
+
+
+def test_ia_preview_bootstrap_preserves_existing_active_player(mocker) -> None:
+    client = _SyncRedis()
+    client.hset("wos:instance:bs1:state", mapping={"active_player": "401227964"})
+    candidates = mocker.patch.object(
+        ia_preview_service,
+        "player_ids_for_device_candidates",
+        return_value=["765502864"],
+    )
+
+    player_id = ia_preview_service._ensure_active_player_for_instance(
+        client,  # type: ignore[arg-type]
+        instance_id="bs1",
+        adb_serial="127.0.0.1:5555",
+    )
+
+    assert player_id == "401227964"
+    assert client.hashes["wos:instance:bs1:state"] == {"active_player": "401227964"}
+    candidates.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -309,7 +309,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     mocker,
     redis_async: object,
 ) -> None:
-    """Real PNG fixture matches ``page.worker.add`` (sliding search); Redis carries search_region."""
+    """Real PNG fixture matches ``button.add`` through the isSearch matcher."""
     from scenarios import template_resolver
 
     repo_root = Path(__file__).resolve().parents[2]
@@ -325,7 +325,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     _patch_instant_sleep(mocker)
     await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
         "wos:instance:bs1:state",
-        mapping={"current_screen": "survivor_status"},
+        mapping={"current_screen": "survivor_status.status"},
     )
 
     task = dsl.DslScenarioTask(
@@ -342,7 +342,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     md = result.metadata or {}
     assert md.get("scenario_completed") is True
     row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-    assert row["dsl_last_match_search_region"] == "page.worker.add_search"
+    assert row["dsl_last_match_search_region"] == "full_frame_cache"
 
 
 @pytest.mark.asyncio

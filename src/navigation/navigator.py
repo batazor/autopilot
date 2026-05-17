@@ -124,8 +124,6 @@ class Navigator:
         instance_id: str,
         region_name: str,
         *,
-        dev_w: int,
-        dev_h: int,
         from_screen: str | None = None,
         to_screen: str | None = None,
         state_flat: dict[str, Any] | None = None,
@@ -144,6 +142,15 @@ class Navigator:
         bbox = reg.get("bbox")
         if not isinstance(bbox, dict):
             logger.warning("Navigator: region %r missing bbox", region_name)
+            return False
+        try:
+            dev_w = int(bbox["original_width"])
+            dev_h = int(bbox["original_height"])
+        except (KeyError, TypeError, ValueError):
+            logger.warning(
+                "Navigator: region %r missing original_width/original_height",
+                region_name,
+            )
             return False
         pt = bbox_percent_random_point_to_device_point(bbox, dev_w, dev_h)
         approval_context: dict[str, Any] = {}
@@ -182,8 +189,6 @@ class Navigator:
         instance_id: str,
         region_name: str,
         *,
-        dev_w: int,
-        dev_h: int,
         from_screen: str | None = None,
         to_screen: str | None = None,
         state_flat: dict[str, Any] | None = None,
@@ -196,8 +201,6 @@ class Navigator:
                 self._tap_region_name,
                 instance_id,
                 region_name,
-                dev_w=dev_w,
-                dev_h=dev_h,
                 from_screen=from_screen,
                 to_screen=to_screen,
                 state_flat=state_flat,
@@ -656,6 +659,29 @@ class Navigator:
             await asyncio.sleep(interval_seconds)
         return False
 
+    async def _screen_verified_once(
+        self,
+        instance_id: str,
+        target: str,
+        image: np.ndarray,
+        *,
+        state_flat: dict[str, Any] | None,
+    ) -> bool:
+        detected = await self._detector.detect_screen(image)
+        if str(detected) == target:
+            return True
+        for rule in screen_verify_rules(target):
+            if "from_screen" in rule:
+                continue
+            if await self._verify_rule(
+                image,
+                rule,
+                state_flat=state_flat,
+                instance_id=instance_id,
+            ):
+                return True
+        return False
+
     async def detect_current_screen(
         self,
         instance_id: str,
@@ -723,14 +749,11 @@ class Navigator:
                 )
                 await self._write_screen(instance_id, "")
                 img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
-                dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
                 if await self._ui_page_back_visible(img):
                     consec_unknown_no_back = 0
                     if not await self._tap_region_name_async(
                         instance_id,
                         "icon.page.back",
-                        dev_w=dev_w,
-                        dev_h=dev_h,
                         state_flat=state_flat,
                     ):
                         # Tap was rejected (approval mode) or icon.page.back bbox is gone:
@@ -810,13 +833,10 @@ class Navigator:
                         instance_id,
                     )
                     img2: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
-                    dev_h2, dev_w2 = int(img2.shape[0]), int(img2.shape[1])
                     if await self._ui_page_back_visible(img2):
                         if not await self._tap_region_name_async(
                             instance_id,
                             "icon.page.back",
-                            dev_w=dev_w2,
-                            dev_h=dev_h2,
                             state_flat=state_flat,
                         ):
                             logger.info(
@@ -879,9 +899,6 @@ class Navigator:
         *,
         from_screen: str | None = None,
     ) -> _HopExec:
-        # Use current framebuffer size for percent->pixel mapping.
-        img: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
-        dev_h, dev_w = int(img.shape[0]), int(img.shape[1])
         src_screen = str(from_screen or "")
         state_flat = await self._active_player_state_flat(instance_id)
         # Pre-compute the full path so each per-hop approval carries the same
@@ -891,6 +908,7 @@ class Navigator:
         # → squad_settings`` rather than just the local edge).
         full_path: list[str] = [src_screen] + [str(dst) for dst, _ in hop_sequences]
         path_csv = ",".join(s for s in full_path if s)
+        route_target = str(hop_sequences[-1][0]) if hop_sequences else ""
         for hop_idx, (dst_screen, taps) in enumerate(hop_sequences, start=1):
             for point in taps:
                 # Static taps are region names; dynamic resolvers may return
@@ -909,8 +927,6 @@ class Navigator:
                     tapped = await self._tap_region_name_async(
                         instance_id,
                         str(point),
-                        dev_w=dev_w,
-                        dev_h=dev_h,
                         from_screen=src_screen,
                         to_screen=str(dst_screen),
                         state_flat=state_flat,
@@ -926,6 +942,24 @@ class Navigator:
                     return "tap_failed"
                 await asyncio.sleep(0.8)
             await asyncio.sleep(1.5)
+            # Some routes intentionally go through a generic parent node before
+            # a tab-specific node. If the first tap opens the final tab directly
+            # (e.g. main_city -> survivor_status.status), don't fail the parent
+            # hop just because the detector returned the more specific screen.
+            if (
+                route_target
+                and route_target != str(dst_screen)
+                and route_target.startswith(f"{dst_screen}.")
+            ):
+                image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
+                if await self._screen_verified_once(
+                    instance_id,
+                    route_target,
+                    image,
+                    state_flat=state_flat,
+                ):
+                    await self._write_screen(instance_id, route_target)
+                    return "ok"
             if await self._wait_for_screen_verified(instance_id, str(dst_screen)):
                 await self._write_screen(instance_id, str(dst_screen))
                 src_screen = str(dst_screen)

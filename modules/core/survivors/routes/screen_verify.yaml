@@ -7,3 +7,33 @@ screens:
     rules:
       - match: button.welcome_in
         threshold: 0.9
+  survivor_status:
+    priority: 9
+    landmarks:
+      - match: survivor_status.title
+        threshold: 0.9
+    rules:
+      - match: survivor_status.title
+        threshold: 0.9
+
+  survivor_status.status:
+    priority: 8
+    landmarks:
+      - match: survivor_status.title
+        threshold: 0.9
+        tab_active: survivor_status.status
+    rules:
+      - match: survivor_status.title
+        threshold: 0.9
+        tab_active: survivor_status.status
+
+  survivor_status.details:
+    priority: 8
+    landmarks:
+      - match: survivor_status.title
+        threshold: 0.9
+        tab_active: survivor_status.details
+    rules:
+      - match: survivor_status.title
+        threshold: 0.9
+        tab_active: survivor_status.details

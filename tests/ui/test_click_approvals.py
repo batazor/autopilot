@@ -622,6 +622,20 @@ def test_require_approval_aborts_on_foreign_request(monkeypatch: Any, redis_sync
     assert req_id is not None
 
 
+def test_require_approval_aborts_when_current_request_disappears(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    r = _RedisProxy(redis_sync, drop_current_after_publish=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is False
+    assert req_id is not None
+
+
 def test_require_approval_calls_preview_capturer_before_publish(
     monkeypatch: Any, redis_sync: Any
 ) -> None:

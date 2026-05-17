@@ -47,7 +47,14 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
                     "regions": [
                         {
                             "name": "icon.page.back",
-                            "bbox": {"x": 10.0, "y": 10.0, "width": 5.0, "height": 5.0},
+                                "bbox": {
+                                    "x": 10.0,
+                                    "y": 10.0,
+                                    "width": 5.0,
+                                    "height": 5.0,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                             "action": "exist",
                         },
                     ],
@@ -100,7 +107,14 @@ async def test_navigate_to_persists_intermediate_screen_identity(
                     "regions": [
                         {
                             "name": "icon.page.back",
-                            "bbox": {"x": 10.0, "y": 10.0, "width": 5.0, "height": 5.0},
+                                "bbox": {
+                                    "x": 10.0,
+                                    "y": 10.0,
+                                    "width": 5.0,
+                                    "height": 5.0,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                             "action": "exist",
                         },
                     ],
@@ -159,7 +173,14 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
                     "regions": [
                         {
                             "name": "icon.page.back",
-                            "bbox": {"x": 5.0, "y": 5.0, "width": 5.0, "height": 5.0},
+                                "bbox": {
+                                    "x": 5.0,
+                                    "y": 5.0,
+                                    "width": 5.0,
+                                    "height": 5.0,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                             "action": "exist",
                         },
                     ],
@@ -266,7 +287,14 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
                     "regions": [
                         {
                             "name": "icon.page.back",
-                            "bbox": {"x": 5.0, "y": 5.0, "width": 5.0, "height": 5.0},
+                                "bbox": {
+                                    "x": 5.0,
+                                    "y": 5.0,
+                                    "width": 5.0,
+                                    "height": 5.0,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                             "action": "exist",
                         },
                     ],

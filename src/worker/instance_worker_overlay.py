@@ -47,6 +47,39 @@ def _overlay_metric_float(value: object) -> float | None:
     return x
 
 
+def _overlay_push_priority(payload: dict[str, Any]) -> int | None:
+    """Highest effective priority among a matched payload's pushScenario entries."""
+
+    pu = payload.get("pushScenario")
+    if not isinstance(pu, list):
+        return None
+    best: int | None = None
+    for item in pu:
+        if not isinstance(item, dict):
+            continue
+        target = str(item.get("name") or item.get("type") or "").strip()
+        if not target:
+            continue
+        pr_raw = item.get("priority")
+        if pr_raw is not None:
+            try:
+                pr = int(pr_raw)
+            except (TypeError, ValueError):
+                pr = DEFAULT_SCENARIO_PRIORITY
+        else:
+            scen_pr = dsl_scenario_yaml_priority(_REPO_ROOT, target)
+            if scen_pr is not None:
+                pr = scen_pr
+            else:
+                rule_pr = payload.get("priority")
+                try:
+                    pr = int(rule_pr) if rule_pr is not None else DEFAULT_SCENARIO_PRIORITY
+                except (TypeError, ValueError):
+                    pr = DEFAULT_SCENARIO_PRIORITY
+        best = pr if best is None else max(best, pr)
+    return best
+
+
 
 if TYPE_CHECKING:
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
@@ -103,17 +136,44 @@ class InstanceWorkerOverlayMixin(_Base):
         if self._queue is None:
             return
         now = time.time()
-        for payload in overlay_results.values():
+        matched_payloads: list[dict[str, Any]] = []
+        push_payloads: list[tuple[int, int, dict[str, Any]]] = []
+        for order, payload in enumerate(overlay_results.values()):
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
+                continue
+            matched_payloads.append(payload)
+            priority = _overlay_push_priority(payload)
+            if priority is not None:
+                push_payloads.append((priority, order, payload))
+
+        # A single overlay frame can contain multiple true signals (for example
+        # a toast plus a red-dot badge). Starting all resulting scenarios from
+        # the same frame causes navigation churn and state flicker, so pick one
+        # push candidate per analyzer tick. Higher priority wins; YAML/order is
+        # the deterministic tie-breaker.
+        for _priority, _order, payload in sorted(push_payloads, key=lambda it: (-it[0], it[1])):
+            try:
+                handled = await self._enqueue_push_scenarios_from_overlay(
+                    payload, player_id="", run_at=now, active_player=active_player
+                )
+                if handled:
+                    break
+            except Exception:
+                logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
+
+        # Still persist non-push matched overlays (e.g. set_node/text state), but
+        # skip lower-priority push payloads once one scenario was handled.
+        for payload in matched_payloads:
+            if _overlay_push_priority(payload) is not None:
                 continue
             try:
                 await self._enqueue_push_scenarios_from_overlay(
                     payload, player_id="", run_at=now, active_player=active_player
                 )
             except Exception:
-                logger.debug("Failed to enqueue pushScenario task(s) from overlay", exc_info=True)
+                logger.debug("Failed to process non-push overlay payload", exc_info=True)
 
     async def _enqueue_push_scenarios_from_overlay(
         self,
@@ -122,9 +182,9 @@ class InstanceWorkerOverlayMixin(_Base):
         player_id: str,
         run_at: float,
         active_player: str | None = None,
-    ) -> None:
+    ) -> bool:
         if self._queue is None:
-            return
+            return False
 
         reg_snap = str(payload.get("region") or "").strip() or None
         tap_x_pct = _overlay_metric_float(payload.get("tap_x_pct"))
@@ -235,6 +295,12 @@ class InstanceWorkerOverlayMixin(_Base):
                 if enabled is False:
                     logger.debug("overlay: skipping disabled scenario %s", t)
                     continue
+                if not is_device_level and not str(active_player or "").strip():
+                    logger.debug(
+                        "overlay: skipping player-bound scenario %s — active_player missing",
+                        t,
+                    )
+                    continue
 
                 # Special-case: avoid churning `set_node_main_city` when already on main_city.
                 # Scenario has `cond`, but repeated enqueue/execute can starve the queue.
@@ -297,7 +363,7 @@ class InstanceWorkerOverlayMixin(_Base):
                             )
                         # Suppress the actual push: the rule's job was just
                         # to write the throttle marker.
-                        continue
+                        return True
                     acquired = True
                     try:
                         acquired = bool(
@@ -316,7 +382,7 @@ class InstanceWorkerOverlayMixin(_Base):
                             throttle_key,
                             int(ttl_s),
                         )
-                        continue
+                        return True
 
                 pr_raw = item.get("priority")
                 if pr_raw is not None:
@@ -387,3 +453,5 @@ class InstanceWorkerOverlayMixin(_Base):
                                 result_reason="preempted_by_device_level",
                                 reschedule=True,
                             )
+                return True
+        return False

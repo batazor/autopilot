@@ -50,7 +50,14 @@ async def test_navigator_writes_destination_node_after_route_hop(
                     "regions": [
                         {
                             "name": "to_chief_profile",
-                            "bbox": {"x": 10, "y": 20, "width": 10, "height": 10},
+                                "bbox": {
+                                    "x": 10,
+                                    "y": 20,
+                                    "width": 10,
+                                    "height": 10,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                         }
                     ],
                 }
@@ -63,6 +70,154 @@ async def test_navigator_writes_destination_node_after_route_hop(
     cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert cur == "chief_profile"
     assert taps
+
+
+@pytest.mark.asyncio
+async def test_static_navigation_hop_uses_region_original_size_without_adb_wait(
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    redis = redis_async
+    capture_calls = 0
+    taps: list[str] = []
+
+    def capture(_instance_id: str) -> np.ndarray:
+        nonlocal capture_calls
+        capture_calls += 1
+        return np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def tap(_instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
+        taps.append(f"{approval_region}:{point.x},{point.y}")
+        return True
+
+    nav = make_navigator(
+        capture,
+        tap,
+        settings=settings,
+        ocr_client=ocr_client,
+        redis_client=redis,
+    )
+
+    async def wait_for_screen_verified(*_args: Any) -> bool:
+        return True
+
+    mocker.patch.object(nav, "_wait_for_screen_verified", new=wait_for_screen_verified)
+    mocker.patch.object(
+        nav,
+        "_load_area_doc",
+        new=lambda: {
+            "screens": [
+                {
+                    "id": 1,
+                    "ocr": "references/main_city.png",
+                    "regions": [
+                        {
+                            "name": "isWorkers",
+                            "bbox": {
+                                "x": 40,
+                                "y": 2,
+                                "width": 5,
+                                "height": 5,
+                                "original_width": 720,
+                                "original_height": 1280,
+                            },
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    result = await nav._execute_hops(
+        "bs1",
+        [("survivor_status", ["isWorkers"])],
+        from_screen="main_city",
+    )
+
+    assert result == "ok"
+    assert taps and taps[0].startswith("isWorkers:")
+    assert capture_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_navigation_accepts_final_tab_when_parent_hop_opens_it(
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    redis = redis_async
+    taps: list[str | None] = []
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def tap(_instance_id: str, point: Any, *, approval_region: str | None = None) -> bool:
+        del point
+        taps.append(approval_region)
+        return True
+
+    async def detect_screen(_image: np.ndarray) -> ScreenName:
+        return ScreenName("survivor_status.status")
+
+    async def wait_for_screen_verified(*_args: Any) -> bool:
+        raise AssertionError("parent hop should accept the final tab without retrying")
+
+    nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
+    mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)
+    mocker.patch.object(nav, "_wait_for_screen_verified", new=wait_for_screen_verified)
+    mocker.patch.object(
+        nav,
+        "_load_area_doc",
+        new=lambda: {
+            "screens": [
+                {
+                    "id": 1,
+                    "ocr": "references/main_city.png",
+                    "regions": [
+                        {
+                            "name": "isWorkers",
+                            "bbox": {
+                                "x": 40,
+                                "y": 2,
+                                "width": 5,
+                                "height": 5,
+                                "original_width": 720,
+                                "original_height": 1280,
+                            },
+                        },
+                        {
+                            "name": "survivor_status.status",
+                            "bbox": {
+                                "x": 16,
+                                "y": 91,
+                                "width": 20,
+                                "height": 6,
+                                "original_width": 720,
+                                "original_height": 1280,
+                            },
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+
+    result = await nav._execute_hops(
+        "bs1",
+        [
+            ("survivor_status", ["isWorkers"]),
+            ("survivor_status.status", ["survivor_status.status"]),
+        ],
+        from_screen="main_city",
+    )
+
+    cur = await redis_async.hget("wos:instance:bs1:state", "current_screen")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert result == "ok"
+    assert cur == "survivor_status.status"
+    assert taps == ["isWorkers"]
 
 
 @pytest.mark.asyncio
@@ -119,7 +274,14 @@ async def test_navigator_verifies_destination_with_match_rule(
                     "regions": [
                         {
                             "name": "to_chief_profile",
-                            "bbox": {"x": 10, "y": 20, "width": 10, "height": 10},
+                                "bbox": {
+                                    "x": 10,
+                                    "y": 20,
+                                    "width": 10,
+                                    "height": 10,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                         },
                         {
                             "name": "chief_profile_title",
@@ -199,7 +361,14 @@ async def test_navigator_verifies_destination_with_ocr_contains(
                     "regions": [
                         {
                             "name": "to_chief_profile",
-                            "bbox": {"x": 10, "y": 20, "width": 10, "height": 10},
+                                "bbox": {
+                                    "x": 10,
+                                    "y": 20,
+                                    "width": 10,
+                                    "height": 10,
+                                    "original_width": 100,
+                                    "original_height": 100,
+                                },
                         },
                         {
                             "name": "page_title",

@@ -6,6 +6,10 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from analysis.overlay import run_overlay_analysis
+from analysis.overlay_ttl_state import (
+    persist_overlay_ttl_state_to_redis,
+    sync_overlay_ttl_state_from_redis,
+)
 from config.log_context import set_log_context
 from config.paths import repo_root
 from navigation.detector import ScreenName
@@ -111,6 +115,13 @@ class InstanceWorkerScreenMixin(_Base):
             player_state = self._overlay_rule_eval_state_by_player.setdefault(
                 tt_key, {}
             )
+            if self._redis is not None:
+                await sync_overlay_ttl_state_from_redis(
+                    self._redis,
+                    instance_id=self._cfg.instance_id,
+                    player_id=tt_key,
+                    rule_eval_state=player_state,
+                )
             results = await run_overlay_analysis(
                 image_bgr,
                 repo_root=root,
@@ -207,34 +218,14 @@ class InstanceWorkerScreenMixin(_Base):
     async def _persist_overlay_ttl_snapshot(
         self, player_id: str, player_state: dict[str, float]
     ) -> None:
-        if self._redis is None or not player_state:
+        if self._redis is None:
             return
-        now_wall = time.time()
-        now_mono = time.monotonic()
-        mapping: dict[str, str] = {}
-        for rule_name, mono_ts in player_state.items():
-            try:
-                wall_ts = now_wall - (now_mono - float(mono_ts))
-            except (TypeError, ValueError):
-                continue
-            mapping[str(rule_name)] = f"{wall_ts:.3f}"
-        if not mapping:
-            return
-        # ``player_id`` may be empty when no active_player is set; route those
-        # to a dedicated key so they don't pollute any real player's state.
-        key = (
-            f"wos:player:{player_id}:overlay_ttl"
-            if player_id
-            else f"wos:instance:{self._cfg.instance_id}:overlay_ttl_anon"
+        await persist_overlay_ttl_state_to_redis(
+            self._redis,
+            instance_id=self._cfg.instance_id,
+            player_id=player_id,
+            rule_eval_state=player_state,
         )
-        try:
-            await self._redis.hset(key, mapping=mapping)
-        except Exception:
-            logger.debug(
-                "overlay TTL snapshot write failed key=%s",
-                key,
-                exc_info=True,
-            )
 
 
 class InstanceWorkerScreenDetectMixin(_Base):

@@ -264,6 +264,27 @@ def test_production_screen_verify_yaml_contains_trials_day_rules() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
+def test_production_screen_verify_yaml_contains_survivor_status_tab_rules() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        for tab in ("status", "details"):
+            screen = f"survivor_status.{tab}"
+            expected = [
+                {
+                    "match": "survivor_status.title",
+                    "threshold": 0.9,
+                    "tab_active": f"survivor_status.{tab}",
+                }
+            ]
+            assert screen_graph.screen_landmark_rules(screen) == expected
+            assert screen_graph.screen_verify_rules(screen) == expected
+        expected_base = [{"match": "survivor_status.title", "threshold": 0.9}]
+        assert screen_graph.screen_landmark_rules("survivor_status") == expected_base
+        assert screen_graph.screen_verify_rules("survivor_status") == expected_base
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
 def test_production_screen_verify_yaml_contains_alliance_invitation_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

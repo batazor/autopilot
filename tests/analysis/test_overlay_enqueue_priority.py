@@ -30,7 +30,7 @@ class _Worker(InstanceWorkerOverlayMixin):
 
 
 @pytest.mark.asyncio
-async def test_overlay_enqueues_all_matched_payloads() -> None:
+async def test_overlay_enqueues_highest_priority_matched_payload_only() -> None:
     worker = _Worker()
 
     await worker._schedule_overlay_matches(
@@ -45,14 +45,11 @@ async def test_overlay_enqueues_all_matched_payloads() -> None:
                 "region": "hand_pointer_small",
                 "pushScenario": [{"name": "hand_pointer_small", "priority": 86_000}],
             },
-        }
+        },
+        active_player="p1",
     )
 
-    # Enqueue order is irrelevant — `RedisQueue.pop_due` sorts by (-priority, run_at).
-    assert {c["task_type"] for c in worker._queue.calls} == {
-        "hand_pointer_small",
-        "skip_text_button",
-    }
+    assert [c["task_type"] for c in worker._queue.calls] == ["hand_pointer_small"]
     assert all(c.get("dedup_ignore_region") is True for c in worker._queue.calls)
 
 
@@ -72,11 +69,30 @@ async def test_overlay_enqueue_skips_unmatched_payloads() -> None:
                 "region": "skip_text_button",
                 "pushScenario": [{"name": "skip_text_button", "priority": 85_000}],
             },
-        }
+        },
+        active_player="p1",
     )
 
     assert [c["task_type"] for c in worker._queue.calls] == ["skip_text_button"]
     assert worker._queue.calls[0].get("dedup_ignore_region") is True
+
+
+@pytest.mark.asyncio
+async def test_overlay_enqueue_skips_player_bound_scenario_without_active_player() -> None:
+    worker = _Worker()
+
+    await worker._schedule_overlay_matches(
+        {
+            "isWorkers.visible": {
+                "matched": True,
+                "region": "isWorkers",
+                "pushScenario": [{"name": "assign_worker", "priority": 80_000}],
+            },
+        },
+        active_player="",
+    )
+
+    assert worker._queue.calls == []
 
 
 @pytest.mark.asyncio

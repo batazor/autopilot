@@ -80,6 +80,7 @@ class AdbController:
         # Probed lazily on first curved-swipe attempt. ``None`` = unknown,
         # ``True``/``False`` cached after the first ``input`` help dump.
         self._supports_motionevent: bool | None = None
+        self._screen_resolution: tuple[int, int] | None = None
         self._verify_available()
         self.set_brightness(70)
         self.set_heads_up_notifications(enabled=False)
@@ -148,6 +149,8 @@ class AdbController:
         self._shell("settings", "put", "global", "heads_up_notifications_enabled", value)
 
     def get_screen_resolution(self) -> tuple[int, int]:
+        if self._screen_resolution is not None:
+            return self._screen_resolution
         out = self._shell("wm", "size")
         for line in out.splitlines():
             if "Physical size:" in line or "Override size:" in line:
@@ -155,7 +158,8 @@ class AdbController:
                 if parts:
                     w_str, _, h_str = parts[-1].partition("x")
                     if w_str.isdigit() and h_str.isdigit():
-                        return int(w_str), int(h_str)
+                        self._screen_resolution = (int(w_str), int(h_str))
+                        return self._screen_resolution
         msg = f"Cannot parse screen resolution from: {out!r}"
         raise RuntimeError(msg)
 
@@ -233,7 +237,7 @@ class AdbController:
             ap["approval_source"] = src
         if approval_context:
             ap["approval_context"] = dict(approval_context)
-        if click_approval_enabled(self._instance_id):
+        if click_approval_enabled(self._instance_id) and src != "navigation":
             self._attach_approval_preview(ap)
             ap["_preview_capturer"] = self._attach_approval_preview
         ok, req_id = _require_approval(self._instance_id, ap)

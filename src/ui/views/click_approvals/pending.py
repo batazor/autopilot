@@ -65,6 +65,21 @@ def _is_stale_for_live_owner(payload: dict[str, Any], row: dict[str, Any]) -> bo
     return False
 
 
+def _is_stale_navigation_approval(payload: dict[str, Any], row: dict[str, Any]) -> bool:
+    status = _as_text(payload.get("status")).lower()
+    if status and status != "waiting":
+        return False
+    ctx0 = payload.get("context")
+    if not isinstance(ctx0, dict):
+        return False
+    if _as_text(ctx0.get("approval_source")).lower() != "navigation":
+        return False
+
+    approval_from = _as_text(ctx0.get("approval_from_screen"))
+    live_screen = _as_text(row.get("current_screen"))
+    return bool(approval_from and live_screen and approval_from != live_screen)
+
+
 def _payload_action_label(payload: dict[str, Any]) -> str:
     kind = str(payload.get("type") or "").strip().lower()
     if kind == "set_node":
@@ -141,15 +156,22 @@ def _clear_invalid_pending(
     row = {_as_text(k): _as_text(v) for k, v in row_raw.items()}
     stale_after_restart = _is_stale_from_previous_worker(payload, row)
     stale_owner = _is_stale_for_live_owner(payload, row)
-    if not (stale_after_restart or stale_owner):
+    stale_navigation = _is_stale_navigation_approval(payload, row)
+    if not (stale_after_restart or stale_owner or stale_navigation):
         return False
 
     response_key = _as_text(payload.get("response_key"))
     request_id = _as_text(payload.get("request_id")) or "unknown"
-    client.delete(curr_key)
     if response_key:
-        client.delete(response_key)
-    reason = "owner changed" if stale_owner else "previous bot run"
+        client.set(response_key, "reject")
+    client.delete(curr_key)
+    reason = (
+        "navigation screen changed"
+        if stale_navigation
+        else "owner changed"
+        if stale_owner
+        else "previous bot run"
+    )
     st.toast(f"Cleared stale approval ({reason}): `{request_id}`")
     return True
 

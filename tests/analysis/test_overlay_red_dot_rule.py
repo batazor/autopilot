@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +9,7 @@ import cv2
 import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from layout.area_manifest import load_area_doc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAIN_CITY_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "main_city_v2_red_dots.png"
@@ -20,7 +20,7 @@ async def test_isworkers_visible_matches_when_dot_present() -> None:
     image_bgr = cv2.imread(str(MAIN_CITY_FIXTURE))
     assert image_bgr is not None
 
-    area_doc: dict[str, Any] = json.loads((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    area_doc: dict[str, Any] = load_area_doc(REPO_ROOT)
     rule = {
         "name": "isWorkers.visible",
         "region": "isWorkers",
@@ -48,7 +48,7 @@ async def test_isworkers_visible_no_match_on_blank_screen() -> None:
     assert image_bgr is not None
     blank = image_bgr * 0 + 64
 
-    area_doc: dict[str, Any] = json.loads((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    area_doc: dict[str, Any] = load_area_doc(REPO_ROOT)
     rule = {
         "name": "isWorkers.visible",
         "region": "isWorkers",
@@ -75,7 +75,7 @@ async def test_isreddot_false_matches_when_dot_absent() -> None:
     assert image_bgr is not None
     blank = image_bgr * 0 + 64
 
-    area_doc: dict[str, Any] = json.loads((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    area_doc: dict[str, Any] = load_area_doc(REPO_ROOT)
     rule = {
         "name": "workers.quiet",
         "region": "isWorkers",

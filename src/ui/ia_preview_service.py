@@ -14,6 +14,7 @@ import numpy as np
 import redis
 
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_png
+from config.devices import player_ids_for_device_candidates
 from config.loader import load_settings
 from config.paths import repo_root
 from config.reference_naming import reference_png_abs_path, rolling_preview_basename
@@ -81,6 +82,34 @@ def _write_detected_screen(
     client.ltrim(history_key, 0, _SCREEN_HISTORY_MAX - 1)
 
 
+def _ensure_active_player_for_instance(
+    client: redis.Redis,
+    *,
+    instance_id: str,
+    adb_serial: str,
+) -> str:
+    """Seed IA Editor's active player from devices.yaml when identity is empty."""
+
+    state_key = f"wos:instance:{instance_id}:state"
+    current = str(client.hget(state_key, "active_player") or "").strip()
+    if current:
+        return current
+
+    players = player_ids_for_device_candidates(instance_id, adb_serial)
+    player_id = str(players[0] if players else "").strip()
+    if not player_id:
+        return ""
+
+    client.hset(
+        state_key,
+        mapping={
+            "active_player": player_id,
+            "active_player_at": str(time.time()),
+        },
+    )
+    return player_id
+
+
 def _preview_loop() -> None:
     settings = load_settings()
     root = repo_root()
@@ -103,6 +132,19 @@ def _preview_loop() -> None:
     while True:
         started = time.monotonic()
         for inst in instances:
+            try:
+                _ensure_active_player_for_instance(
+                    redis_client,
+                    instance_id=inst.instance_id,
+                    adb_serial=inst.bluestacks_window_title,
+                )
+            except Exception:
+                logger.debug(
+                    "IA preview refresher: active_player bootstrap failed for %s",
+                    inst.instance_id,
+                    exc_info=True,
+                )
+
             data, err = adb_screencap_png(adb_bin=adb_bin, serial=inst.bluestacks_window_title)
             if data is None:
                 now = time.monotonic()

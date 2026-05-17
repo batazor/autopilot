@@ -14,6 +14,10 @@ import cv2
 import redis.asyncio as aioredis
 
 from analysis.overlay import run_overlay_analysis
+from analysis.overlay_ttl_state import (
+    persist_overlay_ttl_state_to_redis,
+    sync_overlay_ttl_state_from_redis,
+)
 from config.loader import load_settings
 from config.paths import repo_root as default_repo_root
 from config.state_store import get_state_store
@@ -179,6 +183,12 @@ async def _analyze_instance(
         )
         return
 
+    await sync_overlay_ttl_state_from_redis(
+        redis,
+        instance_id=instance_id,
+        player_id=active_player,
+        rule_eval_state=rule_eval_state,
+    )
     before = await _queue_snapshot(redis, instance_id)
     results = await run_overlay_analysis(
         image,
@@ -188,6 +198,12 @@ async def _analyze_instance(
         rule_eval_state=rule_eval_state,
         state_flat=_state_flat(active_player),
         module_scope=scope,
+    )
+    await persist_overlay_ttl_state_to_redis(
+        redis,
+        instance_id=instance_id,
+        player_id=active_player,
+        rule_eval_state=rule_eval_state,
     )
     matched: list[dict[str, Any]] = []
     throttled: list[dict[str, Any]] = []

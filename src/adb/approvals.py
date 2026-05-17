@@ -423,7 +423,10 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             break
         try:
             raw_cur = _r_get(current_key)
-            if raw_cur and json.loads(raw_cur).get("request_id") != req_id:
+            if not raw_cur:
+                decision = "reject"
+                break
+            if json.loads(raw_cur).get("request_id") != req_id:
                 decision = "reject"
                 break
         except Exception:

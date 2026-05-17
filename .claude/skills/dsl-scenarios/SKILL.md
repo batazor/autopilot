@@ -189,6 +189,12 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
 
 Use this loop when developing against a real device. Scenario rehearsal runs through AI Editor, not the full `uv run wos` bot:
 
+For overlay-driven flows, prefer exercising the overlay rule that owns the scenario instead of manually running the scenario. In particular, for `modules/core/survivors` worker assignment, set the IA analyzer scope in Redis and let the overlay analyzer see `isWorkers` and push `assign_worker`:
+
+```bash
+redis-cli SET wos:ui:ia_analyzer:scope:<instance_id> survivors
+```
+
 1. Run startup validation before restarting AI Editor; it catches stale region references after renames (for example old victory/defeat button names).
 2. Capture the current screen and inspect `current_state` / `current_screen` before clicking.
 3. Check whether the next DSL guard should match on the captured frame.

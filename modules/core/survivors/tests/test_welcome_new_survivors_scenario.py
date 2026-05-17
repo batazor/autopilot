@@ -8,6 +8,8 @@ import cv2
 import pytest
 from conftest import make_actions, patch_dsl
 
+from analysis.overlay_engine import evaluate_overlay_rules_async
+from layout.area_manifest import load_area_doc
 import tasks.dsl_scenario as dsl
 from navigation.detector import ScreenDetector
 from scenarios import template_resolver
@@ -88,3 +90,70 @@ async def test_welcome_new_survivors_rehearses_main_city_to_welcome_in(
         ),
         call("bs1", ANY, approval_region="button.welcome_in"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_isworkers_red_dot_detected_after_welcome_in() -> None:
+    frame = _load_reference_bgr("welcome_new_survivors.rehearsal.03.after_welcome_in.png")
+
+    out = await evaluate_overlay_rules_async(
+        frame,
+        load_area_doc(REPO_ROOT),
+        REPO_ROOT,
+        [
+            {
+                "name": "isWorkers.visible",
+                "region": "isWorkers",
+                "isRedDot": True,
+            },
+        ],
+        current_screen="main_city",
+    )
+
+    row = out["isWorkers.visible"]
+    assert row["matched"] is True
+    assert row["action"] == "red_dot"
+    assert row["red_dot_present"] is True
+
+
+@pytest.mark.asyncio
+async def test_survivor_status_status_tab_detects_active_tab_and_add_button() -> None:
+    frame = _load_reference_bgr("page.worker.png")
+
+    detector = ScreenDetector(get_ocr_client())
+    assert await detector.detect_screen(frame) == "survivor_status.status"
+
+    out = await evaluate_overlay_rules_async(
+        frame,
+        load_area_doc(REPO_ROOT),
+        REPO_ROOT,
+        [
+            {
+                "name": "survivor_status.status.active",
+                "region": "survivor_status.status",
+                "isTabActive": True,
+            },
+            {
+                "name": "survivor_status.details.active",
+                "region": "survivor_status.details",
+                "isTabActive": True,
+            },
+            {
+                "name": "button.add.visible",
+                "region": "button.add",
+                "action": "findIcon",
+                "threshold": 0.9,
+            },
+        ],
+        current_screen="survivor_status.status",
+    )
+
+    status_tab = out["survivor_status.status.active"]
+    details_tab = out["survivor_status.details.active"]
+    add_button = out["button.add.visible"]
+
+    assert status_tab["matched"] is True
+    assert status_tab["tab_active"] is True
+    assert details_tab["matched"] is False
+    assert details_tab["tab_active"] is False
+    assert add_button["matched"] is True

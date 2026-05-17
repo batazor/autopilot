@@ -108,6 +108,13 @@ Sidebar **Module scope** (`ui/module_scope.py`): **All** | **Core** | feature id
 
 `path_matches_module_scope()` treats `modules/core/...` as **Core** scope.
 Storage key for nested core modules: `core/<name>` (`module_storage_key()`).
+IA Editor's module-scoped overlay analyzer stores its selected scope in Redis:
+
+```bash
+redis-cli SET wos:ui:ia_analyzer:scope:<instance_id> <module-scope>
+```
+
+For `modules/core/survivors`, use `survivors` (or `core/survivors`) and let the analyzer match `isWorkers` and push `assign_worker`; do not manually run that scenario when testing the overlay path.
 
 ## Overlay rules in modules
 

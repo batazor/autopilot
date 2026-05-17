@@ -1,7 +1,0 @@
-enabled: true
-name: "🛡️ Open backpack: Gear tab"
-node: backpack
-steps:
-  - click: page.backpack.gear
-  - wait: 2s
-  - exec: put_all_red_dots
