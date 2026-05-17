@@ -20,30 +20,26 @@ services:
       timeout: 5s
       retries: 3
 
-  ocr:
+  omniparser:
     build:
       context: .
-      dockerfile: ocr/Dockerfile
+      dockerfile: Dockerfile.omniparser
     ports:
-      # Bind to loopback only — same rationale as redis above; OCR is not
-      # designed to face the open internet.
-      - "127.0.0.1:8000:8000"
+      # Bind to loopback only; the labeling UI calls this local sidecar.
+      - "127.0.0.1:8765:8765"
     environment:
-      # PaddleX checks model host connectivity before loading. The models are cached
-      # in the volume below, so skipping this avoids slow/flaky cold starts.
-      PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK: "True"
+      OMNIPARSER_ROOT: /opt/OmniParser
     volumes:
-      - paddle_model_cache:/root/.paddleocr
-      - paddlex_model_cache:/root/.paddlex
-    restart: always
+      # Set OMNIPARSER_ROOT in .env to a microsoft/OmniParser checkout with weights/.
+      # If unset, Compose creates ./omniparser-upstream as an empty placeholder; the
+      # sidecar still starts, but /parse reports the missing upstream files.
+      - ${OMNIPARSER_ROOT:-./omniparser-upstream}:/opt/OmniParser:ro
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8765/health"]
       interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 180s
+      timeout: 5s
+      retries: 3
 
 volumes:
   redis_data:
-  paddle_model_cache:
-  paddlex_model_cache:

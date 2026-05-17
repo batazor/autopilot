@@ -1,0 +1,3 @@
+edges:
+  heroes.sr.new:
+    main_city: [heroes.sr.new.close]

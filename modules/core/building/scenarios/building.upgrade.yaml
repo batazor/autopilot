@@ -1,0 +1,38 @@
+enabled: true
+name: 🏗️ Building upgrade (chapter task)
+node: building
+steps:
+- ocr: building.name
+- exec: sync_building_name
+- loop:
+    max: 10
+    steps:
+    - while_match: upgrade_button
+      threshold: 0.87
+      max: 5
+      steps:
+      - wait: 2s
+      - long_click: upgrade_button
+        wait: 5s
+      - wait: 1s
+    - while_match: button.next
+      max: 1
+      steps:
+      - wait: 2s
+      - click: button.next
+      - wait: 2s
+    - while_match: build_building_item
+      max: 1
+      steps:
+      - wait: 2s
+      - click: build_building_item
+      - wait: 2s
+    - while_match: upgrade_big_button
+      max: 1
+      steps:
+      - wait: 2s
+      - click: upgrade_big_button
+      - wait: 2s
+- ocr: building.upgrading.time
+  type: time
+  throttle_push: building.upgrade

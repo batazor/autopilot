@@ -1,0 +1,10 @@
+enabled: true
+name: Onboarding click · Skip
+device_level: true
+priority: 100_000
+steps:
+  - while_match: skip_button
+    max: 1
+    steps:
+      - click: skip_button
+      - wait: 0.5s

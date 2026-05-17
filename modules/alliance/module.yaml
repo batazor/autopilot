@@ -1,0 +1,6 @@
+id: alliance
+title: Alliance
+description: Alliance-related prompts and automation.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+wiki: false

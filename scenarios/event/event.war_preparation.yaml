@@ -1,5 +1,0 @@
-enabled: false
-name: "War Preparation"
-node: event.war_preparation
-icon: war_preparation
-steps: []

@@ -1,0 +1,72 @@
+enabled: true
+name: "Mail ${tab_name}: Claim Rewards"
+priority: 80_000
+
+node: mail.${tab}
+
+steps:
+  - while_match: mail.gift
+    min_match_saturation: 48
+    max: 6
+    steps:
+      - click: mail.gift
+      - wait: 2s
+
+      - loop:
+          max: 2
+          steps:
+            - while_match: button.claim.big
+              max: 1
+              retry:
+                attempts: 3
+                interval: 400ms
+              steps:
+                - click: button.claim.big
+                - wait: 0.8s
+                - break: loop
+            - while_match: button.claim
+              max: 1
+              retry:
+                attempts: 4
+                interval: 400ms
+              steps:
+                - click: button.claim
+                - wait: 0.8s
+                - break: loop
+            - while_match: button.go.big
+              max: 1
+              steps:
+                - click: button.go.big
+                - wait: 0.8s
+                - break: loop
+            - swipe_direction:
+                direction: up
+                delta: 450
+                duration_ms: 650
+            - wait: 0.5s
+
+      - while_match: icon.page.back
+        max: 1
+        steps:
+          - click: icon.page.back
+          - wait: 0.8s
+
+  - while_match: mail.claim.all
+    max: 1
+    steps:
+      - click: mail.claim.all
+      - wait: 1s
+      - while_match: button.claim
+        steps:
+          - click: button.claim
+          - wait: 0.5s
+
+  - while_match: mail.delete.all
+    max: 1
+    steps:
+      - click: mail.delete.all
+      - wait: 1s
+      - while_match: ui.button.confirm_blue
+        steps:
+          - click: ui.button.confirm_blue
+          - wait: 0.5s

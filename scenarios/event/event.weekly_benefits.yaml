@@ -1,5 +1,0 @@
-enabled: false
-name: "Weekly Benefits"
-node: event.weekly_benefits
-icon: weekly_benefits
-steps: []

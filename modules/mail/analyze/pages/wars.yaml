@@ -1,0 +1,23 @@
+overlay:
+  - name: mail.wars.gift.visible
+    region: mail.gift
+    action: findIcon
+    threshold: 0.9
+    min_match_saturation: 48
+    screens:
+      - mail.wars
+    pushScenario:
+      - name: mail.claim.wars
+
+  - name: mail.tab.wars.has_red_dot
+    region: mail.tab.wars
+    isRedDot: true
+    screens:
+      - mail
+      - mail.alliance
+      - mail.system
+      - mail.reports
+      - mail.starred
+    pushScenario:
+      - name: mail.claim.wars
+        ttl: 5m

@@ -1,5 +1,0 @@
-enabled: false
-name: "Frosty Fortune"
-node: event.frosty_fortune
-icon: frosty_fortune
-steps: []

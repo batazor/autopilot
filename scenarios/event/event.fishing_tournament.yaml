@@ -1,5 +1,0 @@
-enabled: false
-name: "Fishing Tournament"
-node: event.fishing_tournament
-icon: fishing_tournament
-steps: []

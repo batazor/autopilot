@@ -1,0 +1,6 @@
+id: chief_profile
+title: Chief profile
+description: >-
+  Chief profile screen — profile title, avatar button, and player_id OCR regions
+  used by identity bootstrap and navigation verification.
+

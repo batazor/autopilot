@@ -1,7 +1,0 @@
-overlay:
-- name: hero.recrutment.advanced.free.visible
-  region: hero.recrutment.advanced.free
-  screens:
-    - hero.recrutment
-  pushScenario:
-    - name: free_recrutments_today

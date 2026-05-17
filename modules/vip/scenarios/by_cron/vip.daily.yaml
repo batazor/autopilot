@@ -1,0 +1,28 @@
+enabled: true
+name: "VIP: Daily Rewards"
+priority: 80_000
+
+cron: "0 */6 * * *"
+node: vip
+cond: "active_player != null"
+
+steps:
+  - while_match: page.vip.box
+    isRedDot: true
+    max: 1
+    retry:
+      attempts: 1
+      interval: 100ms
+    steps:
+      - click: page.vip.box
+      - wait: 0.5s
+
+  - while_match: page.vip.add
+    isRedDot: true
+    max: 1
+    retry:
+      attempts: 1
+      interval: 100ms
+    steps:
+      - click: page.vip.add
+      - wait: 0.5s

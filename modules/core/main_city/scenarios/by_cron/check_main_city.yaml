@@ -1,0 +1,8 @@
+name: 🏙️ Check Main City
+enabled: true
+
+cron: "*/5 * * * *"
+
+node: main_city
+
+steps: []

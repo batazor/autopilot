@@ -1,0 +1,6 @@
+id: popup
+title: Popup fallback
+description: >-
+  Device-level fallback dismissals for unknown overlay screens.
+scenarios: scenarios
+wiki: false

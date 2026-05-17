@@ -1,0 +1,10 @@
+enabled: true
+name: Onboarding click · Tap anywhere to exit
+device_level: true
+priority: 100_000
+steps:
+  - while_match: button.tap_anywhere_to_exit
+    max: 1
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 0.5s

@@ -3,9 +3,8 @@
 # ``host.docker.internal`` on Docker Desktop, with the host's ``adb start-server``
 # already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
 #
-# Companion services:
-#   * ``ghcr.io/batazor/whiteout-survival-autopilot/ocr``   — PaddleOCR HTTP API
-#   * ``redis:alpine``                                       — queue / instance state
+# Companion service:
+#   * ``redis:alpine`` — queue / instance state
 # See ``docker-compose.yml`` for the wiring.
 
 FROM python:3.13-slim-bookworm AS builder
@@ -24,26 +23,10 @@ COPY pyproject.toml uv.lock README.md ./
 COPY streamlit-plugin/ ./streamlit-plugin/
 RUN uv sync --frozen --no-install-project --no-dev
 
-# Step 2: project source — anything outside this list is irrelevant to the
-# worker runtime (tests, drafts, dev tooling).
-COPY actions/ ./actions/
-COPY analysis/ ./analysis/
-COPY analyze/ ./analyze/
-COPY capture/ ./capture/
-COPY config/ ./config/
+# Step 2: project source — runtime tree (``src/`` packages + repo-root data).
+COPY src/ ./src/
+COPY modules/ ./modules/
 COPY db/ ./db/
-COPY fsm/ ./fsm/
-COPY gift/ ./gift/
-COPY layout/ ./layout/
-COPY metrics/ ./metrics/
-COPY navigation/ ./navigation/
-COPY ocr/ ./ocr/
-COPY optimizer/ ./optimizer/
-COPY scenarios/ ./scenarios/
-COPY scheduler/ ./scheduler/
-COPY tasks/ ./tasks/
-COPY ui/ ./ui/
-COPY worker/ ./worker/
 COPY references/ ./references/
 COPY area.json ./
 RUN uv sync --frozen --no-dev
@@ -52,18 +35,18 @@ RUN uv sync --frozen --no-dev
 FROM python:3.13-slim-bookworm
 
 # Runtime libs: opencv-headless wants libGL/glib; ADB for tap/screencap;
-# curl for the docker healthcheck.
+# Tesseract + eng.traineddata for local OCR; curl for the docker healthcheck.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgl1 libglib2.0-0 \
         adb \
+        tesseract-ocr tesseract-ocr-eng \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=builder /app /app
 
-ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:$PATH" \
     WOS_STREAMLIT_PORT=8501
 

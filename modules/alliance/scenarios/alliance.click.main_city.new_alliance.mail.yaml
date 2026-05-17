@@ -1,0 +1,10 @@
+enabled: true
+name: Alliance click · New alliance mail
+
+node: main_city
+
+priority: 100_000
+
+steps:
+  - click: main_city.new_alliance.mail.close
+  - wait: 0.5s

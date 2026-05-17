@@ -1,0 +1,5 @@
+enabled: true
+name: 🔍 Scan heroes grid
+node: heroes
+steps:
+- exec: scan_heroes_grid

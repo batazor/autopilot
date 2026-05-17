@@ -1,0 +1,6 @@
+id: main_city
+title: Main city
+description: >-
+  Main city screen — housekeeping navigation back to the hub and
+  main_city-node automation pushed from overlay rules.
+wiki: false

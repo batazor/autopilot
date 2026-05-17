@@ -1,0 +1,1022 @@
+# Screen verification config used by navigation.detector + navigation.navigator.
+#
+# - screens.<name>.landmarks: used by ScreenDetector to recognize the current screen.
+# - screens.<name>.rules: used by Navigator to verify that a route/tap reached target screen.
+# Navigation checks should be image/template-based (`match`) so screen detection
+# stays fast and deterministic.
+retry:
+  attempts: 6
+  interval_seconds: 0.8
+
+screens:
+  loading:
+    # Startup/loading splash. Treat as a real screen so Redis current_screen
+    # is not cleared to unknown while the game is still booting.
+    priority: 1
+    landmarks:
+      - match: text.survival
+        threshold: 0.9
+    rules:
+      - match: text.survival
+        threshold: 0.9
+
+  text.frostdragon_tyrant:
+    # Frostdragon Tyrant popup/card. Recognize before hub screens so overlay
+    # automation can close it without trying normal navigation.
+    priority: 2
+    landmarks:
+      - match: text.frostdragon_tyrant
+        threshold: 0.9
+    rules:
+      - match: text.frostdragon_tyrant
+        threshold: 0.9
+
+  main_city:
+    priority: 10
+    landmarks:
+      - match: icon.world
+    rules:
+      - match: icon.world
+        threshold: 0.9
+
+  mail.wars:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.wars
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.wars
+
+  mail.alliance:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.alliance
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.alliance
+
+  mail.system:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.system
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.system
+
+  mail.reports:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.reports
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.reports
+
+  mail.starred:
+    priority: 15
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.starred
+    rules:
+      - match: mail.title
+        threshold: 0.9
+        tab_active: mail.tab.starred
+
+  mail:
+    priority: 30
+    landmarks:
+      - match: mail.title
+        threshold: 0.9
+    rules:
+      - match: mail.title
+        threshold: 0.9
+
+  vip:
+    priority: 30
+    landmarks:
+      - match: page.vip.box
+        threshold: 0.9
+    rules:
+      - match: page.vip.box
+        threshold: 0.9
+
+  alliance.invitation:
+    priority: 20
+    landmarks:
+      - match: alliance.title
+        threshold: 0.9
+    rules:
+      - match: alliance.title
+        threshold: 0.9
+
+  rewards:
+    priority: 5
+    landmarks:
+      - match: rewards.title
+        threshold: 0.9
+    rules:
+      - match: rewards.title
+        threshold: 0.9
+
+  welcome_back:
+    priority: 100
+    landmarks:
+      - match: text.welcome_back
+        threshold: 0.9
+    rules:
+      - match: text.welcome_back
+        threshold: 0.9
+
+# screens:
+#   # Network "Retry/Reconnect" popup. Listed first so it short-circuits any
+#   # other landmark match — if the disconnect overlay is on top of the game,
+#   # we want ``current_screen=reconnect`` no matter what's underneath. Without
+#   # this entry the rolling detector returns UNKNOWN, ``current_screen`` is
+#   # cleared, and the approvals UI shows ``node:—`` while the bot is staring
+#   # at the reconnect dialog.
+#   reconnect:
+#     priority: 100
+#     landmarks:
+#       - match: reconnect_button
+#         threshold: 0.9
+#     rules:
+#       - match: reconnect_button
+#         threshold: 0.9
+
+#   building:
+#     priority: 10
+#     # Current-screen detection landmarks: recognize the building/upgrade screen.
+#     # Either the furniture banner OR the upgrade CTA at the bottom is enough —
+#     # the latter survives when the camera scrolls and the furniture row is
+#     # off-screen.
+#     landmarks:
+#       - match: page.building.furniture
+#         threshold: 0.85
+#       - match: building.upgrade
+#         threshold: 0.9
+#     # Route verification rules: confirm Navigator reached `building`.
+#     rules:
+#       - match: page.building.furniture
+#         threshold: 0.85
+#       - match: building.upgrade
+#         threshold: 0.9
+
+#   main_city:
+#     priority: 50
+#     # Current-screen detection landmarks: "we are on main_city" signals.
+#     landmarks:
+#       - match: is_main_city
+#         threshold: 0.9
+#       - match: isNewPeople
+#         threshold: 0.98
+#       - ocr: is_main_city
+#         contains: [city, town, base]
+
+#   arena:
+#     # Route verification rules for screens that are usually detected by title OCR.
+#     rules:
+#       - ocr: page_title
+#         contains: [arena, battle, fight]
+#         threshold: 0.8
+
+#   training:
+#     rules:
+#       - ocr: page_title
+#         contains: [training, troop, recruit]
+#         threshold: 0.8
+
+#   gathering:
+#     rules:
+#       - ocr: page_title
+#         contains: [gather, resource, march]
+#         threshold: 0.8
+
+#   alliance:
+#     rules:
+#       - ocr: page_title
+#         contains: [alliance, guild, member]
+#         threshold: 0.8
+
+#   exploration:
+#     rules:
+#       - ocr: page_title
+#         contains: [exploration]
+#         threshold: 0.8
+
+#   squad_settings:
+#     rules:
+#       - ocr: page_title
+#         contains: [squad]
+#         threshold: 0.8
+
+#   chat:
+#     rules:
+#       - ocr: page_title
+#         contains: [chat]
+#         threshold: 0.8
+
+#   mail:
+#     rules:
+#       - ocr: page_title
+#         contains: [mail]
+#         threshold: 0.8
+
+#   # Backpack / VIP / Shop entries are needed so the rolling detector can
+#   # recognize these screens and persist `current_screen`. Without them the
+#   # detector returns UNKNOWN, the streak counter clears `current_screen`, and
+#   # downstream scenarios see node:— even right after a successful navigation.
+#   backpack:
+#     rules:
+#       - ocr: page_title
+#         contains: [backpack]
+#         threshold: 0.8
+
+#   vip:
+#     rules:
+#       - ocr: page_title
+#         contains: [vip]
+#         threshold: 0.8
+
+#   shop:
+#     # The shop screen has no reliable title text — page_title OCR is empty or
+#     # gets a noisy banner string. Verify by template match against `page.shop`,
+#     # whose area.json definition lives on `references/page.shop.png` (the
+#     # navbar-side icon was renamed to `main_city.to.shop`, so the name is
+#     # now unambiguous). Return path: `shop → main_city: [icon.page.back]` in
+#     # `navigation/edge_taps.yaml`.
+#     landmarks:
+#       - match: page.shop
+#         threshold: 0.9
+#     rules:
+#       - match: page.shop
+#         threshold: 0.9
+
+#   heroes:
+#     rules:
+#       - ocr: page_title
+#         contains: [heroes power, hero power]
+#         threshold: 0.8
+
+#   page.heroes.ahmose:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Ahmose"]
+#         threshold: 0.8
+
+#   page.heroes.aisling:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Aisling"]
+#         threshold: 0.8
+
+#   page.heroes.alonso:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Alonso"]
+#         threshold: 0.8
+
+#   page.heroes.bahiti:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Bahiti"]
+#         threshold: 0.8
+
+#   page.heroes.blanchette:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Blanchette"]
+#         threshold: 0.8
+
+#   page.heroes.bradley:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Bradley"]
+#         threshold: 0.8
+
+#   page.heroes.cara:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Cara"]
+#         threshold: 0.8
+
+#   page.heroes.charlie:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Charlie"]
+#         threshold: 0.8
+
+#   page.heroes.cloris:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Cloris"]
+#         threshold: 0.8
+
+#   page.heroes.dominic:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Dominic"]
+#         threshold: 0.8
+
+#   page.heroes.edith:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Edith"]
+#         threshold: 0.8
+
+#   page.heroes.eleonora:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Eleonora"]
+#         threshold: 0.8
+
+#   page.heroes.elif:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Elif"]
+#         threshold: 0.8
+
+#   page.heroes.estrella:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Estrella"]
+#         threshold: 0.8
+
+#   page.heroes.eugene:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Eugene"]
+#         threshold: 0.8
+
+#   page.heroes.flint:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Flint"]
+#         threshold: 0.8
+
+#   page.heroes.flora:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Flora"]
+#         threshold: 0.8
+
+#   page.heroes.fred:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Fred"]
+#         threshold: 0.8
+
+#   page.heroes.freya:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Freya"]
+#         threshold: 0.8
+
+#   page.heroes.gatot:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gatot"]
+#         threshold: 0.8
+
+#   page.heroes.gina:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gina"]
+#         threshold: 0.8
+
+#   page.heroes.gisela:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gisela"]
+#         threshold: 0.8
+
+#   page.heroes.gordon:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gordon"]
+#         threshold: 0.8
+
+#   page.heroes.greg:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Greg"]
+#         threshold: 0.8
+
+#   page.heroes.gregory:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gregory"]
+#         threshold: 0.8
+
+#   page.heroes.gwen:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Gwen"]
+#         threshold: 0.8
+
+#   page.heroes.hank:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Hank"]
+#         threshold: 0.8
+
+#   page.heroes.hector:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Hector"]
+#         threshold: 0.8
+
+#   page.heroes.hendrik:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Hendrik"]
+#         threshold: 0.8
+
+#   page.heroes.hervor:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Hervor"]
+#         threshold: 0.8
+
+#   page.heroes.jasser:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Jasser"]
+#         threshold: 0.8
+
+#   page.heroes.jeronimo:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Jeronimo"]
+#         threshold: 0.8
+
+#   page.heroes.jessie:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Jessie"]
+#         threshold: 0.8
+
+#   page.heroes.karol:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Karol"]
+#         threshold: 0.8
+
+#   page.heroes.ligeia:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Ligeia"]
+#         threshold: 0.8
+
+#   page.heroes.ling_xue:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Ling Xue"]
+#         threshold: 0.8
+
+#   page.heroes.lloyd:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Lloyd"]
+#         threshold: 0.8
+
+#   page.heroes.logan:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Logan"]
+#         threshold: 0.8
+
+#   page.heroes.lumak_bokan:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Lumak Bokan"]
+#         threshold: 0.8
+
+#   page.heroes.lynn:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Lynn"]
+#         threshold: 0.8
+
+#   page.heroes.magnus:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Magnus"]
+#         threshold: 0.8
+
+#   page.heroes.mia:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Mia"]
+#         threshold: 0.8
+
+#   page.heroes.molly:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Molly"]
+#         threshold: 0.8
+
+#   page.heroes.natalia:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Natalia"]
+#         threshold: 0.8
+
+#   page.heroes.norah:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Norah"]
+#         threshold: 0.8
+
+#   page.heroes.patrick:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Patrick"]
+#         threshold: 0.8
+
+#   page.heroes.philly:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Philly"]
+#         threshold: 0.8
+
+#   page.heroes.reina:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Reina"]
+#         threshold: 0.8
+
+#   page.heroes.renee:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Renee"]
+#         threshold: 0.8
+
+#   page.heroes.rufus:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Rufus"]
+#         threshold: 0.8
+
+#   page.heroes.seigel:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Seigel"]
+#         threshold: 0.8
+
+#   page.heroes.seo_yoon:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Seo-yoon"]
+#         threshold: 0.8
+
+#   page.heroes.sergey:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Sergey"]
+#         threshold: 0.8
+
+#   page.heroes.smith:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Smith"]
+#         threshold: 0.8
+
+#   page.heroes.sonya:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Sonya"]
+#         threshold: 0.8
+
+#   page.heroes.ursar:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Ursar"]
+#         threshold: 0.8
+
+#   page.heroes.viveca:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Viveca"]
+#         threshold: 0.8
+
+#   page.heroes.vulcanus:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Vulcanus"]
+#         threshold: 0.8
+
+#   page.heroes.wayne:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Wayne"]
+#         threshold: 0.8
+
+#   page.heroes.wu_ming:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Wu Ming"]
+#         threshold: 0.8
+
+#   page.heroes.xura:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Xura"]
+#         threshold: 0.8
+
+#   page.heroes.zinman:
+#     rules:
+#       - ocr: page.heroes.unit.name
+#         contains: ["Zinman"]
+#         threshold: 0.8
+
+#   event.trials:
+#     rules:
+#       - ocr: page_title
+#         contains: [trials, trial]
+#         threshold: 0.8
+
+#   # Furnace = the central upgrade building. Identified by template-matching
+#   # the ``building.furnace`` region (the building's nameplate icon). Exit edge
+#   # piggybacks on the same ``from.building.to.main_city`` tap as ``building``.
+#   furnace:
+#     landmarks:
+#       - match: building.furnace
+#         threshold: 0.9
+#     rules:
+#       - match: building.furnace
+#         threshold: 0.9
+
+#   event.7-day:
+#     # Detection landmark: template match the "7-day" banner in references/event.7-day.png.
+#     landmarks:
+#       - match: event.7-day
+#         threshold: 0.9
+#     # Verification: prefer template match on the screen-unique banner, fall back to
+#     # page_title OCR for cases where the banner is partially scrolled out.
+#     rules:
+#       - match: event.7-day
+#         threshold: 0.9
+#       - ocr: page_title
+#         contains: [7-day, 7 day, 7days]
+#         threshold: 0.8
+
+#   event.first_purchase:
+#     rules:
+#       - ocr: page_title
+#         contains: [1st purchase, first purchase, t purchase]
+#         threshold: 0.8
+
+#   event.shining_city_pack:
+#     rules:
+#       - ocr: page_title
+#         contains: ["shining city pack", "shining city", "city pack"]
+#         threshold: 0.7
+#   event.wild_brawl:
+#     rules:
+#       - ocr: page_title
+#         contains: ["wild brawl", "brawl"]
+#         threshold: 0.7
+#   event.dreamscape_memory:
+#     rules:
+#       - ocr: page_title
+#         contains: ["dreamscape memory", "dreamscape"]
+#         threshold: 0.7
+#   event.armament_competition:
+#     rules:
+#       - ocr: page_title
+#         contains: ["armament competition", "armament"]
+#         threshold: 0.7
+#   event.deadshot:
+#     rules:
+#       - ocr: page_title
+#         contains: ["deadshot"]
+#         threshold: 0.7
+#   event.tundra_album:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra album"]
+#         threshold: 0.7
+#   event.defeat_nearby_beasts:
+#     rules:
+#       - ocr: page_title
+#         contains: ["defeat nearby beasts", "nearby beasts", "defeat beasts"]
+#         threshold: 0.7
+#   event.silver_shell:
+#     rules:
+#       - ocr: page_title
+#         contains: ["silver shell events", "silver shell"]
+#         threshold: 0.7
+#   event.snowbusters:
+#     rules:
+#       - ocr: page_title
+#         contains: ["snowbusters"]
+#         threshold: 0.7
+#   event.journey_of_light:
+#     rules:
+#       - ocr: page_title
+#         contains: ["journey of light", "journey"]
+#         threshold: 0.7
+#   event.labyrinth:
+#     rules:
+#       - ocr: page_title
+#         contains: ["the labyrinth", "labyrinth"]
+#         threshold: 0.7
+#   event.treasure_hunter:
+#     rules:
+#       - ocr: page_title
+#         contains: ["treasure hunter", "treasure"]
+#         threshold: 0.7
+#   event.crystal_reactivation:
+#     rules:
+#       - ocr: page_title
+#         contains: ["crystal reactivation", "crystal"]
+#         threshold: 0.7
+#   event.vault_of_enigma:
+#     rules:
+#       - ocr: page_title
+#         contains: ["vault of enigma", "vault", "enigma"]
+#         threshold: 0.7
+#   event.hero_rally:
+#     rules:
+#       - ocr: page_title
+#         contains: ["hero rally"]
+#         threshold: 0.7
+#   event.weekly_benefits:
+#     rules:
+#       - ocr: page_title
+#         contains: ["weekly benefits card", "weekly benefits", "benefits card"]
+#         threshold: 0.7
+#   event.flame_and_fang:
+#     rules:
+#       - ocr: page_title
+#         contains: ["flame and fang", "flame fang"]
+#         threshold: 0.7
+#   event.lucky_wheel:
+#     rules:
+#       - ocr: page_title
+#         contains: ["lucky wheel"]
+#         threshold: 0.7
+#   event.return_to_tundra:
+#     rules:
+#       - ocr: page_title
+#         contains: ["return to tundra", "return tundra"]
+#         threshold: 0.7
+#   event.mia_fortune:
+#     rules:
+#       - ocr: page_title
+#         contains: ["mia fortune"]
+#         threshold: 0.7
+#   event.ginas_revenge:
+#     rules:
+#       - ocr: page_title
+#         contains: ["gina's revenge", "gina revenge", "ginas revenge"]
+#         threshold: 0.7
+#   event.heros_mission:
+#     rules:
+#       - ocr: page_title
+#         contains: ["hero's mission", "heros mission", "hero mission"]
+#         threshold: 0.7
+#   event.frosty_fortune:
+#     rules:
+#       - ocr: page_title
+#         contains: ["frosty fortune"]
+#         threshold: 0.7
+#   event.king_of_icefield:
+#     rules:
+#       - ocr: page_title
+#         contains: ["king of icefield", "king icefield"]
+#         threshold: 0.7
+#   event.frostfire_mine:
+#     rules:
+#       - ocr: page_title
+#         contains: ["frostfire mine", "frostfire"]
+#         threshold: 0.7
+#   event.tundra_trading_station:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra trading station", "trading station"]
+#         threshold: 0.7
+#   event.hall_of_heroes:
+#     rules:
+#       - ocr: page_title
+#         contains: ["hall of heroes"]
+#         threshold: 0.7
+#   event.tundra_adventure:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra adventure"]
+#         threshold: 0.7
+#   event.fishing_tournament:
+#     rules:
+#       - ocr: page_title
+#         contains: ["fishing tournament", "fishing"]
+#         threshold: 0.7
+#   event.grow_your_heroes:
+#     rules:
+#       - ocr: page_title
+#         contains: ["grow your heroes", "grow heroes"]
+#         threshold: 0.7
+#   event.working_overtime:
+#     rules:
+#       - ocr: page_title
+#         contains: ["working overtime", "overtime"]
+#         threshold: 0.7
+#   event.home_and_beyond:
+#     rules:
+#       - ocr: page_title
+#         contains: ["home & beyond", "home beyond", "home and beyond"]
+#         threshold: 0.7
+#   event.city_development:
+#     rules:
+#       - ocr: page_title
+#         contains: ["city development"]
+#         threshold: 0.7
+#   event.plan_your_city:
+#     rules:
+#       - ocr: page_title
+#         contains: ["plan your city", "plan city"]
+#         threshold: 0.7
+#   event.trusted_chief:
+#     rules:
+#       - ocr: page_title
+#         contains: ["trusted chief"]
+#         threshold: 0.7
+#   event.power_up:
+#     rules:
+#       - ocr: page_title
+#         contains: ["power up"]
+#         threshold: 0.7
+#   event.hall_of_chief:
+#     rules:
+#       - ocr: page_title
+#         contains: ["hall of chief"]
+#         threshold: 0.7
+#   event.romance_season:
+#     rules:
+#       - ocr: page_title
+#         contains: ["romance season", "romance"]
+#         threshold: 0.7
+#   event.state_merger:
+#     rules:
+#       - ocr: page_title
+#         contains: ["state merger"]
+#         threshold: 0.7
+#   event.state_transfer:
+#     rules:
+#       - ocr: page_title
+#         contains: ["state transfer event", "state transfer"]
+#         threshold: 0.7
+#   event.symphony_of_change:
+#     rules:
+#       - ocr: page_title
+#         contains: ["symphony of change", "symphony"]
+#         threshold: 0.7
+#   event.sunfire_castle:
+#     rules:
+#       - ocr: page_title
+#         contains: ["sunfire castle", "sunfire"]
+#         threshold: 0.7
+#   event.vision_of_dawn:
+#     rules:
+#       - ocr: page_title
+#         contains: ["vision of dawn", "vision dawn"]
+#         threshold: 0.7
+#   event.brother_in_arms:
+#     rules:
+#       - ocr: page_title
+#         contains: ["brother in arms", "brother arms", "kill event"]
+#         threshold: 0.7
+#   event.officer_project:
+#     rules:
+#       - ocr: page_title
+#         contains: ["officer project"]
+#         threshold: 0.7
+#   event.tundra_arms_league:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra arms league", "arms league"]
+#         threshold: 0.7
+#   event.tundra_trade_route:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra trade route", "trade route"]
+#         threshold: 0.7
+#   event.alliance_showdown:
+#     rules:
+#       - ocr: page_title
+#         contains: ["alliance showdown", "showdown"]
+#         threshold: 0.7
+#   event.frostdragon_tyrant:
+#     rules:
+#       - ocr: page_title
+#         contains: ["frostdragon tyrant", "frostdragon"]
+#         threshold: 0.7
+#   event.canyon_clash:
+#     rules:
+#       - ocr: page_title
+#         contains: ["canyon clash", "canyon"]
+#         threshold: 0.7
+#   event.svs:
+#     rules:
+#       - ocr: page_title
+#         contains: ["svs", "state of power", "svs state"]
+#         threshold: 0.7
+#   event.foundry_battle:
+#     rules:
+#       - ocr: page_title
+#         contains: ["foundry battle", "foundry"]
+#         threshold: 0.7
+#   event.bear_hunt:
+#     rules:
+#       - ocr: page_title
+#         contains: ["bear hunt", "bear"]
+#         threshold: 0.7
+#   event.crazy_joe:
+#     rules:
+#       - ocr: page_title
+#         contains: ["crazy joe", "joe"]
+#         threshold: 0.7
+#   event.alliance_championship:
+#     rules:
+#       - ocr: page_title
+#         contains: ["alliance championship", "championship"]
+#         threshold: 0.7
+#   event.mercenary_prestige:
+#     rules:
+#       - ocr: page_title
+#         contains: ["mercenary prestige", "mercenary"]
+#         threshold: 0.7
+#   event.alliance_mobilization:
+#     rules:
+#       - ocr: page_title
+#         contains: ["alliance mobilization", "mobilization"]
+#         threshold: 0.7
+#   event.develop_new_tech:
+#     rules:
+#       - ocr: page_title
+#         contains: ["develop new tech", "new tech"]
+#         threshold: 0.7
+#   event.tundra_star:
+#     rules:
+#       - ocr: page_title
+#         contains: ["tundra star"]
+#         threshold: 0.7
+#   event.daybreak_expedition:
+#     rules:
+#       - ocr: page_title
+#         contains: ["daybreak expedition", "daybreak"]
+#         threshold: 0.7
+#   event.beast_whisperer:
+#     rules:
+#       - ocr: page_title
+#         contains: ["beast whisperer", "whisperer"]
+#         threshold: 0.7
+#   event.stand_of_arms:
+#     rules:
+#       - ocr: page_title
+#         contains: ["stand of arms"]
+#         threshold: 0.7
+#   event.war_preparation:
+#     rules:
+#       - ocr: page_title
+#         contains: ["war preparation", "war prep"]
+#         threshold: 0.7
+
+#   chief_profile:
+#     retry:
+#       attempts: 8
+#       interval_seconds: 1.0
+#     rules:
+#     - ocr: page_title
+#       contains: [chief profile, chief, profile]
+#       threshold: 0.8
+
+#   survivor_status:
+#     priority: 45
+#     landmarks:
+#       - match: page.survivor_status
+#         threshold: 0.85
+#     rules:
+#       - match: page.survivor_status
+#         threshold: 0.85
+
+#   hero.recrutment:
+#     priority: 44
+#     landmarks:
+#       - match: isHeroRecruitment
+#         threshold: 0.9
+#     rules:
+#       - match: isHeroRecruitment
+#         threshold: 0.9

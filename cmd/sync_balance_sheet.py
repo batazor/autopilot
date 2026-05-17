@@ -102,7 +102,9 @@ _HERO_NAME_TO_ID: dict[str, str] = {}
 def _hero_id_for(name: str) -> str | None:
     """Slugify ``name`` and verify a hero file exists in db/heroes/."""
     if not _HERO_NAME_TO_ID:
-        idx_path = _repo_root() / "db" / "heroes" / "index.yaml"
+        from config.heroes import hero_index_path
+
+        idx_path = hero_index_path(_repo_root())
         idx = _load_yaml(idx_path)
         for entry in idx.get("heroes", []) or []:
             if not isinstance(entry, dict):
@@ -199,7 +201,9 @@ def _sync_hero_levels(client: httpx.Client) -> tuple[int, int]:
     blocks = _parse_hero_levels(rows)
     updated = 0
     missing: list[str] = []
-    heroes_dir = _repo_root() / "db" / "heroes"
+    from config.heroes import heroes_wiki_dir
+
+    heroes_dir = heroes_wiki_dir(_repo_root())
     for hero_name, levels in blocks.items():
         hid = _hero_id_for(hero_name)
         if not hid:

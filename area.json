@@ -45,22 +45,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "hand_pointer_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 2.1235521235521237,
-            "y": 9.453260869565218,
-            "width": 94.75289575289575,
-            "height": 88.64565217391305,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
           "name": "hand_pointer_tap",
@@ -98,23 +84,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "hand_pointer_small_reverse_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.7374517374517375,
-            "y": 25.76086956521739,
-            "width": 95.58689189189188,
-            "height": 72.23366304347826,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
           "name": "hand_pointer_small_reverse_tap",
@@ -152,23 +123,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "hand_pointer_small_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 0.0,
-            "y": 2.9347826086956523,
-            "width": 83.25096525096525,
-            "height": 95.7891304347826,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
           "name": "hand_pointer_small_tap",
@@ -206,23 +162,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "button.claim_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 6.563706563706564,
-            "y": 14.021739130434783,
-            "width": 88.04440154440154,
-            "height": 83.44782608695652,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
           "name": "claim_button_close",
@@ -237,23 +178,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "claim_button_close_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 87.06563706563706,
-            "y": 4.782608695652174,
-            "width": 12.23938223938224,
-            "height": 7.956521739130435,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -275,23 +201,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "upgrade_building_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 39.130434782608695,
-            "width": 94.7992277992278,
-            "height": 51.516304347826086,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -313,23 +224,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "build_building_item_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.698841698841699,
-            "y": 37.391304347826086,
-            "width": 96.8996138996139,
-            "height": 55.254347826086956,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -351,23 +247,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "upgrade_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 39.130434782608695,
-            "width": 94.7992277992278,
-            "height": 51.516304347826086,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -389,23 +270,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "go_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 64.82625482625483,
-            "y": 48.58695652173913,
-            "width": 33.02123552123552,
-            "height": 41.243478260869566,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -427,23 +293,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "build_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 72.0,
-            "width": 94.7992277992278,
-            "height": 26.64891304347826,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -465,23 +316,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "upgrade_big_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 3.2432432432432434,
-            "y": 72.43478260869566,
-            "width": 94.7992277992278,
-            "height": 26.64891304347826,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -503,45 +339,223 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "add_worker_button_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.505791505791506,
-            "y": 39.130434782608695,
-            "width": 94.7992277992278,
-            "height": 51.516304347826086,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
     {
       "id": 14,
       "screen_id": "",
-      "ocr": "references/confirm_button.png",
+      "ocr": "references/welcome_back.png",
       "regions": [
         {
-          "name": "confirm_button",
+          "name": "text.welcome_back",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 34.71042471042471,
-            "y": 77.71739130434783,
-            "width": 31.000000000000004,
-            "height": 4.6,
+            "x": 35.13899613899614,
+            "y": 18.515217391304347,
+            "width": 29.44401544401545,
+            "height": 2.1869565217391305,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "hash": "55cd71a1aa0ccda1efbcf6e6c6e436b115fe134ccaa651b97a673d84286a859c"
+        },
+        {
+          "name": "text.time_offlined",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.58301158301158,
+            "y": 24.609782608695653,
+            "width": 21.111969111969113,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "fd86b266a23998e98bb0c3adcad9944ffd993e484ab285c33c59a01a7bd520f4"
+        },
+        {
+          "name": "text.01_40_12",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 47.08301158301158,
+            "y": 30.859782608695657,
+            "width": 16.388030888030887,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9531bd1323033c19f7a90a7efaa8d12e7ab13896f4b36c7937175559d5832319"
+        },
+        {
+          "name": "text.max_offline_income_12hrs",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.611969111969113,
+            "y": 35.39021739130435,
+            "width": 42.5,
+            "height": 1.7967391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "70db6425f9a97a08a2bc1f80f90fa3dd2a4ffbdcc330deb71c780d55709b1f91"
+        },
+        {
+          "name": "text.offline_incomed",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 37.36100386100386,
+            "y": 43.51521739130435,
+            "width": 25.138996138996138,
+            "height": 2.734782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "119857dc4c598b1196a38ab61ae75095ab4ec8b71a328fb1c917aa3177423afd"
+        },
+        {
+          "name": "text.overview",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.666023166023166,
+            "y": 64.06304347826087,
+            "width": 16.666023166023166,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "dcaf5065a170b0e47954605e6cb57174c964c907f393256937ad20d6499cc693"
+        },
+        {
+          "name": "icon.10_2k",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.737451737451735,
+            "y": 49.51195652173913,
+            "width": 18.397683397683398,
+            "height": 10.254347826086956,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "44aba704e5d26ec2159e715fa12c8a001b09cb42d49faa1b490fce7400c5a766"
+        },
+        {
+          "name": "button.confirm.green",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.97104247104247,
+            "y": 76.69347826086957,
+            "width": 39.91312741312741,
+            "height": 7.304347826086956,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "5c6e24f0659906c499fd87bb50988d01bf97e0a6f1b711d4311ec8f79675ab08"
+        },
+        {
+          "name": "icon.the_symbol_or_symbol_of_a_single_line",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.617760617760613,
+            "y": 69.06086956521739,
+            "width": 5.8687258687258685,
+            "height": 4.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "be944cea6116680aed6e614e9ed2770a16b0271d2973032a2f32bb7e447ccdcf"
+        },
+        {
+          "name": "icon.a_crosswalk_or_walk_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.14864864864865,
+            "y": 18.096739130434784,
+            "width": 5.955598455598456,
+            "height": 3.3369565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d495047ecdabd4820a5d37258b9e5b332bb5bc13e787a352c813b5a5aea638ae"
+        },
+        {
+          "name": "icon.a_symbol_or_icon_indicating_a_pause_or_cancel_fu",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 21.515444015444015,
+            "y": 68.89130434782608,
+            "width": 7.8011583011583,
+            "height": 4.503260869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b8aad3bfba7d694efaa4df41b26798a9daff9611ae68815ff1033a34cb960b99"
+        },
+        {
+          "name": "icon.a_simple_logitech_logo",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.998069498069498,
+            "y": 29.920652173913044,
+            "width": 8.38030888030888,
+            "height": 4.767391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "4c7da111877134df0e73e590b583a178af729d763410e82aeb66ef9e464ab466"
+        },
+        {
+          "name": "icon.a_thumbs_up_or_like_button",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 58.06370656370656,
+            "y": 69.36195652173913,
+            "width": 8.83011583011583,
+            "height": 3.7271739130434782,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "60f1d690a047a4d655f8369a1130292b4eaf578cba65b3a2a7e0b1d1b5a07673"
         }
       ]
     },
@@ -642,6 +656,21 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "main_city.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.97683397683398,
+            "y": 6.8478260869565215,
+            "width": 11.200772200772201,
+            "height": 1.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ],
       "versions": [
@@ -761,10 +790,234 @@
                 "original_height": 1280
               },
               "has_red_dot": true
+            },
+            {
+              "name": "text.6_6",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 84.58301158301158,
+                "y": 25.859782608695653,
+                "width": 9.722007722007723,
+                "height": 2.1880434782608695,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "909a18584d72978d36484dd77f103741c9a1828dc051e0ef13d0abd771951c72"
+            },
+            {
+              "name": "text.ksa_sgle_ksa_power_alliance_looking_for_an_acti",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 10.416988416988417,
+                "y": 86.875,
+                "width": 88.61196911196912,
+                "height": 2.109782608695652,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "18da23e0fb712b77126a9ef1c46faaeacb8983f37030f7d3940be1ae6608283f"
+            },
+            {
+              "name": "text.ksa_xpand_tidak_buruk_dengan_angka_5",
+              "action": "text",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 10.13899613899614,
+                "y": 88.98478260869565,
+                "width": 52.222007722007724,
+                "height": 1.9532608695652174,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "e4e84a66b22d8b81db382d54ead5419ff88e85cbf85e2e05f8b08d5fad6b2b74"
+            },
+            {
+              "name": "icon.17_30",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 12.718146718146718,
+                "y": 0.006521739130434782,
+                "width": 18.984555984555985,
+                "height": 3.618478260869565,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "e27db5ed827d198c02c4c596ac898acfca850d3709d62033fe7fa83afa963985"
+            },
+            {
+              "name": "icon.6_8",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 32.625482625482626,
+                "y": 0.0,
+                "width": 20.85135135135135,
+                "height": 3.514130434782609,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "ea03fab564b1e6dc2416713688c0900cbcdacfaa3b1b5eb0482aaca1a145b851"
+            },
+            {
+              "name": "icon.world",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 80.87451737451738,
+                "y": 90.95869565217392,
+                "width": 17.214285714285715,
+                "height": 9.041304347826086,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "46a364656b45d8de95ed59c49d0a00309dc32910daefc9d13aa6fbdf6cfefd02"
+            },
+            {
+              "name": "main_city.resources",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 54.35521235521235,
+                "y": 0.08260869565217391,
+                "width": 15.127413127413128,
+                "height": 2.9239130434782608,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "40f48a76370ae45de077171b051c3333218f70d9a63424c357db7ba122eba188"
+            },
+            {
+              "name": "icon.a_lock_or_padlock_symbol",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 50.6042471042471,
+                "y": 91.73152173913043,
+                "width": 16.034749034749034,
+                "height": 8.268478260869564,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "7e130863ed3ca4a67300707d24dcc81992f01117d86216fe43d473ab2347baa5"
+            },
+            {
+              "name": "icon.a_lock_or_padlock_symbol.3",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 66.93629343629344,
+                "y": 91.57717391304348,
+                "width": 12.698841698841699,
+                "height": 8.42282608695652,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "bad4395381e17593735898a8444056d596b59b20d0fb942022cd70b99b54cfd4"
+            },
+            {
+              "name": "icon.a_man_with_a_beard_and_mustache",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 0.0,
+                "y": 17.754347826086956,
+                "width": 21.557915057915057,
+                "height": 8.940217391304348,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "a02de4b27b37da6155c83d5bd0dc82549e6b9bb7c6ddeef1b3fff27079084764"
+            },
+            {
+              "name": "main_city.diamond",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 73.57722007722008,
+                "y": 0.05217391304347826,
+                "width": 18.853281853281853,
+                "height": 3.5184782608695646,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "2dbcb308b7e6848e64e367dc6ab463bbd0a9ea7352b48cc1346e0bd5a734f564"
+            },
+            {
+              "name": "icon.a_blurry_image_of_a_hand_reaching_towards_the_sk",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 0.0,
+                "y": 47.55543478260869,
+                "width": 3.1023166023166024,
+                "height": 4.404347826086957,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "7b95c7edfb655f06e9b6183edffedee73dff433edf322e2b6f39723909447c9b"
+            },
+            {
+              "name": "icon.a_logo_or_emblem_for_a_website_or_application",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 1.7992277992277992,
+                "y": 86.65,
+                "width": 8.262548262548263,
+                "height": 4.639130434782609,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              },
+              "hash": "ead16946c31f32cd1016b3e0863049e5468b8b5521526050c8b72c3c7d1d6c29"
+            },
+            {
+              "name": "region",
+              "action": "exist",
+              "type": "string",
+              "threshold": 0.9,
+              "bbox": {
+                "x": 12.895752895752896,
+                "y": 3.8043478260869565,
+                "width": 28.7992277992278,
+                "height": 3.3000000000000007,
+                "rotation": 0.0,
+                "original_width": 720,
+                "original_height": 1280
+              }
             }
           ]
         }
-      ]
+      ],
+      "screen_region": "main_city.title"
     },
     {
       "id": 16,
@@ -772,7 +1025,7 @@
       "ocr": "references/mail_page.png",
       "regions": [
         {
-          "name": "back_button",
+          "name": "button.back",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -787,14 +1040,14 @@
           }
         },
         {
-          "name": "page_title",
-          "action": "text",
+          "name": "mail.title",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 11.544401544401545,
             "y": 0.32608695652173914,
-            "width": 72.0,
+            "width": 12.23938223938224,
             "height": 4.9,
             "rotation": 0.0,
             "original_width": 720,
@@ -882,7 +1135,7 @@
           "has_red_dot": true
         },
         {
-          "name": "mail_gift",
+          "name": "mail.gift",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -894,53 +1147,55 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
-          "name": "mail_gift_search",
+          "name": "mail.claim.all",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 82.56756756756756,
-            "y": 14.673913043478262,
-            "width": 15.183397683397684,
-            "height": 72.59239130434783,
+            "x": 56.33204633204633,
+            "y": 93.15217391304348,
+            "width": 37.26061776061776,
+            "height": 6.4,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
-          "name": "mail.claim_all",
+          "name": "mail.delete.all",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 65.7915057915058,
-            "y": 95.0,
-            "width": 27.6003861003861,
-            "height": 3.9999999999999996,
+            "x": 4.787644787644788,
+            "y": 93.15217391304348,
+            "width": 41.92084942084942,
+            "height": 5.831521739130435,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
         },
         {
-          "name": "mail.delete_all",
+          "name": "icon.welcome_to_whiteout_survival_dear_chief_2026_05",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 15.019305019305019,
-            "y": 95.21739130434783,
-            "width": 32.0,
-            "height": 3.5999999999999996,
+            "x": 3.227799227799228,
+            "y": 25.208695652173912,
+            "width": 93.6023166023166,
+            "height": 10.439130434782609,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "hash": "3782c24bcb53eda5a766e014e8305755b1d0fb65a7c670e836a21a56ae17a6e7"
         }
       ]
     },
@@ -950,7 +1205,7 @@
       "ocr": "references/big_claim_button.png",
       "regions": [
         {
-          "name": "big_claim_button",
+          "name": "button.claim.big",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
@@ -962,23 +1217,88 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
-          "name": "big_claim_button_search",
+          "name": "mail.delete",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 10.193050193050192,
-            "y": 48.369565217391305,
-            "width": 82.33783783783784,
-            "height": 38.56521739130435,
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "dfdb9c98e26e3f628a0ba4383c4089505e2c41675a33ca2fd046ad6ffd3ee52c"
+        },
+        {
+          "name": "icon.2026_05_0815_20_42",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.063706563706564,
+            "y": 8.685869565217391,
+            "width": 94.08880308880309,
+            "height": 11.869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "47bbdbe3fe6c5c74cf38a5e6cfdb6cdbc34f8700af2a910eff97bb593221c60f"
+        },
+        {
+          "name": "mail.next",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.37065637065638,
+            "y": 47.471739130434784,
+            "width": 6.932432432432432,
+            "height": 6.228260869565218,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9b7cf7c56e2de4611fb6c9895812870bfdc92b70ebb565865293bbfab8236de5"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.79729729729729,
+            "y": 1.25,
+            "width": 7.766409266409266,
+            "height": 4.708695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "48d515be1aad7665fece7aee6b3acf1a718ab723b09a6eb9174410c6983daa63"
         }
       ]
     },
@@ -988,51 +1308,326 @@
       "ocr": "references/chief_profile.png",
       "regions": [
         {
-          "name": "chief_profile_title",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 11.737451737451737,
-            "y": 0.32608695652173914,
-            "width": 29.0,
-            "height": 4.556521739130435,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "profile_btn",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.1196911196911197,
-            "y": 0.43478260869565216,
-            "width": 9.0,
-            "height": 4.5,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "player_id",
+          "name": "text.lord765502864",
           "action": "text",
-          "type": "integer",
+          "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 42.818532818532816,
-            "y": 73.3695652173913,
-            "width": 21.2007722007722,
-            "height": 3.5000000000000004,
+            "x": 40.41698841698842,
+            "y": 69.76521739130435,
+            "width": 40.52895752895753,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "798e1b68a48ce96d28874a8c2ec0700c3902ee3491454fc6e89556cc62e6a4f5"
+        },
+        {
+          "name": "player.id",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.664092664092664,
+            "y": 74.06304347826087,
+            "width": 20.884169884169886,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3d5658dd80b61eff48ac835dc252661816e811cdba18030b023d46f3db6316d4"
+        },
+        {
+          "name": "text.17_492_q",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.61196911196911,
+            "y": 77.34347826086956,
+            "width": 22.22200772200772,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a48f95aa206ead96462d4a28d99c466c6a6557a726811017b4cd9377eae0f3e9"
+        },
+        {
+          "name": "text.kills_0_q",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 80.07826086956521,
+            "width": 16.666023166023166,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b872f0538789e144b3df2b456a4c574e90f282d27c751032e8607b17db4f5feb"
+        },
+        {
+          "name": "text.state_4353",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 86.56304347826087,
+            "width": 21.527027027027028,
+            "height": 2.4217391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "079947acb4ff0a779d51c49b1e45d038f1065abba1cde5f7cda7b20ce99b46bf"
+        },
+        {
+          "name": "icon.settingse",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.94980694980696,
+            "y": 91.67934782608695,
+            "width": 23.727799227799228,
+            "height": 7.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d2cd0a8c63b38aeab521bb7355e4046c40c140896bb5657c843bb132f0b5f5c1"
+        },
+        {
+          "name": "icon.troopse",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 25.77799227799228,
+            "y": 92.40978260869565,
+            "width": 23.7992277992278,
+            "height": 6.409782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e9278249ebea2a9793a6dc3c200d5342611ebff34ee3d2a6049ff61b5ca25e6e"
+        },
+        {
+          "name": "icon.leaderboard",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.42857142857144,
+            "y": 92.38152173913043,
+            "width": 23.7992277992278,
+            "height": 6.435869565217391,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8757c00e6efef8ba5d1ed7c82bf8e28e5c2dab2ad4fe0eb313ffec5e2f6d425d"
+        },
+        {
+          "name": "icon.mood",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.772200772200772,
+            "y": 81.3695652173913,
+            "width": 23.712355212355213,
+            "height": 3.6086956521739135,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b1b58d86ff2a53b0e081674ebc7c59c99345b5e3b3179c2aa9934405248dfa07"
+        },
+        {
+          "name": "icon.200_200",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 8.108108108108109,
+            "y": 85.17934782608695,
+            "width": 21.666023166023166,
+            "height": 3.866304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "033418bdbeddbe1b755214b24ac2e49f566766eb4ec425ad83f64b4f7fb940ec"
+        },
+        {
+          "name": "icon.page.back",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.7702702702702703,
+            "y": 0.5163043478260869,
+            "width": 10.832046332046332,
+            "height": 4.95,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "4ebf7081af15a3e1a46030e30081ffe3a4ff0c197a4741de9d1853e541e9e54e"
+        },
+        {
+          "name": "icon.alliance_none",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 38.472972972972975,
+            "y": 83.3054347826087,
+            "width": 28.023166023166024,
+            "height": 3.0663043478260867,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "af967796770f3f3c8e5b8cb200024f9f5f9a37b36b06280e4f19cd621a1c7e78"
+        },
+        {
+          "name": "icon.a_profile_picture_of_a_man_with_a_mustache",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.818532818532818,
+            "y": 68.47826086956522,
+            "width": 24.723938223938223,
+            "height": 12.660869565217391,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "23fc19dbc0eb1f107cfcebc61243987f51ccdb7ed9ed15eb2a23b23b455488e9"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol_indicating_the_skins_ap",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.167953667953668,
+            "y": 92.41304347826087,
+            "width": 23.805019305019304,
+            "height": 6.470652173913043,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ead3b759434591fc1659f872ea67c4473c2d42003f0dcc56031501e90f16bbcb"
+        },
+        {
+          "name": "icon.a_cursor_pointing_to_the_right",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 83.84169884169884,
+            "y": 69.06521739130434,
+            "width": 6.731660231660231,
+            "height": 3.8945652173913046,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "554d1069ec83152ab4ff78af689a9bcfc57f3997f214d909cb7e2dbae728f6e6"
+        },
+        {
+          "name": "icon.a_simple_icon_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 29.138996138996138,
+            "y": 85.14782608695653,
+            "width": 7.434362934362935,
+            "height": 3.9847826086956517,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e790cdfa44c9f45d5148d54bc91ae5555c694bcd7a11a308920b2fb719334750"
+        },
+        {
+          "name": "icon.a_simple_marker_or_icon_indicating_the_letter_v",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 73.26061776061776,
+            "y": 77.13478260869566,
+            "width": 14.583011583011585,
+            "height": 2.7217391304347824,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8322577f2e205b5fe92b7805133b68d97ade90e60446c9aef596c1f4985d53d2"
+        },
+        {
+          "name": "icon.a_character_from_a_video_game",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 10.32391304347826,
+            "width": 100.0,
+            "height": 53.64565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "5ff00dbc9729cb6db93e3479fd5d8dc137093b7aefe9410a4a0519ca8e465e3e"
+        },
+        {
+          "name": "icon.a_search_function",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 56.42084942084942,
+            "y": 76.94673913043478,
+            "width": 4.768339768339768,
+            "height": 3.1554347826086957,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "306fd66fd81081886c3eb4d24a6efee1c40e46ba6a9e362d03468c1dad22289e"
+        },
+        {
+          "name": "chief_profile.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.316602316602317,
+            "y": 0.5434782608695652,
+            "width": 27.3996138996139,
+            "height": 4.9,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           }
         }
-      ]
+      ],
+      "screen_region": "chief_profile.title"
     },
     {
       "id": 19,
@@ -1074,19 +1669,65 @@
     },
     {
       "id": 20,
-      "screen_id": "",
+      "screen_id": "reconnect",
+      "screen_region": "icon.reconnect",
       "ocr": "references/retry_page.png",
       "regions": [
         {
-          "name": "reconnect_button",
+          "name": "text.connection_lost",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 35.41698841698842,
+            "y": 34.14021739130435,
+            "width": 29.72200772200772,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.contact_us",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 53.82239382239382,
-            "y": 59.67391304347826,
-            "width": 36.6003861003861,
-            "height": 5.3,
+            "x": 5.5096525096525095,
+            "y": 59.17391304347826,
+            "width": 44.00965250965251,
+            "height": 6.959782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.reconnect",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.422779922779924,
+            "y": 59.15652173913043,
+            "width": 44.04247104247104,
+            "height": 7.001086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "icon.unable_to_connect_please_check_your_connection_a",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.625482625482626,
+            "y": 42.707608695652176,
+            "width": 88.41891891891892,
+            "height": 15.289130434782608,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1156,7 +1797,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         }
       ]
     },
@@ -1239,22 +1881,6 @@
             "original_width": 720,
             "original_height": 1280
           }
-        },
-        {
-          "name": "claim_all_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 57.2972972972973,
-            "y": 69.56521739130434,
-            "width": 38.91312741312741,
-            "height": 22.80539130434783,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
         }
       ]
     },
@@ -1276,23 +1902,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "tapanywhereyoexit_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 18.77799227799228,
-            "y": 72.3913043478261,
-            "width": 59.0926640926641,
-            "height": 26.842391304347824,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -1302,35 +1913,100 @@
       "ocr": "references/big_claim.png",
       "regions": [
         {
-          "name": "big_claim_button_disabled",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 40.69498069498069,
-            "y": 60.43478260869565,
-            "width": 20.0,
-            "height": 4.9,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "big_claim_button_disabled_search",
+          "name": "button.claimed.disabled",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 20.038610038610038,
-            "y": 52.93478260869565,
-            "width": 63.7992277992278,
-            "height": 34.98586956521739,
+            "x": 32.237451737451735,
+            "y": 60.43478260869565,
+            "width": 35.2992277992278,
+            "height": 5.5271739130434785,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "hash": "a9d418581c84514ae6e32592c48fb1d229f2cd18e0a590152e5df29c30242f1a"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "51db066391daf3035435c75bf9692afc39eeac8a371152b6b3081fe5d3dc2cac"
+        },
+        {
+          "name": "icon.2026_05_0815_20_42",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.052123552123552,
+            "y": 8.683695652173913,
+            "width": 94.17760617760618,
+            "height": 11.840217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "37110693d3a3804bc21dd2c6a1f5fd2982b6abe8365d2e1f211abf96cc7e7fd7"
+        },
+        {
+          "name": "mail.next",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.99034749034749,
+            "y": 47.415217391304346,
+            "width": 7.517374517374518,
+            "height": 5.623913043478261,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0f78da716b4f921cd674e9061b70cd0f5b34b34072589707e3beae59e1621dec"
+        },
+        {
+          "name": "mail.delete",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "80a4da74a0e99dc06ce1d59f09ac58641169cd12399cbfc8735e4945df186918"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.81274131274131,
+            "y": 1.2173913043478262,
+            "width": 7.737451737451737,
+            "height": 4.744565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f845842599e64984c58eb8a00c12c2eb81f857f9f28092ebfdc37df25178fd25"
         }
       ]
     },
@@ -1340,8 +2016,8 @@
       "ocr": "references/go_big_button.png",
       "regions": [
         {
-          "name": "go_big_button",
-          "action": "text",
+          "name": "button.go.big",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1352,23 +2028,235 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "aliases": [
+            "icon.a_blue_folder_with_the_number_60"
+          ],
+          "isSearch": true
         },
         {
-          "name": "go_big_button_search",
+          "name": "icon.2026_05_0815_20_42",
           "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
-            "x": 10.386100386100386,
-            "y": 21.956521739130434,
-            "width": 82.61969111969113,
-            "height": 69.31847826086957,
+            "x": 3.052123552123552,
+            "y": 8.683695652173913,
+            "width": 94.17760617760618,
+            "height": 11.840217391304348,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "hash": "b842d61be500075a4b866c2763c680598dc6e3b67e1d51c5dfa346174e2f84a2"
+        },
+        {
+          "name": "text.claim_the_milestone_rewards_below_now_stay_tuned",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 7.2222227520412865,
+            "y": 34.609375,
+            "width": 82.08333280351428,
+            "height": 1.7187500000000022,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "fd32f48a9d5646265fa5f1ea777c644acb53d4e5d6d133d3e27a75bf4f66b990"
+        },
+        {
+          "name": "text.more_updates_from_our_official_facebook_page_mor",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.666667196485731,
+            "y": 36.640625,
+            "width": 79.3055550257365,
+            "height": 2.34375,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c0b6bf998f8a650aca34fbee50808cde811f9f530591e0fa7afb9f441622f0fd"
+        },
+        {
+          "name": "text.rewards_awaits",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.805555555555555,
+            "y": 39.296875,
+            "width": 25.00000211927626,
+            "height": 1.7187500000000022,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "511d70c93f04878ef982652e3ddf6db1d6630115798b251a1d921258922591ec"
+        },
+        {
+          "name": "text.tap_the_go_button_below_to_view_more_event_detai",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.94444497426351,
+            "y": 43.75,
+            "width": 80.13888835906982,
+            "height": 2.109375000000002,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1d6afe1c115542c0900cbf48db201751fa4a1e84e7a91dfc4e91efde25c5a197"
+        },
+        {
+          "name": "text.whiteout_survival_team",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.666667196485731,
+            "y": 48.359375,
+            "width": 36.80555502573649,
+            "height": 2.265624999999999,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "87d382241df2010b3948a06c04cbb95d75ae48b1be296bdb1741eedf0470f085"
+        },
+        {
+          "name": "button.claim.big",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.166023166023166,
+            "y": 57.28260869565217,
+            "width": 33.2007722007722,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b0f653bf2941fc0b478baabf7d052d43200cc218cc010310bff0abb271ca89c1"
+        },
+        {
+          "name": "text.expires_in_2026_05_15_11_38_45",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 23.88888888888889,
+            "y": 88.828125,
+            "width": 47.638888888888886,
+            "height": 1.5625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3b7551413ff9ad427dc4b7b6d8d455e288b5e43515ca007f2d68d243f29fd537"
+        },
+        {
+          "name": "mail.delete",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.6061776061776,
+            "y": 94.21195652173913,
+            "width": 21.835907335907336,
+            "height": 5.589130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2d2da662e453eb80813b66794c2ec5d11c7e46af5a633c52fac81aec9e676514"
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.355212355212355,
+            "y": 0.5826086956521739,
+            "width": 10.21042471042471,
+            "height": 5.26304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "dfdb9c98e26e3f628a0ba4383c4089505e2c41675a33ca2fd046ad6ffd3ee52c"
+        },
+        {
+          "name": "icon.a_computer_mouse_pad_with_the_name_dayl_on_it",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.00575086805556,
+            "y": 64.73320960998535,
+            "width": 15.772060818142364,
+            "height": 8.795104026794432,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c9685f2887383ce3be86691df70ee46cfa8540e9e098646d40367c46fcbdcf1e"
+        },
+        {
+          "name": "icon.a_simple_step_or_guide_guide",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.989737616644966,
+            "y": 64.68973159790039,
+            "width": 15.856721666124132,
+            "height": 9.024610519409181,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "833ff62600babe239e7280c0a3c74f3aae142cb1d9c0463c6dde4d657c3e3ff0"
+        },
+        {
+          "name": "icon.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 90.79729729729729,
+            "y": 1.25,
+            "width": 7.766409266409266,
+            "height": 4.708695652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2c19c3c867be5d996139fd0f412da69d3f8c321f9ce7390c76e7163c2d7f7dce"
+        },
+        {
+          "name": "icon.a_push_button_or_arrow",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.5915018717448,
+            "y": 51.28268718719482,
+            "width": 7.073449028862844,
+            "height": 3.2108306884765625,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2a6303767393bd137a6449eb67e70ac47c26eca74e67159f0e0c7a85015e9c12"
         }
       ]
     },
@@ -1390,7 +2278,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "isSearch": true
         },
         {
           "name": "ads.info_tap",
@@ -1402,22 +2291,6 @@
             "y": 60.54347826086956,
             "width": 19.14864864864865,
             "height": 9.576086956521738,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "overlay_auxiliary": true
-        },
-        {
-          "name": "ads.info_search",
-          "action": "findIcon",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.4131274131274132,
-            "y": 21.195652173913043,
-            "width": 97.5984555984556,
-            "height": 70.96847826086956,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -1459,23 +2332,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "page.worker.add_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 84.57335907335907,
-            "y": 44.66413043478261,
-            "width": 10.40926640926641,
-            "height": 45.45434782608696,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
           "name": "from.survivor_status.to.main_city",
@@ -1516,7 +2374,7 @@
       "regions": [
         {
           "name": "button.done",
-          "action": "text",
+          "action": "exist",
           "type": "string",
           "threshold": 0.9,
           "bbox": {
@@ -1527,23 +2385,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "button.done_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 3.2432432432432434,
-            "y": 10.326086956521738,
-            "width": 92.0019305019305,
-            "height": 84.6,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -1565,23 +2408,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "button.next_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 49.640926640926644,
-            "y": 44.891304347826086,
-            "width": 48.2007722007722,
-            "height": 22.79021739130435,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -1655,23 +2483,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "isPostman_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 10.386100386100386,
-            "y": 16.08695652173913,
-            "width": 76.8011583011583,
-            "height": 64.50978260869566,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -1693,23 +2506,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "ui.button.confirm_blue_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 22.393822393822393,
-            "y": 32.391304347826086,
-            "width": 73.16988416988417,
-            "height": 60.28695652173913,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -1731,23 +2529,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "dontshowthisagaintoday_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 3.2432432432432434,
-            "y": 38.15217391304348,
-            "width": 93.77220077220078,
-            "height": 50.6,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         },
         {
           "name": "dontshowthisagaintoday_tap",
@@ -1860,23 +2643,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "hero.recrutment.advanced.free_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 17.915057915057915,
-            "y": 65.0,
-            "width": 69.70463320463321,
-            "height": 32.15217391304348,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -2466,7 +3234,7 @@
     },
     {
       "id": 51,
-      "screen_id": "",
+      "screen_id": "ads.natalia",
       "ocr": "references/ads.natalia.png",
       "regions": [
         {
@@ -2484,7 +3252,8 @@
             "original_height": 1280
           }
         }
-      ]
+      ],
+      "screen_region": "ads.natalia"
     },
     {
       "id": 52,
@@ -2499,7 +3268,7 @@
           "bbox": {
             "x": 59.45945945945946,
             "y": 3.4782608695652173,
-            "width": 20.6003861003861,
+            "width": 20.393822393822393,
             "height": 3.5999999999999996,
             "rotation": 0.0,
             "original_width": 720,
@@ -2973,23 +3742,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "page.vip.increase.close_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 74.9034749034749,
-            "y": 4.673913043478261,
-            "width": 21.92084942084942,
-            "height": 12.543478260869565,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -3033,23 +3787,8 @@
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
-          }
-        },
-        {
-          "name": "box.gift_search",
-          "action": "exist",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 1.3513513513513513,
-            "y": 5.0,
-            "width": 90.04633204633204,
-            "height": 88.95760869565217,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
           },
-          "overlay_auxiliary": true
+          "isSearch": true
         }
       ]
     },
@@ -3255,6 +3994,1254 @@
             "y": 69.8913043478261,
             "width": 26.3996138996139,
             "height": 3.9999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "screen_id": "",
+      "ocr": "references/page.loading.png",
+      "regions": [
+        {
+          "name": "text.survival",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.027027027027025,
+            "y": 20.0,
+            "width": 40.972972972972975,
+            "height": 3.9847826086956517,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7baf17669e690e3c03ad5ee8e832a1c32fd5584422038c3db51bde7b9ebedd67"
+        },
+        {
+          "name": "game.loading.progress",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.333976833976834,
+            "y": 89.60978260869565,
+            "width": 13.333976833976832,
+            "height": 2.265217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "90f6634cc0be3ca9fac1b9dd70fde7a4b31558dc4e7bffa87a8d7908f34816de"
+        },
+        {
+          "name": "text.raw_meat_needs_to_be_cooked_before_it_can_be_eat",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 6.666023166023166,
+            "y": 94.92173913043479,
+            "width": 86.11196911196912,
+            "height": 2.031521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7739450722e76bcbd2700bef68cebf7a60767fdf6c90bdc4bfb879e8107e779f"
+        },
+        {
+          "name": "game.version",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.16988416988417,
+            "y": 1.4380434782608695,
+            "width": 16.185328185328185,
+            "height": 2.85,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "70110f1c9e82190cdbf78cef7cb4ace7536f7f4ab015abf4b6f108ab56422a7b"
+        },
+        {
+          "name": "icon.support",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.137065637065637,
+            "y": 1.9967391304347826,
+            "width": 11.382239382239382,
+            "height": 6.048913043478261,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "124bf0c688109bc6151d3a7dd56f6df700cb3408c9998c94be5a9eb05c2c5ca4"
+        },
+        {
+          "name": "icon.change_character",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.0926640926640925,
+            "y": 9.008695652173913,
+            "width": 11.484555984555984,
+            "height": 6.11195652173913,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "6ffe65f8832450a5b2b65286a35aaa10df46614772389d6090ac97ff0949e82e"
+        },
+        {
+          "name": "icon.a_simple_icon_or_icon_represents_a_specific_loca",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.88030888030888,
+            "y": 89.85760869565217,
+            "width": 2.7316602316602316,
+            "height": 1.9945652173913047,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a69c551b81368d9b33a57568ae7898d1e4569aacb4b7cdd994937494e4306011"
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "screen_id": "",
+      "ocr": "references/page.tyrant.png",
+      "regions": [
+        {
+          "name": "text.frostdragon_tyrant",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.972972972972972,
+            "y": 40.07826086956522,
+            "width": 38.472972972972975,
+            "height": 3.0467391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c24f3104ede5cac6cde270a1b783013382a575f149fea3f5b07d7a6ea1c01d30"
+        },
+        {
+          "name": "text.2556",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 42.5,
+            "y": 53.98478260869565,
+            "width": 15.833976833976834,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1c6901e37cca511b985263a9bdb33979e0b328c6512e86180ce3d2fa32265636"
+        },
+        {
+          "name": "text.sgl_future",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.944015444015445,
+            "y": 56.95326086956522,
+            "width": 36.25096525096525,
+            "height": 2.6565217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "2e1d87b7f75afbbf0af5d3ecef53fbe20f47d8c3dbe973ee273ef70f860352e5"
+        },
+        {
+          "name": "text.zone_27_frostdragon_tyrant",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.861003861003862,
+            "y": 61.32826086956522,
+            "width": 42.777992277992276,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "48fce1c9ad8974954993460392eeac42ef20c93ab84be752b6784d19938a506b"
+        },
+        {
+          "name": "text.crowned_states_2497_2571",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.583011583011583,
+            "y": 64.06304347826087,
+            "width": 48.88803088803089,
+            "height": 1.9532608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "45438df6596c3434cff5728df0126997a063a23b9f709d79f5931853550ed976"
+        },
+        {
+          "name": "text.have_a_new_power_to_kneel_to",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 24.583011583011583,
+            "y": 66.64021739130435,
+            "width": 46.38803088803089,
+            "height": 2.109782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "82344f4e949c683477196549c241818c31127dc2b235eb8eeb757298a79957fd"
+        },
+        {
+          "name": "text.tap_any_blank_space_to_close",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.111969111969113,
+            "y": 92.73478260869565,
+            "width": 47.91698841698842,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f2d6e7f80a0e9558a7885d438f2b4bae7e00bb7ff2f685220ae7bd438276a79c"
+        },
+        {
+          "name": "icon.a_robot_holding_a_tool",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.1023166023166024,
+            "y": 7.798913043478261,
+            "width": 94.23166023166023,
+            "height": 31.502173913043478,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7b792915666a59bfc51765ac972b7f46ac95db33bf55041950aae431ee8f5e04"
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "screen_id": "main_city",
+      "ocr": "references/main_city_v3.png",
+      "regions": [
+        {
+          "name": "text.our_living_cor",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 85.41698841698842,
+            "y": 52.57826086956522,
+            "width": 14.444015444015442,
+            "height": 2.031521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3a55670c25e3785e056b0b5da7688ccb920f29e125f8dcae872c3e7fff476892"
+        },
+        {
+          "name": "text.thanks",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 91.94401544401545,
+            "y": 56.56304347826087,
+            "width": 7.916988416988417,
+            "height": 1.5630434782608695,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ddbcfc90ee904bb639adf6e675241d070c0fcc629be7d3154f6dc8a2bf616a1a"
+        },
+        {
+          "name": "chapter.task",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.972972972972974,
+            "y": 81.48478260869565,
+            "width": 53.19498069498069,
+            "height": 1.875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d200f9a2faa82f31e5c3f6469ede89bc66f1a0ec5e1b75c021fbc7a02316aaaa"
+        },
+        {
+          "name": "text.ksa_xpand_tidak_buruk_dengan_angka_5",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.13899613899614,
+            "y": 88.82826086956521,
+            "width": 86.38803088803088,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "7a1dc666006111afa03dee6e9a995e08f2569387ad50c66eca9c5f6db862d992"
+        },
+        {
+          "name": "main_city.to.exploration",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.019305019305019305,
+            "y": 91.95869565217392,
+            "width": 18.565637065637066,
+            "height": 8.041304347826086,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a11ca764adf16934644faf1af06cf95796b43c980e2b6bf286f99ddcfa0f9d6f"
+        },
+        {
+          "name": "main_city.to.backpack",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.00965250965251,
+            "y": 91.82934782608696,
+            "width": 16.826254826254825,
+            "height": 8.170652173913043,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "83382c774d8065ef5f0590d79151f3f31a753f08e78d6962e11e3e21d1d41bdb"
+        },
+        {
+          "name": "main_city.to.heroes",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 18.64864864864865,
+            "y": 91.86847826086957,
+            "width": 15.144787644787645,
+            "height": 8.131521739130434,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0e83be51bc9264a7749d15ddba972a13fcfaf5a0769b6caacc556a58ee08d8ff"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol.3",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.29343629343629,
+            "y": 91.69347826086957,
+            "width": 16.102316602316602,
+            "height": 8.306521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "28df807c889e6caa9fff36115091c3597d7219f410055d74ee47726454a11a92"
+        },
+        {
+          "name": "icon.world",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.1003861003861,
+            "y": 90.93369565217391,
+            "width": 14.897683397683398,
+            "height": 9.066304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "60b8253339df0c19eb57b47009f761d6ccd70b6391d9fe0832170b00cc8e79bd"
+        },
+        {
+          "name": "icon.a_lock_or_padlock_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 51.24710424710424,
+            "y": 91.8358695652174,
+            "width": 14.187258687258685,
+            "height": 8.164130434782608,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3701fd6531ed7256b8078bdc8145a5200209cf0df7cdc9fa1287c2dbed3ce9cd"
+        },
+        {
+          "name": "main_city.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 43.97683397683398,
+            "y": 6.8478260869565215,
+            "width": 11.200772200772201,
+            "height": 1.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ac16b6e8384dc02ec6909d7b201f0b1a02b2ad251d56eab61b2e4bf838ccfa48"
+        },
+        {
+          "name": "icon.17_30",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.835907335907335,
+            "y": 0.0,
+            "width": 19.3030888030888,
+            "height": 3.618478260869565,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ad2519508be31afd0c3152984be8a3807159e528f1bd469e254f55a1dcde88c1"
+        },
+        {
+          "name": "icon.6_8",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.56949806949807,
+            "y": 0.0,
+            "width": 17.723938223938223,
+            "height": 3.572826086956521,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b6ac46fcd0e396c378174f5ca36a91953b5522b8553997da7f06bdfba52389da"
+        },
+        {
+          "name": "main_city.resources",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 53.47876447876448,
+            "y": 0.0,
+            "width": 26.924710424710426,
+            "height": 3.5630434782608695,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
+        },
+        {
+          "name": "page.vip",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 57.915057915057915,
+            "y": 3.5869565217391304,
+            "width": 21.635135135135137,
+            "height": 3.8543478260869564,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c9a711187065ca54aae6877dfd59eab0bad94d12584c9ff05d70808bd40cb143"
+        },
+        {
+          "name": "main_city.event.block.1",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.64285714285714,
+            "y": 8.740217391304348,
+            "width": 11.793436293436294,
+            "height": 7.017391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c6739bae331b1e847c01e07a13433cffd36bbdba1e334c2c1f549c382f9c4a07"
+        },
+        {
+          "name": "is_main_city",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.442084942084943,
+            "y": 3.4706521739130434,
+            "width": 29.60617760617761,
+            "height": 3.966304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "1bb4e6e2a018f3e174c4db9944698512a1fbf2b12ab130c111bbb9414919f3ce"
+        },
+        {
+          "name": "main_city.diamond",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 82.23359073359073,
+            "y": 0.43695652173913035,
+            "width": 10.204633204633204,
+            "height": 2.6934782608695653,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "407f0fec9b763135162e35bce25dd997f79c5426444a74348f0ad848d239b068"
+        },
+        {
+          "name": "to_chief_profile",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 0.08586956521739131,
+            "width": 13.447876447876448,
+            "height": 7.5282608695652184,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "f51b5b7653637de21e7baf9947d0b43238b9067c788756f306eab72d4d647c44"
+        },
+        {
+          "name": "icon.a_simple_arrow_or_arrow_mark",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.416988416988417,
+            "y": 7.426086956521738,
+            "width": 8.26061776061776,
+            "height": 3.746739130434783,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "26a7e82d3f3995ef8d009cc9af05d8b82cda6cfb8270dc2a6c2db18af7d97cdd"
+        },
+        {
+          "name": "icon.a_thumbs_up_or_thumbs_down_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.91698841698842,
+            "y": 64.55978260869566,
+            "width": 10.35907335907336,
+            "height": 6.576086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d5e0c44e2954e72128573e29960d854926ea8dae05db76931a6039528d0dd72a"
+        },
+        {
+          "name": "main_city.to.shop",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.9034749034749,
+            "y": 3.4467391304347825,
+            "width": 20.096525096525095,
+            "height": 4.08804347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "da06bd584e3bef53ad1a7a1e5d351ebe4fea2ed0b7a8a13ae0bade00bde72adc"
+        },
+        {
+          "name": "mani_city.to.exploration",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 50.065637065637056,
+            "y": 15.008695652173914,
+            "width": 10.832046332046332,
+            "height": 6.622826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "6e480281c6d47b175199dbb311cf4a7468aa1c02a06ceca03696247974aaef03"
+        },
+        {
+          "name": "icon.menu",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 40.54347826086956,
+            "width": 4.656370656370656,
+            "height": 6.719565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "bd7eb068eb5f6fb3b4f037ef8968193c54afe282b58b6149900c9e561b4c0b41"
+        },
+        {
+          "name": "icon.a_green_icon_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 94.14285714285714,
+            "y": 0.0641304347826087,
+            "width": 5.857142857142857,
+            "height": 3.4869565217391303,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "74d9e46ae4be3113d93a2b3ee71c6e41da3cee694d1c21b96f0449690e7d2d7b"
+        },
+        {
+          "name": "mail.new",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.81853281853282,
+            "y": 78.79130434782608,
+            "width": 10.764478764478765,
+            "height": 7.010869565217392,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "13c65e1b1b48c266115eb21880c44daee83fae6bc8e7ffbd8497bf9a9e398787"
+        },
+        {
+          "name": "icon.a_red_rose_pinned_to_a_symbol_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.11389961389962,
+            "y": 71.90760869565217,
+            "width": 9.934362934362934,
+            "height": 6.901086956521739,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "cbe9d5d186dc7ade1fe9f5793ebc02cacfc0d29ffc54daf7ee0bd39537eb3593"
+        },
+        {
+          "name": "icon.a_blurry_image_of_a_can",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 97.83011583011583,
+            "y": 58.717391304347835,
+            "width": 2.16988416988417,
+            "height": 2.340217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0ae156c0c21d0d90e3f4be0346b3007e9c4a9cf10df7ce3fa3bcceed799b3d43"
+        },
+        {
+          "name": "icon.a_key_or_function_related_to_connecting_or_attac",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 96.1988416988417,
+            "y": 54.393478260869564,
+            "width": 3.8011583011583014,
+            "height": 2.6760869565217393,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "c41fc3d5e09a562dbbaa148e6dfd2067d21cd57d897c9227211c500f0ec01c56"
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "screen_id": "alliance.invitation",
+      "ocr": "references/alliance.invitation.png",
+      "regions": [
+        {
+          "name": "text.sky_eaglewarriors",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 22.5,
+            "width": 33.05598455598456,
+            "height": 2.109782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "463b883dace9afb1ebd910504f1e8d4e39d42452e530b6690c620e431aaf624e"
+        },
+        {
+          "name": "text.57_100",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.05598455598456,
+            "y": 30.93804347826087,
+            "width": 14.583011583011585,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "3ea9325c3d0ac7a72c821bc6e12ca3959a96c3c98d634105ca5e96d03424e22a"
+        },
+        {
+          "name": "text.1_099_964_315",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.1949806949807,
+            "y": 33.75,
+            "width": 24.72200772200772,
+            "height": 2.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "afe41d741eec4e1285f735214aa1af58fa22525cd28ede3a362722dc37a45ee1"
+        },
+        {
+          "name": "text.y6",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.36100386100386,
+            "y": 44.92173913043478,
+            "width": 7.916988416988417,
+            "height": 2.3434782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a99a2f50f36670a22421c57ba21cdca63f55d5f95da914ea8aebb19f124f2b04"
+        },
+        {
+          "name": "text.74_100",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 47.89021739130435,
+            "width": 15.13899613899614,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "57dda1232957040ae883f3535e34b8eb9c8c03e710b312856d09c8242e8d3557"
+        },
+        {
+          "name": "text.50_000_000",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 67.5,
+            "y": 47.42173913043478,
+            "width": 25.0,
+            "height": 2.1869565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a0b53e7d6fc37ea137ce35a7b44d5a7460503c15b2182d167a395dc77aa15b9b"
+        },
+        {
+          "name": "text.lv_11",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.694980694980694,
+            "y": 48.67173913043478,
+            "width": 8.472972972972974,
+            "height": 1.875,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "aee33968ebad4999d40479d30cd916981ea3bc39544cd83ecd3be8bbc0ac3c0c"
+        },
+        {
+          "name": "text.10_978_752_096",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.05598455598456,
+            "y": 50.70326086956522,
+            "width": 27.083011583011583,
+            "height": 2.5782608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "621b056abfbc16c9298a9d54ecd84102d70f83ce311b8f6acbce097fcf0eddf2"
+        },
+        {
+          "name": "text.bhx_theclang",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.91698841698842,
+            "y": 89.84347826086956,
+            "width": 24.583011583011583,
+            "height": 3.125,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "fb307bf3f4fc5cbe6e689fc56efb12499a3cf0b48053a2563cb7cb4a1d7c7b25"
+        },
+        {
+          "name": "text.14",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.36100386100386,
+            "y": 95.625,
+            "width": 8.750965250965251,
+            "height": 2.4217391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9f0e8284e8123932409455a5cd43cac7f8b6fe5d9843cc7792f83e285cca0715"
+        },
+        {
+          "name": "text.join",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 78.05598455598455,
+            "y": 95.23478260869565,
+            "width": 7.916988416988417,
+            "height": 2.8119565217391305,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "9d54d0c3c40360760f968abfa277fad1d1729ab2fbb51ab40f376b3cc2207ca6"
+        },
+        {
+          "name": "icon.vip_vipacademy_apply_lv_11_76_100_8_098_795_549",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.357142857142857,
+            "y": 55.325,
+            "width": 92.06756756756756,
+            "height": 16.430434782608696,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "95fe7820f7ff2b7c22cf1350bcdca95572e353769dace73e1917f020a85d5ac6"
+        },
+        {
+          "name": "icon.join_alliance",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.56949806949807,
+            "y": 6.602173913043479,
+            "width": 31.131274131274132,
+            "height": 6.319565217391304,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "e4a140872a667fdaeafefb23ee001f7b4815576617cc4a538a2d141777100192"
+        },
+        {
+          "name": "icon.4us_4musketeersonly_all_languages_join_lv_11_50",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.451737451737452,
+            "y": 72.00108695652175,
+            "width": 91.88610038610038,
+            "height": 16.565217391304348,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "ff33fc8e087b65e78727e5aa2bd37e164d798058287f8223f156918240e87eaa"
+        },
+        {
+          "name": "button.join",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 69.1911196911197,
+            "y": 25.89782608695652,
+            "width": 25.2007722007722,
+            "height": 6.307608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "660f729b09f5233581e8d8d96bc4e77c651ee7c360ec871e4782b3a1d391fdc0"
+        },
+        {
+          "name": "icon.create_alliance",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.667953667953668,
+            "y": 7.371739130434782,
+            "width": 31.53667953667954,
+            "height": 5.655434782608696,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "a62f24654fca40c05888a5834b53847eb2a2f21c0c1c6b0eb810e165e543b2de"
+        },
+        {
+          "name": "icon.invites_requests",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.31467181467181,
+            "y": 7.407608695652175,
+            "width": 31.318532818532816,
+            "height": 5.791304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "28d5a17932b68c6222be5aa8069ab10d9d1e246e11cb180067a90e4632f2bc71"
+        },
+        {
+          "name": "alliance.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.583011583011583,
+            "y": 0.22391304347826088,
+            "width": 19.092664092664094,
+            "height": 5.684782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "21eaa9ba7f8523087d37b9d543bedbfaf8a8e173517e927bd37fd55d5e6f04a7"
+        },
+        {
+          "name": "icon.tap_to_enter",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 3.694980694980695,
+            "y": 14.656521739130435,
+            "width": 79.82046332046332,
+            "height": 5.2423913043478265,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "cd960c0725c3d767fe866026095037bc2796e15e2bc2a80192144d0943bc946a"
+        },
+        {
+          "name": "icon.lv_11",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.891891891891892,
+            "y": 21.520652173913042,
+            "width": 19.814671814671815,
+            "height": 14.710869565217392,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "15e308b8bf1f51b310b94c5798110905d21c12052db2d5647bb46df148f7827f"
+        },
+        {
+          "name": "icon.all_languages",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.625482625482626,
+            "y": 41.975,
+            "width": 21.177606177606176,
+            "height": 2.753260869565217,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "b728ce56a7190452e5c5121ebc9ef50cac21b293a5ecc815faf69e67bcacdf35"
+        },
+        {
+          "name": "icon.one_akatsuki",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.75868725868726,
+            "y": 38.823913043478264,
+            "width": 24.969111969111967,
+            "height": 3.142391304347826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "62117f0f62014ff392dfc79bf0f0ab89b6b2094d40afc7887602b78f7658a8a3"
+        },
+        {
+          "name": "icon.find",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 84.42857142857143,
+            "y": 14.13695652173913,
+            "width": 11.816602316602317,
+            "height": 6.172826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "0658da18b394af9c9c73b03e9f5ba270ca06d932566cec7032a7e65cdf079ca6"
+        },
+        {
+          "name": "icon.a_simple_icon_or_profile_indicator",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.7992277992278,
+            "y": 1.6456521739130434,
+            "width": 8.666023166023166,
+            "height": 4.5097826086956525,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "d3d2cbd8fa87272067bb9943cc8d3b12f2b24bb715b72e36267845f2013c3d60"
+        },
+        {
+          "name": "icon.a_walking_path_or_platform",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 27.808880308880312,
+            "y": 24.758695652173913,
+            "width": 13.992277992277993,
+            "height": 3.0489130434782608,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "86f4895d6f1818e2577c9de8eb3aa2c69c1511dcfa0fde9555805ed4b18482ae"
+        },
+        {
+          "name": "icon.a_symbol_or_emblem_indicating_a_specific_purpose",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.96911196911196,
+            "y": 49.72717391304348,
+            "width": 6.166023166023166,
+            "height": 3.1706521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "579dce7ec6142fc34d92d2358b7845cc16541722e3558a396acfb22bce589fc4"
+        },
+        {
+          "name": "icon.a_simple_icon_or_symbol",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 79.96911196911196,
+            "y": 49.653260869565216,
+            "width": 4.216216216216216,
+            "height": 2.606521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "hash": "87950958cf6e276d9506e32e4766df9f62579e40ee78f6c0ffb58f7a2283d722"
+        }
+      ],
+      "screen_region": "alliance.title"
+    },
+    {
+      "id": 74,
+      "screen_id": "",
+      "ocr": "references/rewards.png",
+      "regions": [
+        {
+          "name": "rewards.title",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.756756756756758,
+            "y": 21.52173913043478,
+            "width": 66.7992277992278,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.tap_anywhere_to_exit",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.042471042471046,
+            "y": 90.97826086956522,
+            "width": 37.6003861003861,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "screen_id": "heroes.sr.new",
+      "ocr": "references/heroes.sr.new.png",
+      "regions": [
+        {
+          "name": "heroes.sr.new.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.339768339768344,
+            "y": 95.43478260869566,
+            "width": 42.99999999999999,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ],
+      "screen_region": "heroes.sr.new.close"
+    },
+    {
+      "id": 76,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.new_alliance.mail.png",
+      "regions": [
+        {
+          "name": "main_city.new_alliance.mail.close",
+          "action": "exist",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.8030888030888,
+            "y": 72.28260869565217,
+            "width": 8.0,
+            "height": 4.6,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280

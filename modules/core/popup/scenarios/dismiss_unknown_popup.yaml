@@ -1,0 +1,20 @@
+enabled: true
+name: Dismiss popup on unknown screen
+device_level: true
+priority: 70_000
+steps:
+  - while_match: claim_button_close
+    max: 1
+    steps:
+      - click: claim_button_close
+      - wait: 1s
+  - while_match: icon.page.back
+    max: 1
+    steps:
+      - click: icon.page.back
+      - wait: 1s
+  - while_match: button.tap_anywhere_to_exit
+    max: 1
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 1s

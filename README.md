@@ -4,7 +4,7 @@
 
 # Whiteout Survival autopilot
 
-Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via a separate OCR HTTP service.
+Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via local Tesseract OCR.
 
 <p align="center">
   <a href="https://discord.gg/G8encVpD9"><img src="https://img.shields.io/badge/Join_our_Discord-%235865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord" /></a>
@@ -137,9 +137,9 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 </td>
 <td align="center" width="25%">
   <br/>
-  <img src="https://img.shields.io/badge/PaddleOCR-0d1b2a?style=for-the-badge&logo=docker&logoColor=a8dadc" alt="PaddleOCR" />
+  <img src="https://img.shields.io/badge/Tesseract_OCR-0d1b2a?style=for-the-badge&logo=tesseract&logoColor=a8dadc" alt="Tesseract OCR" />
   <br/><br/>
-  <sub>Screen text via a separate OCR HTTP service (PaddleOCR in <code>docker compose</code>)</sub>
+  <sub>Screen text via local <code>eng.traineddata</code> Tesseract OCR inside the bot process</sub>
   <br/><br/>
 </td>
 <td align="center" width="25%">
@@ -223,7 +223,7 @@ cd whiteout-survival-autopilot
 adb start-server
 adb devices
 
-# Pull and start: redis + ocr + bot
+# Pull and start: redis + bot
 docker compose -f docker-compose.prod.yml up -d
 
 open http://127.0.0.1:8501
@@ -269,12 +269,6 @@ xdg-open http://127.0.0.1:8501
 git clone https://github.com/batazor/whiteout-survival-autopilot.git
 cd whiteout-survival-autopilot
 
-# Optional but recommended: run the doctor first — it tells you in plain
-# English what is missing or misconfigured, and how to fix it.
-.\scripts\doctor.ps1
-# If blocked by execution policy:
-# powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
-
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
 adb devices
@@ -284,8 +278,6 @@ docker compose -f docker-compose.prod.yml up -d
 
 start http://127.0.0.1:8501
 ```
-
-> `scripts\doctor.ps1` is read-only: it checks Docker / ADB / BlueStacks / open ports and prints `[OK]` / `[FAIL]` / `[WARN]` with concrete fix instructions next to each line. It never installs or starts anything on its own — safe to run any time.
 
 > If your antivirus flags `adb.exe` as PUA — whitelist the Android Platform Tools folder. ADB is a legitimate dev tool but can give root shells, so some scanners treat it as suspicious.
 
@@ -297,8 +289,7 @@ start http://127.0.0.1:8501
 
 | Service | Image | Notes |
 |:--------|:------|:------|
-| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI. Multi-arch (amd64+arm64). |
-| `ocr` | `ghcr.io/batazor/whiteout-survival-autopilot/ocr:latest` | PaddleOCR HTTP API. amd64 only (no paddlepaddle arm64 wheel for py3.13 yet). |
+| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI + local Tesseract OCR. Multi-arch (amd64+arm64). |
 | `redis` | `redis:alpine` | Queue + state. |
 
 <details>
@@ -307,7 +298,7 @@ start http://127.0.0.1:8501
 
 `bot` runs in `network_mode: host` so the container **shares the host's loopback** — `adb start-server` stays bound to `127.0.0.1:5037` (safe, no LAN exposure) and the container talks to it as `127.0.0.1:5037` from inside. No `adb -a`, no socat sidecar, no `host.docker.internal` indirection.
 
-Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis` and `ocr` publish to `127.0.0.1:<port>` on the host, and `bot` talks to them via those — already wired in `docker-compose.prod.yml`.
+Side-effect: `bot` can't use Compose-internal DNS for `redis`. `redis` publishes to `127.0.0.1:<port>` on the host, and `bot` talks to it via that — already wired in `docker-compose.prod.yml`.
 
 </details>
 
@@ -338,7 +329,7 @@ Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis
 | **DPI** | `320` | 🔴 **Mandatory** |
 | **Game Language** | English | 🔴 **Mandatory** |
 | **ADB** | Enabled (Advanced settings → Android Debug Bridge) | 🔴 **Mandatory** |
-| **ADB Serial** | Matches `bluestacks_window_title` in `config/settings.yaml` | 🔴 **Mandatory** |
+| **ADB Serial** | Matches the device serial configured in `db/devices.yaml` | 🔴 **Mandatory** |
 | **CPU / RAM** | 2 Cores / 2 GB | 🟡 Recommended |
 | **Frame Rate** | 30 FPS | 🟡 Recommended |
 
@@ -357,30 +348,6 @@ Side-effect: `bot` can't use Compose-internal DNS for the other services. `redis
 
 ### Self-diagnosis
 
-<details open>
-<summary><b>🪟 Windows — <code>scripts\doctor.ps1</code></b></summary>
-<br/>
-
-Walks every prerequisite (Docker / ADB / BlueStacks / open ports / repo layout) and prints `[OK]` / `[FAIL]` / `[WARN]` with a one-line fix hint next to each result. Read-only — never installs / starts / stops anything. Exits non-zero on any failure so you can chain it: `.\scripts\doctor.ps1 ; if ($LASTEXITCODE -eq 0) { docker compose … }`.
-
-```powershell
-.\scripts\doctor.ps1
-# Blocked by execution policy:
-powershell -ExecutionPolicy Bypass -File .\scripts\doctor.ps1
-```
-
-Typical findings the doctor surfaces:
-- `[FAIL] docker daemon reachable` → Docker Desktop is closed or its WSL2 backend is asleep
-- `[WARN] Host networking enabled (Docker Desktop beta)` → toggle missing in *Settings → Resources → Network*
-- `[FAIL] adb on PATH` → Platform Tools not unzipped to a folder in `PATH`
-- `[FAIL] At least one ADB device is online` → BlueStacks ADB switch off, or `adb kill-server` needs a follow-up `adb start-server`
-
-</details>
-
-<details>
-<summary><b>🍎 macOS / 🐧 Linux — quick checks</b></summary>
-<br/>
-
 ```sh
 docker info | grep -i 'server version\|host'      # daemon reachable, host-net mode
 docker compose version --short                    # Compose v2 installed
@@ -388,9 +355,11 @@ adb version && adb devices                        # ADB on PATH + emulator onlin
 which adb                                         # actual binary used (Streamlit/Cursor PATH can differ)
 ```
 
-A native shell doctor for macOS / Linux is on the TODO list — for now the four commands above cover every check the Windows script does.
-
-</details>
+Typical failures:
+- Docker daemon unreachable → Docker Desktop closed or WSL2 backend asleep (Windows)
+- Host networking off → enable *Settings → Resources → Network* in Docker Desktop (Windows)
+- `adb` not on `PATH` → install [Platform Tools](https://developer.android.com/tools/releases/platform-tools) and add to `PATH`
+- No online device → enable BlueStacks ADB, then `adb kill-server` + `adb start-server`
 
 <br/>
 
@@ -399,7 +368,6 @@ A native shell doctor for macOS / Linux is on the TODO list — for now the four
 ```sh
 docker compose -f docker-compose.prod.yml ps             # service status + healthchecks
 docker compose -f docker-compose.prod.yml logs -f bot    # worker + UI logs
-docker compose -f docker-compose.prod.yml logs -f ocr    # PaddleOCR logs
 docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibility from inside the bot container
 ```
 

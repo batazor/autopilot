@@ -122,9 +122,11 @@ def _extract_hero_icons(index_html: str) -> dict[str, str]:
 
 
 def _download_hero_icons(client: httpx.Client, repo: Path) -> int:
-    heroes_index = repo / "db" / "heroes" / "index.yaml"
+    from config.heroes import hero_index_path
+
+    heroes_index = hero_index_path(repo)
     if not heroes_index.is_file():
-        print("db/heroes/index.yaml missing — skip heroes icons", file=sys.stderr)
+        print("heroes wiki index missing — skip heroes icons", file=sys.stderr)
         return 0
     idx = _load_yaml(heroes_index)
     entries = idx.get("heroes") if isinstance(idx.get("heroes"), list) else []

@@ -1,0 +1,1 @@
+recursive-include streamlit_dnd_sortable/frontend/build *

@@ -1,5 +1,0 @@
-enabled: false
-name: "Tundra Trading Station"
-node: event.tundra_trading_station
-icon: tundra_trading_station
-steps: []

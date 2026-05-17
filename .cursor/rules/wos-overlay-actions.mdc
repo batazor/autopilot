@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Rule of thumb
 
-- **Overlay analyzers** (`analyze/analyze_pages/*.yaml`) use **overlay-engine actions**:
+- **Overlay analyzers** (`modules/core/*/analyze/analyze.yaml`, feature `modules/*/analyze/`) use **overlay-engine actions**:
   - `findIcon` — template match using cropped reference
   - `text` — OCR match
   - `color_check` — dominant color check
@@ -35,7 +35,7 @@ alwaysApply: false
 
 - The user-visible vocabulary is **node** / **node graph** (DSL uses `currentNode`,
   `set_node:`). "FSM" survives only in legacy internal identifiers
-  (`FSMDict`, `area.json` top-level `fsm:` key, `ui/views/fsm.py`).
+  (`FSMDict`, `area.json` top-level `fsm:` key, `ui/views/routes.py`).
 - When writing docs, captions, scenarios — prefer **node**. Don't rename internal
   Python identifiers / JSON keys (would break loaders).
 
@@ -163,7 +163,7 @@ reschedule). Scenarios **without** `device_level: true` default to strict
 `while_match`; for an optional step there, add **`strict: false`** on that
 block or you get `while_match_no_iterations` with a delayed retry.
 
-Example (`scenarios/overlay/tap_claim_button.yaml`):
+Example (`modules/core/pop-up/scenarios/tap_claim_button.yaml`):
 
 ```yaml
   - while_match: claim_button_close

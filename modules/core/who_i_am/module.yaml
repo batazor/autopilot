@@ -1,0 +1,6 @@
+id: who_i_am
+title: Who am I
+description: >-
+  Device-level identity probe — OCR player_id on chief_profile, Century fetch,
+  bootstrap active_player before player-bound scenarios run.
+default_ref: chief_profile.png

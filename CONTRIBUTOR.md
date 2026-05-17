@@ -1,6 +1,6 @@
 # Contributing
 
-Setup for **editing the code**. End-users who just want to run the bot are better off with the [Docker quickstart in the README](README.md#%EF%B8%8F-installation--setup) — pulls the prebuilt images, no uv / paddleocr install needed.
+Setup for **editing the code**. End-users who just want to run the bot are better off with the [Docker quickstart in the README](README.md#%EF%B8%8F-installation--setup) — pulls the prebuilt images, no uv install needed.
 
 ## Prerequisites
 
@@ -10,6 +10,7 @@ Setup for **editing the code**. End-users who just want to run the bot are bette
 | Python | `3.13` (pinned by `.python-version`) | auto-installed by uv |
 | Docker | compose v2 | [Get Docker](https://docs.docker.com/get-docker/) |
 | Redis | 7+ | started via `docker compose` |
+| Tesseract OCR | 5+ with `eng.traineddata` | `brew install tesseract` / OS package manager |
 | Android Platform Tools (`adb`) | latest | [Download](https://developer.android.com/tools/releases/platform-tools) |
 | BlueStacks | 5+ | [Download](https://www.bluestacks.com/) |
 
@@ -22,7 +23,7 @@ Streamlit (and Cursor) often start with a reduced `PATH`. The UI defaults to `/o
 Override either of:
 
 - `ANDROID_HOME=/path/to/sdk`
-- `worker.adb_executable: /full/path/to/adb` in `config/settings.yaml`
+- `worker.adb_executable: /full/path/to/adb` in `src/config/settings.yaml`
 
 Verify:
 
@@ -30,7 +31,7 @@ Verify:
 adb devices
 ```
 
-The serial column must match `bluestacks_window_title` in `config/settings.yaml`.
+The serial column must match `bluestacks_window_title` loaded from `db/devices.yaml`.
 
 ## Setup
 
@@ -41,11 +42,11 @@ cd whiteout-survival-autopilot
 # Python 3.13 + project deps (from uv.lock)
 uv sync
 
-# Just the supporting services — bot runs on the host via `uv run wos`
-docker compose up -d redis ocr
+# Just the supporting service — bot runs on the host via `uv run wos`
+docker compose up -d redis
 ```
 
-Edit `config/settings.yaml` (`redis.url`, `ocr.url`, `instances`) and `db/devices.yaml` (players per device) before the first run.
+Edit `src/config/settings.yaml` (`redis.url`, `ocr.tesseract_cmd`, worker settings) and `db/devices.yaml` (players per device) before the first run. `WOS_REDIS_URL`, `WOS_TESSERACT_CMD`, `TESSDATA_PREFIX`, and related env vars can override the YAML values.
 
 ## Running
 
@@ -73,6 +74,15 @@ uv sync --extra dev    # ruff + pytest
 uv run ruff check .
 uv run pytest -q
 ```
+
+Module-owned tests should live next to the module they protect:
+
+```text
+modules/<id>/tests/test_*.py
+modules/core/<id>/tests/test_*.py
+```
+
+Keep cross-cutting tests in root `tests/`. Pytest discovers both `tests/` and `modules/`, and shared fixtures live in the repo-level `conftest.py` so module-local tests can use them.
 
 ## Building Docker images locally
 

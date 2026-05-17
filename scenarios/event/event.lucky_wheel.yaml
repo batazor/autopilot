@@ -1,5 +1,0 @@
-enabled: false
-name: "Lucky Wheel"
-node: event.lucky_wheel
-icon: lucky_wheel
-steps: []

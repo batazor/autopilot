@@ -1,0 +1,15 @@
+enabled: false
+name: ⬆️ Level up · ${hero_name}
+node: page.heroes.${hero_id}
+steps:
+- while_match: page.heroes.unit.upgrade
+  max: 1
+  steps:
+  - click: page.heroes.unit.upgrade_tap
+  - wait: 0.8s
+  - ocr: page.heroes.unit.name
+    store: page.heroes.unit.name
+  - ocr: page.heroes.unit.level
+    type: integer
+    store: page.heroes.unit.level
+  - exec: sync_hero_unit

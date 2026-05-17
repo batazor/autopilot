@@ -7,7 +7,7 @@
 
 The worker schedules DSL scenarios through a Redis-backed priority queue (`scheduler/queue.py`). Today, due tasks are ordered primarily by static `priority` and `run_at`. That is simple but:
 
-1. **Screen distance:** A scenario whose cron spec requires `node: X` may be enqueued while the UI is on another screen. Preferring work that is **fewer navigation hops** away from `current_screen` (from instance state, populated by probes such as `where_i_am`) should reduce wasted attempts and match-guard failures.
+1. **Screen distance:** A scenario whose cron spec requires `node: X` may be enqueued while the UI is on another screen. Preferring work that is **fewer navigation hops** away from `current_screen` (from instance state, populated by the rolling screen detector) should reduce wasted attempts and match-guard failures.
 
 2. **Hot / broken scenarios:** A task type that is repeatedly started but rarely helps (fails, times out, or hits guards) can still dominate ordering if its base `priority` is high. We want **recently attempted** types to yield so other scenarios can run.
 
@@ -39,7 +39,7 @@ Introduce an **effective ranking key** at **pop** time (not by rewriting every q
 
 2. **Recent-run debuff (time-windowed)**  
    - **Policy (fixed):** `recent_key = (task_type, player_id)` as stored in the queue item (after any worker-side player resolution). **Rationale:** one account can be stuck in a broken run of scenario `S` while another account on the **same device** still needs `S`; debuffing by `task_type` alone would unfairly sink `S` for everyone. Per-player keys isolate hot paths per gamer.  
-   - **Device-level tasks** use `player_id == ""`; their `recent_key` is `(task_type, "")` — all device-level executions of that type share one window (desired for e.g. repeated `where_i_am` / overlay dismissals on one device).  
+   - **Device-level tasks** use `player_id == ""`; their `recent_key` is `(task_type, "")` — all device-level executions of that type share one window (desired for e.g. repeated overlay dismissals on one device).
    - **Storage: Redis `ZSET`** per instance at `wos:instance:<id>:recent_runs`.  
      - **Score** = wall-clock unix timestamp of the execution-start event.  
      - **Member** = `"<task_type>|<player_id>|<uuid4_hex_8>"`. The UUID suffix lets duplicate `recent_key`s coexist as distinct ZSET members (ZSET requires unique members; we want one entry per execution event, not deduplication).  
@@ -56,7 +56,7 @@ Introduce an **effective ranking key** at **pop** time (not by rewriting every q
 
    - **Node-independent** tasks (`required_node` absent / empty per cron) **may run normally** among due work: `graph_debuff = 0`, `unreachable_flag = 0`, `hops = 0`. Ranking must not invent a hop penalty because the screen is unknown.  
    - **Node-gated** tasks (cron declares a required `node` / task type is in the “requires known screen” set used by `pop_due`) **must not be popped** unless the **existing** `RedisQueue.pop_due` eligibility rules already allow them — i.e. do **not** widen the candidate set when the screen is unknown. **Ranking must never substitute for that gate:** we must not run “needs `main_city`” work while the UI location is still unknown.  
-   - **Identity / probe** tasks that exist to **establish** state (e.g. `where_i_am`, and other `device_level: true` probes) **remain eligible** when the screen is unknown and **must not receive graph debuff** (`graph_debuff = 0`, neutral `hops` / `unreachable_flag`), so the worker can still run `detect_screen` / OCR bootstrap before node-bound cron work re-enters the race.
+   - **Identity / probe** tasks that exist to **establish** state (e.g. `who_i_am`, and other `device_level: true` probes) **remain eligible** when the screen is unknown and **must not receive graph debuff** (`graph_debuff = 0`, neutral `hops` / `unreachable_flag`), so the worker can still run OCR bootstrap before node-bound cron work re-enters the race.
 
    This explicitly prevents: *“we do not know where we are, but we still schedule a scenario that assumes a specific screen.”*
 
@@ -64,7 +64,7 @@ Introduce an **effective ranking key** at **pop** time (not by rewriting every q
    - After the existing **due** filter (`run_at ≤ now`, instance/player gates unchanged), sort **only** that list using the tuple in [Ranking model](#ranking-model) (not the global ZSET). A task with an earlier `run_at` may still run after another **due** task if the latter’s **effective** rank wins — that is fine. The invariant above is **not** “`run_at` wins over everything”; it is **never run before `run_at`**, and **never pull not-due work into the candidate set**.
 
 5. **Cooperative preemption (between DSL steps)**  
-   Static priority alone cannot interrupt a task that has already started. A long-running scenario (e.g. `where_i_am` doing OCR fan-out, `building.upgrade` waiting for confirmations) blocks the worker even when higher-priority work — like a banner-dismiss `pushScenario` enqueued by a rolling overlay tick — is sitting **due** in the queue.
+   Static priority alone cannot interrupt a task that has already started. A long-running scenario (e.g. `building.upgrade` waiting for confirmations) blocks the worker even when higher-priority work — like a banner-dismiss `pushScenario` enqueued by a rolling overlay tick — is sitting **due** in the queue.
 
    - **Where it runs:** in `tasks/dsl_scenario.py`'s main `while step_index < len(steps)` loop, **before each step**. The existing `_preempted_by_new_debug(instance_id)` hook is the precedent; add `_preempted_by_higher_priority(instance_id, running_effective_priority)` next to it. Not inside `while_match` / `until` inner iterations — those are bounded by their own timeouts and the next outer step boundary is reachable quickly.  
    - **Peek API:** add `RedisQueue.peek_top_due(instance_id, current_screen) -> QueueItem | None` returning the top **due** candidate's full item **without popping**, using the same ranking tuple as `pop_due`. Cheap: top-of-ZSET + the same rank computation.  
@@ -93,7 +93,7 @@ Dynamic ranking applies **only** to tasks that are already **due** (same filter 
 
 ### When `current_screen` is unknown / empty
 
-After `pop_due`’s **time + instance + player + node gates**, the **due** list for ranking should contain only tasks that policy allows while the screen is unknown (Decision §3): **node-independent** work, **device-level** probes (`where_i_am`, …), and any other types explicitly allowed by the existing gate — **not** node-gated routine scenarios that require a known `current_screen`.
+After `pop_due`’s **time + instance + player + node gates**, the **due** list for ranking should contain only tasks that policy allows while the screen is unknown (Decision §3): **node-independent** work, **device-level** probes, and any other types explicitly allowed by the existing gate — **not** node-gated routine scenarios that require a known `current_screen`.
 
 For every such **allowed** candidate while `current_screen` is unknown:
 
@@ -167,7 +167,7 @@ Optional **7. Unknown `current_screen`:** node-gated cron tasks are **not** in t
 
 8. **Preemption margin holds:** running task at `effective_priority=80_000`, peek sees pending at `effective_priority=83_000`. Default margin `5_000` → **no yield** (gap 3_000 < 5_000). Re-run with margin `0` → **yield**. Sanity check that the threshold is honoured.
 
-9. **Banner preemption (the real-world case):** running `where_i_am` at `effective_priority=83_000`, overlay tick enqueues `tap_confirm_button` at `effective_priority=88_000`. Default margin `5_000` → 88_000 − 83_000 = 5_000 ≥ margin → **yield**. Yielded task re-enqueues at `next_run_at=now`; on the next `pop_due` it is again a candidate.
+9. **Banner preemption (the real-world case):** running `building.upgrade` at `effective_priority=80_000`, overlay tick enqueues `tap_confirm_button` at `effective_priority=88_000`. Default margin `5_000` → 88_000 − 80_000 = 8_000 ≥ margin → **yield**. Yielded task re-enqueues at `next_run_at=now`; on the next `pop_due` it is again a candidate.
 
 10. **Anti-starvation kicks in:** force three sequential yields for the same `task_id` (each yield re-enqueues, then the next `pop_due` runs it, then it yields again). On the **fourth** in-step check, the running task is immune (`yield_count >= 3`) and **does not yield**, even though a higher-priority pending task is waiting. Logged event for the immunity.
 
@@ -244,9 +244,9 @@ The project already has an **approval UI** for taps / risky actions. A future it
 - Shorter navigation paths are preferred without hand-tuning every scenario pair.
 - Flaky or over-scheduled task types naturally fall behind healthier ones.
 - **Node-bound** targets with **no graph path** no longer starve reachable / node-independent jobs at the same base priority; node-independent work is not mis-labelled unreachable.
-- **Unknown `current_screen`:** node-independent and identity probes can still run; node-gated “needs this screen” work stays behind the existing `pop_due` gate; ranking does not bypass that or apply bogus graph debuffs to probes (`where_i_am`, …).
+- **Unknown `current_screen`:** node-independent and identity probes can still run; node-gated “needs this screen” work stays behind the existing `pop_due` gate; ranking does not bypass that or apply bogus graph debuffs to probes.
 - **Recent-run debuff** uses Redis-backed **time-windowed ZSET** history per instance, so fairness survives **worker restarts** and stays consistent if multiple consumers read the same instance state. Wall-clock windowing makes the policy stable regardless of task-rate fluctuations.
-- **Cooperative preemption** addresses the real-world failure mode where a slow scenario (e.g. `where_i_am` OCR fan-out, building-upgrade waits) blocks higher-priority work indefinitely — banner-dismiss `pushScenario` items can finally interrupt at step boundaries.
+- **Cooperative preemption** addresses the real-world failure mode where a slow scenario (e.g. building-upgrade waits) blocks higher-priority work indefinitely — banner-dismiss `pushScenario` items can finally interrupt at step boundaries.
 - **Stable tie-breaking:** `QueueItem.created_at` removes the random-UUID ordering surprise where two items with identical priority/hops/run_at sorted unpredictably.
 - **Explainability:** structured logs + metrics + debug mode (see [Observability](#observability)) make *“why doesn’t the bot do X?”* answerable from evidence, not from reading `scheduler/queue.py` alone.
 

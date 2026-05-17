@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from collections.abc import Callable
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class InstanceWorkerHealthMixin:
+    _cfg: Any
+    _settings: Any
+    _redis: Any
+    _stopping: bool
+    _blocking_executor_live: bool
+    _bot_actions: Any
+    _ui_paused: bool
+    _startup_pause_reason: str
+
+    async def _run_blocking(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    async def _set_instance_state(self, state: Any, *, error: str = "") -> None:
+        raise NotImplementedError
+
+    async def _cancel_current_task(
+        self,
+        reason: str,
+        *,
+        result_reason: str = "aborted_for_restart",
+        reschedule: bool = False,
+    ) -> bool:
+        # Provided by ``InstanceWorker``; declared here so the mixin can call it.
+        raise NotImplementedError
+
+    def _ensure_whiteout_at_worker_start(self) -> bool:
+        """Block until Whiteout is foreground, launching or restarting as needed.
+
+        Returns ``True`` when the game is verified on a live ADB device. The
+        worker must not run overlay analysis or dequeue tasks until this returns
+        ``True`` (device-offline and game-not-ready paths set ``_ui_paused``).
+        """
+        from adb import AdbController, canonical_adb_serial
+        from adb.screencap import DEFAULT_ADB_BIN
+
+        self._startup_pause_reason = ""
+        ba = self._bot_actions
+        inst = self._cfg.instance_id
+
+        adb_bin = (
+            (self._settings.worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
+        )
+        try:
+            live = {
+                canonical_adb_serial(s) for s in AdbController.list_devices(adb_bin)
+            }
+        except Exception:
+            logger.debug("Startup: adb devices failed for %s", inst, exc_info=True)
+            live = set()
+        if canonical_adb_serial(self._cfg.bluestacks_window_title) not in live:
+            logger.info(
+                "Startup: %s device offline (serial=%s) — self-pausing; "
+                "watchdog auto-resumes when device returns",
+                inst,
+                self._cfg.bluestacks_window_title,
+            )
+            self._ui_paused = True
+            self._startup_pause_reason = "device offline (ADB)"
+            return False
+
+        timeout_s = max(
+            30.0, float(self._settings.worker.game_foreground_timeout_seconds)
+        )
+        settle_s = 2.5
+        deadline = time.monotonic() + timeout_s
+        forced_restart = False
+
+        while time.monotonic() < deadline:
+            try:
+                if ba.is_game_foreground(inst):
+                    logger.info(
+                        "Startup: Whiteout verified running and foreground on %s",
+                        inst,
+                    )
+                    return True
+            except Exception:
+                logger.debug(
+                    "Startup: foreground probe failed on %s", inst, exc_info=True
+                )
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
+            try:
+                if not forced_restart and remaining <= timeout_s * 0.5:
+                    logger.warning(
+                        "Startup: forcing application restart on %s", inst
+                    )
+                    ba.restart_application(inst)
+                    forced_restart = True
+                    time.sleep(min(3.0, remaining))
+                else:
+                    ba.ensure_game_foreground(inst)
+                    time.sleep(min(settle_s, remaining))
+            except Exception:
+                logger.exception("Startup: launch/restart failed on %s", inst)
+                time.sleep(min(settle_s, remaining))
+
+        logger.error(
+            "Startup: Whiteout not in foreground on %s within %.0fs — pausing worker",
+            inst,
+            timeout_s,
+        )
+        self._ui_paused = True
+        self._startup_pause_reason = "game not foreground at startup"
+        return False
+
+    _FOREGROUND_VERIFY_TIMEOUT_S = 20.0
+    _FOREGROUND_VERIFY_INTERVAL_S = 1.0
+    _POST_RESTART_GRACE_S = 10.0
+
+    async def _restart_instance(self) -> None:
+        from navigation.lifecycle_states import InstanceState
+
+        logger.warning("Restarting BlueStacks instance %s", self._cfg.instance_id)
+        # Pause scenarios + analyzers BEFORE the force-stop. The main loop checks
+        # ``_ui_paused`` between tasks (``instance_worker.py``), and the rolling
+        # snapshot loop checks it before each capture (``instance_worker_rolling.py``);
+        # flipping the flag here stops both for the duration of the restart.
+        prev_paused = bool(getattr(self, "_ui_paused", False))
+        self._ui_paused = True
+        # Kill the in-flight scenario before the force-stop: any remaining tap
+        # would land on a dead app / launcher and contaminate state. The
+        # cancelled task is recorded as failed in history via ``_execute_task``
+        # returning ``TaskResult(success=False, reason="aborted_for_restart")``.
+        await self._cancel_current_task("game restart triggered")
+        # Yield so the cancellation actually propagates into ``_execute_task``
+        # before we begin the blocking ADB calls below.
+        await asyncio.sleep(0)
+        await self._set_instance_state(InstanceState.RESTARTING)
+        await self._redis.delete(f"wos:instance:{self._cfg.instance_id}:lock")
+
+        try:
+            try:
+                self._bot_actions.restart_application(self._cfg.instance_id)
+                await asyncio.sleep(3.0)
+                await self._run_blocking(
+                    self._bot_actions.ensure_game_foreground,
+                    self._cfg.instance_id,
+                )
+            except Exception:
+                logger.exception("Failed to restart application on %s", self._cfg.instance_id)
+                await self._set_instance_state(
+                    InstanceState.CRASHED, error="restart_application failed (see logs)"
+                )
+                return
+
+            # Poll until the game reports foreground (best-effort, bounded).
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._FOREGROUND_VERIFY_TIMEOUT_S
+            while loop.time() < deadline:
+                try:
+                    is_fg = await self._run_blocking(
+                        self._bot_actions.is_game_foreground,
+                        self._cfg.instance_id,
+                    )
+                except Exception:
+                    logger.debug(
+                        "Restart: is_game_foreground probe failed on %s",
+                        self._cfg.instance_id,
+                        exc_info=True,
+                    )
+                    is_fg = False
+                if is_fg:
+                    break
+                await asyncio.sleep(self._FOREGROUND_VERIFY_INTERVAL_S)
+            else:
+                logger.warning(
+                    "Restart: %s did not return to foreground within %.1fs — resuming anyway",
+                    self._cfg.instance_id,
+                    self._FOREGROUND_VERIFY_TIMEOUT_S,
+                )
+
+            logger.info(
+                "Restart: %s back in foreground — settling for %.0fs before resume",
+                self._cfg.instance_id,
+                self._POST_RESTART_GRACE_S,
+            )
+            await asyncio.sleep(self._POST_RESTART_GRACE_S)
+
+            await self._set_instance_state(InstanceState.READY)
+        finally:
+            # Restore the previous pause state. If the operator had paused us
+            # before the restart event arrived, we don't want to silently resume.
+            self._ui_paused = prev_paused

@@ -1,0 +1,515 @@
+# Navigation tap sequences: src_screen → dst_screen → [region_names_from_area.json]
+# Regions must already exist in area.json — do not invent names.
+edges:
+  main_city:
+    # arena: [arena_btn]
+    # training: [training_btn]
+    # alliance: [alliance_btn]
+    # gathering: [world_map_btn]
+    chief_profile: [to_chief_profile]
+    mail: [mail.new]
+    exploration: [main_city.to.exploration]
+    heroes: [main_city.to.heroes]
+    survivor_status: [isWorkers]
+    suggestion_box: [isPostman]
+    backpack: [main_city.to.backpack]
+    vip: [page.vip]
+    shop: [main_city.to.shop]
+    # Tapping the chapter task banner navigates the camera to the active
+    # building and opens its panel. Used by `building.upgrade` (node: building)
+    # when chapter_task_router has just clicked chapter.task but the overlay
+    # `set_node: building` from `page.building.furniture.present` hasn't yet
+    # caught up. If chapter.task is empty, this tap no-ops and the verifier
+    # (`page.building.furniture` match) fails — scenario reschedules cleanly.
+    building: [chapter.task]
+    # Dynamic edges: tap region is resolved at runtime via the `event_blocks`
+    # resolver (see navigation/event_blocks_resolver.py), which reads the
+    # Redis hash `wos:instance:<id>:event_blocks` populated by the
+    # scan_event_blocks DSL exec handler.
+    event.trials:         { resolver: event_blocks, target: event.trials }
+    event.7-day:          { resolver: event_blocks, target: event.7-day }
+    event.first_purchase: { resolver: event_blocks, target: event.first_purchase }
+    event.shining_city_pack: { resolver: event_blocks, target: event.shining_city_pack }
+    event.wild_brawl: { resolver: event_blocks, target: event.wild_brawl }
+    event.dreamscape_memory: { resolver: event_blocks, target: event.dreamscape_memory }
+    event.armament_competition: { resolver: event_blocks, target: event.armament_competition }
+    event.deadshot: { resolver: event_blocks, target: event.deadshot }
+    event.tundra_album: { resolver: event_blocks, target: event.tundra_album }
+    event.defeat_nearby_beasts: { resolver: event_blocks, target: event.defeat_nearby_beasts }
+    event.silver_shell: { resolver: event_blocks, target: event.silver_shell }
+    event.snowbusters: { resolver: event_blocks, target: event.snowbusters }
+    event.journey_of_light: { resolver: event_blocks, target: event.journey_of_light }
+    event.labyrinth: { resolver: event_blocks, target: event.labyrinth }
+    event.treasure_hunter: { resolver: event_blocks, target: event.treasure_hunter }
+    event.crystal_reactivation: { resolver: event_blocks, target: event.crystal_reactivation }
+    event.vault_of_enigma: { resolver: event_blocks, target: event.vault_of_enigma }
+    event.hero_rally: { resolver: event_blocks, target: event.hero_rally }
+    event.weekly_benefits: { resolver: event_blocks, target: event.weekly_benefits }
+    event.flame_and_fang: { resolver: event_blocks, target: event.flame_and_fang }
+    event.lucky_wheel: { resolver: event_blocks, target: event.lucky_wheel }
+    event.return_to_tundra: { resolver: event_blocks, target: event.return_to_tundra }
+    event.mia_fortune: { resolver: event_blocks, target: event.mia_fortune }
+    event.ginas_revenge: { resolver: event_blocks, target: event.ginas_revenge }
+    event.heros_mission: { resolver: event_blocks, target: event.heros_mission }
+    event.frosty_fortune: { resolver: event_blocks, target: event.frosty_fortune }
+    event.king_of_icefield: { resolver: event_blocks, target: event.king_of_icefield }
+    event.frostfire_mine: { resolver: event_blocks, target: event.frostfire_mine }
+    event.tundra_trading_station: { resolver: event_blocks, target: event.tundra_trading_station }
+    event.hall_of_heroes: { resolver: event_blocks, target: event.hall_of_heroes }
+    event.tundra_adventure: { resolver: event_blocks, target: event.tundra_adventure }
+    event.fishing_tournament: { resolver: event_blocks, target: event.fishing_tournament }
+    event.grow_your_heroes: { resolver: event_blocks, target: event.grow_your_heroes }
+    event.working_overtime: { resolver: event_blocks, target: event.working_overtime }
+    event.home_and_beyond: { resolver: event_blocks, target: event.home_and_beyond }
+    event.city_development: { resolver: event_blocks, target: event.city_development }
+    event.plan_your_city: { resolver: event_blocks, target: event.plan_your_city }
+    event.trusted_chief: { resolver: event_blocks, target: event.trusted_chief }
+    event.power_up: { resolver: event_blocks, target: event.power_up }
+    event.hall_of_chief: { resolver: event_blocks, target: event.hall_of_chief }
+    event.romance_season: { resolver: event_blocks, target: event.romance_season }
+    event.state_merger: { resolver: event_blocks, target: event.state_merger }
+    event.state_transfer: { resolver: event_blocks, target: event.state_transfer }
+    event.symphony_of_change: { resolver: event_blocks, target: event.symphony_of_change }
+    event.sunfire_castle: { resolver: event_blocks, target: event.sunfire_castle }
+    event.vision_of_dawn: { resolver: event_blocks, target: event.vision_of_dawn }
+    event.brother_in_arms: { resolver: event_blocks, target: event.brother_in_arms }
+    event.officer_project: { resolver: event_blocks, target: event.officer_project }
+    event.tundra_arms_league: { resolver: event_blocks, target: event.tundra_arms_league }
+    event.tundra_trade_route: { resolver: event_blocks, target: event.tundra_trade_route }
+    event.alliance_showdown: { resolver: event_blocks, target: event.alliance_showdown }
+    event.frostdragon_tyrant: { resolver: event_blocks, target: event.frostdragon_tyrant }
+    event.canyon_clash: { resolver: event_blocks, target: event.canyon_clash }
+    event.svs: { resolver: event_blocks, target: event.svs }
+    event.foundry_battle: { resolver: event_blocks, target: event.foundry_battle }
+    event.bear_hunt: { resolver: event_blocks, target: event.bear_hunt }
+    event.crazy_joe: { resolver: event_blocks, target: event.crazy_joe }
+    event.alliance_championship: { resolver: event_blocks, target: event.alliance_championship }
+    event.mercenary_prestige: { resolver: event_blocks, target: event.mercenary_prestige }
+    event.alliance_mobilization: { resolver: event_blocks, target: event.alliance_mobilization }
+    event.develop_new_tech: { resolver: event_blocks, target: event.develop_new_tech }
+    event.tundra_star: { resolver: event_blocks, target: event.tundra_star }
+    event.daybreak_expedition: { resolver: event_blocks, target: event.daybreak_expedition }
+    event.beast_whisperer: { resolver: event_blocks, target: event.beast_whisperer }
+    event.stand_of_arms: { resolver: event_blocks, target: event.stand_of_arms }
+    event.war_preparation: { resolver: event_blocks, target: event.war_preparation }
+  # arena:
+  #   main_city: [icon.page.back]
+  # training:
+  #   main_city: [icon.page.back]
+  # gathering:
+  #   main_city: [icon.page.back]
+  # alliance:
+  #   main_city: [icon.page.back]
+  # Network disconnect overlay: tapping icon.reconnect drops the client back to main_city.
+  reconnect:
+    main_city: [icon.reconnect]
+  # Welcome-back offline-income popup: tapping Confirm drops the client back to main_city.
+  welcome_back:
+    main_city: [button.confirm.green]
+  # Frostdragon Tyrant popup/card: tap the blank-space prompt to return to main_city.
+  text.frostdragon_tyrant:
+    main_city: [text.tap_any_blank_space_to_close]
+  rewards:
+    main_city: [button.tap_anywhere_to_exit]
+  chief_profile:
+    main_city: [icon.page.back]
+  mail:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+  mail.wars:
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+  mail.alliance:
+    mail.wars: [mail.tab.wars]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+  mail.system:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.reports: [mail.tab.reports]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+  mail.reports:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.starred: [mail.tab.starred]
+    main_city: [icon.page.back]
+  mail.starred:
+    mail.wars: [mail.tab.wars]
+    mail.alliance: [mail.tab.alliance]
+    mail.system: [mail.tab.system]
+    mail.reports: [mail.tab.reports]
+    main_city: [icon.page.back]
+  chat:
+    main_city: [icon.page.back]
+  building:
+    main_city: [from.building.to.main_city]
+  # Furnace screen reuses the generic building→main_city back tap — both
+  # screens share the same chrome (back arrow at the same coords).
+  furnace:
+    main_city: [from.building.to.main_city]
+  survivor_status:
+    main_city: [from.survivor_status.to.main_city]
+  suggestion_box:
+    main_city: [icon.page.back]
+  hero.recrutment:
+    main_city: [icon.page.back]
+  exploration:
+    main_city: [icon.page.back]
+    squad_settings: [exploration.to.squad_settings]
+  squad_settings:
+    exploration: [icon.page.back]
+  heroes:
+    main_city: [icon.page.back]
+    hero.recrutment: [heroes.recruit]
+    page.heroes.ahmose: { resolver: hero_grid, target: ahmose }
+    page.heroes.aisling: { resolver: hero_grid, target: aisling }
+    page.heroes.alonso: { resolver: hero_grid, target: alonso }
+    page.heroes.bahiti: { resolver: hero_grid, target: bahiti }
+    page.heroes.blanchette: { resolver: hero_grid, target: blanchette }
+    page.heroes.bradley: { resolver: hero_grid, target: bradley }
+    page.heroes.cara: { resolver: hero_grid, target: cara }
+    page.heroes.charlie: { resolver: hero_grid, target: charlie }
+    page.heroes.cloris: { resolver: hero_grid, target: cloris }
+    page.heroes.dominic: { resolver: hero_grid, target: dominic }
+    page.heroes.edith: { resolver: hero_grid, target: edith }
+    page.heroes.eleonora: { resolver: hero_grid, target: eleonora }
+    page.heroes.elif: { resolver: hero_grid, target: elif }
+    page.heroes.estrella: { resolver: hero_grid, target: estrella }
+    page.heroes.eugene: { resolver: hero_grid, target: eugene }
+    page.heroes.flint: { resolver: hero_grid, target: flint }
+    page.heroes.flora: { resolver: hero_grid, target: flora }
+    page.heroes.fred: { resolver: hero_grid, target: fred }
+    page.heroes.freya: { resolver: hero_grid, target: freya }
+    page.heroes.gatot: { resolver: hero_grid, target: gatot }
+    page.heroes.gina: { resolver: hero_grid, target: gina }
+    page.heroes.gisela: { resolver: hero_grid, target: gisela }
+    page.heroes.gordon: { resolver: hero_grid, target: gordon }
+    page.heroes.greg: { resolver: hero_grid, target: greg }
+    page.heroes.gregory: { resolver: hero_grid, target: gregory }
+    page.heroes.gwen: { resolver: hero_grid, target: gwen }
+    page.heroes.hank: { resolver: hero_grid, target: hank }
+    page.heroes.hector: { resolver: hero_grid, target: hector }
+    page.heroes.hendrik: { resolver: hero_grid, target: hendrik }
+    page.heroes.hervor: { resolver: hero_grid, target: hervor }
+    page.heroes.jasser: { resolver: hero_grid, target: jasser }
+    page.heroes.jeronimo: { resolver: hero_grid, target: jeronimo }
+    page.heroes.jessie: { resolver: hero_grid, target: jessie }
+    page.heroes.karol: { resolver: hero_grid, target: karol }
+    page.heroes.ligeia: { resolver: hero_grid, target: ligeia }
+    page.heroes.ling_xue: { resolver: hero_grid, target: ling_xue }
+    page.heroes.lloyd: { resolver: hero_grid, target: lloyd }
+    page.heroes.logan: { resolver: hero_grid, target: logan }
+    page.heroes.lumak_bokan: { resolver: hero_grid, target: lumak_bokan }
+    page.heroes.lynn: { resolver: hero_grid, target: lynn }
+    page.heroes.magnus: { resolver: hero_grid, target: magnus }
+    page.heroes.mia: { resolver: hero_grid, target: mia }
+    page.heroes.molly: { resolver: hero_grid, target: molly }
+    page.heroes.natalia: { resolver: hero_grid, target: natalia }
+    page.heroes.norah: { resolver: hero_grid, target: norah }
+    page.heroes.patrick: { resolver: hero_grid, target: patrick }
+    page.heroes.philly: { resolver: hero_grid, target: philly }
+    page.heroes.reina: { resolver: hero_grid, target: reina }
+    page.heroes.renee: { resolver: hero_grid, target: renee }
+    page.heroes.rufus: { resolver: hero_grid, target: rufus }
+    page.heroes.seigel: { resolver: hero_grid, target: seigel }
+    page.heroes.seo_yoon: { resolver: hero_grid, target: seo_yoon }
+    page.heroes.sergey: { resolver: hero_grid, target: sergey }
+    page.heroes.smith: { resolver: hero_grid, target: smith }
+    page.heroes.sonya: { resolver: hero_grid, target: sonya }
+    page.heroes.ursar: { resolver: hero_grid, target: ursar }
+    page.heroes.viveca: { resolver: hero_grid, target: viveca }
+    page.heroes.vulcanus: { resolver: hero_grid, target: vulcanus }
+    page.heroes.wayne: { resolver: hero_grid, target: wayne }
+    page.heroes.wu_ming: { resolver: hero_grid, target: wu_ming }
+    page.heroes.xura: { resolver: hero_grid, target: xura }
+    page.heroes.zinman: { resolver: hero_grid, target: zinman }
+  page.heroes.unit:
+    heroes: [icon.page.back]
+  page.heroes.ahmose:
+    heroes: [icon.page.back]
+  page.heroes.aisling:
+    heroes: [icon.page.back]
+  page.heroes.alonso:
+    heroes: [icon.page.back]
+  page.heroes.bahiti:
+    heroes: [icon.page.back]
+  page.heroes.blanchette:
+    heroes: [icon.page.back]
+  page.heroes.bradley:
+    heroes: [icon.page.back]
+  page.heroes.cara:
+    heroes: [icon.page.back]
+  page.heroes.charlie:
+    heroes: [icon.page.back]
+  page.heroes.cloris:
+    heroes: [icon.page.back]
+  page.heroes.dominic:
+    heroes: [icon.page.back]
+  page.heroes.edith:
+    heroes: [icon.page.back]
+  page.heroes.eleonora:
+    heroes: [icon.page.back]
+  page.heroes.elif:
+    heroes: [icon.page.back]
+  page.heroes.estrella:
+    heroes: [icon.page.back]
+  page.heroes.eugene:
+    heroes: [icon.page.back]
+  page.heroes.flint:
+    heroes: [icon.page.back]
+  page.heroes.flora:
+    heroes: [icon.page.back]
+  page.heroes.fred:
+    heroes: [icon.page.back]
+  page.heroes.freya:
+    heroes: [icon.page.back]
+  page.heroes.gatot:
+    heroes: [icon.page.back]
+  page.heroes.gina:
+    heroes: [icon.page.back]
+  page.heroes.gisela:
+    heroes: [icon.page.back]
+  page.heroes.gordon:
+    heroes: [icon.page.back]
+  page.heroes.greg:
+    heroes: [icon.page.back]
+  page.heroes.gregory:
+    heroes: [icon.page.back]
+  page.heroes.gwen:
+    heroes: [icon.page.back]
+  page.heroes.hank:
+    heroes: [icon.page.back]
+  page.heroes.hector:
+    heroes: [icon.page.back]
+  page.heroes.hendrik:
+    heroes: [icon.page.back]
+  page.heroes.hervor:
+    heroes: [icon.page.back]
+  page.heroes.jasser:
+    heroes: [icon.page.back]
+  page.heroes.jeronimo:
+    heroes: [icon.page.back]
+  page.heroes.jessie:
+    heroes: [icon.page.back]
+  page.heroes.karol:
+    heroes: [icon.page.back]
+  page.heroes.ligeia:
+    heroes: [icon.page.back]
+  page.heroes.ling_xue:
+    heroes: [icon.page.back]
+  page.heroes.lloyd:
+    heroes: [icon.page.back]
+  page.heroes.logan:
+    heroes: [icon.page.back]
+  page.heroes.lumak_bokan:
+    heroes: [icon.page.back]
+  page.heroes.lynn:
+    heroes: [icon.page.back]
+  page.heroes.magnus:
+    heroes: [icon.page.back]
+  page.heroes.mia:
+    heroes: [icon.page.back]
+  page.heroes.molly:
+    heroes: [icon.page.back]
+  page.heroes.natalia:
+    heroes: [icon.page.back]
+  page.heroes.norah:
+    heroes: [icon.page.back]
+  page.heroes.patrick:
+    heroes: [icon.page.back]
+  page.heroes.philly:
+    heroes: [icon.page.back]
+  page.heroes.reina:
+    heroes: [icon.page.back]
+  page.heroes.renee:
+    heroes: [icon.page.back]
+  page.heroes.rufus:
+    heroes: [icon.page.back]
+  page.heroes.seigel:
+    heroes: [icon.page.back]
+  page.heroes.seo_yoon:
+    heroes: [icon.page.back]
+  page.heroes.sergey:
+    heroes: [icon.page.back]
+  page.heroes.smith:
+    heroes: [icon.page.back]
+  page.heroes.sonya:
+    heroes: [icon.page.back]
+  page.heroes.ursar:
+    heroes: [icon.page.back]
+  page.heroes.viveca:
+    heroes: [icon.page.back]
+  page.heroes.vulcanus:
+    heroes: [icon.page.back]
+  page.heroes.wayne:
+    heroes: [icon.page.back]
+  page.heroes.wu_ming:
+    heroes: [icon.page.back]
+  page.heroes.xura:
+    heroes: [icon.page.back]
+  page.heroes.zinman:
+    heroes: [icon.page.back]
+  backpack:
+    main_city: [icon.page.back]
+    backpack.resources: [page.backpack.resources]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.gear: [page.backpack.gear]
+    backpack.other: [page.backpack.other]
+  backpack.resources:
+    main_city: [icon.page.back]
+  backpack.speedup:
+    main_city: [icon.page.back]
+  backpack.bonus:
+    main_city: [icon.page.back]
+  backpack.gear:
+    main_city: [icon.page.back]
+  backpack.other:
+    main_city: [icon.page.back]
+  vip:
+    main_city: [icon.page.back]
+  shop:
+    main_city: [icon.page.back]
+  event.trials:
+    main_city: [icon.page.back]
+  event.7-day:
+    main_city: [icon.page.back]
+  event.first_purchase:
+    main_city: [icon.page.back]
+  event.shining_city_pack:
+    main_city: [icon.page.back]
+  event.wild_brawl:
+    main_city: [icon.page.back]
+  event.dreamscape_memory:
+    main_city: [icon.page.back]
+  event.armament_competition:
+    main_city: [icon.page.back]
+  event.deadshot:
+    main_city: [icon.page.back]
+  event.tundra_album:
+    main_city: [icon.page.back]
+  event.defeat_nearby_beasts:
+    main_city: [icon.page.back]
+  event.silver_shell:
+    main_city: [icon.page.back]
+  event.snowbusters:
+    main_city: [icon.page.back]
+  event.journey_of_light:
+    main_city: [icon.page.back]
+  event.labyrinth:
+    main_city: [icon.page.back]
+  event.treasure_hunter:
+    main_city: [icon.page.back]
+  event.crystal_reactivation:
+    main_city: [icon.page.back]
+  event.vault_of_enigma:
+    main_city: [icon.page.back]
+  event.hero_rally:
+    main_city: [icon.page.back]
+  event.weekly_benefits:
+    main_city: [icon.page.back]
+  event.flame_and_fang:
+    main_city: [icon.page.back]
+  event.lucky_wheel:
+    main_city: [icon.page.back]
+  event.return_to_tundra:
+    main_city: [icon.page.back]
+  event.mia_fortune:
+    main_city: [icon.page.back]
+  event.ginas_revenge:
+    main_city: [icon.page.back]
+  event.heros_mission:
+    main_city: [icon.page.back]
+  event.frosty_fortune:
+    main_city: [icon.page.back]
+  event.king_of_icefield:
+    main_city: [icon.page.back]
+  event.frostfire_mine:
+    main_city: [icon.page.back]
+  event.tundra_trading_station:
+    main_city: [icon.page.back]
+  event.hall_of_heroes:
+    main_city: [icon.page.back]
+  event.tundra_adventure:
+    main_city: [icon.page.back]
+  event.fishing_tournament:
+    main_city: [icon.page.back]
+  event.grow_your_heroes:
+    main_city: [icon.page.back]
+  event.working_overtime:
+    main_city: [icon.page.back]
+  event.home_and_beyond:
+    main_city: [icon.page.back]
+  event.city_development:
+    main_city: [icon.page.back]
+  event.plan_your_city:
+    main_city: [icon.page.back]
+  event.trusted_chief:
+    main_city: [icon.page.back]
+  event.power_up:
+    main_city: [icon.page.back]
+  event.hall_of_chief:
+    main_city: [icon.page.back]
+  event.romance_season:
+    main_city: [icon.page.back]
+  event.state_merger:
+    main_city: [icon.page.back]
+  event.state_transfer:
+    main_city: [icon.page.back]
+  event.symphony_of_change:
+    main_city: [icon.page.back]
+  event.sunfire_castle:
+    main_city: [icon.page.back]
+  event.vision_of_dawn:
+    main_city: [icon.page.back]
+  event.brother_in_arms:
+    main_city: [icon.page.back]
+  event.officer_project:
+    main_city: [icon.page.back]
+  event.tundra_arms_league:
+    main_city: [icon.page.back]
+  event.tundra_trade_route:
+    main_city: [icon.page.back]
+  event.alliance_showdown:
+    main_city: [icon.page.back]
+  event.frostdragon_tyrant:
+    main_city: [icon.page.back]
+  event.canyon_clash:
+    main_city: [icon.page.back]
+  event.svs:
+    main_city: [icon.page.back]
+  event.foundry_battle:
+    main_city: [icon.page.back]
+  event.bear_hunt:
+    main_city: [icon.page.back]
+  event.crazy_joe:
+    main_city: [icon.page.back]
+  event.alliance_championship:
+    main_city: [icon.page.back]
+  event.mercenary_prestige:
+    main_city: [icon.page.back]
+  event.alliance_mobilization:
+    main_city: [icon.page.back]
+  event.develop_new_tech:
+    main_city: [icon.page.back]
+  event.tundra_star:
+    main_city: [icon.page.back]
+  event.daybreak_expedition:
+    main_city: [icon.page.back]
+  event.beast_whisperer:
+    main_city: [icon.page.back]
+  event.stand_of_arms:
+    main_city: [icon.page.back]
+  event.war_preparation:
+    main_city: [icon.page.back]

@@ -218,6 +218,31 @@ const DrawableCanvas = ({ args }: ComponentProps) => {
     canvas.on("selection:created", onSelection)
     canvas.on("selection:updated", onSelection)
 
+    // wos-fork: allow deleting the selected rectangle with Backspace/Delete.
+    // Fabric owns the selection; after removal, persist the JSON so Python-side
+    // region sync sees the missing object and removes the matching region.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") {
+        return
+      }
+      const target = canvas.getActiveObject()
+      if (!target) {
+        return
+      }
+      const tag = (target as any).wos_region_name
+      if (typeof tag !== "string" || tag.trim() === "") {
+        return
+      }
+      e.preventDefault()
+      canvas.remove(target)
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+      setActiveRegionName(null)
+      saveState(canvas.toJSON())
+      forceStreamlitUpdate()
+    }
+    window.addEventListener("keydown", onKeyDown)
+
     // Cleanup tool + send data to Streamlit events
     return () => {
       cleanupToolEvents()
@@ -225,6 +250,7 @@ const DrawableCanvas = ({ args }: ComponentProps) => {
       canvas.off("mouse:dblclick")
       canvas.off("selection:created", onSelection)
       canvas.off("selection:updated", onSelection)
+      window.removeEventListener("keydown", onKeyDown)
     }
   }, [
     canvas,
