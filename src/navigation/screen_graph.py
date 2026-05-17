@@ -23,7 +23,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -87,12 +87,14 @@ def _load_edge_taps() -> tuple[
     dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
     for path in _edge_taps_yaml_paths():
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        edges = raw.get("edges", {})
-        if not isinstance(edges, dict):
+        edges_raw = raw.get("edges", {})
+        if not isinstance(edges_raw, dict):
             continue
-        for src, dsts in edges.items():
-            if not isinstance(dsts, dict):
+        edges = cast(dict[str, Any], edges_raw)
+        for src, dsts_raw in edges.items():
+            if not isinstance(dsts_raw, dict):
                 continue
+            dsts = cast(dict[str, Any], dsts_raw)
             for dst, taps in dsts.items():
                 key = (str(src), str(dst))
                 if isinstance(taps, list):
@@ -216,9 +218,10 @@ def _area_json_path() -> Path:
 def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     if not isinstance(raw, dict):
         return None
+    raw_d = cast(dict[str, Any], raw)
     rule: VerifyRule = {}
     for key in ("match", "ocr", "tab_active"):
-        value = raw.get(key)
+        value = raw_d.get(key)
         if value is not None and str(value).strip():
             rule[key] = str(value).strip()
     # ``from_screen`` is an image-less verify: passes when the previous entry in
@@ -226,7 +229,7 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
     # destinations without their own OCR/match landmark (e.g. the per-hero wiki
     # popup) be verified by the hop we took to reach them. List form accepts
     # multiple acceptable predecessors.
-    fs_raw = raw.get("from_screen")
+    fs_raw = raw_d.get("from_screen")
     fs_values: list[str] = []
     if isinstance(fs_raw, list):
         fs_values = [str(x).strip() for x in fs_raw if str(x).strip()]
@@ -236,15 +239,15 @@ def _normalize_verify_rule(raw: object) -> VerifyRule | None:
         rule["from_screen"] = fs_values
     if not rule:
         return None
-    if "contains" in raw:
-        contains = raw.get("contains")
+    if "contains" in raw_d:
+        contains = raw_d.get("contains")
         if isinstance(contains, list):
             rule["contains"] = [str(x).strip() for x in contains if str(x).strip()]
         elif contains is not None and str(contains).strip():
             rule["contains"] = str(contains).strip()
     for key in ("threshold", "confidence", "min_match_saturation"):
-        if key in raw:
-            rule[key] = raw[key]
+        if key in raw_d:
+            rule[key] = raw_d[key]
     return rule
 
 

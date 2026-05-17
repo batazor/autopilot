@@ -428,19 +428,15 @@ class DslScenarioInlineMixin(_Base):
         self._last_tap_region_clicked = region
         # After a click on a matched region, remember the last match top-left so the next
         # `while_match` can pick a different occurrence if multiple are present.
-        if (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and isinstance(self._last_match_row.get("top_left"), (list, tuple))
-            and len(self._last_match_row.get("top_left")) >= 2  # type: ignore[arg-type]
-        ):
-            try:
-                tl = self._last_match_row.get("top_left")
-                x0 = int(float(tl[0]))  # type: ignore[index]
-                y0 = int(float(tl[1]))  # type: ignore[index]
-                self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
-            except Exception:
-                pass
+        if self._last_match_row is not None and self._last_match_region == region:
+            tl = self._last_match_row.get("top_left")
+            if isinstance(tl, (list, tuple)) and len(tl) >= 2:
+                try:
+                    x0 = int(float(tl[0]))
+                    y0 = int(float(tl[1]))
+                    self._exclude_match_top_lefts.setdefault(region, []).append((x0, y0))
+                except Exception:
+                    pass
         return None
 
     def _point_for_region_action(
@@ -457,16 +453,18 @@ class DslScenarioInlineMixin(_Base):
         # best-found position even if the score didn't clear the threshold — the user explicitly
         # asked us to find this button, threshold gating only matters when verifying presence.
         implicit = self._implicit_match_for_region == region
-        if (
-            self._last_match_row is not None
-            and self._last_match_region == region
-            and (implicit or bool(self._last_match_row.get("matched")))
-            and self._last_match_row.get("tap_x_pct") is not None
-            and self._last_match_row.get("tap_y_pct") is not None
+        if self._last_match_row is not None and self._last_match_region == region and (
+            implicit or bool(self._last_match_row.get("matched"))
         ):
+            tap_x_raw = self._last_match_row.get("tap_x_pct")
+            tap_y_raw = self._last_match_row.get("tap_y_pct")
+        else:
+            tap_x_raw = None
+            tap_y_raw = None
+        if tap_x_raw is not None and tap_y_raw is not None and self._last_match_row is not None:
             try:
-                txp = float(self._last_match_row.get("tap_x_pct"))  # type: ignore[arg-type]
-                typ = float(self._last_match_row.get("tap_y_pct"))  # type: ignore[arg-type]
+                txp = float(tap_x_raw)
+                typ = float(tap_y_raw)
                 # When the match carries the found template's pixel size, treat that
                 # rectangle as the click zone and randomise inside it — same idea as
                 # for a static bbox, just scoped to the actual icon location.
