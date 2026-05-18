@@ -1,0 +1,23 @@
+overlay:
+  # ── Cycle: advance to the next shop sub-page ─────────────────────────────
+  # The right-arrow ``shop.tab.next_page`` is reachable from every shop
+  # sub-page; the rule must be gated on each one explicitly because the
+  # analyzer has no wildcard support. Without all screens listed, the bot
+  # reaches a sub-page and never advances past it.
+  - name: shop.tab.advance.has_next_page
+    region: shop.tab.next_page
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop
+      - shop.dawn_market
+      - shop.daily_deals
+      - shop.mix_match
+      - shop.dawn_fund
+      - shop.construction_queue
+      - shop.weekly_monthly_cards
+      - shop.get_gems
+      - shop.regular_pack
+    pushScenario:
+      - name: shop.tab.advance
+        ttl: 1m

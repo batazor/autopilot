@@ -1,0 +1,9 @@
+overlay:
+  - name: shop.dawn_fund.page
+    region: page.shop.dawn_fund.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop.dawn_fund
+    pushScenario:
+      - name: shop.dawn_fund

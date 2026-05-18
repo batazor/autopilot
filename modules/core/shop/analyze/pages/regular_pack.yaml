@@ -1,0 +1,9 @@
+overlay:
+  - name: shop.regular_pack.page
+    region: page.shop.regular_pack.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - shop.regular_pack
+    pushScenario:
+      - name: shop.regular_pack

@@ -1,45 +1,10 @@
-overlay:
-- name: main_city.to.shop.has_red_dot
-  region: main_city.to.shop
-  isRedDot: true
-  screens:
-  - main_city
-  pushScenario:
-  - name: shop.open
-    ttl: 5m
-- name: shop.dawn_market.page
-  region: page.shop.dawn_market.title
-  action: findIcon
-  threshold: 0.9
-  screens:
-  - shop.dawn_market
-  pushScenario:
-  - name: shop.dawn_market
-    ttl: 5m
-- name: shop.daily_deals.page
-  region: page.shop.daily_deals.title
-  action: findIcon
-  threshold: 0.9
-  screens:
-  - shop.daily_deals
-  pushScenario:
-  - name: shop.daily_deals
-    ttl: 5m
-- name: shop.mix_match.page
-  region: shop.to.mix_match
-  action: findIcon
-  threshold: 0.9
-  screens:
-  - shop.mix_match
-  pushScenario:
-  - name: shop.mix_match
-    ttl: 5m
-- name: shop.dawn_fund.page
-  region: page.shop.dawn_fund.title
-  action: findIcon
-  threshold: 0.9
-  screens:
-  - shop.dawn_fund
-  pushScenario:
-  - name: shop.dawn_fund
-    ttl: 5m
+include:
+  - pages/common.yaml
+  - pages/dawn_market.yaml
+  - pages/daily_deals.yaml
+  - pages/mix_match.yaml
+  - pages/dawn_fund.yaml
+  - pages/construction_queue.yaml
+  - pages/weekly_monthly_cards.yaml
+  - pages/get_gems.yaml
+  - pages/regular_pack.yaml
