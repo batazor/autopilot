@@ -22,6 +22,9 @@ from typing import TYPE_CHECKING
 
 import cv2
 
+from pathlib import Path
+
+from layout.crop_paths import exported_crop_png
 from layout.template_match import patch_bgr_from_bbox_percent
 
 if TYPE_CHECKING:
@@ -92,3 +95,62 @@ def identify_tabs_by_template(
         out[idx] = name
         taken_pages.add(name)
     return out
+
+
+def discover_shop_tab_templates(
+    area_doc: dict,
+    repo_root: Path,
+    strip_bbox: dict,
+) -> dict[str, np.ndarray]:
+    """Auto-discover shop tab templates from area regions inside the strip Y range.
+
+    Two naming conventions are recognised, mirroring how the user annotates:
+
+    * ``shop.to.<page>`` — explicit navigation tap targets on sub-shop pages.
+    * ``page.shop.<page>.title`` — the convention used on the shop hub
+      (dawn_market) where tab icons share the title suffix. Filtered by
+      bbox Y so page-body titles (below the strip) don't slip in.
+
+    Returns ``{page_id → BGR template}``. Page IDs are the canonical
+    ``shop.<page>`` form ready to pass to :func:`identify_tabs_by_template`.
+    """
+    import cv2  # local import; this module is otherwise OpenCV-free above
+
+    if not isinstance(strip_bbox, dict):
+        return {}
+    strip_y_lo = float(strip_bbox.get("y", 0.0))
+    strip_y_hi = strip_y_lo + float(strip_bbox.get("height", 0.0))
+
+    templates: dict[str, np.ndarray] = {}
+    for screen in area_doc.get("screens", []) or []:
+        if not isinstance(screen, dict):
+            continue
+        ocr_rel = str(screen.get("ocr", "")).strip()
+        if "modules/core/shop" not in ocr_rel:
+            continue
+        for reg in screen.get("regions", []) or []:
+            if not isinstance(reg, dict):
+                continue
+            name = str(reg.get("name", "")).strip()
+            bbox = reg.get("bbox") or {}
+            ry = float(bbox.get("y", 0.0))
+            if not (strip_y_lo <= ry < strip_y_hi):
+                continue
+            if name.startswith("shop.to."):
+                page_id = "shop." + name[len("shop.to."):]
+            elif name.startswith("page.shop.") and name.endswith(".title"):
+                suffix = name[len("page.shop."):-len(".title")]
+                if not suffix:
+                    continue
+                page_id = "shop." + suffix
+            else:
+                continue
+            if page_id in templates:
+                continue
+            crop_path = exported_crop_png(repo_root, ocr_rel, name)
+            if not crop_path.is_file():
+                continue
+            img = cv2.imread(str(crop_path))
+            if img is not None and img.size > 0:
+                templates[page_id] = img
+    return templates

@@ -29,6 +29,7 @@ from layout.tab_active_detector import (
     tab_activity_stats,
     yellow_tab_ratio,
 )
+from layout.tabs_strip_identifier import discover_shop_tab_templates, identify_tabs_by_template
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.template_match import (
     TemplateMatchResult,
@@ -641,17 +642,35 @@ async def evaluate_overlay_rules_async(
                 continue
 
             tabs_dt = detect_tabs_in_strip(image_bgr, bbox_dt)
+            # Identify each tab → page_id (which sub-shop does this tab navigate
+            # to?). Templates auto-discovered from the strip's module — the bot
+            # then knows not just "tab N has a red dot" but "page X needs work".
+            tab_ids_dt = identify_tabs_by_template(
+                image_bgr,
+                tabs_dt,
+                discover_shop_tab_templates(area_doc, repo_root, bbox_dt),
+            )
             tabs_payload = [
                 {
                     "index": t.index,
                     "bbox": t.bbox_percent,
                     "active": t.active,
                     "has_red_dot": t.has_red_dot,
+                    "page_id": tab_ids_dt.get(t.index),
                 }
                 for t in tabs_dt
             ]
             active_index = next((t.index for t in tabs_dt if t.active), None)
             any_red_dot = any(t.has_red_dot for t in tabs_dt)
+            # Pages that need work: identified tab + has_red_dot + NOT the
+            # currently-active page (active page's own scenario clears its own
+            # dot — re-pushing it would loop). Preserve left-to-right order so
+            # the bot has a stable iteration order.
+            red_dot_pages = [
+                tab_ids_dt[t.index]
+                for t in tabs_dt
+                if t.has_red_dot and not t.active and t.index in tab_ids_dt
+            ]
             # Tap target: center of the first tab with a red dot (left-to-right),
             # falling back to the active tab. Lets `pushScenario` consumers click
             # the notification directly without re-segmenting.
@@ -676,6 +695,9 @@ async def evaluate_overlay_rules_async(
                 tap_template_w = 0
                 tap_template_h = 0
 
+            active_page_id_dt = (
+                tab_ids_dt.get(active_index) if active_index is not None else None
+            )
             hit_dt: dict[str, Any] = {
                 "matched": any_red_dot,
                 "action": "detectTabs",
@@ -683,8 +705,10 @@ async def evaluate_overlay_rules_async(
                 "tabs": tabs_payload,
                 "tab_count": len(tabs_dt),
                 "active_index": active_index,
+                "active_page_id": active_page_id_dt,
                 "any_red_dot": any_red_dot,
                 "red_dot_indices": [t.index for t in tabs_dt if t.has_red_dot],
+                "red_dot_pages": red_dot_pages,
                 "tap_x_pct": tap_x_pct_dt,
                 "tap_y_pct": tap_y_pct_dt,
                 "tap_match_x_pct": tap_x_pct_dt,
