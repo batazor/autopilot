@@ -57,6 +57,16 @@ def _step_tab_active_requirement(step: dict[str, Any]) -> bool | None:
     return _step_bool_guard(step, "isTabActive")
 
 
+def _step_yellow_glow_requirement(step: dict[str, Any]) -> bool | None:
+    """Read optional ``isYellowGlow: true|false`` on a ``match:`` / ``while_match:`` step.
+
+    Mirrors the ``isRedDot`` / ``isTabActive`` flags — the step asks "is
+    there a claimable yellow-rim tile inside <region>?". Used by reward
+    grids like ``shop.to.dawn_fund.box``.
+    """
+    return _step_bool_guard(step, "isYellowGlow")
+
+
 # ---------------------------------------------------------------------------
 # Color checks (dominant color in a bbox)
 # ---------------------------------------------------------------------------

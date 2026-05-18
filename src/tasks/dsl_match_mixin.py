@@ -42,10 +42,12 @@ from layout.white_border_detector import (
     find_white_border_match_in_search_roi,
     has_white_border_in_bbox_percent,
 )
+from layout.yellow_glow_detector import find_yellow_glow_squares
 from tasks.dsl_scenario_helpers import (
     _step_red_dot_requirement,
     _step_tab_active_requirement,
     _step_white_border_requirement,
+    _step_yellow_glow_requirement,
 )
 
 logger = logging.getLogger(__name__)
@@ -305,6 +307,7 @@ class DslMatchMixin(_Base):
         red_dot_req = _step_red_dot_requirement(step)
         tab_active_req = _step_tab_active_requirement(step)
         white_border_req = _step_white_border_requirement(step)
+        yellow_glow_req = _step_yellow_glow_requirement(step)
 
         # Red-dot-only short-circuit: when the step carries ``isRedDot: true|false``
         # the user is asking "is there a red dot in <region>?" — they do NOT
@@ -345,6 +348,14 @@ class DslMatchMixin(_Base):
                 image_bgr=image_bgr,
                 requirement=white_border_req,
                 step=step,
+            )
+        elif yellow_glow_req is not None:
+            image_bgr = await asyncio.to_thread(capture, instance_id)
+            row = self._build_yellow_glow_only_row(
+                region=region,
+                region_def=pair[1],
+                image_bgr=image_bgr,
+                requirement=yellow_glow_req,
             )
         else:
             # `match:` / `while_match:` should evaluate using the region's action from `area.json`.
@@ -473,6 +484,86 @@ class DslMatchMixin(_Base):
         base["tap_y_pct"] = cy
         base["tap_match_x_pct"] = cx
         base["tap_match_y_pct"] = cy
+        return base
+
+    @staticmethod
+    def _build_yellow_glow_only_row(
+        *,
+        region: str,
+        region_def: dict[str, Any],
+        image_bgr: Any,
+        requirement: bool,
+    ) -> dict[str, Any]:
+        """Build a match row for ``isYellowGlow:`` steps.
+
+        Scopes :func:`find_yellow_glow_squares` to candidates whose centre
+        falls inside the region's bbox — the region acts as the search ROI,
+        so the same step works whether the column has 1, 4 or N tiles. The
+        first (lowest-fill) claim wins; its centre is exposed as the tap
+        target along with ``template_w`` / ``template_h`` so the DSL click
+        path lands a randomised tap *inside* the tile, not on the column's
+        bbox centre.
+        """
+        base: dict[str, Any] = {
+            "matched": False,
+            "action": "yellow_glow",
+            "region": region,
+            "yellow_glow_required": bool(requirement),
+        }
+        bbox = region_def.get("bbox") if isinstance(region_def.get("bbox"), dict) else None
+        if bbox is None:
+            base["reason"] = "missing_bbox_for_yellow_glow"
+            return base
+
+        rx = float(bbox.get("x") or 0.0)
+        ry = float(bbox.get("y") or 0.0)
+        rw = float(bbox.get("width") or 0.0)
+        rh = float(bbox.get("height") or 0.0)
+
+        squares = find_yellow_glow_squares(image_bgr)
+        # Restrict to candidates whose centre sits inside the region bbox.
+        in_region = []
+        for sq in squares:
+            scx = sq.bbox_percent["x"] + sq.bbox_percent["width"] / 2.0
+            scy = sq.bbox_percent["y"] + sq.bbox_percent["height"] / 2.0
+            if rx <= scx <= rx + rw and ry <= scy <= ry + rh:
+                in_region.append(sq)
+        present = bool(in_region)
+        base["yellow_glow_present"] = present
+        base["yellow_glow_count"] = len(in_region)
+        if present != bool(requirement):
+            base["reason"] = "yellow_glow_missing" if requirement else "yellow_glow_unexpected"
+            return base
+
+        base["matched"] = True
+        if in_region:
+            # Tap target = centre of the lowest-fill (clearest hollow rim)
+            # candidate; ``find_yellow_glow_squares`` already sorts by
+            # fill_ratio ascending so ``in_region[0]`` wins.
+            chosen = in_region[0]
+            cx = chosen.bbox_percent["x"] + chosen.bbox_percent["width"] / 2.0
+            cy = chosen.bbox_percent["y"] + chosen.bbox_percent["height"] / 2.0
+            base["tap_x_pct"] = cx
+            base["tap_y_pct"] = cy
+            base["tap_match_x_pct"] = cx
+            base["tap_match_y_pct"] = cy
+            # Expose the tile's pixel size so the DSL click path builds a
+            # synthetic bbox sized to the tile (not the column) and
+            # randomises the tap inside it — mirrors how detectTabs does it.
+            img_h, img_w = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+            tw = max(1, int(round(chosen.bbox_percent["width"] / 100.0 * img_w)))
+            th = max(1, int(round(chosen.bbox_percent["height"] / 100.0 * img_h)))
+            base["template_w"] = tw
+            base["template_h"] = th
+        else:
+            # Region matched (requirement was False, no glow as expected) —
+            # tap target falls back to bbox centre for symmetry with siblings.
+            cx = rx + rw / 2.0
+            cy = ry + rh / 2.0
+            base["tap_x_pct"] = cx
+            base["tap_y_pct"] = cy
+            base["tap_match_x_pct"] = cx
+            base["tap_match_y_pct"] = cy
         return base
 
     @staticmethod
