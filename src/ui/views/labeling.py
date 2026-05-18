@@ -21,6 +21,7 @@ from ui.area_annotator import (
     detect_screen_id_from_png_path,
     ensure_entry_for_reference_path,
     export_all_region_crops_for_area_doc,
+    find_stale_crops,
     get_active_version,
     get_active_version_ocr_override,
     init_session,
@@ -45,6 +46,7 @@ from ui.keys import (
     LABELING_TREE_SELECTION,
 )
 from ui.labeling_helpers import _count_regions, labeling_workflow_steps
+from ui.reference_ocr_paths import reference_basename_stem
 from ui.labeling_reference_panel import (
     labeling_basename_widget_key,
     labeling_query_ref,
@@ -57,7 +59,7 @@ from ui.labeling_workflow_ui import render_labeling_workflow_strip
 from ui.reference_preview import copy_rolling_preview_to, list_reference_pngs
 from ui.roboflow_upload import build_coco_annotation, load_roboflow_upload_config, upload_screenshot_to_roboflow
 from ui.settings_state import ensure_ui_settings_session_defaults
-from ui.wiki_module import render_wiki_module_selector
+from ui.wiki_module import active_references_prefix, render_wiki_module_selector
 
 
 def _labeling_has_version_query_param(params: Any) -> bool:
@@ -169,20 +171,25 @@ def _handle_discard_pending_capture(*, ref_root: Path) -> None:
         except OSError:
             pass
     else:
-        purge_reference_png_and_area_entries(REPO_ROOT, ref_root, rel)
+        purge_reference_png_and_area_entries(
+            REPO_ROOT,
+            ref_root,
+            rel,
+            references_prefix=active_references_prefix(),
+        )
 
-    existing2 = list_reference_pngs(exclude_temporal=True, exclude_crop=True)
+    existing2 = list_reference_pngs(exclude_temporal=True, exclude_crop=True, root=ref_root)
     restored: str | None
     if prev and (ref_root / prev).is_file():
         restored = prev
         st.session_state[LABELING_TREE_SELECTION] = prev
         st.session_state[LABELING_BN_SYNC_SEL] = prev
-        st.session_state[labeling_basename_widget_key(prev)] = Path(prev).stem
+        st.session_state[labeling_basename_widget_key(prev)] = reference_basename_stem(prev)
     elif existing2:
         restored = existing2[0].relative_to(ref_root).as_posix()
         st.session_state[LABELING_TREE_SELECTION] = restored
         st.session_state[LABELING_BN_SYNC_SEL] = restored
-        st.session_state[labeling_basename_widget_key(restored)] = Path(restored).stem
+        st.session_state[labeling_basename_widget_key(restored)] = reference_basename_stem(restored)
     else:
         restored = None
         st.session_state.pop(LABELING_TREE_SELECTION, None)
@@ -417,6 +424,43 @@ with hdr_btn:
         ),
     )
 
+# ── Stale-crops banner ─────────────────────────────────────────────────────
+# Surfaces drift between bbox geometry and the on-disk crop PNG (export was
+# skipped, save crashed mid-export, or the user navigated away after editing
+# without saving). Until they're in sync, every template-match consumer of
+# those crops sees the *old* image — usually as silent misclassifications,
+# never as an error. The Resync button calls the same exporter that Save
+# triggers, so this works as a safety net for any path that bypassed it.
+_doc_for_stale = st.session_state.get(AREA_DOC)
+if isinstance(_doc_for_stale, dict):
+    _stale = find_stale_crops(_doc_for_stale, repo_root=REPO_ROOT)
+    if _stale:
+        c_warn, c_btn = st.columns([4, 1], vertical_alignment="center")
+        with c_warn:
+            st.warning(
+                f"⚠️ **{len(_stale)} crop(s) out of sync with current bboxes** — "
+                "re-export to fix template matches.",
+                icon="📐",
+            )
+        with c_btn:
+            if st.button(
+                "Resync now",
+                type="primary",
+                width="stretch",
+                key="labeling_header_resync_crops",
+            ):
+                write_crops = True
+        with st.expander(f"Show {len(_stale)} stale crop(s)"):
+            for s in _stale[:50]:
+                st.text(
+                    f"{s['region']:40}  "
+                    f"bbox={s['expected_w']}x{s['expected_h']}  "
+                    f"crop={s['actual_w']}x{s['actual_h']}  "
+                    f"({s['ocr']})"
+                )
+            if len(_stale) > 50:
+                st.caption(f"… and {len(_stale) - 50} more")
+
 _sel_for_flow = st.session_state.get(LABELING_TREE_SELECTION)
 _pending_for_flow = st.session_state.get(LABELING_PENDING_CAPTURE_REL)
 _entry_for_flow: dict | None = None
@@ -484,7 +528,12 @@ if new_screenshot:
                 except OSError:
                     pass
             else:
-                purge_reference_png_and_area_entries(REPO_ROOT, ref_root, old_pending)
+                purge_reference_png_and_area_entries(
+                    REPO_ROOT,
+                    ref_root,
+                    old_pending,
+                    references_prefix=active_references_prefix(),
+                )
 
         raw_prev = st.session_state.get(LABELING_TREE_SELECTION)
         prev_ok = (

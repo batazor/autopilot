@@ -29,6 +29,7 @@ from layout.tab_active_detector import (
     tab_activity_stats,
     yellow_tab_ratio,
 )
+from layout.tabs_strip_segmenter import detect_tabs_in_strip
 from layout.template_match import (
     TemplateMatchResult,
     match_crop_1to1_at_bbox_percent,
@@ -445,7 +446,34 @@ async def evaluate_overlay_rules_async(
                     "want_dot_present": want_present,
                 }
                 continue
-            present_rd = bool(has_red_dot_in_bbox_percent(image_bgr, bbox_rd))
+            # Notification badges always sit in the top-right corner of an icon.
+            # Search the right half of the bbox, extended 20 px upward and 20 px
+            # to the right so badges that overflow the labeled region are caught,
+            # while left-aligned decorations ("!" alerts on adjacent tabs) are excluded.
+            _rd_x = float(bbox_rd.get("x") or 0.0)
+            _rd_y = float(bbox_rd.get("y") or 0.0)
+            _rd_w = float(bbox_rd.get("width") or 0.0)
+            _rd_h = float(bbox_rd.get("height") or 0.0)
+            _orig_w = float(bbox_rd.get("original_width") or 720)
+            _orig_h = float(bbox_rd.get("original_height") or 1280)
+            _px_right_pct = 20.0 / _orig_w * 100.0
+            _px_up_pct    = 20.0 / _orig_h * 100.0
+            badge_bbox: dict[str, float] = {
+                "x": _rd_x + _rd_w * 0.5,
+                "y": max(0.0, _rd_y - _px_up_pct),
+                "width": _rd_w * 0.5 + _px_right_pct,
+                "height": _rd_h * 0.6 + _px_up_pct,
+                "original_width": _orig_w,
+                "original_height": _orig_h,
+            }
+            # pad_px=0 and edge_badge_pad_ratio=0.0: the explicit 20 px offsets
+            # already cover badge overflow; sideways expansion would leak into
+            # adjacent regions (e.g. "!" badge of the next tab).
+            present_rd = bool(
+                has_red_dot_in_bbox_percent(
+                    image_bgr, badge_bbox, pad_px=0, edge_badge_pad_ratio=0.0
+                )
+            )
             matched_rd = present_rd if want_present else not present_rd
 
             bx = float(bbox_rd.get("x") or 0.0)
@@ -588,6 +616,91 @@ async def evaluate_overlay_rules_async(
             if priority is not None:
                 hit_ta["priority"] = priority
             out[logical_name] = hit_ta
+            continue
+
+        if action == "detectTabs":
+            region_name_dt = str(rule.get("region") or "").strip()
+            pair_dt = _lookup_region(region_name_dt) if region_name_dt else None
+            if pair_dt is None:
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "unknown_region",
+                    "region": region_name_dt,
+                    "action": "detectTabs",
+                }
+                continue
+            _entry_dt, reg_dt = pair_dt
+            bbox_dt = reg_dt.get("bbox")
+            if not isinstance(bbox_dt, dict):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "missing_bbox",
+                    "region": region_name_dt,
+                    "action": "detectTabs",
+                }
+                continue
+
+            tabs_dt = detect_tabs_in_strip(image_bgr, bbox_dt)
+            tabs_payload = [
+                {
+                    "index": t.index,
+                    "bbox": t.bbox_percent,
+                    "active": t.active,
+                    "has_red_dot": t.has_red_dot,
+                }
+                for t in tabs_dt
+            ]
+            active_index = next((t.index for t in tabs_dt if t.active), None)
+            any_red_dot = any(t.has_red_dot for t in tabs_dt)
+            # Tap target: center of the first tab with a red dot (left-to-right),
+            # falling back to the active tab. Lets `pushScenario` consumers click
+            # the notification directly without re-segmenting.
+            tap_tab = next((t for t in tabs_dt if t.has_red_dot), None)
+            if tap_tab is None and active_index is not None:
+                tap_tab = tabs_dt[active_index]
+            img_h_dt, img_w_dt = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+            if tap_tab is not None:
+                tap_x_pct_dt = tap_tab.bbox_percent["x"] + tap_tab.bbox_percent["width"] / 2.0
+                tap_y_pct_dt = tap_tab.bbox_percent["y"] + tap_tab.bbox_percent["height"] / 2.0
+                # Expose the chosen tab's pixel dimensions so the DSL click path
+                # treats it as a sliding-template match: it builds a synthetic
+                # bbox around (tap_x_pct, tap_y_pct) sized template_w × template_h
+                # and samples a random point inside (15 % inset). Result: clicks
+                # land anywhere within the tab, not always dead-centre — looks
+                # more like a human tap.
+                tap_template_w = max(1, int(round(tap_tab.bbox_percent["width"] / 100.0 * img_w_dt)))
+                tap_template_h = max(1, int(round(tap_tab.bbox_percent["height"] / 100.0 * img_h_dt)))
+            else:
+                tap_x_pct_dt = float(bbox_dt.get("x", 0.0)) + float(bbox_dt.get("width", 0.0)) / 2.0
+                tap_y_pct_dt = float(bbox_dt.get("y", 0.0)) + float(bbox_dt.get("height", 0.0)) / 2.0
+                tap_template_w = 0
+                tap_template_h = 0
+
+            hit_dt: dict[str, Any] = {
+                "matched": any_red_dot,
+                "action": "detectTabs",
+                "region": region_name_dt,
+                "tabs": tabs_payload,
+                "tab_count": len(tabs_dt),
+                "active_index": active_index,
+                "any_red_dot": any_red_dot,
+                "red_dot_indices": [t.index for t in tabs_dt if t.has_red_dot],
+                "tap_x_pct": tap_x_pct_dt,
+                "tap_y_pct": tap_y_pct_dt,
+                "tap_match_x_pct": tap_x_pct_dt,
+                "tap_match_y_pct": tap_y_pct_dt,
+            }
+            if tap_template_w > 0 and tap_template_h > 0:
+                hit_dt["template_w"] = tap_template_w
+                hit_dt["template_h"] = tap_template_h
+            push_tasks_dt = optional_push_scenario_tasks(rule)
+            if push_tasks_dt:
+                hit_dt["pushScenario"] = push_tasks_dt
+            if set_node_s:
+                hit_dt["set_node"] = set_node_s
+            if priority is not None:
+                hit_dt["priority"] = priority
+            out[logical_name] = hit_dt
             continue
 
         if action in ("white_border", "white_border_absent"):

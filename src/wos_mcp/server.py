@@ -12,6 +12,11 @@ from PIL import Image
 
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
+from layout.reference_basename import (
+    normalize_reference_basename,
+    rename_reference_basename,
+    suggest_reference_basename,
+)
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from navigation.detector import ScreenName
 from omniparser.client import check_omniparser_health, parse_screenshot
@@ -433,6 +438,97 @@ async def push_scenario(
         "force": bool(force),
         "worker_woken": bool(enqueued and wake_worker),
     }
+
+
+@mcp.tool()
+def reference_normalize_basename(
+    basename: str,
+    instance_id: str = "",
+) -> dict[str, Any]:
+    """Sanitize a reference PNG basename (same rules as Labeling **Basename** field).
+
+    Returns the stem without ``.png``. Pass ``instance_id`` only when you want
+    rolling-preview defaults for empty input (usually leave it empty for module refs).
+    """
+
+    raw = str(basename or "").strip()
+    if not raw:
+        msg = "basename is required"
+        raise ValueError(msg)
+    normalized = normalize_reference_basename(raw, instance_id)
+    return {
+        "input": raw,
+        "basename": normalized,
+        "filename": f"{normalized}.png",
+        "instance_id": str(instance_id or ""),
+    }
+
+
+@mcp.tool()
+def reference_suggest_basename(
+    source: str,
+    instance_id: str = "",
+    screen_id: str | None = None,
+) -> dict[str, Any]:
+    """Suggest a stable basename from ``area.yaml`` / ``area.json`` for a reference PNG.
+
+    ``source`` is repo-relative, e.g. ``modules/core/shop/references/page.shop.v1.png``.
+    """
+
+    rel = str(source or "").strip()
+    if not rel:
+        msg = "source is required (repo-relative path to the .png)"
+        raise ValueError(msg)
+    if Path(rel).is_absolute() or ".." in Path(rel).parts:
+        msg = "source must be a repo-relative path without '..'"
+        raise ValueError(msg)
+    return suggest_reference_basename(
+        _repo(),
+        source_repo_rel=rel,
+        instance_id=instance_id,
+        screen_id=screen_id,
+    )
+
+
+@mcp.tool()
+def reference_rename_basename(
+    source: str,
+    basename: str,
+    instance_id: str = "",
+    sync_area: bool = True,
+    rename_crops: bool = True,
+) -> dict[str, Any]:
+    """Rename a reference screenshot and sync ``area`` ``ocr`` paths (and crops).
+
+    Example::
+
+        reference_rename_basename(
+            source="modules/core/shop/references/page.shop.v1.png",
+            basename="page.shop.v2",
+        )
+
+    Rolls back the PNG rename if ``area`` sync fails when ``sync_area`` is true.
+    """
+
+    rel = str(source or "").strip()
+    raw_bn = str(basename or "").strip()
+    if not rel:
+        msg = "source is required (repo-relative path to the .png)"
+        raise ValueError(msg)
+    if not raw_bn:
+        msg = "basename is required (new filename without .png)"
+        raise ValueError(msg)
+    if Path(rel).is_absolute() or ".." in Path(rel).parts:
+        msg = "source must be a repo-relative path without '..'"
+        raise ValueError(msg)
+    return rename_reference_basename(
+        _repo(),
+        source_repo_rel=rel,
+        basename=raw_bn,
+        instance_id=instance_id,
+        sync_area=bool(sync_area),
+        rename_crops=bool(rename_crops),
+    )
 
 
 @mcp.tool()

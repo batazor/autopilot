@@ -1,0 +1,15 @@
+enabled: true
+name: "Shop: Daily Deals"
+priority: 80_000
+
+node: shop.daily_deals
+
+steps:
+  - while_match: box.free
+    max: 1
+    retry:
+      attempts: 3
+      interval: 1s
+    steps:
+      - click: box.free
+      - wait: 1s

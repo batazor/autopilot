@@ -1,0 +1,12 @@
+enabled: true
+name: "Shop: Dawn Market"
+priority: 80_000
+
+node: shop.dawn_market
+
+steps:
+  - while_match: page.shop.dawn_market.claimable
+    isRedDot: true
+    steps:
+      - click: page.shop.dawn_market.claimable
+      - wait: 1s

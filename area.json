@@ -3395,28 +3395,6 @@
       ]
     },
     {
-      "id": 63,
-      "screen_id": "shop",
-      "ocr": "references/page.shop.daily_deals.png",
-      "regions": [
-        {
-          "name": "box.free",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 6.91119691119691,
-            "y": 33.15217391304348,
-            "width": 9.0,
-            "height": 3.2,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
       "id": 65,
       "screen_id": "heroes",
       "ocr": "references/page.heroes.3.png",

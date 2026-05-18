@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from config.reference_naming import TEMPORAL_SUBDIR, reference_file_basename
+from ui.reference_ocr_paths import reference_basename_stem, resolve_ocr_path_in_reference_context
 
 
 @dataclass(frozen=True)
@@ -212,6 +213,8 @@ def preview_delete_reference_impact(
     ref_root: Path,
     rel_posix: str,
     area_doc: dict[str, Any] | None,
+    *,
+    references_prefix: str = "references",
 ) -> DeleteReferenceImpact:
     """Count ``area.json`` rows and crop tiles that would be removed with a reference PNG."""
     rel_posix = rel_posix.replace("\\", "/").strip()
@@ -229,11 +232,13 @@ def preview_delete_reference_impact(
             ocr_raw = str(entry.get("ocr") or "").strip()
             if not ocr_raw:
                 continue
-            p = Path(ocr_raw)
-            if not p.is_absolute():
-                p = repo_root / p
             try:
-                if p.resolve() != target:
+                if (
+                    resolve_ocr_path_in_reference_context(
+                        ocr_raw, references_prefix, repo_root_path=repo_root
+                    )
+                    != target
+                ):
                     continue
             except OSError:
                 continue
@@ -255,7 +260,7 @@ def preview_delete_reference_impact(
     crop_count = 0
     crop_dir = ref_root / "crop"
     if crop_dir.is_dir():
-        stem = Path(rel_posix).stem
+        stem = reference_basename_stem(rel_posix)
         prefix = f"{stem}_"
         for cp in crop_dir.glob(f"{prefix}*.png"):
             if cp.is_file():

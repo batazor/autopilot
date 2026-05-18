@@ -1,0 +1,7 @@
+enabled: true
+name: "Shop: Dawn Fund"
+priority: 80_000
+
+node: shop.dawn_fund
+
+steps: []

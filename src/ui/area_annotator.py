@@ -73,6 +73,12 @@ from ui.labeling_reference_panel import (
     labeling_resolve_sel,
     render_labeling_reference_column,
 )
+from ui.reference_ocr_paths import (
+    module_local_ocr_for_reference_path as _module_local_ocr_for_reference_path,
+)
+from ui.reference_ocr_paths import (
+    resolve_ocr_path_in_reference_context as _resolve_ocr_path_in_reference_context,
+)
 from ui.overlay_yaml_sync import (
     cascade_aux_region_names,
     overlay_tap_region_name,
@@ -362,17 +368,18 @@ def export_region_crops(
     repo_root: Path | None = None,
     progress: Callable[[float], None] | None = None,
 ) -> list[Path]:
-    """Write ``references/crop/<reference_stem>_<region_name>.png`` for each region with a bbox.
+    """Write a crop PNG for each region with a bbox.
+
+    The destination path is determined by :func:`layout.crop_paths.exported_crop_png`,
+    which routes module-local references (``modules/<id>/references/…``) to their own
+    ``modules/<id>/references/crop/`` directory instead of the global one.
 
     ``progress`` receives fraction in ``[0.0, 1.0]`` after each file is written (optional UI hook).
     """
     root = repo_root or REPO_ROOT
-    crop_out_dir = root / "references" / "crop"
-    stem = Path(reference_repo_rel).stem
-    if not stem:
+    if not Path(reference_repo_rel).stem:
         msg = "Invalid reference path for crop export."
         raise ValueError(msg)
-    crop_out_dir.mkdir(parents=True, exist_ok=True)
     ow, oh = pil_original.size
     indexed = [
         (i, r)
@@ -385,13 +392,14 @@ def export_region_crops(
         progress(0.0)
     for step, (i, reg) in enumerate(indexed):
         bbox = reg.get("bbox") or {}
-        label = _safe_crop_filename_part(str(reg.get("name", "")), f"region_{i}")
+        region_name = str(reg.get("name", "")) or f"region_{i}"
         left = bbox["x"] / 100.0 * ow
         top = bbox["y"] / 100.0 * oh
         w = bbox["width"] / 100.0 * ow
         h = bbox["height"] / 100.0 * oh
         tile = crop_region(pil_original, left, top, w, h)
-        dest = crop_out_dir / f"{stem}_{label}.png"
+        dest = exported_crop_png(root, reference_repo_rel, region_name)
+        dest.parent.mkdir(parents=True, exist_ok=True)
         tile.save(dest, format="PNG")
         written.append(dest)
         if progress is not None and total > 0:
@@ -405,6 +413,101 @@ def _count_exportable_crop_regions(regions: list[RegionDict]) -> int:
         for r in regions
         if r.get("bbox") and not r.get("overlay_auxiliary")
     )
+
+
+def find_stale_crops(
+    doc: AreaDocDict,
+    *,
+    repo_root: Path | None = None,
+    tolerance_px: int = 2,
+) -> list[dict[str, Any]]:
+    """Return crops whose on-disk dimensions disagree with their bbox.
+
+    A crop is considered *stale* when its file dimensions differ from the
+    pixel size implied by the region's current bbox in its parent reference
+    (within ``tolerance_px``). This typically happens when a bbox is resized
+    in the annotator but the user navigates away without triggering a
+    Save / Write-crops pass — the on-disk PNG still reflects the previous
+    geometry and would mis-template-match at runtime.
+
+    Reports are dicts to keep the call site free of new types:
+    ``{ocr, region, expected_w, expected_h, actual_w, actual_h, crop_path}``.
+    Missing crop files are silently skipped here; the export pass handles
+    them naturally on next Save.
+    """
+    root = repo_root or REPO_ROOT
+    stale: list[dict[str, Any]] = []
+    for entry in doc.get("screens") or []:
+        if not isinstance(entry, dict):
+            continue
+
+        # Collect (ocr, regions) tuples — base + each declared version, mirroring
+        # the structure used by export_all_region_crops_for_area_doc.
+        tasks: list[tuple[str, list[RegionDict]]] = []
+        default_ocr = str(entry.get("ocr") or "").strip()
+        base_regions_raw = entry.get("regions")
+        if default_ocr and isinstance(base_regions_raw, list):
+            tasks.append((default_ocr, [r for r in base_regions_raw if isinstance(r, dict)]))
+        for ver in entry.get("versions") or []:
+            if not isinstance(ver, dict):
+                continue
+            vid = str(ver.get("id", "") or "").strip()
+            if not vid:
+                continue
+            ver_ocr = str(ver.get("ocr", "") or "").strip() or default_ocr
+            ver_regions = ver.get("regions")
+            if ver_ocr and isinstance(ver_regions, list):
+                tasks.append((ver_ocr, [r for r in ver_regions if isinstance(r, dict)]))
+
+        for ocr_rel, regions in tasks:
+            ref_abs = root / ocr_rel
+            if not ref_abs.is_file():
+                continue
+            try:
+                with Image.open(ref_abs) as pil:
+                    ow, oh = pil.size
+            except OSError:
+                continue
+            for reg in regions:
+                if reg.get("overlay_auxiliary"):
+                    continue
+                bbox = reg.get("bbox")
+                if not isinstance(bbox, dict):
+                    continue
+                name = str(reg.get("name", "")).strip()
+                if not name:
+                    continue
+                # Mirror crop_region's rounding rules — same math export uses.
+                left = bbox["x"] / 100.0 * ow
+                top = bbox["y"] / 100.0 * oh
+                w = bbox["width"] / 100.0 * ow
+                h = bbox["height"] / 100.0 * oh
+                expected_w = max(1, int(round(w)))
+                expected_h = max(1, int(round(h)))
+                crop_path = exported_crop_png(root, ocr_rel, name)
+                if not crop_path.is_file():
+                    continue
+                try:
+                    with Image.open(crop_path) as cp:
+                        actual_w, actual_h = cp.size
+                except OSError:
+                    continue
+                if (
+                    abs(actual_w - expected_w) > tolerance_px
+                    or abs(actual_h - expected_h) > tolerance_px
+                ):
+                    stale.append(
+                        {
+                            "ocr": ocr_rel,
+                            "region": name,
+                            "expected_w": expected_w,
+                            "expected_h": expected_h,
+                            "actual_w": actual_w,
+                            "actual_h": actual_h,
+                            "crop_path": crop_path,
+                        }
+                    )
+    return stale
 
 
 def export_all_region_crops_for_area_doc(
@@ -538,6 +641,12 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
     one collapsible container — clearer than the previous flat layout
     that mixed `st.success`/`st.warning`/`st.error` with a top-level
     progress bar that got `.empty()`'d on completion.
+
+    Post-export the same doc is re-scanned with :func:`find_stale_crops`.
+    If any crops remain out of sync the status flips to error and the
+    offending entries are listed — this catches partial-success scenarios
+    (e.g. one screen's reference PNG is missing, the rest export fine, but
+    the gap would otherwise be silent).
     """
     with st.status("Writing region crops…", expanded=True) as status:
         prog = st.progress(0)
@@ -557,9 +666,11 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
             return
 
         if written:
-            st.success(f"Wrote {len(written)} crop(s) to `references/crop/`.")
+            dirs = sorted({str(p.parent.relative_to(REPO_ROOT)) for p in written})
+            dirs_label = ", ".join(f"`{d}`" for d in dirs)
+            st.success(f"Wrote {len(written)} crop(s) to {dirs_label}.")
             status.update(
-                label=f"Crops written: {len(written)} → references/crop/",
+                label=f"Crops written: {len(written)} → {', '.join(dirs)}",
                 state="complete",
                 expanded=False,
             )
@@ -571,6 +682,28 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
         if warns:
             with st.expander("Crop export warnings", expanded=False):
                 st.markdown("\n".join(f"- {w}" for w in warns))
+
+        # Verify nothing slipped through — if find_stale_crops still flags
+        # mismatches after a fresh export the user needs to know now, not
+        # at runtime when a template-match silently returns the wrong tab.
+        remaining_stale = find_stale_crops(doc, repo_root=REPO_ROOT)
+        if remaining_stale:
+            st.error(
+                f"⚠️ {len(remaining_stale)} crop(s) still out of sync after export — "
+                "likely the reference PNG was missing or unreadable. See warnings above."
+            )
+            with st.expander(
+                f"Show {len(remaining_stale)} remaining stale crop(s)", expanded=False
+            ):
+                for s in remaining_stale[:50]:
+                    st.text(
+                        f"{s['region']:40}  "
+                        f"bbox={s['expected_w']}x{s['expected_h']}  "
+                        f"crop={s['actual_w']}x{s['actual_h']}  "
+                        f"({s['ocr']})"
+                    )
+                if len(remaining_stale) > 50:
+                    st.caption(f"… and {len(remaining_stale) - 50} more")
 
 
 def default_area_doc(screens: list[AreaEntryDict] | None = None) -> AreaDocDict:
@@ -2454,29 +2587,6 @@ def set_current_regions(regions: list[RegionDict]) -> None:
             return
     cur["regions"] = list(regions)
     st.session_state[LABELING_AREA_DIRTY] = True
-
-
-def _normalize_references_prefix(references_prefix: str) -> str:
-    return references_prefix.replace("\\", "/").strip().strip("/") or "references"
-
-
-def _module_local_ocr_for_reference_path(ocr_repo_rel: str, references_prefix: str) -> str:
-    ocr_norm = ocr_repo_rel.replace("\\", "/").strip()
-    prefix = _normalize_references_prefix(references_prefix)
-    if prefix != "references" and ocr_norm.startswith(f"{prefix}/"):
-        return f"references/{ocr_norm.removeprefix(f'{prefix}/')}"
-    return ocr_norm
-
-
-def _resolve_ocr_path_in_reference_context(ocr_rel: str, references_prefix: str) -> Path:
-    raw = ocr_rel.replace("\\", "/").strip()
-    path = Path(raw)
-    if path.is_absolute():
-        return path.resolve()
-    prefix = _normalize_references_prefix(references_prefix)
-    if prefix != "references" and raw.startswith("references/"):
-        return (REPO_ROOT / prefix / raw.removeprefix("references/")).resolve()
-    return (REPO_ROOT / raw).resolve()
 
 
 def ensure_entry_for_reference_path(

@@ -30,6 +30,7 @@ from ui.labeling_helpers import (
     suggest_basename_from_entry,
 )
 from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
+from ui.reference_ocr_paths import reference_basename_stem, resolve_ocr_path_in_reference_context
 from ui.reference_preview import move_temporal_to_reference_basename, rename_reference_to_basename
 from ui.reference_tree import (
     build_reference_dir_tree,
@@ -198,9 +199,9 @@ def render_labeling_reference_column(
             synced_for = st.session_state.get(LABELING_BN_SYNC_SEL)
             if synced_for != sel_out:
                 st.session_state[LABELING_BN_SYNC_SEL] = sel_out
-                st.session_state[bn_key] = Path(sel_out).stem
+                st.session_state[bn_key] = reference_basename_stem(sel_out)
             elif bn_key not in st.session_state:
-                st.session_state[bn_key] = Path(sel_out).stem
+                st.session_state[bn_key] = reference_basename_stem(sel_out)
         elif not existing:
             st.session_state.setdefault(LABELING_BN_NONE, "")
 
@@ -217,7 +218,7 @@ def render_labeling_reference_column(
                 if isinstance(cand_e, dict):
                     entry_bn = cand_e
             suggested = suggest_basename_from_entry(entry_bn, instance_id)
-            if suggested and suggested != Path(sel_out).stem:
+            if suggested and suggested != reference_basename_stem(sel_out):
                 hint_col, use_col = st.columns([3, 1], gap="small", vertical_alignment="center")
                 with hint_col:
                     st.caption(f"Suggested from **screen_id**: `{suggested}`")
@@ -319,7 +320,9 @@ def render_labeling_reference_column(
                         st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
                         st.session_state[LABELING_TREE_SELECTION] = new_rel
                         st.session_state[LABELING_BN_SYNC_SEL] = new_rel
-                        st.session_state[labeling_basename_widget_key(new_rel)] = Path(new_rel).stem
+                        st.session_state[labeling_basename_widget_key(new_rel)] = reference_basename_stem(
+                            new_rel
+                        )
                         st.session_state[LABELING_RENAME_FLASH] = msg
                         st.session_state[LABELING_REF_TREE_NONCE] = (
                             int(st.session_state.get(LABELING_REF_TREE_NONCE, 0)) + 1
@@ -333,7 +336,7 @@ def render_labeling_reference_column(
                         st.stop()
 
                 dest_base = reference_file_basename(name_raw, instance_id)
-                if Path(sel_out).stem == dest_base:
+                if reference_basename_stem(sel_out) == dest_base:
                     st.info("Name unchanged.")
                 else:
                     src = ref_root / sel_out
@@ -432,11 +435,14 @@ def render_labeling_reference_column(
             if st.session_state.get(confirm_key):
                 from ui.area_annotator import REPO_ROOT
 
+                from ui.wiki_module import active_references_prefix
+
                 impact = preview_delete_reference_impact(
                     REPO_ROOT,
                     ref_root,
                     sel_out,
                     st.session_state.get(AREA_DOC),
+                    references_prefix=active_references_prefix(),
                 )
                 reg_preview = ", ".join(f"`{n}`" for n in impact.region_names[:10])
                 if len(impact.region_names) > 10:
@@ -460,10 +466,13 @@ def render_labeling_reference_column(
                         icon=":material/delete_forever:",
                         width="stretch",
                     ):
+                            from ui.wiki_module import active_references_prefix
+
                             n_entries, n_crops, n_err = delete_reference_completely(
                                 repo_root=ref_root.parent,
                                 ref_root=ref_root,
                                 rel_posix=sel_out,
+                                references_prefix=active_references_prefix(),
                             )
                             # Reset selection / basename / canvas to the next available reference.
                             st.session_state.pop(LABELING_BN_SYNC_SEL, None)
@@ -508,7 +517,13 @@ def render_labeling_reference_column(
             st.info("No PNGs yet — use **New screenshot**.")
 
 
-def purge_reference_png_and_area_entries(repo_root: Path, ref_root: Path, rel_posix: str) -> None:
+def purge_reference_png_and_area_entries(
+    repo_root: Path,
+    ref_root: Path,
+    rel_posix: str,
+    *,
+    references_prefix: str = "references",
+) -> None:
     """Delete PNG under ``references/`` and drop matching ``area_doc`` screen rows."""
     rel_posix = rel_posix.replace("\\", "/").strip()
     if not rel_posix or rel_posix.startswith("..") or "/.." in rel_posix:
@@ -538,11 +553,13 @@ def purge_reference_png_and_area_entries(repo_root: Path, ref_root: Path, rel_po
         if not raw:
             kept.append(e)
             continue
-        p = Path(raw)
-        if not p.is_absolute():
-            p = repo_root / p
         try:
-            if p.resolve() == target:
+            if (
+                resolve_ocr_path_in_reference_context(
+                    raw, references_prefix, repo_root_path=repo_root
+                )
+                == target
+            ):
                 continue
         except OSError:
             pass
@@ -554,6 +571,8 @@ def delete_reference_completely(
     repo_root: Path,
     ref_root: Path,
     rel_posix: str,
+    *,
+    references_prefix: str = "references",
 ) -> tuple[int, int, int]:
     """Delete a reference PNG, every ``area.json`` entry pointing at it, and
     every cropped region tile that came from those entries.
@@ -577,7 +596,9 @@ def delete_reference_completely(
 
     doc = st.session_state.get(AREA_DOC)
     if not isinstance(doc, dict):
-        purge_reference_png_and_area_entries(repo_root, ref_root, rel_posix)
+        purge_reference_png_and_area_entries(
+            repo_root, ref_root, rel_posix, references_prefix=references_prefix
+        )
         return 0, 0, 0
 
     # Phase 1: collect crop paths from entries that are about to be dropped.
@@ -596,11 +617,13 @@ def delete_reference_completely(
         ocr_raw = str(entry.get("ocr") or "").strip()
         if not ocr_raw:
             continue
-        p = Path(ocr_raw)
-        if not p.is_absolute():
-            p = repo_root / p
         try:
-            if p.resolve() != target:
+            if (
+                resolve_ocr_path_in_reference_context(
+                    ocr_raw, references_prefix, repo_root_path=repo_root
+                )
+                != target
+            ):
                 continue
         except OSError:
             continue
@@ -635,7 +658,9 @@ def delete_reference_completely(
                     crop_paths.append(cp)
 
     # Phase 2: drop entries + PNG (in-memory + filesystem for the PNG).
-    purge_reference_png_and_area_entries(repo_root, ref_root, rel_posix)
+    purge_reference_png_and_area_entries(
+        repo_root, ref_root, rel_posix, references_prefix=references_prefix
+    )
 
     # Phase 3: delete the crop tiles. Track errors but keep going.
     crops_deleted = 0

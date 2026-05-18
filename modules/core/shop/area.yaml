@@ -18,7 +18,7 @@ screens:
     has_red_dot: true
 - id: 1102
   screen_id: shop
-  ocr: references/page.shop.v1.png
+  ocr: references/page.shop.dawn_market.png
   regions:
   - name: page.shop.title
     action: exist
@@ -31,38 +31,14 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-  - name: shop.tab.1
+  - name: shop.tabs_strip
     action: exist
     threshold: 0.9
     bbox:
-      x: 5.598455598455598
-      y: 7.608695652173913
-      width: 26.2007722007722
-      height: 7.128260869565217
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-    has_red_dot: true
-  - name: shop.tab.2
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 33.552123552123554
-      y: 7.717391304347826
-      width: 26.6003861003861
-      height: 6.4
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-    has_red_dot: true
-  - name: shop.tab.3
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 60.965250965250966
-      y: 7.826086956521739
-      width: 27.000000000000004
-      height: 6.4
+      x: 2.0
+      y: 6.630434782608695
+      width: 90.0
+      height: 8.366304347826087
       rotation: 0.0
       original_width: 720
       original_height: 1280
@@ -78,62 +54,287 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-  - name: dawn_market.title
+  - name: shop.to.dawn_market
     action: exist
     threshold: 0.9
     bbox:
-      x: 4.2084942084942085
-      y: 15.76086956521739
-      width: 38.2007722007722
-      height: 4.5
+      x: 15.554054054054053
+      y: 9.177173913043479
+      width: 7.264478764478765
+      height: 3.614130434782609
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.dawn_market.claimable
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.15057915057915
+      y: 16.52173913043478
+      width: 15.0
+      height: 7.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: shop.to.training
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 41.46718146718147
+      y: 8.880434782608695
+      width: 11.615830115830116
+      height: 4.752173913043478
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.rise_of_the_city
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 67.14285714285714
+      y: 8.152173913043478
+      width: 12.200772200772201
+      height: 5.9
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.dawn_market.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 3.629343629343629
+      y: 15.543478260869565
+      width: 40.0
+      height: 4.7
       rotation: 0.0
       original_width: 720
       original_height: 1280
 - id: 1103
   screen_id: shop.daily_deals
-  ocr: references/page.shop.v2.png
-  screen_region: daily_deals.title
+  ocr: references/page.shop.daily_deals.png
   regions:
-  - name: daily_deals.title
+  - name: page.shop.daily_deals.title
     action: exist
     threshold: 0.9
     bbox:
-      x: 4.980694980694981
-      y: 15.434782608695652
-      width: 32.7992277992278
-      height: 4.9
+      x: 4.594594594594595
+      y: 15.869565217391305
+      width: 15.447876447876448
+      height: 4.26304347826087
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: box.free
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 6.91119691119691
+      y: 33.15217391304348
+      width: 9.0
+      height: 3.2
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.construction_queue
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 15.212355212355213
+      y: 7.934782608695652
+      width: 14.3996138996139
+      height: 6.2
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.to.daily_deals
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 44.78764478764479
+      y: 8.695652173913043
+      width: 10.150579150579151
+      height: 4.5
       rotation: 0.0
       original_width: 720
       original_height: 1280
 - id: 1104
   screen_id: shop.mix_match
-  ocr: references/page.shop.v3.png
-  screen_region: mix_match.title
+  ocr: references/page.shop.mix_match.png
   regions:
-  - name: mix_match.title
+  - name: shop.to.mix_match
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 15.250965250965251
+      y: 8.91304347826087
+      width: 7.081081081081081
+      height: 3.9999999999999996
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.mix_match.claimable
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.53667953667954
+      y: 16.293478260869566
+      width: 12.984555984555985
+      height: 6.844565217391304
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: shop.to.chief_stamina
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 41.31274131274131
+      y: 10.434782608695652
+      width: 10.583011583011583
+      height: 3.358695652173913
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.ice_conqueror
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 68.68725868725869
+      y: 9.891304347826088
+      width: 11.0
+      height: 3.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.mix_match.title
     action: exist
     threshold: 0.9
     bbox:
       x: 4.594594594594595
-      y: 15.978260869565217
-      width: 35.2007722007722
-      height: 4.000000000000001
+      y: 15.543478260869565
+      width: 17.0
+      height: 4.3999999999999995
       rotation: 0.0
       original_width: 720
       original_height: 1280
 - id: 1105
   screen_id: shop.dawn_fund
-  ocr: references/page.shop.v4.png
-  screen_region: dawn_fund.title
+  ocr: references/page.shop.dawn_fund.png
   regions:
-  - name: dawn_fund.title
+  - name: page.shop.dawn_fund.title
     action: exist
     threshold: 0.9
     bbox:
-      x: 4.787644787644788
+      x: 4.2084942084942085
       y: 15.543478260869565
-      width: 31.6003861003861
+      width: 17.2992277992278
       height: 4.3
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.dawn_fund
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 50.54054054054054
+      y: 8.58695652173913
+      width: 5.7992277992278
+      height: 4.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1106
+  screen_id: shop.construction_queue
+  ocr: references/page.shop.construction_queue.png
+  regions:
+  - name: page.shop.construction_queue.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 4.015444015444015
+      y: 15.652173913043478
+      width: 35.53088803088803
+      height: 4.1
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1107
+  screen_id: shop.weekly_monthly_cards
+  ocr: references/page.shop.weekly_monthly_cards.png
+  regions:
+  - name: shop.to.weekly_monthly_cards
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 14.826254826254827
+      y: 9.130434782608695
+      width: 10.471042471042471
+      height: 3.497826086956522
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.weekly_monthly_cards.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 5.173745173745174
+      y: 16.73913043478261
+      width: 28.6003861003861
+      height: 4.3999999999999995
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1109
+  screen_id: shop.get_gems
+  ocr: references/page.shop.get_gems.png
+  screen_region: page.shop.get_gems.title
+  regions:
+  - name: page.shop.get_gems.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 72.2007722007722
+      y: 22.5
+      width: 12.156370656370656
+      height: 5.077173913043478
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.get_gems
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.15057915057915
+      y: 8.695652173913043
+      width: 4.600386100386101
+      height: 5.0
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1110
+  screen_id: shop.regular_pack
+  ocr: references/page.shop.regular_pack.png
+  regions:
+  - name: shop.to.regular_pack
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 44.55598455598456
+      y: 8.804347826086957
+      width: 7.399613899613899
+      height: 4.3999999999999995
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.shop.regular_pack.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 59.80694980694981
+      y: 20.32608695652174
+      width: 20.0
+      height: 10.0
       rotation: 0.0
       original_width: 720
       original_height: 1280

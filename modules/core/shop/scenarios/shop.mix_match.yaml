@@ -1,0 +1,12 @@
+enabled: true
+name: "Shop: Mix & Match"
+priority: 80_000
+
+node: shop.mix_match
+
+steps:
+  - while_match: page.shop.mix_match.claimable
+    isRedDot: true
+    steps:
+      - click: page.shop.mix_match.claimable
+      - wait: 1s
