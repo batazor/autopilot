@@ -2,7 +2,7 @@
   "name": "wos",
   "displayName": "WOS",
   "description": "Quick links from references and scenarios to the WOS Streamlit UI",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "wos",
   "license": "MIT",
   "engines": {

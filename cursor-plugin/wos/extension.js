@@ -94,6 +94,19 @@ function repoRelativePath(workspaceRoot, filePath) {
 }
 
 /**
+ * @param {string} segments captured by ``modules/(.+?)/(?:references|scenarios)/``
+ * @returns {string} the leaf segment — matches the Streamlit ``module_id`` set by
+ *   ``module.yaml`` (always the leaf directory name, e.g. ``shop`` for
+ *   ``modules/core/shop/`` and ``trials`` for ``modules/events/trials/``).
+ *   The full captured group is multi-segment for nested modules and would
+ *   fail Streamlit's exact-id match — falling back to the "all" scope.
+ */
+function moduleLeafSegment(segments) {
+  const parts = segments.split("/").filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : segments;
+}
+
+/**
  * @param {string} relPath
  * @returns {string}
  */
@@ -102,7 +115,7 @@ function resolveReferenceModuleKey(relPath) {
     return "core";
   }
   const match = relPath.match(MODULE_FROM_REF_RE);
-  return match ? match[1] : "core";
+  return match ? moduleLeafSegment(match[1]) : "core";
 }
 
 /**
@@ -111,7 +124,7 @@ function resolveReferenceModuleKey(relPath) {
  */
 function resolveScenarioModuleKey(relPath) {
   const match = relPath.match(MODULE_FROM_SCENARIO_RE);
-  return match ? match[1] : "all";
+  return match ? moduleLeafSegment(match[1]) : "all";
 }
 
 /**
