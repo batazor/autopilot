@@ -59,6 +59,58 @@ async def test_v1_next_page_detected(area_doc: dict) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("threshold", [0.7, 0.85, 0.9])
+async def test_daily_deals_next_page_unique_match(
+    area_doc: dict,
+    threshold: float,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Count how many ``shop.tab.next_page`` matches appear on ``page.shop.daily_deals.png``.
+
+    The region carries ``isSearch: true`` so the matcher scans the whole frame —
+    we iterate with ``exclude_top_lefts`` to enumerate every distinct match above
+    *threshold*. Healthy state is exactly one (the carousel arrow at the right
+    edge of the tabs strip).
+    """
+    frame = _load_bgr("page.shop.daily_deals.png")
+
+    found: list[dict] = []
+    excl: list[tuple[int, int]] = []
+    for _ in range(10):
+        rule = {
+            "name": "next_page",
+            "region": "shop.tab.next_page",
+            "action": "exist",
+            "threshold": threshold,
+            "exclude_top_lefts": list(excl),
+            "exclude_radius_px": 24,
+        }
+        out = await evaluate_overlay_rules_async(
+            frame, area_doc, REPO_ROOT, [rule], current_screen="shop.daily_deals",
+        )
+        row = out["next_page"]
+        if not row.get("matched"):
+            break
+        tl = row.get("top_left") or (0, 0)
+        found.append(
+            {
+                "top_left": (int(tl[0]), int(tl[1])),
+                "score": float(row.get("score") or 0.0),
+                "score_ncc": float(row.get("score_ncc") or 0.0),
+            }
+        )
+        excl.append((int(tl[0]), int(tl[1])))
+
+    with capsys.disabled():
+        print(f"\n[daily_deals @ thr={threshold}] matches={len(found)} -> {found}")
+
+    assert len(found) == 1, (
+        f"[daily_deals @ thr={threshold}] expected exactly 1 shop.tab.next_page "
+        f"match, got {len(found)}: {found}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_v1_dawn_market_overlay_page_rule(area_doc: dict) -> None:
     """shop.dawn_market.page overlay rule matches on v1 when current_screen is shop.dawn_market."""
     frame = _load_bgr("page.shop.dawn_market.png")

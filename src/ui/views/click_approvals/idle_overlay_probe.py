@@ -131,10 +131,12 @@ def _render_analyzer_scope_controls(
         clear_pipeline_overlay_cache_entries(instance_id)
         st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
 
+    # Don't pass ``index=`` here: the widget's value is already seeded via
+    # ``st.session_state[widget_key] = raw_scope`` above, and Streamlit warns
+    # when ``key=`` + pre-set session_state collide with an explicit default.
     selected = st.selectbox(
         "Analyzer module scope",
         option_values,
-        index=option_values.index(raw_scope),
         format_func=lambda value: labels.get(value, value),
         key=widget_key,
         on_change=_save_scope,
@@ -947,7 +949,7 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
         "Uses the same rolling PNG and overlay evaluation as the worker, "
         "including Redis **`current_screen`** for YAML **`screens`** rules."
     )
-    analyzer_scope = _render_analyzer_scope_controls(
+    _render_analyzer_scope_controls(
         ctx=ctx, client=client, instance_id=instance_id
     )
     if st.button(
@@ -966,12 +968,15 @@ def render_idle_overlay_probe(*, ctx: ClickApprovalsCtx, client: Any) -> None:
     row = get_instance_state(client, instance_id)
     current_screen = str(row.get("current_screen") or "").strip()
 
+    # Probe always loads the full overlay rule set — the analyzer scope selector
+    # above only drives the worker analyzer (via Redis), so users can inspect
+    # any rule here even when the worker scope is narrowed to a single module.
     data, rebuilt = get_or_build_pipeline_cache(
         instance_id,
         repo_root=ctx.repo_root,
         area_path=ctx.area_path,
         current_screen=current_screen or None,
-        module_scope=None if analyzer_scope == "disabled" else analyzer_scope,
+        module_scope=None,
     )
     if rebuilt:
         st.caption("Overlay recomputed on rolling PNG.")

@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
+from streamlit.errors import StreamlitPageNotFoundError
 
 from config.w3c_traceparent import w3c_trace_id_hex
 
@@ -271,12 +272,18 @@ def fragment_pending_approval_columns(
                 scen_key = str(ctx0.get("scenario") or "").strip()
                 if scen_key:
                     st.info(f"Scenario: `{scenario_display_name(scen_key)}`")
-                    st.page_link(
-                        "views/scenarios.py",
-                        label="Open scenario",
-                        query_params={"q": scen_key},
-                        width="stretch",
-                    )
+                    # IA Editor app does not register ``views/scenarios.py`` in
+                    # ``st.navigation``; swallow the resulting error and skip the
+                    # link there instead of crashing the Approvals column.
+                    try:
+                        st.page_link(
+                            "views/scenarios.py",
+                            label="Open scenario",
+                            query_params={"q": scen_key},
+                            width="stretch",
+                        )
+                    except StreamlitPageNotFoundError:
+                        pass
 
         if req_type == "set_node":
             sn = str(payload.get("set_node") or "").strip()
