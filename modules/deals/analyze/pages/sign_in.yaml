@@ -1,0 +1,26 @@
+overlay:
+  # When the FSM lands on ``deals.sign_in`` and the title region matches the
+  # template crop, push the claim scenario. The scenario then uses
+  # ``isYellowGlow: true`` inside ``deals.sign_in.free`` to enumerate and
+  # click each glowing reward tile (same shape as shop.dawn_fund).
+  - name: deals.sign_in.page
+    region: deals.sign_in.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.sign_in
+    pushScenario:
+      - name: deals.sign_in
+        ttl: 1m
+
+  # Top-tab strip exposes a "Home & Beyond" tab. When it carries a red dot,
+  # push the claim scenario — the scheduler navigates from deals.sign_in to
+  # deals.home_and_beyond via the edge_taps edge ``sign_in.to.home_and_beyound``.
+  - name: deals.sign_in.to.home_and_beyond.has_red_dot
+    region: sign_in.to.home_and_beyound
+    isRedDot: true
+    screens:
+      - deals.sign_in
+    pushScenario:
+      - name: deals.home_and_beyond
+        ttl: 1m

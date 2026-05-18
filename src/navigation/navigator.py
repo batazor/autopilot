@@ -74,6 +74,7 @@ class Navigator:
         self._area_doc: dict[str, Any] | None = None
         self._repo_root = repo_root()
         self._tap_accepts_approval_source: bool | None = None
+        self._tap_accepts_revalidate: bool | None = None
 
     def _load_area_doc(self) -> dict[str, Any]:
         if self._area_doc is not None:
@@ -245,6 +246,59 @@ class Navigator:
         if hop_index is not None:
             approval_context["hop_index"] = str(hop_index)
         region = str(spec.get("region") or hit.get("region") or "template_icon")
+
+        # Re-validate the template match right before the tap fires. With
+        # ``click_approval`` enabled, minutes can pass between the original
+        # match (computed at scenario start) and the operator's approve —
+        # event icons that rotate position would already be elsewhere by
+        # then, and the recorded ``point`` would tap empty space. The
+        # revalidate hook re-captures, re-runs ``findIcon`` against the
+        # same template + threshold, and cancels the tap when the icon is
+        # no longer there. The navigator returns ``False`` so
+        # ``_navigate_to_node`` treats this as ``navigation_failed`` and
+        # the scenario aborts cleanly.
+        def _revalidate_match() -> bool:
+            try:
+                fresh = self._capture(instance_id)  # type: ignore[operator]
+            except Exception:
+                logger.warning(
+                    "Navigator revalidate: capture failed for %s", instance_id, exc_info=True
+                )
+                return False
+            rule: dict[str, Any] = {
+                "name": "navigator.template_icon.revalidate",
+                "action": "findIcon",
+                "region": str(spec.get("region") or "").strip(),
+                "template": str(spec.get("template") or "").strip(),
+                "threshold": spec.get("threshold", 0.9),
+            }
+            try:
+                fresh_out = asyncio.run(
+                    evaluate_overlay_rules_async(
+                        fresh,
+                        self._load_area_doc(),
+                        self._repo_root,
+                        [rule],
+                    )
+                )
+            except Exception:
+                logger.warning(
+                    "Navigator revalidate: evaluate_overlay_rules_async raised for %s",
+                    spec, exc_info=True,
+                )
+                return False
+            fresh_hit = fresh_out.get("navigator.template_icon.revalidate")
+            still = bool(isinstance(fresh_hit, dict) and fresh_hit.get("matched"))
+            if not still:
+                logger.info(
+                    "Navigator revalidate: template no longer matches — cancelling tap (%s)",
+                    spec.get("template"),
+                )
+            return still
+
+        revalidate = (
+            _revalidate_match if self._tap_supports_revalidate() else None
+        )
         if self._tap_supports_approval_source():
             return bool(
                 self._tap(
@@ -253,6 +307,7 @@ class Navigator:
                     approval_region=region,
                     approval_source="navigation",
                     approval_context=approval_context,
+                    **({"revalidate": revalidate} if revalidate is not None else {}),
                 )
             )  # type: ignore[operator]
         return bool(
@@ -260,6 +315,7 @@ class Navigator:
                 instance_id,
                 point,
                 approval_region=region,
+                **({"revalidate": revalidate} if revalidate is not None else {}),
             )
         )  # type: ignore[operator]
 
@@ -328,6 +384,20 @@ class Navigator:
             or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
         )
         return self._tap_accepts_approval_source
+
+    def _tap_supports_revalidate(self) -> bool:
+        if self._tap_accepts_revalidate is not None:
+            return self._tap_accepts_revalidate
+        try:
+            sig = inspect.signature(self._tap)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            self._tap_accepts_revalidate = False
+            return False
+        self._tap_accepts_revalidate = (
+            "revalidate" in sig.parameters
+            or any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        )
+        return self._tap_accepts_revalidate
 
     def _state_key(self, instance_id: str) -> str:
         return f"wos:instance:{instance_id}:state"

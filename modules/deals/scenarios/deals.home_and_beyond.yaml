@@ -1,0 +1,29 @@
+enabled: true
+name: "Deals: Home & Beyond claim"
+priority: 80_000
+nodes:
+  - deals.home_and_beyond
+steps:
+  # The "Claim All" CTA at the bottom collects every available reward in one
+  # tap. Loop in case the button re-renders after a sub-popup confirmation,
+  # exits when the button is no longer visible (everything claimed).
+  - while_match: deals.home_and_beyound.claim_all
+    max: 1
+    retry:
+      attempts: 2
+      interval: 1s
+    steps:
+      - click: deals.home_and_beyound.claim_all
+      - wait: 1.5s
+
+  - while_match: heroes.sr.new.close
+    max: 5
+    steps:
+      - click: heroes.sr.new.close
+      - wait: 2s
+
+  - while_match: button.tap_anywhere_to_exit
+    max: 1
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 1s

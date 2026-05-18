@@ -1,0 +1,7 @@
+include:
+  - pages/main_city.yaml
+  - pages/common.yaml
+  - pages/sign_in.yaml
+  - pages/first_purchase.yaml
+  - pages/home_and_beyond.yaml
+  - pages/hall_of_heroes.yaml

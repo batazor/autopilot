@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -36,7 +36,7 @@ from config.reference_naming import (
 from layout.types import Point
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -215,11 +215,19 @@ class AdbController:
         approval_region: str | None = None,
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
+        revalidate: Callable[[], bool] | None = None,
     ) -> bool:
         """Tap center of Point with ±2 px jitter.
 
         ``approval_region``: logical label for click-approval UI when this tap is not tied to
         ``area.json`` (e.g. DSL helper taps); shown as ``region`` on the request payload.
+
+        ``revalidate``: optional callable invoked after the operator approves
+        but before the ADB tap fires. When it returns ``False`` the tap is
+        cancelled (no ADB shell call, ``False`` returned). Used by the
+        ``template_icon`` navigator to re-verify the icon is still under the
+        recorded coordinates — without it, a minutes-old approval can fire a
+        tap on a now-empty spot after a rotating event icon has cycled away.
         """
         x = _jitter(point.x, 2)
         y = _jitter(point.y, 2)
@@ -250,6 +258,26 @@ class AdbController:
             )
             self._refresh_rolling_preview()
             return True
+        if revalidate is not None:
+            try:
+                still_valid = bool(revalidate())
+            except Exception:
+                logger.warning(
+                    "ADB tap revalidate hook raised on %s (%d,%d) — treating as no-match",
+                    self._instance_id, x, y, exc_info=True,
+                )
+                still_valid = False
+            if not still_valid:
+                logger.info(
+                    "ADB tap cancelled by revalidate (stale target): %s (%d,%d)",
+                    self._instance_id, x, y,
+                )
+                # Clean up approval slot so the next request can publish; we
+                # intentionally do NOT consume_skip — the operator's approve
+                # was legit, the underlying target just moved.
+                with suppress(Exception):
+                    self._refresh_rolling_preview()
+                return False
         with self._approval_execution(req_id):
             self._shell("input", "tap", str(x), str(y))
             logger.debug("Tap (%d, %d) on %s", x, y, self._serial)

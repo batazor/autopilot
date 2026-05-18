@@ -18,3 +18,8 @@ steps:
     steps:
       - click: button.tap_anywhere_to_exit
       - wait: 1s
+  - while_match: heroes.sr.new.close
+    max: 1
+    steps:
+      - click: heroes.sr.new.close
+      - wait: 1s

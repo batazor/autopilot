@@ -1,0 +1,13 @@
+overlay:
+  # On the Home & Beyond page, push the claim scenario whenever the title is
+  # rendered. The scenario itself tap-loops ``deals.home_and_beyound.claim_all``
+  # until the Claim-All CTA disappears.
+  - name: deals.home_and_beyond.page
+    region: deals.home_and_beyound.title
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.home_and_beyond
+    pushScenario:
+      - name: deals.home_and_beyond
+        ttl: 1m

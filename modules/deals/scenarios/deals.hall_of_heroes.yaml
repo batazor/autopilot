@@ -1,0 +1,6 @@
+enabled: true
+name: "Deals: Hall of Heroes"
+priority: 80_000
+nodes:
+  - deals.hall_of_heroes
+steps: []

@@ -1,0 +1,51 @@
+# Navigation edges for the Deals page family.
+#
+# Region names below are the ones the annotator should create:
+#   * ``main_city.to.deals``       — main_city → deals hub entry tap.
+#   * ``deals.to.<sub>``           — deals hub → sub-tab. One per tab.
+#   * ``deals.title``              — parent title used as the back landmark.
+#   * ``icon.page.back``           — generic back chevron (shared across modules).
+#
+# Until those regions exist, navigation to deals.* will fail with a no-match
+# error and the queue will yield. That is the expected pre-labeling state.
+edges:
+  main_city:
+    # Both icons rotate in the main_city icon strip — use ``template_icon``
+    # to find each dynamically inside ``main_city.icon_search`` (same pattern
+    # as ``modules/events/trials`` / ``modules/events/7-day``).
+    deals:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/deals/references/crop/main_city_main_city.to.deals.png
+      threshold: 0.9
+    deals.sign_in:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/deals/references/crop/main_city_main_city.to.sign_in.png
+      threshold: 0.9
+    deals.first_purchase:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/deals/references/crop/main_city_main_city.to.1st_purchase.png
+      threshold: 0.9
+
+  deals:
+    main_city: [icon.page.back]
+    deals.sign_in:         [deals.to.sign_in]
+    deals.first_purchase:  [deals.to.first_purchase]
+    deals.home_and_beyond: [deals.to.home_and_beyond]
+    deals.hall_of_heroes:  [deals.to.hall_of_heroes]
+
+  # Cross-tab nav: sign_in has a top-tab strip that jumps to Home & Beyond.
+  deals.sign_in:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]
+    deals.home_and_beyond: [sign_in.to.home_and_beyound]
+  deals.first_purchase:  { deals: [icon.page.back], main_city: [icon.page.back] }
+  deals.home_and_beyond: { deals: [icon.page.back] }
+  deals.hall_of_heroes:
+    deals: [icon.page.back]
+    hall_of_heroes.witness: [deals.hall_of_heroes.add]
+
+  # Witness is a sub-page off Hall of Heroes; back chevron returns to the hub.
+  hall_of_heroes.witness: { deals.hall_of_heroes: [icon.page.back] }

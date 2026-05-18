@@ -78,7 +78,14 @@ def list_registered_module_ids(repo_root: Path | None = None) -> list[str]:
 
 
 def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]:
-    """``[(storage_key, label), ...]`` for selectboxes — All, Core, then modules."""
+    """``[(storage_key, label), ...]`` for selectboxes — All, Core, then modules.
+
+    Excludes modules with ``wiki: false`` because this list drives the wiki /
+    labeling scope picker, where those overlay-only modules don't belong.
+    For the IA Editor analyzer scope (which needs every module to be reachable
+    so each one can be debugged in isolation), see
+    :func:`analyzer_module_scope_options`.
+    """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     opts: list[tuple[str, str]] = [
         (ALL_MODULES_KEY, "All"),
@@ -87,6 +94,29 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
     opts.extend(
         (ctx.storage_key, ctx.title)
         for ctx in list_wiki_modules(root)
+        if ctx.module_id is not None
+    )
+    return opts
+
+
+def analyzer_module_scope_options(
+    repo_root: Path | None = None,
+) -> list[tuple[str, str]]:
+    """``[(storage_key, label), ...]`` for the IA Editor analyzer scope picker.
+
+    Includes **every** registered module (``list_labeling_modules`` — does not
+    filter on ``wiki: false``) so operators can isolate per-module overlay
+    behaviour even for overlay-only modules like ``deals`` / ``mail`` / ``vip``
+    that don't expose a wiki picker.
+    """
+    root = (repo_root if repo_root is not None else default_repo_root()).resolve()
+    opts: list[tuple[str, str]] = [
+        (ALL_MODULES_KEY, "All"),
+        (CORE_MODULE_KEY, "Core"),
+    ]
+    opts.extend(
+        (ctx.storage_key, ctx.title)
+        for ctx in list_labeling_modules(root)
         if ctx.module_id is not None
     )
     return opts

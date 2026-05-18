@@ -433,6 +433,12 @@ with hdr_btn:
 # triggers, so this works as a safety net for any path that bypassed it.
 _doc_for_stale = st.session_state.get(AREA_DOC)
 if isinstance(_doc_for_stale, dict):
+    from ui.area_annotator import _doc_with_repo_relative_ocr
+    from ui.wiki_module import active_wiki_area_path
+
+    _doc_for_stale = _doc_with_repo_relative_ocr(
+        _doc_for_stale, active_wiki_area_path(), REPO_ROOT
+    )
     _stale = find_stale_crops(_doc_for_stale, repo_root=REPO_ROOT)
     if _stale:
         c_warn, c_btn = st.columns([4, 1], vertical_alignment="center")
@@ -713,6 +719,12 @@ if write_crops:
     if doc is None:
         st.error("No area document loaded.")
     else:
+        from ui.area_annotator import _doc_with_repo_relative_ocr
+        from ui.wiki_module import active_wiki_area_path
+
+        doc = _doc_with_repo_relative_ocr(
+            doc, active_wiki_area_path(), REPO_ROOT
+        )
         with st.status("Writing region crops…", expanded=True) as status:
             prog = st.progress(0)
 

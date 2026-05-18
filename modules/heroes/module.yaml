@@ -1,0 +1,8 @@
+id: heroes_feature
+title: Heroes (feature)
+description: Heroes-screen automation built on top of core/heroes (event popups, SR unlocks, etc.).
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

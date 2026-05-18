@@ -1,0 +1,4 @@
+# Overlay rules shared across every deals sub-page.
+# Examples to wire in later: red-dot detector on the deals icon, tab-advance
+# helper when a "next page" carousel arrow is rendered, etc.
+overlay: []

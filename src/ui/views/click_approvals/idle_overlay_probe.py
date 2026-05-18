@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import streamlit as st
 
-from config.module_registry import module_scope_options
+from config.module_registry import analyzer_module_scope_options
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png
@@ -108,6 +108,66 @@ def _redis_text(value: Any) -> str:
     return value.decode() if isinstance(value, (bytes, bytearray)) else str(value or "")
 
 
+def render_active_module_sidebar(
+    *,
+    ctx: ClickApprovalsCtx,
+    client: Any,
+    instance_id: str,
+) -> None:
+    """Sidebar chip + selector for the IA Editor analyzer module scope.
+
+    Reads / writes the same Redis key (``wos:ui:ia_analyzer:scope:<id>``) as
+    the in-probe selector inside the *Overlay threshold check* expander, so
+    flipping one updates the other on the next rerun. Uses a distinct widget
+    key (``ia_analyzer_scope_sidebar::<id>``) to avoid Streamlit's
+    one-widget-per-key restriction.
+    """
+    scope_key = analyzer_scope_key(instance_id)
+    raw_scope = _redis_text(client.get(scope_key)).strip() or "disabled"
+    options = [("disabled", "Disabled")]
+    options.extend(analyzer_module_scope_options(ctx.repo_root))
+    option_values = [value for value, _label in options]
+    if raw_scope not in option_values:
+        raw_scope = "disabled"
+    labels = dict(options)
+    widget_key = f"ia_analyzer_scope_sidebar::{instance_id}"
+    if st.session_state.get(widget_key) != raw_scope:
+        st.session_state[widget_key] = raw_scope
+
+    def _save_scope() -> None:
+        client.set(scope_key, st.session_state.get(widget_key, "disabled"))
+        clear_pipeline_overlay_cache_entries(instance_id)
+        st.session_state["pipeline_force_refresh_nonce"] = force_nonce() + 1
+
+    with st.sidebar:
+        active_label = labels.get(raw_scope, raw_scope)
+        chip_color = "#9aa0a6" if raw_scope == "disabled" else "#16a34a"
+        st.markdown(
+            f"""
+            <div style="margin-bottom: 6px; font-size: 0.8rem; opacity: 0.85;">
+              Active analyzer module
+            </div>
+            <div style="font-size: 1.15rem; font-weight: 650; color: {chip_color};
+                        margin-bottom: 6px;">
+              {active_label}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.selectbox(
+            "Analyzer module scope",
+            option_values,
+            format_func=lambda value: labels.get(value, value),
+            key=widget_key,
+            on_change=_save_scope,
+            label_visibility="collapsed",
+            help=(
+                "IA Editor runs overlay analyzer only for this module scope. "
+                "Synced with the in-probe selector inside Overlay threshold check."
+            ),
+        )
+
+
 def _render_analyzer_scope_controls(
     *,
     ctx: ClickApprovalsCtx,
@@ -117,7 +177,7 @@ def _render_analyzer_scope_controls(
     scope_key = analyzer_scope_key(instance_id)
     raw_scope = _redis_text(client.get(scope_key)).strip() or "disabled"
     options = [("disabled", "Disabled")]
-    options.extend(module_scope_options(ctx.repo_root))
+    options.extend(analyzer_module_scope_options(ctx.repo_root))
     option_values = [value for value, _label in options]
     if raw_scope not in option_values:
         raw_scope = "disabled"

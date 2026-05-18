@@ -1,0 +1,24 @@
+enabled: true
+name: "Deals: Sign-in claim"
+
+priority: 80_000
+
+nodes:
+  - deals.sign_in
+
+steps:
+  # Each iteration: re-detect glowing tiles inside ``deals.sign_in.free`` (the
+  # left "Free" column of the day timeline). The DSL ``isYellowGlow`` short-
+  # circuits ``while_match`` to ``find_yellow_glow_squares``, sets the tap
+  # target to the first claim's centre, and exposes the tile's pixel size so
+  # the click lands inside the tile. Loop exits once no more tiles glow.
+  # Same pattern as ``modules/core/shop/scenarios/shop.dawn_fund.yaml``.
+  - while_match: deals.sign_in.free
+    isYellowGlow: true
+    max: 8
+    retry:
+      attempts: 3
+      interval: 1s
+    steps:
+      - click: deals.sign_in.free
+      - wait: 1.5s

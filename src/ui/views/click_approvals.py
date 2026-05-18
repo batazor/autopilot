@@ -30,7 +30,10 @@ from ui.views.click_approvals.chrome import (
     render_ui_notifications,
 )
 from ui.views.click_approvals.ctx import ClickApprovalsCtx
-from ui.views.click_approvals.idle_overlay_probe import render_idle_overlay_probe
+from ui.views.click_approvals.idle_overlay_probe import (
+    render_active_module_sidebar,
+    render_idle_overlay_probe,
+)
 from ui.views.click_approvals.pending import (
     fragment_pending_approval_columns,
     fragment_sync_pending_presence,
@@ -108,6 +111,10 @@ _CTX = ClickApprovalsCtx(
     probe_overlay_max_side=_PROBE_OVERLAY_MAX_SIDE,
     region_crop_max_side=_REGION_CROP_MAX_SIDE,
 )
+
+# Sidebar chip + selector — synced with the in-probe selector inside the
+# Overlay threshold check expander via the shared Redis key.
+render_active_module_sidebar(ctx=_CTX, client=client, instance_id=instance_id)
 
 
 def _render_overlay_threshold_probe(instance_id: str) -> None:

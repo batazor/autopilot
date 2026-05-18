@@ -415,6 +415,64 @@ def _count_exportable_crop_regions(regions: list[RegionDict]) -> int:
     )
 
 
+def _doc_with_repo_relative_ocr(
+    doc: AreaDocDict, area_path: Path, repo_root: Path
+) -> AreaDocDict:
+    """Prefix module-local ``ocr`` fields with the module directory.
+
+    Module ``area.yaml`` files store ``ocr`` relative to the module directory
+    (``references/foo.png``). The crop-export helpers resolve those paths
+    against ``repo_root`` directly — without this normalisation they would
+    open the root ``references/foo.png`` (a different image entirely) and
+    write crops under the root ``references/crop/`` instead of
+    ``modules/<id>/references/crop/``.
+
+    Idempotent: returns the original doc when ``area_path`` is not under
+    ``modules/<id>/`` or when an entry's ``ocr`` already starts with
+    ``modules/``.
+    """
+    try:
+        rel = area_path.parent.relative_to(repo_root)
+    except ValueError:
+        return doc
+    parts = rel.parts
+    if len(parts) < 2 or parts[0] != "modules":
+        return doc
+    prefix = "/".join(parts)
+
+    def _prefix(value: str) -> str:
+        v = (value or "").strip()
+        if not v or v.startswith("modules/"):
+            return v
+        return f"{prefix}/{v}"
+
+    screens_in = doc.get("screens") or []
+    new_screens: list[Any] = []
+    for entry in screens_in:
+        if not isinstance(entry, dict):
+            new_screens.append(entry)
+            continue
+        entry_out = dict(entry)
+        if entry.get("ocr"):
+            entry_out["ocr"] = _prefix(str(entry["ocr"]))
+        versions = entry.get("versions")
+        if isinstance(versions, list):
+            new_versions: list[Any] = []
+            for ver in versions:
+                if not isinstance(ver, dict):
+                    new_versions.append(ver)
+                    continue
+                ver_out = dict(ver)
+                if ver.get("ocr"):
+                    ver_out["ocr"] = _prefix(str(ver["ocr"]))
+                new_versions.append(ver_out)
+            entry_out["versions"] = new_versions
+        new_screens.append(entry_out)
+    out = dict(doc)
+    out["screens"] = new_screens
+    return out  # type: ignore[return-value]
+
+
 def find_stale_crops(
     doc: AreaDocDict,
     *,
@@ -634,7 +692,9 @@ def export_all_region_crops_for_area_doc(
     return written, warnings
 
 
-def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
+def _write_all_region_crops_with_feedback(
+    doc: AreaDocDict, *, area_path: Path | None = None
+) -> None:
     """Export every region crop under ``references/crop/``.
 
     Wrapped in ``st.status`` so the progress bar + result are scoped to
@@ -647,7 +707,13 @@ def _write_all_region_crops_with_feedback(doc: AreaDocDict) -> None:
     offending entries are listed — this catches partial-success scenarios
     (e.g. one screen's reference PNG is missing, the rest export fine, but
     the gap would otherwise be silent).
+
+    ``area_path`` (when supplied) is used to detect module-local area files
+    so module-relative ``ocr`` fields can be normalised before the export
+    helpers resolve them against repo root.
     """
+    if area_path is not None:
+        doc = _doc_with_repo_relative_ocr(doc, area_path, REPO_ROOT)
     with st.status("Writing region crops…", expanded=True) as status:
         prog = st.progress(0)
         try:
@@ -2957,7 +3023,9 @@ def render_area_annotator_ui(
                     if removed:
                         msg += f" · removed {removed} redundant version override(s) matching base"
                     st.success(msg)
-                    _write_all_region_crops_with_feedback(st.session_state.area_doc)
+                    _write_all_region_crops_with_feedback(
+                        st.session_state.area_doc, area_path=area_path
+                    )
                     st.session_state.pop(LABELING_PENDING_CAPTURE_REL, None)
                     st.session_state.pop(LABELING_SELECTION_BEFORE_CAPTURE, None)
                     st.session_state[LABELING_AREA_DIRTY] = False
@@ -3126,7 +3194,9 @@ def render_area_annotator_ui(
                     if removed:
                         msg += f" · removed {removed} redundant version override(s) matching base"
                     st.success(msg)
-                    _write_all_region_crops_with_feedback(st.session_state.area_doc)
+                    _write_all_region_crops_with_feedback(
+                        st.session_state.area_doc, area_path=AREA_JSON_PATH
+                    )
                 except (OSError, ValueError) as e:
                     st.error(str(e))
 

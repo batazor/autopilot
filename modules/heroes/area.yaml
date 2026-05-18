@@ -1,0 +1,8 @@
+version: 2
+# Screen scaffolds for the heroes feature module. Regions are added via the
+# annotator UI — do not hand-edit ``regions``.
+screens:
+- id: 1300
+  screen_id: heroes.sr.new
+  ocr: references/heroes.sr.new.png
+  regions: []

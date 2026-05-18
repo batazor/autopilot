@@ -11,6 +11,8 @@ from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr
 from worker import frame_bus
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import numpy as np
 
     from config.loader import Settings
@@ -147,6 +149,7 @@ class BotActions:
         approval_region: str | None = None,
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
+        revalidate: Callable[[], bool] | None = None,
     ) -> bool:
         self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).tap(
@@ -154,6 +157,7 @@ class BotActions:
             approval_region=approval_region,
             approval_source=approval_source,
             approval_context=approval_context,
+            revalidate=revalidate,
         )
 
     def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
