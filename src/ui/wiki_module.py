@@ -9,6 +9,7 @@ import streamlit as st
 from config.module_registry import (
     ALL_MODULES_KEY,
     WikiModuleContext,
+    list_labeling_modules,
     list_wiki_modules,
     normalize_module_scope,
 )
@@ -48,13 +49,18 @@ def _index_for_key(ctxs: list[WikiModuleContext], key: str) -> int:
 
 
 def _selector_contexts() -> list[WikiModuleContext]:
-    """All, Core, then each feature module (for Gallery / Labeling)."""
+    """All, Core, then every module (for Gallery / Labeling).
+
+    Uses ``list_labeling_modules`` so that modules with ``wiki: false`` still
+    appear in the Labeling UI — ``wiki`` controls only the wiki picker, not
+    the area-annotation workflow.
+    """
 
     from config.module_registry import all_modules_context, core_module_context
 
     root = REPO_ROOT
     out: list[WikiModuleContext] = [all_modules_context(root), core_module_context(root)]
-    out.extend(ctx for ctx in list_wiki_modules(root) if ctx.module_id is not None)
+    out.extend(ctx for ctx in list_labeling_modules(root) if ctx.module_id is not None)
     return out
 
 

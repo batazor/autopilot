@@ -1,0 +1,112 @@
+screens:
+  shop:
+    priority: 50
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+
+  # ── Shop tabs ────────────────────────────────────────────────────────────────
+  # Each tab is a sub-node of shop. Detection uses the active tab title region.
+  # Regions are added progressively as reference screenshots are captured.
+
+  shop.mix_match:
+    priority: 55
+    landmarks:
+      - match: mix_match.title
+        threshold: 0.9
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+      - match: mix_match.title
+        threshold: 0.9
+
+  shop.chief_stamina:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.chief_stamina
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.chief_stamina
+
+  shop.ice_conqueror:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.ice_conqueror
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.ice_conqueror
+
+  shop.construction_queue:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.construction_queue
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.construction_queue
+
+  shop.daily_deals:
+    priority: 55
+    landmarks:
+      - match: daily_deals.title
+        threshold: 0.9
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+      - match: daily_deals.title
+        threshold: 0.9
+
+  shop.weekly_monthly_cards:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.weekly_monthly_cards
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.weekly_monthly_cards
+
+  shop.regular_pack:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.regular_pack
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.regular_pack
+
+  shop.dawn_fund:
+    priority: 55
+    landmarks:
+      - match: dawn_fund.title
+        threshold: 0.9
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+      - match: dawn_fund.title
+        threshold: 0.9
+
+  shop.get_gems:
+    priority: 55
+    landmarks:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.get_gems
+    rules:
+      - match: page.shop.title
+        threshold: 0.9
+        tab_active: shop.tab.get_gems

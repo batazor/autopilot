@@ -204,13 +204,26 @@ def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
 
 
 def list_wiki_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
-    """Core first, then registered modules in discovery order."""
+    """Core first, then registered modules in discovery order (excludes wiki: false modules)."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     out: list[WikiModuleContext] = [core_module_context(root)]
     for module_dir in _module_discovery.iter_module_dirs(root):
         meta = _load_module_yaml(module_dir)
         if meta.get("wiki") is False:
             continue
+        out.append(_module_context(root, module_dir))
+    return out
+
+
+def list_labeling_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
+    """Core first, then all registered modules in discovery order.
+
+    Unlike ``list_wiki_modules``, this includes modules with ``wiki: false``
+    because the Labeling UI is independent of the wiki module picker.
+    """
+    root = (repo_root if repo_root is not None else default_repo_root()).resolve()
+    out: list[WikiModuleContext] = [core_module_context(root)]
+    for module_dir in _module_discovery.iter_module_dirs(root):
         out.append(_module_context(root, module_dir))
     return out
 

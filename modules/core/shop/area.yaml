@@ -1,0 +1,139 @@
+version: 2
+screens:
+- id: 1100
+  screen_id: main_city
+  ocr: references/main_city.png
+  regions:
+  - name: main_city.to.shop
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 80.6949806949807
+      y: 3.4782608695652173
+      width: 19.0
+      height: 3.5000000000000004
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+- id: 1102
+  screen_id: shop
+  ocr: references/page.shop.v1.png
+  regions:
+  - name: page.shop.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 19.266409266409266
+      y: 0.32608695652173914
+      width: 20.0
+      height: 6.392391304347826
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.tab.1
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 5.598455598455598
+      y: 7.608695652173913
+      width: 26.2007722007722
+      height: 7.128260869565217
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: shop.tab.2
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 33.552123552123554
+      y: 7.717391304347826
+      width: 26.6003861003861
+      height: 6.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: shop.tab.3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 60.965250965250966
+      y: 7.826086956521739
+      width: 27.000000000000004
+      height: 6.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: shop.tab.next_page
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 92.08494208494209
+      y: 8.478260869565217
+      width: 4.600386100386101
+      height: 2.3
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: dawn_market.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 4.2084942084942085
+      y: 15.76086956521739
+      width: 38.2007722007722
+      height: 4.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1103
+  screen_id: shop.daily_deals
+  ocr: references/page.shop.v2.png
+  screen_region: daily_deals.title
+  regions:
+  - name: daily_deals.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 4.980694980694981
+      y: 15.434782608695652
+      width: 32.7992277992278
+      height: 4.9
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1104
+  screen_id: shop.mix_match
+  ocr: references/page.shop.v3.png
+  screen_region: mix_match.title
+  regions:
+  - name: mix_match.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 4.594594594594595
+      y: 15.978260869565217
+      width: 35.2007722007722
+      height: 4.000000000000001
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 1105
+  screen_id: shop.dawn_fund
+  ocr: references/page.shop.v4.png
+  screen_region: dawn_fund.title
+  regions:
+  - name: dawn_fund.title
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 4.787644787644788
+      y: 15.543478260869565
+      width: 31.6003861003861
+      height: 4.3
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280

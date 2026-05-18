@@ -59,7 +59,7 @@ modules/<id>/                    # or modules/core/<id>/
 | `references` | Relative path to references tree (same depth as `area`) |
 | `exec` | Relative path to exec module (default `exec.py`) |
 | `ui` | Streamlit page spec — str, dict, or list (see `config/module_ui_registry.py`) |
-| `wiki: false` | Exclude from wiki module picker (overlay-only core pages) |
+| `wiki: false` | Exclude from **wiki** module picker only — does **not** affect the Labeling UI |
 
 **Overlay-only core page** (no scenarios, no wiki row):
 
@@ -91,7 +91,8 @@ module just to run a one-shot "where am I" probe.
 | DSL `exec:` handlers | `config/module_exec_registry.load_module_exec_handlers()` | Export `DSL_EXEC_HANDLERS` dict |
 | Streamlit pages | `config/module_ui_registry.iter_module_ui_page_specs()` | Declared in `module.yaml` `ui:` |
 | Wiki DB tiles | `config/wiki_sources.load_merged_entries()` | See `modules/README_WIKI.md` |
-| Labeling / Gallery scope | `config/module_registry.list_wiki_modules()` | Skips `wiki: false` modules |
+| Wiki module picker | `config/module_registry.list_wiki_modules()` | Skips `wiki: false` modules |
+| Labeling / Gallery scope | `config/module_registry.list_labeling_modules()` | All modules, **ignores** `wiki: false` |
 
 Scenario keys resolve from filename without `.yaml`, including `by_cron/`
 subdirectories and template `{placeholder}` files under each module tree.
@@ -115,6 +116,34 @@ redis-cli SET wos:ui:ia_analyzer:scope:<instance_id> <module-scope>
 ```
 
 For `modules/core/survivors`, use `survivors` (or `core/survivors`) and let the analyzer match `isWorkers` and push `assign_worker`; do not manually run that scenario when testing the overlay path.
+
+## Labeling UI deep-link
+
+The Labeling page (`http://localhost:8501/labeling`) takes two query params:
+
+| Param | Value | Example |
+|-------|-------|---------|
+| `ref` | Repo-relative path to the reference PNG | `modules/core/shop/references/main_city.png` |
+| `module` | Module storage key | `core/shop` for `modules/core/shop/`, `shop` for `modules/shop/` |
+
+Storage key rules:
+- `modules/core/<id>/` → storage key = `core/<id>` (e.g. `core/shop`, `core/survivors`)
+- `modules/<id>/` → storage key = `<id>` (e.g. `vip`, `mail`)
+
+**Example deep-link for a core module:**
+
+```
+http://localhost:8501/labeling?ref=modules/core/shop/references/main_city.png&module=core/shop
+```
+
+When the correct `module=` key is supplied, the Labeling page:
+1. Switches the Module selector to that module
+2. Loads only that module's `area.yaml` (not the global `area.json`)
+3. Shows only that module's `references/` tree
+
+`wiki: false` has **no effect** on the Labeling UI — it only controls the wiki DB picker.
+The Labeling selector uses `list_labeling_modules()` (not `list_wiki_modules()`), so all
+modules appear regardless of their `wiki:` setting.
 
 ## Overlay rules in modules
 
@@ -169,13 +198,14 @@ names: later module in discovery order wins (warning logged).
 - **CORE scope missing feature overlays** — by design; use **All** or the feature scope to see mail/vip rules.
 - **Tests calling `load_analyze_yaml()` on a single file only** — use `load_merged_analyze_yaml(repo_root=REPO)` or load the specific module manifest.
 - **Hand-editing `area.json`** — still forbidden; use labeling UI (see `dsl-scenarios` skill).
+- **Labeling shows all regions** — check `?module=` param; use `core/<id>` for core modules, `<id>` for feature modules.
 
 ## Related files
 
 | File | Role |
 |------|------|
 | `config/module_discovery.py` | `iter_module_dirs`, scope matching |
-| `config/module_registry.py` | Wiki contexts, scope options |
+| `config/module_registry.py` | Wiki contexts, scope options, `list_labeling_modules` |
 | `scenarios/registry.py` | Scenario + analyze manifest iteration |
 | `analysis/overlay_manifest.py` | `load_merged_analyze_yaml` |
 | `modules/README_WIKI.md` | Wiki DB contributions only |

@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from PIL import Image
 
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_center_to_device_point
 from navigation.detector import ScreenName
 from omniparser.client import check_omniparser_health, parse_screenshot
@@ -39,7 +40,7 @@ def _repo() -> Path:
 
 
 def _area_doc() -> dict[str, Any]:
-    return json.loads((_repo() / "area.json").read_text(encoding="utf-8"))
+    return load_area_doc(_repo())
 
 
 def _safe_output_path(output: str | None, *, default_name: str) -> Path:

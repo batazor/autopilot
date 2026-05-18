@@ -1,0 +1,8 @@
+overlay:
+  - name: main_city.to.shop.has_red_dot
+    region: main_city.to.shop
+    isRedDot: true
+    screens:
+      - main_city
+    pushScenario:
+      - name: daily_shop

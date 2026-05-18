@@ -3379,20 +3379,6 @@
           }
         },
         {
-          "name": "page.shop.warning",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 92.08494208494209,
-            "y": 8.478260869565217,
-            "width": 4.7992277992278,
-            "height": 2.8,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "page.shop",
           "action": "exist",
           "threshold": 0.9,

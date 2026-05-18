@@ -1,0 +1,25 @@
+edges:
+  main_city:
+    shop: [main_city.to.shop]
+  shop:
+    main_city: [icon.page.back]
+    shop.mix_match:           [shop.tab.mix_match]
+    shop.chief_stamina:       [shop.tab.chief_stamina]
+    shop.ice_conqueror:       [shop.tab.ice_conqueror]
+    shop.construction_queue:  [shop.tab.construction_queue]
+    shop.daily_deals:         [shop.tab.daily_deals]
+    shop.weekly_monthly_cards: [shop.tab.weekly_monthly_cards]
+    shop.regular_pack:        [shop.tab.regular_pack]
+    shop.dawn_fund:           [shop.tab.dawn_fund]
+    shop.get_gems:            [shop.tab.get_gems]
+
+  # All tabs return to shop hub via back swipe or tab bar click
+  shop.mix_match:           { shop: [page.shop.title] }
+  shop.chief_stamina:       { shop: [page.shop.title] }
+  shop.ice_conqueror:       { shop: [page.shop.title] }
+  shop.construction_queue:  { shop: [page.shop.title] }
+  shop.daily_deals:         { shop: [page.shop.title] }
+  shop.weekly_monthly_cards: { shop: [page.shop.title] }
+  shop.regular_pack:        { shop: [page.shop.title] }
+  shop.dawn_fund:           { shop: [page.shop.title] }
+  shop.get_gems:            { shop: [page.shop.title] }
