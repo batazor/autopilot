@@ -7,3 +7,4 @@ overlay:
       - shop.get_gems
     pushScenario:
       - name: shop.get_gems
+        ttl: 1m

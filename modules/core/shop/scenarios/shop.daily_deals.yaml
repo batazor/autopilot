@@ -8,8 +8,8 @@ steps:
   - while_match: box.free
     max: 1
     retry:
-      attempts: 3
-      interval: 1s
+      attempts: 5
+      interval: 300ms
     steps:
       - click: box.free
       - wait: 1s

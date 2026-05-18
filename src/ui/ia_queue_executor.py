@@ -237,8 +237,11 @@ async def _execute_item(
 
 
 async def _executor_loop() -> None:
+    from config.redis_metrics import instrument_redis_client
+
     settings = load_settings()
     redis = aioredis.from_url(settings.redis.url, decode_responses=True, socket_connect_timeout=5.0)
+    instrument_redis_client(redis, component="ia_queue")
     queue = RedisQueue(redis, settings)
     repo_root = default_repo_root()
     logger.info("IA manual scenario executor started for %d instance(s)", len(settings.instances))

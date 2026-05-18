@@ -24,6 +24,80 @@ def _streamlit_already_running(port: int, host: str = "127.0.0.1") -> bool:
         return False
 
 
+def _wipe_queue_state_for_clean_testing() -> None:
+    """Drop stale queue/running/throttle state on IA Editor startup.
+
+    Cron-scheduled tasks (squad_fight, claim_exploration_rewards, …) accumulate
+    in ``wos:queue:<inst>`` across sessions and can win pop or block preempt
+    against the user's testing target (lower ``effective_priority`` gap than
+    ``PREEMPT_MARGIN`` keeps the running cron from yielding). IA Editor is for
+    interactive scenario testing — start each session with an empty queue and
+    no in-flight task. Per-player state and operator toggles (analyzer scope,
+    click_approval enabled) are preserved.
+    """
+    import logging
+
+    import redis as _redis_sync
+
+    from config.loader import load_settings
+
+    logger = logging.getLogger(__name__)
+    try:
+        settings = load_settings()
+        client = _redis_sync.Redis.from_url(settings.redis.url, decode_responses=True)
+        client.ping()
+    except Exception:
+        logger.warning("IA Editor startup wipe: cannot reach Redis; skipping", exc_info=True)
+        return
+
+    # Keep ``current_task_player`` — operator wants the active-player binding
+    # to survive a restart so player-bound scenarios still resolve their
+    # ``${player_id}`` after the wipe.
+    task_state_fields = (
+        "current_scenario",
+        "current_task_id",
+        "current_task_type",
+        "current_task_started_at",
+        "current_task_region",
+        "queue_blocked_reason",
+        "nav_target",
+        "nav_error",
+        "state",
+    )
+    for inst in settings.instances:
+        iid = inst.instance_id
+        keys_to_del = [
+            f"wos:queue:{iid}",
+            f"wos:queue:running:{iid}",
+            f"wos:ui:click_approval:current:{iid}",
+        ]
+        try:
+            client.delete(*keys_to_del)
+            client.hdel(f"wos:instance:{iid}:state", *task_state_fields)
+        except Exception:
+            logger.debug("IA Editor startup wipe: failed for %s", iid, exc_info=True)
+            continue
+
+    # Push throttles can also leak across sessions and silently suppress fresh
+    # pushes. SCAN + DEL is cheap (single-digit keys typically).
+    try:
+        for pattern in ("wos:player:*:push_ttl:*", "wos:instance:*:push_ttl:*"):
+            cursor = 0
+            while True:
+                cursor, batch = client.scan(cursor=cursor, match=pattern, count=200)
+                if batch:
+                    client.delete(*batch)
+                if cursor == 0:
+                    break
+    except Exception:
+        logger.debug("IA Editor startup wipe: push_ttl scan failed", exc_info=True)
+
+    logger.info(
+        "IA Editor startup: wiped queue/running/approvals + task state for %d instance(s)",
+        len(settings.instances),
+    )
+
+
 def main() -> None:
     repo = repo_root()
     os.chdir(repo)
@@ -60,6 +134,7 @@ def main() -> None:
 
     bootstrap_runtime_observability("ia-editor")
     assert_startup_configs_valid(repo)
+    _wipe_queue_state_for_clean_testing()
     from ui.ia_preview_service import ensure_ia_preview_refresher
 
     ensure_ia_preview_refresher()
@@ -80,9 +155,20 @@ def main() -> None:
                 os._exit(128 + int(signal_number))
             server.stop()
 
-        signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
+        signal.signal(signal.SIGINT, signal_handler)
+        if sys.platform == "win32":
+            signal.signal(signal.SIGBREAK, signal_handler)  # type: ignore[attr-defined]
+        else:
+            signal.signal(signal.SIGQUIT, signal_handler)
 
+    # Streamlit installs its own SIGINT handler inside ``bootstrap.run``;
+    # ours never gets a chance if we wait until after that returns (it's
+    # blocking). Mirror the ``wos`` launcher (worker/launch.py:100) and
+    # swap Streamlit's internal install hook before starting the server —
+    # Streamlit ends up registering OUR handler, so the 2nd Ctrl+C
+    # reliably ``os._exit`` instead of looping on "Stopping…".
+    bootstrap._set_up_signal_handler = _set_up_signal_handler  # type: ignore[attr-defined]  # ty: ignore[invalid-assignment]
     app = repo / "src" / "ui" / "ia_editor_app.py"
     bootstrap.run(
         str(app),
@@ -91,12 +177,6 @@ def main() -> None:
         flag_options={"server.port": port_int},
         stop_immediately_for_testing=False,
     )
-    try:
-        server = bootstrap._server  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
-        if server is not None:
-            _set_up_signal_handler(server)
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":

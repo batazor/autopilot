@@ -7,3 +7,4 @@ overlay:
       - shop.mix_match
     pushScenario:
       - name: shop.mix_match
+        ttl: 1m

@@ -2,7 +2,22 @@ enabled: true
 name: "Shop: Advance tab strip"
 priority: 70_000
 
-node: shop
+# Runnable from any shop sub-page — the right-arrow ``shop.tab.next_page`` is
+# visible on every tab, so navigating back to the hub before clicking is just
+# wasted hops. Listing all sub-pages here keeps the FSM identity gate happy
+# while letting the scenario run in place wherever the operator landed.
+nodes:
+  - shop
+  - shop.dawn_market
+  - shop.mix_match
+  - shop.chief_stamina
+  - shop.ice_conqueror
+  - shop.construction_queue
+  - shop.daily_deals
+  - shop.weekly_monthly_cards
+  - shop.regular_pack
+  - shop.dawn_fund
+  - shop.get_gems
 
 steps:
   - while_match: shop.tab.next_page

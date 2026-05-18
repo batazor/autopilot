@@ -276,10 +276,17 @@ class DslScenarioExecuteMixin(_Base):
                 ),
             )
 
-        # Optional root-level `node: <screen>` — navigate the FSM to the target
-        # screen before running steps. Lets DSL scenarios skip explicit
-        # `click: <btn>` chains when destination is already in screen_graph.
-        target_node = str(doc.get("node") or "").strip()
+        # Optional root-level `node:` / `nodes:` — restrict the FSM screens
+        # where this scenario is allowed to run. Single string and list forms
+        # are both accepted (see ``scenarios.dsl_schema.scenario_allowed_nodes``).
+        # If ``current_screen`` is already in the set, navigation is skipped —
+        # the scenario runs in place. Otherwise the FSM is driven to the FIRST
+        # entry. Use this when the same scenario applies to many sibling
+        # screens (e.g. ``shop.tab.advance`` works from any shop sub-page).
+        from scenarios.dsl_schema import scenario_allowed_nodes
+
+        allowed_nodes = scenario_allowed_nodes(doc)
+        target_node = allowed_nodes[0] if allowed_nodes else ""
         # `device_level: true` opts a scenario out of identity gating (see
         # `RedisQueue.pop_due`).  Reused here as the default mode for `while_match`:
         # device-level scenarios (popup dismissals, identity probes) keep the
@@ -333,12 +340,13 @@ class DslScenarioExecuteMixin(_Base):
             )
 
         # Pre-flight screen identity gate. When a scenario declares
-        # ``node: <screen>`` it expects ``current_screen`` to be *known* on
+        # ``node:`` / ``nodes:`` it expects ``current_screen`` to be *known* on
         # entry. If identity is temporarily blank, do not burn the queued
         # scenario: yield it back with a short retry so the rolling detector can
         # restore the node. ``device_level: true`` scenarios (overlay-pushed ad
         # dismissals, identity probe, unstuck fallback) opt out and run
         # regardless of FSM state.
+        cur_screen_at_entry = ""
         if (
             target_node
             and self.start_step_index <= 0
@@ -374,12 +382,23 @@ class DslScenarioExecuteMixin(_Base):
                 )
 
         if target_node and self.start_step_index <= 0:
-            nav_ok = await self._navigate_to_node(
-                instance_id,
-                target_node,
-                actions=actions,
-                scenario_key=key,
-            )
+            # Multi-node scenarios: if we're already on one of the allowed
+            # nodes, skip navigation entirely — the steps below run in place.
+            # ``shop.tab.advance`` (``nodes: [shop, shop.daily_deals, ...]``)
+            # is the motivating case: from any shop sub-page the next-page
+            # arrow is already on screen, so a round-trip to the hub is
+            # pure waste.
+            nav_started_at = 0.0  # only consulted in the ``not nav_ok`` branch
+            if cur_screen_at_entry and cur_screen_at_entry in allowed_nodes:
+                nav_ok = True
+            else:
+                nav_started_at = time.time()
+                nav_ok = await self._navigate_to_node(
+                    instance_id,
+                    target_node,
+                    actions=actions,
+                    scenario_key=key,
+                )
             if nav_ok and self.redis_client is not None:
                 with suppress(Exception):
                     await self.redis_client.hset(
@@ -393,6 +412,7 @@ class DslScenarioExecuteMixin(_Base):
                 # navigation_failed returns produce an empty steps_trace and
                 # the UI shows "0 steps ran" with no hint of what happened.
                 cur_at_fail = ""
+                rejected_by_operator = False
                 if self.redis_client is not None:
                     with suppress(Exception):
                         raw_cs = await self.redis_client.hget(
@@ -404,20 +424,51 @@ class DslScenarioExecuteMixin(_Base):
                             if isinstance(raw_cs, bytes)
                             else str(raw_cs or "")
                         ).strip()
+                    # Distinguish operator reject from real nav failure. The
+                    # approval gate stamps ``last_approval_reject_at`` when the
+                    # operator presses Reject; if that timestamp lands inside
+                    # this nav attempt, no tap fired and ``current_screen`` is
+                    # still valid — leave it alone.
+                    with suppress(Exception):
+                        raw_rej = await self.redis_client.hget(
+                            f"wos:instance:{instance_id}:state",
+                            "last_approval_reject_at",
+                        )
+                        rej_s = (
+                            raw_rej.decode()
+                            if isinstance(raw_rej, bytes)
+                            else str(raw_rej or "")
+                        ).strip()
+                        if rej_s:
+                            try:
+                                rejected_by_operator = float(rej_s) >= nav_started_at
+                            except ValueError:
+                                rejected_by_operator = False
                 await self._clear_step_context(instance_id)
                 if self.redis_client is not None:
                     with suppress(Exception):
                         from_nav = cur_at_fail or "(blank — detector/verify may not have written Redis yet)"
-                        nav_msg = (
-                            f"navigation_failed: {from_nav} → {target_node} "
-                            f"(scenario {key}; no route, verify failed after tap, or tap blocked)"
-                        )
-                        await self.redis_client.hset(
-                            f"wos:instance:{instance_id}:state",
-                            mapping={
+                        if rejected_by_operator:
+                            nav_msg = (
+                                f"navigation_aborted: {from_nav} → {target_node} "
+                                f"(scenario {key}; operator rejected approval)"
+                            )
+                            mapping: dict[str, str] = {
+                                "nav_error": nav_msg,
+                                "last_approval_reject_at": "",
+                            }
+                        else:
+                            nav_msg = (
+                                f"navigation_failed: {from_nav} → {target_node} "
+                                f"(scenario {key}; no route, verify failed after tap, or tap blocked)"
+                            )
+                            mapping = {
                                 "nav_error": nav_msg,
                                 "current_screen": "",
-                            },
+                            }
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            mapping=mapping,
                         )
                 _trace_row(
                     0,

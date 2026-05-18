@@ -7,3 +7,4 @@ overlay:
       - shop.construction_queue
     pushScenario:
       - name: shop.construction_queue
+        ttl: 1m

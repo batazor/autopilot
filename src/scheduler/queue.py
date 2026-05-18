@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 # single debuff cannot cross a configured 10k YAML priority band.
 RECENT_RUNS_WINDOW_SECONDS = 1800
 RECENT_RUNS_CAP = 3
+# History retention (separate from the ranking window above). The ranking
+# logic still filters by ``RECENT_RUNS_WINDOW_SECONDS`` for ``recent_debuff``,
+# so extending retention does NOT widen ranking pressure. Longer retention
+# exists so cron schedulers can read "when did this task_type last fire?" for
+# crons whose interval (4h, 12h) is far longer than the 30-min ranking window.
+RECENT_RUNS_RETENTION_SECONDS = 86400  # 24 hours
+RECENT_RUNS_RETENTION_CAP = 100        # keep at most 100 newest entries per instance
 W_HOPS = 500
 W_RECENT = 1000
 HOPS_DEBUFF_CAP_HOPS = 5
@@ -801,6 +808,75 @@ class RedisQueue:
                 )
         return set()
 
+    async def last_run_at(
+        self, *, instance_id: str, task_type: str, player_id: str
+    ) -> float | None:
+        """Latest timestamp at which ``(task_type, player_id)`` was popped on this instance.
+
+        Reads the recent_runs ZSET in score-descending order and returns the
+        first member matching the ``"<task_type>|<player_id>|<uuid>"`` shape.
+        ``None`` when no matching entry exists (cold start, or pruned out of
+        retention) — callers should treat that as "no constraint, run now".
+
+        Used by interval-cron scheduling to compute ``run_at = max(now,
+        last_run + interval)``: after a restart we don't re-fire the cron
+        the instant the throttle key is gone — we honor the natural cadence
+        from the on-disk history that survives Redis restarts only as long
+        as ``RECENT_RUNS_RETENTION_SECONDS``.
+        """
+        key = _recent_runs_key(instance_id)
+        prefix = f"{task_type}|{player_id}|"
+        try:
+            # ZREVRANGEBYSCORE returns members in score-descending order; we
+            # scan from newest backwards and stop at the first member whose
+            # prefix matches. A linear scan is fine because the cap is small
+            # (RECENT_RUNS_RETENTION_CAP = 100) and we exit early on match.
+            rows = await self._redis.zrevrangebyscore(
+                key,
+                "+inf",
+                "-inf",
+                withscores=True,
+            )
+        except Exception:
+            logger.debug("recent_runs last_run_at read failed", exc_info=True)
+            return None
+        for raw, score in rows:
+            s = raw.decode() if isinstance(raw, bytes) else str(raw)
+            if s.startswith(prefix):
+                try:
+                    return float(score)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    async def oldest_recent_run_age(
+        self, *, instance_id: str, now: float
+    ) -> float | None:
+        """Age in seconds of the OLDEST entry in recent_runs for this instance.
+
+        Lets dashboards answer "how far back does our history reach?". When
+        the answer is far below ``RECENT_RUNS_RETENTION_SECONDS``, we're
+        churning through entries faster than the time window — the count cap
+        is what's binding, suggesting either bumping ``RETENTION_CAP`` or
+        accepting that some long-interval cron specs won't find their
+        ``last_run_at`` after a restart.
+
+        ``None`` when the ZSET is empty (no executions yet).
+        """
+        key = _recent_runs_key(instance_id)
+        try:
+            rows = await self._redis.zrange(key, 0, 0, withscores=True)
+        except Exception:
+            logger.debug("recent_runs oldest age read failed", exc_info=True)
+            return None
+        if not rows:
+            return None
+        try:
+            oldest_ts = float(rows[0][1])
+        except (TypeError, ValueError, IndexError):
+            return None
+        return max(0.0, now - oldest_ts)
+
     async def _read_recent_counts(
         self, instance_id: str, now: float
     ) -> dict[tuple[str, str], int]:
@@ -833,12 +909,23 @@ class RedisQueue:
     async def _append_recent_run(
         self, *, instance_id: str, task_type: str, player_id: str, now: float
     ) -> None:
-        """Record an execution-start event for ranking history.
+        """Record an execution-start event for ranking + history lookup.
 
-        Pipeline: ZADD <now> "<recent_key>|<uuid>" + ZREMRANGEBYSCORE (prune
-        older than the window) + EXPIRE (a dead worker won't leak garbage).
+        Pipeline:
+        * ZADD <now> "<recent_key>|<uuid>"
+        * ZREMRANGEBYSCORE — drop anything older than ``RETENTION_SECONDS``
+          (24 h by default) so the ZSET can't grow without bound on a
+          long-lived instance.
+        * ZREMRANGEBYRANK 0 -(CAP+1) — cap the entry count too, so a burst
+          of executions can't bypass the time prune.
+        * EXPIRE — a dead worker won't leak garbage.
+
         Independent of task success/failure: a broken scenario still
         accumulates history and sinks under recent_debuff.
+
+        Ranking (``_read_recent_counts``) still filters to ``WINDOW`` so
+        extending retention does not change which past runs add debuff to
+        the candidate.
         """
         import uuid
 
@@ -847,8 +934,9 @@ class RedisQueue:
         try:
             pipe = self._redis.pipeline()
             pipe.zadd(key, {member: now})
-            pipe.zremrangebyscore(key, "-inf", now - RECENT_RUNS_WINDOW_SECONDS)
-            pipe.expire(key, RECENT_RUNS_WINDOW_SECONDS * 2)
+            pipe.zremrangebyscore(key, "-inf", now - RECENT_RUNS_RETENTION_SECONDS)
+            pipe.zremrangebyrank(key, 0, -(RECENT_RUNS_RETENTION_CAP + 1))
+            pipe.expire(key, RECENT_RUNS_RETENTION_SECONDS * 2)
             await pipe.execute()
         except Exception:
             logger.debug("recent_runs append failed", exc_info=True)

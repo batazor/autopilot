@@ -37,6 +37,8 @@ class InstanceWorkerRedisMixin(_Base):
     _task_registry: dict[str, type]
 
     async def _connect(self) -> None:
+        from config.redis_metrics import instrument_redis_client
+
         settings = self._settings
         if self._redis is None:
             url = settings.redis.url
@@ -44,6 +46,7 @@ class InstanceWorkerRedisMixin(_Base):
                 url,
                 socket_connect_timeout=5.0,
             )
+            instrument_redis_client(self._redis, component="worker")
             await ping_async_redis_or_exit(self._redis, url=url)
         if self._queue is None:
             self._queue = RedisQueue(self._redis, settings)

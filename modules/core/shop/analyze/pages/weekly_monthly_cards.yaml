@@ -7,3 +7,4 @@ overlay:
       - shop.weekly_monthly_cards
     pushScenario:
       - name: shop.weekly_monthly_cards
+        ttl: 1m

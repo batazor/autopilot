@@ -191,9 +191,11 @@ async def get_scheduler_async_redis() -> aioredis.Redis:
     import redis.asyncio as aioredis
 
     from config.redis_health import ping_async_redis_or_exit
+    from config.redis_metrics import instrument_redis_client
 
     settings = get_settings()
     c = aioredis.from_url(settings.redis.url, socket_connect_timeout=5.0)
+    instrument_redis_client(c, component="scheduler")
     await ping_async_redis_or_exit(c, url=settings.redis.url)
     _state.set_(_K_SCHED_ASYNC_REDIS, c)
     return c
@@ -204,7 +206,10 @@ def get_scheduler_wake_redis() -> redis_sync.Redis:
         return c
     import redis as redis_sync
 
+    from config.redis_metrics import instrument_redis_client
+
     c = redis_sync.Redis.from_url(get_settings().redis.url, socket_connect_timeout=5.0)
+    instrument_redis_client(c, component="scheduler")
     _state.set_(_K_SCHED_WAKE_REDIS, c)
     return c
 
@@ -253,11 +258,13 @@ async def instance_worker_session(
     import redis.asyncio as aioredis
 
     from config.redis_health import ping_async_redis_or_exit
+    from config.redis_metrics import instrument_redis_client
     from scheduler.queue import RedisQueue
     from worker.instance_worker import InstanceWorker
 
     settings = get_settings()
     redis = aioredis.from_url(settings.redis.url, socket_connect_timeout=5.0)
+    instrument_redis_client(redis, component="worker")
     await ping_async_redis_or_exit(redis, url=settings.redis.url)
     try:
         queue = RedisQueue(redis, settings)

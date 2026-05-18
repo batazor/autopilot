@@ -82,9 +82,11 @@ def _redis() -> redis.Redis:
     global _redis_client
     if _redis_client is None:
         from config.loader import load_settings
+        from config.redis_metrics import instrument_redis_client
 
         settings = load_settings()
         _redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+        instrument_redis_client(_redis_client, component="approvals")
     return _redis_client
 
 
@@ -488,6 +490,22 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # the caller from aborting the scenario.
     if decision == "skip" and req_id:
         _skipped_req_ids.add(req_id)
+
+    # Operator-rejected: stamp a per-instance timestamp the scenario executor
+    # uses to tell "navigation failed because the operator pressed Reject" from
+    # "navigation failed because the route or verify broke". Without this
+    # signal both paths land in the same nav-failed branch that blanks
+    # ``current_screen`` — for a reject the screen identity is still valid
+    # (no tap fired), so blanking it forces a needless re-detection cycle.
+    if decision == "reject":
+        try:
+            _redis().hset(
+                f"wos:instance:{instance_id}:state",
+                "last_approval_reject_at",
+                str(time.time()),
+            )
+        except Exception:
+            logger.debug("Failed to record last_approval_reject_at", exc_info=True)
 
     return decision in {"approve", "skip"}, req_id
 

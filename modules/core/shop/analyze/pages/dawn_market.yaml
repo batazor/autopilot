@@ -7,3 +7,4 @@ overlay:
       - shop.dawn_market
     pushScenario:
       - name: shop.dawn_market
+        ttl: 1m

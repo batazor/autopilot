@@ -7,3 +7,4 @@ overlay:
       - shop.regular_pack
     pushScenario:
       - name: shop.regular_pack
+        ttl: 1m

@@ -157,21 +157,17 @@ async def _analyze_instance(
     state = await _read_state(redis, instance_id)
     current_screen = str(state.get("current_screen") or "").strip()
     active_player = str(state.get("active_player") or "").strip()
-    current_task = str(state.get("current_task_id") or "").strip()
-    running = await redis.get(f"wos:queue:running:{instance_id}")
     base_status: dict[str, Any] = {
         "at": started,
         "scope": scope,
         "current_screen": current_screen,
         "active_player": active_player,
     }
-    if current_task or running:
-        await _write_status(
-            redis,
-            instance_id,
-            {**base_status, "skipped": "task_running"},
-        )
-        return
+    # Keep scanning overlays even while a task is running so a page-specific
+    # scenario (e.g. ``shop.dawn_market``) can outrank a lower-priority cycle
+    # scenario (e.g. ``shop.tab.advance``) and cooperatively preempt it via
+    # ``_preempted_by_higher_priority`` (ADR 0001 §5). Per-rule ``ttl:`` debounce
+    # + queue dedup index keep duplicate pushes off the queue.
 
     image_path = rolling_live_preview_path(instance_id)
     image = cv2.imread(str(image_path))
@@ -260,8 +256,11 @@ async def _analyze_instance(
 
 
 async def _overlay_loop() -> None:
+    from config.redis_metrics import instrument_redis_client
+
     settings = load_settings()
     redis = aioredis.from_url(settings.redis.url, decode_responses=True, socket_connect_timeout=5.0)
+    instrument_redis_client(redis, component="ia_overlay")
     queue = RedisQueue(redis, settings)
     pusher = _OverlayPusher()
     rule_eval_state_by_scope: dict[tuple[str, str], dict[str, float]] = {}

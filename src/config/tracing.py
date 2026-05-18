@@ -386,6 +386,92 @@ def queue_size_gauge() -> Histogram:
     return h
 
 
+def redis_command_counter() -> Counter:
+    """Number of Redis commands issued, partitioned by ``command``/``component``/``outcome``.
+
+    ``command`` is the first token of the wire command (``GET``, ``HSET``,
+    ``ZADD``, …). ``component`` identifies the producer (``scheduler``,
+    ``worker``, ``ui``, …) so dashboards can split traffic by role.
+    """
+    c = _METRICS_CACHE.get("redis_command_count")
+    if c is None:
+        c = get_meter().create_counter(
+            name="wos.redis.command.count",
+            description="Redis commands issued from any wos client.",
+        )
+        _METRICS_CACHE["redis_command_count"] = c
+    return c
+
+
+def redis_command_duration_histogram() -> Histogram:
+    """Wall-clock latency of a single Redis command, tagged like the counter."""
+    h = _METRICS_CACHE.get("redis_command_duration")
+    if h is None:
+        h = get_meter().create_histogram(
+            name="wos.redis.command.duration",
+            unit="s",
+            description="Wall-clock time spent waiting on a Redis command response.",
+        )
+        _METRICS_CACHE["redis_command_duration"] = h
+    return h
+
+
+def recent_runs_history_age_histogram() -> Histogram:
+    """Age in seconds of the oldest entry in the per-instance ``recent_runs`` ZSET.
+
+    Tagged by ``instance_id``. Sampled once per scheduler tick. Tells us
+    how far back history reaches — when the value plateaus far below
+    ``RECENT_RUNS_RETENTION_SECONDS``, the count cap is binding (long-interval
+    cron specs may fall out of history before they next fire) and bumping
+    ``RECENT_RUNS_RETENTION_CAP`` is the lever.
+    """
+    h = _METRICS_CACHE.get("recent_runs_history_age")
+    if h is None:
+        h = get_meter().create_histogram(
+            name="wos.scheduler.recent_runs.history_age",
+            unit="s",
+            description="Age of the oldest recent_runs entry, per instance.",
+        )
+        _METRICS_CACHE["recent_runs_history_age"] = h
+    return h
+
+
+def recent_runs_history_size_histogram() -> Histogram:
+    """Number of entries currently in the per-instance ``recent_runs`` ZSET.
+
+    Companion to :func:`recent_runs_history_age_histogram` — together they
+    say "100 entries spanning 6 hours". Sampled once per scheduler tick.
+    """
+    h = _METRICS_CACHE.get("recent_runs_history_size")
+    if h is None:
+        h = get_meter().create_histogram(
+            name="wos.scheduler.recent_runs.history_size",
+            description="Number of entries in recent_runs ZSET, per instance.",
+        )
+        _METRICS_CACHE["recent_runs_history_size"] = h
+    return h
+
+
+def overlay_push_scenario_counter() -> Counter:
+    """Counter of overlay-driven ``pushScenario`` attempts.
+
+    Partitioned by ``scenario`` (target task_type), ``screen`` (current_screen
+    / set_node at push time), ``region`` (analyzer rule region), and
+    ``outcome`` (``enqueued``, ``throttled_push_ttl``, ``time_throttle``,
+    ``disabled``, ``no_active_player``, ``dup_main_city``). Lets us spot
+    pushes that fire often per screen — primary signal for adding a
+    ``ttl:`` self-throttle to the rule.
+    """
+    c = _METRICS_CACHE.get("overlay_push_scenario_count")
+    if c is None:
+        c = get_meter().create_counter(
+            name="wos.overlay.push_scenario.count",
+            description="Overlay-driven pushScenario attempts by scenario/screen/region/outcome.",
+        )
+        _METRICS_CACHE["overlay_push_scenario_count"] = c
+    return c
+
+
 def context_from_carrier(carrier: dict[str, Any] | None) -> _otel_context.Context | None:
     """Extract a parent context from a queue payload's ``traceparent`` field.
 

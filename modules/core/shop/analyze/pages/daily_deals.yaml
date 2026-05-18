@@ -7,3 +7,4 @@ overlay:
       - shop.daily_deals
     pushScenario:
       - name: shop.daily_deals
+        ttl: 1m

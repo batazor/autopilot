@@ -45,15 +45,16 @@ screens:
     has_red_dot: true
   - name: shop.tab.next_page
     action: exist
-    threshold: 0.9
+    threshold: 0.85
     bbox:
       x: 92.08494208494209
       y: 8.478260869565217
       width: 4.600386100386101
-      height: 2.3
+      height: 2.990217391304348
       rotation: 0.0
       original_width: 720
       original_height: 1280
+    isSearch: true
   - name: shop.to.dawn_market
     action: exist
     threshold: 0.9

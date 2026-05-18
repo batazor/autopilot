@@ -117,7 +117,10 @@ def _preview_loop() -> None:
     interval = max(0.5, float(settings.worker.device_reference_snapshot_interval_seconds))
     instances = list(settings.instances)
     detector = ScreenDetector(OcrClient(settings))
+    from config.redis_metrics import instrument_redis_client
+
     redis_client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    instrument_redis_client(redis_client, component="ia_preview")
     last_detected_screen: dict[str, str] = {}
     last_detected_screen_at: dict[str, float] = {}
     unknown_since: dict[str, float] = {}

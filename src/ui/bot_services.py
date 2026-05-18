@@ -61,8 +61,11 @@ def _register_state_save_wake() -> None:
     try:
         import redis as _redis_sync
 
+        from config.redis_metrics import instrument_redis_client
+
         url = get_settings().redis.url
         client = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
+        instrument_redis_client(client, component="ui")
     except Exception:
         logging.getLogger(__name__).debug(
             "state-save wake registration skipped", exc_info=True

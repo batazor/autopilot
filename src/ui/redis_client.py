@@ -224,8 +224,11 @@ def _parse_history_row(payload: str) -> QueueHistoryRow | None:
 
 @st.cache_resource
 def get_redis() -> redis.Redis:
+    from config.redis_metrics import instrument_redis_client
+
     settings = load_settings()
-    return redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    client = redis.Redis.from_url(settings.redis.url, decode_responses=True)
+    return instrument_redis_client(client, component="ui")
 
 
 def require_redis_connection() -> redis.Redis:
@@ -267,7 +270,10 @@ def fetch_queue_explain_rows(
     url = redis_url or load_settings().redis.url
 
     async def _run() -> list[dict[str, Any]]:
+        from config.redis_metrics import instrument_redis_client
+
         aclient = aioredis.from_url(url, decode_responses=True)
+        instrument_redis_client(aclient, component="ui")
         try:
             q = RedisQueue(aclient, load_settings())
             return await q.explain_top_n(

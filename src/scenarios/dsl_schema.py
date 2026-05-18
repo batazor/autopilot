@@ -385,6 +385,39 @@ def dsl_scenario_yaml_enabled(repo_root: Path, scenario_key: str) -> bool | None
     return bool(raw.get("enabled", False))
 
 
+def scenario_allowed_nodes(doc: dict[Any, Any] | Any) -> tuple[str, ...]:
+    """Return the allowed FSM node set declared on a scenario YAML doc.
+
+    Accepts three legal shapes (in priority order; first non-empty wins):
+
+    * ``nodes: [a, b, c]`` — explicit list alias.
+    * ``node: a``           — single string (legacy).
+    * ``node: [a, b, c]``   — list under the legacy key.
+
+    The runtime skips navigation when ``current_screen`` is in the returned
+    tuple; otherwise it navigates to the FIRST entry. Ranking uses the *min*
+    BFS hops over the set, so a multi-node scenario reachable from many
+    sub-pages doesn't lose priority to the worst-case distance.
+
+    Empty tuple = scenario declares no FSM dependency (runs anywhere, no
+    pre-flight nav).
+    """
+    if not isinstance(doc, dict):
+        return ()
+    for key in ("nodes", "node"):
+        raw = doc.get(key)
+        if raw is None:
+            continue
+        if isinstance(raw, str):
+            s = raw.strip()
+            return (s,) if s else ()
+        if isinstance(raw, list):
+            out = tuple(str(n).strip() for n in raw if str(n).strip())
+            if out:
+                return out
+    return ()
+
+
 def dsl_scenario_yaml_device_level(repo_root: Path, scenario_key: str) -> bool:
     """Whether the rendered scenario declares ``device_level: true``."""
     from scenarios import template_resolver as _tmpl

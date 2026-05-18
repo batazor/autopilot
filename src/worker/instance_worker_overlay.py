@@ -10,12 +10,36 @@ from typing import TYPE_CHECKING, Any
 
 from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
+from config.tracing import overlay_push_scenario_counter
 from scenarios.dsl_schema import (
     DEFAULT_SCENARIO_PRIORITY,
     dsl_scenario_yaml_device_level,
     dsl_scenario_yaml_enabled,
     dsl_scenario_yaml_priority,
 )
+
+
+def _record_push_scenario(
+    *,
+    scenario: str,
+    screen: str | None,
+    region: str | None,
+    outcome: str,
+) -> None:
+    """Emit one ``wos.overlay.push_scenario.count`` sample.
+
+    Tag values are normalised to ``"unknown"`` when missing so Grafana's
+    label selectors don't have to special-case the empty string.
+    """
+    overlay_push_scenario_counter().add(
+        1,
+        attributes={
+            "scenario": scenario or "unknown",
+            "screen": (screen or "").strip() or "unknown",
+            "region": (region or "").strip() or "unknown",
+            "outcome": outcome,
+        },
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -287,6 +311,10 @@ class InstanceWorkerOverlayMixin(_Base):
                             "overlay: skipping %r — current_screen has no hero_id",
                             t,
                         )
+                        _record_push_scenario(
+                            scenario=t, screen=set_node_snap, region=reg_snap,
+                            outcome="no_hero_id",
+                        )
                         continue
                     t = t.replace(_HERO_ID_PLACEHOLDER, hid)
 
@@ -294,11 +322,19 @@ class InstanceWorkerOverlayMixin(_Base):
                 enabled = dsl_scenario_yaml_enabled(_REPO_ROOT, t)
                 if enabled is False:
                     logger.debug("overlay: skipping disabled scenario %s", t)
+                    _record_push_scenario(
+                        scenario=t, screen=set_node_snap, region=reg_snap,
+                        outcome="disabled",
+                    )
                     continue
                 if not is_device_level and not str(active_player or "").strip():
                     logger.debug(
                         "overlay: skipping player-bound scenario %s — active_player missing",
                         t,
+                    )
+                    _record_push_scenario(
+                        scenario=t, screen=set_node_snap, region=reg_snap,
+                        outcome="no_active_player",
                     )
                     continue
 
@@ -317,6 +353,10 @@ class InstanceWorkerOverlayMixin(_Base):
                             cur.decode() if isinstance(cur, bytes) else str(cur or "")
                         ).strip()
                         if cur_s == "main_city":
+                            _record_push_scenario(
+                                scenario=t, screen=set_node_snap, region=reg_snap,
+                                outcome="dup_main_city",
+                            )
                             continue
 
                 # Push-level ``ttl`` self-throttle (YAML ``pushScenario[].ttl``).
@@ -363,6 +403,10 @@ class InstanceWorkerOverlayMixin(_Base):
                             )
                         # Suppress the actual push: the rule's job was just
                         # to write the throttle marker.
+                        _record_push_scenario(
+                            scenario=t, screen=set_node_snap, region=reg_snap,
+                            outcome="time_throttle",
+                        )
                         return True
                     acquired = True
                     try:
@@ -382,7 +426,16 @@ class InstanceWorkerOverlayMixin(_Base):
                             throttle_key,
                             int(ttl_s),
                         )
-                        return True
+                        _record_push_scenario(
+                            scenario=t, screen=set_node_snap, region=reg_snap,
+                            outcome="throttled_push_ttl",
+                        )
+                        # Throttled debounce — no push happened. Return False so
+                        # ``_schedule_overlay_matches`` keeps walking the
+                        # priority-sorted candidate list and a lower-priority
+                        # rule (e.g. ``shop.tab.advance.has_next_page``) gets
+                        # its tick when the top candidate is on cooldown.
+                        return False
 
                 pr_raw = item.get("priority")
                 if pr_raw is not None:
@@ -443,6 +496,10 @@ class InstanceWorkerOverlayMixin(_Base):
                     score=score,
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
+                )
+                _record_push_scenario(
+                    scenario=t, screen=set_node_snap, region=reg_snap,
+                    outcome="enqueued",
                 )
                 if is_device_level:
                     cancel = getattr(self, "_cancel_current_task", None)

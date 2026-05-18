@@ -58,14 +58,18 @@ class SchedulerRunner:
         self._evaluator = evaluator
 
     async def _connect(self) -> None:
+        from config.redis_metrics import instrument_redis_client
+
         url = self._settings.redis.url
         if self._redis is None:
             self._redis = aioredis.from_url(url, socket_connect_timeout=5.0)
+            instrument_redis_client(self._redis, component="scheduler")
             await ping_async_redis_or_exit(self._redis, url=url)
         if self._queue is None:
             self._queue = RedisQueue(self._redis, self._settings)
         if self._wake_sync is None:
             self._wake_sync = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
+            instrument_redis_client(self._wake_sync, component="scheduler")
         self._scenario_loader.set_on_reload(self._on_scenarios_reloaded)
         self._scenario_loader.start_watching()
 
@@ -213,15 +217,20 @@ class SchedulerRunner:
         interval_s: int,
         now: float,
     ) -> None:
-        """Publish the cron spec immediately and throttle re-enqueue by interval.
+        """Publish the cron spec at the right ``run_at`` and throttle re-enqueue.
 
-        Every cron-driven scenario lands in the queue with ``run_at=now`` on
-        first sight so a cold-started worker doesn't wait a full ``interval_s``
-        for the first run. A Redis throttle key (TTL=``interval_s``) gates
-        subsequent scheduler ticks (default cadence: 30s) so the same task
-        isn't re-enqueued the moment the worker pops it. ``has_pending_duplicate``
-        + ``_task_already_running`` cover the inverse: don't enqueue while one is
-        already pending or in flight.
+        ``run_at`` honors the historical cadence: if ``recent_runs`` shows
+        the task last fired ``T`` seconds ago and the cron interval is ``I``,
+        we schedule ``run_at = now + max(0, I - T)`` so a restart doesn't
+        re-fire a 4-hour cron the moment we boot. Cold start (no history)
+        falls through to ``run_at = now`` — first run on a fresh setup
+        shouldn't wait an interval to debut.
+
+        A Redis throttle key (TTL=``interval_s``) still gates subsequent
+        scheduler ticks (default cadence: 30s) so the same task isn't
+        re-enqueued the moment the worker pops it. ``has_pending_duplicate``
+        + ``_task_already_running`` cover the inverse: don't enqueue while one
+        is already pending or in flight.
         """
         assert self._queue is not None and self._redis is not None
         if await self._task_already_running(
@@ -239,6 +248,13 @@ class SchedulerRunner:
         ):
             return
 
+        last_run = await self._queue.last_run_at(
+            instance_id=instance_id,
+            task_type=task_type,
+            player_id=player_id,
+        )
+        run_at = now if last_run is None else max(now, last_run + float(interval_s))
+
         throttle_key = (
             f"wos:scheduler:cron_throttle:{spec_slug}:{instance_id}:{player_id}"
         )
@@ -247,7 +263,6 @@ class SchedulerRunner:
         )
         if not acquired:
             return
-        run_at = now
         enqueued = await self._queue.schedule(
             task_id=f"cron:{spec_slug}:{player_id}:{int(run_at)}",
             player_id=player_id,
@@ -259,20 +274,56 @@ class SchedulerRunner:
             dedup_ignore_region=True,
         )
         if enqueued:
+            delay_s = max(0.0, run_at - now)
             logger.info(
-                "Cron scheduled: %s (%s) %s for %s/%s at %s",
+                "Cron scheduled: %s (%s) %s for %s/%s at %s (delay=%.0fs, last_run=%s)",
                 name,
                 expr,
                 task_type,
                 instance_id,
                 player_id,
                 time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(run_at)),
+                delay_s,
+                "never" if last_run is None
+                else time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_run)),
             )
+
+    async def _record_recent_runs_history_depth(self, now: float) -> None:
+        """Emit oldest-entry-age + size of ``recent_runs`` per instance.
+
+        Best-effort — failures are debug-logged and silently dropped. Keeping
+        the read out of the hot enqueue path (its own helper) means a Redis
+        flap won't take down cron scheduling.
+        """
+        assert self._queue is not None
+        from config.tracing import (
+            recent_runs_history_age_histogram,
+            recent_runs_history_size_histogram,
+        )
+
+        age_hist = recent_runs_history_age_histogram()
+        size_hist = recent_runs_history_size_histogram()
+        for inst in self._settings.instances:
+            iid = inst.instance_id
+            try:
+                age = await self._queue.oldest_recent_run_age(
+                    instance_id=iid, now=now
+                )
+                size = await self._redis.zcard(  # type: ignore[union-attr]
+                    f"wos:instance:{iid}:recent_runs"
+                )
+            except Exception:
+                logger.debug("recent_runs history depth probe failed", exc_info=True)
+                continue
+            if age is not None:
+                age_hist.record(float(age), attributes={"instance_id": iid})
+            size_hist.record(int(size or 0), attributes={"instance_id": iid})
 
     async def _run_cron_specs(self) -> None:
         """Enqueue cron-based jobs (no extra checks beyond cron)."""
         assert self._redis is not None and self._queue is not None
         now = time.time()
+        await self._record_recent_runs_history_depth(now)
         root = repo_root()
         cron_ymls = iter_cron_yaml_files_for_repo(root)
         if not cron_ymls:

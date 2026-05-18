@@ -210,6 +210,9 @@ def run_forever(stop: threading.Event | None = None) -> None:
     settings = get_settings()
     interval = max(1, int(settings.worker.health_check_interval_seconds))
     r = sync_redis_from_url_or_exit(settings.redis.url, decode_responses=True)
+    from config.redis_metrics import instrument_redis_client
+
+    instrument_redis_client(r, component="health_watchdog")
     ba = BotActions(settings)
 
     logger.info(

@@ -52,27 +52,22 @@ labeling_page = st.Page(
     title="Labeling",
     url_path="labeling",
 )
-edit_scenarios_page = st.Page(
-    str(_ui_dir / "views" / "edit_scenarios.py"),
-    title="Scenarios editor",
-    url_path="edit_scenarios",
-)
-scenarios_page = st.Page(
-    str(_ui_dir / "views" / "scenarios.py"),
-    title="Scenarios",
-    url_path="scenarios",
-)
 routes_page = st.Page(
     str(_ui_dir / "views" / "routes.py"),
     title="Routes",
     url_path="routes",
 )
+queue_page = st.Page(
+    str(_ui_dir / "views" / "queue.py"),
+    title="Queue",
+    url_path="queue",
+)
 adb_page = st.Page(str(_ui_dir / "views" / "adb_devices.py"), title="ADB", url_path="adb")
 
 st.navigation(
     {
-        "Rehearsal": [click_approvals_page],
-        "Authoring": [labeling_page, edit_scenarios_page, scenarios_page],
+        "Rehearsal": [click_approvals_page, queue_page],
+        "Authoring": [labeling_page],
         "Debug": [routes_page, adb_page],
     }
 ).run()

@@ -301,6 +301,12 @@ def test_metric_instruments_record_does_not_raise(_initialised_tracing: object) 
         1, attributes={"cmd": "fetch_player", "scenario": "x"}
     )
     tracing.queue_size_gauge().record(42)
+    tracing.redis_command_counter().add(
+        1, attributes={"command": "GET", "component": "test", "outcome": "ok"}
+    )
+    tracing.redis_command_duration_histogram().record(
+        0.001, attributes={"command": "GET", "component": "test", "outcome": "ok"}
+    )
 
 
 # ---------------------------------------------------------------------------
