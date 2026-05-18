@@ -446,7 +446,18 @@ class DslMatchMixin(_Base):
             base["reason"] = "missing_bbox_for_red_dot"
             return base
 
-        present = bool(has_red_dot_in_bbox_percent(image_bgr, bbox))
+        # Strict-bbox search: when a region declares ``has_red_dot: true`` the
+        # author already drew the rectangle around where the badge appears, so
+        # the detector should honour that exact rectangle — no upward padding
+        # for unread-counter overflow, no sideways pad for edge taps. Mirrors
+        # the overlay engine's red_dot handler. Without this, a wipe of the
+        # labeled bbox in tests still triggers on neighbouring badges and the
+        # ``while_match`` loop never exits.
+        present = bool(
+            has_red_dot_in_bbox_percent(
+                image_bgr, bbox, pad_px=0, edge_badge_pad_ratio=0.0
+            )
+        )
         base["red_dot_present"] = present
         if present != bool(requirement):
             base["reason"] = "red_dot_missing" if requirement else "red_dot_unexpected"
