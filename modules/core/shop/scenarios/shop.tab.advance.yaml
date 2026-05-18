@@ -1,0 +1,12 @@
+enabled: true
+name: "Shop: Advance tab strip"
+priority: 70_000
+
+node: shop
+
+steps:
+  - while_match: shop.tab.next_page
+    max: 1
+    steps:
+      - click: shop.tab.next_page
+      - wait: 1s

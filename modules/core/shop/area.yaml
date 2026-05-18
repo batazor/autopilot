@@ -147,7 +147,7 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
-  - name: shop.to.daily_deals
+  - name: page.to.daily_deals
     action: exist
     threshold: 0.9
     bbox:
@@ -241,6 +241,17 @@ screens:
       y: 8.58695652173913
       width: 5.7992277992278
       height: 4.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: shop.to.dawn_fund.box
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 21.776061776061777
+      y: 53.15217391304348
+      width: 20.0
+      height: 43.9
       rotation: 0.0
       original_width: 720
       original_height: 1280
