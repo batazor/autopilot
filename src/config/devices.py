@@ -50,6 +50,10 @@ class DeviceEntry:
     name: str
     profiles: tuple[DeviceProfile, ...]
     adb_serial: str = ""
+    screenshot_backend: str = "quartz"
+    quartz_window_id: int | None = None
+    quartz_window_title: str = ""
+    quartz_crop: tuple[int, int, int, int] | None = None
 
     @property
     def effective_serial(self) -> str:
@@ -123,9 +127,60 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
                 name=d["name"],
                 profiles=tuple(profiles),
                 adb_serial=str(d.get("adb_serial") or "").strip(),
+                screenshot_backend=_parse_screenshot_backend(d.get("screenshot_backend")),
+                quartz_window_id=_parse_optional_int(d.get("quartz_window_id")),
+                quartz_window_title=str(d.get("quartz_window_title") or "").strip(),
+                quartz_crop=_parse_quartz_crop(d.get("quartz_crop")),
             )
         )
     return DeviceRegistry(devices=devices)
+
+
+def _parse_screenshot_backend(raw: object) -> str:
+    backend = str(raw or "quartz").strip().lower()
+    if backend in {"quartz", "adb"}:
+        return backend
+    logger.warning("Unknown screenshot_backend=%r in devices.yaml; using quartz", raw)
+    return "quartz"
+
+
+def _parse_optional_int(raw: object) -> int | None:
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        logger.warning("Invalid quartz_window_id=%r in devices.yaml; ignoring", raw)
+        return None
+
+
+def _parse_quartz_crop(raw: object) -> tuple[int, int, int, int] | None:
+    """Parse optional Quartz content crop as ``x,y,width,height``.
+
+    YAML may use either ``[x, y, width, height]`` or
+    ``{x: ..., y: ..., width: ..., height: ...}``.
+    """
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, dict):
+        vals = [raw.get("x"), raw.get("y"), raw.get("width"), raw.get("height")]
+    elif isinstance(raw, (list, tuple)):
+        vals = list(raw)
+    else:
+        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
+        return None
+    if len(vals) != 4:
+        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
+        return None
+    try:
+        x, y, w, h = (int(v) for v in vals)
+    except (TypeError, ValueError):
+        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
+        return None
+    if w <= 0 or h <= 0:
+        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
+        return None
+    return x, y, w, h
 
 
 def _load_devices_raw(path: Path) -> dict[str, object]:

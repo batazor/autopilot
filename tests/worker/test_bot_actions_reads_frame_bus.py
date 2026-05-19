@@ -82,10 +82,10 @@ def test_capture_screen_bgr_falls_back_to_adb_when_bus_stays_empty(
     actions = BotActions(_fake_settings)
     actions._FIRST_FRAME_TIMEOUT_S = 0.05  # type: ignore[misc]
     want = _make_frame(7)
-    with patch.object(actions, "capture_screen_bgr_adb", return_value=want) as adb_cap:
+    with patch.object(actions, "capture_screen_bgr_direct", return_value=want) as direct_cap:
         got = actions.capture_screen_bgr("bs1")
     assert got is want
-    adb_cap.assert_called_once_with("bs1")
+    direct_cap.assert_called_once_with("bs1")
 
 
 def test_capture_screen_bgr_does_not_call_adb_when_frame_on_bus(_fake_settings: Settings) -> None:
@@ -100,3 +100,47 @@ def test_capture_screen_bgr_does_not_call_adb_when_frame_on_bus(_fake_settings: 
     with patch("adb.screencap.adb_screencap_bgr") as mocked_adb:
         actions.capture_screen_bgr("bs1")
         assert mocked_adb.call_count == 0
+
+
+def test_direct_capture_uses_quartz_by_default(_fake_settings: Settings) -> None:
+    actions = BotActions(_fake_settings)
+    want = _make_frame(11)
+
+    with (
+        patch("adb.bot_actions.quartz_screencap_bgr", return_value=want) as quartz_cap,
+        patch.object(actions, "capture_screen_bgr_adb") as adb_cap,
+    ):
+        got = actions.capture_screen_bgr_direct("bs1")
+
+    assert got is want
+    quartz_cap.assert_called_once()
+    adb_cap.assert_not_called()
+
+
+def test_direct_capture_respects_adb_backend(_fake_settings: Settings) -> None:
+    settings = Settings(
+        redis=_fake_settings.redis,
+        ocr=_fake_settings.ocr,
+        omniparser=_fake_settings.omniparser,
+        scheduler=_fake_settings.scheduler,
+        worker=_fake_settings.worker,
+        instances=[
+            InstanceConfig(
+                instance_id="bs1",
+                bluestacks_window_title="127.0.0.1:5555",
+                screenshot_backend="adb",
+            ),
+        ],
+    )
+    actions = BotActions(settings)
+    want = _make_frame(12)
+
+    with (
+        patch.object(actions, "capture_screen_bgr_adb", return_value=want) as adb_cap,
+        patch("adb.bot_actions.quartz_screencap_bgr") as quartz_cap,
+    ):
+        got = actions.capture_screen_bgr_direct("bs1")
+
+    assert got is want
+    adb_cap.assert_called_once_with("bs1")
+    quartz_cap.assert_not_called()

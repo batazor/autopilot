@@ -11,6 +11,10 @@ import yaml
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
+    screenshot_backend: str = "quartz"
+    quartz_window_id: int | None = None
+    quartz_window_title: str = ""
+    quartz_crop: tuple[int, int, int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +140,10 @@ def load_settings(path: Path | None = None) -> Settings:
         InstanceConfig(
             instance_id=d.name,
             bluestacks_window_title=d.effective_serial,
+            screenshot_backend=d.screenshot_backend,
+            quartz_window_id=d.quartz_window_id,
+            quartz_window_title=d.quartz_window_title,
+            quartz_crop=d.quartz_crop,
         )
         for d in devices_registry.devices
         if d.name.strip()

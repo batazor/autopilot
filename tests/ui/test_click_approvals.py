@@ -23,12 +23,14 @@ class _RedisProxy:
         approve_on_current: bool = False,
         decision_on_current: str | None = None,
         drop_current_after_publish: bool = False,
+        drop_current_without_response_once: bool = False,
         inject_foreign_current: bool = False,
     ) -> None:
         self._r = client
         self._approve_on_current = approve_on_current
         self._decision_on_current = decision_on_current
         self._drop_current_after_publish = drop_current_after_publish
+        self._drop_current_without_response_once = drop_current_without_response_once
         self._inject_foreign_current = inject_foreign_current
 
     def get(self, key: str) -> str | None:
@@ -40,6 +42,11 @@ class _RedisProxy:
             return False
 
         if ":current:" in key:
+            if self._drop_current_without_response_once:
+                self._r.delete(key)
+                self._drop_current_without_response_once = False
+                return True
+
             if self._inject_foreign_current:
                 # Hijack the current slot with a foreign request_id.
                 cur = json.loads(value)
@@ -64,6 +71,12 @@ class _RedisProxy:
 
     def expire(self, key: str, ttl: int) -> bool:
         return bool(self._r.expire(key, ttl))
+
+    def lpush(self, key: str, value: str) -> int:
+        return int(self._r.lpush(key, value))
+
+    def ltrim(self, key: str, start: int, end: int) -> bool:
+        return bool(self._r.ltrim(key, start, end))
 
     def hgetall(self, key: str) -> dict[str, str]:
         return {str(k): str(v) for k, v in (self._r.hgetall(key) or {}).items()}
@@ -290,6 +303,29 @@ def test_clear_stale_approval_preserves_same_scenario_resume(
 
     current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
     assert current["request_id"] == "adb:bs1:resume"
+
+
+def test_approval_owner_check_detects_task_change(monkeypatch: Any, redis_sync: Any) -> None:
+    r = _RedisProxy(redis_sync)
+    r.hset(
+        "wos:instance:bs1:state",
+        mapping={
+            "current_task_id": "task:new",
+            "current_scenario": "new_scenario",
+        },
+    )
+    _patch_redis(monkeypatch, r)
+
+    assert (
+        tap._approval_owner_still_current(
+            "bs1",
+            {
+                "current_task_id": "task:old",
+                "scenario": "old_scenario",
+            },
+        )
+        is False
+    )
 
 
 def test_require_approval_set_node_drops_stale_task_region(
@@ -620,20 +656,39 @@ def test_require_approval_aborts_on_foreign_request(monkeypatch: Any, redis_sync
 
     assert ok is False
     assert req_id is not None
+    state = r.hgetall("wos:instance:bs1:state")
+    assert state["last_approval_block_reason"] == "foreign_request"
+    assert state["last_approval_request_id"] == req_id
+    event = json.loads(redis_sync.lrange("wos:debug:timeline:bs1", 0, 0)[0])
+    assert event["event"] == "approval.blocked"
+    assert event["reason"] == "foreign_request"
+    assert event["request_id"] == req_id
 
 
-def test_require_approval_aborts_when_current_request_disappears(
+def test_require_approval_republishes_when_current_request_disappears(
     monkeypatch: Any, redis_sync: Any
 ) -> None:
-    r = _RedisProxy(redis_sync, drop_current_after_publish=True)
+    r = _RedisProxy(
+        redis_sync,
+        approve_on_current=True,
+        drop_current_without_response_once=True,
+    )
     r.set("wos:ui:click_approval:enabled:bs1", "1")
     r.set("wos:ui:click_approval:heartbeat:bs1", "1")
     _patch_redis(monkeypatch, r)
 
     ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
 
-    assert ok is False
+    assert ok is True
     assert req_id is not None
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == req_id
+    assert current["status"] == "approved"
+    events = [
+        json.loads(row)
+        for row in redis_sync.lrange("wos:debug:timeline:bs1", 0, 10)
+    ]
+    assert any(e["event"] == "approval.republished" for e in events)
 
 
 def test_require_approval_calls_preview_capturer_before_publish(

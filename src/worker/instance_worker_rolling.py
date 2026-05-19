@@ -116,15 +116,16 @@ class InstanceWorkerRollingMixin(_Base):
         raise NotImplementedError
 
     async def _device_reference_snapshot_tick(self, *, analyze: bool = True) -> None:
-        """ADB screencap → rolling preview PNG; optionally run screen/overlay analysis."""
+        """Screenshot → rolling preview PNG; optionally run screen/overlay analysis."""
         root = repo_root()
         (root / "references").mkdir(parents=True, exist_ok=True)
         base = reference_file_basename(None, self._cfg.instance_id)
         path = reference_png_abs_path(root, base, self._cfg.instance_id)
 
         logger.debug(
-            "[rolling] %s: ADB screencap (serial=%s) → %s",
+            "[rolling] %s: screenshot (backend=%s serial=%s) → %s",
             self._cfg.instance_id,
+            getattr(self._cfg, "screenshot_backend", "quartz"),
             self._cfg.bluestacks_window_title,
             path,
         )

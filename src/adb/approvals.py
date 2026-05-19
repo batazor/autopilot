@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 _redis_client: redis.Redis | None = None
 _APPROVAL_POLL_SECONDS = 0.2
 _APPROVAL_PREVIEW_REFRESH_SECONDS = 2.0
+_APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT = 3
 # Approval mode: there is intentionally NO non-decision exit from the wait
 # loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
 # always the operator's. The trade-off: closing the approvals page WILL hang
@@ -31,6 +32,8 @@ _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
 # operator-paced and must not age out while the bot is waiting for a decision.
 APPROVAL_CURRENT_TTL_SECONDS = 300
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
+_TIMELINE_MAX_ROWS = 5000
+_TIMELINE_TTL_SECONDS = 3600
 # Operator-issued ``skip`` decisions queued by ``_require_approval`` for the
 # tap/swipe/type_text helpers to consume. Skip means "don't execute this ADB
 # action but don't abort the scenario either" — the caller treats it as a
@@ -163,6 +166,76 @@ def _clear_stale_approval_current(
         )
     except Exception:
         logger.debug("Failed to clear stale approval current", exc_info=True)
+
+
+def _record_approval_block(
+    instance_id: str,
+    *,
+    req_id: str | None,
+    reason: str,
+    detail: str = "",
+) -> None:
+    try:
+        mapping = {
+            "last_approval_block_at": str(time.time()),
+            "last_approval_block_reason": reason,
+        }
+        if req_id:
+            mapping["last_approval_request_id"] = req_id
+        if detail:
+            mapping["last_approval_block_detail"] = detail
+        _redis().hset(f"wos:instance:{instance_id}:state", mapping=mapping)
+    except Exception:
+        logger.debug("Failed to record approval block reason", exc_info=True)
+
+
+def _emit_approval_timeline(
+    instance_id: str,
+    *,
+    event: str,
+    req_id: str | None,
+    reason: str = "",
+    detail: str = "",
+    ctx: dict[str, object] | None = None,
+) -> None:
+    """Best-effort approval event for the Debug Timeline."""
+    try:
+        ctx = ctx or {}
+        row = {
+            "t": time.time(),
+            "event": event,
+            "instance_id": instance_id,
+            "request_id": req_id or "",
+            "reason": reason,
+            "detail": detail,
+            "task_id": str(ctx.get("current_task_id") or ""),
+            "task_type": str(ctx.get("current_task_type") or ""),
+            "scenario": str(ctx.get("scenario") or ""),
+            "player_id": str(ctx.get("current_task_player") or ""),
+            "current_screen": str(ctx.get("current_screen") or ""),
+        }
+        key = f"wos:debug:timeline:{instance_id}"
+        client = _redis()
+        client.lpush(key, json.dumps(row, ensure_ascii=False, default=str))
+        client.ltrim(key, 0, _TIMELINE_MAX_ROWS - 1)
+        client.expire(key, _TIMELINE_TTL_SECONDS)
+    except Exception:
+        logger.debug("Failed to emit approval timeline event", exc_info=True)
+
+
+def _approval_owner_still_current(instance_id: str, ctx: dict[str, object]) -> bool:
+    try:
+        raw = _r_hgetall(f"wos:instance:{instance_id}:state")
+    except Exception:
+        logger.debug("Failed to read approval owner state", exc_info=True)
+        return True
+    old_task_id = str(ctx.get("current_task_id") or "").strip()
+    new_task_id = str(raw.get("current_task_id") or "").strip()
+    if old_task_id and new_task_id and old_task_id != new_task_id:
+        return False
+    old_scenario = str(ctx.get("scenario") or "").strip()
+    new_scenario = str(raw.get("current_scenario") or "").strip()
+    return not (old_scenario and new_scenario and old_scenario != new_scenario)
 
 
 def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[bool, str | None]:
@@ -404,6 +477,20 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         time.sleep(_APPROVAL_POLL_SECONDS)
     else:
         logger.info("ADB input blocked: approval slot busy for %s", instance_id)
+        _record_approval_block(
+            instance_id,
+            req_id=None,
+            reason="publish_slot_busy",
+            detail=current_key,
+        )
+        _emit_approval_timeline(
+            instance_id,
+            event="approval.blocked",
+            req_id=None,
+            reason="publish_slot_busy",
+            detail=current_key,
+            ctx=ctx,
+        )
         return False, None
 
     # Phase 2: wait for an operator decision. There is NO wall-clock timeout
@@ -418,18 +505,69 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     # preview clears; we therefore check ``response_key`` BEFORE inferring
     # "reject" from a foreign / missing ``current`` payload.
     decision: str | None = None
+    decision_reason = ""
+    decision_detail = ""
+    missing_current_republishes = 0
     while True:
         raw_resp = _r_get(resp_key)
         if raw_resp:
             decision = str(raw_resp).strip().lower()
+            decision_reason = f"response:{decision}"
             break
         try:
             raw_cur = _r_get(current_key)
             if not raw_cur:
+                if not _approval_owner_still_current(instance_id, ctx):
+                    decision = "reject"
+                    decision_reason = "current_missing_owner_changed"
+                    decision_detail = req_id
+                    logger.warning(
+                        "Click approval: current request disappeared for %s and owner changed "
+                        "(req=%s); not republishing stale request",
+                        instance_id,
+                        req_id,
+                    )
+                    break
+                if missing_current_republishes < _APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT:
+                    missing_current_republishes += 1
+                    p["created_at"] = time.time()
+                    p["republished_at"] = time.time()
+                    if _redis().set(current_key, json.dumps(p), nx=True):
+                        logger.warning(
+                            "Click approval: current request disappeared for %s "
+                            "(req=%s); republished same request (%d/%d)",
+                            instance_id,
+                            req_id,
+                            missing_current_republishes,
+                            _APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT,
+                        )
+                        _emit_approval_timeline(
+                            instance_id,
+                            event="approval.republished",
+                            req_id=req_id,
+                            reason="current_missing",
+                            detail=f"{missing_current_republishes}/{_APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT}",
+                            ctx=ctx,
+                        )
+                    time.sleep(_APPROVAL_POLL_SECONDS)
+                    continue
                 decision = "reject"
+                decision_reason = "current_missing_after_republish"
+                decision_detail = f"limit={_APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT}"
                 break
-            if json.loads(raw_cur).get("request_id") != req_id:
+            cur_doc = json.loads(raw_cur)
+            cur_req_id = str(cur_doc.get("request_id") or "")
+            if cur_req_id != req_id:
                 decision = "reject"
+                decision_reason = "foreign_request"
+                decision_detail = cur_req_id
+                logger.warning(
+                    "Click approval: request for %s replaced by foreign request "
+                    "(ours=%s foreign=%s)",
+                    instance_id,
+                    req_id,
+                    cur_req_id,
+                )
                 break
         except Exception:
             logger.debug("Failed to read current approval request", exc_info=True)
@@ -476,6 +614,27 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
 
     # On reject/skip/timeout, clear slot so the bot can proceed.
     if decision != "approve":
+        _record_approval_block(
+            instance_id,
+            req_id=req_id,
+            reason=decision_reason or f"decision:{decision or 'unknown'}",
+            detail=decision_detail,
+        )
+        _emit_approval_timeline(
+            instance_id,
+            event="approval.blocked",
+            req_id=req_id,
+            reason=decision_reason or f"decision:{decision or 'unknown'}",
+            detail=decision_detail,
+            ctx=ctx,
+        )
+        logger.info(
+            "Click approval blocked input for %s: decision=%s reason=%s req=%s",
+            instance_id,
+            decision,
+            decision_reason or "unknown",
+            req_id,
+        )
         try:
             raw_cur = _r_get(current_key)
             if raw_cur and json.loads(raw_cur).get("request_id") == req_id:

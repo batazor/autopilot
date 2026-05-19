@@ -678,8 +678,9 @@ class InstanceWorker(
         # overlay tick / cron / scheduler will push fresh work as needed.
         await self._fail_stuck_running_on_boot()
         logger.info(
-            "ADB config for %s: serial=%s adb_executable=%s",
+            "Capture config for %s: backend=%s serial=%s adb_executable=%s",
             self._cfg.instance_id,
+            getattr(self._cfg, "screenshot_backend", "quartz"),
             self._cfg.bluestacks_window_title,
             self._worker_adb_bin(),
         )

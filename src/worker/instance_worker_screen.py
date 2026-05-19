@@ -51,7 +51,7 @@ class InstanceWorkerScreenMixin(_Base):
         raise NotImplementedError
 
     def _grab_layout_bgr(self) -> np.ndarray:
-        return self._bot_actions.capture_screen_bgr_adb(self._cfg.instance_id)
+        return self._bot_actions.capture_screen_bgr_direct(self._cfg.instance_id)
 
     async def _overlay_analyze_bgr(
         self,

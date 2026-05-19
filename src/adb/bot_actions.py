@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from adb.controller import AdbController
+from adb.quartz_screencap import quartz_screencap_bgr
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr
 from worker import frame_bus
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-    from config.loader import Settings
+    from config.loader import InstanceConfig, Settings
     from layout.types import Point
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class BotActions:
 
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
-            serial = self._get_serial(instance_id)
+            serial = self._get_instance(instance_id).bluestacks_window_title
             self._controllers[instance_id] = AdbController(
                 instance_id,
                 serial,
@@ -55,12 +56,15 @@ class BotActions:
             )
         return self._controllers[instance_id]
 
-    def _get_serial(self, instance_id: str) -> str:
+    def _get_instance(self, instance_id: str) -> InstanceConfig:
         for inst in self._settings.instances:
             if inst.instance_id == instance_id:
-                return inst.bluestacks_window_title  # ADB serial for BlueStacks
+                return inst
         msg = f"Unknown instance_id: {instance_id!r}"
         raise ValueError(msg)
+
+    def _get_serial(self, instance_id: str) -> str:
+        return self._get_instance(instance_id).bluestacks_window_title  # ADB serial for BlueStacks
 
     def _adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
@@ -85,12 +89,48 @@ class BotActions:
         self._await_next_frame.discard(instance_id)
         return img
 
+    def capture_screen_bgr_direct(self, instance_id: str) -> np.ndarray:
+        """Direct screenshot using the instance's configured backend.
+
+        ``quartz`` is the default backend for speed. If WindowServer capture is
+        unavailable or the window cannot be found, fall back to ADB so scenarios
+        keep making progress instead of stalling on host-window state.
+        """
+        inst = self._get_instance(instance_id)
+        backend = (inst.screenshot_backend or "quartz").strip().lower()
+        if backend == "adb":
+            return self.capture_screen_bgr_adb(instance_id)
+        if backend != "quartz":
+            logger.warning(
+                "Unknown screenshot backend %r for %s; using quartz",
+                inst.screenshot_backend,
+                instance_id,
+            )
+        try:
+            img = quartz_screencap_bgr(
+                instance_id=instance_id,
+                quartz_window_id=inst.quartz_window_id,
+                quartz_window_title=inst.quartz_window_title,
+                quartz_crop=inst.quartz_crop,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Quartz screenshot failed for %s; falling back to ADB: %s",
+                instance_id,
+                exc,
+            )
+            return self.capture_screen_bgr_adb(instance_id)
+        frame_bus.publish(instance_id, img)
+        self._frame_cache[instance_id] = (time.monotonic(), img)
+        self._await_next_frame.discard(instance_id)
+        return img
+
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
         """Framebuffer BGR from ``frame_bus``, normally fed by the rolling ADB loop.
 
         If nothing was published within the timeout (cold race, rolling paused for
         device-offline, or ADB not returning screenshots), fall back to a direct
-        ``adb screencap`` so matchers / overlay DSL can still run.
+        configured direct backend so matchers / overlay DSL can still run.
         """
         try:
             if instance_id in self._await_next_frame:
@@ -104,11 +144,11 @@ class BotActions:
                 )
         except frame_bus.FrameBusTimeout:
             logger.warning(
-                "frame_bus: timed out waiting for %r — direct ADB screencap "
-                "(rolling loop cold, paused, or ADB not publishing frames)",
+                "frame_bus: timed out waiting for %r — direct screenshot "
+                "(rolling loop cold, paused, or not publishing frames)",
                 instance_id,
             )
-            img = self.capture_screen_bgr_adb(instance_id)
+            img = self.capture_screen_bgr_direct(instance_id)
         self._frame_cache[instance_id] = (time.monotonic(), img)
         return img
 
