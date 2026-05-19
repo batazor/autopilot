@@ -98,6 +98,11 @@ build-backend = "hatchling.build"
 
 [tool.uv]
 package = true
+# onnxruntime 1.26+ dropped macOS x86_64 wheels; ddddocr (gift-code CAPTCHA) still
+# needs it on Intel Macs. Apple Silicon / Linux / Windows keep the lock-pinned version.
+override-dependencies = [
+    "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+]
 # Transitive deps pull ``opencv-python``, ``opencv-python-headless``, and/or
 # ``opencv-contrib-python`` side-by-side — they all install into the same ``cv2``
 # namespace and leave a broken stub (no ``imdecode``, etc.). We ship one OpenCV
