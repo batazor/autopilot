@@ -119,7 +119,7 @@ def copy_rolling_preview_to(
     if not src.is_file():
         return False, (
             f"no rolling preview PNG yet for {instance_id!r} — "
-            "start the worker (`uv run wos`) so it captures frames"
+            "start the worker (`uv run play`) so it captures frames"
         )
     age = time.time() - src.stat().st_mtime
     if age > stale_after_seconds:

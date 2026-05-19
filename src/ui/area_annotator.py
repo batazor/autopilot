@@ -73,16 +73,16 @@ from ui.labeling_reference_panel import (
     labeling_resolve_sel,
     render_labeling_reference_column,
 )
+from ui.overlay_yaml_sync import (
+    cascade_aux_region_names,
+    overlay_tap_region_name,
+    rename_findicon_overlay_primary,
+)
 from ui.reference_ocr_paths import (
     module_local_ocr_for_reference_path as _module_local_ocr_for_reference_path,
 )
 from ui.reference_ocr_paths import (
     resolve_ocr_path_in_reference_context as _resolve_ocr_path_in_reference_context,
-)
-from ui.overlay_yaml_sync import (
-    cascade_aux_region_names,
-    overlay_tap_region_name,
-    rename_findicon_overlay_primary,
 )
 from ui.settings_state import get_ui_adb_bin, get_ui_adb_serial
 
@@ -536,8 +536,8 @@ def find_stale_crops(
                 if not name:
                     continue
                 # Mirror crop_region's rounding rules — same math export uses.
-                left = bbox["x"] / 100.0 * ow
-                top = bbox["y"] / 100.0 * oh
+                bbox["x"] / 100.0 * ow
+                bbox["y"] / 100.0 * oh
                 w = bbox["width"] / 100.0 * ow
                 h = bbox["height"] / 100.0 * oh
                 expected_w = max(1, int(round(w)))

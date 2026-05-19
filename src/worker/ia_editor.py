@@ -1,4 +1,4 @@
-"""`wos-ia-editor` entry point: approval UI without embedded bot workers."""
+"""`ia-editor` entry point: approval UI without embedded bot workers."""
 
 from __future__ import annotations
 
@@ -141,7 +141,7 @@ def main() -> None:
     try:
         from streamlit.web import bootstrap
     except ImportError as exc:
-        msg = "Streamlit is required: run `uv sync` (see README), then `uv run wos-ia-editor`."
+        msg = "Streamlit is required: run `uv sync` (see README), then `uv run ia-editor`."
         raise SystemExit(
             msg
         ) from exc
@@ -164,7 +164,7 @@ def main() -> None:
 
     # Streamlit installs its own SIGINT handler inside ``bootstrap.run``;
     # ours never gets a chance if we wait until after that returns (it's
-    # blocking). Mirror the ``wos`` launcher (worker/launch.py:100) and
+    # blocking). Mirror the ``play`` launcher (worker/launch.py:100) and
     # swap Streamlit's internal install hook before starting the server —
     # Streamlit ends up registering OUR handler, so the 2nd Ctrl+C
     # reliably ``os._exit`` instead of looping on "Stopping…".

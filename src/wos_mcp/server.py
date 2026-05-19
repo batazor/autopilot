@@ -12,12 +12,12 @@ from PIL import Image
 
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
+from layout.bbox_percent import bbox_percent_center_to_device_point
 from layout.reference_basename import (
     normalize_reference_basename,
     rename_reference_basename,
     suggest_reference_basename,
 )
-from layout.bbox_percent import bbox_percent_center_to_device_point
 from navigation.detector import ScreenName
 from omniparser.client import check_omniparser_health, parse_screenshot
 from omniparser.supervision_bridge import (

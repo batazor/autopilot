@@ -9,8 +9,7 @@ import pytest
 from config.loader import get_settings
 from config.paths import repo_root
 from scheduler.queue import RedisQueue
-from ui import ia_preview_service
-from ui import ia_overlay_executor
+from ui import ia_overlay_executor, ia_preview_service
 from ui.ia_queue_executor import _pop_ia_item
 
 

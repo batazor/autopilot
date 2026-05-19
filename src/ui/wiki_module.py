@@ -10,7 +10,6 @@ from config.module_registry import (
     ALL_MODULES_KEY,
     WikiModuleContext,
     list_labeling_modules,
-    list_wiki_modules,
     normalize_module_scope,
 )
 from ui.area_annotator import REPO_ROOT, default_area_doc, load_json

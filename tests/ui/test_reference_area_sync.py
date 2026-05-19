@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
 from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
 from ui.reference_ocr_paths import reference_basename_stem, resolve_ocr_path_in_reference_context
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_reference_basename_stem_multi_dot() -> None:

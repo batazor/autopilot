@@ -25,7 +25,6 @@ that should fall back to per-region rules.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
@@ -33,9 +32,6 @@ import numpy as np
 from layout.red_dot_detector import find_red_dots
 from layout.tab_active_detector import is_tab_active_in_bbox_percent
 from layout.template_match import patch_bgr_from_bbox_percent
-
-if TYPE_CHECKING:
-    pass
 
 ACTIVE_WHITE_MAX_SAT = 60
 ACTIVE_WHITE_MIN_VAL = 200

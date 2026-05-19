@@ -1,4 +1,4 @@
-"""`wos` entry point: a single Streamlit process (bot starts inside `ui/app.py`)."""
+"""`play` entry point: a single Streamlit process (bot starts inside `ui/app.py`)."""
 
 from __future__ import annotations
 
@@ -54,7 +54,7 @@ def main() -> None:
     # Streamlit may block on a first-run welcome prompt (email).
     # Force non-interactive mode for Cursor terminals/CI.
     env.setdefault("STREAMLIT_SERVER_PROMPT", "false")
-    # Never auto-open a browser tab/window on each `uv run wos` (see `.streamlit/config.toml`).
+    # Never auto-open a browser tab/window on each `uv run play` (see `.streamlit/config.toml`).
     env.setdefault("STREAMLIT_SERVER_HEADLESS", "true")
     sep = os.pathsep
     prev = env.get("PYTHONPATH", "")
@@ -71,7 +71,7 @@ def main() -> None:
     try:
         from streamlit.web import bootstrap
     except ImportError as exc:
-        msg = "Streamlit is required: run `uv sync` (see README), then `uv run wos`."
+        msg = "Streamlit is required: run `uv sync` (see README), then `uv run play`."
         raise SystemExit(
             msg
         ) from exc

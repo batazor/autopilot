@@ -63,7 +63,7 @@ def _reference_preview_fragment(instance_id: str) -> None:
     st.caption(
         f"Reads disk every {_PREVIEW_REFRESH_SEC:.1f} s — file is written by the **bot worker** "
         f"(ADB screencap → `references/temporal/{instance_id}_current_state.png`). "
-        "Use **`uv run wos`** / **`ui/app.py`** so the worker runs."
+        "Use **`uv run play`** / **`ui/app.py`** so the worker runs."
     )
 
     img_bytes, ref_cap, shot_mtime = _load_preview_cached(instance_id)
@@ -79,7 +79,7 @@ def _reference_preview_fragment(instance_id: str) -> None:
                     f"PNG is ~{int(age_s)} s old — **no worker row** in Redis yet "
                     "(bot thread starting, wrong **redis.url**, or broker down). "
                     "Wait a few seconds after UI load; "
-                    "otherwise check **`uv run wos`** / terminal logs."
+                    "otherwise check **`uv run play`** / terminal logs."
                 )
             elif row.get("paused") == "1":
                 st.warning(
@@ -125,7 +125,7 @@ def _reference_preview_fragment(instance_id: str) -> None:
     else:
         temporal_file = f"`references/temporal/{instance_id}_current_state.png`."
         st.info(
-            "No rolling PNG yet — worker must run (**`uv run wos`**) and **ADB** must return a PNG "
+            "No rolling PNG yet — worker must run (**`uv run play`**) and **ADB** must return a PNG "
             f"(serial **`bluestacks_window_title`**). File: {temporal_file} "
             "Manual **Screenshot** writes the same path via ADB."
         )

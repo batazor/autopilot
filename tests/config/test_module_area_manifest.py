@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from layout.area_manifest import load_area_doc
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 
 if TYPE_CHECKING:

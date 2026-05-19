@@ -164,7 +164,7 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 <summary><b>📸 Screenshots — Click to expand</b></summary>
 <br/>
 
-The Streamlit app (`uv run wos`) covers gift codes, labeling/YAML scenarios, and runtime scenario debugging.
+The Streamlit app (`uv run play`) covers gift codes, labeling/YAML scenarios, and runtime scenario debugging.
 
 | | |
 |:---:|:---:|
@@ -391,4 +391,11 @@ docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibilit
 
 ## 🤝 Contributing
 
-Editing the code? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev workflow (`uv sync`, `uv run wos`, lint, tests, building images locally).
+Editing the code? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev workflow (`uv sync`, lint, tests, building images locally).
+
+| Command | Role |
+|:--------|:-----|
+| `uv run play` | Streamlit UI + worker + scheduler (default) |
+| `uv run bot` | Headless worker + scheduler |
+| `uv run ia-editor` | Labeling / IA Editor UI only |
+| `uv run mcp` | MCP server (experimental) |

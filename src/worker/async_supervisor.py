@@ -94,7 +94,7 @@ async def run_forever_async(*, stop_event: threading.Event | None = None) -> Non
     bootstrap_runtime_observability("embedded")
     logger.info(
         "wos: async supervisor running — worker/ADB/rolling logs follow on stdout "
-        "(terminal where `uv run wos` is running)"
+        "(terminal where `uv run play` is running)"
     )
     assert_startup_configs_valid()
     await init_app_services()

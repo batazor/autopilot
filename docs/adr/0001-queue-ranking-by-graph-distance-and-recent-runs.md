@@ -229,7 +229,7 @@ Expose counters (or labelled histograms) so regressions show up in dashboards, n
 - A **debug flag or one-off command** (CLI, Redis flag, or Streamlit toggle) that prints or returns **“why this task won”**: sorted top‑N due candidates with `effective_priority`, debuff breakdown, and `run_at` — enough to reproduce the comparison by hand.
 - Reuse the same breakdown in **automated tests** — implement the cases in [Test cases (golden fixtures)](#test-cases-golden-fixtures) as **golden ordering fixtures** so ranking changes stay intentional.
 
-### Approval UI (Streamlit / `uv run wos`) — **deferred to v2**
+### Approval UI (Streamlit / `uv run play`) — **deferred to v2**
 
 The project already has an **approval UI** for taps / risky actions. A future iteration may add a **panel or expandable block** on the active / next task view showing the same **“why this task”** summary: `task_type`, `player_id`, `recent_key`, `base_priority` → `effective_priority`, `current_screen`, `required_node`, `hops`, `reachable`, `recent_count`, `graph_debuff`, `recent_debuff`, `run_at`, `created_at`. Operators waiting on approvals would see **why the scheduler picked this item** without opening logs.
 

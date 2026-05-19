@@ -163,7 +163,8 @@ async def test_navigation_accepts_final_tab_when_parent_hop_opens_it(
         return ScreenName("survivor_status.status")
 
     async def wait_for_screen_verified(*_args: Any) -> bool:
-        raise AssertionError("parent hop should accept the final tab without retrying")
+        msg = "parent hop should accept the final tab without retrying"
+        raise AssertionError(msg)
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
     mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)

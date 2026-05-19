@@ -33,6 +33,10 @@ dependencies = [
     "openai>=2.36.0",
     "diskcache>=5.6.3",
     "mcp>=1.27.1",
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+    "opentelemetry-instrumentation-logging>=0.48b0",
 ]
 
 [project.optional-dependencies]
@@ -41,10 +45,6 @@ dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "testcontainers>=4.14.2",
-    "opentelemetry-api>=1.27",
-    "opentelemetry-sdk>=1.27",
-    "opentelemetry-exporter-otlp-proto-http>=1.27",
-    "opentelemetry-instrumentation-logging>=0.48b0",
     "fastapi>=0.111",
     "syrupy>=5.2.0",
     "pytest-mock>=3.15.1",
@@ -81,16 +81,16 @@ omniparser = [
     "timm>=1.0.27",
     "torch>=2.12.0",
     "torchvision>=0.27.0",
-    "transformers==4.46.3",
+    "transformers>=5.0,<6",
     "ultralytics>=8.4.51",
     "uvicorn[standard]>=0.46.0",
 ]
 
 [project.scripts]
-wos = "worker.launch:main"
-wos-bot = "worker.supervisor:main"
-wos-ia-editor = "worker.ia_editor:main"
-wos-mcp = "wos_mcp.server:main"
+play = "worker.launch:main"
+bot = "worker.supervisor:main"
+ia-editor = "worker.ia_editor:main"
+mcp = "wos_mcp.server:main"
 
 [build-system]
 requires = ["hatchling"]

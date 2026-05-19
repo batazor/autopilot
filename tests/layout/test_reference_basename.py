@@ -1,7 +1,7 @@
 """Tests for layout.reference_basename (Labeling basename rename + MCP)."""
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import yaml
@@ -12,6 +12,9 @@ from layout.reference_basename import (
     resolve_references_context,
     suggest_reference_basename,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_shop_fixture(repo: Path) -> None:

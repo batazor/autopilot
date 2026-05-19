@@ -19,16 +19,11 @@ Two entry points:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
 from layout.template_match import patch_bgr_from_bbox_percent
-
-if TYPE_CHECKING:
-    pass
-
 
 GLOW_HUE_MIN = 5
 GLOW_HUE_MAX = 45

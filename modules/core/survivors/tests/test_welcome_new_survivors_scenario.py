@@ -8,9 +8,9 @@ import cv2
 import pytest
 from conftest import make_actions, patch_dsl
 
+import tasks.dsl_scenario as dsl
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
-import tasks.dsl_scenario as dsl
 from navigation.detector import ScreenDetector
 from scenarios import template_resolver
 from services import get_ocr_client

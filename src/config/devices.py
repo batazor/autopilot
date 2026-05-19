@@ -101,14 +101,25 @@ class DeviceRegistry:
 
 
 def load_devices(path: Path | None = None) -> DeviceRegistry:
+    from config.paths import repo_root
+
+    auto_create = path is None
     if path is None:
-        from config.paths import repo_root
-
         path = repo_root() / "db" / "devices.yaml"
-    if not path.exists():
-        path = path.parent / "devices.example.yaml"
 
-    raw = yaml.safe_load(path.read_text())
+    if not path.exists():
+        if auto_create:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if not _save_devices_raw(path, {"devices": []}):
+                logger.warning("Could not create %s; using empty registry", path)
+                return DeviceRegistry(devices=[])
+            logger.info("Created empty device registry at %s", path)
+        else:
+            return DeviceRegistry(devices=[])
+
+    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raw = {}
     devices: list[DeviceEntry] = []
     for d in raw.get("devices", []):
         profiles: list[DeviceProfile] = []

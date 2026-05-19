@@ -253,8 +253,7 @@ def list_labeling_modules(repo_root: Path | None = None) -> list[WikiModuleConte
     """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     out: list[WikiModuleContext] = [core_module_context(root)]
-    for module_dir in _module_discovery.iter_module_dirs(root):
-        out.append(_module_context(root, module_dir))
+    out.extend(_module_context(root, module_dir) for module_dir in _module_discovery.iter_module_dirs(root))
     return out
 
 

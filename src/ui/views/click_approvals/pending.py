@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
@@ -275,15 +276,13 @@ def fragment_pending_approval_columns(
                     # IA Editor app does not register ``views/scenarios.py`` in
                     # ``st.navigation``; swallow the resulting error and skip the
                     # link there instead of crashing the Approvals column.
-                    try:
+                    with contextlib.suppress(StreamlitPageNotFoundError):
                         st.page_link(
                             "views/scenarios.py",
                             label="Open scenario",
                             query_params={"q": scen_key},
                             width="stretch",
                         )
-                    except StreamlitPageNotFoundError:
-                        pass
 
         if req_type == "set_node":
             sn = str(payload.get("set_node") or "").strip()

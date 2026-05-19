@@ -288,10 +288,8 @@ def _rollback_rename(
     new_path = ref_root / new_rel
     old_path = ref_root / old_rel
     if new_path.is_file():
-        try:
+        with contextlib.suppress(OSError):
             new_path.rename(old_path)
-        except OSError:
-            pass
     for crop_rel in crops_renamed:
         p = ref_root / crop_rel
         if p.is_file():

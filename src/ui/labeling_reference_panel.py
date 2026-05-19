@@ -434,7 +434,6 @@ def render_labeling_reference_column(
 
             if st.session_state.get(confirm_key):
                 from ui.area_annotator import REPO_ROOT
-
                 from ui.wiki_module import active_references_prefix
 
                 impact = preview_delete_reference_impact(

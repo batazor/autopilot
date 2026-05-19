@@ -80,7 +80,7 @@
         "wos.labeling.host": {
           "type": "string",
           "default": "127.0.0.1",
-          "description": "Streamlit host for the WOS UI (uv run wos)."
+          "description": "Streamlit host for the WOS UI (uv run play)."
         },
         "wos.labeling.port": {
           "type": "number",

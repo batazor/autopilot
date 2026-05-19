@@ -70,6 +70,15 @@ services:
       # the container shares the host's lo).
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
     restart: unless-stopped
+    # Streamlit ``/_stcore/health`` — surfaces "container up, UI dead" in
+    # ``docker compose ps`` / ``inspect``. Image also ships HEALTHCHECK in
+    # Dockerfile.bot; compose keeps prod behaviour explicit and overridable.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8501/_stcore/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   redis_data:

@@ -1,10 +1,10 @@
 {
   "mcpServers": {
-    "wos-bot": {
+    "bot": {
       "command": "uv",
       "args": [
         "run",
-        "wos-mcp"
+        "mcp"
       ],
       "cwd": "/Users/batazor/myproject/whiteout-survival-autopilot"
     }

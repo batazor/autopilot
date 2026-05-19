@@ -16,6 +16,7 @@ Two contracts:
 """
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -146,7 +147,7 @@ def test_slot_bboxes_partition_the_box_column(box_bbox: dict) -> None:
         assert s.bbox_percent["x"] == box_bbox["x"]
         assert s.bbox_percent["width"] == box_bbox["width"]
     # Y stripes meet end-to-end.
-    for prev, curr in zip(slots, slots[1:], strict=False):
+    for prev, curr in itertools.pairwise(slots):
         assert abs(
             (prev.bbox_percent["y"] + prev.bbox_percent["height"])
             - curr.bbox_percent["y"]

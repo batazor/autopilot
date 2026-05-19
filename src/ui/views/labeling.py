@@ -46,7 +46,6 @@ from ui.keys import (
     LABELING_TREE_SELECTION,
 )
 from ui.labeling_helpers import _count_regions, labeling_workflow_steps
-from ui.reference_ocr_paths import reference_basename_stem
 from ui.labeling_reference_panel import (
     labeling_basename_widget_key,
     labeling_query_ref,
@@ -56,6 +55,7 @@ from ui.labeling_reference_panel import (
 from ui.labeling_refresh_target import ocr_path_to_ref_rel, resolve_labeling_refresh_target_rel
 from ui.labeling_version_redirect import resolve_version_ref_redirect
 from ui.labeling_workflow_ui import render_labeling_workflow_strip
+from ui.reference_ocr_paths import reference_basename_stem
 from ui.reference_preview import copy_rolling_preview_to, list_reference_pngs
 from ui.roboflow_upload import build_coco_annotation, load_roboflow_upload_config, upload_screenshot_to_roboflow
 from ui.settings_state import ensure_ui_settings_session_defaults

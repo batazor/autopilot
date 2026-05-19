@@ -75,3 +75,26 @@ devices:
     settings = load_settings(settings_path)
 
     assert settings.instances[0].screenshot_backend == "adb"
+
+
+def test_load_devices_creates_empty_registry_file_on_first_boot(tmp_path: Path, monkeypatch) -> None:
+    import config.paths
+
+    monkeypatch.setattr(config.paths, "repo_root", lambda: tmp_path)
+    devices_path = tmp_path / "db" / "devices.yaml"
+    assert not devices_path.exists()
+
+    registry = load_devices()
+
+    assert registry.devices == []
+    assert devices_path.read_text(encoding="utf-8") == "devices: []\n"
+
+
+def test_load_devices_missing_explicit_path_returns_empty_without_creating(tmp_path: Path) -> None:
+    path = tmp_path / "devices.yaml"
+    assert not path.exists()
+
+    registry = load_devices(path)
+
+    assert registry.devices == []
+    assert not path.exists()

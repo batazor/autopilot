@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING
 
 import cv2
 
-from pathlib import Path
-
 from layout.crop_paths import exported_crop_png
 from layout.template_match import patch_bgr_from_bbox_percent
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import numpy as np
 
     from layout.tabs_strip_segmenter import TabDetection

@@ -42,7 +42,7 @@ cd whiteout-survival-autopilot
 # Python 3.13 + project deps (from uv.lock)
 uv sync
 
-# Just the supporting service — bot runs on the host via `uv run wos`
+# Just the supporting service — bot runs on the host via `uv run play`
 docker compose up -d redis
 ```
 
@@ -50,9 +50,18 @@ Edit `src/config/settings.yaml` (`redis.url`, `ocr.tesseract_cmd`, worker settin
 
 ## Running
 
+Entry points are defined in `pyproject.toml` under `[project.scripts]`:
+
+| Command | Role |
+|:--------|:-----|
+| `uv run play` | Streamlit UI + embedded worker + scheduler (default dev workflow) |
+| `uv run bot` | Headless worker + scheduler only (no Streamlit) |
+| `uv run ia-editor` | Labeling / IA Editor UI without embedded workers |
+| `uv run mcp` | MCP server for Cursor / external tooling (experimental) |
+
 ```sh
 # UI + worker + scheduler — all in one Streamlit process
-uv run wos
+uv run play
 ```
 
 Streamlit serves at <http://127.0.0.1:8501> (override with `WOS_STREAMLIT_PORT=8502`). Keep BlueStacks running and the device visible in `adb devices` first.
@@ -60,12 +69,18 @@ Streamlit serves at <http://127.0.0.1:8501> (override with `WOS_STREAMLIT_PORT=8
 ### Headless mode (separate worker + scheduler processes)
 
 ```sh
-uv run wos-bot
+uv run bot
 # or
 uv run python -m worker.supervisor
 ```
 
-The UI publishes commands on `wos:ui:command:{instance_id}` and `wos:ui:command:scheduler`; both modes read the same Redis state.
+### Labeling-only UI
+
+```sh
+uv run ia-editor
+```
+
+The UI publishes commands on `wos:ui:command:{instance_id}` and `wos:ui:command:scheduler`; all modes read the same Redis state.
 
 ## Dev tools
 
