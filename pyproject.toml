@@ -81,7 +81,7 @@ omniparser = [
     "timm>=1.0.27",
     "torch>=2.12.0",
     "torchvision>=0.27.0",
-    "transformers==4.46.3",
+    "transformers==5.0.0",
     "ultralytics>=8.4.51",
     "uvicorn[standard]>=0.46.0",
 ]
