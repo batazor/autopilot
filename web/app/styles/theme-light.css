@@ -9,6 +9,10 @@
     @apply border-red-300 bg-red-50 text-red-800;
   }
 
+  html[data-theme="light"] .success-banner {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-900;
+  }
+
   html[data-theme="light"] .feedback-toast--success {
     @apply border-emerald-300 bg-emerald-50 text-emerald-900;
   }

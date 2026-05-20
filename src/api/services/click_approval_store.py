@@ -63,25 +63,44 @@ def build_scenario_progress(
     summaries = _scenario_step_summaries(active_scenario) if active_scenario else ()
     total = len(summaries)
     running = fetch_running_queue_row(client, instance_id=instance_id)
+    busy = _as_text(instance_state.get("state")).lower() == "busy"
+    current_task_type = _as_text(instance_state.get("current_task_type"))
+    has_task = bool(_as_text(instance_state.get("current_task_id")))
     is_running = bool(
-        running is not None
-        and running.task_id
-        and active_scenario
-        and running.task_type == active_scenario
+        active_scenario
+        and (
+            (
+                running is not None
+                and running.task_id
+                and running.task_type == active_scenario
+            )
+            or (
+                busy
+                and has_task
+                and (current_task_type == active_scenario or not current_task_type)
+            )
+        )
     )
     step_display = 0
-    if is_running and total > 0:
+    step_iter = 0
+    if total > 0:
         try:
             step_now = int(instance_state.get("last_active_scenario_step") or 0)
         except (TypeError, ValueError):
             step_now = 0
-        step_display = max(0, min(step_now, total))
+        cap = (total - 1) if is_running else total
+        step_display = max(0, min(step_now, cap))
+        try:
+            step_iter = int(instance_state.get("last_active_scenario_iter") or 0)
+        except (TypeError, ValueError):
+            step_iter = 0
     nav_target = _as_text(instance_state.get("nav_target")) if is_running else ""
     return {
         "scenario_key": active_scenario,
         "scenario_label": scenario_display_name(active_scenario) if active_scenario else "",
         "step_current": step_display,
         "step_total": total,
+        "step_iter": step_iter,
         "is_running": is_running,
         "nav_target": nav_target,
         "step_summaries": list(summaries),

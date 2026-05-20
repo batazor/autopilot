@@ -1,8 +1,9 @@
 """Dashboard realtime events (Redis pub/sub).
 
 Workers and API mutations publish lightweight events; the FastAPI SSE
-endpoint fans them out to browsers. Subscribers still poll Redis fingerprints
-as a fallback when a producer forgets to publish.
+endpoint fans them out to browsers. Topics: ``queue``, ``fleet``, ``instance``, ``player``,
+``approval``, ``notifications``. Subscribers still poll Redis fingerprints
+(~350ms) when a producer forgets to publish.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ def publish_dashboard_event(
     *,
     topic: str,
     instance_id: str | None = None,
+    player_id: str | None = None,
     reason: str = "",
 ) -> None:
     """Notify dashboard SSE subscribers (sync Redis client)."""
@@ -30,6 +32,7 @@ def publish_dashboard_event(
             {
                 "topic": topic,
                 "instance_id": instance_id or "",
+                "player_id": player_id or "",
                 "reason": reason,
             },
             ensure_ascii=False,
@@ -44,6 +47,7 @@ async def publish_dashboard_event_async(
     *,
     topic: str,
     instance_id: str | None = None,
+    player_id: str | None = None,
     reason: str = "",
 ) -> None:
     if client is None:
@@ -53,6 +57,7 @@ async def publish_dashboard_event_async(
             {
                 "topic": topic,
                 "instance_id": instance_id or "",
+                "player_id": player_id or "",
                 "reason": reason,
             },
             ensure_ascii=False,

@@ -362,3 +362,17 @@ def test_setup_tracing_disabled_via_flag() -> None:
             "OTEL_SDK_DISABLED": "true",
         },
     )
+
+
+def test_trace_id_hex_for_history_fallback_when_span_invalid() -> None:
+    import config.tracing as tracing
+
+    tid = tracing.trace_id_hex_for_history(
+        span_ctx=trace.INVALID_SPAN_CONTEXT,
+        fallback_seed="bs1:cron:foo:1.0",
+    )
+    assert len(tid) == 32
+    assert tid == tracing.trace_id_hex_for_history(
+        span_ctx=trace.INVALID_SPAN_CONTEXT,
+        fallback_seed="bs1:cron:foo:1.0",
+    )

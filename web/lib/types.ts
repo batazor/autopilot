@@ -56,6 +56,7 @@ export type ScenarioProgress = {
   scenario_label: string;
   step_current: number;
   step_total: number;
+  step_iter: number;
   is_running: boolean;
   nav_target: string;
   step_summaries: string[];
@@ -188,6 +189,7 @@ export type QueueHistoryRow = {
   reason: string;
   steps: string;
   trace_id: string;
+  tempo_trace_url: string;
   steps_trace: Record<string, unknown>[] | null;
 };
 

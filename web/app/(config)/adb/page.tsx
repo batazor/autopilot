@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { fetchAdbStatus } from "@/lib/api";
-import type { AdbStatus } from "@/lib/config-pages";
+import { fetchAdbStatus, resetAdbDeviceDisplay } from "@/lib/api";
 
 export default function AdbPage() {
-  const [status, setStatus] = useState<AdbStatus | null>(null);
+  const [status, setStatus] = useState<Awaited<ReturnType<typeof fetchAdbStatus>> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [resettingSerial, setResettingSerial] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -22,15 +23,41 @@ export default function AdbPage() {
     load();
   }, [load]);
 
+  const onResetDisplay = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setResettingSerial(serial);
+    try {
+      const out = await resetAdbDeviceDisplay(serial);
+      const parts = [out.wm_size, out.wm_density].filter(Boolean);
+      setSuccess(
+        parts.length
+          ? `Screen reset on ${serial}: ${parts.join(" · ")}`
+          : `Screen reset on ${serial}`,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResettingSerial(null);
+    }
+  };
+
   return (
     <>
-      <PageHeader title="ADB"><p className="muted">Configured devices vs live adb scan.</p></PageHeader>
+      <PageHeader title="ADB">
+        <p className="muted">
+          Configured devices vs live adb scan. Reset display clears{" "}
+          <code>wm size</code> / <code>wm density</code> overrides on the device.
+        </p>
+      </PageHeader>
       <div className="toolbar">
         <button type="button" className="btn-secondary" onClick={load}>
           Refresh scan
         </button>
       </div>
       {error && <p className="error-banner">{error}</p>}
+      {success && <p className="success-banner">{success}</p>}
       {status && (
         <>
           <p className="muted">
@@ -74,6 +101,7 @@ export default function AdbPage() {
                   <tr>
                     <th>Serial</th>
                     <th>Line</th>
+                    <th>Display</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -83,6 +111,19 @@ export default function AdbPage() {
                         <code>{d.serial}</code>
                       </td>
                       <td className="muted">{d.line}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          disabled={resettingSerial !== null}
+                          title="adb shell wm size reset && wm density reset"
+                          onClick={() => onResetDisplay(d.serial)}
+                        >
+                          {resettingSerial === d.serial
+                            ? "Resetting…"
+                            : "Reset screen"}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

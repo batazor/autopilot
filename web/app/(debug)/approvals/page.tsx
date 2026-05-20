@@ -36,10 +36,6 @@ import type {
 } from "@/lib/types";
 import { debugRunHref, editDslHref, overlayTestHref } from "@/lib/debug-links";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
-import { usePollWhenVisible } from "@/lib/hooks";
-// The probe is a debugging tool; it doesn't need to chase the approval cadence,
-// and we only poll while the panel is expanded.
-const PROBE_POLL_MS = 2000;
 const NOTIFICATIONS_MAX_AGE_S = 30;
 const TOAST_VISIBLE_MS = 6000;
 const TICK_MS = 100;
@@ -158,17 +154,45 @@ export default function ApprovalsPage() {
     }
   }, [instanceId]);
 
+  const refreshProbe = useCallback(async () => {
+    if (!instanceId) return;
+    try {
+      const data = await fetchAreaRegionProbe(instanceId, {
+        region: probeRegion || undefined,
+        threshold: probeThreshold,
+      });
+      setRegionProbe(data);
+      if (!probeRegion && data.selected_region) {
+        setProbeRegion(data.selected_region);
+      }
+      setProbeTick((t) => t + 1);
+      setProbeError(null);
+    } catch (e) {
+      setProbeError(e instanceof Error ? e.message : String(e));
+    }
+  }, [instanceId, probeRegion, probeThreshold]);
+
+  const approvalStreamTopics = useMemo(
+    () =>
+      showProbe
+        ? ["approval", "notifications", "instance"]
+        : ["approval", "notifications"],
+    [showProbe],
+  );
+
   useDashboardEventStream({
-    topics: ["approval", "notifications"],
+    topics: approvalStreamTopics,
     instanceId: instanceId || undefined,
     enabled: autoRefresh && !!instanceId,
     onEvent: (topic) => {
       if (topic === "approval") void refresh();
       if (topic === "notifications") void pollNotifications();
+      if (topic === "instance" && showProbe) void refreshProbe();
     },
     onFallbackPoll: async () => {
       await refresh();
       await pollNotifications();
+      if (showProbe) await refreshProbe();
     },
   });
 
@@ -330,25 +354,11 @@ export default function ApprovalsPage() {
     }
   };
 
-  const refreshProbe = useCallback(async () => {
-    if (!instanceId) return;
-    try {
-      const data = await fetchAreaRegionProbe(instanceId, {
-        region: probeRegion || undefined,
-        threshold: probeThreshold,
-      });
-      setRegionProbe(data);
-      if (!probeRegion && data.selected_region) {
-        setProbeRegion(data.selected_region);
-      }
-      setProbeTick((t) => t + 1);
-      setProbeError(null);
-    } catch (e) {
-      setProbeError(e instanceof Error ? e.message : String(e));
+  useEffect(() => {
+    if (showProbe && autoRefresh && instanceId) {
+      void refreshProbe();
     }
-  }, [instanceId, probeRegion, probeThreshold]);
-
-  usePollWhenVisible(refreshProbe, PROBE_POLL_MS, autoRefresh && showProbe);
+  }, [showProbe, autoRefresh, instanceId, refreshProbe]);
 
   useEffect(() => {
     setProbeRegion("");
@@ -430,6 +440,8 @@ export default function ApprovalsPage() {
   const currentScreen = view?.current_screen || "";
   const activePlayer = view?.active_player || "";
   const inGameId = view?.active_player_in_game_id || "";
+  const playerAccountKey =
+    activePlayer && inGameId && activePlayer !== inGameId ? activePlayer : "";
   const hasPending = !!view?.has_pending;
   const waitingFor =
     hasPending && pendingSinceMs != null
@@ -471,9 +483,9 @@ export default function ApprovalsPage() {
         <span className="status-fact">
           <span className="status-fact__label">Player</span>
           <code>{inGameId || activePlayer || "—"}</code>
-          {activePlayer && inGameId ? (
-            <span className="status-fact__sub" title="Redis active_player account">
-              {activePlayer}
+          {playerAccountKey ? (
+            <span className="status-fact__sub" title="Redis active_player account key">
+              {playerAccountKey}
             </span>
           ) : null}
         </span>
@@ -665,7 +677,7 @@ export default function ApprovalsPage() {
           </span>
           <span>Region probe</span>
           <span className="meta approvals-probe-toggle__meta">
-            {showProbe ? "Live · polls every 2s" : "Click to run an area.json region check"}
+            {showProbe ? "Live · SSE" : "Click to run an area.json region check"}
           </span>
         </button>
         {showProbe ? (
@@ -702,7 +714,10 @@ export default function ApprovalsPage() {
 function scenarioProgressLabel(progress: ScenarioProgress): string {
   const key = progress.scenario_label || progress.scenario_key;
   if (key && progress.step_total > 0) {
-    let text = `${key} · Step ${progress.step_current}/${progress.step_total}`;
+    let text = `${key} · Step ${progress.step_current + 1}/${progress.step_total}`;
+    if (progress.is_running && progress.step_iter > 0) {
+      text += ` · iter ${progress.step_iter}`;
+    }
     if (!progress.is_running) text += " · idle";
     if (progress.nav_target) text += ` · navigating → ${progress.nav_target}`;
     return text;
@@ -712,9 +727,15 @@ function scenarioProgressLabel(progress: ScenarioProgress): string {
 }
 
 function ScenarioProgressBar({ progress }: { progress: ScenarioProgress }) {
+  const completedSteps =
+    progress.step_total > 0
+      ? progress.is_running
+        ? progress.step_current + 1
+        : progress.step_current
+      : 0;
   const ratio =
     progress.step_total > 0
-      ? Math.min(100, (progress.step_current / progress.step_total) * 100)
+      ? Math.min(100, (completedSteps / progress.step_total) * 100)
       : 0;
   const label = scenarioProgressLabel(progress);
   const currentIdx = progress.is_running ? progress.step_current : -1;
@@ -727,7 +748,7 @@ function ScenarioProgressBar({ progress }: { progress: ScenarioProgress }) {
         aria-label="Scenario step progress"
         aria-valuemin={0}
         aria-valuemax={Math.max(progress.step_total, 1)}
-        aria-valuenow={progress.step_current}
+        aria-valuenow={completedSteps}
       >
         <div
           className="approvals-scenario-progress__bar"

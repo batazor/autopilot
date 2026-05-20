@@ -91,6 +91,10 @@
     @apply mb-3 rounded-lg border border-red-400/40 bg-red-950/40 px-3 py-2.5 text-sm text-red-100;
   }
 
+  .success-banner {
+    @apply mb-3 rounded-lg border border-emerald-400/40 bg-emerald-950/40 px-3 py-2.5 text-sm text-emerald-100;
+  }
+
   .feedback-toast-stack {
     @apply pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(100vw-2rem,22rem)] flex-col gap-2;
   }

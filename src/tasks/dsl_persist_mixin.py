@@ -209,6 +209,25 @@ class DslPersistMixin(_Base):
                 mapping={"current_scenario": scenario},
             )
 
+    async def _publish_scenario_step_index(
+        self, instance_id: str, step_index: int, *, loop_iter: int | None = None
+    ) -> None:
+        """Publish top-level step index (and optional while_match iteration) for UI progress."""
+        if self.redis_client is None:
+            return
+        mapping: dict[str, str] = {
+            "last_active_scenario_step": str(max(0, int(step_index))),
+        }
+        if loop_iter is None:
+            mapping["last_active_scenario_iter"] = ""
+        else:
+            mapping["last_active_scenario_iter"] = str(max(0, int(loop_iter)))
+        with suppress(Exception):
+            await self.redis_client.hset(
+                f"wos:instance:{instance_id}:state",
+                mapping=mapping,
+            )
+
     async def _clear_step_context(self, instance_id: str) -> None:
         if self.redis_client is None:
             return
@@ -221,6 +240,7 @@ class DslPersistMixin(_Base):
                     "last_active_scenario_priority": "",
                     "last_active_scenario_player": "",
                     "last_active_scenario_step": "",
+                    "last_active_scenario_iter": "",
                     "last_active_scenario_trace": "",
                     "nav_target": "",
                 },

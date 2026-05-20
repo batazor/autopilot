@@ -237,7 +237,7 @@ export default function QueuePage() {
                   <th>Player</th>
                   <th>Duration</th>
                   <th>Steps</th>
-                  <th>Trace</th>
+                  <th>trace_id</th>
                   <th>Reason</th>
                   <th />
                 </tr>
@@ -288,7 +288,7 @@ export default function QueuePage() {
                       />
                     </td>
                     <td>
-                      <TraceIdCell traceId={h.trace_id} />
+                      <TraceIdCell traceId={h.trace_id} tempoTraceUrl={h.tempo_trace_url} />
                     </td>
                     <td className="queue-reason" title={h.reason || undefined}>
                       {h.success ? (

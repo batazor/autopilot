@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from api.deps import get_redis
 from api.services import instance_detail as detail
 from api.services.instances import list_instance_ids
+from ui.dashboard_events import publish_dashboard_event
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
@@ -70,4 +71,14 @@ def post_instance_command(
         detail.push_command(client, instance_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    publish_dashboard_event(
+        client, topic="instance", instance_id=instance_id, reason=body.cmd
+    )
+    publish_dashboard_event(
+        client, topic="fleet", instance_id=instance_id, reason=body.cmd
+    )
+    if body.cmd in ("run_task", "switch_player"):
+        publish_dashboard_event(
+            client, topic="queue", instance_id=instance_id, reason=body.cmd
+        )
     return {"ok": True}

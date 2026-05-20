@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.deps import get_redis
 from api.services import fleet
 from api.services.instances import list_instance_ids
+from ui.dashboard_events import publish_dashboard_event
 from ui.redis_client import push_instance_command
 
 router = APIRouter(prefix="/api", tags=["overview"])
@@ -34,4 +35,10 @@ def post_pause_toggle(instance_id: str, client: RedisDep) -> dict[str, str]:
     paused = bool(inst_row and inst_row.get("paused"))
     cmd = "resume" if paused else "pause"
     push_instance_command(client, instance_id, {"cmd": cmd})
+    publish_dashboard_event(
+        client, topic="fleet", instance_id=instance_id, reason=cmd
+    )
+    publish_dashboard_event(
+        client, topic="instance", instance_id=instance_id, reason=cmd
+    )
     return {"instance_id": instance_id, "cmd": cmd}

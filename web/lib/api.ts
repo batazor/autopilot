@@ -1,4 +1,5 @@
 import type {
+  AdbResetDisplayResult,
   AdbStatus,
   AnalyzeIssue,
   BalanceFileMeta,
@@ -821,6 +822,13 @@ export async function fetchAnalyzeAudit(
 
 export async function fetchAdbStatus(): Promise<AdbStatus> {
   return apiFetch<AdbStatus>("/api/adb");
+}
+
+export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDisplayResult> {
+  return apiFetch<AdbResetDisplayResult>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/reset-display`,
+    { method: "POST" },
+  );
 }
 
 export async function runDebugScenario(body: {

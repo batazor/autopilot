@@ -11,3 +11,9 @@ router = APIRouter(prefix="/api/adb", tags=["adb"])
 @router.get("")
 def get_status() -> dict[str, object]:
     return svc.get_adb_status()
+
+
+@router.post("/devices/{serial}/reset-display")
+def post_reset_device_display(serial: str) -> dict[str, object]:
+    """Clear wm size/density overrides on the device (restore physical resolution)."""
+    return svc.reset_device_display(serial)

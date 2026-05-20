@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 
 from api.services.instances import list_instance_ids
 from config.paths import repo_root
+from config.trace_links import tempo_trace_url
 from dsl import template_resolver as _tmpl
 from ui.redis_client import (
     QueueHistoryRow,
@@ -118,6 +119,7 @@ def _serialize_history(row: QueueHistoryRow) -> dict[str, Any]:
         "reason": row.reason or row.error or "",
         "steps": steps,
         "trace_id": row.trace_id,
+        "tempo_trace_url": tempo_trace_url(row.trace_id),
         "steps_trace": trace if trace else None,
     }
 

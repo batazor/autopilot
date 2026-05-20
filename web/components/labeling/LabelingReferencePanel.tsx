@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AppListbox } from "@/components/headless";
-import { LabelingReferenceTree } from "@/components/labeling/LabelingReferenceTree";
+import { LabelingModuleSelect } from "@/components/labeling/LabelingModuleSelect";
 import { filterReferences, referenceSelectLabel } from "@/lib/labeling-utils";
-import type { LabelingReferenceMeta } from "@/lib/types";
+import type { LabelingReferenceMeta, LabelingScopeOption } from "@/lib/types";
 
 type Props = {
+  scopes: LabelingScopeOption[];
+  moduleScope: string;
+  onModuleChange: (key: string) => void;
   refs: LabelingReferenceMeta[];
   refRel: string;
   filter: string;
@@ -20,6 +23,9 @@ type Props = {
 };
 
 export function LabelingReferencePanel({
+  scopes,
+  moduleScope,
+  onModuleChange,
   refs,
   refRel,
   filter,
@@ -31,7 +37,6 @@ export function LabelingReferencePanel({
   busy,
   onPromoteOrRename,
 }: Props) {
-  const [groupByScreenId, setGroupByScreenId] = useState(true);
   const filteredRefs = useMemo(() => {
     const list = filterReferences(refs, filter);
     if (refRel && !list.some((r) => r.rel === refRel)) {
@@ -41,7 +46,7 @@ export function LabelingReferencePanel({
     return list;
   }, [refs, filter, refRel]);
 
-  const selectOptions = useMemo(() => {
+  const imageOptions = useMemo(() => {
     const sorted = [...filteredRefs].sort((a, b) =>
       referenceSelectLabel(a).localeCompare(referenceSelectLabel(b), undefined, {
         sensitivity: "base",
@@ -57,12 +62,19 @@ export function LabelingReferencePanel({
     <details className="labeling-panel-block" open>
       <summary className="labeling-panel-block__title">Reference image</summary>
       <div className="labeling-panel-block__body labeling-ref-picker">
+        <LabelingModuleSelect
+          scopes={scopes}
+          scope={moduleScope}
+          onChange={onModuleChange}
+          busy={busy}
+        />
+
         <label className="meta">
-          Filter
+          Filter images
           <input
             type="search"
             className="labeling-search"
-            placeholder="Search by name, screen, path…"
+            placeholder="Name, screen, path…"
             value={filter}
             onChange={(e) => onFilterChange(e.target.value)}
           />
@@ -73,19 +85,14 @@ export function LabelingReferencePanel({
           label="Reference PNG"
           value={refRel}
           onChange={onSelect}
-          options={selectOptions}
-          placeholder={refs.length ? "Select reference…" : "No references in scope"}
-          disabled={busy || !selectOptions.length}
+          options={imageOptions}
+          placeholder={
+            refs.length
+              ? "Select reference PNG…"
+              : "No references in this module"
+          }
+          disabled={busy || !imageOptions.length}
           title={refRel || undefined}
-        />
-
-        <LabelingReferenceTree
-          refs={filteredRefs}
-          refRel={refRel}
-          groupByScreenId={groupByScreenId}
-          onGroupByScreenIdChange={setGroupByScreenId}
-          onSelect={onSelect}
-          disabled={busy}
         />
 
         {refRel ? (

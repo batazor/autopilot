@@ -472,6 +472,34 @@ def overlay_push_scenario_counter() -> Counter:
     return c
 
 
+def trace_id_hex_for_history(
+    *,
+    span_ctx: trace.SpanContext | None = None,
+    carrier: dict[str, Any] | None = None,
+    fallback_seed: str = "",
+) -> str:
+    """Resolve a 32-hex trace id for queue history rows.
+
+    Prefer the active OTel span, then W3C fields on ``carrier``, then a
+    deterministic local id when the SDK is a no-op (so the dashboard still
+    has a copyable correlation key).
+    """
+    from config.w3c_traceparent import trace_id_hex_from_carrier
+
+    ctx = span_ctx or trace.INVALID_SPAN_CONTEXT
+    if ctx.trace_id:
+        return format(ctx.trace_id, "032x")
+    tid = trace_id_hex_from_carrier(carrier)
+    if tid:
+        return tid
+    seed = str(fallback_seed or "").strip()
+    if seed:
+        import hashlib
+
+        return hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32]
+    return ""
+
+
 def context_from_carrier(carrier: dict[str, Any] | None) -> _otel_context.Context | None:
     """Extract a parent context from a queue payload's ``traceparent`` field.
 

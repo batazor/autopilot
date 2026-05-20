@@ -8,7 +8,7 @@ from opentelemetry import trace
 
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
-from config.tracing import set_span_attributes, traced_root
+from config.tracing import set_span_attributes, trace_id_hex_for_history, traced_root
 from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from navigation.lifecycle_states import InstanceState
 from scheduler.wake import wake_scheduler_async
@@ -165,7 +165,10 @@ class InstanceWorkerTasksMixin(_Base):
                         "last_active_scenario": scenario_for_job,
                         "last_active_scenario_priority": str(item.priority),
                         "last_active_scenario_player": item.player_id,
-                        "last_active_scenario_step": "0",
+                        "last_active_scenario_step": str(
+                            max(0, int(item.start_step_index or 0))
+                        ),
+                        "last_active_scenario_iter": "",
                     },
                 )
             except Exception:
@@ -416,7 +419,13 @@ class InstanceWorkerTasksMixin(_Base):
             metadata = result.metadata if result is not None else {}
             success = bool(result.success) if result is not None else (not error)
             span_ctx = trace.get_current_span().get_span_context()
-            trace_id = format(span_ctx.trace_id, "032x") if span_ctx.trace_id else ""
+            trace_id = trace_id_hex_for_history(
+                span_ctx=span_ctx,
+                carrier=metadata if isinstance(metadata, dict) else None,
+                fallback_seed=(
+                    f"{self._cfg.instance_id}:{item.task_id}:{started_at:.6f}"
+                ),
+            )
             span_id = format(span_ctx.span_id, "016x") if span_ctx.span_id else ""
             row = {
                 "task_id": item.task_id,

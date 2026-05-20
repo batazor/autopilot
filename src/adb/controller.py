@@ -146,6 +146,13 @@ class AdbController:
             self._shell("settings", "put", "global", "stay_on_while_plugged_in", "3")
             self._shell("svc", "power", "stayon", "true")
 
+    def reset_display_overrides(self) -> None:
+        """Clear ``wm size`` / ``wm density`` overrides (restore physical display)."""
+        self._shell("wm", "size", "reset")
+        self._shell("wm", "density", "reset")
+        self._screen_resolution = None
+        logger.info("Display: wm size/density reset on %s", self._serial)
+
     # ------------------------------------------------------------------
     # Device management
     # ------------------------------------------------------------------

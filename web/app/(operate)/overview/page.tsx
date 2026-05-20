@@ -11,10 +11,8 @@ import { DataTableSkeleton } from "@/components/skeleton/DataTableSkeleton";
 import { MetricsRowSkeleton } from "@/components/skeleton/MetricsRowSkeleton";
 import { StatusPill } from "@/components/StatusPill";
 import { fetchOverview, toggleInstancePause } from "@/lib/api";
-import { usePollWhenVisible } from "@/lib/hooks";
+import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { FleetInstanceRow, OverviewView } from "@/lib/types";
-
-const POLL_MS = 2000;
 
 export default function OverviewPage() {
   const router = useRouter();
@@ -37,7 +35,14 @@ export default function OverviewPage() {
     }
   }, []);
 
-  usePollWhenVisible(refresh, POLL_MS);
+  useDashboardEventStream({
+    topics: ["fleet", "queue"],
+    enabled: true,
+    onEvent: () => {
+      void refresh();
+    },
+    onFallbackPoll: refresh,
+  });
 
   const openInstance = (instanceId: string) => {
     setInstanceId(instanceId);

@@ -749,6 +749,7 @@ def purge_scenarios_from_redis(
         "last_active_scenario_priority": "",
         "last_active_scenario_player": "",
         "last_active_scenario_step": "",
+        "last_active_scenario_iter": "",
         "last_active_scenario_trace": "",
     }
     for iid in instance_ids:

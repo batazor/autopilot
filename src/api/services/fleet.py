@@ -102,7 +102,7 @@ def _format_age(unix_ts: object) -> str:
     return f"{int(delta // 86400)}d ago"
 
 
-def _read_player_state(client: redis.Redis, pid: str) -> dict[str, str]:
+def read_player_state(client: redis.Redis, pid: str) -> dict[str, str]:
     try:
         raw = client.hgetall(f"wos:player:{pid}:state") or {}
     except Exception:
@@ -122,7 +122,7 @@ def _player_sub_row(
     *,
     active_players: set[str],
 ) -> dict[str, Any]:
-    state = _read_player_state(client, player_id)
+    state = read_player_state(client, player_id)
     ig_id = (state.get("player_id") or "").strip()
     conf_s = (state.get("player_id_confidence") or "").strip()
     try:

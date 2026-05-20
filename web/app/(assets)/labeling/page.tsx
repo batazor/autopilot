@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
 import { LabelingCard } from "@/components/labeling/LabelingCard";
-import { LabelingModuleSelect } from "@/components/labeling/LabelingModuleSelect";
 import { LabelingReferencePanel } from "@/components/labeling/LabelingReferencePanel";
 import { LabelingRegionsPanel } from "@/components/labeling/LabelingRegionsPanel";
 import { LabelingStaleCropsBanner } from "@/components/labeling/LabelingStaleCropsBanner";
@@ -536,12 +535,6 @@ function LabelingPageInner() {
       <ErrorBanner message={error ?? instancesError} />
 
       <div className="labeling-header-toolbar toolbar">
-        <LabelingModuleSelect
-          scopes={scopes}
-          scope={moduleScope}
-          busy={busy}
-          onChange={setModuleScopeAndUrl}
-        />
         <AppListbox
           inline
           label="Instance"
@@ -685,6 +678,9 @@ function LabelingPageInner() {
         <aside className="labeling-sidebar">
           <LabelingCard>
             <LabelingReferencePanel
+              scopes={scopes}
+              moduleScope={moduleScope}
+              onModuleChange={setModuleScopeAndUrl}
               refs={refs}
               refRel={refRel}
               filter={refFilter}

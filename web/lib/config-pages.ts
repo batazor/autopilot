@@ -61,6 +61,13 @@ export type AdbStatus = {
   scan_error: string | null;
 };
 
+export type AdbResetDisplayResult = {
+  ok: boolean;
+  serial: string;
+  wm_size: string;
+  wm_density: string;
+};
+
 export type BalanceFileMeta = { id: string; filename: string };
 
 export type OptimizerMeta = {

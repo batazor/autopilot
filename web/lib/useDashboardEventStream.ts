@@ -13,6 +13,7 @@ export type DashboardEventHandler = (
 type UseDashboardEventStreamOptions = {
   topics: string[];
   instanceId?: string;
+  playerId?: string;
   enabled?: boolean;
   onEvent: DashboardEventHandler;
   /** Safety net when SSE is down (tab still visible). */
@@ -22,11 +23,13 @@ type UseDashboardEventStreamOptions = {
 
 /**
  * Subscribe to FastAPI SSE (`/api/events/stream`). Refetch handlers run on
- * queue / approval / notification changes instead of 1–2s HTTP polling.
+ * fleet / instance / player / queue / approval / notification changes instead of
+ * fixed-interval HTTP polling.
  */
 export function useDashboardEventStream({
   topics,
   instanceId,
+  playerId,
   enabled = true,
   onEvent,
   fallbackPollMs = DEFAULT_FALLBACK_MS,
@@ -46,6 +49,7 @@ export function useDashboardEventStream({
     const params = new URLSearchParams();
     for (const t of topics) params.append("topics", t);
     if (instanceId) params.set("instance_id", instanceId);
+    if (playerId) params.set("player_id", playerId);
 
     const url = `/api/events/stream?${params.toString()}`;
     let es: EventSource | null = null;
@@ -94,5 +98,5 @@ export function useDashboardEventStream({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (fallbackId) clearInterval(fallbackId);
     };
-  }, [enabled, visible, topicsKey, instanceId, fallbackPollMs]);
+  }, [enabled, visible, topicsKey, instanceId, playerId, fallbackPollMs]);
 }

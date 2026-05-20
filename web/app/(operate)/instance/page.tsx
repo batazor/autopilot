@@ -15,11 +15,9 @@ import {
   instancePreviewUrl,
   postInstanceCommand,
 } from "@/lib/api";
-import { usePollWhenVisible } from "@/lib/hooks";
+import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { InstanceDetail } from "@/lib/types";
 import Link from "next/link";
-
-const POLL_MS = 2000;
 
 function InstancePageInner() {
   const { instanceId, instancesError } = useFleet();
@@ -53,7 +51,15 @@ function InstancePageInner() {
     }
   }, [instanceId]);
 
-  usePollWhenVisible(refresh, POLL_MS);
+  useDashboardEventStream({
+    topics: ["instance", "queue"],
+    instanceId: instanceId || undefined,
+    enabled: Boolean(instanceId),
+    onEvent: () => {
+      void refresh();
+    },
+    onFallbackPoll: refresh,
+  });
 
   const runCmd = async (body: Parameters<typeof postInstanceCommand>[1]) => {
     if (!instanceId || busy) return;

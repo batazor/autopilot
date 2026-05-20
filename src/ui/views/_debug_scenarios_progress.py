@@ -45,22 +45,40 @@ def render_step_progress(
     """
     state = get_instance_state(client, instance_id)
     running = fetch_running_queue_row(client, instance_id=instance_id)
+    active = str(state.get("current_scenario") or "").strip() == scenario_key
+    busy = str(state.get("state") or "").strip().lower() == "busy"
+    task_type = str(state.get("current_task_type") or "").strip()
+    has_task = bool(str(state.get("current_task_id") or "").strip())
     is_running = bool(
-        running is not None
-        and running.task_id
-        and running.task_type == scenario_key
-        and str(state.get("current_scenario") or "").strip() == scenario_key
+        active
+        and (
+            (
+                running is not None
+                and running.task_id
+                and running.task_type == scenario_key
+            )
+            or (busy and has_task and (task_type == scenario_key or not task_type))
+        )
     )
     step_display = 0
-    if is_running and scenario_total_steps > 0:
+    step_iter = 0
+    if scenario_total_steps > 0:
         try:
             step_now = int(state.get("last_active_scenario_step") or 0)
         except (TypeError, ValueError):
             step_now = 0
-        step_display = max(0, min(step_now, scenario_total_steps))
-    ratio = step_display / max(1, scenario_total_steps)
+        cap = (scenario_total_steps - 1) if is_running else scenario_total_steps
+        step_display = max(0, min(step_now, cap))
+        try:
+            step_iter = int(state.get("last_active_scenario_iter") or 0)
+        except (TypeError, ValueError):
+            step_iter = 0
+    completed = (step_display + 1) if is_running else step_display
+    ratio = completed / max(1, scenario_total_steps)
     if scenario_total_steps > 0:
-        text = f"Step {step_display}/{scenario_total_steps}"
+        text = f"Step {step_display + 1}/{scenario_total_steps}"
+        if is_running and step_iter > 0:
+            text += f" · iter {step_iter}"
         if not is_running:
             text += " · idle"
     else:
@@ -138,22 +156,39 @@ def render_active_scenario_progress(
         else ()
     )
     total = len(summaries)
+    busy = str(state.get("state") or "").strip().lower() == "busy"
+    task_type = str(state.get("current_task_type") or "").strip()
+    has_task = bool(str(state.get("current_task_id") or "").strip())
     is_running = bool(
-        running is not None
-        and running.task_id
-        and active_scenario
-        and running.task_type == active_scenario
+        active_scenario
+        and (
+            (
+                running is not None
+                and running.task_id
+                and running.task_type == active_scenario
+            )
+            or (busy and has_task and (task_type == active_scenario or not task_type))
+        )
     )
     step_display = 0
-    if is_running and total > 0:
+    step_iter = 0
+    if total > 0:
         try:
             step_now = int(state.get("last_active_scenario_step") or 0)
         except (TypeError, ValueError):
             step_now = 0
-        step_display = max(0, min(step_now, total))
-    ratio = step_display / max(1, total)
+        cap = (total - 1) if is_running else total
+        step_display = max(0, min(step_now, cap))
+        try:
+            step_iter = int(state.get("last_active_scenario_iter") or 0)
+        except (TypeError, ValueError):
+            step_iter = 0
+    completed = (step_display + 1) if is_running else step_display
+    ratio = completed / max(1, total)
     if active_scenario and total > 0:
-        text = f"{active_scenario} · Step {step_display}/{total}"
+        text = f"{active_scenario} · Step {step_display + 1}/{total}"
+        if is_running and step_iter > 0:
+            text += f" · iter {step_iter}"
         if not is_running:
             text += " · idle"
     elif active_scenario:

@@ -109,6 +109,19 @@ def test_apply_display_config_applies_auto_size_on_physical_device() -> None:
     ctrl._shell.assert_any_call("wm", "density", "320")
 
 
+def test_reset_display_overrides_clears_wm_cache() -> None:
+    ctrl = MagicMock(spec=AdbController)
+    ctrl._serial = "RF8RC00M8MF"
+    ctrl._shell = MagicMock()
+    ctrl._screen_resolution = (720, 1280)
+
+    AdbController.reset_display_overrides(ctrl)
+
+    ctrl._shell.assert_any_call("wm", "size", "reset")
+    ctrl._shell.assert_any_call("wm", "density", "reset")
+    assert ctrl._screen_resolution is None
+
+
 def test_apply_display_config_can_disable_keep_screen_on() -> None:
     ctrl = MagicMock(spec=AdbController)
     ctrl._serial = "127.0.0.1:5555"

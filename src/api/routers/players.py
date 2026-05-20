@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import get_redis
 from api.services import players as players_svc
+from ui.dashboard_events import publish_dashboard_event
 
 router = APIRouter(prefix="/api", tags=["players"])
 
@@ -49,8 +50,11 @@ def get_player_persisted(player_id: str) -> dict[str, Any]:
 
 
 @router.post("/players/{player_id}/century-sync")
-def post_century_sync(player_id: str) -> dict[str, Any]:
+def post_century_sync(player_id: str, client: RedisDep) -> dict[str, Any]:
     result = players_svc.century_sync(player_id)
     if not result.get("ok"):
         raise HTTPException(status_code=502, detail=result.get("error") or "sync failed")
+    publish_dashboard_event(
+        client, topic="player", player_id=player_id, reason="century_sync"
+    )
     return result

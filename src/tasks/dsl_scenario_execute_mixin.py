@@ -141,6 +141,13 @@ class DslScenarioExecuteMixin(_Base):
                 m["resume_from_step_index"] = int(self.start_step_index)
             return m
 
+        async def _mark_top_level_step_done() -> None:
+            """After a top-level step finishes, point the UI at the next step index."""
+            await self._publish_scenario_step_index(
+                instance_id,
+                min(step_index, max(steps_total_n - 1, 0)),
+            )
+
         # Hydrate ``steps_trace`` from the previous slice when resuming.
         # Without this, the trace in each TaskResult only reflects the current
         # invocation — preempt → resume splits the history across two records.
@@ -557,14 +564,9 @@ class DslScenarioExecuteMixin(_Base):
                     next_run_at=preempt_yield.next_run_at,
                     metadata=_fin(md, completed=False),
                 )
-            # Persist current step so hand-pointer resume knows where to continue.
-            if self.redis_client is not None:
-                with suppress(Exception):
-                    await self.redis_client.hset(
-                        f"wos:instance:{instance_id}:state",
-                        "last_active_scenario_step",
-                        str(_resumable_step),
-                    )
+            # Persist current step so hand-pointer resume and the UI progress bar
+            # stay in sync (also refreshed after each step completes).
+            await self._publish_scenario_step_index(instance_id, _resumable_step)
             if not isinstance(step, dict):
                 _trace_row(_resumable_step, step, "skipped_invalid")
                 continue
@@ -623,6 +625,7 @@ class DslScenarioExecuteMixin(_Base):
                             next_run_at=result.next_run_at,
                             metadata=_fin(md, completed=False),
                         )
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "match" in step:
@@ -681,6 +684,7 @@ class DslScenarioExecuteMixin(_Base):
                                     next_run_at=result.next_run_at,
                                     metadata=_fin(md, completed=False),
                                 )
+                    await _mark_top_level_step_done()
                     _trace_row(
                         _resumable_step,
                         step,
@@ -735,6 +739,7 @@ class DslScenarioExecuteMixin(_Base):
                             completed=False,
                         ),
                     )
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "while_match" in step:
@@ -854,6 +859,9 @@ class DslScenarioExecuteMixin(_Base):
                     if inner_result is not None:
                         break
                     iterations += 1
+                    await self._publish_scenario_step_index(
+                        instance_id, _resumable_step, loop_iter=iterations
+                    )
 
                 if inner_result is not None:
                     md = dict(inner_result.metadata or {})
@@ -914,6 +922,7 @@ class DslScenarioExecuteMixin(_Base):
                         _scen(key),
                         reg,
                     )
+                    await _mark_top_level_step_done()
                     _trace_row(_resumable_step, step, "ok", iterations=0, branch="else")
                     continue
 
@@ -985,6 +994,7 @@ class DslScenarioExecuteMixin(_Base):
                     reg,
                     iterations,
                 )
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok", iterations=iterations)
                 continue
             if "repeat" in step:
@@ -1102,6 +1112,7 @@ class DslScenarioExecuteMixin(_Base):
                     except _BreakRepeat:
                         # Stop the nearest loop-like block and continue with the next outer step.
                         break
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok", iterations=iter_idx_total)
                 continue
             if "loop" in step:
@@ -1134,6 +1145,7 @@ class DslScenarioExecuteMixin(_Base):
                         next_run_at=result.next_run_at,
                         metadata=_fin(md, completed=False),
                     )
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "push_scenario" in step:
@@ -1165,6 +1177,7 @@ class DslScenarioExecuteMixin(_Base):
                         run_at=time.time() + max(0.0, delay_s),
                         skip_if_duplicate=skip_dup,
                     )
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "system_back" in step:
@@ -1224,6 +1237,7 @@ class DslScenarioExecuteMixin(_Base):
                             ),
                         )
                     await asyncio.sleep(0.4)
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "ocr" in step:
@@ -1313,6 +1327,7 @@ class DslScenarioExecuteMixin(_Base):
                 # — pass it through so the trace shows confidence/value/text.
                 # On bulk OCR this reflects the last region; that's acceptable
                 # for a single trace row covering a sibling chain.
+                await _mark_top_level_step_done()
                 _trace_row(
                     _resumable_step, step, "ok", ocr_row=self._last_ocr_row
                 )
@@ -1323,6 +1338,7 @@ class DslScenarioExecuteMixin(_Base):
                 if cmd:
                     args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
                     await self._run_exec_step(cmd, instance_id, args)
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "click" in step:
@@ -1384,6 +1400,7 @@ class DslScenarioExecuteMixin(_Base):
                             metadata=_fin(md, completed=False),
                         )
                     await asyncio.sleep(0.4)
+                await _mark_top_level_step_done()
                 _trace_row(
                     _resumable_step, step, "ok", match_row=self._last_match_row
                 )
@@ -1392,6 +1409,7 @@ class DslScenarioExecuteMixin(_Base):
                 reg = str(step.get("long_click") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
                 if not reg:
+                    await _mark_top_level_step_done()
                     _trace_row(_resumable_step, step, "ok")
                     continue
                 pair = screen_region_by_name(area_doc, reg, state_flat=self._state_flat())
@@ -1444,6 +1462,7 @@ class DslScenarioExecuteMixin(_Base):
                         ),
                     )
                 await asyncio.sleep(0.4)
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
             if "ttl" in step:
@@ -1481,6 +1500,7 @@ class DslScenarioExecuteMixin(_Base):
                     _invalidate = getattr(actions, "invalidate_frame_cache", None)
                     if _invalidate is not None:
                         _invalidate(instance_id)
+                await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
         logger.info("dsl_scenario done: %s (%s)", _scen(key), instance_id)

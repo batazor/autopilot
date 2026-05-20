@@ -6,7 +6,10 @@ from pathlib import Path  # noqa: TC003
 from typing import Any
 
 import yaml
+from fastapi import HTTPException
 
+from adb.controller import AdbController
+from adb.screencap import MSG_ADB_NOT_FOUND, resolve_adb_executable
 from config.loader import load_settings
 from config.paths import repo_root
 
@@ -70,4 +73,32 @@ def get_adb_status() -> dict[str, Any]:
         "configured": configured,
         "live_devices": live,
         "scan_error": scan_error,
+    }
+
+
+def reset_device_display(serial: str) -> dict[str, Any]:
+    """Run ``wm size reset`` and ``wm density reset`` on a connected device."""
+    target = (serial or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="serial is required")
+
+    settings = load_settings()
+    adb_exe = str(settings.worker.adb_executable or "adb")
+    resolved = resolve_adb_executable(adb_exe)
+    if resolved is None:
+        raise HTTPException(status_code=503, detail=MSG_ADB_NOT_FOUND)
+
+    try:
+        ctrl = AdbController("_api_", target, adb_bin=resolved)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    ctrl.reset_display_overrides()
+    wm_size = ctrl._shell("wm", "size")
+    wm_density = ctrl._shell("wm", "density")
+    return {
+        "ok": True,
+        "serial": target,
+        "wm_size": wm_size,
+        "wm_density": wm_density,
     }

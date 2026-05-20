@@ -49,6 +49,7 @@ export function historyDebugPayload(row: QueueHistoryRow) {
   return debugJson({
     task_id: row.task_id,
     trace_id: row.trace_id || null,
+    tempo_trace_url: row.tempo_trace_url || null,
     scenario_key: row.scenario_key,
     scenario: row.scenario,
     instance_id: row.instance_id,
@@ -215,16 +216,34 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
   );
 }
 
-export function TraceIdCell({ traceId }: { traceId: string }) {
+export function TraceIdCell({
+  traceId,
+  tempoTraceUrl,
+}: {
+  traceId: string;
+  tempoTraceUrl?: string;
+}) {
   const tid = traceId.trim();
   if (!tid) {
     return <span className="muted">—</span>;
   }
   const short = tid.length > 12 ? `${tid.slice(0, 12)}…` : tid;
+  const tempo = tempoTraceUrl?.trim() || "";
   return (
     <span className="queue-trace" title={tid}>
       <code className="queue-trace__id">{short}</code>
       <CopyButton text={tid} label="Copy" title="Copy trace ID (Grafana / Tempo)" />
+      {tempo ? (
+        <a
+          href={tempo}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="queue-task-actions__link"
+          title="Open trace in Tempo"
+        >
+          Tempo
+        </a>
+      ) : null}
     </span>
   );
 }

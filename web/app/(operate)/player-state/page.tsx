@@ -17,7 +17,7 @@ import {
   syncPlayerFromCentury,
 } from "@/lib/api";
 import { PageLoading } from "@/components/ui/Spinner";
-import { usePollWhenVisible } from "@/lib/hooks";
+import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type {
   HeroMissingRow,
   HeroStateRow,
@@ -25,7 +25,6 @@ import type {
   PlayerStateView,
 } from "@/lib/types";
 
-const POLL_MS = 3000;
 type TabKey = "redis" | "persisted" | "heroes";
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -333,7 +332,15 @@ function PlayerStatePageInner() {
     }
   }, [playerId]);
 
-  usePollWhenVisible(refreshLive, POLL_MS, tab === "redis" && Boolean(playerId));
+  useDashboardEventStream({
+    topics: ["player"],
+    playerId: playerId || undefined,
+    enabled: tab === "redis" && Boolean(playerId),
+    onEvent: () => {
+      void refreshLive();
+    },
+    onFallbackPoll: refreshLive,
+  });
 
   useEffect(() => {
     if (playerId && (tab === "persisted" || tab === "heroes")) {

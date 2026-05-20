@@ -338,91 +338,70 @@
             "y": 18.515217391304347,
             "width": 29.44401544401545,
             "height": 2.1869565217391305,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "55cd71a1aa0ccda1efbcf6e6c6e436b115fe134ccaa651b97a673d84286a859c"
+          }
         },
         {
           "name": "text.time_offlined",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 39.58301158301158,
             "y": 24.609782608695653,
             "width": 21.111969111969113,
             "height": 2.1869565217391305,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "hash": "fd86b266a23998e98bb0c3adcad9944ffd993e484ab285c33c59a01a7bd520f4"
+          "type": "string"
         },
         {
           "name": "text.01_40_12",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 47.08301158301158,
             "y": 30.859782608695657,
             "width": 16.388030888030887,
             "height": 2.3434782608695652,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "hash": "9531bd1323033c19f7a90a7efaa8d12e7ab13896f4b36c7937175559d5832319"
+          "type": "string"
         },
         {
           "name": "text.max_offline_income_12hrs",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 28.611969111969113,
             "y": 35.39021739130435,
             "width": 42.5,
             "height": 1.7967391304347826,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "hash": "70db6425f9a97a08a2bc1f80f90fa3dd2a4ffbdcc330deb71c780d55709b1f91"
-        },
-        {
-          "name": "text.offline_incomed",
-          "action": "text",
-          "type": "string",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 37.36100386100386,
-            "y": 43.51521739130435,
-            "width": 25.138996138996138,
-            "height": 2.734782608695652,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "hash": "119857dc4c598b1196a38ab61ae75095ab4ec8b71a328fb1c917aa3177423afd"
+          "type": "string"
         },
         {
           "name": "text.overview",
           "action": "text",
-          "type": "string",
           "threshold": 0.9,
           "bbox": {
             "x": 41.666023166023166,
             "y": 64.06304347826087,
             "width": 16.666023166023166,
             "height": 2.5,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
-          "hash": "dcaf5065a170b0e47954605e6cb57174c964c907f393256937ad20d6499cc693"
+          "type": "string"
         },
         {
           "name": "icon.10_2k",
@@ -433,11 +412,10 @@
             "y": 49.51195652173913,
             "width": 18.397683397683398,
             "height": 10.254347826086956,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "44aba704e5d26ec2159e715fa12c8a001b09cb42d49faa1b490fce7400c5a766"
+          }
         },
         {
           "name": "button.confirm.green",
@@ -448,11 +426,10 @@
             "y": 76.69347826086957,
             "width": 39.91312741312741,
             "height": 7.304347826086956,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "5c6e24f0659906c499fd87bb50988d01bf97e0a6f1b711d4311ec8f79675ab08"
+          }
         },
         {
           "name": "icon.the_symbol_or_symbol_of_a_single_line",
@@ -463,11 +440,10 @@
             "y": 69.06086956521739,
             "width": 5.8687258687258685,
             "height": 4.26304347826087,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "be944cea6116680aed6e614e9ed2770a16b0271d2973032a2f32bb7e447ccdcf"
+          }
         },
         {
           "name": "icon.a_crosswalk_or_walk_symbol",
@@ -478,11 +454,10 @@
             "y": 18.096739130434784,
             "width": 5.955598455598456,
             "height": 3.3369565217391304,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "d495047ecdabd4820a5d37258b9e5b332bb5bc13e787a352c813b5a5aea638ae"
+          }
         },
         {
           "name": "icon.a_symbol_or_icon_indicating_a_pause_or_cancel_fu",
@@ -493,11 +468,10 @@
             "y": 68.89130434782608,
             "width": 7.8011583011583,
             "height": 4.503260869565217,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "b8aad3bfba7d694efaa4df41b26798a9daff9611ae68815ff1033a34cb960b99"
+          }
         },
         {
           "name": "icon.a_simple_logitech_logo",
@@ -508,11 +482,10 @@
             "y": 29.920652173913044,
             "width": 8.38030888030888,
             "height": 4.767391304347826,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "4c7da111877134df0e73e590b583a178af729d763410e82aeb66ef9e464ab466"
+          }
         },
         {
           "name": "icon.a_thumbs_up_or_like_button",
@@ -523,11 +496,10 @@
             "y": 69.36195652173913,
             "width": 8.83011583011583,
             "height": 3.7271739130434782,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          },
-          "hash": "60f1d690a047a4d655f8369a1130292b4eaf578cba65b3a2a7e0b1d1b5a07673"
+          }
         }
       ]
     },

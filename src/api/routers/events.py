@@ -24,12 +24,15 @@ async def get_events_stream(
     client: RedisDep,
     topics: Annotated[list[str] | None, Query()] = None,
     instance_id: str | None = None,
+    player_id: str | None = None,
 ) -> StreamingResponse:
-    """Push queue / approval / notification changes to the dashboard.
+    """Push dashboard changes over SSE (queue, fleet, instance, player, approvals).
 
     Query params:
-    - ``topics``: repeat or comma-separated (``queue``, ``approval``, ``notifications``)
-    - ``instance_id``: required for approval and notifications topics
+    - ``topics``: repeat or comma-separated
+      (``queue``, ``fleet``, ``instance``, ``player``, ``approval``, ``notifications``)
+    - ``instance_id``: required for ``instance``, ``approval``, and ``notifications``
+    - ``player_id``: required for ``player``
     """
     raw_topics = topics or ["queue"]
     expanded: set[str] = set()
@@ -47,6 +50,7 @@ async def get_events_stream(
             client,
             topics=expanded,
             instance_id=instance_id,
+            player_id=player_id,
             should_continue=should_continue,
         ):
             yield chunk
