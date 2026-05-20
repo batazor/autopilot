@@ -4,16 +4,16 @@ Declare in ``module.yaml``::
 
     ui:
       path: ui/page.py
-      title: Gift codes
-      nav: DB
-      url_path: gift_codes   # optional
+      title: My feature
+      nav: Operate
+      url_path: my_feature   # optional
 
 Or several pages::
 
     ui:
       - path: ui/page.py
-        title: Gift codes
-        nav: DB
+        title: My feature
+        nav: Operate
 
 ``nav`` is the sidebar group label passed to ``st.navigation`` (e.g. ``DB``,
 ``Operate``, ``Wiki``, ``Debug``, ``Config``). When ``title`` is omitted the

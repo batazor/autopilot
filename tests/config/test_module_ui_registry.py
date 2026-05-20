@@ -10,18 +10,12 @@ from config.module_ui_registry import (
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_gift_codes_module_ui_page_registered() -> None:
+def test_gift_codes_module_has_no_streamlit_ui_page() -> None:
     specs = iter_module_ui_page_specs(_REPO_ROOT)
-    gift = [s for s in specs if s.module_id == "gift_codes"]
-    assert len(gift) == 1
-    assert gift[0].title == "Gift codes"
-    assert gift[0].nav_group == "DB"
-    assert gift[0].url_path == "gift_codes"
-    assert gift[0].path.is_file()
-    assert gift[0].path.name == "page.py"
+    assert not any(s.module_id == "gift_codes" for s in specs)
 
 
-def test_group_module_ui_pages_db() -> None:
+def test_group_module_ui_pages_excludes_gift_codes_db() -> None:
     grouped = group_module_ui_page_specs(_REPO_ROOT)
-    assert "DB" in grouped
-    assert any(s.module_id == "gift_codes" for s in grouped["DB"])
+    db_pages = grouped.get("DB", [])
+    assert not any(s.module_id == "gift_codes" for s in db_pages)

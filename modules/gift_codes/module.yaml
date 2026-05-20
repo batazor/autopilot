@@ -3,8 +3,3 @@ title: Gift codes
 description: Scrape wosrewards.com for promo codes and redeem them via the Century API.
 exec: exec.py
 wiki: false
-ui:
-  path: ui/page.py
-  title: Gift codes
-  nav: DB
-  url_path: gift_codes
