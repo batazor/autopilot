@@ -1,0 +1,78 @@
+@layer components {
+  .gallery-grid {
+    @apply mt-3 grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3;
+  }
+
+  .gallery-card {
+    @apply m-0 rounded-xl border border-wos-border-subtle bg-wos-panel/80 p-2;
+  }
+
+  .gallery-card img {
+    @apply block w-full rounded-md bg-wos-input;
+  }
+
+  .gallery-card figcaption {
+    @apply mt-1.5 flex flex-col gap-0.5 text-xs;
+  }
+
+  .edit-dsl-layout,
+  .edit-scenarios-layout {
+    @apply grid items-start gap-4 lg:grid-cols-[minmax(220px,280px)_1fr];
+  }
+
+  .edit-dsl-sidebar,
+  .edit-scenarios-sidebar {
+    @apply max-h-[calc(100vh-10rem)] overflow-y-auto;
+  }
+
+  .edit-dsl-main .yaml-editor,
+  .edit-scenarios-main .yaml-editor {
+    @apply min-h-[50vh];
+  }
+
+  .edit-scenario-editor h3 {
+    @apply mt-6 mb-3 text-base font-semibold;
+  }
+
+  .edit-scenario-header {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-scenario-step-card {
+    @apply mb-3 border border-wos-border p-3;
+  }
+
+  .edit-scenario-step-head {
+    @apply mb-3 flex flex-wrap items-center gap-2 text-sm;
+  }
+
+  .edit-scenario-step-head code {
+    @apply rounded bg-wos-input px-1.5 py-0.5;
+  }
+
+  .edit-scenario-step-actions {
+    @apply ml-auto flex gap-1;
+  }
+
+  .edit-scenario-step-fields {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-scenario-add-row {
+    @apply mt-3 gap-2;
+  }
+
+  .edit-scenario-icon-row {
+    @apply items-start;
+  }
+
+  .edit-scenario-icon-preview {
+    @apply flex min-h-[4rem] items-center;
+  }
+
+  .edit-scenario-yaml-preview,
+  .edit-scenario-validation {
+    @apply mt-4;
+  }
+
+}

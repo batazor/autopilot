@@ -1,0 +1,394 @@
+@layer components {
+  .approvals-grid {
+    @apply grid items-start gap-5 lg:grid-cols-2;
+  }
+
+  .preview-wrap {
+    @apply w-full;
+  }
+
+  .preview-canvas {
+    @apply block h-full w-full rounded-lg bg-black;
+  }
+
+  .preview-empty {
+    @apply rounded-lg border border-dashed border-wos-border px-4 py-8 text-center text-wos-text-muted;
+  }
+
+  .scenario-card {
+    @apply mb-3 rounded-xl border border-wos-border-subtle bg-wos-surface/80 p-3 sm:p-4;
+  }
+
+  .scenario-card strong {
+    @apply mb-1 block text-base font-semibold;
+  }
+
+  .actions {
+    @apply mt-4 flex gap-2;
+  }
+
+  .actions button {
+    @apply relative flex-1 cursor-pointer rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Used on the pending-approval decision row so it gets a touch more weight
+     than the secondary toolbar buttons. */
+  .actions--prominent {
+    @apply mt-0 mb-4 gap-3;
+  }
+
+  .actions--prominent button {
+    @apply px-4 py-3 text-base;
+  }
+
+  /* Approve = the primary action: filled emerald with a soft halo.
+     Skip / Reject are tinted-ghost styles so they recede until needed but
+     stay individually recognisable by colour. */
+  .btn-approve {
+    @apply border-emerald-300 bg-gradient-to-b from-emerald-300 to-emerald-500 text-emerald-950 shadow-md shadow-emerald-500/30 hover:from-emerald-200 hover:to-emerald-400 hover:shadow-emerald-400/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70;
+  }
+
+  .btn-reject {
+    @apply border-red-700/70 bg-red-950/50 text-red-200 hover:border-red-500 hover:bg-red-900/60 hover:text-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40;
+  }
+
+  .btn-skip {
+    @apply border-amber-700/70 bg-amber-950/50 text-amber-200 hover:border-amber-500 hover:bg-amber-900/60 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/40;
+  }
+
+  /* Filled destructive button for the inline-confirm pattern (Reset panel). */
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .danger-confirm {
+    @apply inline-flex items-center gap-2;
+  }
+
+  /* Inline keyboard-shortcut badge on each decision button, anchored top-right
+     so it doesn't fight the label centering. */
+  .btn-kbd {
+    @apply absolute right-1.5 top-1 rounded border border-current/30 bg-black/15 px-1 text-[10px] font-mono font-bold uppercase opacity-70;
+  }
+
+  .panel-title-row {
+    @apply flex items-center justify-between gap-3;
+  }
+
+  .kbd-hint {
+    @apply text-xs font-normal text-wos-text-muted;
+  }
+
+  .kbd-hint kbd {
+    @apply mx-0.5 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-wos-border-subtle bg-wos-panel-raised px-1 font-mono text-[10px] text-wos-text shadow-sm;
+  }
+
+  /* Pending state: a soft amber rim on the approvals panel so it pops without
+     using the heavy-handed colour-shift the old layout had. */
+  .panel--accent-pending {
+    @apply ring-1 ring-amber-500/30;
+  }
+
+  /* Compact, single-strip status bar that consolidates what used to be the
+     status row + "Current context" metrics panel. */
+  .approvals-status-strip {
+    @apply mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-wos-border-subtle bg-wos-surface/70 px-3 py-2.5 text-sm;
+  }
+
+  .status-fact {
+    @apply flex items-baseline gap-1.5 text-wos-text-secondary;
+  }
+
+  .status-fact--rail {
+    @apply ml-auto;
+  }
+
+  .status-fact__label {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-wos-text-muted;
+  }
+
+  .status-fact__sub {
+    @apply text-xs text-wos-text-muted;
+  }
+
+  .heartbeat-dot {
+    @apply inline-block h-2 w-2 rounded-full;
+  }
+
+  .heartbeat-dot--on {
+    @apply bg-emerald-400;
+    animation: heartbeat-pulse 2s ease-in-out infinite;
+  }
+
+  .heartbeat-dot--off {
+    @apply bg-wos-text-muted;
+  }
+
+  @keyframes heartbeat-pulse {
+    0%, 60%, 100% { opacity: 1; }
+    30% { opacity: 0.35; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .heartbeat-dot--on { animation: none; }
+  }
+
+  .approvals-toolbar {
+    @apply items-stretch;
+  }
+
+  .approvals-toolbar .checkbox-label {
+    @apply flex items-center gap-2 text-sm text-wos-text-secondary;
+  }
+
+  /* Approval-mode toggle: presented as a real switch so the global safety
+     rail is visually obvious instead of a tiny disguise checkbox. */
+  .approval-switch {
+    @apply inline-flex cursor-pointer items-center gap-2.5 rounded-lg border border-wos-border-subtle bg-wos-surface px-2.5 py-1.5 text-left text-sm text-wos-text transition hover:border-wos-border disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .approval-switch__track {
+    @apply relative inline-block h-5 w-9 shrink-0 rounded-full bg-wos-panel-raised transition-colors;
+  }
+
+  .approval-switch__thumb {
+    @apply absolute left-0.5 top-0.5 inline-block h-4 w-4 rounded-full bg-wos-text shadow-sm transition-transform;
+  }
+
+  .approval-switch.is-on .approval-switch__track {
+    @apply bg-sky-500/80;
+  }
+
+  .approval-switch.is-on .approval-switch__thumb {
+    @apply translate-x-4 bg-white;
+  }
+
+  .approval-switch__text {
+    @apply flex min-w-0 flex-col leading-tight;
+  }
+
+  .approval-switch__label {
+    @apply text-xs font-semibold uppercase tracking-wider text-wos-text-muted;
+  }
+
+  .approval-switch__value {
+    @apply text-xs font-medium text-wos-text-secondary;
+  }
+
+  .approval-switch.is-on .approval-switch__value {
+    @apply text-sky-300;
+  }
+
+  .approvals-reset-panel {
+    @apply mb-4;
+  }
+
+  .approvals-reset-actions {
+    @apply mt-2 flex flex-wrap gap-2;
+  }
+
+  .approvals-callout {
+    @apply mb-3 rounded-lg border px-3 py-2 text-sm;
+  }
+
+  .approvals-callout--info {
+    @apply border-sky-500/35 bg-sky-950/35 text-sky-100;
+  }
+
+  .approvals-callout--warn {
+    @apply border-amber-500/35 bg-amber-950/35 text-amber-50;
+  }
+
+  .approvals-trace {
+    @apply mb-3 flex flex-wrap items-center gap-2 text-sm text-wos-text-secondary;
+  }
+
+  .approvals-trace__id {
+    @apply break-all text-sky-200;
+  }
+
+  .approvals-trace__copy {
+    @apply px-2 py-1 text-xs;
+  }
+
+  .approvals-scenario-links {
+    @apply mt-2;
+  }
+
+  .approvals-region-links {
+    @apply mb-3 flex flex-wrap items-center gap-3;
+  }
+
+  .approvals-payload {
+    @apply mb-3 rounded-lg border border-wos-border-subtle bg-wos-surface/80 px-3 py-2;
+  }
+
+  .approvals-payload summary {
+    @apply cursor-pointer text-sm font-medium text-wos-text;
+  }
+
+  .approvals-payload pre.code-block {
+    @apply mt-2 max-h-72;
+  }
+
+  .approvals-toast-stack {
+    @apply pointer-events-none fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2;
+  }
+
+  .approvals-toast {
+    @apply pointer-events-auto flex flex-col overflow-hidden rounded-lg border text-sm shadow-lg shadow-black/40;
+  }
+
+  .approvals-toast__body {
+    @apply flex items-start gap-3 px-3 py-2;
+  }
+
+  .approvals-toast__progress-track {
+    @apply h-1 w-full bg-black/25;
+  }
+
+  .approvals-toast__progress-bar {
+    @apply h-full bg-current opacity-80 transition-[width] duration-100 ease-linear;
+  }
+
+  .approvals-toast--success .approvals-toast__progress-bar {
+    @apply bg-emerald-400;
+  }
+
+  .approvals-toast--info .approvals-toast__progress-bar {
+    @apply bg-sky-400;
+  }
+
+  .approvals-toast--warning .approvals-toast__progress-bar {
+    @apply bg-amber-400;
+  }
+
+  .approvals-toast--error .approvals-toast__progress-bar {
+    @apply bg-red-400;
+  }
+
+  .approvals-toast__icon {
+    @apply mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold;
+  }
+
+  .approvals-toast__msg {
+    @apply flex-1 break-words;
+  }
+
+  /* Active scenario step progress (Redis current_scenario + last_active_scenario_step). */
+  .approvals-scenario-progress {
+    @apply mb-4 rounded-lg border border-sky-900/40 bg-sky-950/25 px-3 py-2;
+  }
+
+  .approvals-scenario-progress__track {
+    @apply relative mb-2 h-2 overflow-hidden rounded-full bg-wos-panel-raised;
+  }
+
+  .approvals-scenario-progress__bar {
+    @apply absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-600/70 to-sky-400/90 transition-[width] duration-300 ease-out;
+  }
+
+  .approvals-scenario-progress__label {
+    @apply block;
+  }
+
+  .approvals-scenario-progress__steps {
+    @apply mt-1 leading-relaxed opacity-80;
+  }
+
+  .approvals-scenario-progress__steps strong {
+    @apply font-semibold text-sky-200;
+  }
+
+  .approvals-toast__close {
+    @apply cursor-pointer rounded-md border border-transparent bg-transparent px-1.5 text-base leading-none opacity-70 hover:opacity-100;
+  }
+
+  .approvals-toast--success {
+    @apply border-emerald-900/80 bg-emerald-950/80 text-emerald-100;
+  }
+
+  .approvals-toast--info {
+    @apply border-sky-900/80 bg-sky-950/80 text-sky-100;
+  }
+
+  .approvals-toast--warning {
+    @apply border-amber-900/80 bg-amber-950/80 text-amber-100;
+  }
+
+  .approvals-toast--error {
+    @apply border-red-900/80 bg-red-950/80 text-red-100;
+  }
+
+  /* Friendlier "nothing pending" state — replaces the plain text block. */
+  .idle-card {
+    @apply flex flex-col items-center gap-2 py-6 text-center text-wos-text-secondary;
+  }
+
+  .idle-card__icon {
+    @apply flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/15 text-xl font-bold text-emerald-300;
+  }
+
+  .idle-card__title {
+    @apply m-0 text-base font-semibold text-wos-text;
+  }
+
+  .idle-card .meta {
+    @apply max-w-md;
+  }
+
+  /* Collapsible region-probe panel — diagnostic, off by default. */
+  .approvals-probe-panel {
+    @apply p-0;
+  }
+
+  .approvals-probe-toggle {
+    @apply flex w-full cursor-pointer items-center gap-2.5 rounded-xl border-0 bg-transparent px-4 py-3 text-left text-sm font-semibold text-wos-text hover:bg-wos-surface/80;
+  }
+
+  .approvals-probe-toggle__chevron {
+    @apply inline-block text-wos-text-muted transition-transform;
+  }
+
+  .approvals-probe-toggle__chevron.is-open {
+    @apply rotate-90 text-sky-300;
+  }
+
+  .approvals-probe-toggle__meta {
+    @apply ml-auto font-normal;
+  }
+
+  .approvals-probe-body {
+    @apply border-t border-wos-border-subtle/80 px-4 pb-4 pt-4 sm:px-5 sm:pb-5;
+  }
+
+  .approvals-probe-crops {
+    @apply mt-4 p-3 sm:p-4;
+  }
+
+  .approvals-probe-crops__title {
+    @apply m-0 text-sm font-semibold text-wos-text;
+  }
+
+  .approvals-probe-crops__ref {
+    @apply mt-1.5 mb-0;
+  }
+
+  .approvals-probe-crops__grid {
+    @apply mt-3 grid grid-cols-2 gap-3;
+  }
+
+  .approvals-probe-crops__tile {
+    @apply m-0 min-w-0;
+  }
+
+  .approvals-probe-crops__img {
+    @apply mt-1.5 block max-h-[220px] w-full rounded-md border border-wos-border-subtle bg-black object-contain;
+  }
+
+  .approvals-probe-crops__size,
+  .approvals-probe-crops__empty {
+    @apply mt-1 mb-0 text-center;
+  }
+
+}

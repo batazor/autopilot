@@ -40,6 +40,8 @@ cd web && npm install && npm run dev
 
 **Legacy Streamlit** (duplicate UI on :8501): `WOS_PLAY_STREAMLIT=1 uv run play`.
 
+**Styles** are split under `web/app/styles/` (see `web/app/styles/README.md`). Entry: `web/app/globals.css`.
+
 **Styles look unstyled (plain links, serif font)?** Stop the dev server, clear the Next cache, and restart from `web/`:
 
 ```sh

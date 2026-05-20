@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -9,6 +10,7 @@ import {
   useState,
 } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
+import { CopyButton } from "@/components/CopyButton";
 import { AppSelect } from "@/components/AppSelect";
 import { AppCheckbox } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
@@ -32,6 +34,7 @@ import type {
   NotificationEvent,
   ScenarioProgress,
 } from "@/lib/types";
+import { debugRunHref, editDslHref, overlayTestHref } from "@/lib/debug-links";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import { usePollWhenVisible } from "@/lib/hooks";
 // The probe is a debugging tool; it doesn't need to chase the approval cadence,
@@ -623,9 +626,12 @@ export default function ApprovalsPage() {
           {hasPending ? (
             <PendingApprovalCard
               view={view!}
+              instanceId={instanceId}
               scenarioLabel={scenarioLabel}
               regionLabel={regionLabel}
               traceId={traceId}
+              tempoTraceUrl={view?.tempo_trace_url || ""}
+              labelingHref={view?.labeling_href || ""}
               navigation={navigation}
               taskContext={taskContext}
               actionType={actionType}
@@ -647,7 +653,7 @@ export default function ApprovalsPage() {
         </section>
       </div>
 
-      <section className="panel approvals-probe-panel" style={{ marginTop: "1rem" }}>
+      <section className="panel approvals-probe-panel panel--spaced">
         <button
           type="button"
           className="approvals-probe-toggle"
@@ -961,11 +967,11 @@ function RegionProbePanel({
             height={probe?.preview.height ?? 0}
             overlays={overlaysStable}
           />
-          <p className="meta">
-            <span style={{ color: "#f59e0b" }}>■ search area</span>{" "}
-            <span style={{ color: "#22c55e" }}>■ matched</span>{" "}
-            <span style={{ color: "#64748b" }}>■ best below threshold</span>{" "}
-            <span style={{ color: "#ff0000" }}>+ tap point</span>
+          <p className="meta probe-legend">
+            <span className="probe-legend__search">■ search area</span>{" "}
+            <span className="probe-legend__match">■ matched</span>{" "}
+            <span className="probe-legend__miss">■ best below threshold</span>{" "}
+            <span className="probe-legend__tap">+ tap point</span>
           </p>
         </div>
 
@@ -976,7 +982,7 @@ function RegionProbePanel({
             <p className="meta">Select a region to run the probe.</p>
           ) : (
             <>
-              <div className="metrics-row" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+              <div className="metrics-row metrics-row--4">
                 <MetricCard
                   label="Matched"
                   value={matched ? "yes" : "no"}
@@ -1182,9 +1188,12 @@ function IdleApprovalsCard({
 
 function PendingApprovalCard({
   view,
+  instanceId,
   scenarioLabel,
   regionLabel,
   traceId,
+  tempoTraceUrl,
+  labelingHref,
   navigation,
   taskContext,
   actionType,
@@ -1196,9 +1205,12 @@ function PendingApprovalCard({
   onDecision,
 }: {
   view: ClickApprovalView;
+  instanceId: string;
   scenarioLabel: string;
   regionLabel: string;
   traceId: string;
+  tempoTraceUrl: string;
+  labelingHref: string;
   navigation: ClickApprovalView["navigation"];
   taskContext: ClickApprovalView["task_context"];
   actionType: string;
@@ -1209,6 +1221,7 @@ function PendingApprovalCard({
   busyAction: BusyAction;
   onDecision: (d: Decision) => void;
 }) {
+  const playerId = view.active_player_in_game_id || view.active_player || "";
   const actionLabel = view.action_label || actionType || "action";
   const isBusy = (d: Decision) => busyAction === d;
   // Disable a button only when *another* decision is in flight. Operators
@@ -1262,6 +1275,23 @@ function PendingApprovalCard({
               <code>{view.scenario_key}</code>
             </span>
           ) : null}
+          {view.scenario_key ? (
+            <nav className="queue-task-actions approvals-scenario-links" aria-label="Scenario">
+              <Link
+                href={debugRunHref({
+                  instanceId,
+                  playerId: playerId || undefined,
+                  scenario: view.scenario_key,
+                })}
+                className="queue-task-actions__link"
+              >
+                DSL runner
+              </Link>
+              <Link href={editDslHref({ scenario: view.scenario_key })} className="queue-task-actions__link">
+                Edit scenario
+              </Link>
+            </nav>
+          ) : null}
         </div>
       ) : null}
 
@@ -1276,21 +1306,63 @@ function PendingApprovalCard({
       ) : null}
 
       {actionType === "diagnostic" ? (
-        <p className="approvals-callout approvals-callout--info">
-          Diagnostic check
-          {view.diagnostic_kind ? (
-            <>
-              {" "}
-              · <code>{view.diagnostic_kind}</code>
-            </>
+        <>
+          <p className="approvals-callout approvals-callout--info">
+            {view.diagnostic_kind === "while_match_no_iterations" ? (
+              <>
+                <code>while_match</code> matched zero times. Approve retries later; reject stops.
+              </>
+            ) : (
+              <>
+                Diagnostic check
+                {view.diagnostic_kind ? (
+                  <>
+                    {" "}
+                    · <code>{view.diagnostic_kind}</code>
+                  </>
+                ) : null}
+                . Approve retries, reject aborts.
+              </>
+            )}
+          </p>
+          {regionLabel && actionType === "diagnostic" ? (
+            <p className="meta">
+              Region under inspection: <code>{regionLabel}</code>
+            </p>
           ) : null}
-          . Approve retries, reject aborts.
+          {view.diagnostic_attempts ? (
+            <p className="meta">
+              Initial probes <code>{view.diagnostic_attempts}</code>
+              {view.diagnostic_interval ? (
+                <>
+                  {" "}
+                  · interval <code>{view.diagnostic_interval}s</code>
+                </>
+              ) : null}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {regionLabel && actionType !== "diagnostic" ? (
+        <p className="meta">
+          Target region: <code>{regionLabel}</code>
         </p>
       ) : null}
 
-      {regionLabel ? (
-        <p className="meta">
-          Target region: <code>{regionLabel}</code>
+      {regionLabel && labelingHref ? (
+        <p className="approvals-region-links">
+          <Link href={labelingHref} className="queue-task-actions__link">
+            Open Labeling for <code>{regionLabel}</code>
+          </Link>
+          {instanceId ? (
+            <Link
+              href={overlayTestHref(instanceId, { region: regionLabel })}
+              className="queue-task-actions__link"
+            >
+              Overlay test
+            </Link>
+          ) : null}
         </p>
       ) : null}
 
@@ -1298,20 +1370,24 @@ function PendingApprovalCard({
 
       {traceId ? (
         <div className="approvals-trace">
-          <span className="meta">Trace ID</span>
+          <span className="meta">Trace ID (Grafana / Tempo trace search)</span>
           <code className="approvals-trace__id">{traceId}</code>
-          <button
-            type="button"
-            className="btn-secondary approvals-trace__copy"
-            onClick={() => {
-              if (navigator.clipboard) {
-                void navigator.clipboard.writeText(traceId);
-              }
-            }}
+          <CopyButton
+            text={traceId}
+            label="Copy"
             title="Copy trace ID (paste into Grafana / Tempo)"
-          >
-            Copy
-          </button>
+            className="approvals-trace__copy"
+          />
+          {tempoTraceUrl ? (
+            <a
+              href={tempoTraceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="queue-task-actions__link"
+            >
+              Open in Tempo
+            </a>
+          ) : null}
         </div>
       ) : null}
 

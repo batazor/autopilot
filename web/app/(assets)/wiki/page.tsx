@@ -150,7 +150,7 @@ function WikiPageInner() {
       {tab === "faq" && faq ? (
         <section className="panel">
           {faq.sections.map((sec) => (
-            <div key={sec.heading} style={{ marginBottom: "1.25rem" }}>
+            <div key={sec.heading} className="wiki-section-block">
               <h2>{sec.heading}</h2>
               {sec.text ? <p>{sec.text}</p> : null}
               {sec.items?.length && sec.items[0].key ? (

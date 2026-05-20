@@ -1,0 +1,99 @@
+@layer components {
+  /* —— Headless UI (Listbox, Dialog) —— */
+  .headless-listbox-field--inline {
+    @apply flex items-center gap-2 text-sm text-wos-text-secondary;
+  }
+
+  .headless-listbox {
+    @apply relative;
+  }
+
+  .headless-listbox--full {
+    @apply w-full;
+  }
+
+  .headless-listbox-field--block {
+    @apply flex w-full flex-col gap-1 text-sm text-wos-text-secondary;
+  }
+
+  .headless-listbox-field--block > span:first-child {
+    @apply font-medium text-wos-text-muted;
+  }
+
+  .headless-listbox__button {
+    @apply flex w-full min-h-[34px] cursor-pointer items-center justify-between gap-2 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-left text-sm text-wos-text shadow-none transition hover:border-wos-border focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-listbox__value {
+    @apply min-w-0 truncate;
+  }
+
+  .headless-listbox__options {
+    @apply z-40 mt-1 max-h-60 min-w-[var(--button-width)] overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/25 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-listbox__option {
+    @apply cursor-pointer rounded-md px-2.5 py-1.5 text-sm text-wos-text data-focus:bg-wos-panel-raised data-selected:bg-sky-500 data-selected:text-white;
+  }
+
+  .headless-listbox__empty {
+    @apply px-2.5 py-2 text-sm text-wos-text-muted;
+  }
+
+  .headless-checkbox-field {
+    @apply flex items-center gap-2;
+  }
+
+  .headless-checkbox-field--inline {
+    @apply text-sm text-wos-text-secondary;
+  }
+
+  .headless-checkbox-field__label {
+    @apply cursor-pointer select-none text-sm text-wos-text-secondary data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-checkbox {
+    @apply flex size-4 shrink-0 cursor-pointer items-center justify-center rounded border border-wos-border-subtle bg-wos-input transition hover:border-wos-border focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:border-sky-500/80 data-checked:bg-sky-500 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-checkbox__icon {
+    @apply size-3 opacity-0 transition;
+  }
+
+  .headless-checkbox[data-checked] .headless-checkbox__icon {
+    @apply opacity-100;
+  }
+
+  .headless-dialog-root {
+    @apply relative z-50;
+  }
+
+  .headless-dialog__backdrop {
+    @apply fixed inset-0 bg-black/55 transition duration-200 ease-out data-closed:opacity-0;
+  }
+
+  .headless-dialog__container {
+    @apply fixed inset-0 flex items-center justify-center p-4;
+  }
+
+  .headless-dialog__panel {
+    @apply w-full max-w-md rounded-xl border border-wos-border-subtle bg-wos-panel p-5 shadow-xl shadow-black/30 transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-dialog__title {
+    @apply m-0 text-lg font-semibold text-wos-text;
+  }
+
+  .headless-dialog__body {
+    @apply mt-2 text-sm text-wos-text-secondary;
+  }
+
+  .headless-dialog__actions {
+    @apply mt-5 flex flex-wrap justify-end gap-2;
+  }
+
+  .headless-dialog__confirm--danger {
+    @apply border-red-500 bg-red-600 hover:bg-red-500;
+  }
+
+}

@@ -30,7 +30,7 @@ function GiftCodesTable({
 }) {
   if (!rows.length) return null;
   return (
-    <section className="panel" style={{ marginTop: "1rem" }}>
+    <section className="panel panel--spaced">
       <h2>{title}</h2>
       <div className="data-table-wrap">
         <table className="data-table gift-codes-table">

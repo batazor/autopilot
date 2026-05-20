@@ -215,6 +215,20 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
   );
 }
 
+export function TraceIdCell({ traceId }: { traceId: string }) {
+  const tid = traceId.trim();
+  if (!tid) {
+    return <span className="muted">—</span>;
+  }
+  const short = tid.length > 12 ? `${tid.slice(0, 12)}…` : tid;
+  return (
+    <span className="queue-trace" title={tid}>
+      <code className="queue-trace__id">{short}</code>
+      <CopyButton text={tid} label="Copy" title="Copy trace ID (Grafana / Tempo)" />
+    </span>
+  );
+}
+
 export function HistoryOutcomePill({ success }: { success: boolean }) {
   return success ? (
     <span className="status-pill pill-live">OK</span>

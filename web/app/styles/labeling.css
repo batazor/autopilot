@@ -1,0 +1,264 @@
+@layer components {
+  /* Konva / labeling */
+  .app-main:has(.labeling-page) {
+    @apply max-w-none;
+  }
+
+  .labeling-page {
+    @apply flex flex-col;
+  }
+
+  .labeling-page > :not(.labeling-main) {
+    @apply shrink-0;
+  }
+
+  .konva-editor-measure {
+    @apply w-full max-w-full rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-sky-400/50;
+  }
+
+  .konva-editor-measure--drop-active {
+    @apply ring-2 ring-sky-400/60;
+  }
+
+  .konva-editor-wrap {
+    @apply overflow-hidden rounded-lg bg-black;
+  }
+
+  .konva-stage {
+    @apply block;
+  }
+
+  .labeling-main {
+    @apply grid gap-4 lg:grid-cols-2 lg:items-start;
+  }
+
+  .labeling-canvas-panel {
+    @apply flex min-w-0 flex-col items-start;
+  }
+
+  .labeling-ref-picker {
+    @apply flex flex-col gap-3;
+  }
+
+  .labeling-ref-picker__path {
+    @apply break-all;
+  }
+
+  .labeling-canvas-heading {
+    @apply mb-2 text-base font-semibold text-wos-text;
+  }
+
+  .labeling-canvas-toolbar {
+    @apply mb-3 flex-wrap gap-2;
+  }
+
+  .labeling-canvas-tool-hint {
+    @apply flex-1 text-xs;
+  }
+
+  .labeling-canvas-meta {
+    @apply mt-2;
+  }
+
+  .labeling-sidebar {
+    @apply flex min-h-0 min-w-0 flex-col gap-3 overflow-y-auto pr-0.5;
+  }
+
+  .labeling-card {
+    @apply shrink-0 overflow-hidden rounded-xl border border-wos-border-subtle bg-wos-panel/95 shadow-md shadow-black/15 backdrop-blur-sm;
+  }
+
+  .labeling-card--save {
+    @apply sticky bottom-0 z-10;
+  }
+
+  .labeling-card .labeling-panel-block {
+    @apply border-0;
+  }
+
+  .labeling-panel-block {
+    @apply border-b border-wos-border-subtle;
+  }
+
+  .labeling-panel-block__title {
+    @apply cursor-pointer list-none px-4 py-3 text-sm font-semibold text-wos-text;
+  }
+
+  .labeling-panel-block__title::-webkit-details-marker {
+    display: none;
+  }
+
+  .labeling-panel-block__body {
+    @apply space-y-2 px-4 pb-4;
+  }
+
+  .labeling-search {
+    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm text-wos-text;
+  }
+
+  .labeling-toggle {
+    @apply flex items-center gap-2;
+  }
+
+  .labeling-ref-tree-wrap {
+    @apply flex flex-col gap-2;
+  }
+
+  .labeling-ref-tree {
+    @apply m-0 max-h-[min(42vh,22rem)] list-none overflow-y-auto rounded-lg border border-wos-border-subtle bg-wos-input/40 p-1.5;
+  }
+
+  .labeling-ref-tree__children {
+    @apply m-0 list-none pl-3;
+  }
+
+  .labeling-ref-tree__group-btn {
+    @apply flex w-full cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-left text-xs font-medium text-wos-text-secondary hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .labeling-ref-tree__caret {
+    @apply inline-block w-4 shrink-0 text-center text-[10px];
+  }
+
+  .labeling-ref-tree__leaf {
+    @apply w-full cursor-pointer rounded-md border-0 bg-transparent px-2 py-1 text-left text-sm leading-snug text-wos-text-secondary hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .labeling-ref-tree__leaf--active {
+    @apply bg-sky-500/15 font-medium text-sky-300;
+  }
+
+  .labeling-ref-tree__empty {
+    @apply m-0 rounded-lg border border-dashed border-wos-border-subtle px-3 py-4 text-center;
+  }
+
+  .labeling-basename__row {
+    @apply flex gap-2;
+  }
+
+  .labeling-basename__row input {
+    @apply min-w-0 flex-1 rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm;
+  }
+
+  .labeling-basename__hint {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .labeling-region-form label.meta {
+    @apply block;
+  }
+
+  .labeling-region-form input,
+  .labeling-region-form select {
+    @apply mt-1 block w-full rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm;
+  }
+
+  .labeling-check {
+    @apply flex items-center gap-2;
+  }
+
+  .labeling-add-region {
+    @apply w-full;
+  }
+
+  .labeling-save-block {
+    @apply space-y-2 p-4;
+  }
+
+  .labeling-save-btn {
+    @apply w-full;
+  }
+
+  .labeling-workflow {
+    @apply mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5;
+  }
+
+  .labeling-step {
+    @apply rounded-lg border border-wos-border-subtle px-3 py-2 text-sm leading-snug;
+  }
+
+  .labeling-step--done {
+    @apply border-emerald-500/40 bg-emerald-500/10;
+  }
+
+  .labeling-step--pending .labeling-step__icon {
+    @apply opacity-50;
+  }
+
+  .labeling-step__label {
+    @apply font-semibold text-wos-text;
+  }
+
+  .labeling-step__detail {
+    @apply mt-0.5 block text-xs text-wos-text-secondary;
+  }
+
+  .labeling-stale-banner {
+    @apply mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3;
+  }
+
+  .labeling-stale-banner__main {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .labeling-stale-list {
+    @apply mt-2 max-h-40 list-none overflow-y-auto p-0 font-mono text-xs;
+  }
+
+  .labeling-stale-list li {
+    @apply py-0.5;
+  }
+
+  .labeling-header-toolbar {
+    @apply mb-3 flex-wrap gap-2;
+  }
+
+  .labeling-module-select select {
+    @apply ml-1.5 min-w-[10rem] rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm text-wos-text;
+  }
+
+  .labeling-refresh-confirm {
+    @apply mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3;
+  }
+
+  .labeling-flash {
+    color: var(--wos-status-ok-fg);
+  }
+
+  .labeling-version-meta {
+    @apply m-0 list-none space-y-1 p-0;
+  }
+
+  .ref-list {
+    @apply m-0 max-h-[70vh] list-none overflow-y-auto p-0;
+  }
+
+  .ref-list li button {
+    @apply w-full cursor-pointer rounded-md border-0 bg-transparent px-2 py-1.5 text-left text-xs text-wos-text-secondary hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .ref-list li button.active {
+    @apply bg-wos-panel-raised text-wos-text;
+  }
+
+  .region-list {
+    @apply m-0 list-none p-0;
+  }
+
+  .region-list li button {
+    @apply mb-1.5 w-full cursor-pointer rounded-lg border border-wos-border-subtle bg-wos-surface px-2 py-2 text-left text-sm text-wos-text hover:border-wos-border;
+  }
+
+  .region-list li button.active {
+    @apply border-sky-500;
+  }
+
+  .gift-codes-table .status-pill {
+    @apply px-1.5 py-0.5 text-[10px];
+  }
+
+  tr.gift-row-expired td {
+    @apply bg-wos-surface/50 text-wos-text-muted;
+  }
+
+}

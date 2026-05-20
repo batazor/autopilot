@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { HistoryOutcomePill } from "@/components/queue/QueueVisuals";
+import { HistoryOutcomePill, TraceIdCell } from "@/components/queue/QueueVisuals";
 import { debugRunHref } from "@/lib/debug-links";
 import { playerStateHref } from "@/lib/fleet-links";
 import type { InstanceHistoryRow } from "@/lib/types";
@@ -118,6 +118,11 @@ export function InstanceScenarioHistory({ rows, instanceId }: Props) {
                   <p className="instance-history__detail" title={h.detail}>
                     {h.detail}
                   </p>
+                ) : null}
+                {h.trace_id?.trim() ? (
+                  <div className="instance-history__trace">
+                    <TraceIdCell traceId={h.trace_id} />
+                  </div>
                 ) : null}
               </div>
             </li>

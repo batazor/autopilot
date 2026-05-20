@@ -97,6 +97,9 @@ def _edge_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> f
 
 def _phash64(patch_bgr: np.ndarray) -> int:
     gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    # Light blur before DCT reduces anti-alias / glow drift on text strips (e.g.
+    # welcome_back) without moving self-match scores on crisp icon crops (shop).
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
     small = cv2.resize(gray, (32, 32), interpolation=cv2.INTER_AREA)
     dct = cv2.dct(np.float32(small))
     block = dct[:8, :8].copy()

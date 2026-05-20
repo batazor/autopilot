@@ -63,6 +63,7 @@ def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, An
             "duration_s": h.duration_s,
             "success": h.success,
             "detail": h.reason or h.error or h.task_id,
+            "trace_id": h.trace_id or "",
         }
         for h in history
     ]

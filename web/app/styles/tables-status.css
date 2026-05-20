@@ -1,0 +1,158 @@
+@layer components {
+  .muted,
+  .meta {
+    @apply text-sm text-wos-text-secondary;
+  }
+
+  .data-table-wrap {
+    @apply overflow-x-auto rounded-lg border border-wos-border-subtle/80;
+  }
+
+  .data-table {
+    @apply w-full border-collapse text-sm text-wos-text;
+  }
+
+  .data-table th,
+  .data-table td {
+    @apply border-b border-wos-border-subtle/70 px-3 py-2 text-left align-top;
+  }
+
+  .data-table th {
+    @apply bg-wos-surface/90 text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .data-table tr:hover td {
+    @apply bg-wos-panel-raised/50;
+  }
+
+  .data-table tr.sub-row td {
+    @apply pl-6 text-xs text-wos-text-muted;
+  }
+
+  .data-table tr.fleet-row {
+    @apply cursor-pointer transition-colors;
+  }
+
+  .data-table tr.fleet-row:hover td {
+    @apply bg-wos-panel-raised/80;
+  }
+
+  .data-table tr.fleet-row--offline td {
+    @apply bg-wos-panel-raised/30;
+  }
+
+  .data-table tr.fleet-row--offline:hover td {
+    @apply bg-wos-panel-raised/55;
+  }
+
+  .data-table tr.fleet-row--danger td {
+    @apply bg-red-950/25;
+  }
+
+  .data-table tr.fleet-row--danger:hover td {
+    @apply bg-red-950/40;
+  }
+
+  .data-table tr.fleet-row--alert td {
+    @apply bg-amber-950/20;
+  }
+
+  .data-table tr.fleet-row--alert:hover td {
+    @apply bg-amber-950/35;
+  }
+
+  .data-table tr.fleet-row--paused td {
+    @apply bg-amber-950/15;
+  }
+
+  .data-table tr.fleet-row .fleet-row__alert {
+    @apply text-amber-200/90;
+  }
+
+  .data-table tr.fleet-row--offline .fleet-row__alert,
+  .data-table tr.fleet-row--offline td:first-child strong {
+    @apply text-wos-text-muted;
+  }
+
+  .fleet-row-actions {
+    @apply flex justify-end gap-1.5;
+  }
+
+  .fleet-row-actions .btn-secondary {
+    @apply px-2 py-1 text-xs;
+  }
+
+  .pill-live {
+    @apply inline-block rounded-full px-2 py-0.5 text-xs font-semibold;
+    background-color: var(--wos-status-ok-bg);
+    color: var(--wos-status-ok-fg);
+  }
+
+  .pill-paused {
+    @apply inline-block rounded-full px-2 py-0.5 text-xs font-semibold;
+    background-color: var(--wos-status-warn-bg);
+    color: var(--wos-status-warn-fg);
+  }
+
+  .pill-offline,
+  .pill-stale {
+    @apply inline-block rounded-full bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold text-wos-text-secondary;
+  }
+
+  .pill-danger {
+    @apply inline-block rounded-full px-2 py-0.5 text-xs font-semibold;
+    background-color: var(--wos-status-danger-bg);
+    color: var(--wos-status-danger-fg);
+  }
+
+  .pill-busy {
+    @apply inline-block rounded-full px-2 py-0.5 text-xs font-semibold;
+    background-color: var(--wos-status-info-bg);
+    color: var(--wos-status-info-fg);
+  }
+
+  .status-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+
+  .status-pill--lg {
+    @apply px-3 py-1 text-sm;
+  }
+
+  .status-pill__dot {
+    @apply inline-block h-2 w-2 rounded-full bg-current;
+  }
+
+  .status-pending {
+    background-color: var(--wos-status-warn-bg);
+    color: var(--wos-status-warn-fg);
+  }
+
+  .status-idle {
+    background-color: var(--wos-status-ok-bg);
+    color: var(--wos-status-ok-fg);
+  }
+
+  /* Pulse the pending pill so an idle operator notices a fresh request even
+     when this page is in the corner of a second monitor. */
+  .status-pill.pulse {
+    animation: approvals-pulse 1.8s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55);
+  }
+
+  @keyframes approvals-pulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.55);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(251, 191, 36, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-pill.pulse {
+      animation: none;
+    }
+  }
+
+}

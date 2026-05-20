@@ -1,0 +1,171 @@
+@layer components {
+  .metrics-row {
+    @apply mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6;
+  }
+
+  .queue-metrics {
+    @apply xl:grid-cols-5;
+  }
+
+  .queue-metric-live {
+    @apply text-emerald-300;
+  }
+
+  .queue-metric-ok {
+    @apply text-emerald-300/90;
+  }
+
+  .queue-metric-warn {
+    @apply text-amber-300;
+  }
+
+  .queue-metric-fail {
+    @apply text-red-300;
+  }
+
+  .queue-panel + .queue-panel {
+    @apply mt-4;
+  }
+
+  .queue-empty {
+    @apply py-4 text-sm text-wos-text-muted;
+  }
+
+  .queue-running-grid {
+    @apply grid gap-3 sm:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .queue-running-card {
+    @apply rounded-xl border border-sky-900/60 bg-sky-950/20 p-3;
+  }
+
+  .queue-running-card__head {
+    @apply mb-2 flex flex-wrap items-center gap-2;
+  }
+
+  .queue-running-card__scenario {
+    @apply mb-1 font-medium text-wos-text;
+  }
+
+  .queue-running-card__meta {
+    @apply mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs;
+  }
+
+  .queue-running-card__meta dt {
+    @apply text-wos-text-muted;
+  }
+
+  .queue-running-card__meta dd {
+    @apply m-0 font-medium text-wos-text-secondary;
+  }
+
+  .queue-table .queue-when {
+    @apply whitespace-nowrap text-sm text-wos-text-secondary;
+  }
+
+  .queue-table .queue-reason {
+    @apply max-w-[28rem] truncate text-sm text-red-200/90;
+  }
+
+  .queue-row-overdue td {
+    @apply bg-amber-950/15;
+  }
+
+  .queue-row-ok td:first-child {
+    @apply border-l-2 border-l-emerald-600/70;
+  }
+
+  .queue-row-fail td {
+    @apply bg-red-950/10;
+  }
+
+  .queue-row-fail td:first-child {
+    @apply border-l-2 border-l-red-600/80;
+  }
+
+  .queue-priority {
+    @apply font-mono text-xs text-wos-text-muted;
+  }
+
+  .queue-priority-hot {
+    @apply font-semibold text-amber-200;
+  }
+
+  .queue-scenario {
+    @apply font-medium;
+  }
+
+  .queue-steps {
+    @apply font-mono text-xs text-wos-text-secondary;
+  }
+
+  .queue-copy-btn {
+    @apply px-2 py-0.5 text-[11px] whitespace-nowrap;
+  }
+
+  .queue-running-card__actions {
+    @apply mb-2 flex flex-wrap items-center gap-2;
+  }
+
+  .queue-row-actions {
+    @apply flex flex-col items-end gap-1.5;
+  }
+
+  .queue-task-actions {
+    @apply flex flex-wrap items-center justify-end gap-1.5;
+  }
+
+  .queue-task-actions__link {
+    @apply text-xs font-medium no-underline text-sky-300/95 transition-colors hover:text-sky-200;
+  }
+
+  .queue-steps-link {
+    @apply no-underline;
+  }
+
+  .queue-steps-link:hover .queue-steps,
+  .queue-steps-link:hover .status-pill {
+    @apply underline;
+  }
+
+  .module-scenario-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .metric-card {
+    @apply flex flex-col gap-1 rounded-xl border border-wos-border-subtle bg-wos-panel/90 p-3;
+  }
+
+  .metric-card .label {
+    @apply text-xs text-wos-text-muted;
+  }
+
+  .metric-card .value {
+    @apply text-xl font-semibold text-wos-text;
+  }
+
+  .skeleton-block {
+    @apply gap-2;
+  }
+
+  .skeleton-line {
+    @apply animate-pulse rounded-md bg-wos-panel-raised/90;
+  }
+
+  .skeleton-line--sm {
+    @apply h-3 w-14 max-w-full;
+  }
+
+  .skeleton-line--md {
+    @apply h-3 w-24 max-w-full;
+  }
+
+  .skeleton-line--lg {
+    @apply h-7 w-16 max-w-full;
+  }
+
+  .placeholder-panel {
+    @apply max-w-xl;
+  }
+
+}

@@ -1,0 +1,109 @@
+@theme {
+  --color-wos-bg: var(--wos-bg);
+  --color-wos-bg-deep: var(--wos-bg-deep);
+  --color-wos-surface: var(--wos-surface);
+  --color-wos-panel: var(--wos-panel);
+  --color-wos-panel-raised: var(--wos-panel-raised);
+  --color-wos-input: var(--wos-input);
+  --color-wos-border: var(--wos-border);
+  --color-wos-border-subtle: var(--wos-border-subtle);
+  --color-wos-text: var(--wos-text);
+  --color-wos-text-secondary: var(--wos-text-secondary);
+  --color-wos-text-muted: var(--wos-text-muted);
+  --color-surface: var(--wos-surface);
+  --color-panel: var(--wos-panel);
+  --color-border: var(--wos-border);
+  --color-muted: var(--wos-text-muted);
+  --color-accent: var(--wos-accent);
+  --color-ok: #34d399;
+  --color-danger: #f87171;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Theme tokens — dark default (ops); light for daytime / wiki screenshots. */
+:root,
+html {
+  color-scheme: dark;
+
+  --wos-bg: #1c2433;
+  --wos-bg-deep: #171e2c;
+  --wos-surface: #263244;
+  --wos-panel: #2f3b4f;
+  --wos-panel-raised: #38465c;
+  --wos-input: #222d3f;
+  --wos-border: #4d617a;
+  --wos-border-subtle: #3f5269;
+  --wos-border-hover: #5c7290;
+  --wos-text: #f3f6fa;
+  --wos-text-secondary: #c8d4e4;
+  --wos-text-muted: #9eb0c8;
+  --wos-accent: #0ea5e9;
+  --wos-accent-muted: #7dd3fc;
+  --wos-accent-focus: rgba(56, 189, 248, 0.65);
+  --wos-accent-shadow: 0 0 0 2px rgba(56, 189, 248, 0.22);
+  --wos-on-accent: #ffffff;
+  --wos-option-hover: rgba(56, 75, 100, 0.95);
+  --wos-option-active: #38465c;
+  --wos-body-grad-top: #222c3d;
+  --wos-body-grad-glow: rgba(56, 132, 220, 0.14);
+  --wos-link: #7dd3fc;
+  --wos-link-hover: #bae6fd;
+  --wos-code-fg: #bae6fd;
+  --wos-overlay-scrim: rgba(0, 0, 0, 0.5);
+  --wos-status-ok-bg: #022c22;
+  --wos-status-ok-fg: #6ee7b7;
+  --wos-status-warn-bg: #451a03;
+  --wos-status-warn-fg: #fcd34d;
+  --wos-status-danger-bg: #450a0a;
+  --wos-status-danger-fg: #fca5a5;
+  --wos-status-info-bg: #0c4a6e;
+  --wos-status-info-fg: #7dd3fc;
+  --wos-probe-search: #f59e0b;
+  --wos-probe-match: #22c55e;
+  --wos-probe-miss: #64748b;
+  --wos-probe-tap: #ef4444;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+
+  --wos-bg: #f1f5f9;
+  --wos-bg-deep: #e8edf4;
+  --wos-surface: #ffffff;
+  --wos-panel: #ffffff;
+  --wos-panel-raised: #f8fafc;
+  --wos-input: #ffffff;
+  --wos-border: #cbd5e1;
+  --wos-border-subtle: #e2e8f0;
+  --wos-border-hover: #94a3b8;
+  --wos-text: #0f172a;
+  --wos-text-secondary: #334155;
+  --wos-text-muted: #64748b;
+  --wos-accent: #0284c7;
+  --wos-accent-muted: #0369a1;
+  --wos-accent-focus: rgba(2, 132, 199, 0.55);
+  --wos-accent-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+  --wos-on-accent: #ffffff;
+  --wos-option-hover: #e0f2fe;
+  --wos-option-active: #bae6fd;
+  --wos-body-grad-top: #f8fafc;
+  --wos-body-grad-glow: rgba(14, 165, 233, 0.1);
+  --wos-link: #0369a1;
+  --wos-link-hover: #0c4a6e;
+  --wos-code-fg: #0c4a6e;
+  --wos-overlay-scrim: rgba(15, 23, 42, 0.35);
+  --wos-status-ok-bg: #d1fae5;
+  --wos-status-ok-fg: #047857;
+  --wos-status-warn-bg: #fef3c7;
+  --wos-status-warn-fg: #b45309;
+  --wos-status-danger-bg: #fee2e2;
+  --wos-status-danger-fg: #b91c1c;
+  --wos-status-info-bg: #e0f2fe;
+  --wos-status-info-fg: #0369a1;
+  --wos-probe-search: #d97706;
+  --wos-probe-match: #15803d;
+  --wos-probe-miss: #64748b;
+  --wos-probe-tap: #dc2626;
+}
+

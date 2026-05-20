@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import time
 from typing import Any
+from urllib.parse import urlencode
 
 from adb.approvals import click_approval_enabled
 from api.services.click_approval_overlay import (
@@ -12,6 +13,7 @@ from api.services.click_approval_overlay import (
     load_preview_bytes,
 )
 from config.paths import repo_root
+from config.trace_links import tempo_trace_url
 from config.w3c_traceparent import w3c_trace_id_hex
 from dsl import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import _dsl_step_summary
@@ -370,6 +372,30 @@ def _trace_id_from_payload(payload: dict[str, Any]) -> str:
     return w3c_trace_id_hex(_as_text(payload.get("traceparent")) or None) or ""
 
 
+def _labeling_href_for_region(
+    client: Any,
+    instance_id: str,
+    region_name: str,
+) -> str:
+    """Next.js ``/labeling?…`` deep-link for an area.json region (Streamlit parity)."""
+    from ui.views.click_approvals.common import (
+        active_player_state_flat,
+        labeling_query_params_for_area_region,
+        load_area_doc,
+    )
+
+    reg = _as_text(region_name)
+    if not reg:
+        return ""
+    area_path = repo_root() / "area.json"
+    area_doc = load_area_doc(area_path)
+    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
+    qp = labeling_query_params_for_area_region(area_doc, reg, state_flat=state_flat)
+    if not qp:
+        return ""
+    return f"/labeling?{urlencode(qp)}"
+
+
 def get_approval_view(
     client: Any,
     instance_id: str,
@@ -387,7 +413,11 @@ def get_approval_view(
     action_label = ""
     set_node_target = ""
     trace_id = ""
+    tempo_url = ""
+    labeling_href = ""
     diagnostic_kind = ""
+    diagnostic_attempts = ""
+    diagnostic_interval = ""
     navigation = None
     task_context = None
     if payload:
@@ -395,9 +425,12 @@ def get_approval_view(
         action_label = _payload_action_label(payload)
         set_node_target = _as_text(payload.get("set_node"))
         trace_id = _trace_id_from_payload(payload)
+        tempo_url = tempo_trace_url(trace_id)
         navigation = _build_navigation_block(payload)
         task_context = _build_task_context(payload)
         diagnostic_kind = _as_text(payload.get("diagnostic"))
+        diagnostic_attempts = _as_text(payload.get("attempts"))
+        diagnostic_interval = _as_text(payload.get("interval"))
         ctx0 = payload.get("context")
         if isinstance(ctx0, dict):
             scenario_key = _as_text(ctx0.get("scenario"))
@@ -406,6 +439,8 @@ def get_approval_view(
             region_label = _as_text(payload.get("region")) or _as_text(ctx0.get("approval_region"))
         else:
             region_label = _as_text(payload.get("region"))
+        if region_label:
+            labeling_href = _labeling_href_for_region(client, instance_id, region_label)
 
     png, rel, mtime = load_preview_bytes(
         instance_id=instance_id,
@@ -450,7 +485,11 @@ def get_approval_view(
         "action_label": action_label,
         "set_node_target": set_node_target,
         "trace_id": trace_id,
+        "tempo_trace_url": tempo_url,
+        "labeling_href": labeling_href,
         "diagnostic_kind": diagnostic_kind,
+        "diagnostic_attempts": diagnostic_attempts,
+        "diagnostic_interval": diagnostic_interval,
         "navigation": navigation,
         "task_context": task_context,
         "tap_x": x,

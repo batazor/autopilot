@@ -1,0 +1,191 @@
+/* Light-theme polish for semantic surfaces still using dark-tailwind tints. */
+
+@layer components {
+  html[data-theme="light"] .panel {
+    @apply shadow-sm shadow-slate-200/80;
+  }
+
+  html[data-theme="light"] .error-banner {
+    @apply border-red-300 bg-red-50 text-red-800;
+  }
+
+  html[data-theme="light"] .feedback-toast--success {
+    @apply border-emerald-300 bg-emerald-50 text-emerald-900;
+  }
+
+  html[data-theme="light"] .feedback-toast--info {
+    @apply border-sky-300 bg-sky-50 text-sky-900;
+  }
+
+  html[data-theme="light"] .data-table tr.fleet-row--danger td {
+    @apply bg-red-50;
+  }
+
+  html[data-theme="light"] .data-table tr.fleet-row--danger:hover td {
+    @apply bg-red-100;
+  }
+
+  html[data-theme="light"] .data-table tr.fleet-row--alert td,
+  html[data-theme="light"] .data-table tr.fleet-row--paused td {
+    @apply bg-amber-50;
+  }
+
+  html[data-theme="light"] .data-table tr.fleet-row--alert:hover td,
+  html[data-theme="light"] .data-table tr.fleet-row--paused:hover td {
+    @apply bg-amber-100;
+  }
+
+  html[data-theme="light"] .data-table tr.fleet-row .fleet-row__alert {
+    @apply text-amber-700;
+  }
+
+  html[data-theme="light"] .queue-metric-live,
+  html[data-theme="light"] .queue-metric-ok {
+    @apply text-emerald-700;
+  }
+
+  html[data-theme="light"] .queue-metric-warn {
+    @apply text-amber-700;
+  }
+
+  html[data-theme="light"] .queue-metric-fail {
+    @apply text-red-700;
+  }
+
+  html[data-theme="light"] .queue-running-card {
+    @apply border-sky-200 bg-sky-50;
+  }
+
+  html[data-theme="light"] .queue-row-overdue td {
+    @apply bg-amber-50;
+  }
+
+  html[data-theme="light"] .queue-row-fail td {
+    @apply bg-red-50;
+  }
+
+  html[data-theme="light"] .queue-table .queue-reason {
+    @apply text-red-700;
+  }
+
+  html[data-theme="light"] .queue-task-actions__link {
+    color: var(--wos-link);
+  }
+
+  html[data-theme="light"] .queue-task-actions__link:hover {
+    color: var(--wos-link-hover);
+  }
+
+  html[data-theme="light"] .queue-priority-hot {
+    @apply text-amber-800;
+  }
+
+  html[data-theme="light"] .labeling-ref-tree__leaf--active {
+    @apply bg-sky-100 text-sky-800;
+  }
+
+  html[data-theme="light"] .wiki-tile__module {
+    @apply text-violet-700;
+  }
+
+  html[data-theme="light"] .player-hero-tile__tags {
+    @apply text-amber-700;
+  }
+
+  html[data-theme="light"] .routes-path-miss {
+    @apply text-red-700;
+  }
+
+  html[data-theme="light"] .approvals-callout--info {
+    @apply border-sky-200 bg-sky-50 text-sky-900;
+  }
+
+  html[data-theme="light"] .approvals-callout--warn {
+    @apply border-amber-200 bg-amber-50 text-amber-900;
+  }
+
+  html[data-theme="light"] .approvals-trace__id {
+    @apply text-sky-800;
+  }
+
+  html[data-theme="light"] .approvals-scenario-progress {
+    @apply border-sky-200 bg-sky-50;
+  }
+
+  html[data-theme="light"] .approvals-scenario-progress__steps strong {
+    @apply text-sky-800;
+  }
+
+  html[data-theme="light"] .approvals-toast--success {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-900;
+  }
+
+  html[data-theme="light"] .approvals-toast--info {
+    @apply border-sky-200 bg-sky-50 text-sky-900;
+  }
+
+  html[data-theme="light"] .approvals-toast--warning {
+    @apply border-amber-200 bg-amber-50 text-amber-900;
+  }
+
+  html[data-theme="light"] .approvals-toast--error {
+    @apply border-red-200 bg-red-50 text-red-900;
+  }
+
+  html[data-theme="light"] .idle-card__icon {
+    @apply bg-emerald-100 text-emerald-700;
+  }
+
+  html[data-theme="light"] .approvals-probe-toggle__chevron.is-open {
+    @apply text-sky-700;
+  }
+
+  html[data-theme="light"] .nav-pinned {
+    @apply border-sky-200 bg-sky-50;
+  }
+
+  html[data-theme="light"] .nav-pinned .nav-block-label {
+    @apply text-sky-800;
+  }
+
+  html[data-theme="light"] .nav-link--active {
+    @apply border-sky-300 bg-sky-100 text-sky-900;
+  }
+
+  html[data-theme="light"] .nav-link--active .nav-link__icon {
+    @apply bg-sky-200 text-sky-800;
+  }
+
+  html[data-theme="light"] .nav-link__desc {
+    @apply text-sky-700/90;
+  }
+
+  html[data-theme="light"] .nav-badge-st {
+    @apply bg-violet-100 text-violet-800;
+  }
+
+  html[data-theme="light"] .api-status--ok .api-status__label {
+    @apply text-emerald-700;
+  }
+
+  html[data-theme="light"] .api-status--api_offline .api-status__label {
+    @apply text-red-700;
+  }
+
+  html[data-theme="light"] .api-status--redis_unreachable .api-status__label {
+    @apply text-amber-800;
+  }
+
+  html[data-theme="light"] .headless-tab-list--section .headless-tab[data-selected],
+  html[data-theme="light"] .section-tab.headless-tab[data-selected] {
+    @apply border-sky-300 bg-sky-100 text-sky-900;
+  }
+
+  html[data-theme="light"] .wiki-faq-sync__panel--error {
+    @apply border-red-300 bg-red-50;
+  }
+
+  html[data-theme="light"] .wiki-faq-sync__log {
+    @apply bg-slate-100;
+  }
+}

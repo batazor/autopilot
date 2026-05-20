@@ -1,0 +1,142 @@
+@layer components {
+  .ui-icon {
+    @apply inline-block shrink-0 text-current;
+  }
+
+  .ui-icon--sm {
+    @apply h-4 w-4;
+  }
+
+  .ui-icon--md {
+    @apply h-5 w-5;
+  }
+
+  .ui-icon--lg {
+    @apply h-8 w-8;
+  }
+
+  .ui-spinner {
+    @apply inline-flex items-center justify-center;
+    color: var(--wos-accent-muted);
+  }
+
+  .ui-spinner__svg {
+    @apply animate-spin;
+  }
+
+  .ui-spinner__track {
+    @apply opacity-20;
+  }
+
+  .ui-page-loading {
+    @apply flex items-center gap-2.5 py-6 text-wos-text-secondary;
+  }
+
+  .ui-page-loading__text {
+    @apply text-sm text-wos-text-muted;
+  }
+
+  .ui-empty {
+    @apply flex flex-col items-center gap-2 rounded-xl border border-dashed border-wos-border-subtle/80 bg-wos-panel/40 px-6 py-8 text-center;
+  }
+
+  .ui-empty__icon {
+    @apply text-wos-text-muted;
+  }
+
+  .ui-empty__title {
+    @apply m-0 text-sm font-medium text-wos-text-secondary;
+  }
+
+  .ui-empty__desc {
+    @apply m-0 max-w-md text-sm text-wos-text-muted;
+  }
+
+  .ui-empty__action {
+    @apply mt-2;
+  }
+
+  .panel {
+    @apply rounded-xl border border-wos-border-subtle bg-wos-panel/95 p-4 shadow-md shadow-black/15 backdrop-blur-sm sm:p-5;
+  }
+
+  .panel h2 {
+    @apply m-0 mb-3 text-base font-semibold text-wos-text;
+  }
+
+  .toolbar {
+    @apply mb-4 flex flex-wrap items-center gap-3;
+  }
+
+  .toolbar label {
+    @apply flex items-center gap-2 text-sm text-wos-text-secondary;
+  }
+
+  .toolbar select,
+  .toolbar input[type="text"],
+  .toolbar input[type="number"],
+  .toolbar input[type="search"] {
+    @apply rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25;
+  }
+
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-500 bg-sky-500 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-wos-border bg-wos-panel-raised px-3 py-2 text-sm font-medium text-wos-text transition hover:border-wos-border-subtle hover:bg-wos-surface disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .error-banner {
+    @apply mb-3 rounded-lg border border-red-400/40 bg-red-950/40 px-3 py-2.5 text-sm text-red-100;
+  }
+
+  .feedback-toast-stack {
+    @apply pointer-events-none fixed bottom-4 right-4 z-[60] flex w-[min(100vw-2rem,22rem)] flex-col gap-2;
+  }
+
+  .feedback-toast {
+    @apply pointer-events-auto overflow-hidden rounded-lg border shadow-lg shadow-black/30 backdrop-blur-md;
+  }
+
+  .feedback-toast__body {
+    @apply flex items-start gap-2 px-3 py-2.5 text-sm;
+  }
+
+  .feedback-toast__icon {
+    @apply mt-0.5 shrink-0 font-semibold;
+  }
+
+  .feedback-toast__msg {
+    @apply min-w-0 flex-1 leading-snug;
+  }
+
+  .feedback-toast__close {
+    @apply shrink-0 rounded border-0 bg-transparent px-1 text-lg leading-none text-inherit/70 transition hover:text-inherit;
+  }
+
+  .feedback-toast__progress-track {
+    @apply h-0.5 w-full bg-black/25;
+  }
+
+  .feedback-toast__progress-bar {
+    @apply h-full transition-[width] duration-100 ease-linear;
+  }
+
+  .feedback-toast--success {
+    @apply border-emerald-400/35 bg-emerald-950/90 text-emerald-50;
+  }
+
+  .feedback-toast--success .feedback-toast__progress-bar {
+    @apply bg-emerald-400/80;
+  }
+
+  .feedback-toast--info {
+    @apply border-sky-400/35 bg-sky-950/90 text-sky-50;
+  }
+
+  .feedback-toast--info .feedback-toast__progress-bar {
+    @apply bg-sky-400/80;
+  }
+
+}

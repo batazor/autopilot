@@ -19,6 +19,7 @@ import {
   QueuePendingActions,
   RunningCards,
   ScenarioCell,
+  TraceIdCell,
 } from "@/components/queue/QueueVisuals";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
 import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
@@ -190,7 +191,7 @@ export default function QueuePage() {
         )}
 
         {data && data.pending.length > 0 ? (
-          <div className="toolbar" style={{ marginTop: "1rem" }}>
+          <div className="toolbar toolbar--spaced">
             <AppListbox
               inline
               label="Task"
@@ -236,6 +237,7 @@ export default function QueuePage() {
                   <th>Player</th>
                   <th>Duration</th>
                   <th>Steps</th>
+                  <th>Trace</th>
                   <th>Reason</th>
                   <th />
                 </tr>
@@ -284,6 +286,9 @@ export default function QueuePage() {
                             : null
                         }
                       />
+                    </td>
+                    <td>
+                      <TraceIdCell traceId={h.trace_id} />
                     </td>
                     <td className="queue-reason" title={h.reason || undefined}>
                       {h.success ? (

@@ -66,7 +66,7 @@ export default function AdbPage() {
               </table>
             </div>
           </section>
-          <section className="panel" style={{ marginTop: "1rem" }}>
+          <section className="panel panel--spaced">
             <h2>Live devices ({status.live_devices.length})</h2>
             <div className="data-table-wrap">
               <table className="data-table">

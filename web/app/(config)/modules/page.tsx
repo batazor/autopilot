@@ -306,7 +306,7 @@ export default function ModulesPage() {
           </table>
         </div>
       </section>
-      <section className="panel" style={{ marginTop: "1rem" }}>
+      <section className="panel panel--spaced">
         <h2>Player assignment</h2>
         <p className="muted">
           Redis override for account-level scenario routing (device-level scenarios

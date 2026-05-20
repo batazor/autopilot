@@ -67,7 +67,11 @@ export type ClickApprovalView = {
   action_label: string;
   set_node_target: string;
   trace_id: string;
+  tempo_trace_url: string;
+  labeling_href: string;
   diagnostic_kind: string;
+  diagnostic_attempts: string;
+  diagnostic_interval: string;
   navigation: NavigationApprovalInfo | null;
   task_context: TaskApprovalContext | null;
   tap_x: number | null;
@@ -195,6 +199,7 @@ export type InstanceHistoryRow = {
   duration_s: number;
   success: boolean;
   detail: string;
+  trace_id: string;
 };
 
 export type InstanceDetail = {

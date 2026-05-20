@@ -1,0 +1,83 @@
+@layer components {
+  /* —— Headless UI tabs —— */
+  .headless-tabs-toolbar {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .headless-tab-list {
+    @apply flex gap-0.5;
+  }
+
+  .headless-tab-list--section {
+    @apply scroll-smooth py-2;
+    scrollbar-width: thin;
+  }
+
+  .headless-tab-list--toolbar {
+    @apply flex-wrap gap-2;
+  }
+
+  .headless-tab {
+    @apply shrink-0 cursor-pointer rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium text-wos-text-muted outline-none transition-colors hover:bg-wos-panel-raised/80 hover:text-wos-text focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-tab-list--section .headless-tab,
+  .section-tab.headless-tab {
+    @apply no-underline;
+  }
+
+  .headless-tab-list--section .headless-tab[data-selected],
+  .section-tab.headless-tab[data-selected] {
+    @apply border-sky-400/35 bg-sky-500/15 text-sky-100;
+  }
+
+  .headless-tab-list--toolbar .headless-tab {
+    @apply border-wos-border bg-wos-panel-raised text-wos-text hover:border-wos-border-subtle hover:bg-wos-surface;
+  }
+
+  .headless-tab-list--toolbar .headless-tab[data-selected] {
+    @apply border-sky-500 bg-sky-500 text-white hover:bg-sky-400;
+  }
+
+  .headless-tab-panel {
+    @apply outline-none;
+  }
+
+  /* —— Section tabs (per route group) —— */
+  .section-tabs {
+    @apply scroll-smooth py-2;
+    scrollbar-width: thin;
+  }
+
+  .section-tab {
+    @apply shrink-0 rounded-lg border border-transparent px-3 py-1.5 text-sm font-medium no-underline text-wos-text-muted transition-colors hover:bg-wos-panel-raised/80 hover:text-wos-text;
+  }
+
+  .wiki-faq-sync__buttons {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+
+  .wiki-faq-sync__col {
+    @apply flex flex-col;
+  }
+
+  .wiki-faq-sync__panel {
+    @apply mt-4 rounded-lg border border-wos-border-subtle bg-wos-panel-raised/60 p-3;
+  }
+
+  .wiki-faq-sync__panel--error {
+    @apply border-red-400/40 bg-red-950/25;
+  }
+
+  .wiki-faq-sync__header {
+    @apply mb-2 flex flex-wrap items-baseline justify-between gap-2;
+  }
+
+  .wiki-faq-sync__progress {
+    @apply mb-2 h-2 w-full overflow-hidden rounded-full accent-sky-500;
+  }
+
+  .wiki-faq-sync__log {
+    @apply max-h-64 overflow-auto rounded-md border border-wos-border-subtle/80 bg-black/25 p-2 text-xs text-wos-text-secondary;
+  }
+}

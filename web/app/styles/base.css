@@ -1,0 +1,34 @@
+@layer base {
+  body {
+    @apply m-0 min-h-screen text-wos-text antialiased;
+    font-family: var(--font-sans);
+    background-color: var(--wos-bg);
+    background-image:
+      radial-gradient(
+        ellipse 100% 60% at 50% -15%,
+        var(--wos-body-grad-glow),
+        transparent 55%
+      ),
+      linear-gradient(
+        180deg,
+        var(--wos-body-grad-top) 0%,
+        var(--wos-bg) 35%,
+        var(--wos-bg-deep) 100%
+      );
+  }
+
+  a:not([class*="rounded"]) {
+    color: var(--wos-link);
+    @apply transition-colors;
+  }
+
+  a:not([class*="rounded"]):hover {
+    color: var(--wos-link-hover);
+  }
+
+  code {
+    @apply rounded bg-wos-panel-raised px-1 py-0.5 text-[0.85em];
+    color: var(--wos-code-fg);
+  }
+}
+
