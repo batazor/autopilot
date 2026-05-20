@@ -49,6 +49,13 @@ Long enough to recover hop context (e.g. ``page.heroes.ahmose`` → wiki) after 
 few intermediate transitions; short enough to keep LTRIM cheap. Index 0 is the
 most recent entry."""
 
+# UI settle pauses after navigation taps (before screen_verify). Kept short —
+# ``_wait_for_screen_verified`` already retries with ``screen_verify.yaml``
+# intervals; these sleeps only cover animation/transition lag.
+_NAV_TAP_SETTLE_S = 0.4
+_NAV_HOP_SETTLE_S = 0.8
+_NAV_UNKNOWN_RETRY_SETTLE_S = 0.8
+
 
 class Navigator:
     def __init__(
@@ -790,7 +797,7 @@ class Navigator:
         # detector nor the back-button heuristic finds anything actionable.
         # That state means something opaque (typically a full-screen ad
         # popup) is overlaying the UI: the navigator alone can't dismiss it,
-        # and looping for the full 10 attempts blocks the worker for ~15s
+        # and looping for the full 10 attempts blocks the worker for ~8s
         # while the overlay scanner — which would push ``tap_ads_*`` /
         # ``skip_button`` / etc. — is starved on the same worker thread.
         # Bailing after a couple of these stuck ticks lets the scenario
@@ -856,7 +863,7 @@ class Navigator:
                             consec_unknown_no_back, instance_id, target,
                         )
                         return False
-                await asyncio.sleep(1.5)
+                await asyncio.sleep(_NAV_UNKNOWN_RETRY_SETTLE_S)
                 continue
             # Recognised some screen (just not the target) — reset the
             # stuck-UNKNOWN counter; the loop is making progress.
@@ -920,7 +927,7 @@ class Navigator:
                             "No route to main_city and icon.page.back not visible on %s; not tapping",
                             instance_id,
                         )
-                    await asyncio.sleep(1.5)
+                    await asyncio.sleep(_NAV_UNKNOWN_RETRY_SETTLE_S)
                 continue
 
             if hop_sequences is None:
@@ -1010,8 +1017,8 @@ class Navigator:
                         instance_id,
                     )
                     return "tap_failed"
-                await asyncio.sleep(0.8)
-            await asyncio.sleep(1.5)
+                await asyncio.sleep(_NAV_TAP_SETTLE_S)
+            await asyncio.sleep(_NAV_HOP_SETTLE_S)
             # Some routes intentionally go through a generic parent node before
             # a tab-specific node. If the first tap opens the final tab directly
             # (e.g. main_city -> survivor_status.status), don't fail the parent

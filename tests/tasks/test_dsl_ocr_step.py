@@ -773,6 +773,68 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     )
 
 
+# Live chief_profile frame (bs1, May 2026) where legacy ``fast_line`` OCR returned
+# ``-401227964`` at conf≈0.17 and ``who_i_am`` skipped store (threshold 0.9).
+_CHIEF_PROFILE_LIVE_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "chief_profile_player_id_live.png"
+_LIVE_PLAYER_ID = "401227964"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ocr_chief_profile_player_id_live_knn_pipeline(
+    ocr_client: OcrClient,
+) -> None:
+    """Regression: ``who_i_am`` uses ``kNN/digital`` on narrowed ``player.id``.
+
+    Fixture copied from ``references/temporal/bs1_approval_current.png``.
+    """
+    from kNN.digital.paths import model_path
+
+    if not model_path().is_file():
+        pytest.skip("kNN model missing — run scripts/train_knn_digital_model.py")
+    import cv2
+
+    from layout.area_lookup import screen_region_by_name
+
+    assert _CHIEF_PROFILE_LIVE_FIXTURE.is_file(), (
+        f"fixture missing: {_CHIEF_PROFILE_LIVE_FIXTURE}"
+    )
+    assert _AREA_JSON.is_file()
+    _assert_local_ocr_available()
+
+    image = cv2.imread(str(_CHIEF_PROFILE_LIVE_FIXTURE))
+    assert image is not None
+    h, w = int(image.shape[0]), int(image.shape[1])
+
+    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    pair = screen_region_by_name(area_doc, "player.id")
+    assert pair is not None
+    bbox = pair[1].get("bbox")
+    assert isinstance(bbox, dict)
+
+    px = int(round(float(bbox["x"]) / 100.0 * w))
+    py = int(round(float(bbox["y"]) / 100.0 * h))
+    pw = int(round(float(bbox["width"]) / 100.0 * w))
+    ph = int(round(float(bbox["height"]) / 100.0 * h))
+    region_px = LayoutRegion(px, py, pw, ph)
+
+    area_threshold = float(pair[1].get("threshold") or 0.9)
+    result = await ocr_client.ocr_region(
+        image, region_px, preprocess="knn", digit_x0=0
+    )
+
+    ocr_digits = re.sub(r"\D+", "", result.text or "")
+    assert ocr_digits == _LIVE_PLAYER_ID, (
+        f"expected {_LIVE_PLAYER_ID!r}, got {ocr_digits!r} "
+        f"text={result.text!r} conf={result.confidence:.4f}"
+    )
+    assert (result.text or "").strip() == _LIVE_PLAYER_ID
+    assert result.confidence >= area_threshold, (
+        f"fast_line conf {result.confidence:.4f} below area.json threshold "
+        f"{area_threshold:.3f} — who_i_am would skip store"
+    )
+
+
 @pytest.mark.asyncio
 async def test_ocr_step_state_keyword_writes_to_state_yaml(
     tmp_path: Path,

@@ -1,64 +1,36 @@
 screens:
   event.trials.day.1:
     priority: 15
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.1
     rules:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.1
-
+    - match: trials.title
+      threshold: 0.9
+      tab_active: trial.day.1
   event.trials.day.2:
     priority: 15
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.2
     rules:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.2
-
+    - match: trials.title
+      threshold: 0.9
+      tab_active: trial.day.2
   event.trials.day.3:
     priority: 15
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.3
     rules:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.3
-
+    - match: trials.title
+      threshold: 0.9
+      tab_active: trial.day.3
   event.trials.day.4:
     priority: 15
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.4
     rules:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.4
-
+    - match: trials.title
+      threshold: 0.9
+      tab_active: trial.day.4
   event.trials.day.5:
     priority: 15
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.5
     rules:
-      - match: trials.title
-        threshold: 0.9
-        tab_active: trial.day.5
-
+    - match: trials.title
+      threshold: 0.9
+      tab_active: trial.day.5
   event.trials:
     priority: 30
-    landmarks:
-      - match: trials.title
-        threshold: 0.9
     rules:
-      - match: trials.title
-        threshold: 0.9
+    - match: trials.title
+      threshold: 0.9

@@ -25,6 +25,7 @@ import type {
   OverlayTestResult,
   RoutesGraphResponse,
   RoutesNodeDetails,
+  BotStatusView,
   HealthView,
   OverviewView,
   PlayerStateView,
@@ -53,6 +54,14 @@ export async function fetchHealth(): Promise<HealthView> {
     throw new Error(`health: ${res.status}`);
   }
   return res.json() as Promise<HealthView>;
+}
+
+export async function fetchBotStatus(): Promise<BotStatusView> {
+  return apiFetch<BotStatusView>("/api/dev/bot");
+}
+
+export async function startLocalBot(): Promise<BotStatusView> {
+  return apiFetch<BotStatusView>("/api/dev/bot/start", { method: "POST" });
 }
 
 export async function fetchInstances(): Promise<string[]> {

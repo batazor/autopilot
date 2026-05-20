@@ -250,14 +250,19 @@ class DslOcrMixin(_Base):
 
         # ``preprocess:`` selects the backend pipeline. Step wins, then
         # area.json region, then a ``type:``-derived default
-        # (``time`` / ``int`` / ``integer`` → ``fast_line`` single-line OCR).
-        # Explicit value disables the
-        # default — set ``preprocess: enhance`` on a ``type: time`` region
-        # to force the full pipeline if fast_line ever misreads it.
+        # ``time`` → ``fast_line``; ``int`` / ``integer`` → ``knn`` (``kNN/digital``).
         preprocess = resolve_preprocess(
             explicit=step.get("preprocess") or region_def.get("preprocess"),
             type_hint=step.get("type") or region_def.get("type"),
         )
+        raw_digit_count = step.get("digit_count", region_def.get("digit_count"))
+        from kNN.digital.classifier import parse_digit_count
+
+        digit_count = parse_digit_count(raw_digit_count)
+        try:
+            digit_x0 = int(step.get("digit_x0", region_def.get("digit_x0", 0)) or 0)
+        except (TypeError, ValueError):
+            digit_x0 = 0
 
         try:
             result = await self._get_ocr_client().ocr_region(
@@ -265,6 +270,8 @@ class DslOcrMixin(_Base):
                 Region(px, py, pw, ph),
                 region_id=region,
                 preprocess=preprocess,
+                digit_count=digit_count,
+                digit_x0=digit_x0,
             )
         except Exception:
             logger.exception(

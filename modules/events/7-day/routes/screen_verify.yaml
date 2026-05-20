@@ -1,8 +1,5 @@
 screens:
   event.7-day:
-    landmarks:
-      - match: event.7-day
-        threshold: 0.9
     rules:
-      - match: event.7-day
-        threshold: 0.9
+    - match: event.7-day
+      threshold: 0.9

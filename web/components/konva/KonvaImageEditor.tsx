@@ -130,7 +130,7 @@ export function KonvaImageEditor({
     const stage = stageRef.current ?? tr.getStage();
     const node =
       selectedId && stage
-        ? stage.findOne<Konva.Rect>((n) => n.name() === selectedId)
+        ? stage.findOne<Konva.Rect>((n: Konva.Node) => n.name() === selectedId)
         : null;
     if (node) {
       tr.nodes([node]);

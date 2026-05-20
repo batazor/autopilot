@@ -9,12 +9,23 @@ if TYPE_CHECKING:
 
     from layout.types import Region
 
+# Upscale factor for CLAHE + Otsu pipelines (``enhance`` / ``digits``).
+_OCR_BINARY_UPSCALE = 3.0
+
+# Tesseract whitelist for digit-only regions (``digits`` preprocess / ``type: int``).
+DIGITS_CHAR_WHITELIST = "0123456789"
+
 
 def crop_region(image: np.ndarray, region: Region) -> np.ndarray:
     return image[region.y : region.y + region.h, region.x : region.x + region.w]
 
 
-def enhance_for_ocr(image: np.ndarray) -> np.ndarray:
+def binary_tile_for_ocr(
+    image: np.ndarray,
+    *,
+    upscale: float = _OCR_BINARY_UPSCALE,
+) -> np.ndarray:
+    """CLAHE → Otsu → upscale for small UI text (player ids, timers, stats)."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
@@ -22,16 +33,29 @@ def enhance_for_ocr(image: np.ndarray) -> np.ndarray:
 
     _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    return cv2.resize(binary, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_LINEAR)
+    return cv2.resize(
+        binary,
+        None,
+        fx=upscale,
+        fy=upscale,
+        interpolation=cv2.INTER_LINEAR,
+    )
 
 
-# Region ``type:`` values that imply short, single-line, digit-heavy content
-# (countdown timers ``HH:MM:SS``, stat cells like ``12,345`` / ``1.2M``).
-# These regions get an automatic ``preprocess: fast_line`` default. Local
-# Tesseract maps that to single-line page segmentation, which is a better fit
-# for tiny timer/stat crops. The set is small on purpose: ``string`` content
-# (multi-word labels, varying layout) still needs block-style segmentation.
-_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time", "int", "integer"})
+def enhance_for_ocr(image: np.ndarray) -> np.ndarray:
+    return binary_tile_for_ocr(image)
+
+
+def digits_for_ocr(image: np.ndarray) -> np.ndarray:
+    """Same binarization as ``enhance``; Tesseract uses PSM 8 + digit whitelist."""
+    return binary_tile_for_ocr(image)
+
+
+# Timers: Tesseract single-line (PSM 7).
+_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time"})
+
+# Player ids / integer stat cells: ``kNN/digital`` (``cv2.ml.KNearest``).
+_KNN_TYPE_HINTS: frozenset[str] = frozenset({"int", "integer"})
 
 
 def resolve_preprocess(
@@ -44,17 +68,12 @@ def resolve_preprocess(
 
     1. ``explicit`` — the value set on the rule/step or area.json region by
        the operator (caller picks which one wins, usually rule > region).
-    2. Auto-derivation from ``type_hint`` — ``time`` / ``int`` / ``integer``
-       default to ``"fast_line"`` (single-line OCR mode). Other types
-       (``string``, missing) fall through to ``None``.
+    2. Auto-derivation — ``time`` → ``fast_line``; ``int`` / ``integer`` → ``knn``
+       (``src/kNN/digital``). Other types → ``None``.
+    3. ``None`` — raw crop, Tesseract block mode (PSM 6).
 
-    To opt OUT of the ``fast_line`` default on a ``type: time`` region, set
-    ``preprocess`` to any explicit value (``enhance``, etc.). To opt INTO
-    ``fast_line`` on a ``type: string`` region, set ``preprocess: fast_line``
-    explicitly.
-
-    ``None`` return means "send no preprocess key" — the backend runs the
-    historical full-pipeline path on the raw crop.
+    ``preprocess: knn`` / ``digital`` force the kNN path; ``digits`` / ``enhance`` keep
+    Tesseract pipelines.
     """
     if explicit:
         v = str(explicit).strip().lower()
@@ -64,4 +83,6 @@ def resolve_preprocess(
         v = str(type_hint).strip().lower()
         if v in _FAST_LINE_TYPE_HINTS:
             return "fast_line"
+        if v in _KNN_TYPE_HINTS:
+            return "knn"
     return None

@@ -80,3 +80,53 @@ def test_fast_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyPatc
     assert captured_cmd
     assert captured_cmd[0][captured_cmd[0].index("--psm") + 1] == "7"
     assert captured_cmd[0][captured_cmd[0].index("-l") + 1] == "eng"
+
+
+def test_enhance_uses_single_word_tesseract_psm(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = ""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    OcrClient(get_settings())._run_tesseract(crop, preprocess="enhance")
+
+    assert captured_cmd[0][captured_cmd[0].index("--psm") + 1] == "8"
+    assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
+
+
+def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = ""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    OcrClient(get_settings())._run_tesseract(crop, preprocess="digits")
+
+    cmd = captured_cmd[0]
+    assert cmd[cmd.index("--psm") + 1] == "8"
+    wl_idx = cmd.index("-c") + 1
+    assert "tessedit_char_whitelist=0123456789" == cmd[wl_idx]

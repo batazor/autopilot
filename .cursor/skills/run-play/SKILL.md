@@ -12,7 +12,7 @@ docker compose up -d redis   # if needed
 uv run play
 ```
 
-Opens http://127.0.0.1:3000/overview (API :8765, bot workers in background).
+Opens http://127.0.0.1:3000/overview (API :8765). Worker is **not** started by default — use **Start bot** in the sidebar.
 
 **Headless worker only (no UI):**
 

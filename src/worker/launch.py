@@ -1,6 +1,7 @@
-"""`play` entry point: local dev stack (worker + scheduler + API + Next.js).
+"""`play` entry point: local dev stack (API + Next.js; worker optional).
 
-Legacy Streamlit all-in-one UI: set ``WOS_PLAY_STREAMLIT=1`` (same as before on :8501).
+By default the worker is **not** started — use the dashboard **Start bot** control.
+Legacy Streamlit all-in-one UI: ``WOS_PLAY_STREAMLIT=1``.
 """
 
 from __future__ import annotations
@@ -160,12 +161,6 @@ class _PlayStack:
                 return False
             time.sleep(_POLL_INTERVAL_S)
         return predicate()
-
-    def start_bot(self) -> None:
-        from ui.bot_services import ensure_health_watchdog
-
-        self._spawn_module("worker.supervisor", label="worker.supervisor")
-        ensure_health_watchdog()
 
     def start_api(self, *, host: str, port: int, force: bool) -> None:
         if not force and _api_already_running(port, host):
@@ -332,8 +327,7 @@ def _run_modern_play() -> None:
     stack = _PlayStack()
     stack.install_signal_handlers()
     try:
-        print("Starting worker + scheduler…", flush=True)
-        stack.start_bot()
+        print("Worker not started — use Start bot in the dashboard sidebar.", flush=True)
 
         if not skip_api:
             print(f"Starting API on http://{host}:{api_port} …", flush=True)

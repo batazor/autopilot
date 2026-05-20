@@ -749,17 +749,16 @@ class DslScenarioExecuteMixin(_Base):
                 if not isinstance(inner_steps, list):
                     inner_steps = []
 
-                # Player-bound scenarios retry the *initial* probe to absorb
-                # screen-settling lag after navigation.  Subsequent probes are
-                # single-shot — once we've matched once, lack of a match means
-                # the work is done.  Device-level scenarios keep legacy 1-shot
-                # semantics so popup dismissals don't pause for nothing.
+                # The *initial* probe may retry (default 1 attempt; opt in via
+                # ``retry.attempts``) to absorb screen-settling lag after navigation.
+                # Subsequent probes are single-shot — once we've matched once,
+                # lack of a match means the work is done.
                 #
                 # YAML form:
                 #   retry:
-                #     attempts: 5
+                #     attempts: 3
                 #     interval: 500ms     # also accepts "0.5s" or raw seconds
-                default_attempts = 1 if is_device_level else 5
+                default_attempts = 1
                 default_interval_s = 0.5
                 # Scenario ``steps:`` are OR-semantics: each step tries; if a
                 # ``while_match`` finds zero iterations, we just move to the

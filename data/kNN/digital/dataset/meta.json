@@ -1,0 +1,29 @@
+{
+  "cell_w": 20,
+  "cell_h": 32,
+  "sources": [
+    {
+      "path": "references/crop/chief_profile_player.id.png",
+      "label": "765502864",
+      "x0": 4
+    },
+    {
+      "path": "tests/fixtures/chief_profile_player_id_live.png",
+      "label": "401227964",
+      "x0": 0
+    }
+  ],
+  "per_class_counts": {
+    "0": 40,
+    "1": 35,
+    "2": 45,
+    "3": 30,
+    "4": 45,
+    "5": 40,
+    "6": 45,
+    "7": 40,
+    "8": 35,
+    "9": 35
+  },
+  "total_samples": 390
+}

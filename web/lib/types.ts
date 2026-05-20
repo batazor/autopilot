@@ -4,6 +4,12 @@ export type HealthView = {
   redis: "ok" | "unreachable";
 };
 
+export type BotStatusView = {
+  running: boolean;
+  mode: "supervisor" | "embedded" | null;
+  pid: number | null;
+};
+
 export type OverlayRect = {
   type: "rect";
   x: number;
@@ -243,6 +249,15 @@ export type HeroStateRow = {
   seen: string;
 };
 
+/** Registry heroes not yet in player state (subset of HeroStateRow fields). */
+export type HeroMissingRow = {
+  id: string;
+  hero: string;
+  rarity: string;
+  class: string;
+  sub_class: string;
+};
+
 export type PlayerStateView = {
   player_id: string;
   fields: Record<string, string>;
@@ -272,7 +287,7 @@ export type PlayerPersistedView = {
       metrics: Record<string, number | boolean>;
       owned: HeroStateRow[];
       locked: HeroStateRow[];
-      missing: Array<Record<string, string>>;
+      missing: HeroMissingRow[];
     };
   } | null;
 };

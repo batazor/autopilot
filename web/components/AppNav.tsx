@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
+import { BotStartBanner } from "@/components/BotStartBanner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
@@ -146,6 +147,8 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
           <Icon name="close" size="md" />
         </button>
       </div>
+
+      <BotStartBanner />
 
       <div className="nav-search-wrap">
         <label className="sr-only" htmlFor="nav-filter">

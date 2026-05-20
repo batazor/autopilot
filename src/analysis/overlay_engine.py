@@ -1616,7 +1616,7 @@ async def evaluate_overlay_rules_async(
             # ``preprocess`` selects the backend pipeline (``enhance``,
             # ``fast_line``, …). Explicit on the rule wins, otherwise inherit
             # from the area.json region. When nothing is set, the resolver
-            # auto-derives ``fast_line`` for ``type: time`` / ``type: integer``
+            # auto-derives ``fast_line`` (time) or ``knn`` (int/integer)
             # regions so countdown / stat reads use Tesseract's single-line mode.
             # ``type: string`` and missing types stay on the full pipeline.
             preprocess = resolve_preprocess(

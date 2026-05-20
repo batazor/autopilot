@@ -38,7 +38,7 @@ icon: "scenarios/icons/foo.png"        # optional UI icon for ops dashboard
 steps: [...]                           # the actual program
 ```
 
-**`device_level: true`** means the scenario is a generic UI dismissal (popups, reconnect prompts) — no player identity needed, retries default to 1, zero iterations of `while_match` is "ok, nothing to do." Player-bound scenarios (no marker) default to 5 × 500 ms initial-probe retries to absorb post-navigation lag.
+**`device_level: true`** means the scenario is a generic UI dismissal (popups, reconnect prompts) — no player identity needed, zero iterations of `while_match` is "ok, nothing to do." All scenarios default to **1** initial-probe attempt for `while_match`; opt in to more via ``retry: { attempts: N, interval: 500ms }`` when the UI needs time to settle after navigation.
 
 ### Step types
 

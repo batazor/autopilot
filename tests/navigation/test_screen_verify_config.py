@@ -57,8 +57,36 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
+def test_screen_verify_rules_only_mirrors_landmarks(mocker, tmp_path: Path) -> None:
+    cfg = tmp_path / "screen_verify.yaml"
+    area = tmp_path / "area.json"
+    area.write_text('{"screens":[]}', encoding="utf-8")
+    cfg.write_text(
+        """
+screens:
+  loading:
+    rules:
+      - match: text.survival
+        threshold: 0.9
+""",
+        encoding="utf-8",
+    )
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    try:
+        expected = [{"match": "text.survival", "threshold": 0.9}]
+        assert screen_graph.screen_verify_rules("loading") == expected
+        assert screen_graph.screen_landmark_rules("loading") == expected
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
 def test_screen_verify_config_merges_module_yaml(mocker, tmp_path: Path) -> None:
     root_cfg = tmp_path / "screen_verify.yaml"
+    area = tmp_path / "area.json"
+    area.write_text('{"screens":[]}', encoding="utf-8")
     root_cfg.write_text(
         """
 retry:
@@ -77,9 +105,6 @@ screens:
         """
 screens:
   chief_profile:
-    landmarks:
-      - match: chief_profile_title
-        threshold: 0.9
     rules:
       - match: chief_profile_title
         threshold: 0.9
@@ -87,13 +112,14 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [root_cfg, module_cfg])
+    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
         assert screen_graph.screen_verify_rules("main_city") == [{"match": "icon.world"}]
-        assert screen_graph.screen_verify_rules("chief_profile") == [
-            {"match": "chief_profile_title", "threshold": 0.9}
-        ]
+        chief_expected = [{"match": "chief_profile_title", "threshold": 0.9}]
+        assert screen_graph.screen_verify_rules("chief_profile") == chief_expected
+        assert screen_graph.screen_landmark_rules("chief_profile") == chief_expected
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
@@ -120,8 +146,9 @@ def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [{"match": "icon.world", "threshold": 0.9}]
-    assert {"match": "icon.world"} in landmarks
     assert rules == expected
+    # ``area.json`` may inject extra detection-only landmarks (e.g. main_city.title).
+    assert expected[0] in landmarks
 
 
 def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:

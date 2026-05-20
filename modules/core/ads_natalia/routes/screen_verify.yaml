@@ -1,10 +1,6 @@
 screens:
   ads.natalia:
-    # Full-screen ad overlay; recognize before the underlying main_city node.
     priority: 5
-    landmarks:
-      - match: ads.natalia
-        threshold: 0.9
     rules:
-      - match: ads.natalia
-        threshold: 0.9
+    - match: ads.natalia
+      threshold: 0.9

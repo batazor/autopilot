@@ -124,6 +124,7 @@ packages = [
     "src/services",
     "src/navigation",
     "src/ocr",
+    "src/kNN",
     "src/optimizer",
     "src/scheduler",
     "src/dsl",

@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, ClassVar
 import cv2  # type: ignore[import-untyped]
 import numpy as np
 
-from ocr.preprocess import enhance_for_ocr
+from ocr.preprocess import DIGITS_CHAR_WHITELIST, digits_for_ocr, enhance_for_ocr
 
 if TYPE_CHECKING:
     from config.loader import Settings
@@ -65,6 +65,8 @@ class OcrClient:
         region: Region,
         *,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> bytes:
         hi, wi = int(image.shape[0]), int(image.shape[1])
         x1 = max(0, min(int(region.x), wi))
@@ -84,6 +86,11 @@ class OcrClient:
         if pre_tag:
             h.update(b"|preprocess=")
             h.update(pre_tag.encode("utf-8"))
+        from kNN.digital.loader import is_knn_preprocess
+
+        if is_knn_preprocess(pre_tag):
+            dc_tag = "auto" if digit_count is None else str(int(digit_count))
+            h.update(f"|digits={dc_tag}|x0={digit_x0}".encode())
         return h.digest()
 
     @classmethod
@@ -136,7 +143,19 @@ class OcrClient:
         pre_tag = (preprocess or "").strip().lower()
         if pre_tag == "enhance":
             return enhance_for_ocr(crop)
+        if pre_tag == "digits":
+            return digits_for_ocr(crop)
         return crop
+
+    @staticmethod
+    def _tesseract_psm_and_whitelist(preprocess: str | None) -> tuple[str, bool]:
+        """Return ``(psm, use_digit_whitelist)`` for the preprocess tag."""
+        pre_tag = (preprocess or "").strip().lower()
+        if pre_tag == "fast_line":
+            return "7", False
+        if pre_tag in ("enhance", "digits"):
+            return "8", pre_tag == "digits"
+        return "6", False
 
     @staticmethod
     def _parse_tesseract_tsv(tsv: str) -> tuple[str, float]:
@@ -177,6 +196,33 @@ class OcrClient:
         confidence = sum(confidences) / len(confidences) if confidences else 0.0
         return text, confidence
 
+    def _run_knn_digits(
+        self,
+        crop: np.ndarray,
+        *,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
+    ) -> tuple[str, float]:
+        from kNN.digital import recognize_digits
+
+        return recognize_digits(crop, digit_count=digit_count, x0=digit_x0)
+
+    def _run_ocr_backend(
+        self,
+        crop: np.ndarray,
+        *,
+        preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
+    ) -> tuple[str, float]:
+        from kNN.digital.loader import is_knn_preprocess
+
+        if is_knn_preprocess(preprocess):
+            return self._run_knn_digits(
+                crop, digit_count=digit_count, digit_x0=digit_x0
+            )
+        return self._run_tesseract(crop, preprocess=preprocess)
+
     def _run_tesseract(self, crop: np.ndarray, *, preprocess: str | None = None) -> tuple[str, float]:
         if crop is None or crop.size == 0:
             return "", 0.0
@@ -195,7 +241,7 @@ class OcrClient:
             msg = "cv2.imencode('.png', crop) failed"
             raise RuntimeError(msg)
 
-        psm = "7" if (preprocess or "").strip().lower() == "fast_line" else "6"
+        psm, use_digit_whitelist = self._tesseract_psm_and_whitelist(preprocess)
         with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
             tmp.write(buf.tobytes())
             tmp.flush()
@@ -210,6 +256,10 @@ class OcrClient:
                 "--psm",
                 psm,
             ]
+            if use_digit_whitelist:
+                cmd.extend(
+                    ["-c", f"tessedit_char_whitelist={DIGITS_CHAR_WHITELIST}"]
+                )
             if self._tessdata_dir:
                 cmd.extend(["--tessdata-dir", self._tessdata_dir])
             cmd.append("tsv")
@@ -231,12 +281,16 @@ class OcrClient:
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         try:
             text, conf = await asyncio.to_thread(
-                self._run_tesseract,
+                self._run_ocr_backend,
                 crop,
                 preprocess=preprocess,
+                digit_count=digit_count,
+                digit_x0=digit_x0,
             )
             return OCRResult(region_id=region_id, text=text, confidence=conf)
         except Exception as exc:
@@ -259,6 +313,8 @@ class OcrClient:
         *,
         region_ids: list[str] | None = None,
         region_preprocess: list[str | None] | None = None,
+        region_digit_count: list[int | None] | None = None,
+        region_digit_x0: list[int] | None = None,
     ) -> list[OCRResult]:
         def _rid(i: int) -> str:
             if region_ids is not None and i < len(region_ids):
@@ -282,8 +338,31 @@ class OcrClient:
         results: list[OCRResult | None] = [None] * len(regions)
         miss_indices: list[int] = []
         miss_keys: list[bytes] = []
+        def _digit_count(i: int) -> int | None:
+            if region_digit_count is None or i >= len(region_digit_count):
+                return None
+            raw = region_digit_count[i]
+            if raw is None:
+                return None
+            try:
+                n = int(raw)
+            except (TypeError, ValueError):
+                return None
+            return n if n > 0 else None
+
+        def _digit_x0(i: int) -> int:
+            if region_digit_x0 is None or i >= len(region_digit_x0):
+                return 0
+            return int(region_digit_x0[i])
+
         for i, region in enumerate(regions):
-            key = self._patch_hash(image, region, preprocess=_pre(i) or None)
+            key = self._patch_hash(
+                image,
+                region,
+                preprocess=_pre(i) or None,
+                digit_count=_digit_count(i),
+                digit_x0=_digit_x0(i),
+            )
             hit = self._cache_get(key)
             if hit is not None:
                 text, conf = hit
@@ -336,6 +415,8 @@ class OcrClient:
                 self._clamped_crop(image, regions[idx]),
                 region_id=_rid(idx),
                 preprocess=_pre(idx) or None,
+                digit_count=_digit_count(idx),
+                digit_x0=_digit_x0(idx),
             )
             for idx in rep_indices
         ]
@@ -404,7 +485,14 @@ class OcrClient:
                 within_batch = len(miss_indices) - len(rep_indices)
                 cache_tag = f" cached={cached}" if cached else ""
                 dedup_tag = f" dedup={within_batch}" if within_batch else ""
-                mode_tag = f" mode=tesseract:{self._lang}"
+                pre0 = _pre(rep_indices[0]) if rep_indices else ""
+                from kNN.digital.loader import is_knn_preprocess
+
+                mode_tag = (
+                    " mode=knn:digital"
+                    if is_knn_preprocess(pre0)
+                    else f" mode=tesseract:{self._lang}"
+                )
                 omitted = len(raw_results) - len(parts)
                 tail = f" | +{omitted} more" if omitted > 0 else ""
                 logger.info(
@@ -424,6 +512,8 @@ class OcrClient:
         *,
         region_id: str | None = None,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         rid = (region_id or "").strip() or "r0"
         results = await self.ocr_regions(
@@ -431,5 +521,7 @@ class OcrClient:
             [region],
             region_ids=[rid],
             region_preprocess=[preprocess] if preprocess else None,
+            region_digit_count=[digit_count],
+            region_digit_x0=[digit_x0],
         )
         return results[0] if results else OCRResult(region_id=rid, text="", confidence=0.0)

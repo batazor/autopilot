@@ -1,8 +1,8 @@
 """Strict + retry semantics for top-level ``while_match`` in player-bound scenarios.
 
 Player-bound DSL scenarios (no ``device_level: true`` marker) get:
-- Initial-probe retries (default 5 × 500 ms) to absorb screen-settling lag
-  after navigation, so a brief no-match after a tap doesn't kill the scenario.
+- Initial-probe retries (default 1; opt in via ``retry.attempts``) to absorb
+  screen-settling lag after navigation when authors need more than one probe.
 - Strict zero-iteration failure: if the initial probe never matches even after
   retries, the scenario reschedules itself (success=False, next_run_at=+30 s)
   instead of silently yielding to the next queue item.
@@ -59,7 +59,12 @@ def _scenario_root(tmp_path: Path) -> Path:
     return scenario_root
 
 
-def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
+def _write_player_bound_scenario(
+    tmp_path: Path,
+    frame: np.ndarray,
+    *,
+    retry: dict[str, Any] | None = None,
+) -> None:
     """A player-bound scenario opted into strict mode via explicit ``strict: true``.
 
     Scenario-level default is soft (steps are OR-semantics — zero iterations on
@@ -70,23 +75,24 @@ def _write_player_bound_scenario(tmp_path: Path, frame: np.ndarray) -> None:
     scenario_root = _scenario_root(tmp_path)
     (scenario_root / "workers").mkdir(parents=True)
     (tmp_path / "references" / "crop").mkdir(parents=True)
+    while_step: dict[str, Any] = {
+        "while_match": "page.worker.add",
+        "threshold": 0.9,
+        "max": 6,
+        "strict": True,
+        "steps": [
+            {"click": "page.worker.add"},
+            {"wait": 0},
+        ],
+    }
+    if retry is not None:
+        while_step["retry"] = retry
     (scenario_root / "workers" / "test_assign.yaml").write_text(
         yaml.dump(
             {
                 "enabled": True,
                 "name": "Test assign",
-                "steps": [
-                    {
-                        "while_match": "page.worker.add",
-                        "threshold": 0.9,
-                        "max": 6,
-                        "strict": True,
-                        "steps": [
-                            {"click": "page.worker.add"},
-                            {"wait": 0},
-                        ],
-                    }
-                ],
+                "steps": [while_step],
             }
         ),
         encoding="utf-8",
@@ -143,7 +149,7 @@ async def test_player_bound_while_match_zero_iterations_returns_soft_failure(
     assert result.success is False
     assert result.next_run_at is not None  # rescheduled
     assert (result.metadata or {}).get("reason") == "while_match_no_iterations"
-    assert (result.metadata or {}).get("attempts") == 5  # default for player-bound
+    assert (result.metadata or {}).get("attempts") == 1
     assert actions.tap.call_args_list == []  # no clicks happened
 
 
@@ -196,9 +202,12 @@ async def test_player_bound_while_match_initial_retry_eventually_matches(
     """First two probes miss, third matches → click happens, scenario succeeds."""
     visible = _frame_with_pattern()
     blank = np.zeros((100, 100, 3), dtype=np.uint8)
-    _write_player_bound_scenario(tmp_path, visible)
-    # Sequence: blank, blank, visible, blank → retry exhausted on 3rd probe (matches),
-    # click, then probe again (blank) → exit, iterations=1, success.
+    _write_player_bound_scenario(
+        tmp_path,
+        visible,
+        retry={"attempts": 3, "interval": 0},
+    )
+    # Sequence: blank, blank, visible, blank → 3rd probe matches, click, exit.
     actions = make_actions([blank, blank, visible, blank], resolution=(100, 100))
     patch_dsl(mocker, actions, repo_root=tmp_path)
     _patch_instant_sleep(mocker)

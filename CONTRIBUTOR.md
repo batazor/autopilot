@@ -55,7 +55,7 @@ Entry points are defined in `pyproject.toml` under `[project.scripts]`:
 
 | Command | Role |
 |:--------|:-----|
-| `uv run play` | Worker + scheduler + API + Next.js dev server (local all-in-one) |
+| `uv run play` | API + Next.js dev server (start worker from sidebar **Start bot**) |
 | `uv run bot` | Headless worker + scheduler only |
 | `uv run api` | FastAPI for the Next.js dashboard (Redis, previews, labeling API) |
 | `uv run mcp` | MCP server for Cursor / external tooling (experimental) |
@@ -66,7 +66,7 @@ Full operator dashboard: [`web/README.md`](web/README.md).
 
 ```sh
 docker compose up -d redis
-uv run play          # worker + API + Next.js → http://127.0.0.1:3000/overview
+uv run play          # API + Next.js → http://127.0.0.1:3000/overview (Start bot in sidebar)
 ```
 
 Requires **Node.js 20+** in `web/` (`npm` on PATH; `play` runs `npm install` once if needed). Keep BlueStacks running and the device visible in `adb devices` first.

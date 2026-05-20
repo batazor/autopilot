@@ -13,7 +13,8 @@ screen (from detection), not the DSL scenario id. Directed taps are defined in
 Adding a new screen
 --------------------
 - Add ``src → dst: [region, ...]`` to ``navigation/edge_taps.yaml`` (regions must exist in area.json).
-- Add detection landmarks / verification rules to ``modules/<id>/screen_verify.yaml``.
+- Add ``rules`` to ``modules/<id>/screen_verify.yaml`` (detection + nav verify). Optional
+  ``landmarks`` only when detection must differ (e.g. shop sub-tabs).
 - Add coordinate constants to ``layout.screens``.
 """
 from __future__ import annotations
@@ -403,6 +404,7 @@ def _load_screen_verify_config_cached(
                 for rule in (_normalize_verify_rule(item) for item in landmarks_raw)
                 if rule is not None
             ]
+            rules, landmarks = _coalesce_verify_lists(rules, landmarks)
             entry: ScreenVerifyEntry = {"rules": rules, "landmarks": landmarks}
             if isinstance(retry_raw, dict):
                 entry["retry"] = retry_raw
@@ -443,6 +445,21 @@ def _load_screen_verify_config_cached(
             "landmarks": [],
             "priority": 100,
         }
+
+    for entry in out_screens.values():
+        if not isinstance(entry, dict):
+            continue
+        raw_rules = entry.get("rules")
+        raw_landmarks = entry.get("landmarks")
+        rules_list = (
+            list(raw_rules) if isinstance(raw_rules, list) else []
+        )
+        landmarks_list = (
+            list(raw_landmarks) if isinstance(raw_landmarks, list) else []
+        )
+        co_rules, co_landmarks = _coalesce_verify_lists(rules_list, landmarks_list)
+        entry["rules"] = co_rules
+        entry["landmarks"] = co_landmarks
 
     return {
         "retry": retry if isinstance(retry, dict) else {},
@@ -499,6 +516,25 @@ def screen_verify_screen_names() -> list[str]:
         return []
     names = [str(screen).strip() for screen in screens if str(screen).strip()]
     return sorted(names, key=lambda s: int((screens.get(s) or {}).get("priority") or 100))
+
+
+def _coalesce_verify_lists(
+    rules: list[VerifyRule],
+    landmarks: list[VerifyRule],
+) -> tuple[list[VerifyRule], list[VerifyRule]]:
+    """Mirror ``rules`` ↔ ``landmarks`` when YAML lists only one side.
+
+    Most screens use the same template/OCR checks for detection and for verifying a
+    navigation hop. Authors can declare ``rules`` only; ``landmarks`` default to the
+    same list at load time. Set ``landmarks`` explicitly only when detection must be
+    narrower than verify (shop sub-pages are the common case).
+    """
+    if rules and not landmarks:
+        return rules, list(rules)
+    if landmarks and not rules:
+        mirrored = list(landmarks)
+        return mirrored, landmarks
+    return rules, landmarks
 
 
 def _parse_retry(

@@ -19,6 +19,7 @@ import {
 import { PageLoading } from "@/components/ui/Spinner";
 import { usePollWhenVisible } from "@/lib/hooks";
 import type {
+  HeroMissingRow,
   HeroStateRow,
   PlayerPersistedView,
   PlayerStateView,
@@ -37,7 +38,10 @@ const TABS: { key: TabKey; label: string }[] = [
 const COLLAPSE_BUILDINGS_ABOVE = 18;
 const COLLAPSE_HEROES_ABOVE = 10;
 
-function filterHeroRows(rows: HeroStateRow[], query: string): HeroStateRow[] {
+function filterHeroRows<T extends HeroStateRow | HeroMissingRow>(
+  rows: T[],
+  query: string,
+): T[] {
   const q = query.trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((r) =>

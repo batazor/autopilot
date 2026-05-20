@@ -1,9 +1,6 @@
 screens:
   heroes.sr.new:
     priority: 25
-    landmarks:
-      - match: heroes.sr.new.close
-        threshold: 0.9
     rules:
-      - match: heroes.sr.new.close
-        threshold: 0.9
+    - match: heroes.sr.new.close
+      threshold: 0.9
