@@ -29,8 +29,8 @@ if TYPE_CHECKING:
     from adb.bot_actions import BotActions
     from config.loader import InstanceConfig, Settings
     from ocr.client import OcrClient
-    from scenarios.evaluator import ScenarioEvaluator
-    from scenarios.loader import ScenarioLoader
+    from dsl.evaluator import ScenarioEvaluator
+    from dsl.loader import ScenarioLoader
     from scheduler.optimizer import TaskOptimizer
     from scheduler.queue import RedisQueue
     from scheduler.runner import SchedulerRunner
@@ -154,7 +154,7 @@ def get_task_optimizer() -> TaskOptimizer:
 def get_scenario_evaluator() -> ScenarioEvaluator:
     if (e := _state.get(_K_EVALUATOR)) is not None:
         return e
-    from scenarios.evaluator import ScenarioEvaluator
+    from dsl.evaluator import ScenarioEvaluator
 
     e = ScenarioEvaluator()
     _state.set_(_K_EVALUATOR, e)
@@ -164,8 +164,8 @@ def get_scenario_evaluator() -> ScenarioEvaluator:
 def get_scenario_loader() -> ScenarioLoader:
     if (loader := _state.get(_K_LOADER)) is not None:
         return loader
-    from scenarios.cron_specs import scenario_loader_paths
-    from scenarios.loader import ScenarioLoader
+    from dsl.cron_specs import scenario_loader_paths
+    from dsl.loader import ScenarioLoader
 
     loader = ScenarioLoader(scenario_loader_paths(get_repo_root()))
     _state.set_(_K_LOADER, loader)

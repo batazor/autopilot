@@ -7,7 +7,6 @@ import streamlit as st
 
 from config.paths import repo_root as default_repo_root
 from ui.bot_services import ensure_embedded_bot
-from ui.module_pages import extend_nav_pages, module_streamlit_pages_by_nav
 
 # ``@st.fragment(run_every=…)`` ticks run on Streamlit's thread pool; without a
 # ScriptRunContext they emit harmless "bare mode" warnings that drown bot logs.
@@ -81,26 +80,23 @@ optimizer_debug_page = st.Page(
     title="Optimizer",
     url_path="optimizer",
 )
-_nav = extend_nav_pages(
-    {
-        "Operate": [overview, instance_page, player_state_page],
-        "DB": [wiki_db_page],
-        "Wiki": [
-            gallery_page,
-            labeling_page,
-            edit_scenarios_page,
-            wiki_analyze_page,
-        ],
-        "Debug": [
-            click_approvals_page,
-            queue_page,
-            debug_scenarios_page,
-            routes_page,
-            optimizer_debug_page,
-        ],
-        "Config": [scenarios_page, adb_page, balance_page],
-    },
-    module_streamlit_pages_by_nav(_repo_root),
-)
+_nav = {
+    "Operate": [overview, instance_page, player_state_page],
+    "DB": [wiki_db_page],
+    "Wiki": [
+        gallery_page,
+        labeling_page,
+        edit_scenarios_page,
+        wiki_analyze_page,
+    ],
+    "Debug": [
+        click_approvals_page,
+        queue_page,
+        debug_scenarios_page,
+        routes_page,
+        optimizer_debug_page,
+    ],
+    "Config": [scenarios_page, adb_page, balance_page],
+}
 
 st.navigation(_nav).run()

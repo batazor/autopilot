@@ -8,13 +8,13 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from scenarios.dsl_schema import (
+from dsl.dsl_schema import (
     DslStep,
     dsl_scenario_yaml_priority,
     dump_scenario,
     parse_scenario,
 )
-from scenarios.registry import iter_scenario_yaml_files
+from dsl.registry import iter_scenario_yaml_files
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

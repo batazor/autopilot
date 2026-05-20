@@ -5,20 +5,27 @@ description: Run the bot. Use when the user says to start/run the bot.
 
 # Run bot
 
-**All-in-one (UI + worker + scheduler):**
+**Local dev (worker + API + Next.js dashboard):**
 
 ```bash
+docker compose up -d redis   # if needed
 uv run play
 ```
 
-**Headless worker only:**
+Opens http://127.0.0.1:3000/overview (API :8765, bot workers in background).
+
+**Headless worker only (no UI):**
 
 ```bash
 uv run bot
 ```
 
-**Labeling / IA Editor only:**
+**Legacy Streamlit all-in-one** (duplicate UI on :8501):
 
 ```bash
-uv run ia-editor
+WOS_PLAY_STREAMLIT=1 uv run play
 ```
+
+**Split terminals** (same as before): `uv run bot`, `uv run api`, `cd web && npm run dev`.
+
+Optional env: `WOS_PLAY_NO_WEB=1`, `WOS_PLAY_NO_API=1`, `WOS_PLAY_OPEN_BROWSER=0`, `WOS_FORCE_RESTART=1`.

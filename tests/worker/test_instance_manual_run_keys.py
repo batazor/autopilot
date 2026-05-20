@@ -14,8 +14,8 @@ from pathlib import Path
 
 import yaml
 
-from scenarios import template_resolver as _tmpl
-from scenarios.cron_specs import iter_cron_yaml_files_for_repo
+from dsl import template_resolver as _tmpl
+from dsl.cron_specs import iter_cron_yaml_files_for_repo
 from ui.scenario_keys import runnable_scenario_keys
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

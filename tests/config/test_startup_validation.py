@@ -6,7 +6,7 @@ import pytest
 
 from config.paths import repo_root
 from config.startup_validation import assert_startup_configs_valid, validate_startup_configs
-from scenarios import template_resolver
+from dsl import template_resolver
 
 if TYPE_CHECKING:
     from pathlib import Path

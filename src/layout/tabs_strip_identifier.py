@@ -104,9 +104,12 @@ def discover_shop_tab_templates(
 ) -> dict[str, np.ndarray]:
     """Auto-discover shop tab templates from area regions inside the strip Y range.
 
-    Two naming conventions are recognised, mirroring how the user annotates:
+    Three naming conventions are recognised, mirroring how the user annotates:
 
     * ``shop.to.<page>`` — explicit navigation tap targets on sub-shop pages.
+    * ``page.to.<page>`` — tab-icon crops on sub-shop pages (e.g. daily deals
+      chest icon); same role as ``shop.to.*`` but uses the ``page.to`` prefix
+      from edge-tap routing.
     * ``page.shop.<page>.title`` — the convention used on the shop hub
       (dawn_market) where tab icons share the title suffix. Filtered by
       bbox Y so page-body titles (below the strip) don't slip in.
@@ -138,6 +141,8 @@ def discover_shop_tab_templates(
                 continue
             if name.startswith("shop.to."):
                 page_id = "shop." + name[len("shop.to."):]
+            elif name.startswith("page.to."):
+                page_id = "shop." + name[len("page.to."):]
             elif name.startswith("page.shop.") and name.endswith(".title"):
                 suffix = name[len("page.shop."):-len(".title")]
                 if not suffix:

@@ -287,7 +287,7 @@ class InstanceWorkerRedisMixin(_Base):
 
         root = repo_root()
         try:
-            from scenarios.dsl_schema import dsl_scenario_yaml_priority
+            from dsl.dsl_schema import dsl_scenario_yaml_priority
 
             prio = int(dsl_scenario_yaml_priority(root, "who_i_am") or 82_000)
         except Exception:

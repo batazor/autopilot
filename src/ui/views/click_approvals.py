@@ -19,7 +19,7 @@ import streamlit as st
 from adb import click_approval_enabled
 from config.loader import load_settings
 from config.paths import repo_root
-from ui.adb_query import canonical_serial, live_serials, port_scan_connect
+from ui.adb_query import adb_device_states, canonical_serial, port_scan_connect
 from ui.redis_client import require_redis_connection
 from ui.views._debug_scenarios_progress import render_active_scenario_progress
 from ui.views.click_approvals.chrome import (
@@ -50,19 +50,15 @@ if not all_instances:
     st.info("No instances in `db/devices.yaml`.")
     st.stop()
 
-# Filter the dropdown to instances whose ADB serial is currently in `device`
-# state. Worker for an offline instance can't capture screens or accept taps,
-# so listing it in this picker would only invite a stale selection.
-_live = live_serials()
-active_instances = [
-    inst for inst in all_instances
-    if canonical_serial(inst.bluestacks_window_title) in _live
-]
-if not active_instances:
-    st.warning(
-        "No active ADB devices. Click **Refresh** below to re-query `adb devices`, "
-        "or open the **ADB** page to (re)connect emulators."
-    )
+# Worker for an offline instance can't capture screens or accept taps; still list
+# configured instances so approval settings and rolling preview remain reachable.
+inst_ids = [i.instance_id for i in all_instances]
+instance_id = st.selectbox("Instance", inst_ids, key="click_approval_instance")
+
+_inst = next(i for i in all_instances if i.instance_id == instance_id)
+_serial = canonical_serial(_inst.bluestacks_window_title)
+_adb_state = adb_device_states().get(_serial, "")
+if _adb_state != "device":
     _cols = st.columns([1, 1, 5])
     with _cols[0]:
         if st.button(
@@ -74,9 +70,6 @@ if not active_instances:
                 "disconnected emulators, then re-queries `adb devices`."
             ),
         ):
-            # `adb devices -l` alone won't reattach an emulator that the ADB
-            # server has dropped — match the ADB page's Refresh and run the
-            # port-scan + connect first, then rerun to pick up the new state.
             port_scan_connect(5555, 5700)
             st.rerun()
     with _cols[1]:
@@ -87,10 +80,19 @@ if not active_instances:
             icon="📱",
             width="stretch",
         )
-    st.stop()
+    if _adb_state == "unauthorized":
+        st.caption(
+            f"Serial **`{_serial}`** is **unauthorized** — accept the USB debugging "
+            "prompt on the device/emulator, then click **Refresh**."
+        )
+    elif _adb_state:
+        st.caption(f"Serial **`{_serial}`** is **`{_adb_state}`** in `adb devices`.")
+    else:
+        st.caption(
+            f"Serial **`{_serial}`** is not in `adb devices`. "
+            "Start BlueStacks, enable ADB, then **Refresh** or open **ADB**."
+        )
 
-inst_ids = [i.instance_id for i in active_instances]
-instance_id = st.selectbox("Instance", inst_ids, key="click_approval_instance")
 render_reset_block(client=client)
 
 hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"

@@ -49,6 +49,6 @@ async def test_findicon_uses_full_frame_cache_for_is_search_region() -> None:
     row = out["skip.visible"]
     assert row["matched"] is True
     assert row["search_region"] == "full_frame_cache"
-    assert row["match_source"] in {"cache", "full_frame_hash"}
+    assert row["match_source"] in {"cache", "full_frame_ncc_phash"}
     assert isinstance(row["top_left"], list)
 

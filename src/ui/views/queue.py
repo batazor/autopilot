@@ -16,7 +16,7 @@ from streamlit_nested_table import TableColumn, nested_table, table_column
 
 from config.loader import load_settings
 from config.reference_naming import event_icon_abs_path
-from scenarios import template_resolver as _tmpl
+from dsl import template_resolver as _tmpl
 from ui.redis_client import (
     QueueHistoryRow,
     QueueRow,

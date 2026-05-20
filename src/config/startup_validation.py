@@ -15,12 +15,12 @@ from analysis.overlay_rules import optional_push_scenario_tasks
 from config.paths import repo_root as default_repo_root
 from layout.area_manifest import load_area_doc
 from layout.area_regions import region_names_for
-from scenarios import template_resolver as _tmpl
-from scenarios.cron_specs import (
+from dsl import template_resolver as _tmpl
+from dsl.cron_specs import (
     load_root_mapping,
     resolve_cron_task_type,
 )
-from scenarios.dsl_schema import validate_dsl_steps
+from dsl.dsl_schema import validate_dsl_steps
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -247,7 +247,7 @@ def _check_scenario(
     # so just confirm the template file exists by checking the resolved-key
     # space rather than passing the literal ``${...}`` string to the resolver.
     if "${" in name:
-        from scenarios.template_resolver import iter_resolved_keys
+        from dsl.template_resolver import iter_resolved_keys
 
         prefix, _, rest = name.partition("${")
         _, _, suffix = rest.partition("}")
@@ -463,7 +463,7 @@ def _walk_steps(
 
 def duplicate_scenario_names_for_repo(repo_root: Path) -> dict[str, list[str]]:
     """Duplicate ``name:`` values across module-aware scenario roots."""
-    from scenarios.registry import iter_scenario_yaml_files
+    from dsl.registry import iter_scenario_yaml_files
 
     by_name: dict[str, list[str]] = {}
     for _root, path in iter_scenario_yaml_files(repo_root):
@@ -492,7 +492,7 @@ def _validate_scenarios(
     red_dot_regions: set[str],
     text_search_regions: set[str],
 ) -> None:
-    from scenarios.registry import iter_scenario_yaml_files, scenario_source_label
+    from dsl.registry import iter_scenario_yaml_files, scenario_source_label
 
     scenario_files = iter_scenario_yaml_files(repo_root)
     if not scenario_files:
@@ -577,7 +577,7 @@ def _validate_cron_specs(
     queue every cron tick and fails as ``scenario_not_found`` — invisible
     unless someone is tailing the worker. Catch the mismatch at startup.
     """
-    from scenarios.cron_specs import iter_cron_yaml_files_for_repo
+    from dsl.cron_specs import iter_cron_yaml_files_for_repo
 
     for yml in iter_cron_yaml_files_for_repo(repo_root):
         raw = load_root_mapping(yml)

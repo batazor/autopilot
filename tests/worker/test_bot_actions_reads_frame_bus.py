@@ -28,12 +28,11 @@ def _reset_bus():
 @pytest.fixture
 def _fake_settings() -> Settings:
     """Minimal Settings stub so ``BotActions()`` constructs without YAML I/O."""
-    from config.loader import OcrConfig, OmniparserConfig, RedisConfig, SchedulerConfig
+    from config.loader import OcrConfig, RedisConfig, SchedulerConfig
 
     return Settings(
         redis=RedisConfig(url="redis://localhost:6379/0"),
         ocr=OcrConfig(),
-        omniparser=OmniparserConfig(),
         scheduler=SchedulerConfig(),
         worker=WorkerConfig(),
         instances=[
@@ -121,7 +120,6 @@ def test_direct_capture_respects_adb_backend(_fake_settings: Settings) -> None:
     settings = Settings(
         redis=_fake_settings.redis,
         ocr=_fake_settings.ocr,
-        omniparser=_fake_settings.omniparser,
         scheduler=_fake_settings.scheduler,
         worker=_fake_settings.worker,
         instances=[

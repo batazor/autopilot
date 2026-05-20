@@ -61,7 +61,7 @@ def iter_analyze_manifest_paths(
     module_scope: str | None = None,
 ) -> list[Path]:
     """Module overlay manifests in discovery order."""
-    from scenarios.registry import iter_module_analyze_manifests
+    from dsl.registry import iter_module_analyze_manifests
 
     return iter_module_analyze_manifests(repo_root, module_scope)
 

@@ -10,8 +10,8 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from scenarios.cron_specs import iter_scenarios_yaml_paths, load_root_mapping
-from scenarios.registry import scenario_roots
+from dsl.cron_specs import iter_scenarios_yaml_paths, load_root_mapping
+from dsl.registry import scenario_roots
 
 
 @lru_cache(maxsize=1)

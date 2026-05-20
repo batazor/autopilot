@@ -377,7 +377,7 @@ class RedisQueue:
     @staticmethod
     def _cron_specs_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
         """Stable fingerprint for all cron YAML specs (cache invalidation)."""
-        from scenarios.cron_specs import iter_cron_yaml_files_for_repo
+        from dsl.cron_specs import iter_cron_yaml_files_for_repo
 
         root = repo_root.resolve()
         items: list[tuple[str, int, int]] = []
@@ -411,7 +411,7 @@ class RedisQueue:
         identity" set (cron only); ranking wants every task_type so it can
         score hops.
         """
-        from scenarios.cron_specs import resolve_cron_task_type
+        from dsl.cron_specs import resolve_cron_task_type
 
         root = Path(fp[0])
         try:
@@ -450,7 +450,7 @@ class RedisQueue:
         few seconds earlier).
         """
         root = repo_root()
-        from scenarios.registry import scenario_yaml_tree_fingerprint
+        from dsl.registry import scenario_yaml_tree_fingerprint
 
         fp = scenario_yaml_tree_fingerprint(root)
         return RedisQueue._task_type_to_required_node_cached(fp)
@@ -460,7 +460,7 @@ class RedisQueue:
     def _task_type_to_required_node_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> dict[str, str]:
-        from scenarios.template_resolver import iter_resolved_keys, load_doc
+        from dsl.template_resolver import iter_resolved_keys, load_doc
 
         repo_root_path = Path(fp[0])
         out: dict[str, str] = {}
@@ -487,7 +487,7 @@ class RedisQueue:
         (``skip_button``/``hand_pointer*``), and popup taps.  Everything else
         is treated as player-bound and gated until ``active_player`` is set.
         """
-        from scenarios.registry import scenario_yaml_tree_fingerprint
+        from dsl.registry import scenario_yaml_tree_fingerprint
 
         root = repo_root()
         fp = scenario_yaml_tree_fingerprint(root)
@@ -498,7 +498,7 @@ class RedisQueue:
     def _task_types_device_level_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
     ) -> set[str]:
-        from scenarios import template_resolver
+        from dsl import template_resolver
 
         root = Path(fp[0])
         out: set[str] = set()

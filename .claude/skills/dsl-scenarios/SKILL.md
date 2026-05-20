@@ -9,17 +9,17 @@ YAML "programs" the bot executes inside the game. Each scenario describes a sequ
 
 ## Files & layout
 
-- `scenarios/<group>/<key>.yaml` — one scenario per file; filename (sans `.yaml`) is the scenario key.
-- `modules/<id>/scenarios/` and `modules/core/<id>/scenarios/` — same rules as core; see skill **`wos-modules`** for manifests, overlay pages, and scope.
-- `scenarios/drafts/**` — ignored by the resolver; safe scratch space.
-- `scenarios/{placeholder}.yaml` — template form, resolved by `scenarios/template_resolver.py` (e.g. `level_up_{hero}.yaml` → `level_up_chenko`).
+- **Runnable YAML** lives only under `modules/<id>/scenarios/` and `modules/core/<id>/scenarios/` (see **`wos-modules`**).
+- Filename (sans `.yaml`) is the scenario key; `by_cron/` subdirs are cron-only schedules.
+- `drafts/` under a module scenarios tree — ignored by the resolver.
+- `{placeholder}.yaml` — template form, resolved by `dsl/template_resolver.py` (e.g. `level_up_{hero}.yaml` → `level_up_chenko`).
 - Reference image crops: `references/crop/<screen>.<region>.png`. The `<screen>` prefix comes from the screen the region is registered on in `area.json`.
 - Regions (bbox + per-region action metadata): `area.json`. Region names are globally unique; `screen_id` is for screen detection, not a namespace for DSL lookup. **NEVER edit `area.json` by hand — only via the annotator UI** (`uv run streamlit run ui/area_annotator.py`).
 - Overlay rules: `modules/core/*/analyze/analyze.yaml` and `modules/*/analyze/analyze.yaml` (merged at runtime — not `analyze/analyze_pages/`).
 
 ## Schema (authoritative source)
 
-- Pydantic: `scenarios/dsl_schema.py` (`DslScenario`, `DslStep`). Models use `extra="allow"`, so unknown keys round-trip but are not validated.
+- Pydantic: `dsl/dsl_schema.py` (`DslScenario`, `DslStep`). Models use `extra="allow"`, so unknown keys round-trip but are not validated.
 - Runtime executor: `tasks/dsl_scenario_execute_mixin.py` (top-level loop), `tasks/dsl_scenario_inline_mixin.py` (nested steps), `tasks/dsl_match_mixin.py` (match/while_match probes), `tasks/dsl_ocr_mixin.py` (ocr step), `tasks/dsl_scenario_helpers.py` (cond eval, parsers, helpers).
 
 If runtime and schema disagree, the runtime wins. Keep both in sync when adding a step or modifier.
@@ -168,7 +168,7 @@ Used both at scenario-level (`cond: ...`) and step-level. Evaluated by `_dsl_con
    - navigation/helper: a scenario that exists mostly to reach or verify a node.
 2. **Choose the module and path** — write YAML under `modules/<id>/scenarios/` or `modules/core/<id>/scenarios/`; the filename without `.yaml` is the scenario key. Use module-local `analyze/analyze.yaml` for overlay rules.
 3. **Decide the node contract** — use an existing `node:` when navigation already knows it. If the scenario needs a new node, do not rely on `node:` until navigation route/verify config exists.
-4. **Identify regions** — open the annotator UI (`uv run streamlit run ui/area_annotator.py`) on a real screenshot, label new regions, and export crops. Never hand-edit `area.json`.
+4. **Identify regions** — open **Labeling** at http://127.0.0.1:3000/labeling (`uv run play` or `uv run api` + Next dev server), capture/label on a real screenshot, and export crops. Never hand-edit `area.json`. Per-module `area.yaml` scoping: legacy Streamlit (`WOS_PLAY_STREAMLIT=1 uv run play` → :8501/labeling?module=…).
 5. **Name regions explicitly** — follow the region naming rules below before writing YAML. Do not create duplicate short names and expect `screen_id` to disambiguate them.
 6. **Add overlay trigger if needed** — in `modules/*/analyze/analyze.yaml` or `modules/core/*/analyze/analyze.yaml`, use `screens`, `region`, `action: findIcon|text|color_check`, optional `isRedDot`, `ttl`, and `pushScenario`. Analyzer YAML uses `findIcon`; `area.json` uses editor action `exist`.
 7. **Stub the scenario YAML** — start with `enabled: false`, add `name`, optional `device_level`, `priority`, `node`, `cron`/`cond`, then `steps:`.
@@ -201,7 +201,7 @@ redis-cli SET wos:ui:ia_analyzer:scope:<instance_id> survivors
 4. Perform the click via MCP/UI handle, not raw `adb`, so approvals, frame bus, and preview state stay in sync.
 5. Capture again and verify the next frame before continuing.
 6. Repeat until the scenario exits; then write a regression test from the screenshots.
-7. After the run, rename saved frames by what they show (`exploration`, `squad_settings`, `victory`, `defeat`, `after_history`) instead of leaving only generic `state_<n>` names. Delete approval frames that show the same page as a kept semantic screenshot.
+7. After the run, save step dumps under `modules/<id>/references/rehearsal/` (gitignored). Promote only distinct UI states into `references/rehearsal/fixtures/<scenario>/` for pytest, or into semantic `references/page.*.png` / crops. Delete approval frames that duplicate a kept screen.
 
 AI Editor executes manual/UI-pushed scenarios through `src/ui/ia_queue_executor.py` without starting the full `uv run play` bot. The embedded preview refresher must keep `current_screen` updated independently; if it is empty, a node-bound scenario can exit as `awaiting_screen_identity`. For step-level rehearsal, seed the correct node/screen only when the fake/live environment cannot update it itself.
 
@@ -240,7 +240,7 @@ When moving an old core scenario into a clearer module name, update every contra
 - Test pattern: fabricate a `tmp_path` repo (scenarios + area data + reference crops), run `DslScenarioTask.execute("bs1")` with fake actions, and assert recorded taps/matches. For overlay-only behavior, test the overlay rule against the saved screenshot/reference.
 - Fake frame sequences must model the UI after every tap. If a red dot or button disappears after click, clear it in the next frame; if retries are expected, include enough miss/hit frames.
 - Do not assert final `current_screen` in a pure fake-actions test unless the test explicitly runs the same updater that writes it.
-- Prefer semantic rehearsal filenames over raw state counters once the flow is understood. Keep only screenshots that represent distinct UI states; approval screenshots are useful during debugging but should not duplicate a kept screen in regression fixtures.
+- Do not commit per-step MCP captures in `references/` root. Use `references/rehearsal/` for live dumps and `references/rehearsal/fixtures/<scenario>/` for the small set replayed in tests. Prefer semantic names over `state_<n>`; drop approval frames that duplicate a kept screen.
 
 ## Scenario templates
 

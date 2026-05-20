@@ -178,7 +178,12 @@ def _handle_discard_pending_capture(*, ref_root: Path) -> None:
             references_prefix=active_references_prefix(),
         )
 
-    existing2 = list_reference_pngs(exclude_temporal=True, exclude_crop=True, root=ref_root)
+    existing2 = list_reference_pngs(
+        exclude_temporal=True,
+        exclude_crop=True,
+        exclude_events=True,
+        root=ref_root,
+    )
     restored: str | None
     if prev and (ref_root / prev).is_file():
         restored = prev
@@ -265,6 +270,7 @@ if _ref_query_resolution is not None:
 existing = list_reference_pngs(
     exclude_temporal=True,
     exclude_crop=True,
+    exclude_events=True,
     root=ref_root,
 )
 

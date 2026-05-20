@@ -1,0 +1,31 @@
+# Next.js operator dashboard (proxies /api to FastAPI).
+FROM node:22-bookworm-slim AS deps
+
+WORKDIR /app
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+
+FROM deps AS builder
+
+COPY web/ ./
+# Server-side rewrites in the running container (see docker-compose.prod.yml).
+ARG WOS_API_URL=http://127.0.0.1:8765
+ENV WOS_API_URL=${WOS_API_URL}
+RUN npm run build
+
+FROM node:22-bookworm-slim AS runner
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:3000/overview').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "server.js"]

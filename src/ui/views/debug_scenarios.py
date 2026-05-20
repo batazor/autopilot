@@ -20,8 +20,8 @@ from config.devices import get_device_registry, player_ids_for_device_candidates
 from config.loader import InstanceConfig, load_settings
 from config.module_registry import path_matches_module_scope
 from config.paths import repo_root as default_repo_root
-from scenarios import template_resolver as _tmpl
-from scenarios.registry import scenario_source_label
+from dsl import template_resolver as _tmpl
+from dsl.registry import scenario_source_label
 from ui.module_scope import render_module_scope_selector
 from ui.notifications import push_ui_notification_sync
 from ui.redis_client import (
@@ -599,7 +599,7 @@ if not files:
     st.warning(
         "No runnable scenario YAML found for the selected module scope. "
         "Active scenarios are loaded from discoverable `modules/**/scenarios/` "
-        "directories with `module.yaml`; `src/scenarios/` and `modules/draft/` are ignored."
+        "directories with `module.yaml`; `modules/draft/` is ignored."
     )
     st.stop()
 

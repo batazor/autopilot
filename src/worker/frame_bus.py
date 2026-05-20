@@ -16,18 +16,30 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 if TYPE_CHECKING:
     import numpy as np
+
+    from adb.frame_normalize import FrameNormalizeTransform
 
 
 class FrameBusTimeout(RuntimeError):
     """Raised when no frame becomes available within the caller's deadline."""
 
 
+@dataclass(frozen=True, slots=True)
+class FrameSnapshot:
+    """A normalized frame plus the transform needed to map input back."""
+
+    timestamp: float
+    frame_bgr: np.ndarray
+    transform: FrameNormalizeTransform | None = None
+
+
 _LOCK: Final[threading.Lock] = threading.Lock()
-_FRAMES: dict[str, tuple[float, np.ndarray]] = {}
+_FRAMES: dict[str, FrameSnapshot] = {}
 _VERSIONS: dict[str, int] = {}
 _CONDITIONS: dict[str, threading.Condition] = {}
 
@@ -41,19 +53,32 @@ def _condition(instance_id: str) -> threading.Condition:
         return cond
 
 
-def publish(instance_id: str, frame_bgr: np.ndarray) -> None:
+def publish(
+    instance_id: str,
+    frame_bgr: np.ndarray,
+    *,
+    transform: FrameNormalizeTransform | None = None,
+) -> None:
     """Store ``frame_bgr`` as the latest frame for ``instance_id`` and wake waiters."""
     ts = time.monotonic()
     cond = _condition(instance_id)
     with cond:
         with _LOCK:
-            _FRAMES[instance_id] = (ts, frame_bgr)
+            _FRAMES[instance_id] = FrameSnapshot(ts, frame_bgr, transform)
             _VERSIONS[instance_id] = _VERSIONS.get(instance_id, 0) + 1
         cond.notify_all()
 
 
 def latest(instance_id: str) -> tuple[float, np.ndarray] | None:
     """Return ``(monotonic_ts, frame)`` for ``instance_id`` or ``None``."""
+    snap = latest_snapshot(instance_id)
+    if snap is None:
+        return None
+    return snap.timestamp, snap.frame_bgr
+
+
+def latest_snapshot(instance_id: str) -> FrameSnapshot | None:
+    """Return the latest frame snapshot for ``instance_id`` or ``None``."""
     with _LOCK:
         return _FRAMES.get(instance_id)
 
@@ -65,10 +90,18 @@ def wait_for_first(instance_id: str, *, timeout: float) -> np.ndarray:
     almost always published at least once by the time the first scenario runs,
     but on a cold-start race we want to block rather than ADB-screencap.
     """
-    snap = latest(instance_id)
+    snap = latest_snapshot(instance_id)
     if snap is not None:
-        return snap[1]
-    return wait_for_next(instance_id, timeout=timeout)
+        return snap.frame_bgr
+    return wait_for_next_snapshot(instance_id, timeout=timeout).frame_bgr
+
+
+def wait_for_first_snapshot(instance_id: str, *, timeout: float) -> FrameSnapshot:
+    """Return the latest frame snapshot, blocking up to ``timeout`` seconds if cold."""
+    snap = latest_snapshot(instance_id)
+    if snap is not None:
+        return snap
+    return wait_for_next_snapshot(instance_id, timeout=timeout)
 
 
 def wait_for_next(instance_id: str, *, timeout: float) -> np.ndarray:
@@ -85,6 +118,11 @@ def wait_for_next(instance_id: str, *, timeout: float) -> np.ndarray:
     pattern had a CPython race where ``clear`` could fire before a woken waiter
     re-checked ``is_set``, causing it to block again indefinitely).
     """
+    return wait_for_next_snapshot(instance_id, timeout=timeout).frame_bgr
+
+
+def wait_for_next_snapshot(instance_id: str, *, timeout: float) -> FrameSnapshot:
+    """Block until the next publish for ``instance_id`` and return its snapshot."""
     cond = _condition(instance_id)
     deadline = time.monotonic() + timeout
     with cond:
@@ -100,13 +138,13 @@ def wait_for_next(instance_id: str, *, timeout: float) -> np.ndarray:
                 raise FrameBusTimeout(
                     msg
                 )
-    snap = latest(instance_id)
+    snap = latest_snapshot(instance_id)
     if snap is None:
         msg = f"frame_bus: event fired but no frame stored for {instance_id!r}"
         raise FrameBusTimeout(
             msg
         )
-    return snap[1]
+    return snap
 
 
 def reset_for_test() -> None:

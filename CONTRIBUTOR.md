@@ -13,12 +13,13 @@ Setup for **editing the code**. End-users who just want to run the bot are bette
 | Tesseract OCR | 5+ with `eng.traineddata` | `brew install tesseract` / OS package manager |
 | Android Platform Tools (`adb`) | latest | [Download](https://developer.android.com/tools/releases/platform-tools) |
 | BlueStacks | 5+ | [Download](https://www.bluestacks.com/) |
+| Node.js (Web UI only) | 20+ | [nodejs.org](https://nodejs.org/) — `npm install` in `web/` |
 
 > The emulator must be **720 × 1280, 320 DPI, English game language** — see the [Emulator Configuration](README.md#-emulator-configuration) section in the README for the full required-settings table.
 
 ### `adb` on PATH
 
-Streamlit (and Cursor) often start with a reduced `PATH`. The UI defaults to `/opt/homebrew/bin/adb` (Homebrew on Apple Silicon); autodiscovery also checks `~/Library/Android/sdk/platform-tools/adb` and `/usr/local/bin/adb`.
+Streamlit, the Next.js dev server, and Cursor often start with a reduced `PATH`. The UI defaults to `/opt/homebrew/bin/adb` (Homebrew on Apple Silicon); autodiscovery also checks `~/Library/Android/sdk/platform-tools/adb` and `/usr/local/bin/adb`.
 
 Override either of:
 
@@ -54,19 +55,37 @@ Entry points are defined in `pyproject.toml` under `[project.scripts]`:
 
 | Command | Role |
 |:--------|:-----|
-| `uv run play` | Streamlit UI + embedded worker + scheduler (default dev workflow) |
-| `uv run bot` | Headless worker + scheduler only (no Streamlit) |
-| `uv run ia-editor` | Labeling / IA Editor UI without embedded workers |
+| `uv run play` | Worker + scheduler + API + Next.js dev server (local all-in-one) |
+| `uv run bot` | Headless worker + scheduler only |
+| `uv run api` | FastAPI for the Next.js dashboard (Redis, previews, labeling API) |
 | `uv run mcp` | MCP server for Cursor / external tooling (experimental) |
 
+### Web UI (recommended for local development)
+
+Full operator dashboard: [`web/README.md`](web/README.md).
+
 ```sh
-# UI + worker + scheduler — all in one Streamlit process
-uv run play
+docker compose up -d redis
+uv run play          # worker + API + Next.js → http://127.0.0.1:3000/overview
 ```
 
-Streamlit serves at <http://127.0.0.1:8501> (override with `WOS_STREAMLIT_PORT=8502`). Keep BlueStacks running and the device visible in `adb devices` first.
+Requires **Node.js 20+** in `web/` (`npm` on PATH; `play` runs `npm install` once if needed). Keep BlueStacks running and the device visible in `adb devices` first.
 
-### Headless mode (separate worker + scheduler processes)
+**Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && npm run dev`.
+
+**Labeling** (versions, Roboflow, basename promote): http://127.0.0.1:3000/labeling.
+
+**Wiki FAQ sync** (live progress): http://127.0.0.1:3000/wiki → FAQ tab.
+
+### Legacy Streamlit all-in-one
+
+```sh
+WOS_PLAY_STREAMLIT=1 uv run play
+```
+
+Starts worker + scheduler and a **duplicate** Streamlit UI at <http://127.0.0.1:8501> (`WOS_STREAMLIT_PORT`). Prefer default `uv run play` (Next.js) for local dev.
+
+### Headless mode
 
 ```sh
 uv run bot
@@ -74,13 +93,7 @@ uv run bot
 uv run python -m worker.supervisor
 ```
 
-### Labeling-only UI
-
-```sh
-uv run ia-editor
-```
-
-The UI publishes commands on `wos:ui:command:{instance_id}` and `wos:ui:command:scheduler`; all modes read the same Redis state.
+All UIs publish commands on `wos:ui:command:{instance_id}` and `wos:ui:command:scheduler`; every mode reads the same Redis state.
 
 ## Dev tools
 
@@ -108,4 +121,4 @@ docker compose build
 docker compose up -d
 ```
 
-CI (`.github/workflows/docker.yml`) publishes `bot` and `ocr` images to GHCR on every push to `main` and on `v*.*.*` tags — used by [`docker-compose.prod.yml`](docker-compose.prod.yml).
+CI (`.github/workflows/docker.yml`) publishes `bot` and `web` images to GHCR on every push to `main` and on `v*.*.*` tags — used by [`docker-compose.prod.yml`](docker-compose.prod.yml) (`api` reuses the `bot` image).

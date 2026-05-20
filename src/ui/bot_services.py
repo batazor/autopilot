@@ -128,7 +128,7 @@ def _existing_health_watchdog_process(repo: Path) -> psutil.Process | None:
     return None
 
 
-def _ensure_health_watchdog() -> None:
+def ensure_health_watchdog() -> None:
     """Spawn ``python -m worker.game_health_watchdog`` if not already running."""
     global _health_proc, _known_health_watchdog_pid
     with _lock:
@@ -182,36 +182,6 @@ def _stop_health_watchdog() -> None:
 def ensure_embedded_bot() -> None:
     """Start ``run_forever_async`` in a daemon thread if not already running."""
     global _started, _stop_event, _thread
-    if os.environ.get("WOS_DISABLE_EMBEDDED_BOT", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }:
-        try:
-            get_settings()
-        except RuntimeError:
-            set_settings(load_settings())
-        logging.getLogger(__name__).info(
-            "Embedded bot disabled by WOS_DISABLE_EMBEDDED_BOT"
-        )
-        try:
-            from ui.ia_preview_service import ensure_ia_preview_refresher
-
-            ensure_ia_preview_refresher()
-        except Exception:
-            logging.getLogger(__name__).exception(
-                "Failed to start IA preview refresher while embedded bot is disabled"
-            )
-        try:
-            from ui.ia_queue_executor import ensure_ia_queue_executor
-
-            ensure_ia_queue_executor()
-        except Exception:
-            logging.getLogger(__name__).exception(
-                "Failed to start IA queue executor while embedded bot is disabled"
-            )
-        return
     with _lock:
         # Streamlit / importlib can reload modules while the supervisor thread
         # keeps running; fresh copies of ``config.loader`` then have no bound
@@ -258,7 +228,7 @@ def ensure_embedded_bot() -> None:
                 )
                 _started = True
                 _install_shutdown_hooks()
-        _ensure_health_watchdog()
+        ensure_health_watchdog()
 
 
 def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> bool:

@@ -6,17 +6,18 @@ from unittest.mock import ANY, call
 import cv2
 import numpy as np
 import pytest
-import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from layout.area_manifest import load_area_doc
 from navigation.detector import ScreenDetector
-from scenarios import template_resolver
+from dsl import template_resolver
 from services import get_ocr_client
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]
 REFERENCES_DIR = MODULE_DIR / "references"
+REHEARSAL_FIXTURES_DIR = REFERENCES_DIR / "rehearsal" / "fixtures" / "vip.daily"
 
 
 def _load_reference_bgr(name: str) -> np.ndarray:
@@ -26,8 +27,15 @@ def _load_reference_bgr(name: str) -> np.ndarray:
     return frame
 
 
+def _load_rehearsal_fixture_bgr(name: str) -> np.ndarray:
+    path = REHEARSAL_FIXTURES_DIR / name
+    frame = cv2.imread(str(path))
+    assert frame is not None, f"failed to load rehearsal fixture: {path}"
+    return frame
+
+
 def _region_bbox(region_name: str) -> dict[str, float]:
-    area_doc = yaml.safe_load((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    area_doc = load_area_doc(REPO_ROOT)
     for screen in area_doc.get("screens", []):
         for region in screen.get("regions", []):
             if region.get("name") == region_name:
@@ -116,12 +124,13 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     3. Rewards popup -> scenario taps `button.click_to_continue`;
     4. VIP page again -> scenario probes optional `button.claim`;
     5. VIP page again -> scenario taps `page.vip.add`;
-    6. Increase Level popup -> scenario taps `button.use`.
-    7. VIP page again -> scenario taps `page.vip.unlock` with the same popup flow.
+    6. Increase Level popup -> scenario taps `button.use`, then `increase_level.icon.close`;
+    7. VIP page again -> scenario taps `page.vip.unlock`, then `button.use` and
+       `increase_level.icon.close` again.
     """
 
-    main_city = _load_reference_bgr("mcp.vip.rehearsal.08.start.png")
-    vip_page = _load_reference_bgr("mcp.vip.rehearsal.09.after_vip_tap.png")
+    main_city = _load_rehearsal_fixture_bgr("01.main_city_before.png")
+    vip_page = _load_rehearsal_fixture_bgr("02.vip_page.png")
     vip_after_box = vip_page.copy()
     _clear_region(vip_after_box, "page.vip.box")
     vip_after_add = vip_after_box.copy()
@@ -129,7 +138,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     _draw_red_dot(vip_after_add, "page.vip.unlock")
     vip_after_unlock = vip_after_add.copy()
     _clear_region(vip_after_unlock, "page.vip.unlock")
-    rewards_popup = _load_reference_bgr("mcp.vip.rehearsal.10.after_box.png")
+    rewards_popup = _load_reference_bgr("page.rewards_popup.png")
     increase_level = _load_reference_bgr("page.increase_level.png")
     increase_after_use = increase_level.copy()
     _clear_region(increase_after_use, "button.use")
@@ -193,7 +202,9 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
         call("bs1", ANY, approval_region="button.click_to_continue"),
         call("bs1", ANY, approval_region="page.vip.add"),
         call("bs1", ANY, approval_region="button.use"),
+        call("bs1", ANY, approval_region="increase_level.icon.close"),
         call("bs1", ANY, approval_region="page.vip.unlock"),
         call("bs1", ANY, approval_region="button.use"),
+        call("bs1", ANY, approval_region="increase_level.icon.close"),
     ]
     assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

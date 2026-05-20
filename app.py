@@ -1,7 +1,7 @@
 """
 Optional entrypoint for the OCR region annotator only (same canvas as dashboard **Labeling**).
 
-Prefer: ``uv run play`` / ``uv run ia-editor`` / ``uv run streamlit run src/ui/app.py``
+Prefer: ``uv run play`` (Next.js at :3000/labeling) or ``WOS_PLAY_STREAMLIT=1 uv run play`` for legacy Streamlit
 → sidebar **Labeling** (references + ``area.json`` editor).
 
 ``area.json`` and ``references/`` are at the repository root.

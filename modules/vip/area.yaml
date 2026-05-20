@@ -1,0 +1,201 @@
+version: 2
+screens:
+  - id: 52
+    screen_id: main_city
+    ocr: references/page.main_city.png
+    regions:
+      - name: page.vip
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 59.45945945945946
+          y: 3.4782608695652173
+          width: 20.393822393822393
+          height: 3.5999999999999996
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        has_red_dot: true
+
+  - id: 72
+    screen_id: main_city
+    ocr: references/page.main_city.v3.png
+    regions:
+      - name: page.vip.main_city_v3
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 57.915057915057915
+          y: 3.5869565217391304
+          width: 21.635135135135137
+          height: 3.8543478260869564
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        hash: c9a711187065ca54aae6877dfd59eab0bad94d12584c9ff05d70808bd40cb143
+
+  - id: 55
+    screen_id: vip
+    ocr: references/page.vip.png
+    regions:
+      - name: page.vip.box
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 81.46718146718146
+          y: 18.26086956521739
+          width: 12.0
+          height: 6.5
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        has_red_dot: true
+      - name: page.vip.add
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 68.91891891891892
+          y: 19.02173913043478
+          width: 10.0
+          height: 5.5
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        has_red_dot: true
+      - name: page.vip.level
+        action: text
+        type: integer
+        threshold: 0.9
+        bbox:
+          x: 61.15830115830116
+          y: 9.673913043478262
+          width: 7.0
+          height: 3.2
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+      - name: page.vip.unlock
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 26.988416988416994
+          y: 89.23913043478261
+          width: 45.99999999999999
+          height: 8.100000000000001
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        has_red_dot: true
+
+  - id: 58
+    screen_id: vip
+    ocr: references/page.vip.increase.png
+    regions:
+      - name: page.vip.increase.use
+        action: text
+        type: string
+        threshold: 0.9
+        bbox:
+          x: 71.96911196911196
+          y: 27.717391304347824
+          width: 16.7992277992278
+          height: 3.5999999999999996
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+      - name: page.vip.increase.close
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 89.76833976833977
+          y: 8.804347826086957
+          width: 5.7992277992278
+          height: 3.2934782608695654
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+
+  - id: 77
+    screen_id: ""
+    ocr: references/page.rewards_popup.png
+    screen_region: rewards.title.v2
+    regions:
+      - name: rewards.title.v2
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 35.86872586872587
+          y: 27.065217391304348
+          width: 27.6003861003861
+          height: 4.3999999999999995
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+      - name: button.click_to_continue
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 34.51737451737452
+          y: 91.52173913043478
+          width: 31.000000000000004
+          height: 4.3999999999999995
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+
+  - id: 78
+    screen_id: increase_level
+    ocr: references/page.increase_level.png
+    regions:
+      - name: increase_level.title
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 35.0965250965251
+          y: 8.478260869565217
+          width: 30.0
+          height: 3.8760869565217386
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+      - name: button.use
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 71.1969111969112
+          y: 27.608695652173914
+          width: 20.0
+          height: 4.5
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+      - name: increase_level.icon.close
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 89.42084942084942
+          y: 8.26086956521739
+          width: 7.142857142857142
+          height: 5.0
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+
+  - id: 79
+    screen_id: ""
+    ocr: references/page.vip.png
+    regions:
+      - name: vip.title
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 11.158301158301159
+          y: 0.7608695652173914
+          width: 10.200772200772201
+          height: 4.1
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280

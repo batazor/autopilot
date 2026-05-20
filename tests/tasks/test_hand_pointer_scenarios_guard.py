@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scenarios import template_resolver
+from dsl import template_resolver
 
 REPO = Path(__file__).resolve().parents[2]
 

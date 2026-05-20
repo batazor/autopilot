@@ -3,6 +3,6 @@ title: VIP
 description: Daily VIP reward checks and VIP screen automation.
 scenarios: scenarios
 analyze: analyze/analyze.yaml
-area: ../../area.json
+area: area.yaml
 references: references
 wiki: false

@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 import streamlit as st
 import yaml
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from config.paths import repo_root
 from layout.color_bucket import dominant_color_label_bgr
@@ -176,10 +176,6 @@ ACTIONS = ("exist", "text", "color_check", "click")
 TYPES = ("integer", "string", "boolean", "time")
 COLOR_TYPES = ("red", "blue", "gray", "green")
 CANVAS_VERSION = "4.4.6"
-OMNIPARSER_LABELING_SESSION = "omniparser_labeling_proposal"
-OMNIPARSER_PROPOSAL_CANVAS_FLAG = "wos_omni_proposal"
-OMNIPARSER_PROPOSAL_STROKE = "#a855f7"
-OMNIPARSER_MATCHED_PROPOSAL_STROKE = "#166534"
 # Drawable canvas display size (longer side cap).
 CANVAS_DISPLAY_MAX_SIDE = 1280
 # Labeling layout: slightly smaller canvas so the reference / regions column gets more width.
@@ -1514,9 +1510,6 @@ def _render_regions_expander(
                 f"Editing version `{active_version}` — overrides live in `versions[{active_version}].regions[]`. "
                 "Regions added here win over base regions with the same name."
             )
-        from ui.labeling_omniparser import render_omniparser_labeling_controls
-
-        render_omniparser_labeling_controls(labeling_mode=labeling_mode)
         if st.button("Add region", key=f"area_add_region_{_rk}", width="stretch"):
             regs = current_regions()
             ow, oh = 720, 1280
@@ -2178,61 +2171,6 @@ def _bbox_to_canvas_rect(
     return doc
 
 
-def _proposal_canvas_regions_from_session() -> list[RegionDict]:
-    proposal = st.session_state.get(OMNIPARSER_LABELING_SESSION)
-    if not isinstance(proposal, dict):
-        return []
-    regs = proposal.get("proposal_regions")
-    if not isinstance(regs, list):
-        return []
-    return [r for r in regs if isinstance(r, dict) and isinstance(r.get("bbox"), dict)]
-
-
-def _hex_to_rgb(value: str) -> tuple[int, int, int]:
-    raw = value.strip().lstrip("#")
-    if len(raw) != 6:
-        return (168, 85, 247)
-    try:
-        return (int(raw[0:2], 16), int(raw[2:4], 16), int(raw[4:6], 16))
-    except ValueError:
-        return (168, 85, 247)
-
-
-def draw_omni_proposal_overlay(
-    image: Image.Image,
-    proposal_regions: list[RegionDict],
-) -> Image.Image:
-    if not proposal_regions:
-        return image
-    out = image.copy()
-    draw = ImageDraw.Draw(out)
-    canvas_w, canvas_h = out.size
-    for reg in proposal_regions:
-        bbox = reg.get("bbox")
-        if not bbox:
-            continue
-        try:
-            left = float(bbox.get("x", 0.0)) / 100.0 * canvas_w
-            top = float(bbox.get("y", 0.0)) / 100.0 * canvas_h
-            right = left + float(bbox.get("width", 0.0)) / 100.0 * canvas_w
-            bottom = top + float(bbox.get("height", 0.0)) / 100.0 * canvas_h
-        except (TypeError, ValueError):
-            continue
-        if right <= left or bottom <= top:
-            continue
-        stroke = (
-            OMNIPARSER_MATCHED_PROPOSAL_STROKE
-            if bool(reg.get("_omni_matched_existing"))
-            else OMNIPARSER_PROPOSAL_STROKE
-        )
-        draw.rectangle(
-            [left, top, right, bottom],
-            outline=_hex_to_rgb(stroke),
-            width=3,
-        )
-    return out
-
-
 def regions_to_initial_drawing(
     regions: list[RegionDict],
     canvas_w: int,
@@ -2341,13 +2279,6 @@ def sync_regions_from_canvas(
     new_regions: list[RegionDict] = []
     rect_objs = [o for o in (json_data.get("objects") or []) if isinstance(o, dict)]
     rect_objs = [o for o in rect_objs if o.get("type") == "rect"]
-    rect_objs = [
-        o
-        for o in rect_objs
-        if not o.get(OMNIPARSER_PROPOSAL_CANVAS_FLAG)
-        and str(o.get("stroke") or "").strip().lower()
-        not in {OMNIPARSER_PROPOSAL_STROKE, OMNIPARSER_MATCHED_PROPOSAL_STROKE}
-    ]
     if not rect_objs:
         return regions
 
@@ -3050,15 +2981,7 @@ def render_area_annotator_ui(
                 regions = current_regions()
                 sel = _resolve_selected_region_idx(regions)
 
-                proposal_regions = _proposal_canvas_regions_from_session()
-                if proposal_regions:
-                    canvas_img = draw_omni_proposal_overlay(canvas_img, proposal_regions)
                 initial = regions_to_initial_drawing(regions, canvas_w, canvas_h, sel)
-                if proposal_regions:
-                    st.caption(
-                        "Purple boxes = new Omni proposal regions; dark green = matched existing regions. "
-                        "Nothing is saved until Apply proposal."
-                    )
 
                 canvas_result = st_canvas(
                     fill_color="rgba(120, 180, 255, 0.15)",

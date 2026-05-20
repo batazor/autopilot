@@ -473,6 +473,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             json.dumps(p),
             nx=True,
         ):
+            from ui.dashboard_events import publish_dashboard_event
+
+            publish_dashboard_event(
+                _redis(),
+                topic="approval",
+                instance_id=instance_id,
+                reason="pending",
+            )
             break
         time.sleep(_APPROVAL_POLL_SECONDS)
     else:

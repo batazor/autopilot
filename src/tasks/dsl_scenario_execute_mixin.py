@@ -9,9 +9,10 @@ from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, cast
 
+from adb.frame_normalize import GAME_FRAME_SIZE
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
-from scenarios import template_resolver as _tmpl
+from dsl import template_resolver as _tmpl
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _DSL_STEP_ACTION_KEYS,
@@ -96,7 +97,7 @@ class DslScenarioExecuteMixin(_Base):
         # a warning and continue — silently writing to the wrong key and
         # leaving the cleanup walk targeting the wrong scope on the next
         # boot. See ``scenarios.dsl_schema.validate_dsl_steps``.
-        from scenarios.dsl_schema import validate_dsl_steps
+        from dsl.dsl_schema import validate_dsl_steps
 
         validation_errors = validate_dsl_steps(steps)
         if validation_errors:
@@ -226,7 +227,7 @@ class DslScenarioExecuteMixin(_Base):
 
         actions = dsl_runtime.bot_actions()
         area_doc = _load_area_json(repo_root)
-        dev_w, dev_h = actions.screen_resolution(instance_id)
+        dev_w, dev_h = GAME_FRAME_SIZE
 
         # Wipe ephemeral ``ocr: store: ...`` Redis fields from any previous
         # run of this scenario before stepping in. ``store:`` is documented
@@ -283,7 +284,7 @@ class DslScenarioExecuteMixin(_Base):
         # the scenario runs in place. Otherwise the FSM is driven to the FIRST
         # entry. Use this when the same scenario applies to many sibling
         # screens (e.g. ``shop.tab.advance`` works from any shop sub-page).
-        from scenarios.dsl_schema import scenario_allowed_nodes
+        from dsl.dsl_schema import scenario_allowed_nodes
 
         allowed_nodes = scenario_allowed_nodes(doc)
         target_node = allowed_nodes[0] if allowed_nodes else ""

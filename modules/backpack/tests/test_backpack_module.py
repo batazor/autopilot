@@ -20,7 +20,7 @@ from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.tab_active_detector import is_tab_active_in_bbox_percent
-from scenarios import template_resolver
+from dsl import template_resolver
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]
@@ -38,11 +38,11 @@ ALL_BACKPACK_TABS = (
 ACTIVE_TAB = "page.backpack.resources"
 TABS_WITH_RED_DOT = (
     "page.backpack.speedup",
-    "page.backpack.bonus",
     "page.backpack.other",
 )
 TABS_WITHOUT_RED_DOT = (
     "page.backpack.resources",
+    "page.backpack.bonus",
     "page.backpack.gear",
 )
 TAB_SCENARIO_KEYS = tuple(f"backpack.tab.{tab.rsplit('.', 1)[-1]}" for tab in ALL_BACKPACK_TABS)
@@ -70,6 +70,18 @@ def _backpack_overlay_rules() -> list[dict[str, Any]]:
     overlay = analyze.get("overlay")
     assert isinstance(overlay, list)
     return [r for r in overlay if isinstance(r, dict)]
+
+
+def _has_red_dot_in_tab_bbox(image_bgr: np.ndarray, tab_name: str) -> bool:
+    """Within-zone probe — strict labeled rectangle (no pad bleed from neighbors)."""
+    return bool(
+        has_red_dot_in_bbox_percent(
+            image_bgr,
+            _bbox(tab_name),
+            pad_px=0,
+            edge_badge_pad_ratio=0.0,
+        )
+    )
 
 
 def _overlay_rule(name: str) -> dict[str, Any]:
@@ -166,13 +178,13 @@ def test_backpack_screen_verify_uses_title_landmark() -> None:
 @pytest.mark.parametrize("tab_name", TABS_WITHOUT_RED_DOT)
 def test_page_backpack_tabs_without_notification_dots(tab_name: str) -> None:
     image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
-    assert has_red_dot_in_bbox_percent(image_bgr, _bbox(tab_name)) is False
+    assert _has_red_dot_in_tab_bbox(image_bgr, tab_name) is False
 
 
 @pytest.mark.parametrize("tab_name", TABS_WITH_RED_DOT)
 def test_page_backpack_tabs_with_notification_dots(tab_name: str) -> None:
     image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
-    assert has_red_dot_in_bbox_percent(image_bgr, _bbox(tab_name)) is True
+    assert _has_red_dot_in_tab_bbox(image_bgr, tab_name) is True
 
 
 @pytest.mark.asyncio
@@ -217,11 +229,27 @@ async def test_overlay_main_city_entry_pushes_backpack_scenario() -> None:
 
 
 @pytest.mark.asyncio
+async def test_overlay_bonus_tab_has_no_red_dot() -> None:
+    """Bonus tab has no notification dot on the reference (within-zone search)."""
+    image_bgr = _load_reference_bgr(BACKPACK_PAGE_FIXTURE.name)
+    area = load_area_doc(REPO_ROOT)
+    rule = _overlay_rule("page.backpack.bonus.has_red_dot")
+
+    out = await evaluate_overlay_rules_async(
+        image_bgr, area, REPO_ROOT, [rule], current_screen="backpack",
+    )
+    row = out.get("page.backpack.bonus.has_red_dot")
+    assert isinstance(row, dict), out
+    assert row.get("red_dot_search_mode") == "within_zone"
+    assert row.get("matched") is False, row
+    assert row.get("red_dot_present") is False
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("rule_name", "scenario_type"),
     [
         ("page.backpack.speedup.has_red_dot", "backpack.tab.speedup"),
-        ("page.backpack.bonus.has_red_dot", "backpack.tab.bonus"),
         ("page.backpack.other.has_red_dot", "backpack.tab.other"),
     ],
 )

@@ -47,7 +47,10 @@ async def test_screen_detector_identifies_reference_pages(
     filename: str,
     expected: ScreenName,
 ) -> None:
-    path = _REPO_ROOT / "references" / filename
+    if filename == "isNewPeople.png":
+        path = _REPO_ROOT / "modules/core/survivors/references" / filename
+    else:
+        path = _REPO_ROOT / "references" / filename
     assert path.is_file(), f"reference image missing: {path}"
     image = cv2.imread(str(path))
     assert image is not None, f"failed to decode {path}"

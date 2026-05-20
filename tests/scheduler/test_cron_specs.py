@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scenarios.cron_specs import (
+from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
     iter_plain_scenario_yaml_files_for_repo,
     iter_scenarios_yaml_paths_for_repo,
     resolve_cron_priority,
     resolve_cron_task_type,
 )
-from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 
 
 def test_cron_and_plain_partition_repo_scenarios() -> None:
@@ -92,10 +92,10 @@ def test_ui_and_scheduler_share_resolvers() -> None:
     """
     import ast
 
-    from scenarios.cron_specs import (
+    from dsl.cron_specs import (
         resolve_cron_priority as cs_prio,
     )
-    from scenarios.cron_specs import (
+    from dsl.cron_specs import (
         resolve_cron_task_type as cs_task,
     )
     from scheduler.runner import resolve_cron_priority as sr_prio

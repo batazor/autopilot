@@ -82,7 +82,7 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
 
     Excludes modules with ``wiki: false`` because this list drives the wiki /
     labeling scope picker, where those overlay-only modules don't belong.
-    For the IA Editor analyzer scope (which needs every module to be reachable
+    For the manual-rehearsal analyzer scope (which needs every module to be reachable
     so each one can be debugged in isolation), see
     :func:`analyzer_module_scope_options`.
     """
@@ -102,7 +102,7 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
 def analyzer_module_scope_options(
     repo_root: Path | None = None,
 ) -> list[tuple[str, str]]:
-    """``[(storage_key, label), ...]`` for the IA Editor analyzer scope picker.
+    """``[(storage_key, label), ...]`` for the manual-rehearsal analyzer scope picker.
 
     Includes **every** registered module (``list_labeling_modules`` — does not
     filter on ``wiki: false``) so operators can isolate per-module overlay

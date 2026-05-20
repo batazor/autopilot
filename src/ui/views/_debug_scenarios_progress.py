@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 import streamlit as st
 
-from scenarios import template_resolver as _tmpl
+from dsl import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import _dsl_step_summary
 from ui.redis_client import (
     fetch_running_queue_row,

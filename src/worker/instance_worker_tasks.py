@@ -9,10 +9,11 @@ from opentelemetry import trace
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
 from config.tracing import set_span_attributes, traced_root
+from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from navigation.lifecycle_states import InstanceState
-from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from scheduler.wake import wake_scheduler_async
 from tasks.dsl_scenario import DslScenarioTask
+from ui.dashboard_events import publish_dashboard_event_async
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +107,12 @@ class InstanceWorkerTasksMixin(_Base):
                 await self._redis.set(inst_running_key, payload, ex=180)  # type: ignore[union-attr]
                 # Backward-compat: global "last running" snapshot.
                 await self._redis.set(_RUNNING_KEY_GLOBAL, payload, ex=180)  # type: ignore[union-attr]
+                await publish_dashboard_event_async(
+                    self._redis,
+                    topic="queue",
+                    instance_id=self._cfg.instance_id,
+                    reason="running",
+                )
             except Exception:
                 logger.debug("queue running key update failed", exc_info=True)
         # Which YAML is running (queue key == scenario stem for `DslScenarioTask`).
@@ -360,6 +367,12 @@ class InstanceWorkerTasksMixin(_Base):
                         data = json.loads(txt)
                         if str(data.get("task_id") or "") == item.task_id:
                             await self._redis.delete(inst_running_key)  # type: ignore[union-attr]
+                            await publish_dashboard_event_async(
+                                self._redis,
+                                topic="queue",
+                                instance_id=self._cfg.instance_id,
+                                reason="finished",
+                            )
                 except Exception:
                     logger.debug("queue running key cleanup failed", exc_info=True)
             await self._redis.hset(  # type: ignore[union-attr]
@@ -427,6 +440,12 @@ class InstanceWorkerTasksMixin(_Base):
             await self._redis.lpush(key, json.dumps(row, ensure_ascii=False, default=str))  # type: ignore[union-attr]
             await self._redis.ltrim(key, 0, 49)  # type: ignore[union-attr]
             await self._redis.expire(key, 60 * 60 * 24 * 7)  # type: ignore[union-attr]
+            await publish_dashboard_event_async(
+                self._redis,
+                topic="queue",
+                instance_id=self._cfg.instance_id,
+                reason="history",
+            )
         except Exception:
             logger.debug("queue history update failed", exc_info=True)
 

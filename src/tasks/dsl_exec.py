@@ -982,7 +982,7 @@ async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
     # via the ``hero_grid`` edge resolver, which routes through the
     # ``heroes.grid.r{ri}c{ci}`` cell we just wrote above). ``skip_if_duplicate``
     # collapses repeat scans firing on the same dot until the first push runs.
-    from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+    from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
     from tasks.dsl_scenario_helpers import _enqueue_scenario
 
     red_dot_heroes = [hid for hid, match in hits.items() if match.has_red_dot]

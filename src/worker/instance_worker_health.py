@@ -78,6 +78,15 @@ class InstanceWorkerHealthMixin(_Base):
             self._startup_pause_reason = "device offline (ADB)"
             return False
 
+        try:
+            ba.apply_device_display(inst)
+        except Exception:
+            logger.warning(
+                "Startup: display profile failed for %s — continuing",
+                inst,
+                exc_info=True,
+            )
+
         timeout_s = max(
             30.0, float(self._settings.worker.game_foreground_timeout_seconds)
         )

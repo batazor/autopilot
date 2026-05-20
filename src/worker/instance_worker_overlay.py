@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
 from config.tracing import overlay_push_scenario_counter
-from scenarios.dsl_schema import (
+from dsl.dsl_schema import (
     DEFAULT_SCENARIO_PRIORITY,
     dsl_scenario_yaml_device_level,
     dsl_scenario_yaml_enabled,

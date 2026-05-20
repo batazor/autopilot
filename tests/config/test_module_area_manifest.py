@@ -58,6 +58,28 @@ def test_default_area_doc_includes_module_area_manifests(tmp_path: Path) -> None
     assert screens[1]["versions"][0]["ocr"] == "modules/vip/references/page.vip.v2.png"
 
 
+def test_area_json_falls_back_to_yaml_for_test_fixtures(tmp_path: Path) -> None:
+    (tmp_path / "area.json").write_text(
+        yaml.safe_dump(
+            {
+                "screens": [
+                    {
+                        "id": "fixture",
+                        "ocr": "references/fixture.png",
+                        "regions": [{"name": "fixture.button", "bbox": {}}],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    doc = load_area_doc(tmp_path)
+
+    assert doc["screens"][0]["id"] == "fixture"
+    assert screen_region_by_name(doc, "fixture.button") is not None
+
+
 def test_module_reference_uses_module_crop_directory(tmp_path: Path) -> None:
     ref_rel = "modules/vip/references/page.vip.png"
 

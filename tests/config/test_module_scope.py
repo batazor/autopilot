@@ -12,7 +12,7 @@ from config.module_registry import (
     normalize_module_scope,
     path_matches_module_scope,
 )
-from scenarios.registry import scenario_roots
+from dsl.registry import scenario_roots
 
 if TYPE_CHECKING:
     from pathlib import Path

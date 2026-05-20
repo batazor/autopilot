@@ -15,7 +15,7 @@ import redis.asyncio as aioredis
 
 from config.loader import load_settings
 from config.paths import repo_root as default_repo_root
-from scenarios import template_resolver
+from dsl import template_resolver
 from scheduler.queue import RedisQueue
 from tasks.dsl_scenario import DslScenarioTask
 

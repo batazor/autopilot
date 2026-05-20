@@ -158,7 +158,7 @@ class DslScenarioPreemptMixin(_Base):
         gap = top_eff - my_eff
         try:
             from config.paths import repo_root
-            from scenarios.dsl_schema import dsl_scenario_yaml_device_level
+            from dsl.dsl_schema import dsl_scenario_yaml_device_level
 
             top_is_device_level = dsl_scenario_yaml_device_level(
                 repo_root(), str(top.task_type or "")

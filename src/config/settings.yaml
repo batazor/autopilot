@@ -8,11 +8,6 @@ ocr:
   tessdata_dir: ""
   timeout_seconds: 10
 
-# Optional OmniParser sidecar for labeling auto-detect (see omniparser/service.py).
-omniparser:
-  url: "http://127.0.0.1:8765"
-  timeout_seconds: 120
-
 scheduler:
   interval_seconds: 30
   ortools_timeout_seconds: 1.0
@@ -20,6 +15,18 @@ scheduler:
 worker:
   # adb path for worker (screencap rolling preview, taps, shell); align with UI adb override when needed.
   adb_executable: ""
+  # Applied over ADB when the worker starts (per-device overrides in db/devices.yaml → display:).
+  # wm size/density are skipped for localhost emulators unless wm_size_on_emulator: true.
+  device_display:
+    size: "720x1600"
+    density: 320
+    brightness_percent: 70
+    heads_up_notifications: false
+    manual_brightness: true
+    keep_screen_on: true
+    # Android's normal "screen timeout" can dim the game before sleep; keep it
+    # effectively disabled while the bot controls the emulator/device.
+    screen_off_timeout_ms: 2147483647
   # ADB foreground check interval for ``worker.game_health_watchdog`` (separate subprocess).
   health_check_interval_seconds: 15
   restart_wait_seconds: 10

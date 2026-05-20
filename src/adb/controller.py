@@ -38,6 +38,8 @@ from layout.types import Point
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from config.device_display import DeviceDisplayConfig
+
 logger = logging.getLogger(__name__)
 
 _GAME_PACKAGE = "com.gof.global"
@@ -82,8 +84,67 @@ class AdbController:
         self._supports_motionevent: bool | None = None
         self._screen_resolution: tuple[int, int] | None = None
         self._verify_available()
-        self.set_brightness(70)
-        self.set_heads_up_notifications(enabled=False)
+
+    def apply_display_config(
+        self,
+        config: DeviceDisplayConfig,
+        *,
+        serial: str | None = None,
+    ) -> None:
+        """Apply wm size/density, brightness, and screen-on settings via ADB."""
+        import re
+
+        from adb.serial import is_emulator_adb_serial
+
+        target_serial = (serial or self._serial).strip()
+        apply_wm = (
+            config.wm_size_on_emulator is True
+            or not is_emulator_adb_serial(target_serial)
+        )
+        size_re = re.compile(r"^\d+x\d+$")
+
+        if apply_wm and config.size:
+            size = config.size.strip()
+            if size.lower() == "auto":
+                phys = self._read_physical_wm_size()
+                if phys is not None:
+                    from adb.frame_normalize import wm_size_for_physical
+
+                    size = wm_size_for_physical(phys[0], phys[1])
+                else:
+                    size = ""
+            if size and size_re.match(size):
+                self._shell("wm", "size", size)
+                self._screen_resolution = None
+                logger.info("Display: wm size %s on %s", size, self._serial)
+            elif size:
+                logger.warning("Display: invalid size %r — skipped", config.size)
+
+        if apply_wm and config.density is not None:
+            self._shell("wm", "density", str(int(config.density)))
+            logger.info("Display: wm density %s on %s", config.density, self._serial)
+
+        if config.manual_brightness:
+            self._shell("settings", "put", "system", "screen_brightness_mode", "0")
+
+        if config.brightness_percent is not None:
+            self.set_brightness(int(config.brightness_percent))
+
+        if config.heads_up_notifications is not None:
+            self.set_heads_up_notifications(enabled=bool(config.heads_up_notifications))
+
+        if config.keep_screen_on:
+            if config.screen_off_timeout_ms is not None:
+                self._shell(
+                    "settings",
+                    "put",
+                    "system",
+                    "screen_off_timeout",
+                    str(int(config.screen_off_timeout_ms)),
+                )
+            # 3 = stay awake on AC, USB, and wireless.
+            self._shell("settings", "put", "global", "stay_on_while_plugged_in", "3")
+            self._shell("svc", "power", "stayon", "true")
 
     # ------------------------------------------------------------------
     # Device management
@@ -153,7 +214,7 @@ class AdbController:
             return self._screen_resolution
         out = self._shell("wm", "size")
         for line in out.splitlines():
-            if "Physical size:" in line or "Override size:" in line:
+            if "Override size:" in line or "Physical size:" in line:
                 parts = line.split()
                 if parts:
                     w_str, _, h_str = parts[-1].partition("x")
@@ -162,6 +223,19 @@ class AdbController:
                         return self._screen_resolution
         msg = f"Cannot parse screen resolution from: {out!r}"
         raise RuntimeError(msg)
+
+    def _read_physical_wm_size(self) -> tuple[int, int] | None:
+        out = self._shell("wm", "size")
+        for line in out.splitlines():
+            if "Physical size:" not in line:
+                continue
+            parts = line.split()
+            if not parts:
+                continue
+            w_str, _, h_str = parts[-1].partition("x")
+            if w_str.isdigit() and h_str.isdigit():
+                return int(w_str), int(h_str)
+        return None
 
     # ------------------------------------------------------------------
     # App lifecycle
@@ -212,6 +286,7 @@ class AdbController:
         self,
         point: Point,
         *,
+        preview_point: Point | None = None,
         approval_region: str | None = None,
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
@@ -231,10 +306,11 @@ class AdbController:
         """
         x = _jitter(point.x, 2)
         y = _jitter(point.y, 2)
+        preview = preview_point or Point(x, y)
         ap: dict[str, object] = {
             "type": "tap",
-            "x": int(x),
-            "y": int(y),
+            "x": int(preview.x),
+            "y": int(preview.y),
             "serial": self._serial,
         }
         ar = str(approval_region or "").strip()
@@ -392,6 +468,9 @@ class AdbController:
         start: Point,
         end: Point,
         duration: timedelta = timedelta(milliseconds=300),
+        *,
+        preview_start: Point | None = None,
+        preview_end: Point | None = None,
     ) -> bool:
         """Swipe with ±2 px endpoint jitter, ±15 % duration jitter, and a
         slight Bezier curve through a perpendicular-offset midpoint.
@@ -423,20 +502,22 @@ class AdbController:
                 ))),
             )
         is_long_press = x1 == x2 and y1 == y2
+        p_start = preview_start or Point(x1, y1)
+        p_end = preview_end or Point(x2, y2)
         swipe_payload: dict[str, object] = {
             "type": "swipe",
-            "x1": int(x1),
-            "y1": int(y1),
-            "x2": int(x2),
-            "y2": int(y2),
+            "x1": int(p_start.x),
+            "y1": int(p_start.y),
+            "x2": int(p_end.x),
+            "y2": int(p_end.y),
             "ms": int(ms),
             "serial": self._serial,
         }
         # Same coordinates → long press; approvals UI expects x/y like ``tap`` for crosshair.
         if is_long_press:
             swipe_payload["gesture"] = "long_press"
-            swipe_payload["x"] = int(x1)
-            swipe_payload["y"] = int(y1)
+            swipe_payload["x"] = int(p_start.x)
+            swipe_payload["y"] = int(p_start.y)
         ok, req_id = _require_approval(
             self._instance_id,
             self._approval_payload_with_preview(swipe_payload),

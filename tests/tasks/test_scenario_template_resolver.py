@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scenarios import template_resolver as _tmpl
+from dsl import template_resolver as _tmpl
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

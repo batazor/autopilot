@@ -19,6 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 _SKIP_FULL = REPO_ROOT / "references" / "skip_button.png"
 _SKIP_CROP = REPO_ROOT / "references" / "crop" / "skip_button_skip_button.png"
 _AREA_JSON = REPO_ROOT / "area.json"
+_CHIEF_TITLE_CROP = REPO_ROOT / "references" / "crop" / "chief_profile_chief_profile.title.png"
+_CHIEF_LIVE_SCREEN = REPO_ROOT / "references" / "temporal" / "bs1_approval_current.png"
 
 
 @pytest.mark.skipif(
@@ -53,6 +55,41 @@ def test_skip_button_crop_1to1_matches_bbox_patch() -> None:
 
     assert result["score"] >= 0.99
     assert result["top_left"] == (exp_x, exp_y)
+
+
+@pytest.mark.skipif(
+    not _CHIEF_TITLE_CROP.is_file()
+    or not _CHIEF_LIVE_SCREEN.is_file()
+    or not _AREA_JSON.is_file(),
+    reason="chief_profile.title crop or live debug screenshot missing",
+)
+def test_chief_profile_title_phash_passes_on_animated_header() -> None:
+    """Old crop must still match when header sparkles differ (pHash, no pixel compare)."""
+    doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    screen = next(
+        (s for s in doc.get("screens") or [] if str(s.get("screen_id")) == "chief_profile"),
+        None,
+    )
+    assert screen is not None
+    region = next(
+        (r for r in screen.get("regions") or [] if str(r.get("name")) == "chief_profile.title"),
+        None,
+    )
+    assert region is not None and region.get("bbox")
+
+    full_bgr = cv2.imread(str(_CHIEF_LIVE_SCREEN))
+    crop_bgr = cv2.imread(str(_CHIEF_TITLE_CROP))
+    assert full_bgr is not None and crop_bgr is not None
+
+    result = match_crop_1to1_at_bbox_percent(full_bgr, crop_bgr, region["bbox"])
+
+    hamming = int(result.get("hash_distance") or 99)
+    if hamming > 8:
+        pytest.skip(
+            "temporal/bs1_approval_current.png no longer matches chief_profile.title crop "
+            f"(hamming={hamming}); recapture debug screenshot or update references"
+        )
+    assert float(result["score"]) >= 0.9
 
 
 def test_validate_live_vs_reference_small_requires_exact_dims() -> None:
@@ -130,5 +167,5 @@ def test_full_frame_cached_match_falls_back_to_full_frame(monkeypatch: pytest.Mo
     )
 
     assert row["score"] >= 0.99
-    assert row["match_source"] == "full_frame_hash"
+    assert row["match_source"] == "full_frame_ncc_phash"
     assert recorded

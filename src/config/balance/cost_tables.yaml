@@ -1,6 +1,6 @@
 # Static cost ladders for upgrade actions. The optimizer reads these
 # into a ``CostBook`` and resolves per-action costs by table + key.
-# Source priors: deep-research-report.md, section "Формат cost_table.yaml".
+# Source priors: deep-research-report.md, section "cost_table.yaml format".
 # Numbers below seed from the report's example tables — refine later via
 # OCR ingestion or a Sheet sync (see ``hero_xp_v*`` / ``gear_points_v*``).
 

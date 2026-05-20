@@ -116,7 +116,7 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
   <br/>
   <img src="https://img.shields.io/badge/Redis_Queue-0d1b2a?style=for-the-badge&logo=redis&logoColor=a8dadc" alt="Redis Queue" />
   <br/><br/>
-  <sub>Pending + history + state in Redis — restart-safe, visible from Streamlit</sub>
+  <sub>Pending + history + state in Redis — restart-safe, visible from the Web UI or Streamlit</sub>
   <br/><br/>
 </td>
 </tr>
@@ -130,9 +130,9 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 </td>
 <td align="center" width="25%">
   <br/>
-  <img src="https://img.shields.io/badge/Annotator_UI-0d1b2a?style=for-the-badge&logo=streamlit&logoColor=a8dadc" alt="Annotator UI" />
+  <img src="https://img.shields.io/badge/Web_UI-0d1b2a?style=for-the-badge&logo=next.js&logoColor=a8dadc" alt="Web UI" />
   <br/><br/>
-  <sub>Capture references over ADB and label OCR regions directly in the browser</sub>
+  <sub>Next.js dashboard + Konva labeling (prod Docker :3000)</sub>
   <br/><br/>
 </td>
 <td align="center" width="25%">
@@ -164,7 +164,7 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 <summary><b>📸 Screenshots — Click to expand</b></summary>
 <br/>
 
-The Streamlit app (`uv run play`) covers gift codes, labeling/YAML scenarios, and runtime scenario debugging.
+The **Next.js dashboard** ([`web/README.md`](web/README.md)) is the primary UI (local dev and production Docker on `:3000`): fleet overview, queue, approvals, labeling, scenarios, wiki (including FAQ sync), gift codes, and debug tools. **Streamlit** (`WOS_PLAY_STREAMLIT=1 uv run play`, port `8501`) is an optional local legacy duplicate.
 
 | | |
 |:---:|:---:|
@@ -226,7 +226,7 @@ adb devices
 # Pull and start: redis + bot
 docker compose -f docker-compose.prod.yml up -d
 
-open http://127.0.0.1:8501
+open http://127.0.0.1:3000/overview
 ```
 
 </details>
@@ -249,7 +249,7 @@ adb devices
 # Pull and start: redis + ocr + bot
 docker compose -f docker-compose.prod.yml up -d
 
-xdg-open http://127.0.0.1:8501
+xdg-open http://127.0.0.1:3000/overview
 ```
 
 </details>
@@ -276,7 +276,7 @@ adb devices
 # Pull and start: redis + ocr + bot
 docker compose -f docker-compose.prod.yml up -d
 
-start http://127.0.0.1:8501
+start http://127.0.0.1:3000/overview
 ```
 
 > If your antivirus flags `adb.exe` as PUA — whitelist the Android Platform Tools folder. ADB is a legitimate dev tool but can give root shells, so some scanners treat it as suspicious.
@@ -285,11 +285,18 @@ start http://127.0.0.1:8501
 
 <br/>
 
+> [!NOTE]
+> Default **`uv run play`** opens the **Next.js** dashboard on `:3000`. **Streamlit** (`WOS_PLAY_STREAMLIT=1`, `:8501`) is legacy locally only (see [`web/README.md`](web/README.md)).
+
+<br/>
+
 #### Images that get pulled
 
 | Service | Image | Notes |
 |:--------|:------|:------|
-| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Worker + scheduler + Streamlit UI + local Tesseract OCR. Multi-arch (amd64+arm64). |
+| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Headless worker + scheduler + local Tesseract OCR. Multi-arch (amd64+arm64). |
+| `api` | same `bot` image, `command: api` | FastAPI for the Web UI (`:8765`). |
+| `web` | `ghcr.io/batazor/whiteout-survival-autopilot/web:latest` | Next.js operator dashboard (`:3000`). Multi-arch. |
 | `redis` | `redis:alpine` | Queue + state. |
 
 <details>
@@ -367,7 +374,7 @@ Typical failures:
 
 ```sh
 docker compose -f docker-compose.prod.yml ps             # service status + healthchecks
-docker compose -f docker-compose.prod.yml logs -f bot    # worker + UI logs
+docker compose -f docker-compose.prod.yml logs -f bot    # worker logs
 docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibility from inside the bot container
 ```
 
@@ -378,7 +385,7 @@ docker compose -f docker-compose.prod.yml exec bot adb devices   # ADB visibilit
 | Symptom | Likely cause | Where to look |
 |:--------|:-------------|:--------------|
 | Bot UI loads, no work runs | All instances `paused=1` / `auto_paused=1` in Redis | `docker compose … logs bot` — the `game_health_watchdog` line shows why. Usually no ADB device online. |
-| `tap_*` scenarios stall on "waiting for approval" | `click_approval` mode left on with the approvals page closed | Open the **Click approvals** page in the Streamlit UI or unset `wos:ui:click_approval:enabled:<inst>` in Redis. |
+| `tap_*` scenarios stall on "waiting for approval" | `click_approval` mode left on with the approvals page closed | Open **Click approvals** in the Web UI (`/approvals`) or Streamlit, or unset `wos:ui:click_approval:enabled:<inst>` in Redis. |
 | Bot can't see the emulator inside the container | `network_mode: host` not active | Docker Desktop → enable Host networking (see [Installation](#-installation--setup) Windows / macOS tabs). |
 | OCR returns garbage / empty text | Wrong emulator resolution or DPI | Verify [Emulator Configuration](#-emulator-configuration) — must be **720 × 1280 @ 320 DPI, English**. |
 | Startup blocked with `validation acknowledged via WOS_VALIDATION_ACK` prompt | Mismatch between `area.json` / `analyze/*.yaml` / `scenarios/*.yaml` | The error message names the file + key. Set `WOS_VALIDATION_ACK=1` only as a temporary unblock — fix the YAML and remove the env var afterwards. |
@@ -395,7 +402,9 @@ Editing the code? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev wo
 
 | Command | Role |
 |:--------|:-----|
-| `uv run play` | Streamlit UI + worker + scheduler (default) |
+| `uv run play` | Worker + API + Next.js dev server (local all-in-one) |
 | `uv run bot` | Headless worker + scheduler |
-| `uv run ia-editor` | Labeling / IA Editor UI only |
+| `uv run api` | FastAPI for Next.js Web UI |
 | `uv run mcp` | MCP server (experimental) |
+
+Local dashboard: [`web/README.md`](web/README.md) — `uv run api` + `cd web && npm run dev` → http://127.0.0.1:3000

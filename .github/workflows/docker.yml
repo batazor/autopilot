@@ -2,7 +2,8 @@ name: docker
 
 # Builds the runnable service so external users can pull the image and
 # `docker compose up` without a local toolchain:
-#   * bot — worker + scheduler + Streamlit UI + local Tesseract OCR (multi-arch)
+#   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR (multi-arch)
+#   * web — Next.js operator dashboard (multi-arch)
 #
 # Tagged on every push to main (`:latest`, `:<sha>`), on every semver tag
 # (`:vX.Y.Z`, `:X.Y.Z`, `:X.Y`), and on demand via the workflow_dispatch button.
@@ -14,8 +15,10 @@ on:
   pull_request:
     paths:
       - "Dockerfile.bot"
+      - "Dockerfile.web"
       - "pyproject.toml"
       - "uv.lock"
+      - "web/**"
       - ".github/workflows/docker.yml"
   workflow_dispatch:
 
@@ -40,6 +43,9 @@ jobs:
           - name: bot
             dockerfile: Dockerfile.bot
             # arm64 covered for Apple Silicon dev machines; main deps all have wheels.
+            platforms: linux/amd64,linux/arm64
+          - name: web
+            dockerfile: Dockerfile.web
             platforms: linux/amd64,linux/arm64
 
     steps:

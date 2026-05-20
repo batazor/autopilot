@@ -141,12 +141,21 @@ def live_serials() -> set[str]:
     Returns an empty set if ``adb`` isn't reachable. Used by Streamlit pages
     to filter the configured instance list down to what's actually online.
     """
+    return {
+        serial
+        for serial, state in adb_device_states().items()
+        if state == "device"
+    }
+
+
+def adb_device_states() -> dict[str, str]:
+    """Canonical serial -> ADB state (``device``, ``offline``, ``unauthorized``, …)."""
     rc, out, _ = run_adb(["devices", "-l"], timeout=5.0)
     if rc != 0:
-        return set()
+        return {}
     rows = dedupe_emulator_aliases(parse_adb_devices(out))
     return {
-        canonical_serial(r["serial"])
+        canonical_serial(r["serial"]): str(r.get("state") or "")
         for r in rows
-        if r.get("state") == "device" and r.get("serial")
+        if r.get("serial")
     }

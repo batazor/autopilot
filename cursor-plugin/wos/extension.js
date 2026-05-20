@@ -21,7 +21,7 @@ function uiConfig() {
  */
 function streamlitEndpoint(config) {
   const host = String(config.get("host", "127.0.0.1")).trim() || "127.0.0.1";
-  const port = Number(config.get("port", 8501)) || 8501;
+  const port = Number(config.get("port", 3000)) || 3000;
   return { host, port };
 }
 
@@ -168,7 +168,7 @@ function buildScenarioRunUrl(relPath, config) {
   if (scenarioKey) {
     query.scenario = scenarioKey;
   }
-  return buildStreamlitUrl("debug_scenarios", query, config);
+  return buildStreamlitUrl("debug-scenarios", query, config);
 }
 
 /**

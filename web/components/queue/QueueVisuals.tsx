@@ -1,0 +1,355 @@
+import Link from "next/link";
+import { CopyButton } from "@/components/CopyButton";
+import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  approvalsProbeHref,
+  debugRunHref,
+  overlayTestHref,
+  regionFromQueueHistory,
+  regionFromQueuePending,
+  regionFromQueueRunning,
+} from "@/lib/debug-links";
+import { instanceHref, playerStateHref } from "@/lib/fleet-links";
+import type { QueueHistoryRow, QueuePendingRow, QueueRunningRow, QueueView } from "@/lib/types";
+
+function debugJson(payload: unknown): string {
+  return JSON.stringify(payload, null, 2);
+}
+
+export function pendingDebugPayload(row: QueuePendingRow) {
+  return debugJson({
+    task_id: row.task_id,
+    scenario_key: row.scenario_key,
+    scenario: row.scenario,
+    instance_id: row.instance_id,
+    player_id: row.player_id,
+    region: row.region,
+    priority: row.priority,
+    scheduled_at: row.scheduled_at,
+    overdue: row.overdue,
+    cooperative: row.cooperative,
+  });
+}
+
+export function runningDebugPayload(row: QueueRunningRow) {
+  return debugJson({
+    task_id: row.task_id,
+    scenario_key: row.scenario_key,
+    scenario: row.scenario,
+    active_scenario: row.active_scenario,
+    instance_id: row.instance_id,
+    player_id: row.player_id,
+    step: row.step,
+    nav_target: row.nav_target,
+    region: row.region,
+  });
+}
+
+export function historyDebugPayload(row: QueueHistoryRow) {
+  return debugJson({
+    task_id: row.task_id,
+    trace_id: row.trace_id || null,
+    scenario_key: row.scenario_key,
+    scenario: row.scenario,
+    instance_id: row.instance_id,
+    player_id: row.player_id,
+    success: row.success,
+    reason: row.reason || null,
+    steps: row.steps,
+    steps_trace: row.steps_trace,
+    duration_s: row.duration_s,
+    started_at: row.started_at,
+    finished_at: row.finished_at,
+    region: row.region,
+    priority: row.priority,
+  });
+}
+
+export function QueueCopyCell({
+  text,
+  title,
+}: {
+  text: string;
+  title?: string;
+}) {
+  return <CopyButton text={text} label="Copy" title={title} />;
+}
+
+export function queueSummary(data: QueueView | null) {
+  const pending = data?.pending_count ?? 0;
+  const overdue = data?.pending.filter((r) => r.overdue).length ?? 0;
+  const running = data?.running.length ?? 0;
+  const history = data?.history ?? [];
+  const recent = history.slice(0, 20);
+  const ok = recent.filter((h) => h.success).length;
+  const fail = recent.length - ok;
+  return { pending, overdue, running, ok, fail, historyTotal: history.length };
+}
+
+export function QueueMetrics({ data }: { data: QueueView | null }) {
+  const s = queueSummary(data);
+  return (
+    <div className="metrics-row queue-metrics">
+      <div className="metric-card">
+        <div className="label">Pending</div>
+        <div className="value">{s.pending}</div>
+      </div>
+      <div className="metric-card">
+        <div className="label">Overdue</div>
+        <div className={`value ${s.overdue ? "queue-metric-warn" : ""}`}>{s.overdue}</div>
+      </div>
+      <div className="metric-card">
+        <div className="label">Running</div>
+        <div className={`value ${s.running ? "queue-metric-live" : ""}`}>{s.running}</div>
+      </div>
+      <div className="metric-card">
+        <div className="label">Recent OK</div>
+        <div className="value queue-metric-ok">{s.ok}</div>
+      </div>
+      <div className="metric-card">
+        <div className="label">Recent failed</div>
+        <div className={`value ${s.fail ? "queue-metric-fail" : ""}`}>{s.fail}</div>
+      </div>
+    </div>
+  );
+}
+
+export function PendingSchedulePill({ row }: { row: QueuePendingRow }) {
+  const cls = row.overdue ? "status-pending pulse" : "pill-stale";
+  const label = row.overdue ? "Overdue" : "Scheduled";
+  return (
+    <span className={`status-pill ${cls}`} title={row.scheduled}>
+      <span className="status-pill__dot" aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+export function CooperativePill({ cooperative }: { cooperative: boolean }) {
+  if (!cooperative) return <span className="muted">—</span>;
+  return <span className="status-pill pill-busy">Coop</span>;
+}
+
+export function PriorityBadge({ priority }: { priority: number }) {
+  const hot = priority >= 50_000;
+  return (
+    <span className={`queue-priority ${hot ? "queue-priority-hot" : ""}`} title={`Priority ${priority}`}>
+      {priority.toLocaleString()}
+    </span>
+  );
+}
+
+export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
+  if (!rows.length) {
+    return (
+      <EmptyState
+        icon="list-empty"
+        title="No tasks running"
+        description="When a worker picks up a task, it will appear here."
+      />
+    );
+  }
+  return (
+    <div className="queue-running-grid">
+      {rows.map((r) => (
+        <article key={r.task_id} className="queue-running-card">
+          <header className="queue-running-card__head">
+            <span className="status-pill pill-live pulse">
+              <span className="status-pill__dot" aria-hidden />
+              Running
+            </span>
+            <Link href={instanceHref(r.instance_id)}>
+              <strong>{r.instance_id}</strong>
+            </Link>
+          </header>
+          <p className="queue-running-card__scenario">{r.scenario}</p>
+          {r.active_scenario_label && r.active_scenario_label !== r.scenario ? (
+            <p className="meta">Active: {r.active_scenario_label}</p>
+          ) : null}
+          <div className="queue-running-card__actions">
+            <QueueTaskActions
+              instanceId={r.instance_id}
+              playerId={r.player_id}
+              scenarioKey={r.scenario_key}
+              region={regionFromQueueRunning(r)}
+            />
+            <CopyButton
+              text={runningDebugPayload(r)}
+              label="Copy debug"
+              title="Copy task id, scenario, step, nav target"
+            />
+          </div>
+          <dl className="queue-running-card__meta">
+            {r.step > 0 ? (
+              <div>
+                <dt>Step</dt>
+                <dd>{r.step}</dd>
+              </div>
+            ) : null}
+            {r.nav_target ? (
+              <div>
+                <dt>Nav</dt>
+                <dd>{r.nav_target}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Started</dt>
+              <dd>{r.started}</dd>
+            </div>
+            <div>
+              <dt>Player</dt>
+              <dd>
+                <Link
+                  href={playerStateHref(r.player_id, {
+                    instanceId: r.instance_id,
+                  })}
+                >
+                  {r.player_id}
+                </Link>
+              </dd>
+            </div>
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function HistoryOutcomePill({ success }: { success: boolean }) {
+  return success ? (
+    <span className="status-pill pill-live">OK</span>
+  ) : (
+    <span className="status-pill pill-danger">Failed</span>
+  );
+}
+
+export function HistoryStepsCell({
+  steps,
+  failedRegionHref,
+}: {
+  steps: string;
+  /** When set, failed/partial steps link to overlay-test with region prefilled. */
+  failedRegionHref?: string | null;
+}) {
+  if (!steps || steps === "—") {
+    return <span className="muted">—</span>;
+  }
+  if (steps.includes("complete")) {
+    return <span className="status-pill pill-live">{steps}</span>;
+  }
+  if (steps.includes("partial") || failedRegionHref) {
+    const inner = (
+      <span className={steps.includes("partial") ? "status-pill pill-paused" : "queue-steps"}>
+        {steps}
+      </span>
+    );
+    if (failedRegionHref) {
+      return (
+        <Link href={failedRegionHref} className="queue-steps-link" title="Open in overlay test">
+          {inner}
+        </Link>
+      );
+    }
+    return inner;
+  }
+  return <span className="queue-steps">{steps}</span>;
+}
+
+export function QueueTaskActions({
+  instanceId,
+  playerId,
+  scenarioKey,
+  region,
+  showOverlay = true,
+}: {
+  instanceId: string;
+  playerId?: string;
+  scenarioKey: string;
+  region?: string;
+  showOverlay?: boolean;
+}) {
+  const probeRegion = region?.trim();
+  return (
+    <nav className="queue-task-actions" aria-label="Debug actions">
+      <Link
+        href={debugRunHref({ instanceId, playerId, scenario: scenarioKey })}
+        className="queue-task-actions__link"
+      >
+        DSL runner
+      </Link>
+      {probeRegion ? (
+        <>
+          <Link
+            href={approvalsProbeHref(instanceId, probeRegion)}
+            className="queue-task-actions__link"
+          >
+            Probe
+          </Link>
+          {showOverlay ? (
+            <Link
+              href={overlayTestHref(instanceId, { region: probeRegion })}
+              className="queue-task-actions__link"
+            >
+              Overlay
+            </Link>
+          ) : null}
+        </>
+      ) : null}
+    </nav>
+  );
+}
+
+export function QueueHistoryActions({ row }: { row: QueueHistoryRow }) {
+  const region = regionFromQueueHistory(row);
+  return (
+    <div className="queue-row-actions">
+      <QueueTaskActions
+        instanceId={row.instance_id}
+        playerId={row.player_id}
+        scenarioKey={row.scenario_key}
+        region={region}
+      />
+      <QueueCopyCell
+        text={historyDebugPayload(row)}
+        title="Copy task id, trace id, steps_trace (for debugging)"
+      />
+    </div>
+  );
+}
+
+export function QueuePendingActions({ row }: { row: QueuePendingRow }) {
+  const region = regionFromQueuePending(row);
+  return (
+    <div className="queue-row-actions">
+      <QueueTaskActions
+        instanceId={row.instance_id}
+        playerId={row.player_id}
+        scenarioKey={row.scenario_key}
+        region={region}
+        showOverlay={false}
+      />
+      <QueueCopyCell
+        text={pendingDebugPayload(row)}
+        title="Copy task id, scenario key, instance"
+      />
+    </div>
+  );
+}
+
+export function ScenarioCell({
+  label,
+  scenarioKey,
+  instanceId,
+  playerId,
+}: {
+  label: string;
+  scenarioKey: string;
+  instanceId?: string;
+  playerId?: string;
+}) {
+  return (
+    <span className="queue-scenario" title={scenarioKey}>
+      {label}
+    </span>
+  );
+}

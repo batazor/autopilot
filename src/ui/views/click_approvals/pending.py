@@ -273,7 +273,7 @@ def fragment_pending_approval_columns(
                 scen_key = str(ctx0.get("scenario") or "").strip()
                 if scen_key:
                     st.info(f"Scenario: `{scenario_display_name(scen_key)}`")
-                    # IA Editor app does not register ``views/scenarios.py`` in
+                    # Streamlit rehearsal nav may not register ``views/scenarios.py`` in
                     # ``st.navigation``; swallow the resulting error and skip the
                     # link there instead of crashing the Approvals column.
                     with contextlib.suppress(StreamlitPageNotFoundError):

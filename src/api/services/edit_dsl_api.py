@@ -1,0 +1,368 @@
+"""Module DSL YAML editor API."""
+from __future__ import annotations
+
+import json
+import re
+import shutil
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import ValidationError
+
+from config.module_discovery import (
+    iter_module_dirs,
+    load_module_yaml,
+    module_matches_scope,
+    module_meta_id,
+    module_storage_key,
+)
+from config.module_registry import normalize_module_scope
+from config.paths import repo_root
+from config.reference_naming import event_icon_abs_path
+from config.startup_validation import duplicate_scenario_names_for_repo
+from dsl.cron_specs import _is_under_drafts
+from dsl.dsl_schema import dump_scenario, parse_scenario
+from dsl.registry import iter_scenario_yaml_files, scenario_roots, scenario_source_label
+from navigation.screen_graph import screen_verify_screen_names
+from tasks.dsl_exec import DSL_EXEC_REGISTRY
+
+_REPO = repo_root()
+
+
+def _module_storage_for_path(path: Path) -> str | None:
+    path_resolved = path.resolve()
+    for module_dir in iter_module_dirs(_REPO):
+        module_resolved = module_dir.resolve()
+        if module_resolved in path_resolved.parents:
+            return module_storage_key(module_dir, _REPO)
+    return None
+
+
+def _is_readonly_scenario(path: Path) -> bool:
+    try:
+        rel_parts = path.relative_to(_REPO).parts
+    except ValueError:
+        rel_parts = path.parts
+    return _is_under_drafts(rel_parts) or any(p == "by_cron" for p in rel_parts)
+
+
+def list_editable_modules(*, module_scope: str = "all") -> list[dict[str, str]]:
+    scope = normalize_module_scope(module_scope)
+    out: list[dict[str, str]] = []
+    for module_dir in iter_module_dirs(_REPO):
+        if not module_matches_scope(module_dir, scope, _REPO):
+            continue
+        meta = load_module_yaml(module_dir)
+        scen_decl = str(meta.get("scenarios") or "scenarios").strip()
+        scen_dir = module_dir / scen_decl
+        if not scen_dir.is_dir():
+            continue
+        module_id = module_meta_id(module_dir)
+        title = str(meta.get("title") or module_id).strip() or module_id
+        out.append(
+            {
+                "key": module_storage_key(module_dir, _REPO),
+                "title": title,
+                "scenarios_dir": scen_dir.relative_to(_REPO).as_posix(),
+            }
+        )
+    return out
+
+
+def list_editable_files(*, module_scope: str = "all") -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for _root, path in iter_scenario_yaml_files(_REPO, module_scope):
+        if _is_readonly_scenario(path):
+            continue
+        rel = scenario_source_label(path, _REPO)
+        module_key = _module_storage_for_path(path) or ""
+        out.append(
+            {
+                "rel": rel,
+                "stem": path.stem,
+                "module": module_key,
+                "path": path.relative_to(_REPO).as_posix(),
+            }
+        )
+    out.sort(key=lambda r: r["rel"])
+    return out
+
+
+def build_tree(rel_paths: list[str]) -> list[dict[str, Any]]:
+    root: dict[str, Any] = {"files": [], "dirs": {}}
+    for rel in rel_paths:
+        parts = rel.split("/")
+        node = root
+        for part in parts[:-1]:
+            node["dirs"].setdefault(part, {"files": [], "dirs": {}})
+            node = node["dirs"][part]
+        node["files"].append(rel)
+
+    def _walk(node: dict[str, Any], prefix: str) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = [
+            {"value": rel, "title": Path(rel).stem, "is_dir": False}
+            for rel in sorted(node["files"])
+        ]
+        for dirname in sorted(node["dirs"]):
+            children = _walk(node["dirs"][dirname], f"{prefix}{dirname}/")
+            if not children:
+                continue
+            out.append(
+                {
+                    "value": f"__dir__/{prefix}{dirname}",
+                    "title": f"{dirname}/",
+                    "is_dir": True,
+                    "children": children,
+                }
+            )
+        return out
+
+    return _walk(root, "")
+
+
+def list_catalog(*, module_scope: str = "all") -> dict[str, Any]:
+    files = list_editable_files(module_scope=module_scope)
+    rels = [f["rel"] for f in files]
+    return {
+        "scope": normalize_module_scope(module_scope),
+        "files": files,
+        "tree": build_tree(rels),
+        "modules": list_editable_modules(module_scope=module_scope),
+    }
+
+
+def _path_for_rel(rel: str) -> Path:
+    rel = rel.replace("\\", "/").strip().lstrip("/")
+    if ".." in Path(rel).parts:
+        msg = "invalid path"
+        raise ValueError(msg)
+    path = (_REPO / rel).resolve()
+    if not path.is_file() or path.suffix.lower() != ".yaml":
+        msg = "scenario file not found"
+        raise FileNotFoundError(msg)
+    if _is_readonly_scenario(path):
+        msg = "read-only path (drafts/ or by_cron/)"
+        raise PermissionError(msg)
+    return path
+
+
+def _normalize_loaded_doc(raw: object) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        msg = "root must be a mapping"
+        raise TypeError(msg)
+    raw.setdefault("steps", [])
+    if not isinstance(raw.get("steps"), list):
+        raw["steps"] = []
+    return raw
+
+
+def get_file(rel: str) -> dict[str, Any]:
+    path = _path_for_rel(rel)
+    text = path.read_text(encoding="utf-8")
+    raw = yaml.safe_load(text) or {}
+    try:
+        doc = _normalize_loaded_doc(raw)
+    except TypeError as exc:
+        return {
+            "rel": scenario_source_label(path, _REPO),
+            "path": path.relative_to(_REPO).as_posix(),
+            "stem": path.stem,
+            "yaml": text,
+            "document": {"name": path.stem, "steps": []},
+            "name": path.stem,
+            "valid": False,
+            "validation_error": str(exc),
+        }
+    ok, err = _validate_doc(doc)
+    return {
+        "rel": scenario_source_label(path, _REPO),
+        "path": path.relative_to(_REPO).as_posix(),
+        "stem": path.stem,
+        "yaml": text,
+        "document": doc,
+        "name": str(doc.get("name") or path.stem),
+        "valid": ok,
+        "validation_error": err,
+    }
+
+
+def _scenario_root_for_path(path: Path) -> Path:
+    resolved = path.resolve()
+    for root in scenario_roots(_REPO):
+        root_resolved = root.path.resolve()
+        if resolved == root_resolved or root_resolved in resolved.parents:
+            return root.path
+    return path.parent
+
+
+def _resolve_module_scenarios_dir(module_key: str) -> Path:
+    key = (module_key or "").strip()
+    if not key:
+        msg = "module required"
+        raise ValueError(msg)
+    for module_dir in iter_module_dirs(_REPO):
+        if module_storage_key(module_dir, _REPO) != key:
+            continue
+        meta = load_module_yaml(module_dir)
+        scen_decl = str(meta.get("scenarios") or "scenarios").strip()
+        scen_dir = (module_dir / scen_decl).resolve()
+        if scen_dir.is_dir():
+            return scen_dir
+        msg = f"module has no scenarios directory: {key}"
+        raise ValueError(msg)
+    msg = f"unknown module: {key}"
+    raise ValueError(msg)
+
+
+def _validate_doc(doc: dict[str, Any]) -> tuple[bool, str]:
+    try:
+        parse_scenario(doc)
+    except ValidationError as exc:
+        return False, str(exc)
+    except Exception as exc:
+        return False, str(exc)
+    return True, ""
+
+
+def save_file(rel: str, *, yaml_text: str | None = None, document: dict[str, Any] | None = None) -> dict[str, Any]:
+    path = _path_for_rel(rel)
+    if document is not None:
+        raw = _normalize_loaded_doc(document)
+    elif yaml_text is not None:
+        raw = yaml.safe_load(yaml_text) or {}
+        if not isinstance(raw, dict):
+            msg = "root must be a mapping"
+            raise TypeError(msg)
+        raw.setdefault("steps", [])
+    else:
+        msg = "yaml or document required"
+        raise ValueError(msg)
+    ok, err = _validate_doc(raw)
+    if not ok:
+        msg = err or "validation failed"
+        raise ValueError(msg)
+    parsed = parse_scenario(raw)
+    out_doc = dump_scenario(parsed)
+
+    scenario_root = _scenario_root_for_path(path)
+    backups_root = scenario_root / ".backups"
+    ts = datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
+    backup_dir = backups_root / ts
+    if path.is_file():
+        rel_under = path.relative_to(scenario_root)
+        backup_path = backup_dir / rel_under
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, backup_path)
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(out_doc, sort_keys=False, allow_unicode=True),
+        encoding="utf-8",
+    )
+    return {
+        "ok": True,
+        "rel": scenario_source_label(path, _REPO),
+        "backup": str((backup_dir / path.relative_to(scenario_root)).as_posix())
+        if path.is_file()
+        else None,
+    }
+
+
+def validate_yaml(*, yaml_text: str | None = None, document: dict[str, Any] | None = None) -> dict[str, Any]:
+    if document is not None:
+        try:
+            raw = _normalize_loaded_doc(document)
+        except TypeError as exc:
+            return {"valid": False, "error": str(exc)}
+    elif yaml_text is not None:
+        raw = yaml.safe_load(yaml_text) or {}
+        if not isinstance(raw, dict):
+            return {"valid": False, "error": "root must be a mapping"}
+    else:
+        return {"valid": False, "error": "yaml or document required"}
+    ok, err = _validate_doc(raw)
+    preview = ""
+    if ok:
+        try:
+            preview = yaml.safe_dump(
+                dump_scenario(parse_scenario(raw)),
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        except Exception:
+            preview = yaml.safe_dump(raw, sort_keys=False, allow_unicode=True)
+    return {"valid": ok, "error": err, "preview": preview}
+
+
+def create_file(
+    *,
+    module: str,
+    file_key: str,
+    template_rel: str = "",
+) -> dict[str, Any]:
+    key = re.sub(r"[^a-zA-Z0-9._-]+", "_", (file_key or "").strip()).strip("._-") or "scenario"
+    if template_rel.strip():
+        scenario_root = _scenario_root_for_path(_path_for_rel(template_rel))
+    else:
+        scenario_root = _resolve_module_scenarios_dir(module)
+    new_path = scenario_root / f"{key}.yaml"
+    if new_path.exists():
+        msg = "file already exists"
+        raise FileExistsError(msg)
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    stub = {"name": key.replace("_", " "), "enabled": False, "steps": []}
+    new_path.write_text(yaml.safe_dump(stub, sort_keys=False), encoding="utf-8")
+    rel = scenario_source_label(new_path, _REPO)
+    return {"ok": True, "rel": rel, "path": new_path.relative_to(_REPO).as_posix()}
+
+
+def name_collisions(rel: str, name: str) -> list[str]:
+    nm = (name or "").strip()
+    if not nm:
+        return []
+    dups = duplicate_scenario_names_for_repo(_REPO)
+    return [r for r in dups.get(nm, []) if r != rel.replace("\\", "/").strip().lstrip("/")]
+
+
+def event_icon_path(slug: str) -> Path | None:
+    return event_icon_abs_path(_REPO, slug)
+
+
+def editor_meta() -> dict[str, Any]:
+    path = _REPO / "area.json"
+    regions: list[str] = []
+    if path.is_file():
+        try:
+            doc = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            doc = {}
+        seen: set[str] = set()
+        for screen in doc.get("screens", []) or []:
+            if not isinstance(screen, dict):
+                continue
+            sources = [screen.get("regions") or []]
+            sources.extend(
+                ver.get("regions") or []
+                for ver in screen.get("versions") or []
+                if isinstance(ver, dict)
+            )
+            for regs in sources:
+                for reg in regs or []:
+                    name = str((reg or {}).get("name") or "").strip()
+                    if name and name not in seen:
+                        seen.add(name)
+                        regions.append(name)
+        regions.sort()
+    scenario_keys = sorted({p.stem for _root, p in iter_scenario_yaml_files(_REPO)})
+    try:
+        fsm_nodes = screen_verify_screen_names() or []
+    except Exception:
+        fsm_nodes = []
+    return {
+        "regions": regions,
+        "fsm_nodes": list(fsm_nodes),
+        "exec_names": sorted(DSL_EXEC_REGISTRY.keys()),
+        "scenario_keys": scenario_keys,
+    }

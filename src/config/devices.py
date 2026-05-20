@@ -22,6 +22,8 @@ from typing import Any, cast
 
 import yaml
 
+from config.device_display import DeviceDisplayConfig, parse_device_display
+
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +56,7 @@ class DeviceEntry:
     quartz_window_id: int | None = None
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
+    display: DeviceDisplayConfig | None = None
 
     @property
     def effective_serial(self) -> str:
@@ -142,6 +145,7 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
                 quartz_window_id=_parse_optional_int(d.get("quartz_window_id")),
                 quartz_window_title=str(d.get("quartz_window_title") or "").strip(),
                 quartz_crop=_parse_quartz_crop(d.get("quartz_crop")),
+                display=parse_device_display(d.get("display")),
             )
         )
     return DeviceRegistry(devices=devices)

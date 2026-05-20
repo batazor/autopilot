@@ -12,7 +12,7 @@ from typing import Any
 
 from adb import BotActions, _redis, _require_approval, click_approval_enabled
 from analysis.overlay import evaluate_overlay_rules_async
-from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY
+from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from tasks.dsl_match_mixin import DslMatchMixin
 from tasks.dsl_ocr_mixin import DslOcrMixin
 from tasks.dsl_persist_mixin import DslPersistMixin

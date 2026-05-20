@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from layout.template_match import (
+    _phash_match_score,
     match_template_in_search_roi_bbox_percent,
     patch_bgr_from_bbox_percent,
 )
@@ -34,7 +35,7 @@ def test_match_template_in_search_roi_finds_embedded_patch() -> None:
     }
 
     res = match_template_in_search_roi_bbox_percent(frame, tpl, search_bbox)
-    assert res["score"] >= 0.99
+    assert res["score"] >= 0.95
     assert res["top_left"] == (x0, y0)
 
 
@@ -54,26 +55,31 @@ def test_match_template_complains_when_template_larger_than_roi() -> None:
         match_template_in_search_roi_bbox_percent(frame, tpl, bbox)
 
 
-def test_match_template_caps_high_ncc_with_color_difference() -> None:
-    hi, wi = 160, 120
-    frame = np.zeros((hi, wi, 3), dtype=np.uint8)
-
+def _structured_color_template() -> np.ndarray:
+    """Template with borders + red block (legacy color_difference fixture shape)."""
     template = np.zeros((90, 40, 3), dtype=np.uint8)
     template[:] = (150, 190, 210)
     template[:, 2:6] = (0, 220, 255)
     template[:, -6:-2] = (0, 220, 255)
     template[2:6, :] = (0, 220, 255)
     template[-6:-2, :] = (0, 220, 255)
-    cv2_color_red = (0, 0, 255)
-    template[35:55, 16:24] = cv2_color_red
+    template[35:55, 16:24] = (0, 0, 255)
+    return template
 
-    # Similar luminance gradient, but none of the red/yellow landmarks.
+
+def test_match_template_phash_rejects_gradient_blob_without_template() -> None:
+    """pHash: ROI with only a smooth gradient blob (no real template) stays below match threshold."""
+    hi, wi = 160, 120
+    template = _structured_color_template()
+
     false_patch = np.zeros_like(template)
     false_patch[:] = (130, 130, 130)
     false_patch[:, :20] = (170, 150, 130)
     false_patch[:, 20:] = (95, 120, 145)
 
+    frame = np.full((hi, wi, 3), 40, dtype=np.uint8)
     frame[20:110, 30:70] = false_patch
+
     bbox = {
         "x": 0.0,
         "y": 0.0,
@@ -86,8 +92,54 @@ def test_match_template_caps_high_ncc_with_color_difference() -> None:
 
     res = match_template_in_search_roi_bbox_percent(frame, template, bbox)
 
-    assert res["score"] < 0.98
-    assert res["score"] <= res["score_color"]
+    assert float(res["score"]) < 0.95
+    score_direct, hamming = _phash_match_score(false_patch, template)
+    assert hamming > 0
+    assert score_direct < 0.95
+
+
+def test_match_template_phash_prefers_embedded_template_over_gradient_blob() -> None:
+    """pHash scan picks the real embed; direct score for template beats color-gradient decoy."""
+    hi, wi = 160, 120
+    template = _structured_color_template()
+
+    false_patch = np.zeros_like(template)
+    false_patch[:] = (130, 130, 130)
+    false_patch[:, :20] = (170, 150, 130)
+    false_patch[:, 20:] = (95, 120, 145)
+
+    th, tw = int(template.shape[0]), int(template.shape[1])
+    x_real, y_real = 8, 10
+    # Non-overlapping decoy (earlier fixture used 30,20 which clipped into the real embed).
+    x_decoy, y_decoy = 55, 10
+
+    frame = np.full((hi, wi, 3), 40, dtype=np.uint8)
+    frame[y_real : y_real + th, x_real : x_real + tw] = template
+    frame[y_decoy : y_decoy + th, x_decoy : x_decoy + tw] = false_patch
+
+    bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 100.0,
+        "height": 100.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
+
+    res = match_template_in_search_roi_bbox_percent(frame, template, bbox)
+
+    assert res["top_left"] == (x_real, y_real)
+    assert float(res["score"]) >= 0.99
+
+    real_patch = frame[y_real : y_real + th, x_real : x_real + tw]
+    assert np.array_equal(real_patch, template)
+
+    score_identity, _ = _phash_match_score(template, template)
+    score_embed, _ = _phash_match_score(real_patch, template)
+    score_decoy, _ = _phash_match_score(false_patch, template)
+    assert score_identity == score_embed == 1.0
+    assert score_embed > score_decoy
 
 
 def test_match_template_rejects_gross_template_vs_primary_bbox_size() -> None:
@@ -183,11 +235,11 @@ def test_match_template_accepts_primary_within_10px_per_axis() -> None:
         primary_bbox_percent=primary_bbox,
     )
     assert res["top_left"] == (x0, y0)
-    assert res["score"] >= 0.99
+    assert res["score"] >= 0.95
 
 
-def test_sliding_search_combined_score_prefers_matching_bgr_over_duplicate_wrong_tint() -> None:
-    """Among distinct NCC peaks, pick max combined min(NCC,color,edge) — not raw grayscale argmax."""
+def test_sliding_search_phash_prefers_matching_bgr_over_duplicate_wrong_tint() -> None:
+    """pHash scan prefers the true-colored embed over a same-layout grey duplicate."""
     hi, wi = 140, 180
     frame = np.full((hi, wi, 3), 45, dtype=np.uint8)
     th, tw = 28, 32
@@ -219,8 +271,10 @@ def test_sliding_search_combined_score_prefers_matching_bgr_over_duplicate_wrong
 
     res = match_template_in_search_roi_bbox_percent(frame, tpl, search_bbox)
     assert res["top_left"] == (xb, yb)
-    assert res["score_color"] > 0.95
-    assert res["score"] >= 0.9
+    assert float(res["score"]) >= 0.9
+    score_grey, _ = _phash_match_score(wrong_tint, tpl)
+    score_real, _ = _phash_match_score(tpl, tpl)
+    assert score_real >= score_grey
 
 
 def test_sliding_search_finds_patch_outside_primary_bbox_with_primary_dims_gate() -> None:

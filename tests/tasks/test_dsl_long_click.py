@@ -64,9 +64,8 @@ async def test_dsl_long_click_uses_wait_as_duration(
     )
     res = await task.execute("bs1")
     assert res.success is True
-    # bbox 10..20% on a 1000x1000 screen → 100..200 px. With the 15% inset
-    # applied by the random-point helper the long-tap lands inside [115, 185]
-    # on both axes (±1 px rounding tolerance).
+    # DSL emits normalized 720x1280 bot-frame points. bbox 10..20% with the
+    # 15% inset lands inside 11.5..18.5% of each axis.
     assert len(actions.long_tap.call_args_list) == 1
     inst, point, dur = (
         actions.long_tap.call_args_list[0][0][0],
@@ -75,8 +74,8 @@ async def test_dsl_long_click_uses_wait_as_duration(
     )
     assert inst == "bs1"
     assert dur == 5000
-    assert 114 <= point.x <= 186, point.x
-    assert 114 <= point.y <= 186, point.y
+    assert 82 <= point.x <= 134, point.x
+    assert 147 <= point.y <= 237, point.y
     actions.tap.assert_not_called()
 
 

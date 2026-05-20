@@ -106,7 +106,7 @@ def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "chief_profile_title", "threshold": 0.9}]
+    expected = [{"match": "chief_profile.title", "threshold": 0.9}]
     assert expected[0] in landmarks
     assert rules == expected
 

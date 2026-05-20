@@ -150,6 +150,7 @@ async def test_prefer_primary_bbox_skips_sliding_when_primary_matches(
         "name": "test.btn",
         "action": "findIcon",
         "region": "btn",
+        "search_region": "btn_search",
         "threshold": 0.8,
         "prefer_primary_bbox": True,
     }
@@ -185,6 +186,7 @@ async def test_without_flag_sliding_search_still_runs(
         "name": "test.btn",
         "action": "findIcon",
         "region": "btn",
+        "search_region": "btn_search",
         "threshold": 0.8,
         # no prefer_primary_bbox
     }
@@ -220,6 +222,7 @@ async def test_prefer_primary_bbox_falls_through_when_primary_misses(
         "name": "test.btn",
         "action": "findIcon",
         "region": "btn",
+        "search_region": "btn_search",
         "threshold": 0.8,
         "prefer_primary_bbox": True,
     }

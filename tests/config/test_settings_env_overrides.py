@@ -23,9 +23,6 @@ ocr:
   tesseract_cmd: tesseract
   tessdata_dir: ""
   timeout_seconds: 10
-omniparser:
-  url: http://yaml-omni:8765
-  timeout_seconds: 120
 scheduler:
   interval_seconds: 30
   ortools_timeout_seconds: 1.0
@@ -39,8 +36,6 @@ worker: {}
     monkeypatch.setenv("WOS_TESSERACT_CMD", "/opt/bin/tesseract")
     monkeypatch.setenv("TESSDATA_PREFIX", "/opt/share/tessdata")
     monkeypatch.setenv("WOS_OCR_TIMEOUT_SECONDS", "42")
-    monkeypatch.setenv("OMNIPARSER_URL", "http://env-omni:8765")
-    monkeypatch.setenv("OMNIPARSER_TIMEOUT_SECONDS", "7")
 
     settings = load_settings(settings_path)
 
@@ -50,5 +45,3 @@ worker: {}
     assert settings.ocr.tesseract_cmd == "/opt/bin/tesseract"
     assert settings.ocr.tessdata_dir == "/opt/share/tessdata"
     assert settings.ocr.timeout_seconds == 42
-    assert settings.omniparser.url == "http://env-omni:8765"
-    assert settings.omniparser.timeout_seconds == 7

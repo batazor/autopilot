@@ -2,7 +2,7 @@
 # ``overrides`` inherit ``defaults`` verbatim — keeps the file small and
 # makes "edit only the heroes I care about" the normal flow.
 #
-# Source priors: deep-research-report.md, section "Модель данных и YAML DSL".
+# Source priors: deep-research-report.md, section "Data model and YAML DSL".
 # mode_weights are 0..100 (relative). role_tags drive which actions the
 # optimizer considers; manual_level_cap_* cap support-tier XP spend.
 

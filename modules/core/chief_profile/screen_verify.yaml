@@ -4,9 +4,9 @@ screens:
       attempts: 8
       interval_seconds: 1.0
     landmarks:
-      - match: chief_profile_title
+      - match: chief_profile.title
         threshold: 0.9
     rules:
-      - match: chief_profile_title
+      - match: chief_profile.title
         threshold: 0.9
 

@@ -9,11 +9,6 @@ provenance badge and pull files from the right module on disk.
 from __future__ import annotations
 
 import base64
-import json
-import re
-import subprocess
-import sys
-import time
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -592,140 +587,21 @@ def _render_faq() -> None:
     )
 
     st.markdown("**How to refresh the data?**")
+    import os
 
-    repo = default_repo_root()
+    web_base = os.environ.get("WOS_WEB_URL", "http://127.0.0.1:3000").rstrip("/")
+    st.info(
+        f"Sync scripts with live progress: [Wiki → FAQ]({web_base}/wiki?section=faq) "
+        f"(Next.js — run `uv run api` and `npm run dev` in `web/`). CLI commands below."
+    )
 
-    def _run_script(
-        *,
-        title: str,
-        script_rel: str,
-        args: list[str] | None = None,
-        progress_total_hint: int | None = None,
-    ) -> None:
-        """Run a sync subprocess inside an ``st.status`` container.
+    from wiki.sync_runner import SYNC_SCRIPT_SPECS
 
-        The container's header doubles as the live progress indicator —
-        on completion it paints green and collapses, on failure it stays
-        expanded in red. Progress bar / log / summary widgets live inside
-        the container so each invocation gets its own scoped frame; you
-        can run several syncs in a row without prior output bleeding in.
-        """
-        args = args or []
-        script = (repo / script_rel).resolve()
-        if not script.is_file():
-            st.error(f"Script not found: `{script_rel}`")
-            return
-
-        cmd = [sys.executable, str(script), *args]
-        started = time.time()
-        output_lines: list[str] = []
-        done = 0
-        total = progress_total_hint or 0
-        extracted_summary: str = ""
-
-        with st.status(f"{title} — starting…", expanded=True) as status:
-            pb = st.progress(0)
-            log = st.empty()
-            stats = st.empty()
-
-            try:
-                proc = subprocess.Popen(
-                    cmd,
-                    cwd=str(repo),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                )
-            except Exception as exc:
-                status.update(
-                    label=f"{title} — failed to start: {type(exc).__name__}: {exc}",
-                    state="error",
-                )
-                return
-
-            assert proc.stdout is not None
-            for line in proc.stdout:
-                line = line.rstrip("\n")
-                if not line:
-                    continue
-                output_lines.append(line)
-                # Keep the last ~200 lines in UI to avoid huge payloads.
-                tail = output_lines[-200:]
-                log.code("\n".join(tail), language="text")
-
-                # Generic progress parser: "progress: 25/405 (ok=...)"
-                m = re.search(r"progress:\s*(\d+)\s*/\s*(\d+)", line)
-                if m:
-                    done = int(m.group(1))
-                    total = int(m.group(2))
-                    if total > 0:
-                        ratio = min(1.0, done / total)
-                        pb.progress(ratio)
-                        status.update(label=f"{title} — {done}/{total}")
-
-                # Summary extractor
-                if line.startswith(("updated ", "downloaded ")):
-                    extracted_summary = line
-
-            rc = proc.wait()
-            elapsed = time.time() - started
-
-            # Final progress state
-            if total > 0:
-                pb.progress(1.0 if rc == 0 else min(1.0, done / total))
-            else:
-                pb.progress(1.0 if rc == 0 else 0.0)
-
-            summary = extracted_summary or "(no summary line found)"
-            stats.markdown(
-                "\n".join(
-                    [
-                        f"**Result**: `exit_code={rc}` · **elapsed**: `{elapsed:.1f}s`",
-                        f"**Summary**: `{summary}`",
-                        f"**Command**: `{json.dumps(cmd)}`",
-                    ]
-                )
-            )
-
-            if rc == 0:
-                status.update(
-                    label=f"{title} — done · {elapsed:.1f}s · {summary}",
-                    state="complete",
-                    expanded=False,
-                )
-                st.toast(f"{title} · done in {elapsed:.1f}s", icon="✅")
-            else:
-                status.update(
-                    label=f"{title} — exit_code={rc} · {elapsed:.1f}s",
-                    state="error",
-                )
-
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Sync buildings", use_container_width=True):
-            _run_script(title="Sync buildings", script_rel="cmd/sync_buildings_wiki.py")
-        if st.button("Sync heroes", use_container_width=True):
-            _run_script(title="Sync heroes", script_rel="cmd/sync_heroes_wiki.py")
-    with c2:
-        if st.button("Sync items", use_container_width=True):
-            # items script prints progress N/405, so we can show a real progress bar.
-            _run_script(
-                title="Sync items",
-                script_rel="cmd/sync_items_wiki.py",
-                progress_total_hint=405,
-            )
-        if st.button("Download images (all)", use_container_width=True):
-            _run_script(
-                title="Download wiki images (all)",
-                script_rel="cmd/download_wiki_images.py",
-                args=["all"],
-            )
-        if st.button("Sync balance sheet", use_container_width=True):
-            _run_script(
-                title="Sync balance sheet (heroes levels + gear + enhancement)",
-                script_rel="cmd/sync_balance_sheet.py",
-            )
+    st.markdown("**CLI (repo root)**")
+    for spec in SYNC_SCRIPT_SPECS.values():
+        args = " ".join(spec.args)
+        st.code(f"uv run python {spec.script_rel}{f' {args}' if args else ''}", language="bash")
+        st.caption(spec.label)
 
     st.markdown("**Why are some building requirements empty?**")
     st.write(

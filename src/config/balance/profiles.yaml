@@ -1,7 +1,7 @@
 # Top-level scoring profiles. Pick one as active; the scorer mixes its
 # objective_weights with each hero's mode_weights from hero_meta.yaml.
-# Source priors: deep-research-report.md, sections "Пример последовательностей
-# для стартового F2P-аккаунта" and "Модель scoring".
+# Source priors: deep-research-report.md, sections "Example sequences for a
+# starter F2P account" and "Scoring model".
 
 active: conservative_long_term_f2p
 

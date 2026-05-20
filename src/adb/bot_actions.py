@@ -7,8 +7,10 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from adb.controller import AdbController
+from adb.frame_normalize import GAME_FRAME_SIZE, normalized_point_to_source_point
 from adb.quartz_screencap import quartz_screencap_bgr
-from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr
+from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform
+from layout.types import Point
 from worker import frame_bus
 
 if TYPE_CHECKING:
@@ -16,9 +18,8 @@ if TYPE_CHECKING:
 
     import numpy as np
 
+    from adb.frame_normalize import FrameNormalizeTransform
     from config.loader import InstanceConfig, Settings
-    from layout.types import Point
-
 logger = logging.getLogger(__name__)
 
 _FIRST_FRAME_TIMEOUT_S = 30.0
@@ -37,11 +38,14 @@ class BotActions:
         # existing callers that expect a new ADB screencap still get one.
         # Scope is a single ``BotActions`` instance (one task execution), so the
         # cache is dropped when the task ends — no leak across scenarios.
-        # Each entry is ``(monotonic_ts, frame)``; callers that pass
+        # Each entry is ``(monotonic_ts, frame, transform)``; callers that pass
         # ``max_age_ms`` to ``capture_screen_bgr_cached`` use the timestamp to
         # opt out of stale frames (OCR, timer reads). ``None`` keeps the
         # tap-invalidation-only behavior used by ``match`` / ``while_match``.
-        self._frame_cache: dict[str, tuple[float, np.ndarray]] = {}
+        self._frame_cache: dict[
+            str,
+            tuple[float, np.ndarray, FrameNormalizeTransform | None],
+        ] = {}
         self._await_next_frame: set[str] = set()
         self._FIRST_FRAME_TIMEOUT_S = _FIRST_FRAME_TIMEOUT_S
         self._NEXT_FRAME_TIMEOUT_S = _NEXT_FRAME_TIMEOUT_S
@@ -66,9 +70,44 @@ class BotActions:
     def _get_serial(self, instance_id: str) -> str:
         return self._get_instance(instance_id).bluestacks_window_title  # ADB serial for BlueStacks
 
+    def apply_device_display(self, instance_id: str) -> None:
+        """Apply merged worker + per-device display profile (wm, brightness, …)."""
+        from adb.device_display import apply_device_display_config
+        from config.device_display import merge_device_display
+
+        merged = merge_device_display(
+            self._settings.worker.device_display,
+            self._get_instance(instance_id).display,
+        )
+        if merged is None:
+            return
+        apply_device_display_config(
+            self._controller(instance_id),
+            serial=self._get_serial(instance_id),
+            config=merged,
+        )
+
     def _adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
         return pref or DEFAULT_ADB_BIN
+
+    def _to_adb_point(self, instance_id: str, point: Point) -> Point:
+        """Map bot-frame coordinates (720x1280) into the device touch space."""
+
+        cached = self._frame_cache.get(instance_id)
+        transform = cached[2] if cached is not None else None
+        if transform is None:
+            latest = frame_bus.latest_snapshot(instance_id)
+            if latest is not None:
+                transform = latest.transform
+        if transform is not None:
+            return transform.normalized_to_source_point(point)
+
+        return normalized_point_to_source_point(
+            point,
+            self._controller(instance_id).get_screen_resolution(),
+            target_size=GAME_FRAME_SIZE,
+        )
 
     def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
         """Drop the cached framebuffer for ``instance_id`` (or all instances)."""
@@ -81,11 +120,14 @@ class BotActions:
 
     def capture_screen_bgr_adb(self, instance_id: str) -> np.ndarray:
         """Direct ``adb exec-out screencap`` — rolling loop only; also publishes to ``frame_bus``."""
-        img, err = adb_screencap_bgr(self._adb_bin(), self._get_serial(instance_id))
+        img, transform, err = adb_screencap_bgr_with_transform(
+            self._adb_bin(),
+            self._get_serial(instance_id),
+        )
         if img is None:
             raise RuntimeError(err)
-        frame_bus.publish(instance_id, img)
-        self._frame_cache[instance_id] = (time.monotonic(), img)
+        frame_bus.publish(instance_id, img, transform=transform)
+        self._frame_cache[instance_id] = (time.monotonic(), img, transform)
         self._await_next_frame.discard(instance_id)
         return img
 
@@ -113,15 +155,10 @@ class BotActions:
                 quartz_window_title=inst.quartz_window_title,
                 quartz_crop=inst.quartz_crop,
             )
-        except Exception as exc:
-            logger.warning(
-                "Quartz screenshot failed for %s; falling back to ADB: %s",
-                instance_id,
-                exc,
-            )
+        except Exception:
             return self.capture_screen_bgr_adb(instance_id)
         frame_bus.publish(instance_id, img)
-        self._frame_cache[instance_id] = (time.monotonic(), img)
+        self._frame_cache[instance_id] = (time.monotonic(), img, None)
         self._await_next_frame.discard(instance_id)
         return img
 
@@ -135,21 +172,23 @@ class BotActions:
         try:
             if instance_id in self._await_next_frame:
                 self._await_next_frame.discard(instance_id)
-                img = frame_bus.wait_for_next(
+                snap = frame_bus.wait_for_next_snapshot(
                     instance_id, timeout=self._NEXT_FRAME_TIMEOUT_S
                 )
             else:
-                img = frame_bus.wait_for_first(
+                snap = frame_bus.wait_for_first_snapshot(
                     instance_id, timeout=self._FIRST_FRAME_TIMEOUT_S
                 )
+            img = snap.frame_bgr
+            transform = snap.transform
         except frame_bus.FrameBusTimeout:
             logger.warning(
                 "frame_bus: timed out waiting for %r — direct screenshot "
                 "(rolling loop cold, paused, or not publishing frames)",
                 instance_id,
             )
-            img = self.capture_screen_bgr_direct(instance_id)
-        self._frame_cache[instance_id] = (time.monotonic(), img)
+            return self.capture_screen_bgr_direct(instance_id)
+        self._frame_cache[instance_id] = (time.monotonic(), img, transform)
         return img
 
     def capture_screen_bgr_cached(
@@ -175,7 +214,7 @@ class BotActions:
         """
         cached = self._frame_cache.get(instance_id)
         if cached is not None:
-            ts, frame = cached
+            ts, frame, _transform = cached
             if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
                 return frame
             self._await_next_frame.add(instance_id)
@@ -191,9 +230,11 @@ class BotActions:
         approval_context: dict[str, object] | None = None,
         revalidate: Callable[[], bool] | None = None,
     ) -> bool:
+        adb_point = self._to_adb_point(instance_id, point)
         self.invalidate_frame_cache(instance_id)
         return self._controller(instance_id).tap(
-            point,
+            adb_point,
+            preview_point=point,
             approval_region=approval_region,
             approval_source=approval_source,
             approval_context=approval_context,
@@ -214,20 +255,46 @@ class BotActions:
         end: Point,
         duration_ms: int = 300,
     ) -> bool:
+        adb_start = self._to_adb_point(instance_id, start)
+        adb_end = self._to_adb_point(instance_id, end)
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).swipe(start, end, timedelta(milliseconds=duration_ms))
+        return self._controller(instance_id).swipe(
+            adb_start,
+            adb_end,
+            timedelta(milliseconds=duration_ms),
+            preview_start=start,
+            preview_end=end,
+        )
 
     def swipe_direction(
         self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
     ) -> bool:
-        self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).swipe_direction(
-            direction, delta, timedelta(milliseconds=duration_ms)
-        )
+        frame_w, frame_h = GAME_FRAME_SIZE
+        cx, cy = frame_w // 2, frame_h // 2
+        match direction.lower():
+            case "left":
+                start, end = Point(cx, cy), Point(cx - delta, cy)
+            case "right":
+                start, end = Point(cx, cy), Point(cx + delta, cy)
+            case "up":
+                start, end = Point(cx, cy), Point(cx, cy - delta)
+            case "down":
+                start, end = Point(cx, cy), Point(cx, cy + delta)
+            case _:
+                msg = f"Unknown swipe direction: {direction!r}"
+                raise ValueError(msg)
+        return self.swipe(instance_id, start, end, duration_ms=duration_ms)
 
     def long_tap(self, instance_id: str, point: Point, duration_ms: int = 800) -> bool:
+        adb_point = self._to_adb_point(instance_id, point)
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).long_tap(point, timedelta(milliseconds=duration_ms))
+        return self._controller(instance_id).swipe(
+            adb_point,
+            adb_point,
+            timedelta(milliseconds=duration_ms),
+            preview_start=point,
+            preview_end=point,
+        )
 
     def system_back(self, instance_id: str) -> bool:
         self.invalidate_frame_cache(instance_id)

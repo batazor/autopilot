@@ -9,6 +9,7 @@ import pytest
 
 import adb.bot_actions as tap_module
 from adb import BotActions
+from adb.frame_normalize import FrameNormalizeTransform
 from layout.types import Point
 from worker import frame_bus
 
@@ -16,14 +17,19 @@ from worker import frame_bus
 class _StubController:
     def __init__(self) -> None:
         self.taps: list[Point] = []
+        self.tap_kwargs: list[dict[str, Any]] = []
         self.swipes: int = 0
+        self.swipe_points: list[tuple[Point, Point]] = []
+        self.resolution: tuple[int, int] = (720, 1280)
 
     def tap(self, point: Point, **_: Any) -> bool:
         self.taps.append(point)
+        self.tap_kwargs.append(dict(_))
         return True
 
-    def swipe(self, *_a: Any, **_kw: Any) -> bool:
+    def swipe(self, start: Point, end: Point, *_a: Any, **_kw: Any) -> bool:
         self.swipes += 1
+        self.swipe_points.append((start, end))
         return True
 
     def swipe_direction(self, *_a: Any, **_kw: Any) -> bool:
@@ -41,7 +47,7 @@ class _StubController:
     def ensure_game_foreground(self) -> None: ...
 
     def get_screen_resolution(self) -> tuple[int, int]:
-        return 720, 1280
+        return self.resolution
 
     def attach_approval_preview(self, *_a: Any, **_kw: Any) -> None: ...
 
@@ -86,9 +92,11 @@ def actions_with_stub(mocker) -> tuple[BotActions, list[int]]:
     from config.loader import get_settings
 
     bot = BotActions(get_settings())
+    stub = _StubController()
     mocker.patch.object(bot, "_get_serial", new=lambda _id: "stub-serial")
     mocker.patch.object(bot, "_adb_bin", new=lambda: "adb")
-    mocker.patch.object(bot, "_controller", new=lambda _id: _StubController())
+    mocker.patch.object(bot, "_controller", new=lambda _id: stub)
+    bot._test_stub_controller = stub  # type: ignore[attr-defined]
 
     return bot, counter
 
@@ -113,6 +121,56 @@ def test_tap_invalidates_frame_cache(actions_with_stub: tuple[BotActions, list[i
     bot.tap("bs1", Point(50, 50))
     _capture_after_next_publish(bot, counter, "bs1")
     assert counter[0] == 2
+
+
+def test_tap_maps_bot_frame_point_through_cover_cropped_adb_screen(
+    actions_with_stub: tuple[BotActions, list[int]],
+) -> None:
+    bot, _counter = actions_with_stub
+    stub = bot._test_stub_controller  # type: ignore[attr-defined]
+    stub.resolution = (720, 1600)
+
+    assert bot.tap("bs1", Point(360, 640))
+
+    assert stub.taps == [Point(360, 752)]
+    assert stub.tap_kwargs[0]["preview_point"] == Point(360, 640)
+
+
+def test_tap_uses_latest_frame_transform_for_letterboxed_adb_screen(
+    actions_with_stub: tuple[BotActions, list[int]],
+) -> None:
+    bot, _counter = actions_with_stub
+    stub = bot._test_stub_controller  # type: ignore[attr-defined]
+    stub.resolution = (720, 1600)
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    transform = FrameNormalizeTransform(
+        source_size=(800, 1600),
+        target_size=(720, 1280),
+        crop_left=40,
+        crop_top=220,
+        crop_size=(720, 1250),
+        scale_x=1.0,
+        scale_y=1280 / 1250,
+    )
+    frame_bus.publish("bs1", frame, transform=transform)
+    bot.capture_screen_bgr_cached("bs1")
+
+    assert bot.tap("bs1", Point(360, 640))
+
+    assert stub.taps == [Point(400, 845)]
+    assert stub.tap_kwargs[0]["preview_point"] == Point(360, 640)
+
+
+def test_swipe_direction_maps_delta_through_bot_frame(
+    actions_with_stub: tuple[BotActions, list[int]],
+) -> None:
+    bot, _counter = actions_with_stub
+    stub = bot._test_stub_controller  # type: ignore[attr-defined]
+    stub.resolution = (1080, 1920)
+
+    assert bot.swipe_direction("bs1", "up", 100)
+
+    assert stub.swipe_points == [(Point(540, 960), Point(540, 810))]
 
 
 @pytest.mark.parametrize(

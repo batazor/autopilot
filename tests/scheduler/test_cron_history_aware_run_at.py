@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from scenarios.cron_specs import scenario_loader_paths
-from scenarios.evaluator import ScenarioEvaluator
-from scenarios.loader import ScenarioLoader
+from dsl.cron_specs import scenario_loader_paths
+from dsl.evaluator import ScenarioEvaluator
+from dsl.loader import ScenarioLoader
 from scheduler.optimizer import TaskOptimizer
 from scheduler.queue import RedisQueue
 from scheduler.runner import SchedulerRunner

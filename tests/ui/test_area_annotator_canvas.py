@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from PIL import Image
-
 from ui.area_annotator import (
-    OMNIPARSER_PROPOSAL_CANVAS_FLAG,
-    OMNIPARSER_PROPOSAL_STROKE,
-    draw_omni_proposal_overlay,
     ensure_entry_for_reference_path,
     load_json,
     regions_to_initial_drawing,
@@ -14,7 +9,7 @@ from ui.area_annotator import (
 )
 
 
-def test_regions_to_initial_drawing_does_not_add_omni_proposals_as_canvas_objects() -> None:
+def test_regions_to_initial_drawing_maps_region_names_to_canvas_objects() -> None:
     regions = [
         {
             "name": "main.button",
@@ -86,59 +81,6 @@ def test_ensure_entry_stores_new_module_ocr_as_local_reference() -> None:
 
     assert idx == 0
     assert entries[0]["ocr"] == "references/new.png"
-
-
-def test_draw_omni_proposal_overlay_draws_on_background_image() -> None:
-    image = Image.new("RGB", (200, 100), (255, 255, 255))
-
-    out = draw_omni_proposal_overlay(
-        image,
-        [
-            {
-                "name": "mail.title",
-                "bbox": {"x": 50.0, "y": 60.0, "width": 10.0, "height": 5.0},  # ty: ignore[missing-typed-dict-key]
-            }
-        ],  # ty: ignore[invalid-argument-type]
-    )
-
-    assert out.getpixel((100, 60)) != image.getpixel((100, 60))
-
-
-def test_sync_regions_from_canvas_ignores_omni_proposal_overlay() -> None:
-    regions = [
-        {
-            "name": "main.button",
-            "bbox": {"x": 10.0, "y": 20.0, "width": 30.0, "height": 40.0},
-        }
-    ]
-    drawing = regions_to_initial_drawing(
-        regions,  # ty: ignore[invalid-argument-type]
-        canvas_w=200,
-        canvas_h=100,
-        selected_idx=0,
-    )
-    drawing["objects"].append(
-        {
-            "type": "rect",
-            "left": 100.0,
-            "top": 60.0,
-            "width": 20.0,
-            "height": 5.0,
-            "stroke": OMNIPARSER_PROPOSAL_STROKE,
-            OMNIPARSER_PROPOSAL_CANVAS_FLAG: True,
-        }
-    )
-
-    synced = sync_regions_from_canvas(
-        regions,  # ty: ignore[invalid-argument-type]
-        drawing,
-        canvas_w=200,
-        canvas_h=100,
-        orig_w=200,
-        orig_h=100,
-    )
-
-    assert [r["name"] for r in synced] == ["main.button"]
 
 
 def test_sync_regions_from_canvas_removes_region_when_canvas_object_is_deleted() -> None:

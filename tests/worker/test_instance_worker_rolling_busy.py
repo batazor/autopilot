@@ -8,6 +8,7 @@ Device-level overlays still run so blocking tutorials/popups can interrupt.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 from dataclasses import dataclass
 from typing import Any
 
@@ -86,6 +87,8 @@ class _Harness(InstanceWorkerRollingMixin):
         self._ui_paused = False
         self._task_busy = asyncio.Event()
         self._rolling_snap_seq = 0
+        self._rolling_analyze_task: asyncio.Task[None] | None = None
+        self._rolling_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         # Recorded stage invocations:
         self.calls: list[str] = []
 
@@ -113,6 +116,11 @@ class _Harness(InstanceWorkerRollingMixin):
     async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
         self.calls.append("who_i_am")
 
+    async def _finish_rolling_analysis(self) -> None:
+        task = self._rolling_analyze_task
+        if task is not None:
+            await task
+
 
 @pytest.fixture
 def _isolated_refs(mocker, tmp_path: Any) -> Any:
@@ -138,6 +146,7 @@ def _isolated_refs(mocker, tmp_path: Any) -> Any:
 async def test_tick_idle_runs_full_pipeline(_isolated_refs: Any) -> None:
     h = _Harness(cfg=_Cfg())
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
     assert h.calls == ["grab", "detect", "overlay", "who_i_am"]
 
 
@@ -163,6 +172,7 @@ async def test_tick_records_screenshot_analysis_duration(
 
     h = _Harness(cfg=_Cfg())
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
 
     assert len(records) == 1
     value, attrs = records[0]
@@ -184,6 +194,7 @@ async def test_tick_busy_skips_detect_and_overlay_by_default(_isolated_refs: Any
     h = _Harness(cfg=_Cfg())
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
     assert h.calls == ["grab", "overlay:device"], h.calls
 
 
@@ -195,6 +206,7 @@ async def test_tick_busy_keeps_detect_when_flag_enabled(_isolated_refs: Any) -> 
     h = _Harness(cfg=_Cfg(screen_detect_when_busy=True))
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
     assert h.calls == ["grab", "detect", "overlay:device"], h.calls
 
 
@@ -207,6 +219,7 @@ async def test_tick_busy_keeps_full_pipeline_when_both_flags_enabled(
     )
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
     assert h.calls == ["grab", "detect", "overlay", "who_i_am"], h.calls
 
 
@@ -217,6 +230,7 @@ async def test_tick_busy_still_writes_preview_png(_isolated_refs: Any) -> None:
     h = _Harness(cfg=_Cfg())
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
     written = list(_isolated_refs.iterdir())
     assert len(written) == 1
     assert written[0].suffix == ".png"

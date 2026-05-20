@@ -1,0 +1,171 @@
+"""Queue data for the dashboard API."""
+from __future__ import annotations
+
+import time
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import redis
+
+from api.services.instances import list_instance_ids
+from config.paths import repo_root
+from dsl import template_resolver as _tmpl
+from ui.redis_client import (
+    QueueHistoryRow,
+    QueueRow,
+    RunningQueueRow,
+    fetch_queue_history_rows,
+    fetch_queue_rows,
+    fetch_running_queue_row,
+    get_instance_state,
+    push_scheduler_command,
+    remove_queue_task,
+    run_queue_task_now,
+)
+
+
+def _rel_time(ts: float, now: float) -> str:
+    delta = ts - now
+    abs_s = abs(delta)
+    if abs_s < 60:
+        label = f"{int(abs_s)}s"
+    elif abs_s < 3600:
+        m, s = divmod(int(abs_s), 60)
+        label = f"{m}m {s}s" if s else f"{m}m"
+    else:
+        h, rem = divmod(int(abs_s), 3600)
+        label = f"{h}h {rem // 60}m" if rem else f"{h}h"
+    return f"in {label}" if delta >= 0 else f"{label} ago"
+
+
+def _scenario_label(scenario_key: str) -> str:
+    return _tmpl.display_name(repo_root(), scenario_key)
+
+
+def _serialize_pending(row: QueueRow, now: float) -> dict[str, Any]:
+    overdue = row.scheduled_at < now
+    rel = _rel_time(row.scheduled_at, now)
+    scheduled = f"overdue · {rel}" if overdue else rel
+    return {
+        "task_id": row.task_id,
+        "scheduled": scheduled,
+        "scheduled_at": row.scheduled_at,
+        "overdue": overdue,
+        "player_id": row.player_id or "(device)",
+        "instance_id": row.instance_id,
+        "scenario": _scenario_label(row.task_type),
+        "scenario_key": row.task_type,
+        "region": row.region or "—",
+        "priority": row.priority,
+        "cooperative": row.cooperative,
+        "payload": row.payload,
+    }
+
+
+def _serialize_running(
+    instance_id: str,
+    row: RunningQueueRow,
+    inst_state: dict[str, str],
+    now: float,
+) -> dict[str, Any]:
+    active_scenario = str(inst_state.get("current_scenario") or "").strip()
+    try:
+        step_now = int(inst_state.get("last_active_scenario_step") or 0)
+    except (TypeError, ValueError):
+        step_now = 0
+    return {
+        "task_id": row.task_id,
+        "instance_id": instance_id,
+        "scenario": _scenario_label(row.task_type),
+        "scenario_key": row.task_type,
+        "active_scenario": active_scenario,
+        "active_scenario_label": _scenario_label(active_scenario) if active_scenario else "",
+        "step": step_now,
+        "player_id": row.player_id or "(device)",
+        "region": row.region or "—",
+        "started": _rel_time(row.started_at, now) if row.started_at > 0 else "—",
+        "nav_target": str(inst_state.get("nav_target") or "").strip(),
+    }
+
+
+def _serialize_history(row: QueueHistoryRow) -> dict[str, Any]:
+    total = row.steps_total
+    trace = row.steps_trace
+    done_full = row.scenario_completed
+    if total is None and not trace:
+        steps = "—"
+    else:
+        n = len(trace) if trace else 0
+        mid = f"{n}/{total}" if total is not None else str(n)
+        if done_full is True:
+            steps = f"{mid} · complete"
+        elif done_full is False:
+            steps = f"{mid} · partial"
+        else:
+            steps = mid
+    return {
+        "task_id": row.task_id,
+        "scenario": row.scenario or row.task_type,
+        "scenario_key": row.task_type,
+        "player_id": row.player_id or "(device)",
+        "instance_id": row.instance_id,
+        "priority": row.priority,
+        "started_at": row.started_at,
+        "finished_at": row.finished_at,
+        "duration_s": row.duration_s,
+        "success": row.success,
+        "region": row.region or "—",
+        "reason": row.reason or row.error or "",
+        "steps": steps,
+        "trace_id": row.trace_id,
+        "steps_trace": trace if trace else None,
+    }
+
+
+def build_queue_view(client: redis.Redis) -> dict[str, Any]:
+    now = time.time()
+    pending_rows = fetch_queue_rows(client)
+    pending = [_serialize_pending(r, now) for r in pending_rows]
+
+    running: list[dict[str, Any]] = []
+    for iid in list_instance_ids():
+        r = fetch_running_queue_row(client, instance_id=iid)
+        if r is None or not r.task_id:
+            continue
+        inst_state = get_instance_state(client, iid)
+        running.append(_serialize_running(iid, r, inst_state, now))
+
+    history_rows: list[QueueHistoryRow] = []
+    for iid in list_instance_ids():
+        history_rows.extend(fetch_queue_history_rows(client, instance_id=iid, limit=30))
+    history_rows.sort(key=lambda h: h.finished_at, reverse=True)
+    history = [_serialize_history(h) for h in history_rows[:80]]
+
+    return {
+        "pending": pending,
+        "running": running,
+        "history": history,
+        "pending_count": len(pending),
+    }
+
+
+def run_task_now(client: redis.Redis, task_id: str) -> bool:
+    ok = run_queue_task_now(client, task_id)
+    if ok:
+        push_scheduler_command(client, {"cmd": "optimize_now"})
+        from ui.dashboard_events import publish_dashboard_event
+
+        publish_dashboard_event(client, topic="queue", reason="run_now")
+    return ok
+
+
+def remove_tasks(client: redis.Redis, task_ids: list[str]) -> int:
+    removed = 0
+    for tid in task_ids:
+        if remove_queue_task(client, tid):
+            removed += 1
+    if removed:
+        from ui.dashboard_events import publish_dashboard_event
+
+        publish_dashboard_event(client, topic="queue", reason="remove")
+    return removed

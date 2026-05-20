@@ -2,7 +2,7 @@
 name: wos-modules
 description: >-
   Add or change feature modules and core modules under modules/. Covers
-  module.yaml, scenarios/, analyze/analyze.yaml, exec handlers, UI pages, wiki
+  module.yaml, scenarios/, analyze/analyze.yaml, exec handlers, wiki
   contributions, modules/core/* overlay pages, and module scope (All / Core /
   feature). Use when creating a module, moving overlay rules out of analyze/,
   wiring module scenarios, or debugging why module rules/scenarios do not load.
@@ -13,7 +13,7 @@ description: >-
 # WOS modules — layout & wiring
 
 The repo keeps automation in **modules** that provide scenarios, overlay rules,
-exec handlers, Streamlit UI, and optional wiki DB rows. Base game automation
+exec handlers, optional legacy Streamlit UI, and optional wiki DB rows. Base game automation
 lives in `modules/core/*`; feature automation lives in top-level `modules/*`.
 
 ## Two module trees
@@ -41,7 +41,6 @@ modules/<id>/                    # or modules/core/<id>/
   scenarios/**/*.yaml            # optional — runnable DSL scenarios
   analyze/analyze.yaml           # optional — overlay rules (findIcon, text, isRedDot, pushScenario)
   exec.py                        # optional — DSL exec: handlers (or path in module.yaml)
-  ui/page.py                     # optional — Streamlit page (see module.yaml `ui:`)
   wiki/heroes|buildings|items/   # optional — DB Wiki contributions (see modules/README_WIKI.md)
   area.yaml                      # optional — module-local area (rare; most use core area.json)
   references/                    # optional — module-local crops
@@ -58,7 +57,6 @@ modules/<id>/                    # or modules/core/<id>/
 | `area` | Relative path to area file; feature modules often `../../area.json` (core). Under `modules/core/<id>/` use `../../../area.json` |
 | `references` | Relative path to references tree (same depth as `area`) |
 | `exec` | Relative path to exec module (default `exec.py`) |
-| `ui` | Streamlit page spec — str, dict, or list (see `config/module_ui_registry.py`) |
 | `wiki: false` | Exclude from **wiki** module picker only — does **not** affect the Labeling UI |
 
 **Overlay-only core page** (no scenarios, no wiki row):
@@ -86,10 +84,9 @@ module just to run a one-shot "where am I" probe.
 
 | Concern | Loader | Notes |
 |---------|--------|-------|
-| Scenario YAML paths | `scenarios/registry.py` → `scenario_roots()`, `iter_scenario_yaml_files()` | Core scope = `modules/core/*/scenarios` only |
+| Scenario YAML paths | `dsl/registry.py` → `scenario_roots()`, `iter_scenario_yaml_files()` | Core scope = `modules/core/*/scenarios` only |
 | Overlay rules | `load_merged_analyze_yaml()` | Merged from all `modules/*/analyze/analyze.yaml` |
 | DSL `exec:` handlers | `config/module_exec_registry.load_module_exec_handlers()` | Export `DSL_EXEC_HANDLERS` dict |
-| Streamlit pages | `config/module_ui_registry.iter_module_ui_page_specs()` | Declared in `module.yaml` `ui:` |
 | Wiki DB tiles | `config/wiki_sources.load_merged_entries()` | See `modules/README_WIKI.md` |
 | Wiki module picker | `config/module_registry.list_wiki_modules()` | Skips `wiki: false` modules |
 | Labeling / Gallery scope | `config/module_registry.list_labeling_modules()` | All modules, **ignores** `wiki: false` |
@@ -109,7 +106,7 @@ Sidebar **Module scope** (`ui/module_scope.py`): **All** | **Core** | feature id
 
 `path_matches_module_scope()` treats `modules/core/...` as **Core** scope.
 Storage key for nested core modules: `core/<name>` (`module_storage_key()`).
-IA Editor's module-scoped overlay analyzer stores its selected scope in Redis:
+The module-scoped overlay analyzer (click approvals rehearsal) stores its selected scope in Redis:
 
 ```bash
 redis-cli SET wos:ui:ia_analyzer:scope:<instance_id> <module-scope>
@@ -119,31 +116,37 @@ For `modules/core/survivors`, use `survivors` (or `core/survivors`) and let the 
 
 ## Labeling UI deep-link
 
-The Labeling page (`http://localhost:8501/labeling`) takes two query params:
+**Primary (Next.js):** http://127.0.0.1:3000/labeling — `uv run play` or `uv run api` + `cd web && npm run dev`.
 
 | Param | Value | Example |
 |-------|-------|---------|
 | `ref` | Repo-relative path to the reference PNG | `modules/core/shop/references/main_city.png` |
-| `module` | Module storage key | `core/shop` for `modules/core/shop/`, `shop` for `modules/shop/` |
+| `version` | Optional version id in the area doc | `v2` |
+
+**Example (core module reference):**
+
+```
+http://127.0.0.1:3000/labeling?ref=modules/core/shop/references/main_city.png
+```
+
+**Module-scoped layout** (`module=` + per-module `area.yaml`, references tree filtered by module): legacy Streamlit only — `WOS_PLAY_STREAMLIT=1 uv run play`, then:
+
+| Param | Value | Example |
+|-------|-------|---------|
+| `ref` | Repo-relative PNG path | `modules/core/shop/references/main_city.png` |
+| `module` | Module storage key | `core/shop` for `modules/core/shop/`, `vip` for `modules/vip/` |
 
 Storage key rules:
 - `modules/core/<id>/` → storage key = `core/<id>` (e.g. `core/shop`, `core/survivors`)
 - `modules/<id>/` → storage key = `<id>` (e.g. `vip`, `mail`)
 
-**Example deep-link for a core module:**
-
 ```
-http://localhost:8501/labeling?ref=modules/core/shop/references/main_city.png&module=core/shop
+http://127.0.0.1:8501/labeling?ref=modules/core/shop/references/main_city.png&module=core/shop
 ```
 
-When the correct `module=` key is supplied, the Labeling page:
-1. Switches the Module selector to that module
-2. Loads only that module's `area.yaml` (not the global `area.json`)
-3. Shows only that module's `references/` tree
+With `module=` on Streamlit, the page switches the module selector, loads that module's `area.yaml` (not global `area.json`), and shows only that module's `references/` tree.
 
-`wiki: false` has **no effect** on the Labeling UI — it only controls the wiki DB picker.
-The Labeling selector uses `list_labeling_modules()` (not `list_wiki_modules()`), so all
-modules appear regardless of their `wiki:` setting.
+`wiki: false` has **no effect** on module lists for labeling — `list_labeling_modules()` (not `list_wiki_modules()`), so all modules appear regardless of `wiki:`.
 
 ## Overlay rules in modules
 
@@ -177,7 +180,7 @@ names: later module in discovery order wins (warning logged).
 
 ## Checklist — new **feature** module
 
-1. `modules/<id>/module.yaml` with `id`, `title`, `scenarios`, optional `analyze` / `area` / `references` / `exec` / `ui`
+1. `modules/<id>/module.yaml` with `id`, `title`, `scenarios`, optional `analyze` / `area` / `references` / `exec`
 2. Scenario YAMLs under `modules/<id>/scenarios/`
 3. If overlay-driven: `modules/<id>/analyze/analyze.yaml` + regions in `area.json` (via annotator)
 4. If custom DSL actions: `exec.py` with `DSL_EXEC_HANDLERS`
@@ -206,7 +209,7 @@ names: later module in discovery order wins (warning logged).
 |------|------|
 | `config/module_discovery.py` | `iter_module_dirs`, scope matching |
 | `config/module_registry.py` | Wiki contexts, scope options, `list_labeling_modules` |
-| `scenarios/registry.py` | Scenario + analyze manifest iteration |
+| `dsl/registry.py` | Scenario + analyze manifest iteration |
 | `analysis/overlay_manifest.py` | `load_merged_analyze_yaml` |
 | `modules/README_WIKI.md` | Wiki DB contributions only |
 | `.cursor/rules/wos-overlay-actions.mdc` | Overlay YAML vs `area.json` actions |

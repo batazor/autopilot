@@ -19,7 +19,13 @@ def default_area_json_path(repo_root: Path) -> Path:
 
 def _load_area_mapping(path: Path) -> dict[str, Any]:
     raw_text = path.read_text(encoding="utf-8")
-    raw = json.loads(raw_text) if path.suffix.lower() == ".json" else yaml.safe_load(raw_text)
+    if path.suffix.lower() == ".json":
+        try:
+            raw = json.loads(raw_text)
+        except json.JSONDecodeError:
+            raw = yaml.safe_load(raw_text)
+    else:
+        raw = yaml.safe_load(raw_text)
     if isinstance(raw, list):
         return {"screens": raw}
     return raw if isinstance(raw, dict) else {}

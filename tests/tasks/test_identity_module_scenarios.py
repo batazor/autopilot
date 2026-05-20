@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scenarios.registry import iter_scenario_yaml_files, scenario_roots
-from scenarios.template_resolver import resolve
+from dsl.registry import iter_scenario_yaml_files, scenario_roots
+from dsl.template_resolver import resolve
 
 REPO = Path(__file__).resolve().parents[2]
 

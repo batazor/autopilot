@@ -297,8 +297,8 @@ async def test_player_bound_while_match_uses_implicit_search_region(
     assert result.success is True
     tap_call = actions.tap.call_args_list[0]
     assert tap_call[0][0] == "bs1"
-    assert tap_call[0][1].x == 75
-    assert tap_call[0][1].y == 75
+    assert tap_call[0][1].x == 540
+    assert tap_call[0][1].y == 960
     assert tap_call[1]["approval_region"] == "page.worker.add"
     row = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert row["dsl_last_match_search_region"] == "page.worker.add_search"
@@ -310,7 +310,7 @@ async def test_assign_worker_while_match_real_fixture_matches_search_roi(
     redis_async: object,
 ) -> None:
     """Real PNG fixture matches ``button.add`` through the isSearch matcher."""
-    from scenarios import template_resolver
+    from dsl import template_resolver
 
     repo_root = Path(__file__).resolve().parents[2]
     if template_resolver.load_doc(repo_root, "assign_worker") is None:

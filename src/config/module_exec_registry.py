@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from config.module_discovery import iter_module_dirs, module_meta_id
-from config.paths import repo_root as default_repo_root
+from config.paths import ensure_repo_on_sys_path, repo_root as default_repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -77,6 +77,7 @@ def _handlers_from_module(mod: object, module_id: str) -> dict[str, DslExecHandl
 
 def load_module_exec_handlers(repo_root: Path | None = None) -> dict[str, DslExecHandler]:
     """Discover and import every module ``exec.py`` (or ``module.yaml`` ``exec:`` path)."""
+    ensure_repo_on_sys_path()
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     merged: dict[str, DslExecHandler] = {}
     for module_dir in iter_module_dirs(root):

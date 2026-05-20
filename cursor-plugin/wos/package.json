@@ -80,12 +80,12 @@
         "wos.labeling.host": {
           "type": "string",
           "default": "127.0.0.1",
-          "description": "Streamlit host for the WOS UI (uv run play)."
+          "description": "Next.js dev / Docker web host (default uv run play → :3000)."
         },
         "wos.labeling.port": {
           "type": "number",
-          "default": 8501,
-          "description": "Streamlit port for the WOS UI."
+          "default": 3000,
+          "description": "Next.js port for Labeling (/labeling). Use 8501 only with WOS_PLAY_STREAMLIT=1."
         }
       }
     }

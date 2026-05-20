@@ -1,34 +1,47 @@
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 
 from layout.template_match import match_template_in_search_roi_bbox_percent
 
 
-def test_match_template_search_excludes_previous_top_left(monkeypatch: Any) -> None:
-    # Create a fake "heatmap" with two peaks: one at (x=2,y=3) and another at (7,9).
-    heat = np.full((12, 12), -1.0, dtype=np.float32)
-    heat[3, 2] = 0.95
-    heat[9, 7] = 0.90
+def test_match_template_search_excludes_previous_top_left() -> None:
+    """Hybrid NCC+pHash search skips an excluded top-left and finds the second copy."""
+    hi, wi = 100, 100
+    frame = np.full((hi, wi, 3), 128, dtype=np.uint8)
+    th, tw = 10, 10
+    tpl = np.zeros((th, tw, 3), dtype=np.uint8)
+    tpl[:] = (200, 100, 50)
+    tpl[::2, :] = (160, 80, 40)
 
-    def _fake_match_template(_rg: Any, _tg: Any, _method: Any) -> Any:
-        return heat.copy()
+    x1, y1 = 20, 25
+    frame[y1 : y1 + th, x1 : x1 + tw] = tpl
 
-    monkeypatch.setattr("cv2.matchTemplate", _fake_match_template, raising=False)
+    x2, y2 = 65, 70
+    frame[y2 : y2 + th, x2 : x2 + tw] = tpl
 
-    # Minimal images (content irrelevant due to monkeypatch).
-    img = np.zeros((100, 100, 3), dtype=np.uint8)
-    tpl = np.zeros((10, 10, 3), dtype=np.uint8)
-    # ROI at (0,0) for simplicity.
-    bbox = {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
+    bbox = {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 100.0,
+        "height": 100.0,
+        "rotation": 0.0,
+        "original_width": wi,
+        "original_height": hi,
+    }
 
-    res1 = match_template_in_search_roi_bbox_percent(img, tpl, bbox)
-    assert res1["top_left"] == (2, 3)
+    res1 = match_template_in_search_roi_bbox_percent(frame, tpl, bbox)
+    assert float(res1["score"]) >= 0.9
+    tl1 = tuple(res1["top_left"])
 
     res2 = match_template_in_search_roi_bbox_percent(
-        img, tpl, bbox, exclude_top_lefts=[(2, 3)], exclude_radius_px=2
+        frame,
+        tpl,
+        bbox,
+        exclude_top_lefts=[tl1],
+        exclude_radius_px=12,
     )
-    assert res2["top_left"] == (7, 9)
-
+    assert res2["top_left"] != tl1
+    assert abs(int(res2["top_left"][0]) - x2) <= 2
+    assert abs(int(res2["top_left"][1]) - y2) <= 2
+    assert float(res2["score"]) >= 0.9

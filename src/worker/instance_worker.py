@@ -144,7 +144,15 @@ class InstanceWorker(
             max_workers=4,
             thread_name_prefix=f"wos-{self._cfg.instance_id}-",
         )
+        # Rolling ADB preview must keep updating while long DSL tasks hold the
+        # main blocking pool (navigation, OCR, overlay on the same 4 threads).
+        self._rolling_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix=f"wos-{self._cfg.instance_id}-rolling-",
+        )
         self._rolling_snapshot_task: asyncio.Task[None] | None = None
+        self._rolling_analyze_task: asyncio.Task[None] | None = None
+        self._startup_overlay_task: asyncio.Task[None] | None = None
         self._abort_task_listener_task: asyncio.Task[None] | None = None
         self._blocking_executor_live: bool = True
         self._stopping: bool = False
@@ -730,9 +738,13 @@ class InstanceWorker(
                         mapping=mapping,
                     )
             if game_ready:
-                await self._startup_overlay_tick()
+                self._startup_overlay_task = asyncio.create_task(
+                    self._startup_overlay_tick(),
+                    name=f"overlay-startup-{self._cfg.instance_id}",
+                )
             await self._seed_startup_tasks()
-            # Legacy: page detect disabled (YAML-only mode).
+            # Rolling preview must start immediately — do not block on startup
+            # overlay / screen-detect (those can take tens of seconds on phone).
             self._rolling_snapshot_task = asyncio.create_task(
                 self._device_reference_snapshot_loop(),
                 name=f"refsnap-{self._cfg.instance_id}",
@@ -812,11 +824,27 @@ class InstanceWorker(
                     pass
                 except Exception:
                     logger.debug("rolling snapshot task shutdown failed", exc_info=True)
+            analyze = self._rolling_analyze_task
+            self._rolling_analyze_task = None
+            if analyze is not None and not analyze.done():
+                analyze.cancel()
+                with suppress(asyncio.CancelledError):
+                    await analyze
+            startup_overlay = self._startup_overlay_task
+            self._startup_overlay_task = None
+            if startup_overlay is not None and not startup_overlay.done():
+                startup_overlay.cancel()
+                with suppress(asyncio.CancelledError):
+                    await startup_overlay
             self._blocking_executor_live = False
             try:
                 self._blocking_pool.shutdown(wait=False, cancel_futures=True)
             except Exception:
                 logger.debug("blocking thread pool shutdown failed", exc_info=True)
+            try:
+                self._rolling_pool.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                logger.debug("rolling thread pool shutdown failed", exc_info=True)
             await self._disconnect_redis()
 
     # _run_one_queue_item and _reschedule_if_needed are provided by InstanceWorkerTasksMixin

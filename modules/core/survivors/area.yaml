@@ -1,8 +1,40 @@
 version: 2
 screens:
+- id: 22
+  screen_id: main_city
+  ocr: references/isNewPeople.png
+  regions:
+  - name: isNewPeople
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 10.579150579150578
+      y: 18.47826086956522
+      width: 8.569498069498069
+      height: 6.477173913043479
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 23
+  screen_id: ""
+  ocr: references/isNewPeople.welcome_in.png
+  regions:
+  - name: button.welcome_in
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 33.552123552123554
+      y: 81.52173913043478
+      width: 31.7992277992278
+      height: 4.3999999999999995
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
 - id: 1001
   screen_id: main_city
-  ocr: references/welcome_new_survivors.rehearsal.03.after_welcome_in.png
+  ocr: references/page.main_city.after_welcome.png
   regions:
   - name: isWorkers
     action: exist

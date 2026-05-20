@@ -15,13 +15,13 @@ from streamlit_nested_table import nested_table, table_column
 from config.devices import player_ids_for_device_candidates
 from config.loader import Settings, load_settings
 from config.paths import repo_root as default_repo_root
-from scenarios.cron_specs import (
+from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
     iter_plain_scenario_yaml_files_for_repo,
     resolve_cron_priority,
     resolve_cron_task_type,
 )
-from scenarios.registry import scenario_source_label
+from dsl.registry import scenario_source_label
 from ui.module_scope import render_module_scope_selector
 from ui.redis_client import (
     format_scenario_redis_purge_result,

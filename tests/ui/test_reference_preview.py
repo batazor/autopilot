@@ -42,3 +42,27 @@ def test_list_reference_pngs_skips_files_removed_during_scan(
     rels = [p.relative_to(ref_root).as_posix() for p in list_reference_pngs(root=ref_root)]
 
     assert rels == ["screen.png"]
+
+
+def test_list_reference_pngs_labeling_tree_excludes_auxiliary_dirs(tmp_path: Path) -> None:
+    ref_root = tmp_path / "references"
+    ref_root.mkdir()
+    (ref_root / "main_city.png").write_bytes(b"x")
+    (ref_root / "crop" / "main_city.icon.png").parent.mkdir(parents=True)
+    (ref_root / "crop" / "main_city.icon.png").write_bytes(b"y")
+    (ref_root / "events" / "event.foo.png").parent.mkdir(parents=True)
+    (ref_root / "events" / "event.foo.png").write_bytes(b"z")
+    (ref_root / "temporal" / "bs1_current_state.png").parent.mkdir(parents=True)
+    (ref_root / "temporal" / "bs1_current_state.png").write_bytes(b"t")
+
+    rels = [
+        p.relative_to(ref_root).as_posix()
+        for p in list_reference_pngs(
+            root=ref_root,
+            exclude_temporal=True,
+            exclude_crop=True,
+            exclude_events=True,
+        )
+    ]
+
+    assert rels == ["main_city.png"]

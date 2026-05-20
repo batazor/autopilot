@@ -10,7 +10,7 @@ from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from navigation.detector import ScreenDetector
-from scenarios import template_resolver
+from dsl import template_resolver
 from services import get_ocr_client
 
 if TYPE_CHECKING:
@@ -19,10 +19,18 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[2]
 REFERENCES_DIR = MODULE_DIR / "references"
+REHEARSAL_FIXTURES_DIR = REFERENCES_DIR / "rehearsal" / "fixtures" / "claim_exploration_rewards"
 
 
 def _load_reference_bgr(name: str) -> np.ndarray:
     path = REFERENCES_DIR / name
+    frame = cv2.imread(str(path))
+    assert frame is not None, f"failed to load reference screenshot: {path}"
+    return frame
+
+
+def _load_rehearsal_fixture_bgr(name: str) -> np.ndarray:
+    path = REHEARSAL_FIXTURES_DIR / name
     frame = cv2.imread(str(path))
     assert frame is not None, f"failed to load reference screenshot: {path}"
     return frame
@@ -43,13 +51,11 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
-    main_city = _load_reference_bgr(
-        "claim_exploration_rewards.rehearsal.01.main_city_before.png"
-    )
-    exploration = _load_reference_bgr("claim_exploration_rewards.rehearsal.03.state_03.png")
-    idle_income = _load_reference_bgr("claim_exploration_rewards.rehearsal.08.state_08.png")
-    rewards = _load_reference_bgr("claim_exploration_rewards.rehearsal.11.state_11.png")
-    after_rewards = _load_reference_bgr("claim_exploration_rewards.rehearsal.14.state_14.png")
+    main_city = _load_rehearsal_fixture_bgr("01.main_city_before.png")
+    exploration = _load_rehearsal_fixture_bgr("03.exploration.png")
+    idle_income = _load_rehearsal_fixture_bgr("08.idle_income.png")
+    rewards = _load_reference_bgr("page.rewards.png")
+    after_rewards = _load_rehearsal_fixture_bgr("14.after_rewards.png")
 
     detector = ScreenDetector(get_ocr_client())
     assert await detector.detect_screen(main_city) == "main_city"

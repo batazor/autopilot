@@ -71,8 +71,8 @@ async def test_dsl_click_uses_overlay_tap_override(
     assert result.success is True
     tap_call = actions.tap.call_args_list[0]
     assert tap_call[0][0] == "bs1"
-    assert tap_call[0][1].x == 500
-    assert tap_call[0][1].y == 700
+    assert tap_call[0][1].x == 360
+    assert tap_call[0][1].y == 896
     assert tap_call[1]["approval_region"] == "hand_pointer"
 
 

@@ -7,8 +7,12 @@ import shutil
 import signal
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from adb.frame_normalize import FrameNormalizeTransform
 
 # Homebrew (Apple Silicon) is often missing from the GUI/Streamlit PATH.
 DEFAULT_ADB_BIN = "/opt/homebrew/bin/adb"
@@ -75,13 +79,13 @@ def _stderr_or_signal_detail(returncode: int, stderr: bytes) -> str:
     return text or "unknown error"
 
 
-def adb_screencap_png(
+def adb_screencap_raw_png(
     adb_bin: str = DEFAULT_ADB_BIN,
     serial: str | None = None,
     *,
     timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
 ) -> tuple[bytes | None, str]:
-    """Return (PNG bytes, empty str) on success, or (None, error message)."""
+    """Return raw device PNG bytes without letterbox normalization."""
     resolved = resolve_adb_executable(adb_bin)
     if resolved is None:
         return None, MSG_ADB_NOT_FOUND
@@ -128,21 +132,68 @@ def adb_screencap_png(
     return data, ""
 
 
+def adb_screencap_png(
+    adb_bin: str = DEFAULT_ADB_BIN,
+    serial: str | None = None,
+    *,
+    timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
+    normalize: bool = True,
+) -> tuple[bytes | None, str]:
+    """Return PNG bytes; normalized to 720×1280 by default."""
+    if not normalize:
+        return adb_screencap_raw_png(
+            adb_bin,
+            serial,
+            timeout_seconds=timeout_seconds,
+        )
+    img, err = adb_screencap_bgr(adb_bin, serial, normalize=True)
+    if img is None:
+        return None, err
+    import cv2
+
+    ok, enc = cv2.imencode(".png", img)
+    if not ok:
+        return None, "cv2.imencode failed after adb screencap"
+    return enc.tobytes(), ""
+
+
 def adb_screencap_bgr(
     adb_bin: str = DEFAULT_ADB_BIN,
     serial: str | None = None,
+    *,
+    normalize: bool = True,
 ) -> tuple[np.ndarray | None, str]:
     """Decode ADB PNG screencap to BGR ``numpy`` array (OpenCV convention)."""
-    data, err = adb_screencap_png(adb_bin, serial)
+    img, _transform, err = adb_screencap_bgr_with_transform(
+        adb_bin,
+        serial,
+        normalize=normalize,
+    )
+    return img, err
+
+
+def adb_screencap_bgr_with_transform(
+    adb_bin: str = DEFAULT_ADB_BIN,
+    serial: str | None = None,
+    *,
+    normalize: bool = True,
+) -> tuple[np.ndarray | None, FrameNormalizeTransform | None, str]:
+    """Decode ADB PNG screencap and include normalization geometry when available."""
+    data, err = adb_screencap_raw_png(adb_bin, serial)
     if data is None:
-        return None, err
+        return None, None, err
     import cv2
+
+    from adb.frame_normalize import normalize_adb_frame_bgr_with_transform
 
     arr = np.frombuffer(data, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
-        return None, "cv2.imdecode failed (invalid PNG from adb screencap)"
-    return img, ""
+        return None, None, "cv2.imdecode failed (invalid PNG from adb screencap)"
+    transform = None
+    if normalize:
+        img, transform = normalize_adb_frame_bgr_with_transform(img)
+    return img, transform, ""
 
 
 def adb_screencap_to_file(
@@ -150,11 +201,15 @@ def adb_screencap_to_file(
     *,
     adb_bin: str = DEFAULT_ADB_BIN,
     serial: str | None = None,
+    normalize: bool = True,
 ) -> tuple[bool, str]:
     """Write PNG to ``dest``; on success (True, path str), else (False, error)."""
-    data, err = adb_screencap_png(adb_bin, serial)
-    if data is None:
+    img, err = adb_screencap_bgr(adb_bin, serial, normalize=normalize)
+    if img is None:
         return False, err
+    import cv2
+
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(data)
+    if not cv2.imwrite(str(dest), img):
+        return False, f"cv2.imwrite failed for {dest}"
     return True, str(dest)

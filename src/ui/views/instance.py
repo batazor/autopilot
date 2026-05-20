@@ -84,7 +84,7 @@ def _reference_preview_fragment(instance_id: str) -> None:
             elif row.get("paused") == "1":
                 st.warning(
                     f"PNG is ~{int(age_s)} s old — instance **paused** (Overview ▶ Resume). "
-                    "Rolling ADB snapshots are not written while paused."
+                    "Scenario work is paused; rolling preview still refreshes when ADB capture succeeds."
                 )
             elif str(row.get("state", "")).lower() in {"crashed", "restarting"}:
                 st.warning(

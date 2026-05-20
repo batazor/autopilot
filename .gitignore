@@ -51,7 +51,10 @@ db/state/
 
 # --- Runtime / bot process ----------------------------------------------------
 references/temporal/
-**/rehearsal/
+# Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
+**/rehearsal/*
+!**/rehearsal/fixtures/
+!**/rehearsal/fixtures/**
 .cache/
 .wos.nohup.log
 .wos.pid
@@ -61,7 +64,3 @@ references/temporal/
 result/
 .bench_crops/
 
-# --- Optional local paths -----------------------------------------------------
-# OmniParser weights live outside the repo (OMNIPARSER_ROOT); ignore accidental dumps
-omniparser/weights/
-omniparser/.cache/

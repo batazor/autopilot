@@ -10,7 +10,7 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-from scenarios import template_resolver
+from dsl import template_resolver
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from scenarios import template_resolver
+from dsl import template_resolver
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]

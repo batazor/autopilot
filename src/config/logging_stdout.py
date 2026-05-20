@@ -93,7 +93,7 @@ def setup_stdout_logging(level: int = logging.INFO) -> None:
     for h in logging.getLogger().handlers:
         h.addFilter(ctx_filter)
 
-    # Reduce noise from HTTP client internals (OmniParser health checks, etc.).
+    # Reduce noise from HTTP client internals.
     # Keep warnings/errors visible.
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

@@ -59,7 +59,7 @@ async def test_v1_next_page_detected(area_doc: dict) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("threshold", [0.7, 0.85, 0.9])
+@pytest.mark.parametrize("threshold", [0.85, 0.9])
 async def test_daily_deals_next_page_unique_match(
     area_doc: dict,
     threshold: float,

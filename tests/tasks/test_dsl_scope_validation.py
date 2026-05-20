@@ -20,7 +20,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from scenarios.dsl_schema import OCR_SCOPES, DslStep, validate_dsl_steps
+from dsl.dsl_schema import OCR_SCOPES, DslStep, validate_dsl_steps
 
 
 def test_dsl_step_rejects_unknown_scope_at_parse() -> None:

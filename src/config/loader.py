@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from config.device_display import DeviceDisplayConfig, parse_device_display
+
 
 @dataclass(frozen=True)
 class InstanceConfig:
@@ -15,6 +17,7 @@ class InstanceConfig:
     quartz_window_id: int | None = None
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
+    display: DeviceDisplayConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -29,14 +32,6 @@ class OcrConfig:
     tesseract_cmd: str = "tesseract"
     tessdata_dir: str = ""
     timeout_seconds: int = 10
-
-
-@dataclass(frozen=True)
-class OmniparserConfig:
-    """Optional screen-parser sidecar for labeling auto-detect (microsoft/OmniParser)."""
-
-    url: str = ""
-    timeout_seconds: int = 120
 
 
 @dataclass(frozen=True)
@@ -66,13 +61,14 @@ class WorkerConfig:
     """How often to overwrite the rolling preview PNG."""
     adb_executable: str = ""
     """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
+    device_display: DeviceDisplayConfig | None = None
+    """Default ADB display profile applied at worker boot (per-device overrides in devices.yaml)."""
 
 
 @dataclass(frozen=True)
 class Settings:
     redis: RedisConfig
     ocr: OcrConfig
-    omniparser: OmniparserConfig
     scheduler: SchedulerConfig
     worker: WorkerConfig
     instances: list[InstanceConfig]
@@ -119,17 +115,12 @@ def load_settings(path: Path | None = None) -> Settings:
     if (ocr_timeout := _env_int("WOS_OCR_TIMEOUT_SECONDS")) is not None:
         ocr_raw["timeout_seconds"] = ocr_timeout
 
-    omniparser_raw = dict(raw.get("omniparser") or {})
-    if omniparser_url := _env_value("OMNIPARSER_URL"):
-        omniparser_raw["url"] = omniparser_url
-    if (omniparser_timeout := _env_int("OMNIPARSER_TIMEOUT_SECONDS")) is not None:
-        omniparser_raw["timeout_seconds"] = omniparser_timeout
-
     redis_cfg = RedisConfig(**redis_raw)
     ocr_cfg = OcrConfig(**ocr_raw)
-    omniparser_cfg = OmniparserConfig(**omniparser_raw)
     scheduler_cfg = SchedulerConfig(**(raw.get("scheduler") or {}))
-    worker_cfg = WorkerConfig(**raw.get("worker", {}))
+    worker_raw = dict(raw.get("worker") or {})
+    device_display = parse_device_display(worker_raw.pop("device_display", None))
+    worker_cfg = WorkerConfig(**worker_raw, device_display=device_display)
 
     # Each ``db/devices.yaml`` entry maps to one ``InstanceConfig``. Inline
     # import keeps ``config.devices`` out of the module-level cycle.
@@ -144,6 +135,7 @@ def load_settings(path: Path | None = None) -> Settings:
             quartz_window_id=d.quartz_window_id,
             quartz_window_title=d.quartz_window_title,
             quartz_crop=d.quartz_crop,
+            display=d.display,
         )
         for d in devices_registry.devices
         if d.name.strip()
@@ -152,7 +144,6 @@ def load_settings(path: Path | None = None) -> Settings:
     return Settings(
         redis=redis_cfg,
         ocr=ocr_cfg,
-        omniparser=omniparser_cfg,
         scheduler=scheduler_cfg,
         worker=worker_cfg,
         instances=instances,

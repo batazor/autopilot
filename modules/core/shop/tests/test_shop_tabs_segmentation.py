@@ -24,7 +24,10 @@ import cv2
 import pytest
 
 from layout.area_manifest import load_area_doc
-from layout.tabs_strip_identifier import identify_tabs_by_template
+from layout.tabs_strip_identifier import (
+    discover_shop_tab_templates,
+    identify_tabs_by_template,
+)
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 
 if TYPE_CHECKING:
@@ -70,43 +73,8 @@ def strip_bbox(area_doc: dict) -> dict:
 
 @pytest.fixture(scope="module")
 def page_templates(area_doc: dict, strip_bbox: dict) -> dict:
-    """Auto-discover ``page_id → template_bgr`` from shop area regions.
-
-    Pulls every region whose bbox falls inside the tab strip's Y range — both
-    the navigation-style ``shop.to.<X>`` regions on sub-pages and the
-    title-style ``page.shop.<X>.title`` regions on the shop hub. Page-body
-    titles (y > strip_bottom) are excluded because they're identifiers of
-    the open page, not tab icons.
-    """
-    crop_dir = REFERENCES_DIR / "crop"
-    strip_y_lo = strip_bbox["y"]
-    strip_y_hi = strip_y_lo + strip_bbox["height"]
-    templates: dict = {}
-    for s in area_doc.get("screens", []):
-        ocr = str(s.get("ocr", ""))
-        if "modules/core/shop" not in ocr:
-            continue
-        stem = Path(ocr).stem
-        for reg in s.get("regions", []):
-            name = reg.get("name", "")
-            bbox = reg.get("bbox", {})
-            if not (strip_y_lo <= bbox.get("y", 0) < strip_y_hi):
-                continue
-            if name.startswith("shop.to."):
-                page_id = "shop." + name[len("shop.to."):]
-            elif name.startswith("page.shop.") and name.endswith(".title"):
-                suffix = name[len("page.shop."):-len(".title")]
-                if not suffix:
-                    continue
-                page_id = "shop." + suffix
-            else:
-                continue
-            crop = crop_dir / f"{stem}_{name}.png"
-            if crop.is_file() and page_id not in templates:
-                img = cv2.imread(str(crop))
-                if img is not None:
-                    templates[page_id] = img
-    return templates
+    """Tab templates via production discovery (``shop.to`` + ``page.to`` + hub titles)."""
+    return discover_shop_tab_templates(area_doc, REPO_ROOT, strip_bbox)
 
 
 @pytest.mark.parametrize(("screen_id", "screenshot", "expected_n", "expected_active"), PAGES)

@@ -1,1 +1,1 @@
-"""Feature modules (scenarios, overlay, optional UI) live under ``modules/<id>/``."""
+"""Feature modules (scenarios, overlay) live under ``modules/<id>/``."""

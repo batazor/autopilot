@@ -13,7 +13,7 @@ import redis.asyncio as aioredis
 from config.devices import player_ids_for_device_candidates
 from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
-from scenarios.cron_specs import (
+from dsl.cron_specs import (
     iter_cron_yaml_files_for_repo,
     resolve_cron_priority,
     resolve_cron_task_type,
@@ -25,9 +25,9 @@ from scheduler.wake import WAKE_CHANNEL, wake_scheduler
 
 if TYPE_CHECKING:
     from config.loader import Settings
-    from scenarios.evaluator import ScenarioEvaluator
-    from scenarios.loader import ScenarioLoader
-    from scenarios.models import Scenario
+    from dsl.evaluator import ScenarioEvaluator
+    from dsl.loader import ScenarioLoader
+    from dsl.models import Scenario
 
 logger = logging.getLogger(__name__)
 

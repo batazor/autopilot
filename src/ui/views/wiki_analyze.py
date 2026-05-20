@@ -16,7 +16,7 @@ from config.devices import get_device_registry
 from config.loader import load_settings
 from config.module_registry import normalize_module_scope
 from config.paths import repo_root
-from scenarios.registry import iter_module_analyze_manifests
+from dsl.registry import iter_module_analyze_manifests
 from ui.module_scope import render_module_scope_selector
 from ui.overlay_analyze_audit import OverlayAuditIssue, area_doc_for_module_scope, audit_overlay_rules
 from ui.redis_client import get_instance_state, get_redis

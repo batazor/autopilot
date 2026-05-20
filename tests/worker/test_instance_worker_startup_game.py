@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 from config.loader import (
     InstanceConfig,
     OcrConfig,
-    OmniparserConfig,
     RedisConfig,
     SchedulerConfig,
     Settings,
@@ -21,7 +20,6 @@ def _default_settings(*, game_foreground_timeout_seconds: int = 120) -> Settings
     return Settings(
         redis=RedisConfig(url="redis://localhost:6379/0"),
         ocr=OcrConfig(),
-        omniparser=OmniparserConfig(),
         scheduler=SchedulerConfig(),
         worker=WorkerConfig(game_foreground_timeout_seconds=game_foreground_timeout_seconds),
         instances=[

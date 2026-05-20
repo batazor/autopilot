@@ -4,7 +4,7 @@
 #
 # Usage:
 #     docker compose -f docker-compose.prod.yml up -d
-#     open http://127.0.0.1:8501
+#     open http://127.0.0.1:3000/overview
 #
 # Pinning a version (recommended for stability):
 #     WOS_IMAGE_TAG=v0.1.0 docker compose -f docker-compose.prod.yml up -d
@@ -24,8 +24,9 @@
 #     for the other services — host-mode bot has no Compose network attached.
 #     ``redis`` publishes to ``127.0.0.1:<port>`` on the host, and ``bot`` talks
 #     to it via that.
-#   * ``bot`` has no ``ports:`` block — Streamlit binds straight onto the
-#     host's ``:8501``.
+#   * ``bot`` has no ``ports:`` block — workers bind only to Redis/ADB on the host.
+#   * ``api`` and ``web`` use the default bridge network and reach Redis via
+#     the ``redis`` service name; ``web`` proxies ``/api`` to ``api:8765``.
 #
 # Platform support:
 #   * **Linux** — ``network_mode: host`` is fully supported out of the box.
@@ -34,6 +35,15 @@
 #     host networking". Without it, the bot can reach ``ocr`` / ``redis`` on
 #     loopback but **not** the host's adb server. Older Docker Desktops fall
 #     back to the bridge-network behaviour described in the comments below.
+#
+# Mutable repo files (labeling, devices, player state) are bind-mounted from
+# the checkout so ``api`` writes are visible to ``bot``. Override the root:
+#     WOS_REPO=/path/to/autopilot docker compose -f docker-compose.prod.yml up -d
+
+x-wos-data-volumes: &wos-data-volumes
+  - ${WOS_REPO:-.}/area.json:/app/area.json
+  - ${WOS_REPO:-.}/references:/app/references
+  - ${WOS_REPO:-.}/db:/app/db
 
 services:
   redis:
@@ -69,15 +79,51 @@ services:
       # Host's adb server, untouched (default loopback bind is fine because
       # the container shares the host's lo).
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
+    volumes: *wos-data-volumes
     restart: unless-stopped
-    # Streamlit ``/_stcore/health`` — surfaces "container up, UI dead" in
-    # ``docker compose ps`` / ``inspect``. Image also ships HEALTHCHECK in
-    # Dockerfile.bot; compose keeps prod behaviour explicit and overridable.
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8501/_stcore/health"]
+      test: ["CMD-SHELL", "ps aux | grep -q '[w]orker.supervisor' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+
+  api:
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
+    command: ["api"]
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8765:8765"
+    environment:
+      WOS_REDIS_URL: redis://redis:6379/0
+      WOS_API_HOST: 0.0.0.0
+      WOS_API_PORT: "8765"
+    volumes: *wos-data-volumes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]
       interval: 30s
       timeout: 5s
       start_period: 30s
+      retries: 3
+
+  web:
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/web:${WOS_IMAGE_TAG:-latest}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      WOS_API_URL: http://api:8765
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/overview').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
       retries: 3
 
 volumes:

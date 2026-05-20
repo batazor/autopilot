@@ -14,7 +14,6 @@ from streamlit_nested_table import TableColumn, nested_table, table_column
 from config.devices import DeviceRegistry, load_devices
 from config.loader import InstanceConfig, load_settings
 from config.module_registry import list_wiki_modules
-from config.module_ui_registry import iter_module_ui_page_specs
 from ui.bot_services import ensure_embedded_bot, restart_embedded_bot
 from ui.keys import OVERVIEW_FEEDBACK
 from ui.redis_client import (
@@ -87,38 +86,6 @@ _QUICK_SECTIONS: tuple[_QuickSection, ...] = (
         ),
     ),
 )
-
-
-def _module_quick_links(repo_root: Path) -> tuple[_QuickLink, ...]:
-    """Module UI pages (absolute paths for ``st.page_link``)."""
-
-    return tuple(
-        _QuickLink(
-            str(spec.path),
-            spec.title,
-            f"Module `{spec.module_id}` — {spec.nav_group}",
-        )
-        for spec in iter_module_ui_page_specs(repo_root)
-    )
-
-
-def _quick_sections_for_repo(repo_root: Path) -> tuple[_QuickSection, ...]:
-    module_links = _module_quick_links(repo_root)
-    if not module_links:
-        return _QUICK_SECTIONS
-    sections: list[_QuickSection] = []
-    for section in _QUICK_SECTIONS:
-        if section.title != "Config":
-            sections.append(section)
-            continue
-        sections.append(
-            _QuickSection(
-                section.title,
-                section.caption,
-                section.links + module_links,
-            )
-        )
-    return tuple(sections)
 
 _DEVICES_HELP = (
     "Rows mirror Redis `wos:instance:<id>:state`. **live** = heartbeat <10s. "
@@ -412,7 +379,7 @@ def _render_fleet_actions(
 
 def _render_quick_nav() -> None:
     st.subheader("Quick navigation")
-    sections = _quick_sections_for_repo(_REPO)
+    sections = _QUICK_SECTIONS
     cols = st.columns(len(sections), gap="medium")
     for col, section in zip(cols, sections, strict=True):
         with col, st.container(border=True):

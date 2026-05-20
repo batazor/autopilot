@@ -1,7 +1,11 @@
-# Full bot worker + Streamlit UI. Talks to ADB on the host (BlueStacks /
-# real device). Connect via ``--network=host`` on Linux or
+# Bot worker + scheduler (+ FastAPI when started as ``api``). Talks to ADB on the
+# host (BlueStacks / real device). Connect via ``--network=host`` on Linux or
 # ``host.docker.internal`` on Docker Desktop, with the host's ``adb start-server``
 # already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
+#
+# Operator UI: ``Dockerfile.web`` + ``docker compose -f docker-compose.prod.yml``
+# (Next.js on :3000, FastAPI on :8765). Streamlit remains available via
+# ``uv run play`` for local dev (Next + API + bot); not started by this image's default CMD.
 #
 # Companion service:
 #   * ``redis:alpine`` — queue / instance state
@@ -47,15 +51,10 @@ WORKDIR /app
 COPY --from=builder /app /app
 
 ENV PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH" \
-    WOS_STREAMLIT_PORT=8501
+    PATH="/app/.venv/bin:$PATH"
 
-EXPOSE 8501
+HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
+    CMD sh -c "ps aux | grep -q '[w]orker.supervisor' || exit 1"
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://localhost:8501/_stcore/health || exit 1
-
-# ``play`` (= ``worker.launch:main``) starts the Streamlit UI which boots the
-# embedded async supervisor (workers + scheduler). External users get the
-# whole stack with a single container.
-CMD ["play"]
+# Headless workers + scheduler. Pair with ``api`` + ``web`` services in prod compose.
+CMD ["bot"]

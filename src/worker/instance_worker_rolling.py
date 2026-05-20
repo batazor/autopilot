@@ -57,6 +57,25 @@ def _node_metric_value(node: str | None) -> str:
     return node_s or "unknown"
 
 
+def _write_png_atomic(p: Path, img: Any) -> bool:
+    """Write to a temp file in the same dir, then ``os.replace`` (atomic on macOS/Linux)."""
+    import cv2
+
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=".rolling-", suffix=".png", dir=p.parent)
+    os.close(fd)
+    tmp = Path(tmp_name)
+    try:
+        if not cv2.imwrite(str(tmp), img):
+            tmp.unlink(missing_ok=True)
+            return False
+        tmp.replace(p)
+        return True
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def _record_screenshot_analysis_duration(
     elapsed_s: float,
     *,
@@ -96,12 +115,44 @@ class InstanceWorkerRollingMixin(_Base):
     _ui_paused: bool
     _task_busy: Any
     _rolling_snap_seq: int
+    _rolling_pool: Any
+    _rolling_analyze_task: asyncio.Task[None] | None
 
     async def _run_blocking(self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
+    async def _run_rolling_blocking(
+        self, fn: Callable[..., Any], /, *args: Any, **kwargs: Any
+    ) -> Any:
+        """Run capture/PNG IO on a dedicated executor — never starve the UI preview."""
+        if self._stopping:
+            raise asyncio.CancelledError()
+        import functools
+
+        loop = asyncio.get_running_loop()
+        if kwargs:
+            target: Callable[..., Any] = functools.partial(fn, *args, **kwargs)
+        elif args:
+            target = functools.partial(fn, *args)
+        else:
+            target = fn
+        return await loop.run_in_executor(self._rolling_pool, target)
+
     def _grab_layout_bgr(self) -> np.ndarray:
         raise NotImplementedError
+
+    def _capture_and_write_rolling_preview(self, path: Path) -> np.ndarray | None:
+        """Grab, publish to ``frame_bus``, and write PNG on the rolling thread.
+
+        Keeps preview updates flowing when the asyncio loop is busy with sync
+        overlay/navigation work — the write must not wait for a second executor
+        trip on the main loop.
+        """
+        image_bgr = self._grab_layout_bgr()
+        if not _write_png_atomic(path, image_bgr):
+            logger.warning("[rolling] %s: PNG write failed %s", self._cfg.instance_id, path)
+            return None
+        return image_bgr
 
     async def _detect_current_screen_on_frame(self, image_bgr: np.ndarray) -> str | None:
         raise NotImplementedError
@@ -114,6 +165,85 @@ class InstanceWorkerRollingMixin(_Base):
         device_level_only: bool = False,
     ) -> None:
         raise NotImplementedError
+
+    async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
+        raise NotImplementedError
+
+    async def _run_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:
+        """Screen detect + overlay on a captured frame (may run in background)."""
+        cfg = self._settings.worker
+        task_busy = self._task_busy.is_set()
+        current_screen: str | None = None
+        device_level_only = False
+        outcome = "ok"
+        analysis_started = time.monotonic()
+        try:
+            if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
+                device_level_only = True
+                await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
+                current_screen = getattr(self, "_last_current_screen", None)
+                logger.debug(
+                    "screen-detect-after-snapshot skipped; ran device-level overlay only"
+                )
+                return
+
+            current_screen = await self._detect_current_screen_on_frame(image_bgr)
+
+            if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
+                device_level_only = True
+                await self._overlay_analyze_bgr(
+                    image_bgr,
+                    current_screen_override=current_screen,
+                    device_level_only=True,
+                )
+                logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
+                return
+            await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
+            await self._maybe_enqueue_who_i_am_when_active_player_missing()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            outcome = "error"
+            logger.exception(
+                "[rolling] %s: snapshot analysis failed",
+                self._cfg.instance_id,
+            )
+        finally:
+            current_screen = current_screen or getattr(self, "_last_current_screen", None)
+            _record_screenshot_analysis_duration(
+                time.monotonic() - analysis_started,
+                node=current_screen,
+                source="rolling",
+                device_level_only=device_level_only,
+                task_busy=task_busy,
+                outcome=outcome,
+            )
+
+    def _schedule_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:
+        """Analyze the latest frame without blocking the next capture tick."""
+        prev = self._rolling_analyze_task
+        if prev is not None and not prev.done():
+            logger.debug(
+                "[rolling] %s: analysis skipped — prior tick still running",
+                self._cfg.instance_id,
+            )
+            return
+
+        async def _runner() -> None:
+            try:
+                await self._run_rolling_snapshot_analysis(image_bgr)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception(
+                    "[rolling] %s: background analysis task failed",
+                    self._cfg.instance_id,
+                )
+
+        self._rolling_analyze_task = asyncio.create_task(
+            _runner(),
+            name=f"rolling-analyze-{self._cfg.instance_id}",
+        )
 
     async def _device_reference_snapshot_tick(self, *, analyze: bool = True) -> None:
         """Screenshot → rolling preview PNG; optionally run screen/overlay analysis."""
@@ -131,7 +261,10 @@ class InstanceWorkerRollingMixin(_Base):
         )
 
         try:
-            image_bgr = await self._run_blocking(self._grab_layout_bgr)
+            image_bgr = await self._run_rolling_blocking(
+                self._capture_and_write_rolling_preview,
+                path,
+            )
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -170,26 +303,7 @@ class InstanceWorkerRollingMixin(_Base):
                 )
             return
 
-        def _write_png_atomic(p: Path, img: np.ndarray) -> bool:
-            """Write to a temp file in the same dir, then ``os.replace`` (atomic on macOS/Linux)."""
-            import cv2
-
-            p.parent.mkdir(parents=True, exist_ok=True)
-            fd, tmp_name = tempfile.mkstemp(prefix=".rolling-", suffix=".png", dir=p.parent)
-            os.close(fd)
-            tmp = Path(tmp_name)
-            try:
-                if not cv2.imwrite(str(tmp), img):
-                    tmp.unlink(missing_ok=True)
-                    return False
-                tmp.replace(p)
-                return True
-            except OSError:
-                tmp.unlink(missing_ok=True)
-                raise
-
-        if not await self._run_blocking(_write_png_atomic, path, image_bgr):
-            logger.warning("[rolling] %s: PNG write failed %s", self._cfg.instance_id, path)
+        if image_bgr is None:
             return
 
         self._rolling_snap_seq += 1
@@ -206,51 +320,7 @@ class InstanceWorkerRollingMixin(_Base):
         if not analyze:
             return
 
-        cfg = self._settings.worker
-        task_busy = self._task_busy.is_set()
-        current_screen: str | None = None
-        device_level_only = False
-        outcome = "ok"
-        analysis_started = time.monotonic()
-        try:
-            if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
-                # Keep the expensive normal pipeline gated during busy tasks, but
-                # still let device-level overlays (tutorial hands, blocking popups)
-                # interrupt the current work.
-                device_level_only = True
-                await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
-                current_screen = getattr(self, "_last_current_screen", None)
-                logger.debug(
-                    "screen-detect-after-snapshot skipped; ran device-level overlay only"
-                )
-                return
-
-            current_screen = await self._detect_current_screen_on_frame(image_bgr)
-
-            if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
-                device_level_only = True
-                await self._overlay_analyze_bgr(
-                    image_bgr,
-                    current_screen_override=current_screen,
-                    device_level_only=True,
-                )
-                logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
-                return
-            await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
-            await self._maybe_enqueue_who_i_am_when_active_player_missing()
-        except Exception:
-            outcome = "error"
-            raise
-        finally:
-            current_screen = current_screen or getattr(self, "_last_current_screen", None)
-            _record_screenshot_analysis_duration(
-                time.monotonic() - analysis_started,
-                node=current_screen,
-                source="rolling",
-                device_level_only=device_level_only,
-                task_busy=task_busy,
-                outcome=outcome,
-            )
+        self._schedule_rolling_snapshot_analysis(image_bgr)
 
     async def _overlay_tick_now(self, *, reason: str) -> None:
         """Take one screenshot and run overlay analysis immediately."""
@@ -258,7 +328,7 @@ class InstanceWorkerRollingMixin(_Base):
             return
         logger.info("[overlay] %s: running overlay tick (%s)", self._cfg.instance_id, reason)
         try:
-            image_bgr = await self._run_blocking(self._grab_layout_bgr)
+            image_bgr = await self._run_rolling_blocking(self._grab_layout_bgr)
         except asyncio.CancelledError:
             raise
         except Exception:

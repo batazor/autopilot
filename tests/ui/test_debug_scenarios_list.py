@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scenarios.registry import scenario_source_label
+from dsl.registry import scenario_source_label
 
 REPO = Path(__file__).resolve().parents[2]
 _MAIL_SCENARIO = REPO / "modules" / "mail" / "scenarios" / "mail.claim.{tab}.yaml"

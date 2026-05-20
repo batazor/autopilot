@@ -99,6 +99,19 @@ the **"Has red dot"** checkbox in Labeling). The detector lives at
 Both variants are surfaced through a single API:
 `has_red_dot_in_bbox_percent(image, bbox, accept_frost=True)`.
 
+**Two search modes (do not mix):**
+
+- **Within zone** — standalone overlay `isRedDot:` / `action: red_dot` on a labeled
+  region (no `isSearch`). The detector scans **only the region bbox** from
+  `area.json` (`red_dot_search_mode: within_zone`). Same rectangle as DSL
+  `match:` + `isRedDot:` via `_build_red_dot_only_row`.
+- **Dynamic** — `findIcon` with `isSearch: true` (full-frame template search) or
+  any sliding match that returns `top_left`. Badge probe runs in a slot
+  **relative to the found template** (`red_dot_bbox` from `red_dot_bbox` rule
+  key or default top-right offsets), **not** the static labeled tab bbox.
+  Emits `red_dot_search_mode: dynamic`. Standalone `isRedDot` on an `isSearch`
+  region is rejected (`reason: red_dot_within_zone_only`).
+
 DSL filter on `match:` / `while_match:` steps:
 
 ```yaml

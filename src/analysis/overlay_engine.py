@@ -68,6 +68,24 @@ _template_cache: dict[tuple[str, int], np.ndarray] = {}
 _template_mask_cache: dict[tuple[str, int], tuple[np.ndarray, np.ndarray | None]] = {}
 
 
+def _hybrid_sliding_matched(
+    score: float,
+    threshold: float,
+    res: TemplateMatchResult,
+) -> bool:
+    """Sliding search: both pHash and NCC at the peak must clear ``threshold``.
+
+    Uses ``min(pHash, NCC)`` so a high pHash alone cannot confirm a weak structural match.
+    """
+    score_ncc = res.get("score_ncc")
+    effective = (
+        float(score)
+        if score_ncc is None
+        else min(float(score), float(score_ncc))
+    )
+    return effective >= threshold
+
+
 def _load_template_cached(path: Path) -> np.ndarray | None:
     """Decode a PNG template once, then reuse — invalidates on mtime change.
 
@@ -269,6 +287,62 @@ def _relative_bbox_percent_from_top_left(
     }
 
 
+def _probe_red_dot_within_zone(image_bgr: np.ndarray, bbox: dict[str, float]) -> bool:
+    """Search only inside the labeled region rectangle (``has_red_dot`` bbox)."""
+    return bool(
+        has_red_dot_in_bbox_percent(
+            image_bgr, bbox, pad_px=0, edge_badge_pad_ratio=0.0
+        )
+    )
+
+
+def _probe_red_dot_at_template_match(
+    image_bgr: np.ndarray,
+    top_left: tuple[int, int],
+    template_w: int,
+    template_h: int,
+    rule: dict[str, Any],
+) -> tuple[bool, dict[str, float]]:
+    """Search relative to a dynamically found template — not the static labeled bbox."""
+    hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+    probe_bbox = _relative_bbox_percent_from_top_left(
+        top_left,
+        template_w,
+        template_h,
+        _direct_template_red_dot_bbox(rule),
+        image_w=wi,
+        image_h=hi,
+    )
+    present = bool(
+        has_red_dot_in_bbox_percent(
+            image_bgr, probe_bbox, pad_px=0, edge_badge_pad_ratio=0.0
+        )
+    )
+    return present, probe_bbox
+
+
+def _apply_findicon_red_dot_gate(
+    *,
+    matched: bool,
+    rule: dict[str, Any],
+    image_bgr: np.ndarray,
+    top_left: tuple[int, int],
+    template_w: int,
+    template_h: int,
+) -> tuple[bool, bool | None, dict[str, float] | None]:
+    """Optional ``isRedDot`` gate after a sliding or full-frame ``findIcon`` match."""
+    red_dot_required = (
+        rule.get("isRedDot") if isinstance(rule.get("isRedDot"), bool) else None
+    )
+    if not matched or red_dot_required is None:
+        return matched, None, None
+    present, probe_bbox = _probe_red_dot_at_template_match(
+        image_bgr, top_left, template_w, template_h, rule
+    )
+    matched = present if red_dot_required else not present
+    return matched, present, probe_bbox
+
+
 def _direct_template_red_dot_bbox(rule: dict[str, Any]) -> dict[str, float]:
     raw = rule.get("red_dot_bbox")
     if isinstance(raw, dict):
@@ -324,6 +398,7 @@ async def evaluate_overlay_rules_async(
     out: dict[str, Any] = {}
     now_mono = time.monotonic()
     cur_screen_norm = (current_screen or "").strip()
+    frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
     def _lookup_region(region_name: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
         return screen_region_by_name(
@@ -447,34 +522,23 @@ async def evaluate_overlay_rules_async(
                     "want_dot_present": want_present,
                 }
                 continue
-            # Notification badges always sit in the top-right corner of an icon.
-            # Search the right half of the bbox, extended 20 px upward and 20 px
-            # to the right so badges that overflow the labeled region are caught,
-            # while left-aligned decorations ("!" alerts on adjacent tabs) are excluded.
-            _rd_x = float(bbox_rd.get("x") or 0.0)
-            _rd_y = float(bbox_rd.get("y") or 0.0)
-            _rd_w = float(bbox_rd.get("width") or 0.0)
-            _rd_h = float(bbox_rd.get("height") or 0.0)
-            _orig_w = float(bbox_rd.get("original_width") or 720)
-            _orig_h = float(bbox_rd.get("original_height") or 1280)
-            _px_right_pct = 20.0 / _orig_w * 100.0
-            _px_up_pct    = 20.0 / _orig_h * 100.0
-            badge_bbox: dict[str, float] = {
-                "x": _rd_x + _rd_w * 0.5,
-                "y": max(0.0, _rd_y - _px_up_pct),
-                "width": _rd_w * 0.5 + _px_right_pct,
-                "height": _rd_h * 0.6 + _px_up_pct,
-                "original_width": _orig_w,
-                "original_height": _orig_h,
-            }
-            # pad_px=0 and edge_badge_pad_ratio=0.0: the explicit 20 px offsets
-            # already cover badge overflow; sideways expansion would leak into
-            # adjacent regions (e.g. "!" badge of the next tab).
-            present_rd = bool(
-                has_red_dot_in_bbox_percent(
-                    image_bgr, badge_bbox, pad_px=0, edge_badge_pad_ratio=0.0
-                )
-            )
+            # Within-zone search: honour the labeled rectangle exactly (same as
+            # DSL ``_build_red_dot_only_row``). Do not mix with dynamic/isSearch
+            # badge slots — those run only after ``findIcon`` locates a template.
+            if bool(reg_rd.get("isSearch")):
+                out[logical_name] = {
+                    "matched": False,
+                    "reason": "red_dot_within_zone_only",
+                    "region": region_name_rd,
+                    "action": "red_dot",
+                    "want_dot_present": want_present,
+                    "detail": (
+                        "isSearch is dynamic findIcon search; use findIcon+isRedDot "
+                        "for badge probes relative to the match, not standalone isRedDot"
+                    ),
+                }
+                continue
+            present_rd = _probe_red_dot_within_zone(image_bgr, bbox_rd)
             matched_rd = present_rd if want_present else not present_rd
 
             bx = float(bbox_rd.get("x") or 0.0)
@@ -503,6 +567,7 @@ async def evaluate_overlay_rules_async(
                 "region": region_name_rd,
                 "want_dot_present": want_present,
                 "red_dot_present": present_rd,
+                "red_dot_search_mode": "within_zone",
                 "tap_x_pct": tap_x_pct_rd,
                 "tap_y_pct": tap_y_pct_rd,
                 "tap_match_x_pct": mx_pct_rd,
@@ -920,28 +985,15 @@ async def evaluate_overlay_rules_async(
                 my_pct = 100.0 * cy_px / int(image_bgr.shape[0])
                 score = float(res["score"])
                 matched = score >= threshold
-                red_dot_required = rule.get("isRedDot") if isinstance(rule.get("isRedDot"), bool) else None
-                red_dot_present: bool | None = None
-                red_dot_bbox: dict[str, float] | None = None
-                if matched and red_dot_required is not None:
-                    icon_bbox = _relative_bbox_percent_from_top_left(
-                        (int(res["top_left"][0]), int(res["top_left"][1])),
-                        tw_tpl,
-                        th_tpl,
-                        _direct_template_red_dot_bbox(rule),
-                        image_w=int(image_bgr.shape[1]),
-                        image_h=int(image_bgr.shape[0]),
-                    )
-                    red_dot_bbox = icon_bbox
-                    red_dot_present = bool(
-                        has_red_dot_in_bbox_percent(
-                            image_bgr,
-                            icon_bbox,
-                            pad_px=0,
-                            edge_badge_pad_ratio=0.0,
-                        )
-                    )
-                    matched = red_dot_present if red_dot_required else not red_dot_present
+                tl_direct = (int(res["top_left"][0]), int(res["top_left"][1]))
+                matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
+                    matched=matched,
+                    rule=rule,
+                    image_bgr=image_bgr,
+                    top_left=tl_direct,
+                    template_w=tw_tpl,
+                    template_h=th_tpl,
+                )
                 hit: dict[str, Any] = {
                     "matched": matched,
                     "score": score,
@@ -963,9 +1015,10 @@ async def evaluate_overlay_rules_async(
                     "tap_match_y_pct": my_pct,
                     "template": direct_template,
                 }
-                if red_dot_required is not None:
-                    hit["red_dot_required"] = red_dot_required
+                if isinstance(rule.get("isRedDot"), bool):
+                    hit["red_dot_required"] = rule["isRedDot"]
                     hit["red_dot_present"] = bool(red_dot_present)
+                    hit["red_dot_search_mode"] = "dynamic"
                     if red_dot_bbox is not None:
                         hit["red_dot_bbox"] = red_dot_bbox
                 if push_tasks:
@@ -1057,6 +1110,7 @@ async def evaluate_overlay_rules_async(
                         threshold=threshold,
                         exclude_top_lefts=excl_pts or None,
                         exclude_radius_px=excl_r,
+                        image_gray=frame_gray,
                     )
                     cx_px = res["top_left"][0] + tw_tpl / 2.0
                     cy_px = res["top_left"][1] + th_tpl / 2.0
@@ -1076,7 +1130,7 @@ async def evaluate_overlay_rules_async(
                         tap_x_pct = mx_pct + dx_pct
                         tap_y_pct = my_pct + dy_pct
                     score = res["score"]
-                    matched = score >= threshold
+                    matched = _hybrid_sliding_matched(score, threshold, res)
                     tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
                     sat_fail: str | None = None
                     mean_sat: float | None = None
@@ -1093,6 +1147,14 @@ async def evaluate_overlay_rules_async(
                             image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
                         )
                         matched = ok
+                    matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
+                        matched=matched,
+                        rule=rule,
+                        image_bgr=image_bgr,
+                        top_left=tl_tuple,
+                        template_w=tw_tpl,
+                        template_h=th_tpl,
+                    )
                     hit: dict[str, Any] = {
                         "matched": matched,
                         "score": score,
@@ -1136,6 +1198,12 @@ async def evaluate_overlay_rules_async(
                         hit["mean_saturation"] = mean_sat
                     if bright_fail or sat_fail:
                         hit["reason"] = bright_fail or sat_fail
+                    if isinstance(rule.get("isRedDot"), bool):
+                        hit["red_dot_required"] = rule["isRedDot"]
+                        hit["red_dot_present"] = bool(red_dot_present)
+                        hit["red_dot_search_mode"] = "dynamic"
+                        if red_dot_bbox is not None:
+                            hit["red_dot_bbox"] = red_dot_bbox
                     out[logical_name] = hit
                     continue
 
@@ -1214,6 +1282,8 @@ async def evaluate_overlay_rules_async(
                             exclude_top_lefts=excl_pts or None,
                             exclude_radius_px=excl_r,
                             primary_bbox_percent=bbox,
+                            image_gray=frame_gray,
+                            threshold=threshold,
                         )
                     cx_px = res["top_left"][0] + tw_tpl / 2.0
                     cy_px = res["top_left"][1] + th_tpl / 2.0
@@ -1233,7 +1303,7 @@ async def evaluate_overlay_rules_async(
                         tap_x_pct = mx_pct + dx_pct
                         tap_y_pct = my_pct + dy_pct
                     score = res["score"]
-                    matched = score >= threshold
+                    matched = _hybrid_sliding_matched(score, threshold, res)
                     tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
                     sat_fail: str | None = None
                     mean_sat: float | None = None
@@ -1250,6 +1320,14 @@ async def evaluate_overlay_rules_async(
                             image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
                         )
                         matched = ok
+                    matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
+                        matched=matched,
+                        rule=rule,
+                        image_bgr=image_bgr,
+                        top_left=tl_tuple,
+                        template_w=tw_tpl,
+                        template_h=th_tpl,
+                    )
                     hit: dict[str, Any] = {
                         "matched": matched,
                         "score": score,
@@ -1291,6 +1369,12 @@ async def evaluate_overlay_rules_async(
                         hit["mean_saturation"] = mean_sat
                     if bright_fail or sat_fail:
                         hit["reason"] = bright_fail or sat_fail
+                    if isinstance(rule.get("isRedDot"), bool):
+                        hit["red_dot_required"] = rule["isRedDot"]
+                        hit["red_dot_present"] = bool(red_dot_present)
+                        hit["red_dot_search_mode"] = "dynamic"
+                        if red_dot_bbox is not None:
+                            hit["red_dot_bbox"] = red_dot_bbox
                     out[logical_name] = hit
                     continue
 
@@ -1344,6 +1428,14 @@ async def evaluate_overlay_rules_async(
                     min_sat,
                 )
                 matched_1 = ok
+            matched_1, red_dot_present_1, red_dot_bbox_1 = _apply_findicon_red_dot_gate(
+                matched=matched_1,
+                rule=rule,
+                image_bgr=image_bgr,
+                top_left=tl_tuple_1,
+                template_w=tw_tpl,
+                template_h=th_tpl,
+            )
 
             hit1: dict[str, Any] = {
                 "matched": matched_1,
@@ -1383,6 +1475,12 @@ async def evaluate_overlay_rules_async(
                 hit1["mean_saturation"] = mean_sat_1
             if bright_fail_1 or sat_fail_1:
                 hit1["reason"] = bright_fail_1 or sat_fail_1
+            if isinstance(rule.get("isRedDot"), bool):
+                hit1["red_dot_required"] = rule["isRedDot"]
+                hit1["red_dot_present"] = bool(red_dot_present_1)
+                hit1["red_dot_search_mode"] = "dynamic"
+                if red_dot_bbox_1 is not None:
+                    hit1["red_dot_bbox"] = red_dot_bbox_1
             out[logical_name] = hit1
             continue
 

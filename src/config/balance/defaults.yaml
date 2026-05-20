@@ -1,6 +1,6 @@
 # Solver-wide defaults. Edited from the UI; read by the (future) scorer.
-# Source priors: deep-research-report.md, sections "Модель scoring" and
-# "Модель OR-Tools CP-SAT и генерация кандидатов".
+# Source priors: deep-research-report.md, sections "Scoring model" and
+# "OR-Tools CP-SAT model and candidate generation".
 
 # Sunkness: how irreversible each kind of investment is (0..1, higher = harder
 # to undo). Drives the replacement_penalty in the score formula.

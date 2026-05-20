@@ -12,7 +12,7 @@ import tasks.dsl_scenario as dsl
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
 from navigation.detector import ScreenDetector
-from scenarios import template_resolver
+from dsl import template_resolver
 from services import get_ocr_client
 
 if TYPE_CHECKING:
@@ -21,12 +21,22 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[2]
 REFERENCES_DIR = MODULE_DIR / "references"
+REHEARSAL_FIXTURES_DIR = (
+    REFERENCES_DIR / "rehearsal" / "fixtures" / "welcome_new_survivors"
+)
 
 
 def _load_reference_bgr(name: str) -> np.ndarray:
     path = REFERENCES_DIR / name
     frame = cv2.imread(str(path))
     assert frame is not None, f"failed to load reference screenshot: {path}"
+    return frame
+
+
+def _load_rehearsal_fixture_bgr(name: str) -> np.ndarray:
+    path = REHEARSAL_FIXTURES_DIR / name
+    frame = cv2.imread(str(path))
+    assert frame is not None, f"failed to load rehearsal fixture: {path}"
     return frame
 
 
@@ -45,9 +55,9 @@ async def test_welcome_new_survivors_rehearses_main_city_to_welcome_in(
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
-    main_city = _load_reference_bgr("welcome_new_survivors.rehearsal.01.main_city.png")
-    welcome_in = _load_reference_bgr("welcome_new_survivors.rehearsal.02.welcome_in.png")
-    after_welcome = _load_reference_bgr("welcome_new_survivors.rehearsal.03.after_welcome_in.png")
+    main_city = _load_rehearsal_fixture_bgr("01.main_city_before.png")
+    welcome_in = _load_rehearsal_fixture_bgr("02.welcome_in.png")
+    after_welcome = _load_rehearsal_fixture_bgr("03.after_welcome_in.png")
 
     detector = ScreenDetector(get_ocr_client())
     assert await detector.detect_screen(main_city) == "main_city"
@@ -94,7 +104,7 @@ async def test_welcome_new_survivors_rehearses_main_city_to_welcome_in(
 
 @pytest.mark.asyncio
 async def test_isworkers_red_dot_detected_after_welcome_in() -> None:
-    frame = _load_reference_bgr("welcome_new_survivors.rehearsal.03.after_welcome_in.png")
+    frame = _load_reference_bgr("page.main_city.after_welcome.png")
 
     out = await evaluate_overlay_rules_async(
         frame,

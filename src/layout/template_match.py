@@ -3,12 +3,11 @@
 Uses the same pixel rounding as :func:`ui.area_annotator.crop_region` / crop export.
 The live frame must be the **same resolution** as when the crop was produced.
 
-Sliding-window search (:func:`match_template_in_search_roi_bbox_percent`) scores multiple NCC peaks
-(non-max suppression) and keeps the one with the best ``min(NCC, color, edge)`` against the BGR
-crop — not the grayscale-NCC argmax alone. It can optionally require the template pixel size to
-agree with the **primary** labeled bbox on the live frame (see ``primary_bbox_percent``), blocking
-misleading TM peaks when a tiny template slides inside a large ROI (e.g. ``10×8`` template vs
-``157×74`` expected landmark).
+**1:1** (:func:`match_crop_1to1_at_bbox_percent`) scores only **pHash** (tolerates animated UI).
+
+**Sliding search** (ROI or full frame) uses **NCC** (``matchTemplate`` heatmap) to propose peaks,
+then scores each candidate with **pHash** and picks the best pHash. ``score_ncc`` / color / edge
+are reported for debugging; ``score_ncc_second`` comes from the NCC heatmap for peak-uniqueness gates.
 """
 from __future__ import annotations
 
@@ -25,10 +24,19 @@ from layout.search_cache import read_positions, record_position
 _MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX = 10
 # If either side is under this (max of W/H), require exact pixel dimensions (strict 1:1).
 _SMALL_TEMPLATE_PRIMARY_MAX_SIDE_PX = 20
+_PHASH_BITS = 64
+_NCC_PEAK_MAX_ROI = 25
+_NCC_PEAK_MAX_FULL = 40
+_NCC_PEAK_MIN_VAL = -0.5
+# Flat patches yield spurious TM_CCOEFF_NORMED ≈ 1.0; skip them when picking peaks.
+_MIN_PATCH_GRAY_STD = 5.0
+_TEMPLATE_PHASH_CACHE_MAX = 512
+_template_phash_cache: dict[bytes, int] = {}
+_template_gray_cache: dict[bytes, np.ndarray] = {}
 
 
 class TemplateMatchResult(TypedDict, total=False):
-    # Conservative score: structural NCC capped by BGR color similarity.
+    # pHash similarity ``1 - hamming/64``.
     score: float
     # Global top-left (x, y); crop rounding matches labeling export.
     top_left: tuple[int, int]
@@ -87,16 +95,280 @@ def _edge_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> f
     return max(0.0, min(1.0, 1.0 - mae / 255.0))
 
 
-def _combined_match_score(
+def _phash64(patch_bgr: np.ndarray) -> int:
+    gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    small = cv2.resize(gray, (32, 32), interpolation=cv2.INTER_AREA)
+    dct = cv2.dct(np.float32(small))
+    block = dct[:8, :8].copy()
+    block[0, 0] = 0
+    med = float(np.median(block))
+    bits = (block >= med).astype(np.uint8).reshape(-1)
+    out = 0
+    for bit in bits:
+        out = (out << 1) | int(bit)
+    return out
+
+
+def _template_cache_key_bytes(template_bgr: np.ndarray) -> bytes:
+    return hashlib.blake2b(np.ascontiguousarray(template_bgr).tobytes(), digest_size=16).digest()
+
+
+def _phash64_template_cached(template_bgr: np.ndarray) -> int:
+    key = _template_cache_key_bytes(template_bgr)
+    hit = _template_phash_cache.get(key)
+    if hit is not None:
+        return hit
+    digest = _phash64(template_bgr)
+    if len(_template_phash_cache) >= _TEMPLATE_PHASH_CACHE_MAX:
+        for old_key in list(_template_phash_cache.keys())[: _TEMPLATE_PHASH_CACHE_MAX // 4]:
+            _template_phash_cache.pop(old_key, None)
+    _template_phash_cache[key] = digest
+    return digest
+
+
+def _template_gray_cached(template_bgr: np.ndarray) -> np.ndarray:
+    key = _template_cache_key_bytes(template_bgr)
+    hit = _template_gray_cache.get(key)
+    if hit is not None:
+        return hit
+    gray = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+    if len(_template_gray_cache) >= _TEMPLATE_PHASH_CACHE_MAX:
+        for old_key in list(_template_gray_cache.keys())[: _TEMPLATE_PHASH_CACHE_MAX // 4]:
+            _template_gray_cache.pop(old_key, None)
+    _template_gray_cache[key] = gray
+    return gray
+
+
+def _phash_hamming_distance(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> int:
+    return _hamming64(_phash64(patch_bgr), _phash64_template_cached(template_bgr))
+
+
+def _phash_similarity_score(hamming: int) -> float:
+    return max(0.0, min(1.0, 1.0 - hamming / float(_PHASH_BITS)))
+
+
+def _phash_match_score(
     patch_bgr: np.ndarray,
     template_bgr: np.ndarray,
-) -> tuple[float, float, float, float]:
-    pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
-    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    score_ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
-    score_color = _color_similarity_score(patch_bgr, template_bgr)
-    score_edge = _edge_similarity_score(patch_bgr, template_bgr)
-    return min(score_ncc, score_color, score_edge), score_ncc, score_color, score_edge
+) -> tuple[float, int]:
+    hamming = _phash_hamming_distance(patch_bgr, template_bgr)
+    return _phash_similarity_score(hamming), hamming
+
+
+def _template_match_result_from_phash(
+    *,
+    score: float,
+    hamming: int,
+    top_left: tuple[int, int],
+    match_source: str | None = None,
+    score_second: float | None = None,
+) -> TemplateMatchResult:
+    """Build a 1:1 result dict; legacy ``score_ncc`` fields mirror pHash for UI consumers."""
+    out: TemplateMatchResult = {
+        "score": score,
+        "top_left": top_left,
+        "score_ncc": score,
+        "score_color": score,
+        "score_edge": score,
+        "score_ncc_second": score_second,
+        "hash_distance": hamming,
+    }
+    if match_source is not None:
+        out["match_source"] = match_source
+    return out
+
+
+def _peak_rank_score(ncc: float, color: float, edge: float) -> float:
+    """Rank NCC peaks for localization (structural + color + edges)."""
+    return min(float(ncc), float(color), float(edge))
+
+
+def _hybrid_result_at_patch(
+    patch_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    top_left: tuple[int, int],
+    *,
+    ncc_at_peak: float | None = None,
+    match_source: str | None = None,
+) -> TemplateMatchResult:
+    phash_s, hamming_s, ncc_s, color_s, edge_s = _hybrid_scores_at_patch(
+        patch_bgr, template_bgr, ncc_at_peak=ncc_at_peak
+    )
+    return _template_match_result_hybrid(
+        score=phash_s,
+        hamming=hamming_s,
+        top_left=top_left,
+        score_ncc=ncc_s,
+        score_color=color_s,
+        score_edge=edge_s,
+        match_source=match_source,
+    )
+
+
+def _hybrid_scores_at_patch(
+    patch_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    *,
+    ncc_at_peak: float | None = None,
+) -> tuple[float, int, float, float, float]:
+    """Return ``(phash_score, hamming, ncc, color, edge)`` for a candidate patch."""
+    phash_score, hamming = _phash_match_score(patch_bgr, template_bgr)
+    color = _color_similarity_score(patch_bgr, template_bgr)
+    edge = _edge_similarity_score(patch_bgr, template_bgr)
+    if ncc_at_peak is not None:
+        ncc = float(ncc_at_peak)
+    else:
+        pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+        tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+        ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
+    return phash_score, hamming, ncc, color, edge
+
+
+def _template_match_result_hybrid(
+    *,
+    score: float,
+    hamming: int,
+    top_left: tuple[int, int],
+    score_ncc: float,
+    score_color: float,
+    score_edge: float,
+    score_ncc_second: float | None = None,
+    match_source: str | None = None,
+) -> TemplateMatchResult:
+    out: TemplateMatchResult = {
+        "score": score,
+        "top_left": top_left,
+        "score_ncc": score_ncc,
+        "score_color": score_color,
+        "score_edge": score_edge,
+        "score_ncc_second": score_ncc_second,
+        "hash_distance": hamming,
+    }
+    if match_source is not None:
+        out["match_source"] = match_source
+    return out
+
+
+def _patch_gray_std(
+    region_gray: np.ndarray | None,
+    region_bgr: np.ndarray,
+    y_off: int,
+    x_off: int,
+    th: int,
+    tw: int,
+) -> float:
+    if region_gray is not None:
+        patch_gray = region_gray[y_off : y_off + th, x_off : x_off + tw]
+    else:
+        patch_gray = cv2.cvtColor(
+            region_bgr[y_off : y_off + th, x_off : x_off + tw], cv2.COLOR_BGR2GRAY
+        )
+    return float(np.std(patch_gray))
+
+
+def _best_phash_among_ncc_peaks(
+    region_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    origin_xy: tuple[int, int],
+    heat_orig: np.ndarray,
+    *,
+    max_peaks: int,
+    exclude_top_lefts: list[tuple[int, int]] | None = None,
+    exclude_radius_px: int = 0,
+    threshold: float | None = None,
+    region_gray: np.ndarray | None = None,
+) -> TemplateMatchResult | None:
+    """Pick the NCC peak with the best ``min(ncc, color, edge)`` inside ``region_bgr``.
+
+    The peak loop scores with pHash + heatmap NCC; color/edge run only for peaks
+    that can beat the current rank or when ``threshold`` is met (overlay match
+    uses pHash ``score``).
+    """
+    th, tw = int(template_bgr.shape[0]), int(template_bgr.shape[1])
+    ox, oy = int(origin_xy[0]), int(origin_xy[1])
+    heat_scan = heat_orig.copy()
+    hm, wm = int(heat_scan.shape[0]), int(heat_scan.shape[1])
+
+    template_has_texture = float(np.std(_template_gray_cached(template_bgr))) >= _MIN_PATCH_GRAY_STD
+
+    best: TemplateMatchResult | None = None
+    best_rank = -1.0
+    best_x_off = 0
+    best_y_off = 0
+    found = False
+
+    def _maybe_update_best(
+        patch_i: np.ndarray,
+        x_off_i: int,
+        y_off_i: int,
+        ncc_i: float,
+    ) -> TemplateMatchResult | None:
+        nonlocal best, best_rank, best_x_off, best_y_off, found
+        phash_i, hamming_i = _phash_match_score(patch_i, template_bgr)
+        found = True
+        if threshold is not None and phash_i >= threshold:
+            out = _hybrid_result_at_patch(
+                patch_i,
+                template_bgr,
+                (ox + x_off_i, oy + y_off_i),
+                ncc_at_peak=ncc_i,
+            )
+            out["score_ncc_second"] = _second_best_peak_ncc(
+                heat_orig, x_off_i, y_off_i, tw, th
+            )
+            return out
+        if min(ncc_i, phash_i) <= best_rank:
+            return None
+        color_i = _color_similarity_score(patch_i, template_bgr)
+        edge_i = _edge_similarity_score(patch_i, template_bgr)
+        pick_i = _peak_rank_score(ncc_i, color_i, edge_i)
+        if pick_i <= best_rank:
+            return None
+        best_rank = pick_i
+        best_x_off = x_off_i
+        best_y_off = y_off_i
+        best = _template_match_result_hybrid(
+            score=phash_i,
+            hamming=hamming_i,
+            top_left=(ox + x_off_i, oy + y_off_i),
+            score_ncc=ncc_i,
+            score_color=color_i,
+            score_edge=edge_i,
+        )
+        return None
+
+    for _ in range(max_peaks):
+        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_scan)
+        if float(cur_val) <= _NCC_PEAK_MIN_VAL:
+            break
+        x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
+        gx0 = ox + x_off_i
+        gy0 = oy + y_off_i
+        if _is_top_left_excluded(
+            gx0, gy0, exclude_top_lefts=exclude_top_lefts, exclude_radius_px=exclude_radius_px
+        ):
+            heat_scan[y_off_i, x_off_i] = -1.0
+            continue
+        if template_has_texture and _patch_gray_std(
+            region_gray, region_bgr, y_off_i, x_off_i, th, tw
+        ) < _MIN_PATCH_GRAY_STD:
+            heat_scan[y_off_i, x_off_i] = -1.0
+            continue
+        patch_i = region_bgr[y_off_i : y_off_i + th, x_off_i : x_off_i + tw]
+        early = _maybe_update_best(patch_i, x_off_i, y_off_i, float(cur_val))
+        if early is not None:
+            return early
+        y1 = min(hm, y_off_i + th)
+        x1 = min(wm, x_off_i + tw)
+        heat_scan[y_off_i:y1, x_off_i:x1] = -1.0
+
+    if best is not None:
+        best["score_ncc_second"] = _second_best_peak_ncc(
+            heat_orig, best_x_off, best_y_off, tw, th
+        )
+        return best
+
+    return None
 
 
 def template_cache_key(
@@ -112,31 +384,16 @@ def template_cache_key(
     return f"{region_name}|{reference_rel}|{digest}|{w}x{h}|{tw}x{th}"
 
 
-def _ahash64(patch_bgr: np.ndarray) -> int:
-    gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
-    small = cv2.resize(gray, (8, 8), interpolation=cv2.INTER_AREA)
-    mean = float(np.mean(small))
-    bits = (small >= mean).astype(np.uint8).reshape(-1)
-    out = 0
-    for bit in bits:
-        out = (out << 1) | int(bit)
-    return out
-
-
 def _hamming64(a: int, b: int) -> int:
     return int((int(a) ^ int(b)).bit_count())
 
 
-def patch_bgr_from_bbox_percent(
-    image_bgr: np.ndarray,
+def _bbox_px_bounds(
     bbox_percent: dict[str, float],
-) -> tuple[np.ndarray, tuple[int, int]]:
-    """Cut out the bbox rectangle in pixels (percent of frame); mirrors labeling crop rounding."""
-    if image_bgr.ndim != 3:
-        msg = "Expected HxWx3 BGR image."
-        raise ValueError(msg)
-    hi, wi = image_bgr.shape[:2]
-
+    *,
+    hi: int,
+    wi: int,
+) -> tuple[int, int, int, int]:
     left = bbox_percent["x"] / 100.0 * wi
     top = bbox_percent["y"] / 100.0 * hi
     width = bbox_percent["width"] / 100.0 * wi
@@ -151,8 +408,45 @@ def patch_bgr_from_bbox_percent(
     T = max(0, min(T, hi - 1))
     R = max(L + 1, min(R, wi))
     B = max(T + 1, min(B, hi))
+    return L, T, R, B
 
-    return image_bgr[T:B, L:R].copy(), (L, T)
+
+def bgr_view_from_bbox_percent(
+    image_bgr: np.ndarray,
+    bbox_percent: dict[str, float],
+) -> tuple[np.ndarray, tuple[int, int]]:
+    """BBox slice as a view (no copy); same rounding as :func:`patch_bgr_from_bbox_percent`."""
+    if image_bgr.ndim != 3:
+        msg = "Expected HxWx3 BGR image."
+        raise ValueError(msg)
+    hi, wi = image_bgr.shape[:2]
+    L, T, R, B = _bbox_px_bounds(bbox_percent, hi=hi, wi=wi)
+    return image_bgr[T:B, L:R], (L, T)
+
+
+def gray_view_from_bbox_percent(
+    image_gray: np.ndarray,
+    bbox_percent: dict[str, float],
+) -> tuple[np.ndarray, tuple[int, int]]:
+    """Grayscale bbox slice as a view; same rounding as :func:`patch_bgr_from_bbox_percent`."""
+    if image_gray.ndim != 2:
+        msg = "Expected HxW grayscale image."
+        raise ValueError(msg)
+    hi, wi = image_gray.shape[:2]
+    L, T, R, B = _bbox_px_bounds(bbox_percent, hi=hi, wi=wi)
+    return image_gray[T:B, L:R], (L, T)
+
+
+def patch_bgr_from_bbox_percent(
+    image_bgr: np.ndarray,
+    bbox_percent: dict[str, float],
+) -> tuple[np.ndarray, tuple[int, int]]:
+    """Cut out the bbox rectangle in pixels (percent of frame); mirrors labeling crop rounding."""
+    if image_bgr.ndim != 3:
+        msg = "Expected HxWx3 BGR image."
+        raise ValueError(msg)
+    view, origin = bgr_view_from_bbox_percent(image_bgr, bbox_percent)
+    return view.copy(), origin
 
 
 def validate_live_bbox_patch_vs_reference_dims(
@@ -217,12 +511,30 @@ def _validate_template_vs_primary_bbox_patch_sizes(
     )
 
 
+def _is_top_left_excluded(
+    x0: int,
+    y0: int,
+    *,
+    exclude_top_lefts: list[tuple[int, int]] | None,
+    exclude_radius_px: int,
+) -> bool:
+    if not exclude_top_lefts or exclude_radius_px <= 0:
+        return False
+    r2 = float(exclude_radius_px * exclude_radius_px)
+    for ex, ey in exclude_top_lefts:
+        dx = float(x0 - int(ex))
+        dy = float(y0 - int(ey))
+        if (dx * dx + dy * dy) <= r2:
+            return True
+    return False
+
+
 def match_crop_1to1_at_bbox_percent(
     image_bgr: np.ndarray,
     template_bgr: np.ndarray,
     bbox_percent: dict[str, float],
 ) -> TemplateMatchResult:
-    """Compare bbox patch to ``template_bgr`` pixel-wise (same shape only).
+    """Compare bbox patch to ``template_bgr`` via pHash (same shape only).
 
     No margin/pyramid: template must match what labeling exported from this bbox.
     """
@@ -240,15 +552,8 @@ def match_crop_1to1_at_bbox_percent(
             msg
         )
 
-    score, score_ncc, score_color, score_edge = _combined_match_score(patch, template_bgr)
-    return TemplateMatchResult(
-        score=score,
-        top_left=(L, T),
-        score_ncc=score_ncc,
-        score_color=score_color,
-        score_edge=score_edge,
-        score_ncc_second=None,
-    )
+    score, hamming = _phash_match_score(patch, template_bgr)
+    return _template_match_result_from_phash(score=score, hamming=hamming, top_left=(L, T))
 
 
 def match_template_in_search_roi_bbox_percent(
@@ -259,12 +564,10 @@ def match_template_in_search_roi_bbox_percent(
     exclude_top_lefts: list[tuple[int, int]] | None = None,
     exclude_radius_px: int = 0,
     primary_bbox_percent: dict[str, float] | None = None,
+    image_gray: np.ndarray | None = None,
+    threshold: float | None = None,
 ) -> TemplateMatchResult:
-    """Slide ``template_bgr`` inside ROI from ``search_bbox_percent``.
-
-    Among spatially separated NCC peaks (non-max suppression on the heatmap), picks the location
-    with the **best combined** score ``min(NCC, color, edge)`` so the winner matches the full BGR
-    template, not only grayscale correlation (same silhouette, different tint).
+    """Slide ``template_bgr`` inside ROI: NCC peaks, best pHash among candidates.
 
     When ``primary_bbox_percent`` is set (the labeled **detector** region), template dimensions must
     agree with that bbox cut out on ``image_bgr`` within :data:`_MAX_TEMPLATE_PRIMARY_PATCH_DELTA_PX`
@@ -278,7 +581,7 @@ def match_template_in_search_roi_bbox_percent(
         _validate_template_vs_primary_bbox_patch_sizes(
             image_bgr, template_bgr, primary_bbox_percent
         )
-    roi, (L, T) = patch_bgr_from_bbox_percent(image_bgr, search_bbox_percent)
+    roi, (L, T) = bgr_view_from_bbox_percent(image_bgr, search_bbox_percent)
     rh, rw = roi.shape[:2]
     th, tw = template_bgr.shape[:2]
     if th > rh or tw > rw or th < 1 or tw < 1:
@@ -286,109 +589,138 @@ def match_template_in_search_roi_bbox_percent(
             f"Template {tw}×{th} must fit inside search ROI {rw}×{rh} "
             "(draw a larger **search_region** in Labeling)."
         )
-        raise ValueError(
-            msg
-        )
+        raise ValueError(msg)
 
-    rg = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    heat_orig = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
-    hm, wm = int(heat_orig.shape[0]), int(heat_orig.shape[1])
-
-    def _is_excluded(gx0: int, gy0: int) -> bool:
-        if not exclude_top_lefts or exclude_radius_px <= 0:
-            return False
-        r2 = float(exclude_radius_px * exclude_radius_px)
-        for ex, ey in exclude_top_lefts:
-            dx = float(gx0 - int(ex))
-            dy = float(gy0 - int(ey))
-            if (dx * dx + dy * dy) <= r2:
-                return True
-        return False
-
-    heat_scan = heat_orig.copy()
-    best_combined = -1.0
-    best_x_off = 0
-    best_y_off = 0
-    best_ncc = -1.0
-    best_color = 0.0
-    best_edge = 0.0
-    found_candidate = False
-    for _ in range(25):
-        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_scan)
-        if cur_val <= -0.5:
-            break
-        x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
-        gx0 = int(L + x_off_i)
-        gy0 = int(T + y_off_i)
-        if _is_excluded(gx0, gy0):
-            heat_scan[y_off_i, x_off_i] = -1.0
-            continue
-        patch_i = roi[y_off_i : y_off_i + th, x_off_i : x_off_i + tw]
-        ncc_i = float(cur_val)
-        color_i = _color_similarity_score(patch_i, template_bgr)
-        edge_i = _edge_similarity_score(patch_i, template_bgr)
-        combined_i = min(ncc_i, color_i, edge_i)
-        found_candidate = True
-        if combined_i > best_combined:
-            best_combined = combined_i
-            best_x_off = x_off_i
-            best_y_off = y_off_i
-            best_ncc = ncc_i
-            best_color = color_i
-            best_edge = edge_i
-        y1 = min(hm, y_off_i + th)
-        x1 = min(wm, x_off_i + tw)
-        heat_scan[y_off_i:y1, x_off_i:x1] = -1.0
-
-    if not found_candidate:
-        heat_fb = heat_orig.copy()
-        max_loc: tuple[int, int] | None = None
-        max_val = -1.0
-        for _ in range(25):
-            _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_fb)
-            if cur_val <= -0.5:
-                break
-            x_off_i, y_off_i = int(cur_loc[0]), int(cur_loc[1])
-            gx0 = int(L + x_off_i)
-            gy0 = int(T + y_off_i)
-            if not _is_excluded(gx0, gy0):
-                max_loc = (x_off_i, y_off_i)
-                max_val = float(cur_val)
-                break
-            heat_fb[y_off_i, x_off_i] = -1.0
-        if max_loc is None:
-            _mn, max_val, _mn_loc, max_loc0 = cv2.minMaxLoc(heat_orig)
-            max_loc = (int(max_loc0[0]), int(max_loc0[1]))
-        x_off, y_off = max_loc
-        gx = int(L + x_off)
-        gy = int(T + y_off)
-        patch = roi[y_off : y_off + th, x_off : x_off + tw]
-        score_color = _color_similarity_score(patch, template_bgr)
-        score_edge = _edge_similarity_score(patch, template_bgr)
-        score_ncc = float(max_val)
-        score_ncc_second = _second_best_peak_ncc(heat_orig, x_off, y_off, tw, th)
-        return TemplateMatchResult(
-            score=min(score_ncc, score_color, score_edge),
-            top_left=(gx, gy),
-            score_ncc=score_ncc,
-            score_color=score_color,
-            score_edge=score_edge,
-            score_ncc_second=score_ncc_second,
-        )
-
-    x_off, y_off = best_x_off, best_y_off
-    gx = int(L + x_off)
-    gy = int(T + y_off)
-    score_ncc_second = _second_best_peak_ncc(heat_orig, x_off, y_off, tw, th)
-    return TemplateMatchResult(
-        score=best_combined,
-        top_left=(gx, gy),
-        score_ncc=best_ncc,
-        score_color=best_color,
-        score_edge=best_edge,
-        score_ncc_second=score_ncc_second,
+    if image_gray is not None:
+        roi_gray, _ = gray_view_from_bbox_percent(image_gray, search_bbox_percent)
+    else:
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+    tg = _template_gray_cached(template_bgr)
+    heat_orig = cv2.matchTemplate(roi_gray, tg, cv2.TM_CCOEFF_NORMED)
+    best = _best_phash_among_ncc_peaks(
+        roi,
+        template_bgr,
+        (L, T),
+        heat_orig,
+        max_peaks=_NCC_PEAK_MAX_ROI,
+        exclude_top_lefts=exclude_top_lefts,
+        exclude_radius_px=exclude_radius_px,
+        threshold=threshold,
+        region_gray=roi_gray,
     )
+    if best is not None:
+        return best
+
+    if exclude_top_lefts:
+        return _template_match_result_hybrid(
+            score=0.0,
+            hamming=_PHASH_BITS,
+            top_left=(L, T),
+            score_ncc=0.0,
+            score_color=0.0,
+            score_edge=0.0,
+            score_ncc_second=None,
+        )
+
+    _mn, max_val, _mn_loc, max_loc = cv2.minMaxLoc(heat_orig)
+    x_off, y_off = int(max_loc[0]), int(max_loc[1])
+    gx, gy = L + x_off, T + y_off
+    if _is_top_left_excluded(
+        gx, gy, exclude_top_lefts=exclude_top_lefts, exclude_radius_px=exclude_radius_px
+    ):
+        return _template_match_result_hybrid(
+            score=0.0,
+            hamming=_PHASH_BITS,
+            top_left=(gx, gy),
+            score_ncc=float(max_val),
+            score_color=0.0,
+            score_edge=0.0,
+            score_ncc_second=None,
+        )
+    patch = roi[y_off : y_off + th, x_off : x_off + tw]
+    if float(np.std(_template_gray_cached(template_bgr))) >= _MIN_PATCH_GRAY_STD and _patch_gray_std(
+        roi_gray, roi, y_off, x_off, th, tw
+    ) < _MIN_PATCH_GRAY_STD:
+        return _template_match_result_hybrid(
+            score=0.0,
+            hamming=_PHASH_BITS,
+            top_left=(gx, gy),
+            score_ncc=float(max_val),
+            score_color=0.0,
+            score_edge=0.0,
+            score_ncc_second=None,
+        )
+    out = _hybrid_result_at_patch(
+        patch, template_bgr, (gx, gy), ncc_at_peak=float(max_val)
+    )
+    out["score_ncc_second"] = _second_best_peak_ncc(heat_orig, x_off, y_off, tw, th)
+    return out
+
+
+def _full_frame_fallback_peak(
+    image_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    heat_orig: np.ndarray,
+    th: int,
+    tw: int,
+    *,
+    exclude_top_lefts: list[tuple[int, int]] | None,
+    exclude_radius_px: int,
+) -> TemplateMatchResult:
+    """Pick a peak when :func:`_best_phash_among_ncc_peaks` found nothing.
+
+    When exclusions are active, scan the NCC heatmap and skip suppressed
+    top-lefts so ``while_match`` loops do not rediscover the same button.
+    Without exclusions, keep the legacy single ``minMaxLoc`` pick.
+    """
+    if exclude_top_lefts and exclude_radius_px > 0:
+        heat_work = heat_orig.copy()
+        for _ in range(_NCC_PEAK_MAX_FULL):
+            _mn, max_val, _mn_loc, max_loc = cv2.minMaxLoc(heat_work)
+            if float(max_val) <= _NCC_PEAK_MIN_VAL:
+                break
+            x0, y0 = int(max_loc[0]), int(max_loc[1])
+            if _is_top_left_excluded(
+                x0,
+                y0,
+                exclude_top_lefts=exclude_top_lefts,
+                exclude_radius_px=exclude_radius_px,
+            ):
+                heat_work[y0, x0] = -1.0
+                continue
+            patch = image_bgr[y0 : y0 + th, x0 : x0 + tw]
+            out = _hybrid_result_at_patch(
+                patch,
+                template_bgr,
+                (x0, y0),
+                ncc_at_peak=float(max_val),
+                match_source="full_frame_ncc_phash",
+            )
+            out["score_ncc_second"] = _second_best_peak_ncc(heat_orig, x0, y0, tw, th)
+            return out
+        return _template_match_result_hybrid(
+            score=0.0,
+            hamming=_PHASH_BITS,
+            top_left=(0, 0),
+            score_ncc=0.0,
+            score_color=0.0,
+            score_edge=0.0,
+            score_ncc_second=None,
+            match_source="full_frame_ncc_phash",
+        )
+
+    _mn, max_val, _mn_loc, max_loc = cv2.minMaxLoc(heat_orig)
+    x0, y0 = int(max_loc[0]), int(max_loc[1])
+    patch = image_bgr[y0 : y0 + th, x0 : x0 + tw]
+    out = _hybrid_result_at_patch(
+        patch,
+        template_bgr,
+        (x0, y0),
+        ncc_at_peak=float(max_val),
+        match_source="full_frame_ncc_phash",
+    )
+    out["score_ncc_second"] = _second_best_peak_ncc(heat_orig, x0, y0, tw, th)
+    return out
 
 
 def match_template_full_frame_cached(
@@ -399,13 +731,9 @@ def match_template_full_frame_cached(
     threshold: float,
     exclude_top_lefts: list[tuple[int, int]] | None = None,
     exclude_radius_px: int = 0,
+    image_gray: np.ndarray | None = None,
 ) -> TemplateMatchResult:
-    """Search the whole frame, trying persistent cached locations before full scan.
-
-    Candidate locations are confirmed with the same combined NCC/color/edge score
-    used by the existing matcher. A compact perceptual hash is recorded on rows
-    and used as a cheap prefilter for cached positions.
-    """
+    """Search the whole frame: cached positions first, then NCC peaks scored with pHash."""
     if template_bgr.ndim != 3:
         msg = "Expected HxWx3 BGR template."
         raise ValueError(msg)
@@ -415,39 +743,27 @@ def match_template_full_frame_cached(
         msg = f"Template {tw}×{th} must fit inside frame {w}×{h}."
         raise ValueError(msg)
 
-    template_hash = _ahash64(template_bgr)
-
-    def _is_excluded(x0: int, y0: int) -> bool:
-        if not exclude_top_lefts or exclude_radius_px <= 0:
-            return False
-        r2 = float(exclude_radius_px * exclude_radius_px)
-        for ex, ey in exclude_top_lefts:
-            dx = float(x0 - int(ex))
-            dy = float(y0 - int(ey))
-            if (dx * dx + dy * dy) <= r2:
-                return True
-        return False
-
     def _score_at(x0: int, y0: int, source: str) -> TemplateMatchResult | None:
-        if x0 < 0 or y0 < 0 or x0 + tw > w or y0 + th > h or _is_excluded(x0, y0):
+        if x0 < 0 or y0 < 0 or x0 + tw > w or y0 + th > h:
+            return None
+        if _is_top_left_excluded(
+            x0, y0, exclude_top_lefts=exclude_top_lefts, exclude_radius_px=exclude_radius_px
+        ):
             return None
         patch = image_bgr[y0 : y0 + th, x0 : x0 + tw]
-        hash_distance = _hamming64(template_hash, _ahash64(patch))
-        # The hash is a prefilter, not the decision. Keep a forgiving cutoff so
-        # antialiasing and small UI color changes still reach the score gates.
-        max_hash_distance = 24 if source == "cache" else 32
-        if hash_distance > max_hash_distance:
-            return None
-        score, score_ncc, score_color, score_edge = _combined_match_score(patch, template_bgr)
-        return TemplateMatchResult(
-            score=score,
+        phash_s, hamming_s = _phash_match_score(patch, template_bgr)
+        if phash_s >= threshold:
+            return _hybrid_result_at_patch(
+                patch,
+                template_bgr,
+                (int(x0), int(y0)),
+                match_source=source,
+            )
+        return _template_match_result_from_phash(
+            score=phash_s,
+            hamming=hamming_s,
             top_left=(int(x0), int(y0)),
-            score_ncc=score_ncc,
-            score_color=score_color,
-            score_edge=score_edge,
-            score_ncc_second=None,
             match_source=source,
-            hash_distance=hash_distance,
         )
 
     best: TemplateMatchResult | None = None
@@ -466,54 +782,43 @@ def match_template_full_frame_cached(
             )
             return cand
 
-    rg = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+    rg = image_gray if image_gray is not None else cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    tg = _template_gray_cached(template_bgr)
     heat_orig = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
-    heat_scan = heat_orig.copy()
-    hm, wm = int(heat_scan.shape[0]), int(heat_scan.shape[1])
-    for _ in range(40):
-        _mn, cur_val, _mn_loc, cur_loc = cv2.minMaxLoc(heat_scan)
-        if cur_val <= -0.5:
-            break
-        x0 = int(cur_loc[0])
-        y0 = int(cur_loc[1])
-        if not _is_excluded(x0, y0):
-            cand = _score_at(x0, y0, "full_frame_hash")
-            if cand is not None:
-                cand["score_ncc_second"] = _second_best_peak_ncc(heat_orig, x0, y0, tw, th)
-                if best is None or float(cand["score"]) > float(best["score"]):
-                    best = cand
-                if float(cand["score"]) >= threshold:
-                    record_position(cache_key, x=x0, y=y0, score=float(cand["score"]))
-                    return cand
-        y1 = min(hm, y0 + th)
-        x1 = min(wm, x0 + tw)
-        heat_scan[y0:y1, x0:x1] = -1.0
-
-    if best is not None:
-        if float(best["score"]) >= threshold:
-            record_position(
-                cache_key,
-                x=int(best["top_left"][0]),
-                y=int(best["top_left"][1]),
-                score=float(best["score"]),
-            )
-        return best
-
-    _mn, max_val, _mn_loc, max_loc = cv2.minMaxLoc(heat_orig)
-    fallback = _score_at(int(max_loc[0]), int(max_loc[1]), "full_frame_hash")
-    if fallback is None:
-        return TemplateMatchResult(
-            score=float(max_val),
-            top_left=(int(max_loc[0]), int(max_loc[1])),
-            score_ncc=float(max_val),
-            score_color=0.0,
-            score_edge=0.0,
-            score_ncc_second=None,
-            match_source="full_frame_hash",
-            hash_distance=None,
+    scanned = _best_phash_among_ncc_peaks(
+        image_bgr,
+        template_bgr,
+        (0, 0),
+        heat_orig,
+        max_peaks=_NCC_PEAK_MAX_FULL,
+        exclude_top_lefts=exclude_top_lefts,
+        exclude_radius_px=exclude_radius_px,
+        threshold=threshold,
+        region_gray=rg,
+    )
+    if scanned is not None:
+        scanned["match_source"] = "full_frame_ncc_phash"
+    else:
+        scanned = _full_frame_fallback_peak(
+            image_bgr,
+            template_bgr,
+            heat_orig,
+            th,
+            tw,
+            exclude_top_lefts=exclude_top_lefts,
+            exclude_radius_px=exclude_radius_px,
         )
-    return fallback
+
+    if best is None or float(scanned["score"]) > float(best["score"]):
+        best = scanned
+    if best is not None and float(best["score"]) >= threshold:
+        record_position(
+            cache_key,
+            x=int(best["top_left"][0]),
+            y=int(best["top_left"][1]),
+            score=float(best["score"]),
+        )
+    return best if best is not None else scanned
 
 
 def _second_best_peak_ncc(

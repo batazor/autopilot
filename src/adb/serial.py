@@ -18,3 +18,11 @@ def canonical_adb_serial(s: str) -> str:
             pass
     return s
 
+
+def is_emulator_adb_serial(serial: str) -> bool:
+    """True for BlueStacks / SDK emulators (localhost or ``emulator-*``)."""
+    s = (serial or "").strip()
+    if s.startswith("emulator-"):
+        return True
+    return canonical_adb_serial(s).startswith("127.0.0.1:")
+

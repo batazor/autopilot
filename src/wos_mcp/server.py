@@ -8,7 +8,6 @@ from typing import Any
 
 import cv2
 from mcp.server.fastmcp import FastMCP
-from PIL import Image
 
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
@@ -19,13 +18,8 @@ from layout.reference_basename import (
     suggest_reference_basename,
 )
 from navigation.detector import ScreenName
-from omniparser.client import check_omniparser_health, parse_screenshot
-from omniparser.supervision_bridge import (
-    build_omniparser_proposal_regions,
-    parsed_element_to_dict,
-)
-from scenarios import template_resolver
-from scenarios.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
+from dsl import template_resolver
+from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
 from services import get_bot_actions, get_repo_root, get_scheduler_async_redis, get_scheduler_queue
 from tasks import dsl_runtime
 from tasks.dsl_scenario import DslScenarioTask
@@ -55,22 +49,6 @@ def _safe_output_path(output: str | None, *, default_name: str) -> Path:
         msg = "output must be a repo-relative path without '..'"
         raise ValueError(msg)
     return _repo() / path
-
-
-def _bgr_frame_to_pil(frame: Any) -> Image.Image:
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    return Image.fromarray(rgb)
-
-
-def _omni_stats_dict(stats: Any) -> dict[str, int]:
-    return {
-        "raw_element_count": int(stats.raw_element_count),
-        "skipped_min_area": int(stats.skipped_min_area),
-        "after_min_area_count": int(stats.after_min_area_count),
-        "after_nms_count": int(stats.after_nms_count),
-        "nms_removed": int(stats.nms_removed),
-        "blacklist_skipped": int(stats.blacklist_skipped),
-    }
 
 
 def _step_region(step: dict[str, Any]) -> str:
@@ -120,88 +98,6 @@ async def capture_screen(
         "width": int(frame.shape[1]),
         "height": int(frame.shape[0]),
     }
-
-
-@mcp.tool()
-async def omni_health(url: str | None = None) -> dict[str, Any]:
-    """Check whether the configured OmniParser backend is ready."""
-
-    return dict(check_omniparser_health(url=url))
-
-
-@mcp.tool()
-async def omni_parse_screen(
-    instance_id: str = "bs1",
-    output: str | None = None,
-    screenshot_output: str | None = None,
-    url: str | None = None,
-    timeout_seconds: int | None = None,
-    box_threshold: float = 0.05,
-    iou_threshold: float = 0.1,
-    min_area_pct: float = 0.04,
-    use_paddleocr: bool = True,
-    imgsz: int | None = None,
-    detect_first: bool = False,
-) -> dict[str, Any]:
-    """Capture the live screen and run OmniParser for preliminary UI recognition."""
-
-    current = None
-    if detect_first:
-        detected = await detect_screen(instance_id=instance_id, attempts=1, interval_seconds=0.0)
-        current = detected.get("current_screen")
-
-    actions = get_bot_actions()
-    frame = actions.capture_screen_bgr(instance_id)
-    pil = _bgr_frame_to_pil(frame)
-
-    screenshot_rel = None
-    if screenshot_output:
-        shot_path = _safe_output_path(screenshot_output, default_name=f"mcp_omni_{instance_id}_{int(time.time())}.png")
-        shot_path.parent.mkdir(parents=True, exist_ok=True)
-        pil.save(shot_path, format="PNG")
-        screenshot_rel = shot_path.relative_to(_repo()).as_posix()
-
-    parsed = parse_screenshot(
-        pil,
-        url=url,
-        timeout_seconds=timeout_seconds,
-        box_threshold=float(box_threshold),
-        iou_threshold=float(iou_threshold),
-        use_paddleocr=bool(use_paddleocr),
-        imgsz=imgsz,
-    )
-    proposal_regions, stats = build_omniparser_proposal_regions(
-        parsed.elements,
-        pil,
-        width=parsed.width,
-        height=parsed.height,
-        min_area_pct=float(min_area_pct),
-        nms_iou_threshold=float(iou_threshold),
-    )
-    result = {
-        "instance_id": instance_id,
-        "current_screen": current,
-        "width": int(parsed.width),
-        "height": int(parsed.height),
-        "params": {
-            "box_threshold": float(box_threshold),
-            "iou_threshold": float(iou_threshold),
-            "min_area_pct": float(min_area_pct),
-            "use_paddleocr": bool(use_paddleocr),
-            "imgsz": int(imgsz) if imgsz is not None else None,
-        },
-        "elements": [parsed_element_to_dict(el) for el in parsed.elements],
-        "proposal_regions": proposal_regions,
-        "stats": _omni_stats_dict(stats),
-    }
-    if screenshot_rel:
-        result["screenshot_path"] = screenshot_rel
-
-    out_path = _safe_output_path(output, default_name=f"mcp_omni_{instance_id}_{int(time.time())}.json")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-    result["path"] = out_path.relative_to(_repo()).as_posix()
-    return result
 
 
 @mcp.tool()
@@ -335,9 +231,11 @@ async def tap_region(
         msg = f"region {region!r} has no bbox"
         raise TypeError(msg)
 
+    from adb.frame_normalize import GAME_FRAME_SIZE
+
     actions = get_bot_actions()
-    dev_w, dev_h = actions.screen_resolution(instance_id)
-    point = bbox_percent_center_to_device_point(bbox, dev_w, dev_h)
+    frame_w, frame_h = GAME_FRAME_SIZE
+    point = bbox_percent_center_to_device_point(bbox, frame_w, frame_h)
     ok = actions.tap(
         instance_id,
         point,
