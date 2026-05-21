@@ -755,9 +755,7 @@ class InstanceWorker(
                     )
             if game_ready:
                 # Run startup overlay before queue cleanup so any visible popup
-                # (ads, events) enqueues its own dismiss/claim scenario before
-                # ``who_i_am`` is published. Both compete in the queue by
-                # priority — there is no dedicated login-ad pre-phase.
+                # enqueues its own dismiss/claim scenario before ``who_i_am``.
                 await self._startup_overlay_tick()
             await self._seed_startup_tasks()
             if game_ready:

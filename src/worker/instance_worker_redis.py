@@ -259,9 +259,7 @@ class InstanceWorkerRedisMixin(_Base):
 
         Called both at boot and from each rolling tick — the dedup gate
         (``skip_if_duplicate=True`` plus the in-flight / queued checks below)
-        keeps this idempotent. Login-ad popups are no longer a pre-phase: they
-        compete with ``who_i_am`` in the queue by priority (ads sit at 120_000,
-        ``who_i_am`` at 82_000, so visible ads still win).
+        keeps this idempotent.
         """
         if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
             return
