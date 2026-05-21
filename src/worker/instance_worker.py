@@ -754,8 +754,10 @@ class InstanceWorker(
                         mapping=mapping,
                     )
             if game_ready:
-                # Run startup overlay before queue cleanup so login ads enqueue
-                # as their own node-bound scenarios (phase 1).
+                # Run startup overlay before queue cleanup so any visible popup
+                # (ads, events) enqueues its own dismiss/claim scenario before
+                # ``who_i_am`` is published. Both compete in the queue by
+                # priority — there is no dedicated login-ad pre-phase.
                 await self._startup_overlay_tick()
             await self._seed_startup_tasks()
             if game_ready:

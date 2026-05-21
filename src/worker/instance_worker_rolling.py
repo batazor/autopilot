@@ -60,7 +60,8 @@ def _rolling_overlay_device_level_only(
 ) -> bool:
     """Whether rolling/overlay ticks should evaluate only ``device_level`` overlay rules.
 
-    Boot phase (empty ``active_player``): login ads and other device-level popups only.
+    Pre-identity (empty ``active_player``): only device-level popups can run
+    meaningfully — player-bound overlay rules have nothing to gate on yet.
     Busy default: same as ``_rolling_should_skip_overlay`` (device-level still runs).
     """
     if not str(active_player or "").strip():
@@ -215,7 +216,7 @@ class InstanceWorkerRollingMixin(_Base):
             )
             if device_level_only and not str(active_player or "").strip():
                 logger.debug(
-                    "[rolling] %s: boot phase — device-level overlay only (no active_player)",
+                    "[rolling] %s: pre-identity — device-level overlay only (no active_player)",
                     self._cfg.instance_id,
                 )
             elif device_level_only:
