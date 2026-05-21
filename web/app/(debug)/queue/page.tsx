@@ -40,16 +40,15 @@ export default function QueuePage() {
   const refresh = useCallback(async () => {
     try {
       const result = await fetchQueue({ ifRevision: revisionRef.current });
-      if ("unchanged" in result && result.unchanged) {
+      if ("unchanged" in result) {
         setError(null);
         return;
       }
-      const view = result;
-      revisionRef.current = view.revision;
-      setData(view);
+      revisionRef.current = result.revision;
+      setData(result);
       setError(null);
-      if (!pickRef.current && view.pending.length) {
-        setPick(view.pending[0].task_id);
+      if (!pickRef.current && result.pending.length) {
+        setPick(result.pending[0].task_id);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

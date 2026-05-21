@@ -41,19 +41,18 @@ function InstancePageInner() {
       const result = await fetchInstanceDetail(instanceId, {
         ifRevision: revisionRef.current,
       });
-      if ("unchanged" in result && result.unchanged) {
+      if ("unchanged" in result) {
         setError(null);
         return;
       }
-      const d = result;
-      revisionRef.current = d.revision;
-      setDetail(d);
-      if (!taskTypeRef.current && d.runnable_scenarios.length) {
-        setTaskType(d.runnable_scenarios[0]);
+      revisionRef.current = result.revision;
+      setDetail(result);
+      if (!taskTypeRef.current && result.runnable_scenarios.length) {
+        setTaskType(result.runnable_scenarios[0]);
       }
-      if (!taskPlayerRef.current && d.player_ids.length) {
-        setTaskPlayer(d.player_ids[0]);
-        setSwitchPlayer(d.player_ids[0]);
+      if (!taskPlayerRef.current && result.player_ids.length) {
+        setTaskPlayer(result.player_ids[0]);
+        setSwitchPlayer(result.player_ids[0]);
       }
       setError(null);
     } catch (e) {
