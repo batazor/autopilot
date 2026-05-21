@@ -4,7 +4,7 @@ import logging
 import threading
 from typing import Any
 
-import ui.bot_services as bot_services
+import dashboard.bot_services as bot_services
 
 
 def test_shutdown_hooks_skip_signals_outside_main_thread(mocker) -> None:
@@ -39,7 +39,7 @@ def test_ensure_health_watchdog_reuses_existing_process(mocker) -> None:
     )
     mocker.patch.object(bot_services.subprocess, "Popen", new=lambda *a, **kw: spawned.append((a, kw)))
 
-    bot_services._ensure_health_watchdog()
+    bot_services.ensure_health_watchdog()
 
     assert spawned == []
     assert bot_services._health_proc is None
@@ -58,8 +58,8 @@ def test_ensure_health_watchdog_logs_existing_process_once(mocker, caplog: Any) 
     )
 
     with caplog.at_level(logging.INFO, logger=bot_services.__name__):
-        bot_services._ensure_health_watchdog()
-        bot_services._ensure_health_watchdog()
+        bot_services.ensure_health_watchdog()
+        bot_services.ensure_health_watchdog()
 
     messages = [
         record.getMessage()

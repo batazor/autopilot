@@ -21,7 +21,7 @@ async def test_schedule_publishes_on_success(mock_settings: MagicMock) -> None:
     queue = RedisQueue(redis, mock_settings)
 
     with patch(
-        "ui.dashboard_events.publish_dashboard_event_async",
+        "dashboard.dashboard_events.publish_dashboard_event_async",
         new_callable=AsyncMock,
     ) as publish:
         ok = await queue.schedule(
@@ -49,7 +49,7 @@ async def test_schedule_skips_publish_on_dedup(mock_settings: MagicMock) -> None
     queue._dedup_zadd_script = AsyncMock(return_value=0)
 
     with patch(
-        "ui.dashboard_events.publish_dashboard_event_async",
+        "dashboard.dashboard_events.publish_dashboard_event_async",
         new_callable=AsyncMock,
     ) as publish:
         ok = await queue.schedule(
@@ -74,7 +74,7 @@ async def test_schedule_publishes_after_dedup_script_applies(mock_settings: Magi
     queue._dedup_zadd_script = AsyncMock(return_value=1)
 
     with patch(
-        "ui.dashboard_events.publish_dashboard_event_async",
+        "dashboard.dashboard_events.publish_dashboard_event_async",
         new_callable=AsyncMock,
     ) as publish:
         ok = await queue.schedule(

@@ -83,15 +83,15 @@ def test_real_repo_cron_yamls_all_resolve() -> None:
         )
 
 
-def test_ui_and_scheduler_share_resolvers() -> None:
-    """Both helpers live in :mod:`scenarios.cron_specs` — scheduler imports
-    them from there, and the UI Cron Push file is wired the same way (the
-    Streamlit page itself isn't imported here because of its module-level
-    ``st.title`` and similar runtime calls). Pin the names so accidental
-    re-defines in either consumer don't fork the behaviour again.
-    """
-    import ast
+def test_scheduler_shares_cron_resolvers_with_dsl() -> None:
+    """Both resolvers live in :mod:`dsl.cron_specs` — scheduler must re-export
+    the same identity so an accidental local re-define in either consumer can't
+    fork the behaviour again.
 
+    (The historical Streamlit ``src/ui/views/scenarios.py`` page check was
+    dropped along with the Streamlit UI; the dashboard consumes the resolvers
+    via runtime imports, not by parsing source.)
+    """
     from dsl.cron_specs import (
         resolve_cron_priority as cs_prio,
     )
@@ -103,28 +103,3 @@ def test_ui_and_scheduler_share_resolvers() -> None:
 
     assert cs_prio is sr_prio
     assert cs_task is sr_task
-
-    # Parse the UI page module without importing it — looking for the import
-    # of both helpers from ``scenarios.cron_specs`` (no local re-define).
-    page_src = (
-        Path(__file__).resolve().parents[2]
-        / "src"
-        / "ui"
-        / "views"
-        / "scenarios.py"
-    ).read_text(encoding="utf-8")
-    tree = ast.parse(page_src)
-    cron_specs_imports: set[str] = set()
-    redefines: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "scenarios.cron_specs":
-            cron_specs_imports.update(a.name for a in node.names)
-        if isinstance(node, ast.FunctionDef) and node.name in {
-            "resolve_cron_priority", "resolve_cron_task_type",
-        }:
-            redefines.add(node.name)
-    assert "resolve_cron_priority" in cron_specs_imports
-    assert "resolve_cron_task_type" in cron_specs_imports
-    assert redefines == set(), (
-        f"UI page re-defines resolver(s) instead of importing: {redefines}"
-    )
