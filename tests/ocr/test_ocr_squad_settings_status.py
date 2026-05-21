@@ -37,7 +37,11 @@ async def test_ocr_squad_settings_status_reads_victory() -> None:
     from layout.types import Region as LayoutRegion
     from ocr.client import OcrClient
 
-    assert _VICTORY_REF.is_file(), f"reference image missing: {_VICTORY_REF}"
+    if not _VICTORY_REF.is_file():
+        pytest.skip(
+            f"reference image missing: {_VICTORY_REF} — capture a victory"
+            " screenshot under references/ to enable this OCR smoke test"
+        )
     assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
     _assert_local_ocr_available()
 

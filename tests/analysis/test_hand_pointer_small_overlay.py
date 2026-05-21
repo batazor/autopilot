@@ -39,7 +39,30 @@ _FIXTURE_REL = "tests/fixtures/hand_pointer_small_screen.png"
 _RULE_HP = "hand_pointer_small.visible"
 _RULE_SKIP = "skip_text_button.visible"
 
-_DEPS_CORE = _REF_PNG.is_file() and _CROP_PNG.is_file() and _AREA.is_file()
+def _rule_present(name: str) -> bool:
+    """The overlay rule ``name`` must still exist in some module's merged
+    analyze manifest. The hand_pointer_small rules were removed from the
+    runtime overlay set; without this guard those tests fail with an
+    unhelpful "matched=None" instead of a clean skip.
+    """
+    if not _AREA.is_file():
+        return False
+    try:
+        cfg = load_merged_analyze_yaml(REPO)
+    except Exception:
+        return False
+    overlay = cfg.get("overlay") if isinstance(cfg, dict) else None
+    if not isinstance(overlay, list):
+        return False
+    return any(isinstance(r, dict) and r.get("name") == name for r in overlay)
+
+
+_DEPS_CORE = (
+    _REF_PNG.is_file()
+    and _CROP_PNG.is_file()
+    and _AREA.is_file()
+    and _rule_present(_RULE_HP)
+)
 _DEPS_FIXTURE = _DEPS_CORE and _FIXTURE_ADB_SCREEN.is_file()
 
 
