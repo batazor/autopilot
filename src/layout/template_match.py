@@ -30,7 +30,7 @@ _PHASH_BITS = 64
 _NCC_PEAK_MAX_ROI = 25
 _NCC_PEAK_MAX_FULL = 40
 _NCC_PEAK_MIN_VAL = -0.5
-# Flat patches yield spurious TM_CCOEFF_NORMED ≈ 1.0; skip them when picking peaks.
+# Flat patches yield spurious TM_CCORR_NORMED ≈ 1.0; skip them when picking peaks.
 _MIN_PATCH_GRAY_STD = 5.0
 _TEMPLATE_PHASH_CACHE_MAX = 512
 _template_phash_cache: OrderedDict[bytes, int] = OrderedDict()
@@ -43,7 +43,7 @@ class TemplateMatchResult(TypedDict, total=False):
     score: float
     # Global top-left (x, y); crop rounding matches labeling export.
     top_left: tuple[int, int]
-    # Raw grayscale TM_CCOEFF_NORMED score before the color-similarity cap.
+    # Raw grayscale TM_CCORR_NORMED score before the color-similarity cap.
     score_ncc: float
     # Mean absolute BGR similarity: 1.0 is identical, 0.0 is maximally different.
     score_color: float
@@ -232,7 +232,7 @@ def _hybrid_scores_at_patch(
     else:
         pg = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
         tg = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-        ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCOEFF_NORMED)[0, 0])
+        ncc = float(cv2.matchTemplate(pg, tg, cv2.TM_CCORR_NORMED)[0, 0])
     return phash_score, hamming, ncc, color, edge
 
 
@@ -608,7 +608,7 @@ def match_template_in_search_roi_bbox_percent(
     else:
         roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     tg = _template_gray_cached(template_bgr)
-    heat_orig = cv2.matchTemplate(roi_gray, tg, cv2.TM_CCOEFF_NORMED)
+    heat_orig = cv2.matchTemplate(roi_gray, tg, cv2.TM_CCORR_NORMED)
     best = _best_phash_among_ncc_peaks(
         roi,
         template_bgr,
@@ -796,7 +796,7 @@ def match_template_full_frame_cached(
 
     rg = image_gray if image_gray is not None else cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
     tg = _template_gray_cached(template_bgr)
-    heat_orig = cv2.matchTemplate(rg, tg, cv2.TM_CCOEFF_NORMED)
+    heat_orig = cv2.matchTemplate(rg, tg, cv2.TM_CCORR_NORMED)
     scanned = _best_phash_among_ncc_peaks(
         image_bgr,
         template_bgr,

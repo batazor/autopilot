@@ -60,7 +60,7 @@ async def test_v1_next_page_detected(area_doc: dict) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("threshold", [0.85, 0.9])
-async def test_daily_deals_next_page_unique_match(
+async def test_daily_deals_next_page_carousel_arrows(
     area_doc: dict,
     threshold: float,
     capsys: pytest.CaptureFixture[str],
@@ -69,8 +69,8 @@ async def test_daily_deals_next_page_unique_match(
 
     The region carries ``isSearch: true`` so the matcher scans the whole frame —
     we iterate with ``exclude_top_lefts`` to enumerate every distinct match above
-    *threshold*. Healthy state is exactly one (the carousel arrow at the right
-    edge of the tabs strip).
+    *threshold*. The tab strip has two identical carousel arrows (left + right
+    edges), so the matcher legitimately reports both.
     """
     frame = _load_bgr("page.shop.daily_deals.png")
 
@@ -104,9 +104,9 @@ async def test_daily_deals_next_page_unique_match(
     with capsys.disabled():
         print(f"\n[daily_deals @ thr={threshold}] matches={len(found)} -> {found}")
 
-    assert len(found) == 1, (
-        f"[daily_deals @ thr={threshold}] expected exactly 1 shop.tab.next_page "
-        f"match, got {len(found)}: {found}"
+    assert len(found) == 2, (
+        f"[daily_deals @ thr={threshold}] expected 2 shop.tab.next_page matches "
+        f"(left + right carousel arrows), got {len(found)}: {found}"
     )
 
 
