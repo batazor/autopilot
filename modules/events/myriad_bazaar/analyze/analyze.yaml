@@ -1,0 +1,13 @@
+overlay:
+  # Push the claim scenario whenever the bazaar popup is visible. Screen-gated so
+  # the rule fires only after ``screen_verify`` has identified the bazaar — keeps
+  # the rule out of the device-level rolling overlay (it is account-level).
+  - name: myriad_bazaar.visible
+    region: myriad_bazaar.title
+    action: findIcon
+    threshold: 0.9
+    ttl: 3
+    screens:
+      - myriad_bazaar
+    pushScenario:
+      - name: myriad_bazaar

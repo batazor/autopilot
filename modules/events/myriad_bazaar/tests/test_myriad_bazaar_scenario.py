@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
-REPO_ROOT = MODULE_DIR.parents[1]
+REPO_ROOT = MODULE_DIR.parents[2]
 REFERENCES_DIR = MODULE_DIR / "references"
 
 CLAIM_REGION = "button.claim_for_free"
@@ -137,7 +137,7 @@ async def test_myriad_bazaar_scenario_taps_top_button_once(
     """One iteration on the reference: click top free offer, then stop."""
     await redis_async.hset(  # type: ignore[attr-defined]
         "wos:instance:bs1:state",
-        mapping={"active_player": "", "current_screen": "myriad_bazaar"},
+        mapping={"active_player": "p1", "current_screen": "myriad_bazaar"},
     )
 
     visible = _load_bgr("myriad_bazaar.png")
@@ -150,7 +150,7 @@ async def test_myriad_bazaar_scenario_taps_top_button_once(
 
     task = dsl.DslScenarioTask(
         task_id="myriad-bazaar-claim",
-        player_id="",
+        player_id="p1",
         scenario_key="myriad_bazaar",
         redis_client=redis_async,  # type: ignore[arg-type]
     )

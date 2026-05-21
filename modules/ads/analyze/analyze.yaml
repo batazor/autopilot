@@ -34,15 +34,3 @@ overlay:
     threshold: 0.9
     pushScenario:
       - name: tap_ads_legend_transcend_pack
-
-  # No ``screens:`` gate — at login ``current_screen`` may still be empty/main_city
-  # while the popup is visible; screen_verify sets ``myriad_bazaar`` on the next tick.
-  - name: myriad_bazaar.visible
-    region: myriad_bazaar.title
-    device_level: true
-    action: findIcon
-    cond: active_player == ""
-    threshold: 0.9
-    ttl: 3
-    pushScenario:
-      - name: myriad_bazaar

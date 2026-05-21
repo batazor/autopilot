@@ -1,13 +1,12 @@
 enabled: true
 name: Myriad Bazaar — claim free offers
-priority: 120_000
 
 node: myriad_bazaar
-device_level: true
 
 steps:
   - while_match: button.claim_for_free
     threshold: 0.95
+    max: 10
     steps:
       - click: button.claim_for_free
       - wait: 800ms

@@ -1,0 +1,8 @@
+id: myriad_bazaar
+title: Myriad Bazaar
+description: Limited-time bazaar event with free claimable offers.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false
