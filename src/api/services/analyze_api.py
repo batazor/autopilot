@@ -8,8 +8,8 @@ import yaml
 
 from config.module_registry import normalize_module_scope
 from config.paths import repo_root
+from dashboard.overlay_analyze_audit import area_doc_for_module_scope, audit_overlay_rules
 from dsl.registry import iter_module_analyze_manifests
-from ui.overlay_analyze_audit import area_doc_for_module_scope, audit_overlay_rules
 
 _REPO = repo_root()
 

@@ -5,14 +5,14 @@ import itertools
 from collections import deque
 from typing import Any, Literal
 
-from navigation.screen_graph import EDGE_DYNAMIC, EDGE_TAPS, bfs_route
-from ui.flow_layout import (
+from dashboard.flow_layout import (
     _NODE_WIDTH_PX,
     adjacency_from_edge_keys,
     build_flow_graph,
     sorted_edge_pairs,
     spanning_forest_edges,
 )
+from navigation.screen_graph import EDGE_DYNAMIC, EDGE_TAPS, bfs_route
 
 GraphView = Literal["hub", "focus", "path", "full"]
 

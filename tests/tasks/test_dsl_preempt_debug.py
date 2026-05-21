@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from dashboard.redis_client import dsl_preempt_gen_key
 from tasks.dsl_scenario import DslScenarioTask
-from ui.redis_client import dsl_preempt_gen_key
 
 
 @pytest.mark.integration

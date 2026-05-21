@@ -15,9 +15,9 @@ from api.services.click_approval_overlay import (
 from config.paths import repo_root
 from config.trace_links import tempo_trace_url
 from config.w3c_traceparent import w3c_trace_id_hex
+from dashboard.redis_client import fetch_running_queue_row, get_instance_state
 from dsl import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import _dsl_step_summary
-from ui.redis_client import fetch_running_queue_row, get_instance_state
 
 
 def _as_text(value: Any) -> str:
@@ -98,7 +98,7 @@ def build_scenario_progress(
     scenario_label = (
         scenario_display_name(active_scenario) if active_scenario else ""
     )
-    from ui.scenario_progress_metrics import (
+    from dashboard.scenario_progress_metrics import (
         compute_scenario_progress_metrics,
         format_scenario_progress_label,
     )
@@ -162,7 +162,7 @@ def set_approval_enabled(client: Any, instance_id: str, *, enabled: bool) -> Non
     client.set(_enabled_key(instance_id), "1" if enabled else "0")
     if not enabled:
         client.delete(_heartbeat_key(instance_id))
-    from ui.dashboard_events import publish_dashboard_event
+    from dashboard.dashboard_events import publish_dashboard_event
 
     publish_dashboard_event(
         client,
@@ -194,7 +194,7 @@ def clear_pending(client: Any, instance_id: str) -> bool:
         if response_key:
             client.set(response_key, "reject", ex=120)
     client.delete(curr_key)
-    from ui.dashboard_events import publish_dashboard_event
+    from dashboard.dashboard_events import publish_dashboard_event
 
     publish_dashboard_event(client, topic="approval", instance_id=instance_id, reason="clear")
     return True
@@ -223,7 +223,7 @@ def clear_queue_all(client: Any) -> int:
         if client.delete(k):
             removed += 1
     if removed:
-        from ui.dashboard_events import publish_dashboard_event
+        from dashboard.dashboard_events import publish_dashboard_event
 
         publish_dashboard_event(client, topic="queue", reason="clear_all")
     return removed
@@ -425,7 +425,7 @@ def _labeling_href_for_region(
     region_name: str,
 ) -> str:
     """Next.js ``/labeling?…`` deep-link for an area.json region (Streamlit parity)."""
-    from ui.views.click_approvals.common import (
+    from dashboard.click_approvals import (
         active_player_state_flat,
         labeling_query_params_for_area_region,
         load_area_doc,
@@ -578,7 +578,7 @@ def submit_decision(client: Any, instance_id: str, decision: str) -> bool:
     if response_key:
         client.set(response_key, decision, ex=120)
     client.delete(curr_key)
-    from ui.dashboard_events import publish_dashboard_event
+    from dashboard.dashboard_events import publish_dashboard_event
 
     publish_dashboard_event(
         client,

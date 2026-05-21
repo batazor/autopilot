@@ -11,9 +11,9 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from config.log_ansi import scenario_log_label as _scen
+from dashboard.redis_client import dsl_preempt_gen_key
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import _read_current_screen
-from ui.redis_client import dsl_preempt_gen_key
 
 logger = logging.getLogger(__name__)
 

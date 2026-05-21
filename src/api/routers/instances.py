@@ -12,7 +12,7 @@ from api.deps import get_redis
 from api.services import instance_detail as detail
 from api.services.dashboard_stream import instance_revision
 from api.services.instances import list_instance_ids
-from ui.dashboard_events import publish_dashboard_event
+from dashboard.dashboard_events import publish_dashboard_event
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
@@ -56,7 +56,14 @@ def get_instance_preview(instance_id: str) -> Response:
     png, _ = detail.load_preview_png(instance_id)
     if png is None:
         raise HTTPException(status_code=404, detail="no preview image available")
-    return Response(content=png, media_type="image/png")
+    # The worker rewrites this PNG every ~1s; the dashboard pulls a fresh URL on
+    # the same cadence. Tell intermediate caches and the browser not to hold a
+    # copy or the UI shows a stale frame after the cache-buster lines up again.
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 @router.post("/{instance_id}/commands")

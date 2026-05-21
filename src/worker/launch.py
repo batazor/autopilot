@@ -1,7 +1,6 @@
 """`play` entry point: local dev stack (API + Next.js; worker optional).
 
 By default the worker is **not** started — use the dashboard **Start bot** control.
-Legacy Streamlit all-in-one UI: ``WOS_PLAY_STREAMLIT=1``.
 """
 
 from __future__ import annotations
@@ -23,11 +22,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from config.paths import repo_root, src_root
+from config.paths import repo_root
 
 _DEFAULT_API_PORT = 8765
 _DEFAULT_WEB_PORT = 3000
-_DEFAULT_STREAMLIT_PORT = 8501
 _STARTUP_TIMEOUT_S = 120.0
 _POLL_INTERVAL_S = 0.5
 
@@ -45,10 +43,6 @@ def _http_ok(url: str, *, timeout: float = 1.0) -> bool:
             return int(getattr(resp, "status", 0) or 0) == 200
     except (urllib.error.URLError, TimeoutError, OSError, ValueError):
         return False
-
-
-def _streamlit_already_running(port: int, host: str = "127.0.0.1") -> bool:
-    return _http_ok(f"http://{host}:{port}/_stcore/health")
 
 
 def _api_already_running(port: int, host: str = "127.0.0.1") -> bool:
@@ -227,81 +221,6 @@ class _PlayStack:
             signal.signal(signal.SIGQUIT, _handler)
 
 
-def _run_streamlit_legacy(repo: Path, port_int: int) -> None:
-    """Previous ``play`` behavior — Streamlit UI with embedded worker."""
-    if (
-        os.environ.get("WOS_FORCE_RESTART", "").strip().lower()
-        not in ("1", "true", "yes", "on")
-        and _streamlit_already_running(port_int)
-    ):
-        print(
-            f"WOS Streamlit UI already running at http://127.0.0.1:{port_int} "
-            "(reuse that browser tab; set WOS_FORCE_RESTART=1 to start another).",
-            flush=True,
-        )
-        return
-
-    env = _prepare_child_env(repo)
-    os.environ.update(env)
-    root = str(repo)
-    if root not in sys.path:
-        sys.path.insert(0, root)
-
-    from config.runtime_bootstrap import bootstrap_runtime_observability
-    from config.startup_validation import assert_startup_configs_valid
-
-    bootstrap_runtime_observability("ui")
-    assert_startup_configs_valid(repo)
-    try:
-        from streamlit.web import bootstrap
-    except ImportError as exc:
-        msg = "Streamlit is required for WOS_PLAY_STREAMLIT=1: run `uv sync`."
-        raise SystemExit(msg) from exc
-
-    env.setdefault("STREAMLIT_SERVER_PROMPT", "false")
-    env.setdefault("STREAMLIT_SERVER_HEADLESS", "true")
-    env.setdefault("STREAMLIT_SERVER_FILEWATCHERTYPE", "none")
-    env.setdefault("STREAMLIT_SERVER_RUNONSAVE", "false")
-    os.environ.update(env)
-
-    _STOP_SIGNAL_COUNT = 0
-
-    def _set_up_signal_handler(server: object) -> None:
-        def signal_handler(signal_number: int, stack_frame: object) -> None:
-            del stack_frame
-            nonlocal _STOP_SIGNAL_COUNT
-            _STOP_SIGNAL_COUNT += 1
-            if _STOP_SIGNAL_COUNT > 1:
-                os._exit(128 + int(signal_number))
-            try:
-                from ui.bot_services import request_embedded_bot_stop
-
-                request_embedded_bot_stop()
-            finally:
-                server.stop()  # type: ignore[attr-defined]
-
-        signal.signal(signal.SIGTERM, signal_handler)
-        signal.signal(signal.SIGINT, signal_handler)
-        if sys.platform == "win32":
-            signal.signal(signal.SIGBREAK, signal_handler)  # type: ignore[attr-defined]
-        else:
-            signal.signal(signal.SIGQUIT, signal_handler)
-
-    bootstrap._set_up_signal_handler = _set_up_signal_handler  # type: ignore[attr-defined]  # ty: ignore[invalid-assignment]
-    bootstrap.run(
-        str(src_root() / "ui" / "app.py"),
-        False,
-        [],
-        {
-            "server.headless": True,
-            "server.port": port_int,
-            "server.fileWatcherType": "none",
-            "server.runOnSave": False,
-            "browser.gatherUsageStats": False,
-        },
-    )
-
-
 def _run_modern_play() -> None:
     repo = repo_root()
     os.chdir(repo)
@@ -372,12 +291,6 @@ def _run_modern_play() -> None:
 
 
 def main() -> None:
-    if _env_flag("WOS_PLAY_STREAMLIT"):
-        repo = repo_root()
-        os.chdir(repo)
-        port = os.environ.get("WOS_STREAMLIT_PORT", str(_DEFAULT_STREAMLIT_PORT))
-        _run_streamlit_legacy(repo, int(port))
-        return
     _run_modern_play()
 
 

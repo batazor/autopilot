@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import redis
 
-from ui.player_state_data import (
+from dashboard.player_state_data import (
     build_live_player_state,
     build_state_db_overview,
     get_persisted_player,
@@ -14,7 +14,7 @@ from ui.player_state_data import (
     list_known_player_ids,
     sync_player_from_century,
 )
-from ui.redis_client import get_player_state_hash
+from dashboard.redis_client import get_player_state_hash
 
 
 def list_player_ids() -> list[str]:
@@ -43,7 +43,7 @@ def century_sync(player_id: str) -> dict[str, Any]:
 
 
 def suggest_active_player_id(client: redis.Redis, instance_id: str) -> str:
-    from ui.redis_client import get_instance_state
+    from dashboard.redis_client import get_instance_state
 
     if not instance_id.strip():
         return ""

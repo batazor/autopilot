@@ -16,14 +16,7 @@ from config.reference_naming import (
     temporal_png_abs_path_in_refs,
     unique_label_capture_basename,
 )
-from layout.area_versions import (
-    VERSION_ID_RE,
-    compile_cond,
-    get_version_block,
-    next_version_id,
-    normalize_version_id,
-)
-from ui.area_annotator import (
+from dashboard.area_doc import (
     _doc_with_repo_relative_ocr,
     _sync_default_regions_into_version,
     detect_screen_id_from_png_path,
@@ -31,24 +24,31 @@ from ui.area_annotator import (
     export_all_region_crops_for_area_doc,
     find_stale_crops,
 )
-from ui.labeling_helpers import build_reference_leaf_meta_index, format_reference_leaf_title
-from ui.overlay_yaml_sync import (
+from dashboard.labeling_helpers import build_reference_leaf_meta_index, format_reference_leaf_title
+from dashboard.overlay_yaml_sync import (
     apply_region_rename,
     cascade_primary_rename_in_regions,
     detect_region_renames,
 )
-from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
-from ui.reference_ocr_paths import reference_basename_stem
-from ui.reference_preview import (
+from dashboard.reference_area_sync import sync_area_json_ocr_after_reference_rename
+from dashboard.reference_ocr_paths import reference_basename_stem
+from dashboard.reference_preview import (
     capture_preview_to,
     list_reference_pngs,
     move_temporal_to_reference_basename,
     rename_reference_to_basename,
 )
-from ui.roboflow_upload import (
+from dashboard.roboflow_upload import (
     build_coco_annotation,
     load_roboflow_upload_config,
     upload_screenshot_to_roboflow,
+)
+from layout.area_versions import (
+    VERSION_ID_RE,
+    compile_cond,
+    get_version_block,
+    next_version_id,
+    normalize_version_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def list_labeling_scopes() -> list[dict[str, Any]]:
 
 def list_screen_id_options(*, scope: str, current_screen_id: str = "") -> list[str]:
     """Node ids for Screen entry (area.json + navigation graph), same as Streamlit UI."""
-    from ui.area_annotator import screen_id_select_options
+    from dashboard.area_doc import screen_id_select_options
 
     env = ls.scope_env(scope)
     doc = ls.load_area_doc(env)
@@ -398,7 +398,7 @@ def _publish_area_manifest_changed() -> None:
     """Notify dashboard SSE subscribers (Region probe, overlay test) after area save."""
     try:
         from api.deps import get_redis
-        from ui.dashboard_events import publish_dashboard_event
+        from dashboard.dashboard_events import publish_dashboard_event
 
         publish_dashboard_event(get_redis(), topic="area", reason="labeling_save")
     except Exception:

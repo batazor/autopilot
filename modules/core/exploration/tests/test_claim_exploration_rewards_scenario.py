@@ -19,11 +19,12 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[2]
 REFERENCES_DIR = MODULE_DIR / "references"
+REWARDS_REFERENCES_DIR = REPO_ROOT / "modules" / "core" / "rewards" / "references"
 REHEARSAL_FIXTURES_DIR = REFERENCES_DIR / "rehearsal" / "fixtures" / "claim_exploration_rewards"
 
 
-def _load_reference_bgr(name: str) -> np.ndarray:
-    path = REFERENCES_DIR / name
+def _load_reference_bgr(name: str, *, base: Path = REFERENCES_DIR) -> np.ndarray:
+    path = base / name
     frame = cv2.imread(str(path))
     assert frame is not None, f"failed to load reference screenshot: {path}"
     return frame
@@ -54,7 +55,7 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
     main_city = _load_rehearsal_fixture_bgr("01.main_city_before.png")
     exploration = _load_rehearsal_fixture_bgr("03.exploration.png")
     idle_income = _load_rehearsal_fixture_bgr("08.idle_income.png")
-    rewards = _load_reference_bgr("page.rewards.png")
+    rewards = _load_reference_bgr("page.rewards.png", base=REWARDS_REFERENCES_DIR)
     after_rewards = _load_rehearsal_fixture_bgr("14.after_rewards.png")
 
     detector = ScreenDetector(get_ocr_client())

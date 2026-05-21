@@ -4,8 +4,7 @@
 # already running and the emulator's port (e.g. ``127.0.0.1:5555``) reachable.
 #
 # Operator UI: ``Dockerfile.web`` + ``docker compose -f docker-compose.prod.yml``
-# (Next.js on :3000, FastAPI on :8765). Streamlit remains available via
-# ``uv run play`` for local dev (Next + API + bot); not started by this image's default CMD.
+# (Next.js on :3000, FastAPI on :8765). Not started by this image's default CMD.
 #
 # Companion service:
 #   * ``redis:alpine`` — queue / instance state
@@ -24,7 +23,6 @@ ENV UV_LINK_MODE=copy \
 # Step 1: deps only — copy the manifests first so layer cache survives any
 # source-only change.
 COPY pyproject.toml uv.lock README.md ./
-COPY streamlit-plugin/ ./streamlit-plugin/
 RUN uv sync --frozen --no-install-project --no-dev
 
 # Step 2: project source — runtime tree (``src/`` packages + repo-root data).

@@ -8,8 +8,8 @@ from typing import Any
 
 from config.loader import load_settings
 from config.paths import repo_root
+from dashboard.redis_client import bump_dsl_preempt_generation, push_instance_command
 from dsl import template_resolver as _tmpl
-from ui.redis_client import bump_dsl_preempt_generation, push_instance_command
 
 _REPO = repo_root()
 

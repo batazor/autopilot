@@ -18,8 +18,8 @@ from config.module_registry import (
 )
 from config.paths import repo_root
 from config.reference_naming import TEMPORAL_SUBDIR
-from ui.area_annotator import default_area_doc, load_json
-from ui.reference_ocr_paths import resolve_ocr_path_in_reference_context
+from dashboard.area_doc import default_area_doc, load_json
+from dashboard.reference_ocr_paths import resolve_ocr_path_in_reference_context
 
 _REPO = repo_root()
 

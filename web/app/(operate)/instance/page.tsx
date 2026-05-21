@@ -28,6 +28,7 @@ function InstancePageInner() {
   const [taskPlayer, setTaskPlayer] = useState("");
   const [switchPlayer, setSwitchPlayer] = useState("");
   const [busy, setBusy] = useState(false);
+  const [previewKey, setPreviewKey] = useState(() => Date.now());
   const taskTypeRef = useRef(taskType);
   const taskPlayerRef = useRef(taskPlayer);
   taskTypeRef.current = taskType;
@@ -64,6 +65,15 @@ function InstancePageInner() {
     revisionRef.current = undefined;
   }, [instanceId]);
 
+  // Roll the preview cache-buster every second so the <img> URL stays in step
+  // with the worker's rolling PNG write cadence — nothing publishes a dashboard
+  // event when the file is rewritten, so polling here is the lightest fix.
+  useEffect(() => {
+    if (!instanceId) return;
+    const id = setInterval(() => setPreviewKey(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [instanceId]);
+
   useDashboardEventStream({
     topics: ["instance", "queue"],
     instanceId: instanceId || undefined,
@@ -90,7 +100,7 @@ function InstancePageInner() {
 
   const previewUrl =
     detail?.preview_available && instanceId
-      ? instancePreviewUrl(instanceId, detail.preview_mtime ?? undefined)
+      ? instancePreviewUrl(instanceId, previewKey)
       : null;
 
   const bannerError = error ?? instancesError;

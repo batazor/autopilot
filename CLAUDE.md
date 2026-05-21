@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**Whiteout Survival Autopilot** is a multi-account Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts the same stack (bot + API + Next dev server); **Streamlit** is legacy (`WOS_PLAY_STREAMLIT=1`).
+**Whiteout Survival Autopilot** is a multi-account Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts the same stack (bot + API + Next dev server).
 
 ## Key Commands
 
@@ -22,8 +22,6 @@ docker compose up -d redis        # Start Redis (local dev only)
 docker compose up -d redis
 uv run play          # bot + API + Next.js → http://127.0.0.1:3000/overview
 ```
-
-**Legacy Streamlit** (local): `WOS_PLAY_STREAMLIT=1 uv run play` → `http://127.0.0.1:8501`.
 
 **Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && npm run dev`.
 
@@ -77,7 +75,7 @@ docker compose -f docker-compose.prod.yml up -d
 3. **Overlay Engine** (`src/analysis/`) — template + OCR matching; runs on every bot tick to detect UI state and populate Redis
 4. **API** (`src/api/`) — FastAPI for Redis state, previews, labeling save, wiki, queue commands (used by Next.js)
 5. **Web UI** (`web/`) — Next.js dashboard (primary local operator UI; proxies `/api` to FastAPI)
-6. **Streamlit UI** (`src/ui/`) — legacy (`WOS_PLAY_STREAMLIT=1`); not started by prod `bot` / default `play`
+6. **Dashboard helpers** (`src/dashboard/`) — Redis state / labeling / area.json / preview helpers backing the FastAPI server (no UI framework)
 7. **Modules** (`modules/`) — feature domains (e.g., heroes, mail, building); each exports `analyze/analyze.yaml` rules and DSL scenarios
 
 ### Directory Structure
@@ -95,7 +93,7 @@ src/
   services/           # App lifecycle (init, close, instance sessions)
   tasks/              # DSL step executor (match, click, cond, while_match, etc.)
   api/                # FastAPI (Redis, labeling, wiki, queue — backs Next.js)
-  ui/                 # Streamlit UI (play; legacy labeling page)
+  dashboard/          # Dashboard-backing helpers (Redis state, labeling, area.json, previews)
   worker/             # Worker process entry; supervisor (multiprocess restart, backoff)
 
 web/                  # Next.js operator dashboard (see web/README.md)
@@ -210,8 +208,6 @@ See `.cursor/rules/wos-overlay-actions.mdc` for red-dot filters, `cond` syntax, 
 
 **Next.js** (`/labeling`, Konva): capture, regions, versions, basename promote/rename, Roboflow upload, crops — primary labeling UI (`uv run api` + `web` dev server).
 
-**Streamlit** (`WOS_PLAY_STREAMLIT=1` → Labeling): legacy canvas + per-module `area.yaml`; use Next `/labeling` for new work.
-
 Typical workflow:
 1. Capture a reference screenshot (Next `/labeling`)
 2. Label regions (template crop, OCR, click target, `has_red_dot`)
@@ -226,7 +222,7 @@ Multi-instance state lives in Redis:
 - **`wos:history:<id>`** — recent execution history
 - **`wos:ui:command:<id>`** — UI → bot commands
 
-Restart-safe; visible from the Next.js dashboard, Streamlit UI, and any external tool.
+Restart-safe; visible from the Next.js dashboard and any external tool.
 
 ### Configuration
 
@@ -242,16 +238,12 @@ ocr:
 worker:
   adb_executable: /opt/homebrew/bin/adb  # or use ANDROID_HOME env var
   screenshot_interval_ms: 500
-
-ui:
-  streamlit_port: 8501
 ```
 
 **Environment variables** override YAML:
 - `WOS_REDIS_URL` → `redis.url`
 - `WOS_TESSERACT_CMD` → `ocr.tesseract_cmd`
 - `TESSDATA_PREFIX` → Tesseract traineddata path
-- `WOS_STREAMLIT_PORT` → UI port
 
 **`db/devices.yaml`** — device + account mapping:
 ```yaml

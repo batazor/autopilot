@@ -18,12 +18,12 @@ from config.events import match_event_by_ocr
 from config.heroes import get_hero_registry
 from config.paths import repo_root
 from config.state_store import get_state_store
+from dashboard.notifications import push_ui_notification
 from layout.area_lookup import screen_region_by_name
 from layout.red_dot_detector import find_red_dots
 from layout.types import Point, Region
 from navigation.hero_grid_search import scan_grid_frame
 from tasks import dsl_runtime
-from ui.notifications import push_ui_notification
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -190,7 +190,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
         logger.exception("dsl exec fetch_player: redis hset failed key=%s", state_key)
         return
 
-    from ui.dashboard_events import publish_dashboard_event_throttled_async
+    from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 
     await publish_dashboard_event_throttled_async(
         ctx.redis_client,
@@ -308,7 +308,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
         logger.exception("dsl exec sync_building_name: redis hset failed key=%s", state_key)
         return
 
-    from ui.dashboard_events import publish_dashboard_event_throttled_async
+    from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 
     await publish_dashboard_event_throttled_async(
         ctx.redis_client,

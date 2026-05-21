@@ -1,6 +1,6 @@
 """Independent OS process: periodic ADB check that Whiteout is foreground; restarts if not.
 
-Runs as ``python -m worker.game_health_watchdog`` — spawned by ``ui.bot_services`` together
+Runs as ``python -m worker.game_health_watchdog`` — spawned by ``dashboard.bot_services`` together
 with the embedded supervisor so checks are not blocked by long DSL tasks.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
 
 
 def _push_instance_command(r: redis.Redis, instance_id: str, cmd: dict[str, object]) -> None:
-    """Mirror of ``ui.redis_client.push_instance_command`` without pulling streamlit."""
+    """Mirror of ``dashboard.redis_client.push_instance_command`` without the import dep."""
     with contextlib.suppress(redis.RedisError):
         r.lpush(f"wos:ui:command:{instance_id}", json.dumps(cmd))
 

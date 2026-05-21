@@ -660,7 +660,7 @@ class DslOcrMixin(_Base):
                         )
                     redis_written = True
                     if scope == "player" and self.player_id:
-                        from ui.dashboard_events import (
+                        from dashboard.dashboard_events import (
                             publish_dashboard_event_throttled_async,
                         )
 

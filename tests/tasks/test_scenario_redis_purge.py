@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from ui.redis_client import purge_scenarios_from_redis
+from dashboard.redis_client import purge_scenarios_from_redis
 
 if TYPE_CHECKING:
     import redis

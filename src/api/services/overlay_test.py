@@ -28,12 +28,12 @@ from api.services.click_approval_overlay import (
     load_preview_bytes,
 )
 from config.paths import repo_root
+from dashboard.click_approvals import active_player_state_flat
+from dashboard.reference_preview import load_rolling_instance_preview
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import area_manifest_max_mtime, load_area_doc
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
-from ui.reference_preview import load_rolling_instance_preview
-from ui.views.click_approvals.common import active_player_state_flat
 
 _STROKE_MATCHED = "#22c55e"
 _STROKE_UNMATCHED = "#64748b"
@@ -1093,7 +1093,7 @@ def run_area_region_probe(
     threshold: float = 0.9,
 ) -> AreaRegionProbeResult:
     """Run a one-off ``exist``/``findIcon`` probe for a selected area region."""
-    from ui.redis_client import get_instance_state
+    from dashboard.redis_client import get_instance_state
 
     inst_state = get_instance_state(client, instance_id) or {}
     current_screen = str(inst_state.get("current_screen") or "").strip()

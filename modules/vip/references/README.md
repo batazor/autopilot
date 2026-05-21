@@ -16,11 +16,11 @@ VIP reference screenshots and crops live here when the VIP module owns them.
 |------|------|
 | `01.main_city_before.png` | `main_city` before navigating to VIP |
 | `02.vip_page.png` | VIP screen after entry |
-| `03.rewards_popup.png` | Rewards popup after daily box (duplicate of `page.rewards_popup.png` for tests) |
+| `03.rewards_popup.png` | Rewards popup after daily box (test fixture; production reference for this screen lives in [`modules/core/rewards/references/page.rewards_popup.png`](../../core/rewards/references/page.rewards_popup.png)) |
 
 Use the **Labeling** UI to add or update production captures:
 
 - http://127.0.0.1:3000/labeling?ref=modules/vip/references/page.vip.png (with `uv run play` or `uv run api` + Next dev server)
-- Module-scoped `area.yaml` edits: `WOS_PLAY_STREAMLIT=1 uv run play` → http://127.0.0.1:8501/labeling?module=vip
+- Module-scoped `area.yaml` edits: http://127.0.0.1:3000/labeling?module=vip
 
 Do not hand-edit `area.json`; export regions and crops from Labeling.

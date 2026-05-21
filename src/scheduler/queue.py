@@ -297,7 +297,7 @@ class RedisQueue:
         else:
             await self._redis.zadd(qk, {payload: run_at})
 
-        from ui.dashboard_events import publish_dashboard_event_async
+        from dashboard.dashboard_events import publish_dashboard_event_async
 
         await publish_dashboard_event_async(
             self._redis,

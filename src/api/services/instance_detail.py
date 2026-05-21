@@ -11,15 +11,15 @@ from api.services.instances import list_instance_ids
 from config.devices import player_ids_for_device
 from config.loader import InstanceConfig, load_settings
 from config.paths import repo_root
-from ui.redis_client import (
+from dashboard.redis_client import (
     count_queue_tasks_for_instance,
     fetch_next_queue_row_for_instance,
     fetch_queue_history_rows,
     get_instance_state,
     push_instance_command,
 )
-from ui.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
-from ui.scenario_keys import runnable_scenario_keys
+from dashboard.reference_preview import load_rolling_instance_preview, rolling_live_preview_path
+from dashboard.scenario_keys import runnable_scenario_keys
 
 
 def _find_instance_config(instance_id: str) -> InstanceConfig | None:

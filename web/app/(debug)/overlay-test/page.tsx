@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
 import { CopyButton } from "@/components/CopyButton";
-import { AppCheckbox, AppListbox } from "@/components/headless";
+import { AppCheckbox, AppCombobox, AppListbox } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { fetchGallery, fetchOverlayTest, overlayTestImageUrl } from "@/lib/api";
@@ -123,7 +123,6 @@ export default function OverlayTestPage() {
   const [frameKey, setFrameKey] = useState(() =>
     refFromUrl ? refFromUrl : LIVE_PREVIEW_KEY,
   );
-  const [refFilter, setRefFilter] = useState("");
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
 
   const syncRefInUrl = useCallback(
@@ -167,29 +166,49 @@ export default function OverlayTestPage() {
     };
   }, []);
 
+  // Pre-compute a stable haystack per item; AppCombobox handles its own query
+  // filtering and matches on both label and value, so we extend the value with
+  // screen IDs to keep "search by screen_id" working without a separate input.
   const referenceOptions = useMemo(() => {
-    const needle = refFilter.trim().toLowerCase();
-    const filtered = galleryItems.filter((item) => {
-      if (!needle) return true;
-      const hay = `${item.rel} ${item.name} ${item.group} ${item.screen_ids.join(" ")}`.toLowerCase();
-      return hay.includes(needle);
-    });
     const options = [
       { value: LIVE_PREVIEW_KEY, label: "Rolling preview (live)" },
-      ...filtered.map((item) => ({
+      ...galleryItems.map((item) => ({
         value: item.rel,
         label: `${item.name} · ${item.group}`,
       })),
     ];
     if (
       frameKey !== LIVE_PREVIEW_KEY &&
-      !options.some((o) => o.value === frameKey) &&
-      (!needle || frameKey.toLowerCase().includes(needle))
+      !options.some((o) => o.value === frameKey)
     ) {
       options.push({ value: frameKey, label: frameKey });
     }
     return options;
-  }, [galleryItems, refFilter, frameKey]);
+  }, [galleryItems, frameKey]);
+
+  const referenceFilterTokens = useMemo(() => {
+    const map = new Map<string, string>();
+    map.set(LIVE_PREVIEW_KEY, "rolling preview live");
+    for (const item of galleryItems) {
+      map.set(
+        item.rel,
+        `${item.rel} ${item.name} ${item.group} ${item.screen_ids.join(" ")}`.toLowerCase(),
+      );
+    }
+    return map;
+  }, [galleryItems]);
+
+  const filterReferenceOption = useCallback(
+    (option: { value: string; label: string }, query: string) => {
+      const needle = query.trim().toLowerCase();
+      if (!needle) return true;
+      const hay =
+        referenceFilterTokens.get(option.value) ??
+        `${option.value} ${option.label}`.toLowerCase();
+      return hay.includes(needle);
+    },
+    [referenceFilterTokens],
+  );
 
   const referenceShareUrl = useMemo(() => {
     if (frameKey === LIVE_PREVIEW_KEY) return "";
@@ -360,23 +379,14 @@ export default function OverlayTestPage() {
       <section className="panel" style={{ marginBottom: "1rem" }}>
         <h2 style={{ marginTop: 0 }}>Frame</h2>
         <div className="toolbar" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
-          <label className="meta" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            Filter references
-            <input
-              type="search"
-              className="labeling-search"
-              placeholder="Path, screen, module…"
-              value={refFilter}
-              onChange={(e) => setRefFilter(e.target.value)}
-              style={{ minWidth: 200 }}
-            />
-          </label>
-          <AppListbox
+          <AppCombobox
             label="Image"
             value={frameKey}
             onChange={setFrameKeyAndUrl}
             options={referenceOptions}
-            minWidth={320}
+            filter={filterReferenceOption}
+            placeholder="Type path, screen, module…"
+            minWidth={360}
             title={frameKey === LIVE_PREVIEW_KEY ? "ADB rolling preview" : frameKey}
           />
           {referenceShareUrl ? (

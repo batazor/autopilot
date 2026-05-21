@@ -38,8 +38,6 @@ uv run api                   # FastAPI on :8765
 cd web && npm install && npm run dev
 ```
 
-**Legacy Streamlit** (duplicate UI on :8501): `WOS_PLAY_STREAMLIT=1 uv run play`.
-
 **Styles** are split under `web/app/styles/` (see `web/app/styles/README.md`). Entry: `web/app/globals.css`.
 
 **Styles look unstyled (plain links, serif font)?** Stop the dev server, clear the Next cache, and restart from `web/`:
@@ -82,15 +80,6 @@ All routes below are implemented in Next.js.
 
 **Rehearsal** (queue, click approvals, overlay probe): `/approvals`, `/queue`, `/overlay-test` (requires `uv run api` + a running worker).
 
-### Streamlit (legacy, local)
-
-`WOS_PLAY_STREAMLIT=1 uv run play` starts the old all-in-one Streamlit UI at http://127.0.0.1:8501 (`WOS_STREAMLIT_PORT`). Default `uv run play` uses this Next.js app instead. **No operator pages are Streamlit-only.**
-
-| Topic | Notes |
-|-------|--------|
-| `module.yaml` → `ui:` | Can register extra Streamlit module pages; none do today |
-| Production Docker | `web` + `api` + headless `bot` — not Streamlit |
-
 ## UI components
 
 | Component | Path | Use |
@@ -112,7 +101,4 @@ Bot worker       →  Redis (queue, state, previews)
 |----------|---------|---------|
 | `WOS_API_PORT` | `8765` | FastAPI listen port |
 | `WOS_API_URL` | `http://127.0.0.1:8765` | Next.js rewrite target (`web/next.config`) |
-| `NEXT_PUBLIC_STREAMLIT_URL` | `http://127.0.0.1:8501` | Optional base URL for legacy Streamlit deep links |
-| `WOS_PLAY_STREAMLIT` | unset | Set to `1` to start legacy Streamlit instead of the Next stack |
 | `WOS_PLAY_NO_WEB` / `WOS_PLAY_NO_API` | unset | Skip Next.js or FastAPI child (bot still runs) |
-| `WOS_STREAMLIT_PORT` | `8501` | Streamlit port when `WOS_PLAY_STREAMLIT=1` |

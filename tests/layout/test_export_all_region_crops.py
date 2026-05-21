@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from PIL import Image
 
-from ui.area_annotator import (
+from dashboard.area_doc import (
     crop_path_for_entry_region,
     export_all_region_crops_for_area_doc,
 )

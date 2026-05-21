@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from ui.dashboard_events import publish_dashboard_event_throttled_async
+from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_throttled_publish_skips_second_call_within_window():
     client.set.side_effect = [True, False]
 
     with patch(
-        "ui.dashboard_events.publish_dashboard_event_async",
+        "dashboard.dashboard_events.publish_dashboard_event_async",
         new_callable=AsyncMock,
     ) as publish:
         await publish_dashboard_event_throttled_async(

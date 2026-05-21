@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 from config.devices import DeviceRegistry, load_devices
 from config.loader import InstanceConfig, load_settings
-from ui.redis_client import (
+from dashboard.redis_client import (
     count_claimed_slots,
     count_queue_tasks,
     get_instance_state,

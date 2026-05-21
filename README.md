@@ -164,7 +164,7 @@ Multi-account bot: one worker per BlueStacks instance, queue and state in Redis,
 <summary><b>📸 Screenshots — Click to expand</b></summary>
 <br/>
 
-The **Next.js dashboard** ([`web/README.md`](web/README.md)) is the primary UI (local dev and production Docker on `:3000`): fleet overview, queue, approvals, labeling, scenarios, wiki (including FAQ sync), gift codes, and debug tools. **Streamlit** (`WOS_PLAY_STREAMLIT=1 uv run play`, port `8501`) is an optional local legacy duplicate.
+The **Next.js dashboard** ([`web/README.md`](web/README.md)) is the primary UI (local dev and production Docker on `:3000`): fleet overview, queue, approvals, labeling, scenarios, wiki (including FAQ sync), gift codes, and debug tools.
 
 | | |
 |:---:|:---:|
@@ -286,7 +286,7 @@ start http://127.0.0.1:3000/overview
 <br/>
 
 > [!NOTE]
-> Default **`uv run play`** opens the **Next.js** dashboard on `:3000`. **Streamlit** (`WOS_PLAY_STREAMLIT=1`, `:8501`) is legacy locally only (see [`web/README.md`](web/README.md)).
+> Default **`uv run play`** opens the **Next.js** dashboard on `:3000` (see [`web/README.md`](web/README.md)).
 
 <br/>
 

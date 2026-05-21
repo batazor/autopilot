@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from ui.overlay_yaml_sync import (
+from dashboard.overlay_yaml_sync import (
     cascade_aux_region_names,
     detect_region_renames,
     rename_findicon_overlay_primary,

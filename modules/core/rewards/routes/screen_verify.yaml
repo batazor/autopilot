@@ -1,0 +1,13 @@
+# Rewards popup detection — same ``screen_id: rewards`` is reached from
+# multiple flows (exploration claim, VIP daily, events). Both region
+# landmarks (``rewards.title`` and the VIP-styled ``rewards.title.v2``
+# variant) are defined in this module's ``area.yaml``.
+screens:
+  rewards:
+    priority: 5
+    rules:
+    - match: rewards.title
+      threshold: 0.9
+    - match: rewards.title.v2
+      threshold: 0.9
+

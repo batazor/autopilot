@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ui.flow_layout import build_scenario_step_flow
+from dashboard.flow_layout import build_scenario_step_flow
 
 
 def test_build_scenario_step_flow_running() -> None:

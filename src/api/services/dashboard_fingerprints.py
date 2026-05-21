@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import redis
 
-from ui.redis_client import (
+from dashboard.redis_client import (
     QueueRow,
     fetch_queue_rows,
     sort_queue_rows_by_execution_order,

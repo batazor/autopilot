@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from config.reference_naming import reference_file_basename
-from ui.labeling_helpers import suggest_basename_from_entry
-from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
-from ui.reference_preview import rename_reference_to_basename
+from dashboard.labeling_helpers import suggest_basename_from_entry
+from dashboard.reference_area_sync import sync_area_json_ocr_after_reference_rename
+from dashboard.reference_preview import rename_reference_to_basename
 
 
 @dataclass(frozen=True)
@@ -226,7 +226,7 @@ def _area_entry_for_ref(
     if not ctx.area_path.is_file():
         return None
     try:
-        from ui.area_annotator import load_json
+        from dashboard.area_doc import load_json
 
         doc = load_json(ctx.area_path)
     except (OSError, ValueError):

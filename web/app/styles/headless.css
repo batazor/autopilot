@@ -40,6 +40,19 @@
     @apply px-2.5 py-2 text-sm text-wos-text-muted;
   }
 
+  /* —— Combobox (search-as-you-type select) —— */
+  .headless-combobox__field {
+    @apply flex w-full min-h-[34px] items-center gap-1 rounded-lg border border-wos-border-subtle bg-wos-input pr-1 text-sm text-wos-text shadow-none transition hover:border-wos-border focus-within:border-sky-400/70 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-400/25;
+  }
+
+  .headless-combobox__input {
+    @apply w-full min-w-0 flex-1 cursor-text bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text outline-none placeholder:text-wos-text-muted data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-combobox__button {
+    @apply flex shrink-0 cursor-pointer items-center justify-center px-1.5 text-wos-text-muted outline-none focus:outline-none data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
   .headless-checkbox-field {
     @apply flex items-center gap-2;
   }

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
-from ui.overlay_analyze_audit import audit_overlay_rules
+from dashboard.overlay_analyze_audit import audit_overlay_rules
 
 if TYPE_CHECKING:
     from pathlib import Path

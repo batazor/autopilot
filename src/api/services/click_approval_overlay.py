@@ -4,10 +4,14 @@ from __future__ import annotations
 from pathlib import Path  # noqa: TC003 — used at runtime for area.json
 from typing import Any, Literal, TypedDict
 
+from dashboard.click_approvals import (
+    _approval_region_name,
+    active_player_state_flat,
+    load_area_doc,
+    pct_bbox_to_px_rect,
+)
+from dashboard.reference_preview import load_rolling_instance_preview, references_root
 from layout.area_lookup import screen_region_by_name
-from ui.reference_preview import load_rolling_instance_preview, references_root
-from ui.views.click_approvals.common import active_player_state_flat, load_area_doc
-from ui.views.click_approvals.preview import _approval_region_name, pct_bbox_to_px_rect
 
 
 class OverlayRect(TypedDict, total=False):

@@ -10,8 +10,7 @@ if TYPE_CHECKING:
 from api.services.instances import list_instance_ids
 from config.paths import repo_root
 from config.trace_links import tempo_trace_url
-from dsl import template_resolver as _tmpl
-from ui.redis_client import (
+from dashboard.redis_client import (
     QueueHistoryRow,
     QueueRow,
     RunningQueueRow,
@@ -24,6 +23,7 @@ from ui.redis_client import (
     run_queue_task_now,
     sort_queue_rows_by_execution_order,
 )
+from dsl import template_resolver as _tmpl
 
 
 def _rel_time(ts: float, now: float) -> str:
@@ -157,7 +157,7 @@ def run_task_now(client: redis.Redis, task_id: str) -> bool:
     ok = run_queue_task_now(client, task_id)
     if ok:
         push_scheduler_command(client, {"cmd": "optimize_now"})
-        from ui.dashboard_events import publish_dashboard_event
+        from dashboard.dashboard_events import publish_dashboard_event
 
         publish_dashboard_event(client, topic="queue", reason="run_now")
     return ok
@@ -169,7 +169,7 @@ def remove_tasks(client: redis.Redis, task_ids: list[str]) -> int:
         if remove_queue_task(client, tid):
             removed += 1
     if removed:
-        from ui.dashboard_events import publish_dashboard_event
+        from dashboard.dashboard_events import publish_dashboard_event
 
         publish_dashboard_event(client, topic="queue", reason="remove")
     return removed

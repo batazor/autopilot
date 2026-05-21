@@ -1,0 +1,8 @@
+enabled: true
+name: Exit rewards popup
+node: rewards
+steps:
+  - match: button.tap_anywhere_to_exit
+    steps:
+      - click: button.tap_anywhere_to_exit
+      - wait: 1s

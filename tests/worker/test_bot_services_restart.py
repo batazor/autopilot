@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-import ui.bot_services as bot_services
+import dashboard.bot_services as bot_services
 
 
 @pytest.fixture(autouse=True)

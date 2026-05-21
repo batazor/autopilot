@@ -77,14 +77,6 @@ Requires **Node.js 20+** in `web/` (`npm` on PATH; `play` runs `npm install` onc
 
 **Wiki FAQ sync** (live progress): http://127.0.0.1:3000/wiki → FAQ tab.
 
-### Legacy Streamlit all-in-one
-
-```sh
-WOS_PLAY_STREAMLIT=1 uv run play
-```
-
-Starts worker + scheduler and a **duplicate** Streamlit UI at <http://127.0.0.1:8501> (`WOS_STREAMLIT_PORT`). Prefer default `uv run play` (Next.js) for local dev.
-
 ### Headless mode
 
 ```sh

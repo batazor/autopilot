@@ -1,0 +1,6 @@
+# Generic reward popup exit: tap-anywhere returns to main_city. Region
+# ``button.tap_anywhere_to_exit`` is defined in this module's ``area.yaml``
+# under the ``rewards`` screen entry.
+edges:
+  rewards:
+    main_city: [button.tap_anywhere_to_exit]

@@ -70,13 +70,6 @@ screens:
     rules:
     - match: alliance.title
       threshold: 0.9
-  rewards:
-    priority: 5
-    rules:
-    - match: rewards.title
-      threshold: 0.9
-    - match: rewards.title.v2
-      threshold: 0.9
   increase_level:
     priority: 5
     rules:

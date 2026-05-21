@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from adb.frame_normalize import GAME_FRAME_SIZE
 from config.log_ansi import scenario_log_label as _scen
+from dashboard.notifications import push_ui_notification
 from dsl import template_resolver as _tmpl
 from layout.area_lookup import screen_region_by_name
 from tasks.base import TaskResult
@@ -26,7 +27,6 @@ from tasks.dsl_scenario_helpers import (
     _read_active_player,
     _read_current_screen,
 )
-from ui.notifications import push_ui_notification
 
 logger = logging.getLogger(__name__)
 

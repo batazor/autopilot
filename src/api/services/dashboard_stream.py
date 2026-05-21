@@ -32,15 +32,15 @@ from api.services.dashboard_rev import (
 )
 from config.devices import load_devices
 from config.loader import load_settings
-from ui.dashboard_events import CHANNEL
-from ui.redis_client import (
+from dashboard.dashboard_events import CHANNEL
+from dashboard.redis_client import (
     count_claimed_slots,
     count_queue_tasks_for_instance,
     fetch_queue_history_rows,
     get_instance_state,
     get_player_state_hash,
 )
-from ui.reference_preview import rolling_live_preview_path
+from dashboard.reference_preview import rolling_live_preview_path
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from api.deps import get_redis
 from api.services import fleet
 from api.services.instances import list_instance_ids
-from ui.dashboard_events import publish_dashboard_event
-from ui.redis_client import push_instance_command
+from dashboard.dashboard_events import publish_dashboard_event
+from dashboard.redis_client import push_instance_command
 
 router = APIRouter(prefix="/api", tags=["overview"])
 

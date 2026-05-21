@@ -23,7 +23,11 @@ from config.devices import (  # noqa: F401 — re-exported for redis/test monkey
     player_ids_for_device_candidates,
 )
 from config.paths import repo_root
-from config.reference_naming import reference_file_basename, reference_png_abs_path
+from config.reference_naming import (
+    reference_file_basename,
+    reference_png_abs_path,
+    temporal_png_abs_path,
+)
 from navigation.detector import ScreenDetector
 from navigation.lifecycle_states import InstanceState
 from tasks.base import BaseTask, TaskResult
@@ -565,6 +569,46 @@ class InstanceWorker(
             recovered_from,
         )
 
+    def _remove_stale_temporal_screenshots_on_boot(self) -> None:
+        """Delete rolling/approval PNGs left over from the previous worker run.
+
+        The analyzer reads ``references/temporal/<iid>_current_state.png`` on
+        every overlay tick. After a restart that file still holds the last
+        frame from the dead process; if the new capture is slow (device offline,
+        ADB reconnect, foreground-the-game wait), the analyzer can match
+        against a stale screen and publish phantom UI state. Same story for
+        the approval snapshot — the Redis slot is already reaped above, so
+        the matching PNG is orphan UI clutter.
+
+        Labeling captures (``<iid>_shot_*.png``) are pending operator work
+        and are deliberately left in place.
+        """
+        root = repo_root()
+        targets = [
+            reference_png_abs_path(
+                root,
+                reference_file_basename(None, self._cfg.instance_id),
+                self._cfg.instance_id,
+            ),
+            temporal_png_abs_path(root, f"{self._cfg.instance_id}_approval_current"),
+        ]
+        for path in targets:
+            try:
+                if not path.exists():
+                    continue
+                path.unlink()
+            except OSError:
+                logger.debug(
+                    "Temporal screenshot cleanup at boot: unlink %s failed",
+                    path,
+                    exc_info=True,
+                )
+                continue
+            logger.info(
+                "Temporal screenshot: removed stale %s at worker boot",
+                path.name,
+            )
+
     async def _read_orphan_from_state_hash(
         self, state_key: str
     ) -> dict[str, Any] | None:
@@ -701,6 +745,10 @@ class InstanceWorker(
         # the QueueItem is gone. Mark it failed in history and wipe the slot;
         # overlay tick / cron / scheduler will push fresh work as needed.
         await self._fail_stuck_running_on_boot()
+        # Remove rolling/approval PNGs from the previous run so the first
+        # analyzer tick can't match against a stale frame while the new
+        # capture is still warming up.
+        self._remove_stale_temporal_screenshots_on_boot()
         logger.info(
             "Capture config for %s: backend=%s serial=%s adb_executable=%s",
             self._cfg.instance_id,

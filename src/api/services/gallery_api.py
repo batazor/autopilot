@@ -15,8 +15,8 @@ from config.module_registry import (
     normalize_module_scope,
 )
 from config.paths import repo_root
-from ui.area_annotator import load_json
-from ui.reference_preview import list_reference_pngs
+from dashboard.area_doc import load_json
+from dashboard.reference_preview import list_reference_pngs
 
 _REPO = repo_root()
 

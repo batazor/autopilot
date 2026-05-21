@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 from api.services.click_approval_store import build_scenario_progress
-from ui.redis_client import RunningQueueRow
+from dashboard.redis_client import RunningQueueRow
 
 if TYPE_CHECKING:
     import pytest

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ui.notifications import pop_new_notifications
+from dashboard.notifications import pop_new_notifications
 
 
 def list_notifications(

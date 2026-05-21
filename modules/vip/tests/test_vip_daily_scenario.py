@@ -17,11 +17,12 @@ from services import get_ocr_client
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]
 REFERENCES_DIR = MODULE_DIR / "references"
+REWARDS_REFERENCES_DIR = REPO_ROOT / "modules" / "core" / "rewards" / "references"
 REHEARSAL_FIXTURES_DIR = REFERENCES_DIR / "rehearsal" / "fixtures" / "vip.daily"
 
 
-def _load_reference_bgr(name: str) -> np.ndarray:
-    path = REFERENCES_DIR / name
+def _load_reference_bgr(name: str, *, base: Path = REFERENCES_DIR) -> np.ndarray:
+    path = base / name
     frame = cv2.imread(str(path))
     assert frame is not None, f"failed to load reference screenshot: {path}"
     return frame
@@ -138,7 +139,9 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     _draw_red_dot(vip_after_add, "page.vip.unlock")
     vip_after_unlock = vip_after_add.copy()
     _clear_region(vip_after_unlock, "page.vip.unlock")
-    rewards_popup = _load_reference_bgr("page.rewards_popup.png")
+    rewards_popup = _load_reference_bgr(
+        "page.rewards_popup.png", base=REWARDS_REFERENCES_DIR
+    )
     increase_level = _load_reference_bgr("page.increase_level.png")
     increase_after_use = increase_level.copy()
     _clear_region(increase_after_use, "button.use")

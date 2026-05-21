@@ -20,9 +20,9 @@ from config.module_discovery import (
 )
 from config.module_registry import normalize_module_scope, path_matches_module_scope
 from config.paths import repo_root
+from dashboard.redis_client import get_player_scenario, set_player_scenario
 from dsl import template_resolver as _tmpl
 from dsl.registry import scenario_source_label
-from ui.redis_client import get_player_scenario, set_player_scenario
 
 _REPO = repo_root()
 

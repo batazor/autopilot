@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from ui.dashboard_events import publish_dashboard_event_async
+from dashboard.dashboard_events import publish_dashboard_event_async
 
 
 @pytest.mark.asyncio

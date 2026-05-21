@@ -129,23 +129,6 @@ For `modules/core/survivors`, use `survivors` (or `core/survivors`) and let the 
 http://127.0.0.1:3000/labeling?ref=modules/core/shop/references/main_city.png
 ```
 
-**Module-scoped layout** (`module=` + per-module `area.yaml`, references tree filtered by module): legacy Streamlit only — `WOS_PLAY_STREAMLIT=1 uv run play`, then:
-
-| Param | Value | Example |
-|-------|-------|---------|
-| `ref` | Repo-relative PNG path | `modules/core/shop/references/main_city.png` |
-| `module` | Module storage key | `core/shop` for `modules/core/shop/`, `vip` for `modules/vip/` |
-
-Storage key rules:
-- `modules/core/<id>/` → storage key = `core/<id>` (e.g. `core/shop`, `core/survivors`)
-- `modules/<id>/` → storage key = `<id>` (e.g. `vip`, `mail`)
-
-```
-http://127.0.0.1:8501/labeling?ref=modules/core/shop/references/main_city.png&module=core/shop
-```
-
-With `module=` on Streamlit, the page switches the module selector, loads that module's `area.yaml` (not global `area.json`), and shows only that module's `references/` tree.
-
 `wiki: false` has **no effect** on module lists for labeling — `list_labeling_modules()` (not `list_wiki_modules()`), so all modules appear regardless of `wiki:`.
 
 ## Overlay rules in modules

@@ -208,7 +208,7 @@ class DslPersistMixin(_Base):
                 f"wos:instance:{instance_id}:state",
                 mapping={"current_scenario": scenario},
             )
-            from ui.dashboard_events import publish_dashboard_event_throttled_async
+            from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 
             await publish_dashboard_event_throttled_async(
                 self.redis_client,
@@ -235,7 +235,7 @@ class DslPersistMixin(_Base):
                 f"wos:instance:{instance_id}:state",
                 mapping=mapping,
             )
-            from ui.dashboard_events import publish_dashboard_event_throttled_async
+            from dashboard.dashboard_events import publish_dashboard_event_throttled_async
 
             await publish_dashboard_event_throttled_async(
                 self.redis_client,

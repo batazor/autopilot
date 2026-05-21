@@ -7,6 +7,12 @@ from typing import Any
 from config.heroes import get_hero_registry
 from config.loader import load_settings
 from config.state_store import get_state_store
+from dashboard.optimizer_helpers import (
+    candidate_table_rows,
+    command_label,
+    cost_str,
+    reasons_for,
+)
 from optimizer import (
     HistoryEntry,
     append_entry,
@@ -23,12 +29,6 @@ from optimizer import (
 )
 from optimizer.context import BalanceContext, invalidate_balance_context
 from optimizer.types import Candidate  # noqa: TC001
-from ui.views.optimizer_ui import (
-    candidate_table_rows,
-    command_label,
-    cost_str,
-    reasons_for,
-)
 
 _DEFAULT_PLAYGROUND_STATE: dict[str, Any] = {
     "chief.furnace_level": 25,

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.deps import get_redis
 from api.services import players as players_svc
-from ui.dashboard_events import publish_dashboard_event
+from dashboard.dashboard_events import publish_dashboard_event
 
 router = APIRouter(prefix="/api", tags=["players"])
 
