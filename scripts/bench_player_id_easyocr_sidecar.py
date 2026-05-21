@@ -12,10 +12,13 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import easyocr
-import numpy as np
+
+if TYPE_CHECKING:
+    import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURE = REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png"

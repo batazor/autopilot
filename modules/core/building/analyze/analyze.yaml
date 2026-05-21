@@ -40,6 +40,8 @@ overlay:
   priority: 70_000
   threshold: 0.98
   min_match_saturation: 48
+  screens:
+    - building
   ttl: 5s
   pushScenario:
     - name: tap_build_button

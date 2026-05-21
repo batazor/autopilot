@@ -47,8 +47,8 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
     loading: instancesLoading,
     error: instancesError,
   } = useInstances({
-    initialInstanceId: loadFleetInstanceId(),
     preferInstanceId: urlInstanceId,
+    getPersistedInstanceId: loadFleetInstanceId,
   });
 
   const {
@@ -58,8 +58,8 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
     loading: playersLoading,
     error: playersError,
   } = usePlayers({
-    initialPlayerId: loadFleetPlayerId(),
     preferPlayerId: urlPlayerId,
+    getPersistedPlayerId: loadFleetPlayerId,
   });
 
   const replaceQuery = useCallback(

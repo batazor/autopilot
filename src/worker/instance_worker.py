@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from adb import BotActions, click_approval_enabled
 from adb.screencap import DEFAULT_ADB_BIN
+from analysis.login_ads import login_ad_task_types
 
 # Both functions are imported solely so they live as attributes on the
 # ``worker.instance_worker`` module — ``worker.instance_worker_redis._connect``
@@ -45,6 +46,8 @@ from worker.instance_worker_tasks import (
 from worker.instance_worker_ui import InstanceWorkerUiMixin
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import redis.asyncio as aioredis
 
     from config.loader import InstanceConfig, Settings
@@ -74,13 +77,15 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
-# Priority band: above routine state-aware overlays (assign_worker, mail.claim,
-# chapter_task_router et al. at 70_000–80_000) so identity is established before any
-# action is attributed to a player. Screen identity is handled by the worker's
-# rolling detector, not by a queued bootstrap scenario.
-_STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
-    ("who_i_am", 82_000),
-)
+# Boot does not seed DSL tasks here. Login ads are overlay-pushed (per-scenario
+# nodes under ``modules/ads/scenarios/``); ``who_i_am`` is enqueued by the worker
+# only after the login-ads phase drains (see ``_login_ads_phase_active``).
+_STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = ()
+
+
+def _startup_stale_boot_task_types(root: Path) -> tuple[str, ...]:
+    """Queue types cleared on worker boot (identity + auto-discovered login ads)."""
+    return ("who_i_am", *tuple(login_ad_task_types(root)))
 _SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES = 3
 _SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS = 2.0
 
@@ -139,6 +144,9 @@ class InstanceWorker(
         # accounts on the same emulator don't share cooldowns (e.g. a 5m red-
         # dot throttle on player A doesn't suppress overlays on player B).
         self._overlay_rule_eval_state_by_player: dict[str, dict[str, float]] = {}
+        self._overlay_ttl_rev_by_player: dict[str, str] = {}
+        self._overlay_ttl_last_sync_mono_by_player: dict[str, float] = {}
+        self._overlay_ttl_last_persist_mono_by_player: dict[str, float] = {}
         # Avoid asyncio default executor shutdown races during app stop/reload.
         self._blocking_pool = concurrent.futures.ThreadPoolExecutor(
             max_workers=4,
@@ -165,6 +173,10 @@ class InstanceWorker(
         # to a failed TaskResult) from a worker-shutdown cascade (propagate).
         self._current_task_handle: asyncio.Task[Any] | None = None
         self._task_aborted_for_restart: bool = False
+        self._worker_boot_at: float = 0.0
+        # First screen detect that is not ``loading`` / empty — boot grace starts here.
+        self._boot_interactive_at: float = 0.0
+        self._last_login_ad_finished_at: float = 0.0
         self._task_abort_result_reason: str = "aborted_for_restart"
         self._task_abort_reschedule: bool = False
 
@@ -606,36 +618,34 @@ class InstanceWorker(
         }
 
     async def _seed_startup_tasks(self) -> None:
-        """Enqueue boot-time DSL scenarios (one per fresh worker run, per device).
+        """Clear stale boot queue items; optionally enqueue ``_STARTUP_SEED_TASKS``.
 
-        Examples: ``who_i_am`` — figure out which account is currently active so the
-        scheduler / approval UI can label state correctly. Skips duplicates already
-        pending in the queue.
-
-        Seeds run with no extra delay: ``_startup_overlay_tick`` runs synchronously
-        before this and queues any tutorials/popups/banners visible on the first
-        frame; those preempt seeds via the priority hierarchy (tutorials at 85-86k
-        > seeds at 82-83k > routine at 70-80k).
+        Login ads + identity use overlay + ``_maybe_enqueue_who_i_am_when_active_player_missing``
+        instead of seeding ``who_i_am`` at boot. Called after ``_startup_overlay_tick``.
         """
         if self._queue is None:
             return
-        run_at = time.time()
-        for scenario_key, priority in _STARTUP_SEED_TASKS:
-            # Remove stale items from previous runs — they carry an old run_at (past
-            # timestamp) and would be immediately runnable, bypassing the delay.
+        root = repo_root()
+        for stale_type in _startup_stale_boot_task_types(root):
             try:
                 removed = await self._queue.remove_by_task_type(
-                    scenario_key, self._cfg.instance_id
+                    stale_type, self._cfg.instance_id
                 )
                 if removed:
                     logger.info(
                         "Startup seed: removed %d stale %r item(s) from queue",
-                        removed, scenario_key,
+                        removed,
+                        stale_type,
                     )
             except Exception:
                 logger.exception(
-                    "startup seed: failed to remove stale items for %s", scenario_key
+                    "startup seed: failed to remove stale items for %s", stale_type
                 )
+        if not _STARTUP_SEED_TASKS:
+            return
+        now = time.time()
+        for scenario_key, priority in _STARTUP_SEED_TASKS:
+            run_at = now
 
             task_id = (
                 f"startup:{self._cfg.instance_id}:{scenario_key}:"
@@ -672,6 +682,9 @@ class InstanceWorker(
 
     async def run(self) -> None:
         await self._connect()
+        self._worker_boot_at = time.monotonic()
+        self._boot_interactive_at = 0.0
+        self._last_login_ad_finished_at = 0.0
         logger.info("Worker started for instance %s", self._cfg.instance_id)
         # Reap any pending approval from a previous session. After restart we've
         # forgotten what task owned it (``self.player_id``, in-memory state, all
@@ -738,11 +751,12 @@ class InstanceWorker(
                         mapping=mapping,
                     )
             if game_ready:
-                self._startup_overlay_task = asyncio.create_task(
-                    self._startup_overlay_tick(),
-                    name=f"overlay-startup-{self._cfg.instance_id}",
-                )
+                # Run startup overlay before queue cleanup so login ads enqueue
+                # as their own node-bound scenarios (phase 1).
+                await self._startup_overlay_tick()
             await self._seed_startup_tasks()
+            if game_ready:
+                await self._maybe_enqueue_who_i_am_when_active_player_missing()
             # Rolling preview must start immediately — do not block on startup
             # overlay / screen-detect (those can take tens of seconds on phone).
             self._rolling_snapshot_task = asyncio.create_task(

@@ -1,4 +1,7 @@
 edges:
   # Natalia first-purchase ad overlay: close it before continuing normal navigation.
   ads.natalia:
-    main_city: [ads.natalia]
+    main_city: [ads.natalia.title]
+
+  myriad_bazaar:
+    main_city: [myriad_bazaar.to.main_city]

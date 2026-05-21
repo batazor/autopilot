@@ -8,6 +8,7 @@ import yaml
 
 from ui.overlay_yaml_sync import (
     cascade_aux_region_names,
+    detect_region_renames,
     rename_findicon_overlay_primary,
     sync_findicon_overlay_aux_keys,
 )
@@ -69,6 +70,13 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
     doc2 = yaml.safe_load(path.read_text(encoding="utf-8"))
     rule2 = doc2["overlay"][0]
     assert "search_region" not in rule2
+
+
+def test_detect_region_renames_matches_bbox() -> None:
+    bbox = {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0, "rotation": 0.0}
+    old = [{"name": "ads.natalia", "action": "exist", "bbox": bbox}]
+    new = [{"name": "ads.natalia.title", "action": "exist", "bbox": bbox}]
+    assert detect_region_renames(old, new) == [("ads.natalia", "ads.natalia.title")]
 
 
 def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: Path) -> None:

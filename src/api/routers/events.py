@@ -30,7 +30,7 @@ async def get_events_stream(
 
     Query params:
     - ``topics``: repeat or comma-separated
-      (``queue``, ``fleet``, ``instance``, ``player``, ``approval``, ``notifications``)
+      (``queue``, ``fleet``, ``instance``, ``player``, ``approval``, ``notifications``, ``area``)
     - ``instance_id``: required for ``instance``, ``approval``, and ``notifications``
     - ``player_id``: required for ``player``
     """

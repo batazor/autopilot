@@ -7,9 +7,9 @@ from typing import Any
 
 import streamlit as st
 
+from dsl import template_resolver as _tmpl
 from layout.area_lookup import screen_region_by_name
 from layout.area_versions import effective_ocr_for_region, region_version_of
-from dsl import template_resolver as _tmpl
 from ui.redis_client import get_instance_state
 
 

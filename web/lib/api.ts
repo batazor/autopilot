@@ -31,9 +31,12 @@ import type {
   OverviewView,
   PlayerStateView,
   PlayerPersistedView,
+  PlayerStatsView,
   CenturySyncResult,
   BuildingLevelRow,
   HeroStateRow,
+  InstanceUnchangedResponse,
+  QueueUnchangedResponse,
   QueueView,
 } from "./types";
 import type { GiftCodesView, WikiDetail, WikiEntrySummary, WikiScope } from "./wiki";
@@ -81,9 +84,16 @@ export async function toggleInstancePause(instanceId: string): Promise<{ cmd: st
   );
 }
 
-export async function fetchInstanceDetail(instanceId: string): Promise<InstanceDetail> {
-  return apiFetch<InstanceDetail>(
-    `/api/instances/${encodeURIComponent(instanceId)}`,
+export async function fetchInstanceDetail(
+  instanceId: string,
+  options?: { ifRevision?: string },
+): Promise<InstanceDetail | InstanceUnchangedResponse> {
+  const params = new URLSearchParams();
+  if (options?.ifRevision) params.set("if_revision", options.ifRevision);
+  const qs = params.toString();
+  const path = `/api/instances/${encodeURIComponent(instanceId)}`;
+  return apiFetch<InstanceDetail | InstanceUnchangedResponse>(
+    qs ? `${path}?${qs}` : path,
   );
 }
 
@@ -116,8 +126,15 @@ export async function postInstanceCommand(
   );
 }
 
-export async function fetchQueue(): Promise<QueueView> {
-  return apiFetch<QueueView>("/api/queue");
+export async function fetchQueue(options?: {
+  ifRevision?: string;
+}): Promise<QueueView | QueueUnchangedResponse> {
+  const params = new URLSearchParams();
+  if (options?.ifRevision) params.set("if_revision", options.ifRevision);
+  const qs = params.toString();
+  return apiFetch<QueueView | QueueUnchangedResponse>(
+    qs ? `/api/queue?${qs}` : "/api/queue",
+  );
 }
 
 export async function runQueueTaskNow(taskId: string): Promise<boolean> {
@@ -164,6 +181,12 @@ export async function fetchPlayerPersisted(
 ): Promise<PlayerPersistedView> {
   return apiFetch<PlayerPersistedView>(
     `/api/players/${encodeURIComponent(playerId)}/persisted`,
+  );
+}
+
+export async function fetchPlayerStats(playerId: string): Promise<PlayerStatsView> {
+  return apiFetch<PlayerStatsView>(
+    `/api/players/${encodeURIComponent(playerId)}/stats`,
   );
 }
 
@@ -264,11 +287,24 @@ export async function fetchNotifications(
 
 export async function fetchOverlayTest(
   instanceId: string,
-  options: { onlyCurrentScreen?: boolean; ignoreScreenGate?: boolean } = {},
+  options: {
+    onlyCurrentScreen?: boolean;
+    ignoreScreenGate?: boolean;
+    hasActivePlayer?: boolean;
+    detailedAnalysis?: boolean;
+    previewSource?: "live" | "reference";
+    previewRel?: string;
+  } = {},
 ): Promise<OverlayTestResult> {
   const q = new URLSearchParams();
   if (options.onlyCurrentScreen) q.set("onlyCurrentScreen", "true");
   if (options.ignoreScreenGate) q.set("ignoreScreenGate", "true");
+  if (options.hasActivePlayer === false) q.set("hasActivePlayer", "false");
+  if (options.detailedAnalysis) q.set("detailedAnalysis", "true");
+  if (options.previewSource === "reference" && options.previewRel?.trim()) {
+    q.set("previewSource", "reference");
+    q.set("previewRel", options.previewRel.trim());
+  }
   const suffix = q.size ? `?${q}` : "";
   return apiFetch<OverlayTestResult>(
     `/api/instances/${encodeURIComponent(instanceId)}/overlay-test${suffix}`,
@@ -278,10 +314,18 @@ export async function fetchOverlayTest(
 export function overlayTestImageUrl(
   instanceId: string,
   cacheKey?: number | string | null,
+  options: {
+    previewSource?: "live" | "reference";
+    previewRel?: string;
+  } = {},
 ): string {
   const q = new URLSearchParams({
     t: String(cacheKey ?? Date.now()),
   });
+  if (options.previewSource === "reference" && options.previewRel?.trim()) {
+    q.set("previewSource", "reference");
+    q.set("previewRel", options.previewRel.trim());
+  }
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/overlay-test/image?${q}`;
 }
 
@@ -355,8 +399,14 @@ function labelingRefPath(refRel: string): string {
     .join("/");
 }
 
-export function labelingImageUrl(refRel: string): string {
-  return `${base}/api/labeling/references/${labelingRefPath(refRel)}/image?t=${Date.now()}`;
+/** Stable URL for Konva/img — pass ``cacheKey`` (e.g. imageNonce) to bust cache after refresh/capture. */
+export function labelingImageUrl(refRel: string, cacheKey?: number | string): string {
+  const q = new URLSearchParams();
+  if (cacheKey != null && cacheKey !== "") {
+    q.set("n", String(cacheKey));
+  }
+  const qs = q.toString();
+  return `${base}/api/labeling/references/${labelingRefPath(refRel)}/image${qs ? `?${qs}` : ""}`;
 }
 
 export async function fetchLabelingDocument(
@@ -405,14 +455,21 @@ export async function fetchRoutesNode(nodeId: string): Promise<RoutesNodeDetails
   );
 }
 
+export type LabelingSaveRegionsResult = {
+  ok: boolean;
+  region_renames_synced?: { from: string; to: string; analyze?: boolean }[];
+  crops_written_count?: number;
+  crop_warnings?: string[];
+};
+
 export async function saveLabelingRegions(
   refRel: string,
   scope: string,
   regions: Record<string, unknown>[],
   version?: string | null,
   screenId?: string | null,
-): Promise<void> {
-  await apiFetch<{ ok: boolean }>(
+): Promise<LabelingSaveRegionsResult> {
+  return apiFetch<LabelingSaveRegionsResult>(
     `/api/labeling/references/${labelingRefPath(refRel)}${labelingScopeQuery(scope)}`,
     {
       method: "PUT",

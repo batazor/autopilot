@@ -190,6 +190,15 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
         logger.exception("dsl exec fetch_player: redis hset failed key=%s", state_key)
         return
 
+    from ui.dashboard_events import publish_dashboard_event_throttled_async
+
+    await publish_dashboard_event_throttled_async(
+        ctx.redis_client,
+        topic="player",
+        player_id=ctx.player_id,
+        reason="fetch_player",
+    )
+
     # Persist to db/state.yaml
     try:
         store = get_state_store().get_or_create(ctx.player_id, nickname=data.nickname)
@@ -298,6 +307,15 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
     except Exception:
         logger.exception("dsl exec sync_building_name: redis hset failed key=%s", state_key)
         return
+
+    from ui.dashboard_events import publish_dashboard_event_throttled_async
+
+    await publish_dashboard_event_throttled_async(
+        ctx.redis_client,
+        topic="player",
+        player_id=player_id,
+        reason="sync_building_name",
+    )
 
     try:
         store = get_state_store().get_or_create(player_id)

@@ -13,7 +13,11 @@
   }
 
   .konva-editor-measure {
-    @apply w-full max-w-full rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-sky-400/50;
+    @apply w-full min-w-0 max-w-full overflow-hidden rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-sky-400/50;
+  }
+
+  .konva-editor-measure--pending {
+    @apply flex min-h-[min(70vh,520px)] w-full items-center justify-center bg-black/40;
   }
 
   .konva-editor-measure--drop-active {
@@ -21,7 +25,7 @@
   }
 
   .konva-editor-wrap {
-    @apply overflow-hidden rounded-lg bg-black;
+    @apply mx-auto max-w-full overflow-hidden rounded-lg bg-black;
   }
 
   .konva-stage {
@@ -29,11 +33,15 @@
   }
 
   .labeling-main {
-    @apply grid gap-4 lg:grid-cols-2 lg:items-start;
+    @apply grid min-w-0 gap-4 lg:grid-cols-2 lg:items-start;
+  }
+
+  .labeling-main > * {
+    @apply min-w-0;
   }
 
   .labeling-canvas-panel {
-    @apply flex min-w-0 flex-col items-start;
+    @apply flex w-full min-w-0 max-w-full flex-col overflow-hidden;
   }
 
   .labeling-ref-picker {
@@ -158,7 +166,15 @@
   }
 
   .labeling-add-region {
-    @apply w-full;
+    @apply w-full border-emerald-500 bg-emerald-600 shadow-sm shadow-emerald-950/30 hover:border-emerald-400 hover:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-400/50;
+  }
+
+  .labeling-delete-region {
+    @apply self-start border-red-700/80 bg-red-950/50 px-2 py-1 text-xs font-medium text-red-200 shadow-none hover:border-red-600 hover:bg-red-950/80 hover:text-red-100 focus-visible:ring-2 focus-visible:ring-red-400/40;
+  }
+
+  .labeling-delete-region--confirm {
+    @apply border-red-600 bg-red-700 text-white shadow-sm shadow-red-950/30 hover:border-red-500 hover:bg-red-600;
   }
 
   .labeling-save-block {

@@ -31,6 +31,7 @@ from ui.redis_client import (
     remove_queue_task,
     require_redis_connection,
     run_queue_task_now,
+    sort_queue_rows_by_execution_order,
 )
 from ui.views._debug_scenarios_progress import _load_scenario_step_summaries
 
@@ -304,20 +305,44 @@ def _render_running_progress(
         step_now = int(inst_state.get("last_active_scenario_step") or 0)
     except (TypeError, ValueError):
         step_now = 0
-    step_display = max(0, min(step_now, total_steps)) if total_steps else 0
-    ratio = step_display / total_steps if total_steps else 0.0
+    busy_running = bool(
+        active_scenario
+        and str(inst_state.get("state") or "").strip().lower() == "busy"
+        and str(inst_state.get("current_task_id") or "").strip()
+    )
+    cap = (total_steps - 1) if busy_running and total_steps else total_steps
+    step_display = max(0, min(step_now, cap)) if total_steps else 0
+    nav_target = str(inst_state.get("nav_target") or "").strip()
+    from ui.scenario_progress_metrics import (
+        compute_scenario_progress_metrics,
+        format_scenario_progress_label,
+    )
+
+    metrics = compute_scenario_progress_metrics(
+        step_current=step_display,
+        step_total=total_steps,
+        is_running=busy_running,
+        nav_target=nav_target,
+    )
+    ratio = float(metrics["progress_ratio"])
     active_label = (
         _scenario_display_label(str(_REPO), active_scenario) if active_scenario else ""
     )
-    if total_steps > 0:
-        bar_text = f"{active_label} · step {step_display}/{total_steps}"
+    if active_scenario and total_steps > 0:
+        bar_text = format_scenario_progress_label(
+            scenario_label=active_label,
+            scenario_key=active_scenario,
+            step_current=step_display,
+            step_total=total_steps,
+            step_iter=int(inst_state.get("last_active_scenario_iter") or 0),
+            is_running=busy_running,
+            is_navigating=bool(metrics["is_navigating"]),
+            nav_target=nav_target,
+        )
     elif active_scenario:
         bar_text = f"{active_label} · running"
     else:
         bar_text = f"{task_type_label} · running"
-    nav_target = str(inst_state.get("nav_target") or "").strip()
-    if nav_target:
-        bar_text += f" · → {nav_target}"
     dur = ""
     if r.started_at > 0:
         dur = _rel_time(r.started_at, now)
@@ -461,7 +486,7 @@ client = require_redis_connection()
 @st.fragment(run_every=timedelta(seconds=3))
 def _queue_fragment() -> None:
     now = time.time()
-    rows = fetch_queue_rows(client)
+    rows = sort_queue_rows_by_execution_order(client, fetch_queue_rows(client))
     settings = load_settings()
     inst_ids = [i.instance_id for i in settings.instances]
 

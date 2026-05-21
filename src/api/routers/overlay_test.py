@@ -28,6 +28,10 @@ def get_overlay_test(
     client: RedisDep,
     only_current_screen: bool = Query(default=False, alias="onlyCurrentScreen"),
     ignore_screen_gate: bool = Query(default=False, alias="ignoreScreenGate"),
+    has_active_player: bool = Query(default=True, alias="hasActivePlayer"),
+    detailed_analysis: bool = Query(default=False, alias="detailedAnalysis"),
+    preview_source: str = Query(default="live", alias="previewSource"),
+    preview_rel: str | None = Query(default=None, alias="previewRel"),
 ) -> OverlayTestResult:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
@@ -36,20 +40,36 @@ def get_overlay_test(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
     return run_overlay_test(
-        client=client,
         instance_id=instance_id,
         only_current_screen=only_current_screen,
         ignore_screen_gate=ignore_screen_gate,
+        has_active_player=has_active_player,
+        detailed_analysis=detailed_analysis,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
     )
 
 
 @router.get("/instances/{instance_id}/overlay-test/image")
-def get_overlay_test_image(instance_id: str) -> Response:
+def get_overlay_test_image(
+    instance_id: str,
+    preview_source: str = Query(default="live", alias="previewSource"),
+    preview_rel: str | None = Query(default=None, alias="previewRel"),
+) -> Response:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
-    png, _, _ = load_overlay_test_image(instance_id)
+    png, _, _ = load_overlay_test_image(
+        instance_id,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
+    )
     if png is None:
-        raise HTTPException(status_code=404, detail="no rolling preview yet")
+        detail = (
+            "reference image not found"
+            if (preview_source or "").strip().lower() == "reference"
+            else "no rolling preview yet"
+        )
+        raise HTTPException(status_code=404, detail=detail)
     return Response(content=png, media_type="image/png")
 
 

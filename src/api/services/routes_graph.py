@@ -110,9 +110,7 @@ def _ancestors_in_tree(
     node_id: str,
     tree_edges: list[tuple[str, str]],
 ) -> set[str]:
-    parents: dict[str, str] = {}
-    for parent, child in tree_edges:
-        parents[child] = parent
+    parents = {child: parent for parent, child in tree_edges}
     out = {node_id}
     cur = node_id
     while cur in parents:

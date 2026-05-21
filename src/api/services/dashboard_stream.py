@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import json
 import logging
 from typing import TYPE_CHECKING, Any
@@ -16,12 +15,26 @@ from api.services.click_approval_store import (
     _trace_id_from_payload,
     get_pending,
 )
+from api.services.dashboard_fingerprints import (
+    compute_pending_queue_digest,
+    digest,
+    instance_state_fingerprint,
+    notifications_fingerprint,
+    queue_view_digest,
+)
+from api.services.dashboard_rev import (
+    REV_FLEET_KEY,
+    REV_INSTANCE_PREFIX,
+    REV_PLAYER_PREFIX,
+    REV_QUEUE_KEY,
+    get_cached_revision,
+    store_revision,
+)
 from config.devices import load_devices
 from config.loader import load_settings
 from ui.dashboard_events import CHANNEL
 from ui.redis_client import (
     count_claimed_slots,
-    count_queue_tasks,
     count_queue_tasks_for_instance,
     fetch_queue_history_rows,
     get_instance_state,
@@ -35,30 +48,19 @@ POLL_INTERVAL_S = 0.35
 HEARTBEAT_INTERVAL_S = 25.0
 
 _VALID_TOPICS = frozenset(
-    {"queue", "fleet", "instance", "player", "approval", "notifications"}
+    {"queue", "fleet", "instance", "player", "approval", "notifications", "area"}
 )
 
 
-def _digest(parts: dict[str, Any]) -> str:
-    raw = json.dumps(parts, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-
-def queue_revision(client: Any) -> str:
+def queue_revision(client: Any, *, use_cache: bool = True) -> str:
+    if use_cache:
+        cached = get_cached_revision(client, REV_QUEUE_KEY)
+        if cached:
+            return cached
     view = queue_api.build_queue_view(client)
-    summary = {
-        "pending": view.get("pending_count", 0),
-        "running": len(view.get("running") or []),
-        "history_head": [
-            {
-                "task_id": h.get("task_id"),
-                "success": h.get("success"),
-                "finished_at": h.get("finished_at"),
-            }
-            for h in (view.get("history") or [])[:8]
-        ],
-    }
-    return _digest(summary)
+    rev = queue_view_digest(view)
+    store_revision(client, REV_QUEUE_KEY, rev)
+    return rev
 
 
 def approval_revision(client: Any, instance_id: str) -> str:
@@ -71,7 +73,7 @@ def approval_revision(client: Any, instance_id: str) -> str:
         "screen": (state.get("current_screen") or "").strip(),
         "task": (state.get("current_task_type") or state.get("current_scenario") or "").strip(),
     }
-    return _digest(parts)
+    return digest(parts)
 
 
 def notifications_revision(client: Any, instance_id: str) -> str:
@@ -81,32 +83,24 @@ def notifications_revision(client: Any, instance_id: str) -> str:
         seen_ids=set(),
         max_age_seconds=30.0,
     )
-    tail = items[-1] if items else {}
-    return _digest({"count": len(items), "last_id": tail.get("id", "")})
+    return digest(
+        {
+            "count": len(items),
+            "tail_ids": notifications_fingerprint(items),
+        }
+    )
 
 
-def _instance_state_fingerprint(row: dict[str, str]) -> dict[str, str]:
-    return {
-        "state": (row.get("state") or "").strip(),
-        "paused": (row.get("paused") or "").strip(),
-        "screen": (row.get("current_screen") or "").strip(),
-        "task": (
-            (row.get("current_scenario") or row.get("current_task_type") or "").strip()
-        ),
-        "active_player": (row.get("active_player") or "").strip(),
-        "last_seen_at": (row.get("last_seen_at") or "").strip(),
-        "last_error": (row.get("last_error") or "").strip(),
-        "queue_blocked_reason": (row.get("queue_blocked_reason") or "").strip(),
-        "nav_error": (row.get("nav_error") or "").strip(),
-    }
-
-
-def fleet_revision(client: Any) -> str:
+def fleet_revision(client: Any, *, use_cache: bool = True) -> str:
+    if use_cache:
+        cached = get_cached_revision(client, REV_FLEET_KEY)
+        if cached:
+            return cached
     settings = load_settings()
     instances = settings.instances
     db_registry = load_devices()
     by_name = {str(d.name): d for d in db_registry.devices}
-    q = count_queue_tasks(client)
+    pending_digest = compute_pending_queue_digest(client)
     claimed = count_claimed_slots(client)
     live, paused, busy = fleet.count_live_instances(client, instances)
     inst_rows: list[dict[str, Any]] = []
@@ -115,7 +109,7 @@ def fleet_revision(client: Any) -> str:
         row = get_instance_state(client, iid)
         entry: dict[str, Any] = {
             "instance_id": iid,
-            **_instance_state_fingerprint(row),
+            **instance_state_fingerprint(row),
             "status": fleet.fleet_status(row),
         }
         dev = by_name.get(iid)
@@ -135,11 +129,11 @@ def fleet_revision(client: Any) -> str:
                 )
             entry["players"] = players
         inst_rows.append(entry)
-    return _digest(
+    rev = digest(
         {
             "metrics": {
                 "instances": len(instances),
-                "queue": q,
+                "queue_pending": pending_digest,
                 "locks": claimed,
                 "live": live,
                 "paused": paused,
@@ -148,16 +142,30 @@ def fleet_revision(client: Any) -> str:
             "fleet": inst_rows,
         }
     )
+    store_revision(client, REV_FLEET_KEY, rev)
+    return rev
 
 
-def player_revision(client: Any, player_id: str) -> str:
+def player_revision(client: Any, player_id: str, *, use_cache: bool = True) -> str:
+    key = f"{REV_PLAYER_PREFIX}{player_id}"
+    if use_cache:
+        cached = get_cached_revision(client, key)
+        if cached:
+            return cached
     state = get_player_state_hash(client, player_id)
     # Stable ordering; full hash so OCR/building/hero fields all trigger updates.
     fields = {k: (state.get(k) or "").strip() for k in sorted(state)}
-    return _digest({"player_id": player_id, "field_count": len(fields), "fields": fields})
+    rev = digest({"player_id": player_id, "field_count": len(fields), "fields": fields})
+    store_revision(client, key, rev)
+    return rev
 
 
-def instance_revision(client: Any, instance_id: str) -> str:
+def instance_revision(client: Any, instance_id: str, *, use_cache: bool = True) -> str:
+    key = f"{REV_INSTANCE_PREFIX}{instance_id}"
+    if use_cache:
+        cached = get_cached_revision(client, key)
+        if cached:
+            return cached
     row = get_instance_state(client, instance_id)
     queue_n = count_queue_tasks_for_instance(client, instance_id=instance_id)
     preview_path = rolling_live_preview_path(instance_id)
@@ -173,16 +181,18 @@ def instance_revision(client: Any, instance_id: str) -> str:
         }
         for h in history
     ]
-    return _digest(
+    rev = digest(
         {
             "instance_id": instance_id,
             "status": fleet.fleet_status(row),
             "queue_size": queue_n,
             "preview_mtime": preview_mtime,
             "history_head": hist_head,
-            **_instance_state_fingerprint(row),
+            **instance_state_fingerprint(row),
         }
     )
+    store_revision(client, key, rev)
+    return rev
 
 
 def _sse_line(event: str, data: dict[str, Any]) -> str:
@@ -196,7 +206,7 @@ def _topic_allowed(
     msg_instance: str,
     msg_player: str,
 ) -> bool:
-    if topic in ("queue", "fleet"):
+    if topic in ("queue", "fleet", "area"):
         return True
     if topic == "player":
         if not player_id:

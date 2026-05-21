@@ -208,6 +208,14 @@ class DslPersistMixin(_Base):
                 f"wos:instance:{instance_id}:state",
                 mapping={"current_scenario": scenario},
             )
+            from ui.dashboard_events import publish_dashboard_event_throttled_async
+
+            await publish_dashboard_event_throttled_async(
+                self.redis_client,
+                topic="instance",
+                instance_id=instance_id,
+                reason="scenario_context",
+            )
 
     async def _publish_scenario_step_index(
         self, instance_id: str, step_index: int, *, loop_iter: int | None = None
@@ -226,6 +234,14 @@ class DslPersistMixin(_Base):
             await self.redis_client.hset(
                 f"wos:instance:{instance_id}:state",
                 mapping=mapping,
+            )
+            from ui.dashboard_events import publish_dashboard_event_throttled_async
+
+            await publish_dashboard_event_throttled_async(
+                self.redis_client,
+                topic="instance",
+                instance_id=instance_id,
+                reason="step_index",
             )
 
     async def _clear_step_context(self, instance_id: str) -> None:

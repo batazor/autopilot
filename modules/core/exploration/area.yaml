@@ -53,3 +53,60 @@ screens:
           rotation: 0.0
           original_width: 720
           original_height: 1280
+
+  - id: 45
+    screen_id: exploration.victory
+    ocr: references/page.exploration.victory.png
+    regions:
+      - name: page.exploration.victory.title
+        action: text
+        type: string
+        threshold: 0.9
+        bbox:
+          x: 29.88416988416989
+          y: 29.565217391304348
+          width: 39.3996138996139
+          height: 7.128260869565217
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+      - name: page.exploration.victory.next
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 60.965250965250966
+          y: 76.95652173913044
+          width: 25.799227799227797
+          height: 4.6
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+
+  - id: 81
+    screen_id: ""
+    ocr: references/page.exploration.defeat.png
+    regions:
+      - name: exploration.defeat.title
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 32.3938223938224
+          y: 25.108695652173914
+          width: 35.2007722007722
+          height: 6.8
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280
+        isSearch: true
+      - name: button.to_main_city
+        action: exist
+        threshold: 0.9
+        bbox:
+          x: 31.814671814671815
+          y: 81.52173913043478
+          width: 35.3996138996139
+          height: 4.5
+          rotation: 0.0
+          original_width: 720
+          original_height: 1280

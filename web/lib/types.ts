@@ -60,6 +60,13 @@ export type ScenarioProgress = {
   is_running: boolean;
   nav_target: string;
   step_summaries: string[];
+  /** FSM navigation in progress — bar must not count the current step as done. */
+  is_navigating?: boolean;
+  completed_steps?: number;
+  progress_ratio?: number;
+  highlight_step_index?: number;
+  /** Server-formatted label (nav vs step semantics). */
+  progress_label?: string;
 };
 
 export type ClickApprovalView = {
@@ -89,6 +96,7 @@ export type ClickApprovalView = {
     available: boolean;
     width: number;
     height: number;
+    mtime?: number | null;
   };
   instance_state: Record<string, string>;
   current_screen: string;
@@ -170,6 +178,7 @@ export type QueueRunningRow = {
   step: number;
   player_id: string;
   region: string;
+  priority?: number;
   started: string;
   nav_target: string;
 };
@@ -198,6 +207,17 @@ export type QueueView = {
   running: QueueRunningRow[];
   history: QueueHistoryRow[];
   pending_count: number;
+  revision?: string;
+};
+
+export type QueueUnchangedResponse = {
+  unchanged: true;
+  revision: string;
+};
+
+export type InstanceUnchangedResponse = {
+  unchanged: true;
+  revision: string;
 };
 
 export type InstanceHistoryRow = {
@@ -227,6 +247,7 @@ export type InstanceDetail = {
   preview_mtime: number | null;
   history: InstanceHistoryRow[];
   state: Record<string, string>;
+  revision?: string;
 };
 
 export type BuildingLevelRow = {
@@ -271,10 +292,30 @@ export type PlayerStateView = {
   building_levels: BuildingLevelRow[];
 };
 
+export type PlayerPowerDay = {
+  day: string;
+  power: number;
+  furnace_level: number;
+};
+
+export type PlayerLevelEvent = {
+  day: string;
+  level: number;
+};
+
+export type PlayerStatsView = {
+  player_id: string;
+  nickname: string;
+  series: PlayerPowerDay[];
+  level_events: PlayerLevelEvent[];
+};
+
 export type PlayerPersistedView = {
   state_path: string;
+  storage?: string;
   parse_error: string | null;
   raw_yaml: string | null;
+  raw_json?: string | null;
   player: {
     player_id: string;
     summary: Record<string, unknown>;
@@ -410,9 +451,41 @@ export type OverlayRuleRow = {
   notes: string;
 };
 
+export type ModuleAnalyzerRun = {
+  module_id: string;
+  label: string;
+  duration_ms: number;
+  rule_count: number;
+  matched_count: number;
+};
+
+export type PushScenarioCandidate = {
+  scenario: string;
+  rule: string;
+  region: string;
+  priority: number;
+  selected: boolean;
+  skip_reason: string;
+};
+
+export type OverlayAnalysisSummary = {
+  module_runs: ModuleAnalyzerRun[];
+  modules_total_ms: number;
+  full_run_ms: number;
+  screen_detect_ms: number;
+  screen_source: string;
+  push_candidates: PushScenarioCandidate[];
+  has_active_player: boolean;
+  simulated_no_player: boolean;
+  device_level_only: boolean;
+};
+
 export type OverlayTestResult = {
   instance_id: string;
+  /** Screen used for overlay ``screens`` gates (detected on frame only). */
   current_screen: string;
+  detected_screen: string;
+  /** Synthetic label from ``hasActivePlayer`` UI flag, not Redis. */
   active_player: string;
   preview: {
     available: boolean;
@@ -420,11 +493,13 @@ export type OverlayTestResult = {
     mtime: number | null;
     width: number;
     height: number;
+    source?: "live" | "reference" | string;
   };
   rules: OverlayRuleRow[];
   overlays: OverlayShape[];
   total_rules: number;
   matched_count: number;
+  analysis: OverlayAnalysisSummary;
 };
 
 export type ProbeCropSide = {

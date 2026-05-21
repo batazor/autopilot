@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
@@ -50,7 +54,12 @@ def phash64_custom(gray: np.ndarray) -> int:
     return out
 
 
-def phash_score_custom(patch_bgr: np.ndarray, tpl_bgr: np.ndarray, *, prep) -> tuple[float, int]:
+def phash_score_custom(
+    patch_bgr: np.ndarray,
+    tpl_bgr: np.ndarray,
+    *,
+    prep: Callable[[np.ndarray], np.ndarray],
+) -> tuple[float, int]:
     def gray(img: np.ndarray) -> np.ndarray:
         g = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return prep(g)
@@ -86,8 +95,7 @@ def prep_normalize(g: np.ndarray) -> np.ndarray:
     std = float(g.std())
     if std > 1e-6:
         g /= std
-    g = np.clip(g * 32 + 128, 0, 255).astype(np.uint8)
-    return g
+    return np.clip(g * 32 + 128, 0, 255).astype(np.uint8)
 
 
 def bgr_from_gray(g: np.ndarray) -> np.ndarray:
@@ -118,7 +126,8 @@ def main() -> None:
     frame = cv2.imread(str(FRAME))
     tpl = cv2.imread(str(TEMPLATE))
     if frame is None or tpl is None:
-        raise SystemExit("failed to load images")
+        msg = "failed to load images"
+        raise SystemExit(msg)
 
     patch, origin = patch_bgr_from_bbox_percent(frame, BBOX)
     res_1to1 = match_crop_1to1_at_bbox_percent(frame, tpl, BBOX)

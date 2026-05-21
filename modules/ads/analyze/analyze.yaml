@@ -1,0 +1,48 @@
+overlay:
+  # Login-ad overlay rules: ``device_level`` + ``cond: active_player == ""`` +
+  # ``pushScenario`` are auto-collected as boot phase-1 task types
+  # (``analysis.login_ads.login_ad_task_types``). New popup = new scenario + rule here.
+  # ``device_level: true`` — rules stay active while ``who_i_am`` (or any task) is
+  # busy; otherwise rolling uses device_level_only and login ads are invisible.
+  - name: ads_rookie_value_pack.visible
+    region: ads_rookie_value_pack
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    ttl: 3
+    pushScenario:
+      - name: ads_rookie_value_pack
+
+  - name: ads.natalia.visible
+    region: ads.natalia.title
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    ttl: 3
+    screens:
+      - ads.natalia
+    pushScenario:
+      - name: ads_natalia
+
+  - name: ads.legend_transcend_pack.visible
+    region: ads.legend_transcend_pack
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    pushScenario:
+      - name: tap_ads_legend_transcend_pack
+
+  # No ``screens:`` gate — at login ``current_screen`` may still be empty/main_city
+  # while the popup is visible; screen_verify sets ``myriad_bazaar`` on the next tick.
+  - name: myriad_bazaar.visible
+    region: myriad_bazaar.title
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    ttl: 3
+    pushScenario:
+      - name: myriad_bazaar

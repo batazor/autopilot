@@ -129,4 +129,4 @@ def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -
     cmd = captured_cmd[0]
     assert cmd[cmd.index("--psm") + 1] == "8"
     wl_idx = cmd.index("-c") + 1
-    assert "tessedit_char_whitelist=0123456789" == cmd[wl_idx]
+    assert cmd[wl_idx] == "tessedit_char_whitelist=0123456789"

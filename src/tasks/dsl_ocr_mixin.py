@@ -659,6 +659,17 @@ class DslOcrMixin(_Base):
                             },
                         )
                     redis_written = True
+                    if scope == "player" and self.player_id:
+                        from ui.dashboard_events import (
+                            publish_dashboard_event_throttled_async,
+                        )
+
+                        await publish_dashboard_event_throttled_async(
+                            self.redis_client,
+                            topic="player",
+                            player_id=str(self.player_id),
+                            reason="ocr_store",
+                        )
                     logger.info(
                         "dsl_scenario: store ok field=%s value=%r key=%s scope=%s "
                         "confidence=%.4f region=%s scenario=%s",

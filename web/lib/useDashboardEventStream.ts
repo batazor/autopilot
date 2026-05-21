@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useDocumentVisible } from "@/lib/hooks";
 
 const DEFAULT_FALLBACK_MS = 15_000;
+const DEFAULT_DEBOUNCE_MS = 100;
 
 export type DashboardEventHandler = (
   topic: string,
@@ -16,6 +17,8 @@ type UseDashboardEventStreamOptions = {
   playerId?: string;
   enabled?: boolean;
   onEvent: DashboardEventHandler;
+  /** Coalesce rapid SSE events (0 = disabled). */
+  debounceMs?: number;
   /** Safety net when SSE is down (tab still visible). */
   fallbackPollMs?: number;
   onFallbackPoll?: () => void | Promise<void>;
@@ -32,6 +35,7 @@ export function useDashboardEventStream({
   playerId,
   enabled = true,
   onEvent,
+  debounceMs = DEFAULT_DEBOUNCE_MS,
   fallbackPollMs = DEFAULT_FALLBACK_MS,
   onFallbackPoll,
 }: UseDashboardEventStreamOptions): void {
@@ -40,8 +44,17 @@ export function useDashboardEventStream({
   onEventRef.current = onEvent;
   const onFallbackRef = useRef(onFallbackPoll);
   onFallbackRef.current = onFallbackPoll;
+  const wasVisibleRef = useRef(visible);
 
   const topicsKey = [...topics].sort().join(",");
+
+  useEffect(() => {
+    if (!enabled || !onFallbackPoll) return;
+    if (visible && !wasVisibleRef.current) {
+      void onFallbackRef.current?.();
+    }
+    wasVisibleRef.current = visible;
+  }, [enabled, visible, onFallbackPoll]);
 
   useEffect(() => {
     if (!enabled || !visible || topics.length === 0) return;
@@ -55,15 +68,34 @@ export function useDashboardEventStream({
     let es: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let fallbackId: ReturnType<typeof setInterval> | undefined;
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+    const pendingEvents = new Map<string, Record<string, unknown>>();
     let closed = false;
 
-    const dispatch = (topic: string, raw: string) => {
-      try {
-        const data = JSON.parse(raw) as Record<string, unknown>;
+    const flushPendingEvents = () => {
+      debounceTimer = undefined;
+      if (pendingEvents.size === 0) return;
+      const batch = [...pendingEvents.entries()];
+      pendingEvents.clear();
+      for (const [topic, data] of batch) {
         onEventRef.current(topic, data);
-      } catch {
-        onEventRef.current(topic, {});
       }
+    };
+
+    const dispatch = (topic: string, raw: string) => {
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
+      if (debounceMs <= 0) {
+        onEventRef.current(topic, data);
+        return;
+      }
+      pendingEvents.set(topic, data);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(flushPendingEvents, debounceMs);
     };
 
     const connect = () => {
@@ -97,6 +129,17 @@ export function useDashboardEventStream({
       es?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (fallbackId) clearInterval(fallbackId);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      pendingEvents.clear();
     };
-  }, [enabled, visible, topicsKey, instanceId, playerId, fallbackPollMs]);
+  }, [
+    enabled,
+    visible,
+    topicsKey,
+    instanceId,
+    playerId,
+    fallbackPollMs,
+    debounceMs,
+    onFallbackPoll,
+  ]);
 }

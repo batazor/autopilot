@@ -9,8 +9,8 @@ import pytest
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
-from navigation.detector import ScreenDetector
 from dsl import template_resolver
+from navigation.detector import ScreenDetector
 from services import get_ocr_client
 
 if TYPE_CHECKING:

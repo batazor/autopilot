@@ -13,14 +13,10 @@ cond: active_player == ""
 # the next 5-min ``check_main_city`` cron tick (priority 10) and all
 # main_city-anchored overlays would starve in the meantime.
 #
-# This scenario is auto-enqueued once per worker boot
-# (see `_STARTUP_SEED_TASKS` / `_seed_startup_tasks` in
-# `worker/instance_worker.py`) at priority 82_000 — above routine state-aware
-# overlays (assign_worker / mail.claim / chapter_task_router at 70k–80k)
-# so identity is established before any action is attributed to a player.
-# Screen identity is maintained by the worker's rolling detector. This stays
-# below tutorial overlays (skip=85_000, hand=86_000) so tutorials still preempt
-# the identity probe.
+# Enqueued by the worker after login-ad scenarios drain (overlay pushes each ad
+# at 120k; see ``login_ad_task_types()`` / ``_login_ads_phase_active``). Priority
+# 82_000 — above routine overlays (70k–80k), below tutorials (85–86k) and ads.
+# Screen identity is maintained by the worker's rolling detector.
 node: chief_profile
 
 steps:

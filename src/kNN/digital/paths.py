@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from config.paths import repo_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @lru_cache(maxsize=1)

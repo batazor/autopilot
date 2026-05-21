@@ -1,9 +1,30 @@
 import type { EditorRegion } from "@/lib/bbox";
-import type { LabelingDocument, LabelingReferenceMeta } from "@/lib/types";
+import type {
+  LabelingDocument,
+  LabelingReferenceMeta,
+} from "@/lib/types";
 
 export function isPendingCapture(refRel: string): boolean {
   if (refRel.includes("_current_state.png")) return false;
   return /\/temporal\//.test(refRel.replace(/\\/g, "/"));
+}
+
+/** Minimal ref row when the PNG exists on disk but is not in the references API list yet. */
+export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
+  const rel = refRel.replace(/\\/g, "/").trim();
+  const name = rel.split("/").pop() ?? rel;
+  const prefixMatch = rel.match(/^(?:modules\/[^/]+\/references|references)\/(.*)$/);
+  const relUnder = prefixMatch?.[1] ?? rel;
+  return {
+    rel,
+    name,
+    rel_under: relUnder,
+    title: name,
+    screen_id: "",
+    region_count: 0,
+    active_version: null,
+    unassigned: true,
+  };
 }
 
 /** Infer module scope from a repo-relative reference path. */

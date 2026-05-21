@@ -3,7 +3,12 @@
 import { useMemo } from "react";
 import { AppListbox } from "@/components/headless";
 import { LabelingModuleSelect } from "@/components/labeling/LabelingModuleSelect";
-import { filterReferences, referenceSelectLabel } from "@/lib/labeling-utils";
+import {
+  filterReferences,
+  isPendingCapture,
+  referenceSelectLabel,
+  syntheticReferenceMeta,
+} from "@/lib/labeling-utils";
 import type { LabelingReferenceMeta, LabelingScopeOption } from "@/lib/types";
 
 type Props = {
@@ -42,6 +47,7 @@ export function LabelingReferencePanel({
     if (refRel && !list.some((r) => r.rel === refRel)) {
       const cur = refs.find((r) => r.rel === refRel);
       if (cur) return [cur, ...list];
+      if (isPendingCapture(refRel)) return [syntheticReferenceMeta(refRel), ...list];
     }
     return list;
   }, [refs, filter, refRel]);
@@ -52,11 +58,19 @@ export function LabelingReferencePanel({
         sensitivity: "base",
       }),
     );
-    return sorted.map((r) => ({
+    const options = sorted.map((r) => ({
       value: r.rel,
       label: referenceSelectLabel(r),
     }));
-  }, [filteredRefs]);
+    if (refRel && !options.some((o) => o.value === refRel)) {
+      const syn = syntheticReferenceMeta(refRel);
+      return [
+        { value: syn.rel, label: referenceSelectLabel(syn) },
+        ...options,
+      ];
+    }
+    return options;
+  }, [filteredRefs, refRel]);
 
   return (
     <details className="labeling-panel-block" open>
@@ -91,7 +105,7 @@ export function LabelingReferencePanel({
               ? "Select reference PNG…"
               : "No references in this module"
           }
-          disabled={busy || !imageOptions.length}
+          disabled={busy || (!refRel && !imageOptions.length)}
           title={refRel || undefined}
         />
 

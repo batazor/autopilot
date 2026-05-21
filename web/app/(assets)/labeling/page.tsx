@@ -63,6 +63,7 @@ function LabelingPageInner() {
   const moduleParam = params.get("module") ?? "";
 
   const [scopes, setScopes] = useState<LabelingScopeOption[]>([]);
+  const [scopesReady, setScopesReady] = useState(false);
   const [moduleScope, setModuleScope] = useState(moduleParam || "core");
   const {
     instances,
@@ -102,6 +103,11 @@ function LabelingPageInner() {
   const activeVersion = versionParam.trim() || null;
   const displayRef = doc?.display_ref ?? refRel;
   const isPending = doc?.is_pending ?? isPendingCapture(refRel);
+  const imageRef = useMemo(() => {
+    if (isPendingCapture(refRel)) return refRel;
+    const shown = (doc?.display_ref ?? "").trim();
+    return shown || refRel;
+  }, [refRel, doc?.display_ref]);
   const anyDirty = dirty || screenDirty;
 
   const screenNodeListboxOptions = useMemo(() => {
@@ -161,6 +167,7 @@ function LabelingPageInner() {
           list[0]?.key ||
           "core";
         setModuleScope(initial);
+        setScopesReady(true);
       })
       .catch((e: Error) => setError(e.message));
     fetchRoboflowStatus()
@@ -192,7 +199,10 @@ function LabelingPageInner() {
     reloadRefs(moduleScope)
       .then((list) => {
         const fromUrl = params.get("ref");
-        if (fromUrl && list.some((r) => r.rel === fromUrl)) {
+        if (
+          fromUrl &&
+          (list.some((r) => r.rel === fromUrl) || isPendingCapture(fromUrl))
+        ) {
           setRefRel(fromUrl);
         } else if (list.length && !refRel) {
           setRefRel(list[0].rel);
@@ -275,12 +285,23 @@ function LabelingPageInner() {
   );
 
   useEffect(() => {
-    if (refRel && moduleScope) loadDoc(refRel, activeVersion);
-  }, [refRel, activeVersion, moduleScope, loadDoc]);
+    if (!refRel || !moduleScope || !scopesReady) return;
+    const urlModule = moduleParam.trim();
+    if (urlModule && urlModule !== moduleScope) return;
+    loadDoc(refRel, activeVersion);
+  }, [
+    refRel,
+    activeVersion,
+    moduleScope,
+    moduleParam,
+    scopesReady,
+    loadDoc,
+  ]);
 
-  const imageUrl = displayRef
-    ? `${labelingImageUrl(displayRef)}&n=${imageNonce}`
-    : null;
+  const imageUrl = useMemo(
+    () => (imageRef ? labelingImageUrl(imageRef, imageNonce) : null),
+    [imageRef, imageNonce],
+  );
   const canDiscard = Boolean(refRel && isPendingCapture(refRel));
 
   const runBusy = async (fn: () => Promise<void>) => {
@@ -312,7 +333,7 @@ function LabelingPageInner() {
   const onSave = async () => {
     if (!refRel || busy) return;
     await runBusy(async () => {
-      await saveLabelingRegions(
+      const saved = await saveLabelingRegions(
         refRel,
         moduleScope,
         editorToApiRegions(regions),
@@ -323,7 +344,19 @@ function LabelingPageInner() {
       setScreenDirty(false);
       await loadDoc(refRel, activeVersion);
       await reloadStale(moduleScope);
-      showSuccess("Saved to area.json");
+      const cropN = saved.crops_written_count ?? 0;
+      const cropPart =
+        cropN > 0 ? ` · ${cropN} crop(s) updated` : "";
+      const synced = saved.region_renames_synced ?? [];
+      if (synced.length > 0) {
+        const names = synced.map((r) => `${r.from} → ${r.to}`).join(", ");
+        showSuccess(`Saved. Synced rename: ${names}${cropPart}`);
+      } else {
+        showSuccess(`Saved to area.json${cropPart}`);
+      }
+      if (saved.crop_warnings?.length) {
+        setError(saved.crop_warnings.slice(0, 3).join(" · "));
+      }
     });
   };
 
@@ -553,6 +586,11 @@ function LabelingPageInner() {
           type="button"
           className="btn-primary"
           disabled={!instanceId || busy}
+          title={
+            !instanceId
+              ? "Select an emulator instance first"
+              : "Capture rolling preview into temporal/"
+          }
           onClick={onNewScreenshot}
         >
           New screenshot

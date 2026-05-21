@@ -45,6 +45,9 @@ class _InstanceWorkerHost(Protocol):
     _unknown_since: float
     _screen_unknown_streak: int
     _overlay_rule_eval_state_by_player: dict[str, dict[str, float]]
+    _overlay_ttl_rev_by_player: dict[str, str]
+    _overlay_ttl_last_sync_mono_by_player: dict[str, float]
+    _overlay_ttl_last_persist_mono_by_player: dict[str, float]
     _blocking_pool: Any
     _rolling_snapshot_task: asyncio.Task[None] | None
     _abort_task_listener_task: asyncio.Task[None] | None

@@ -55,17 +55,6 @@ const SCREENSHOT_SOURCE_OPTIONS = [
   { value: "live", label: "Live rolling" },
 ];
 
-/** "Just now" / "12s" / "2m 04s" — used for the pending-since indicator and
- *  also for toast freshness. Kept dependency-free so we don't pull a date lib. */
-function formatElapsed(ms: number): string {
-  if (ms < 1000) return "just now";
-  const totalS = Math.floor(ms / 1000);
-  if (totalS < 60) return `${totalS}s`;
-  const m = Math.floor(totalS / 60);
-  const s = totalS % 60;
-  return `${m}m ${s.toString().padStart(2, "0")}s`;
-}
-
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
   const { instanceId, instancesError } = useFleet();
@@ -73,7 +62,7 @@ export default function ApprovalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
   const [imageSource, setImageSource] =
-    useState<"capture" | "live">("capture");
+    useState<"capture" | "live">("live");
   const [imageTick, setImageTick] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showPayload, setShowPayload] = useState(false);
@@ -85,12 +74,6 @@ export default function ApprovalsPage() {
   const [probeThreshold, setProbeThreshold] = useState(0.9);
   const [probeTick, setProbeTick] = useState(0);
   const [probeError, setProbeError] = useState<string | null>(null);
-  // Tracks when the current pending request first appeared so we can render
-  // a "Waiting Xs" timer. We use the raw payload's trace_id (or a stable
-  // synthetic key) as the change signal — `has_pending` flipping alone isn't
-  // enough because a new request can arrive in the same tick the previous one
-  // was resolved.
-  const [pendingSinceMs, setPendingSinceMs] = useState<number | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
   // Inline confirm state for destructive actions — replaces window.confirm()
   // which was the only thing in this page that broke the dark-themed look.
@@ -105,18 +88,31 @@ export default function ApprovalsPage() {
   // image cache key only when the underlying request actually changes
   // (otherwise we'd thrash the browser's decoded-image cache every second).
   const lastPendingKeyRef = useRef<string>("");
+  const lastPreviewMtimeRef = useRef<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (!instanceId) return;
     try {
       const data = await fetchClickApproval(instanceId, imageSource);
       setView(data);
-      // Stable image key: the trace id is unique per pending request and we
-      // fall back to a coarse "(no request)" sentinel when nothing's pending
-      // so the canvas doesn't keep refetching the placeholder.
       const nextKey = data.has_pending ? data.trace_id || "(pending)" : "(idle)";
-      if (nextKey !== lastPendingKeyRef.current) {
+      const pendingChanged = nextKey !== lastPendingKeyRef.current;
+      if (pendingChanged) {
         lastPendingKeyRef.current = nextKey;
+      }
+      // Live rolling: worker overwrites the PNG on disk; bust cache when mtime moves.
+      // Capture: only refetch when the pending approval identity changes.
+      let imageStale = pendingChanged;
+      if (imageSource === "live") {
+        const mtime = data.preview?.mtime ?? null;
+        if (mtime != null && mtime !== lastPreviewMtimeRef.current) {
+          lastPreviewMtimeRef.current = mtime;
+          imageStale = true;
+        }
+      } else {
+        lastPreviewMtimeRef.current = null;
+      }
+      if (imageStale) {
         setImageTick((t) => t + 1);
       }
       setError(null);
@@ -172,13 +168,13 @@ export default function ApprovalsPage() {
     }
   }, [instanceId, probeRegion, probeThreshold]);
 
-  const approvalStreamTopics = useMemo(
-    () =>
-      showProbe
-        ? ["approval", "notifications", "instance"]
-        : ["approval", "notifications"],
-    [showProbe],
-  );
+  const approvalStreamTopics = useMemo(() => {
+    const topics = ["approval", "notifications"] as string[];
+    // Rolling preview mtime is on the ``instance`` revision, not ``approval``.
+    if (imageSource === "live" || showProbe) topics.push("instance");
+    if (showProbe) topics.push("area");
+    return topics;
+  }, [showProbe, imageSource]);
 
   useDashboardEventStream({
     topics: approvalStreamTopics,
@@ -187,7 +183,11 @@ export default function ApprovalsPage() {
     onEvent: (topic) => {
       if (topic === "approval") void refresh();
       if (topic === "notifications") void pollNotifications();
-      if (topic === "instance" && showProbe) void refreshProbe();
+      if (topic === "instance") {
+        if (imageSource === "live") void refresh();
+        if (showProbe) void refreshProbe();
+      }
+      if (topic === "area" && showProbe) void refreshProbe();
     },
     onFallbackPoll: async () => {
       await refresh();
@@ -204,8 +204,13 @@ export default function ApprovalsPage() {
     seenNotificationsRef.current = new Set();
     setToasts([]);
     lastPendingKeyRef.current = "";
-    setPendingSinceMs(null);
+    lastPreviewMtimeRef.current = null;
   }, [instanceId]);
+
+  useEffect(() => {
+    lastPreviewMtimeRef.current = null;
+    if (instanceId) void refresh();
+  }, [imageSource, instanceId, refresh]);
 
   useEffect(() => {
     const region = searchParams.get("region");
@@ -214,10 +219,9 @@ export default function ApprovalsPage() {
     if (probe === "1") setShowProbe(true);
   }, [searchParams]);
 
-  // 10Hz tick while toasts or a pending timer are active: drives smooth
-  // progress bars and expires toasts without a separate 1s sweep.
+  // 10Hz tick while toasts are visible: smooth progress bars + auto-dismiss.
   useEffect(() => {
-    if (toasts.length === 0 && pendingSinceMs == null) return;
+    if (toasts.length === 0) return;
     const tick = () => {
       const t = Date.now();
       setNow(t);
@@ -229,7 +233,7 @@ export default function ApprovalsPage() {
     tick();
     const id = window.setInterval(tick, TICK_MS);
     return () => window.clearInterval(id);
-  }, [toasts.length, pendingSinceMs]);
+  }, [toasts.length]);
 
   const extendToast = useCallback((id: string, extraMs: number) => {
     if (extraMs <= 0) return;
@@ -240,34 +244,18 @@ export default function ApprovalsPage() {
     );
   }, []);
 
-  // Track when the current pending request first appeared. We anchor on
-  // `lastPendingKeyRef` (set in `refresh`) so a new pending request resets
-  // the timer even if has_pending was already true the previous tick.
-  useEffect(() => {
-    if (!view?.has_pending) {
-      if (pendingSinceMs != null) setPendingSinceMs(null);
-      return;
-    }
-    if (pendingSinceMs == null) {
-      setPendingSinceMs(Date.now());
-    }
-  }, [view?.has_pending, view?.trace_id, pendingSinceMs]);
-
   // Browser tab title is the cheapest "you have work" indicator that survives
   // when the operator alt-tabs to another tool. Restore on unmount.
   useEffect(() => {
     if (typeof document === "undefined") return;
     const original = document.title;
-    if (view?.has_pending) {
-      const elapsed = pendingSinceMs ? formatElapsed(Math.max(0, now - pendingSinceMs)) : "";
-      document.title = elapsed ? `● ${elapsed} · ${DOCUMENT_TITLE_BASE}` : `● ${DOCUMENT_TITLE_BASE}`;
-    } else {
-      document.title = DOCUMENT_TITLE_BASE;
-    }
+    document.title = view?.has_pending
+      ? `● ${DOCUMENT_TITLE_BASE}`
+      : DOCUMENT_TITLE_BASE;
     return () => {
       document.title = original;
     };
-  }, [view?.has_pending, pendingSinceMs, now]);
+  }, [view?.has_pending]);
 
   const dismissToast = (id: string) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -443,10 +431,6 @@ export default function ApprovalsPage() {
   const playerAccountKey =
     activePlayer && inGameId && activePlayer !== inGameId ? activePlayer : "";
   const hasPending = !!view?.has_pending;
-  const waitingFor =
-    hasPending && pendingSinceMs != null
-      ? formatElapsed(Math.max(0, now - pendingSinceMs))
-      : null;
   const scenarioProgress = view?.scenario_progress ?? null;
   const approvalEnabled = !!view?.approval_enabled;
   const heartbeatActive = !!view?.heartbeat_active;
@@ -469,7 +453,7 @@ export default function ApprovalsPage() {
           title={hasPending ? "A worker is waiting on your decision" : "No worker action waiting"}
         >
           <span className="status-pill__dot" aria-hidden />
-          {hasPending ? `Pending${waitingFor ? ` · ${waitingFor}` : ""}` : "Idle"}
+          {hasPending ? "Pending" : "Idle"}
         </span>
 
         <span className="status-fact">
@@ -712,14 +696,17 @@ export default function ApprovalsPage() {
 }
 
 function scenarioProgressLabel(progress: ScenarioProgress): string {
+  if (progress.progress_label?.trim()) return progress.progress_label.trim();
   const key = progress.scenario_label || progress.scenario_key;
+  if (progress.is_navigating && progress.nav_target) {
+    return `${key} · Navigating → ${progress.nav_target}`;
+  }
   if (key && progress.step_total > 0) {
     let text = `${key} · Step ${progress.step_current + 1}/${progress.step_total}`;
     if (progress.is_running && progress.step_iter > 0) {
       text += ` · iter ${progress.step_iter}`;
     }
     if (!progress.is_running) text += " · idle";
-    if (progress.nav_target) text += ` · navigating → ${progress.nav_target}`;
     return text;
   }
   if (key) return `${key} · running`;
@@ -728,17 +715,24 @@ function scenarioProgressLabel(progress: ScenarioProgress): string {
 
 function ScenarioProgressBar({ progress }: { progress: ScenarioProgress }) {
   const completedSteps =
-    progress.step_total > 0
-      ? progress.is_running
-        ? progress.step_current + 1
-        : progress.step_current
-      : 0;
+    progress.completed_steps ??
+    (progress.step_total > 0
+      ? progress.is_navigating
+        ? progress.step_current
+        : progress.is_running
+          ? progress.step_current + 1
+          : progress.step_current
+      : 0);
   const ratio =
-    progress.step_total > 0
-      ? Math.min(100, (completedSteps / progress.step_total) * 100)
-      : 0;
+    progress.progress_ratio != null
+      ? Math.min(100, progress.progress_ratio * 100)
+      : progress.step_total > 0
+        ? Math.min(100, (completedSteps / progress.step_total) * 100)
+        : 0;
   const label = scenarioProgressLabel(progress);
-  const currentIdx = progress.is_running ? progress.step_current : -1;
+  const currentIdx =
+    progress.highlight_step_index ??
+    (progress.is_running && !progress.is_navigating ? progress.step_current : -1);
 
   return (
     <div className="approvals-scenario-progress">
@@ -937,7 +931,8 @@ function RegionProbePanel({
   return (
     <div className="approvals-probe-body">
       <p className="meta">
-        Live check for an `area.json` region. Orange shows where the matcher searched,
+        Live check for a merged area region (core `area.json` + module `area.yaml`).
+        Orange shows where the matcher searched,
         green/gray shows the best template match and its confidence.
       </p>
 
@@ -1422,7 +1417,21 @@ function PendingApprovalCard({
           if (t.open !== showPayload) onTogglePayload();
         }}
       >
-        <summary>Payload · {actionLabel}</summary>
+        <summary className="approvals-payload__summary">
+          <span>Payload · {actionLabel}</span>
+          <span
+            className="approvals-payload__summary-actions"
+            onPointerDown={(e) => e.preventDefault()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CopyButton
+              text={payloadJson}
+              label="Copy"
+              title="Copy payload JSON"
+              className="approvals-payload__copy"
+            />
+          </span>
+        </summary>
         <pre className="code-block">{payloadJson || "—"}</pre>
       </details>
     </>

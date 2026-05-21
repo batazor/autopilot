@@ -1,0 +1,10 @@
+enabled: true
+name: Dismiss Natalia first purchase ad
+priority: 120_000
+
+node: ads.natalia
+device_level: true
+
+steps:
+  - click: ads.natalia.title
+  - wait: 800ms

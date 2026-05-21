@@ -16,11 +16,11 @@ from conftest import make_actions, patch_dsl
 import tasks.dsl_scenario as dsl
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from analysis.overlay_manifest import load_analyze_yaml
+from dsl import template_resolver
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.red_dot_detector import has_red_dot_in_bbox_percent
 from layout.tab_active_detector import is_tab_active_in_bbox_percent
-from dsl import template_resolver
 
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[1]

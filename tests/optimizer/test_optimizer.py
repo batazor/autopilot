@@ -453,8 +453,8 @@ def test_generated_scenarios_exist_for_every_action(ctx, basic_state):
     """
     from pathlib import Path
 
-    from optimizer import build_envelope
     from dsl import template_resolver as _tmpl
+    from optimizer import build_envelope
 
     repo_root = Path(__file__).resolve().parents[2]
     cands = generate_candidates(basic_state, ctx)

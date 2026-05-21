@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from functools import lru_cache
-
-import numpy as np
+from typing import TYPE_CHECKING
 
 from kNN.digital.classifier import DEFAULT_X0, DigitClassifier, DigitPrediction
 from kNN.digital.paths import model_path
+
+if TYPE_CHECKING:
+    import numpy as np
 
 KNN_PREPROCESS_TAGS = frozenset({"knn", "digital"})
 

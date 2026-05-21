@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import AsyncIterator  # noqa: TC003
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -33,6 +34,11 @@ W_RECENT = 1000
 HOPS_DEBUFF_CAP_HOPS = 5
 UNREACHABLE_DEBUFF = 5000
 HOPS_SENTINEL = 10**9
+# ``pop_due`` / ``peek_top_due`` fetch due ZSET members in pages (not one blob).
+QUEUE_DUE_ZRANGE_BATCH = 64
+# Log when due ZSET size exceeds this (observability). ``_collect_ranked_due`` still
+# parses every due member so priority ranking is correct; queues should stay small.
+QUEUE_DUE_PARSE_MAX = 512
 
 
 def _queue_key(instance_id: str) -> str:
@@ -291,6 +297,14 @@ class RedisQueue:
         else:
             await self._redis.zadd(qk, {payload: run_at})
 
+        from ui.dashboard_events import publish_dashboard_event_async
+
+        await publish_dashboard_event_async(
+            self._redis,
+            topic="queue",
+            instance_id=instance_id or None,
+            reason="enqueue",
+        )
         return True
 
     async def has_pending_duplicate(
@@ -494,6 +508,46 @@ class RedisQueue:
         return RedisQueue._task_types_device_level_cached(fp)
 
     @staticmethod
+    async def _iter_due_queue_raw(
+        redis_client: Any,
+        key: str,
+        *,
+        now: float,
+        batch_size: int = QUEUE_DUE_ZRANGE_BATCH,
+        max_members: int | None = QUEUE_DUE_PARSE_MAX,
+    ) -> AsyncIterator[str]:
+        """Yield due queue payloads (``run_at`` score <= ``now``) in score order."""
+        offset = 0
+        yielded = 0
+        while True:
+            num = batch_size
+            if max_members is not None:
+                remaining = max_members - yielded
+                if remaining <= 0:
+                    break
+                num = min(num, remaining)
+            try:
+                batch = await redis_client.zrangebyscore(
+                    key, "-inf", now, start=offset, num=num
+                )
+            except Exception:
+                logger.debug(
+                    "queue due zrange failed key=%s offset=%s", key, offset, exc_info=True
+                )
+                break
+            if not batch:
+                break
+            for raw in batch:
+                yielded += 1
+                if isinstance(raw, bytes):
+                    yield raw.decode()
+                else:
+                    yield str(raw)
+            offset += len(batch)
+            if len(batch) < num:
+                break
+
+    @staticmethod
     @lru_cache(maxsize=8)
     def _task_types_device_level_cached(
         fp: tuple[str, tuple[tuple[str, int, int], ...]]
@@ -543,20 +597,41 @@ class RedisQueue:
                 instance_players = instance_players | {ap}
         except Exception:
             pass
-        key = _queue_key(instance_id)
-        candidates = await self._redis.zrangebyscore(key, "-inf", now)
-
-        due: list[tuple[str, dict[str, Any]]] = []
-        for raw in candidates:
-            data = json.loads(raw)
-            pid = str(data.get("player_id", ""))
-            if str(data.get("instance_id", "")) == instance_id and (pid == "" or pid in instance_players):
-                due.append((raw, data))
-
-        if not due:
-            return []
 
         if str(current_screen or "").strip().lower() == "loading":
+            return []
+
+        key = _queue_key(instance_id)
+        due: list[tuple[str, dict[str, Any]]] = []
+        truncated = False
+        if QUEUE_DUE_PARSE_MAX is not None:
+            try:
+                total_due = int(await self._redis.zcount(key, "-inf", now))
+                truncated = total_due > QUEUE_DUE_PARSE_MAX
+            except Exception:
+                truncated = False
+        async for raw in self._iter_due_queue_raw(
+            self._redis, key, now=now, max_members=None
+        ):
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            pid = str(data.get("player_id", ""))
+            if str(data.get("instance_id", "")) == instance_id and (
+                pid == "" or pid in instance_players
+            ):
+                due.append((raw, data))
+        if truncated:
+            logger.warning(
+                "queue due backlog large instance=%s due_in_zset>%s parsed=%s "
+                "(trim queue or investigate enqueue volume)",
+                instance_id,
+                QUEUE_DUE_PARSE_MAX,
+                len(due),
+            )
+
+        if not due:
             return []
 
         if not str(current_screen or "").strip():
@@ -658,6 +733,69 @@ class RedisQueue:
                 }
             )
         return out
+
+    async def pending_execution_order(
+        self,
+        instance_id: str,
+        *,
+        current_screen: str = "",
+    ) -> list[str]:
+        """All pending task_ids for an instance in the order ``pop_due`` would claim them.
+
+        Runnable due tasks use the same ranking tuple as :meth:`pop_due`. Remaining
+        pending members (gated-out due, or ``run_at`` in the future) follow,
+        sorted by ``(run_at, created_at)``.
+        """
+        import json
+
+        now = time.time()
+        ranked = await self._collect_ranked_due(instance_id, current_screen, now)
+        ordered: list[str] = []
+        seen: set[str] = set()
+        for _sort_key, _raw, data, _meta in ranked:
+            tid = str(data.get("task_id") or "").strip()
+            if tid and tid not in seen:
+                ordered.append(tid)
+                seen.add(tid)
+
+        key = _queue_key(instance_id)
+        rest: list[tuple[float, float, str]] = []
+        offset = 0
+        while True:
+            try:
+                batch = await self._redis.zrangebyscore(
+                    key,
+                    "-inf",
+                    "+inf",
+                    start=offset,
+                    num=QUEUE_DUE_ZRANGE_BATCH,
+                    withscores=True,
+                )
+            except Exception:
+                break
+            if not batch:
+                break
+            for raw, score in batch:
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                tid = str(data.get("task_id") or "").strip()
+                if not tid or tid in seen:
+                    continue
+                rest.append(
+                    (
+                        float(data.get("run_at", score)),
+                        float(data.get("created_at", 0.0)),
+                        tid,
+                    )
+                )
+            offset += len(batch)
+            if len(batch) < QUEUE_DUE_ZRANGE_BATCH:
+                break
+        rest.sort()
+        ordered.extend(tid for _run_at, _created, tid in rest)
+        return ordered
 
     async def peek_top_due(
         self, instance_id: str, *, current_screen: str = ""

@@ -96,11 +96,11 @@ async def test_production_model_reads_live_fixture() -> None:
     if not model_path().is_file():
         pytest.skip("kNN model not built — run scripts/train_knn_digital_model.py")
 
+    import json
+
     from config.loader import load_settings, set_settings
     from layout.area_lookup import screen_region_by_name
     from ocr.client import OcrClient
-
-    import json
 
     set_settings(load_settings())
     repo = Path(__file__).resolve().parents[3]

@@ -28,9 +28,9 @@ if TYPE_CHECKING:
 
     from adb.bot_actions import BotActions
     from config.loader import InstanceConfig, Settings
-    from ocr.client import OcrClient
     from dsl.evaluator import ScenarioEvaluator
     from dsl.loader import ScenarioLoader
+    from ocr.client import OcrClient
     from scheduler.optimizer import TaskOptimizer
     from scheduler.queue import RedisQueue
     from scheduler.runner import SchedulerRunner

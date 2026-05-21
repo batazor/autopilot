@@ -1,24 +1,24 @@
-"""Per-gamer state manager: loads db/state.yaml, flattens to dot-notation, syncs Redis."""
+"""Per-gamer state manager: SQLite backend, dot-notation access, daily power stats."""
 from __future__ import annotations
 
 import logging
-import tempfile
 import threading
-from contextlib import suppress
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
-from config.paths import repo_root
 from config.state_schema import GamerState, StateDB
+from config.state_sqlite import (
+    load_state_db_raw,
+    record_player_stats,
+    save_state_db,
+    state_db_path,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_STATE_PATH = repo_root() / "db" / "state.yaml"
 # sentinel for getattr default — distinguishes "attr is None" from "attr missing"
 _MISSING = object()
 
@@ -58,12 +58,11 @@ def _flatten(obj: Any, prefix: str, out: dict[str, Any]) -> None:
 
 
 class GamerStateStore:
-    """Thread-safe state store for one gamer. Persists to db/state.yaml."""
+    """Thread-safe state store for one gamer. Persists to SQLite."""
 
-    def __init__(self, gamer: GamerState, db: StateDB, path: Path, lock: threading.RLock) -> None:
+    def __init__(self, gamer: GamerState, db: StateDB, lock: threading.RLock) -> None:
         self._gamer = gamer
         self._db = db
-        self._path = path
         self._lock = lock
 
     @property
@@ -123,7 +122,12 @@ class GamerStateStore:
             self._persist()
 
     def _persist(self) -> None:
-        _save_state_db(self._db, self._path)
+        snapshot = self._gamer.model_copy(deep=True)
+        _save_state_db(self._db)
+        try:
+            record_player_stats(snapshot)
+        except Exception:
+            logger.exception("record_player_stats failed player=%s", self.player_id)
 
     def snapshot(self) -> GamerState:
         with self._lock:
@@ -131,14 +135,17 @@ class GamerStateStore:
 
 
 class StateStore:
-    """Multi-gamer state store backed by db/state.yaml."""
+    """Multi-gamer state store backed by SQLite."""
 
     def __init__(self, path: Path | None = None) -> None:
-        self._path = path or _STATE_PATH
+        if path is not None:
+            from config.state_sqlite import set_state_db_path_for_tests
+
+            set_state_db_path_for_tests(path)
         self._lock = threading.RLock()
-        self._db: StateDB = _load_state_db(self._path)
+        self._db: StateDB = _load_state_db()
         self._stores: dict[str, GamerStateStore] = {
-            str(g.id): GamerStateStore(g, self._db, self._path, self._lock)
+            str(g.id): GamerStateStore(g, self._db, self._lock)
             for g in self._db.gamers
         }
 
@@ -147,9 +154,10 @@ class StateStore:
             if player_id not in self._stores:
                 gamer = GamerState(id=int(player_id), nickname=nickname)
                 self._db.gamers.append(gamer)
-                store = GamerStateStore(gamer, self._db, self._path, self._lock)
+                store = GamerStateStore(gamer, self._db, self._lock)
                 self._stores[player_id] = store
-                _save_state_db(self._db, self._path)
+                _save_state_db(self._db)
+                record_player_stats(gamer)
             return self._stores[player_id]
 
     def get(self, player_id: str) -> GamerStateStore | None:
@@ -162,53 +170,35 @@ class StateStore:
 
     def reload(self) -> None:
         with self._lock:
-            new_db = _load_state_db(self._path)
+            new_db = _load_state_db()
             new_gamers = {str(g.id): g for g in new_db.gamers}
-            # Update existing stores in-place so callers that cached a GamerStateStore
-            # reference don't silently keep writing to the pre-reload _db.
             for pid, store in self._stores.items():
                 if pid in new_gamers:
                     store._gamer = new_gamers[pid]
                     store._db = new_db
             for pid, gamer in new_gamers.items():
                 if pid not in self._stores:
-                    self._stores[pid] = GamerStateStore(gamer, new_db, self._path, self._lock)
-            # Drop stores for gamers removed from the YAML — otherwise the orphan
-            # store keeps writing the pre-reload _db to disk on next _persist().
+                    self._stores[pid] = GamerStateStore(gamer, new_db, self._lock)
             for pid in list(self._stores.keys()):
                 if pid not in new_gamers:
                     del self._stores[pid]
             self._db = new_db
 
 
-def _load_state_db(path: Path) -> StateDB:
-    if not path.exists():
+def _load_state_db() -> StateDB:
+    db, err, _ = load_state_db_raw()
+    if err:
+        logger.error("Failed to load state DB from %s: %s", state_db_path(), err)
         return StateDB()
-    raw = yaml.safe_load(path.read_text()) or {}
-    return StateDB.model_validate(raw)
+    return db
 
 
-def _save_state_db(db: StateDB, path: Path) -> None:
-    tmp: str | None = None
+def _save_state_db(db: StateDB) -> None:
     try:
-        data = db.model_dump(mode="json")
-        content = yaml.dump(data, allow_unicode=True, sort_keys=False)
-        with tempfile.NamedTemporaryFile(
-            "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
-        ) as f:
-            f.write(content)
-            tmp = f.name
-        Path(tmp).replace(path)
-        tmp = None  # rename succeeded — nothing left to clean up
+        save_state_db(db)
     except Exception:
-        logger.exception("Failed to persist state to %s", path)
+        logger.exception("Failed to persist state to %s", state_db_path())
         return
-    finally:
-        # If we left a tmp behind (write or replace failed), drop it — otherwise
-        # repeated failures slowly fill db/ with stale *.tmp siblings.
-        if tmp is not None:
-            with suppress(OSError):
-                Path(tmp).unlink()
     _fire_on_save_callbacks()
 
 

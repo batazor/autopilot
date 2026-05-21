@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AppListbox } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
@@ -32,11 +32,20 @@ function InstancePageInner() {
   const taskPlayerRef = useRef(taskPlayer);
   taskTypeRef.current = taskType;
   taskPlayerRef.current = taskPlayer;
+  const revisionRef = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     if (!instanceId) return;
     try {
-      const d = await fetchInstanceDetail(instanceId);
+      const result = await fetchInstanceDetail(instanceId, {
+        ifRevision: revisionRef.current,
+      });
+      if ("unchanged" in result && result.unchanged) {
+        setError(null);
+        return;
+      }
+      const d = result;
+      revisionRef.current = d.revision;
       setDetail(d);
       if (!taskTypeRef.current && d.runnable_scenarios.length) {
         setTaskType(d.runnable_scenarios[0]);
@@ -49,6 +58,10 @@ function InstancePageInner() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
+  }, [instanceId]);
+
+  useEffect(() => {
+    revisionRef.current = undefined;
   }, [instanceId]);
 
   useDashboardEventStream({

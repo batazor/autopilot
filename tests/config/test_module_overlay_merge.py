@@ -27,18 +27,18 @@ def test_core_building_module_overlay_rule_present_in_merged_manifest() -> None:
     assert "build_button.visible" in names
 
 
-def test_core_onboarding_module_overlay_rules_present_in_merged_manifest() -> None:
+def test_core_onboarding_module_overlay_rules_disabled_in_merged_manifest() -> None:
     doc = load_merged_analyze_yaml(REPO_ROOT)
     names = _rule_names(doc)
 
-    for expected in (
+    for disabled in (
         "skip_button.visible",
         "onboarding.hand_pointer.visible",
         "onboarding.hand_pointer_small.visible",
         "onboarding.hand_pointer_small_reverse.visible",
         "onboarding.tap_anywhere_to_exit.visible",
     ):
-        assert expected in names
+        assert disabled not in names
 
 
 def test_alliance_module_overlay_rule_present_in_merged_manifest() -> None:

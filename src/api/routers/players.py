@@ -49,6 +49,14 @@ def get_player_persisted(player_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/players/{player_id}/stats")
+def get_player_stats(player_id: str) -> dict[str, Any]:
+    ids = players_svc.list_player_ids()
+    if player_id not in ids:
+        raise HTTPException(status_code=404, detail=f"unknown player: {player_id}")
+    return players_svc.get_player_stats(player_id)
+
+
 @router.post("/players/{player_id}/century-sync")
 def post_century_sync(player_id: str, client: RedisDep) -> dict[str, Any]:
     result = players_svc.century_sync(player_id)

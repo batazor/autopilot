@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from analysis.overlay import run_overlay_analysis
 from analysis.overlay_ttl_state import (
-    persist_overlay_ttl_state_to_redis,
-    sync_overlay_ttl_state_from_redis,
+    maybe_persist_overlay_ttl_state_to_redis,
+    sync_overlay_ttl_state_if_needed,
 )
 from config.log_context import set_log_context
 from config.paths import repo_root
@@ -33,6 +33,9 @@ class InstanceWorkerScreenMixin(_Base):
     _queue: Any
     _screen_detector: Any
     _overlay_rule_eval_state_by_player: dict[str, dict[str, float]]
+    _overlay_ttl_rev_by_player: dict[str, str]
+    _overlay_ttl_last_sync_mono_by_player: dict[str, float]
+    _overlay_ttl_last_persist_mono_by_player: dict[str, float]
     _last_current_screen: str | None
     _last_detected_screen: str | None
     _last_detected_screen_at: float
@@ -66,20 +69,23 @@ class InstanceWorkerScreenMixin(_Base):
             current_screen: str | None = current_screen_override
             active_player: str | None = None
             if self._redis is not None:
-                row = await self._redis.hgetall(
-                    f"wos:instance:{self._cfg.instance_id}:state"
+                state_key = f"wos:instance:{self._cfg.instance_id}:state"
+
+                def _field(raw: object) -> str:
+                    if raw is None:
+                        return ""
+                    return (
+                        raw.decode() if isinstance(raw, bytes) else str(raw)
+                    ).strip()
+
+                cur_raw, ap_raw = await self._redis.hmget(
+                    state_key, "current_screen", "active_player"
                 )
-                if row:
-                    decoded = {
-                        (k.decode() if isinstance(k, bytes) else str(k)):
-                            (v.decode() if isinstance(v, bytes) else str(v))
-                        for k, v in row.items()
-                    }
-                    if current_screen is None:
-                        cur = decoded.get("current_screen", "").strip()
-                        current_screen = cur or None
-                    ap = decoded.get("active_player", "").strip()
-                    active_player = ap or None
+                if current_screen is None:
+                    cur = _field(cur_raw)
+                    current_screen = cur or None
+                ap = _field(ap_raw)
+                active_player = ap or None
 
             self._last_current_screen = current_screen
             # Update log context so every line emitted from this overlay tick
@@ -116,12 +122,18 @@ class InstanceWorkerScreenMixin(_Base):
                 tt_key, {}
             )
             if self._redis is not None:
-                await sync_overlay_ttl_state_from_redis(
+                cached_rev = self._overlay_ttl_rev_by_player.get(tt_key, "0")
+                last_sync = self._overlay_ttl_last_sync_mono_by_player.get(tt_key, 0.0)
+                rev, last_sync = await sync_overlay_ttl_state_if_needed(
                     self._redis,
                     instance_id=self._cfg.instance_id,
                     player_id=tt_key,
                     rule_eval_state=player_state,
+                    cached_rev=cached_rev,
+                    last_sync_mono=last_sync,
                 )
+                self._overlay_ttl_rev_by_player[tt_key] = rev
+                self._overlay_ttl_last_sync_mono_by_player[tt_key] = last_sync
             results = await run_overlay_analysis(
                 image_bgr,
                 repo_root=root,
@@ -130,6 +142,8 @@ class InstanceWorkerScreenMixin(_Base):
                 state_flat=state_flat,
                 ocr_client=self._ocr_client,
                 device_level_only=device_level_only,
+                instance_id=self._cfg.instance_id,
+                redis_async=self._redis,
             )
         except Exception:
             logger.exception("overlay analyze failed on %s", self._cfg.instance_id)
@@ -220,12 +234,16 @@ class InstanceWorkerScreenMixin(_Base):
     ) -> None:
         if self._redis is None:
             return
-        await persist_overlay_ttl_state_to_redis(
+        last_persist = self._overlay_ttl_last_persist_mono_by_player.get(player_id)
+        new_persist = await maybe_persist_overlay_ttl_state_to_redis(
             self._redis,
             instance_id=self._cfg.instance_id,
             player_id=player_id,
             rule_eval_state=player_state,
+            last_persist_mono=last_persist,
         )
+        if new_persist is not None:
+            self._overlay_ttl_last_persist_mono_by_player[player_id] = new_persist
 
 
 class InstanceWorkerScreenDetectMixin(_Base):
@@ -255,9 +273,28 @@ class InstanceWorkerScreenDetectMixin(_Base):
         # the full multi-screen scan; on a miss the detector falls back to
         # the global pipeline so worst-case cost is unchanged.
         sticky_hint = self._last_detected_screen or None
+        nav_expected: str | None = None
+        if self._redis is not None:
+            try:
+                raw = await self._redis.hget(
+                    f"wos:instance:{self._cfg.instance_id}:state",
+                    "nav_expected_screen",
+                )
+                if raw is not None:
+                    nav_expected = (
+                        raw.decode() if isinstance(raw, bytes) else str(raw)
+                    ).strip() or None
+            except Exception:
+                logger.debug(
+                    "Screen detect: nav_expected_screen read failed for %s",
+                    self._cfg.instance_id,
+                    exc_info=True,
+                )
         try:
             detected = await self._screen_detector.detect_screen(
-                image_bgr, hint=sticky_hint
+                image_bgr,
+                hint=sticky_hint,
+                expected=nav_expected,
             )
         except Exception:
             logger.debug(
@@ -281,6 +318,7 @@ class InstanceWorkerScreenDetectMixin(_Base):
                         "current_screen",
                         detected_s,
                     )
+            self._note_boot_interactive_screen(detected_s)
             set_log_context(node=detected_s)
             return detected_s
 

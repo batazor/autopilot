@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import copy
 import json
+from contextlib import suppress
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +71,26 @@ def _normalize_module_area_doc(
     return out
 
 
+def area_manifest_max_mtime(repo_root: Path) -> float:
+    """Latest mtime across core ``area.json`` and every ``modules/*/area.*`` manifest."""
+    repo_root = repo_root.resolve()
+    mtimes: list[float] = []
+    core = default_area_json_path(repo_root)
+    if core.is_file():
+        with suppress(OSError):
+            mtimes.append(float(core.stat().st_mtime))
+    for module_area in iter_module_area_manifests(repo_root):
+        if module_area.is_file():
+            with suppress(OSError):
+                mtimes.append(float(module_area.stat().st_mtime))
+    return max(mtimes) if mtimes else 0.0
+
+
+def clear_area_doc_cache() -> None:
+    """Drop cached area manifests (tests, hot reload)."""
+    _load_area_doc_cached.cache_clear()
+
+
 def load_area_doc(repo_root: Path, area_path: Path | None = None) -> dict[str, Any]:
     """Load merged area configuration.
 
@@ -78,7 +100,34 @@ def load_area_doc(repo_root: Path, area_path: Path | None = None) -> dict[str, A
     repository-relative path before runtime lookup.
     """
     repo_root = repo_root.resolve()
-    path = area_path or default_area_json_path(repo_root)
+    if area_path is not None:
+        path = area_path.resolve()
+        custom_only = path != default_area_json_path(repo_root)
+        try:
+            fp = float(path.stat().st_mtime) if path.is_file() else 0.0
+        except OSError:
+            fp = 0.0
+        return _load_area_doc_cached(str(repo_root), str(path), fp, custom_only)
+
+    return _load_area_doc_cached(
+        str(repo_root),
+        "",
+        area_manifest_max_mtime(repo_root),
+        False,
+    )
+
+
+@lru_cache(maxsize=64)
+def _load_area_doc_cached(
+    repo_root_s: str,
+    area_path_s: str,
+    fingerprint: float,
+    custom_only: bool,
+) -> dict[str, Any]:
+    # fingerprint is part of the cache key; file edits invalidate automatically.
+    _ = fingerprint
+    repo_root = Path(repo_root_s)
+    path = Path(area_path_s) if area_path_s else default_area_json_path(repo_root)
     if not path.is_file():
         return {}
 
@@ -89,7 +138,7 @@ def load_area_doc(repo_root: Path, area_path: Path | None = None) -> dict[str, A
         screens = []
         merged["screens"] = screens
 
-    if area_path is not None and path.resolve() != default_area_json_path(repo_root).resolve():
+    if custom_only:
         return merged
 
     for module_area in iter_module_area_manifests(repo_root):

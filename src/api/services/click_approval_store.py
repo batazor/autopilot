@@ -95,15 +95,43 @@ def build_scenario_progress(
         except (TypeError, ValueError):
             step_iter = 0
     nav_target = _as_text(instance_state.get("nav_target")) if is_running else ""
+    scenario_label = (
+        scenario_display_name(active_scenario) if active_scenario else ""
+    )
+    from ui.scenario_progress_metrics import (
+        compute_scenario_progress_metrics,
+        format_scenario_progress_label,
+    )
+
+    metrics = compute_scenario_progress_metrics(
+        step_current=step_display,
+        step_total=total,
+        is_running=is_running,
+        nav_target=nav_target,
+    )
     return {
         "scenario_key": active_scenario,
-        "scenario_label": scenario_display_name(active_scenario) if active_scenario else "",
+        "scenario_label": scenario_label,
         "step_current": step_display,
         "step_total": total,
         "step_iter": step_iter,
         "is_running": is_running,
         "nav_target": nav_target,
         "step_summaries": list(summaries),
+        "is_navigating": metrics["is_navigating"],
+        "completed_steps": metrics["completed_steps"],
+        "progress_ratio": metrics["progress_ratio"],
+        "highlight_step_index": metrics["highlight_step_index"],
+        "progress_label": format_scenario_progress_label(
+            scenario_label=scenario_label,
+            scenario_key=active_scenario,
+            step_current=step_display,
+            step_total=total,
+            step_iter=step_iter,
+            is_running=is_running,
+            is_navigating=bool(metrics["is_navigating"]),
+            nav_target=nav_target,
+        ),
     }
 
 

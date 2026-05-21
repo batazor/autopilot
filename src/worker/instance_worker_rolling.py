@@ -52,6 +52,22 @@ def _rolling_should_skip_overlay(cfg: Any, *, task_busy: bool) -> bool:
     return bool(task_busy) and not bool(cfg.overlay_analyze_when_busy)
 
 
+def _rolling_overlay_device_level_only(
+    *,
+    active_player: str,
+    cfg: Any,
+    task_busy: bool,
+) -> bool:
+    """Whether rolling/overlay ticks should evaluate only ``device_level`` overlay rules.
+
+    Boot phase (empty ``active_player``): login ads and other device-level popups only.
+    Busy default: same as ``_rolling_should_skip_overlay`` (device-level still runs).
+    """
+    if not str(active_player or "").strip():
+        return True
+    return _rolling_should_skip_overlay(cfg, task_busy=task_busy)
+
+
 def _node_metric_value(node: str | None) -> str:
     node_s = (node or "").strip()
     return node_s or "unknown"
@@ -171,8 +187,11 @@ class InstanceWorkerRollingMixin(_Base):
 
     async def _run_rolling_snapshot_analysis(self, image_bgr: np.ndarray) -> None:
         """Screen detect + overlay on a captured frame (may run in background)."""
+        from tasks.dsl_scenario_helpers import _read_active_player
+
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
+        active_player = await _read_active_player(self._cfg.instance_id, self._redis)
         current_screen: str | None = None
         device_level_only = False
         outcome = "ok"
@@ -189,17 +208,25 @@ class InstanceWorkerRollingMixin(_Base):
 
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
 
-            if _rolling_should_skip_overlay(cfg, task_busy=task_busy):
-                device_level_only = True
-                await self._overlay_analyze_bgr(
-                    image_bgr,
-                    current_screen_override=current_screen,
-                    device_level_only=True,
+            device_level_only = _rolling_overlay_device_level_only(
+                active_player=active_player,
+                cfg=cfg,
+                task_busy=task_busy,
+            )
+            if device_level_only and not str(active_player or "").strip():
+                logger.debug(
+                    "[rolling] %s: boot phase — device-level overlay only (no active_player)",
+                    self._cfg.instance_id,
                 )
+            elif device_level_only:
                 logger.debug("overlay-after-snapshot skipped; ran device-level overlay only")
-                return
-            await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
-            await self._maybe_enqueue_who_i_am_when_active_player_missing()
+            await self._overlay_analyze_bgr(
+                image_bgr,
+                current_screen_override=current_screen,
+                device_level_only=device_level_only,
+            )
+            if not _rolling_should_skip_overlay(cfg, task_busy=task_busy):
+                await self._maybe_enqueue_who_i_am_when_active_player_missing()
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -346,12 +373,28 @@ class InstanceWorkerRollingMixin(_Base):
                     reason,
                 )
             return
+        from tasks.dsl_scenario_helpers import _read_active_player
+
+        cfg = self._settings.worker
+        task_busy = self._task_busy.is_set()
+        active_player = await _read_active_player(self._cfg.instance_id, self._redis)
         analysis_started = time.monotonic()
         current_screen: str | None = None
+        device_level_only = _rolling_overlay_device_level_only(
+            active_player=active_player,
+            cfg=cfg,
+            task_busy=task_busy,
+        )
         outcome = "ok"
         try:
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
-            await self._overlay_analyze_bgr(image_bgr, current_screen_override=current_screen)
+            await self._overlay_analyze_bgr(
+                image_bgr,
+                current_screen_override=current_screen,
+                device_level_only=device_level_only,
+            )
+            if not _rolling_should_skip_overlay(cfg, task_busy=task_busy):
+                await self._maybe_enqueue_who_i_am_when_active_player_missing()
         except Exception:
             outcome = "error"
             logger.warning(
@@ -365,8 +408,8 @@ class InstanceWorkerRollingMixin(_Base):
                 time.monotonic() - analysis_started,
                 node=current_screen,
                 source="overlay_tick",
-                device_level_only=False,
-                task_busy=bool(self._task_busy.is_set()),
+                device_level_only=device_level_only,
+                task_busy=task_busy,
                 outcome=outcome,
             )
 

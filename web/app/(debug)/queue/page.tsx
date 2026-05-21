@@ -19,7 +19,6 @@ import {
   QueuePendingActions,
   RunningCards,
   ScenarioCell,
-  TraceIdCell,
 } from "@/components/queue/QueueVisuals";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
 import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
@@ -36,10 +35,17 @@ export default function QueuePage() {
   const [busy, setBusy] = useState(false);
   const pickRef = useRef(pick);
   pickRef.current = pick;
+  const revisionRef = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     try {
-      const view = await fetchQueue();
+      const result = await fetchQueue({ ifRevision: revisionRef.current });
+      if ("unchanged" in result && result.unchanged) {
+        setError(null);
+        return;
+      }
+      const view = result;
+      revisionRef.current = view.revision;
       setData(view);
       setError(null);
       if (!pickRef.current && view.pending.length) {
@@ -120,6 +126,10 @@ export default function QueuePage() {
 
       <section className="panel queue-panel">
         <h2>Pending ({data?.pending_count ?? 0})</h2>
+        <p className="meta queue-pending-order-hint">
+          Sorted per instance in execution order (same ranking as the worker&apos;s{" "}
+          <code>pop_due</code>): due tasks first, then scheduled later by time.
+        </p>
         {data?.pending.length ? (
           <div className="data-table-wrap">
             <table className="data-table queue-table">
@@ -237,7 +247,6 @@ export default function QueuePage() {
                   <th>Player</th>
                   <th>Duration</th>
                   <th>Steps</th>
-                  <th>trace_id</th>
                   <th>Reason</th>
                   <th />
                 </tr>
@@ -286,9 +295,6 @@ export default function QueuePage() {
                             : null
                         }
                       />
-                    </td>
-                    <td>
-                      <TraceIdCell traceId={h.trace_id} tempoTraceUrl={h.tempo_trace_url} />
                     </td>
                     <td className="queue-reason" title={h.reason || undefined}>
                       {h.success ? (

@@ -423,3 +423,67 @@ edges:
     assert len(issues) == 1
     assert issues[0].source == "edge_taps:main_city->mail"
     assert "missing_mail_button" in issues[0].message
+
+
+def test_startup_validation_reports_module_overlay_region_when_runtime_area_is_core_only(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: overlay must use merged area docs, not core area.json only."""
+    import json
+
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_empty_module_overlay(tmp_path)
+    (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
+
+    ads = tmp_path / "modules" / "ads"
+    (ads / "analyze").mkdir(parents=True)
+    (ads / "module.yaml").write_text("id: ads\ntitle: ads\nwiki: false\n", encoding="utf-8")
+    (ads / "analyze" / "analyze.yaml").write_text(
+        """
+overlay:
+  - name: pop.visible
+    region: pop.title
+    action: findIcon
+""".lstrip(),
+        encoding="utf-8",
+    )
+    (ads / "area.yaml").write_text(
+        """
+screens:
+  - screen_id: pop
+    regions:
+      - name: pop.title
+        bbox: {x: 1, y: 1, width: 1, height: 1}
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    def _core_only_area_doc(root: Path) -> dict:
+        return json.loads((root / "area.json").read_text(encoding="utf-8"))
+
+    monkeypatch.setattr(
+        "analysis.overlay_area.default_area_doc_for_overlay",
+        _core_only_area_doc,
+    )
+
+    issues = validate_startup_configs(tmp_path)
+
+    assert any(
+        i.source == "analyze:pop.visible"
+        and "pop.title" in i.message
+        and "modules/*/area.yaml" in i.message
+        for i in issues
+    )
+
+
+def test_startup_validation_accepts_ads_myriad_region_on_real_repo() -> None:
+    issues = validate_startup_configs(repo_root())
+    myriad_issues = [
+        i
+        for i in issues
+        if i.source == "analyze:myriad_bazaar.visible"
+        or "myriad_bazaar.title" in i.message
+    ]
+    assert myriad_issues == []

@@ -37,32 +37,66 @@ type DraftRect = { x: number; y: number; width: number; height: number };
 
 function useBackgroundImage(url: string | null) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
     if (!url) {
       setImage(null);
-      setLoadError(false);
+      setLoadError(null);
       return;
     }
-    setLoadError(false);
-    const img = new window.Image();
-    img.crossOrigin = "anonymous";
-    img.src = url;
-    const onLoad = () => {
-      setImage(img);
-      setLoadError(false);
-    };
-    const onError = () => {
-      setImage(null);
-      setLoadError(true);
-    };
-    img.addEventListener("load", onLoad);
-    img.addEventListener("error", onError);
+
+    let cancelled = false;
+    setLoadError(null);
+    setImage(null);
+
+    void (async () => {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        const objUrl = URL.createObjectURL(blob);
+        objectUrlRef.current = objUrl;
+        const img = new window.Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("decode"));
+          img.src = objUrl;
+        });
+        if (cancelled) return;
+        setImage(img);
+        setLoadError(null);
+      } catch (e) {
+        if (cancelled) return;
+        setImage(null);
+        const msg = e instanceof Error ? e.message : "load failed";
+        setLoadError(msg);
+      }
+    })();
+
     return () => {
-      img.removeEventListener("load", onLoad);
-      img.removeEventListener("error", onError);
+      cancelled = true;
     };
   }, [url]);
+
+  useEffect(
+    () => () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    },
+    [],
+  );
+
   return { image, loadError };
 }
 
@@ -82,7 +116,7 @@ export function KonvaImageEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
   const trRef = useRef<Konva.Transformer>(null);
-  const [containerW, setContainerW] = useState(720);
+  const [containerW, setContainerW] = useState(0);
   const [dropActive, setDropActive] = useState(false);
   const [draft, setDraft] = useState<DraftRect | null>(null);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
@@ -91,21 +125,25 @@ export function KonvaImageEditor({
   const imgW = imageWidth > 0 ? imageWidth : bg?.naturalWidth ?? 720;
   const imgH = imageHeight > 0 ? imageHeight : bg?.naturalHeight ?? 1280;
   const scale = useMemo(() => {
-    if (imgW <= 0) return 1;
+    if (imgW <= 0 || containerW <= 0) return 0;
     return Math.min(1, containerW / imgW);
   }, [containerW, imgW]);
-  const stageW = Math.max(1, Math.round(imgW * scale));
-  const stageH = Math.max(1, Math.round(imgH * scale));
+  const canvasReady = containerW > 0 && scale > 0;
+  const stageW = canvasReady ? Math.round(imgW * scale) : 0;
+  const stageH = canvasReady ? Math.round(imgH * scale) : 0;
 
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const sync = () => setContainerW(el.clientWidth || 720);
+    const sync = () => {
+      const w = Math.floor(el.getBoundingClientRect().width);
+      setContainerW(w > 0 ? w : 0);
+    };
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     sync();
     return () => ro.disconnect();
-  }, []);
+  }, [imageUrl]);
 
   const focusCanvas = useCallback(() => {
     containerRef.current?.focus({ preventScroll: true });
@@ -258,7 +296,31 @@ export function KonvaImageEditor({
   if (loadError) {
     return (
       <div className="preview-empty">
-        Failed to load image. Is the API running (<code>uv run api</code>)?
+        Failed to load image ({loadError}). Check the API (
+        <code>uv run api</code>) and Network tab for{" "}
+        <code>/api/labeling/references/…/image</code>.
+      </div>
+    );
+  }
+
+  if (!canvasReady || !bg) {
+    return (
+      <div
+        ref={containerRef}
+        className={
+          dropActive
+            ? "konva-editor-measure konva-editor-measure--pending konva-editor-measure--drop-active"
+            : "konva-editor-measure konva-editor-measure--pending"
+        }
+        tabIndex={0}
+        role="application"
+        aria-label="Region editor canvas"
+        aria-busy="true"
+        {...dropZoneProps}
+      >
+        <p className="meta preview-empty">
+          {!bg ? "Loading image…" : "Preparing canvas…"}
+        </p>
       </div>
     );
   }
@@ -289,7 +351,7 @@ export function KonvaImageEditor({
     >
       <div
         className="konva-editor-wrap"
-        style={{ width: stageW, height: stageH }}
+        style={{ width: stageW, height: stageH, maxWidth: "100%" }}
       >
       <Stage
         ref={(node) => {

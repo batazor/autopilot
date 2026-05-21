@@ -17,6 +17,7 @@ import pytest
 
 from worker.instance_worker_rolling import (
     InstanceWorkerRollingMixin,
+    _rolling_overlay_device_level_only,
     _rolling_should_skip_overlay,
     _rolling_should_skip_screen_detect,
 )
@@ -68,6 +69,33 @@ def test_skip_overlay_gate(task_busy: bool, flag: bool, expected: bool) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("active_player", "task_busy", "overlay_when_busy", "expected"),
+    [
+        ("", False, False, True),
+        ("", True, True, True),
+        ("p1", False, False, False),
+        ("p1", True, False, True),
+        ("p1", True, True, False),
+    ],
+)
+def test_rolling_overlay_device_level_only_gate(
+    active_player: str,
+    task_busy: bool,
+    overlay_when_busy: bool,
+    expected: bool,
+) -> None:
+    cfg = _Cfg(overlay_analyze_when_busy=overlay_when_busy)
+    assert (
+        _rolling_overlay_device_level_only(
+            active_player=active_player,
+            cfg=cfg,
+            task_busy=task_busy,
+        )
+        is expected
+    )
+
+
 # ---------------------------------------------------------------------------
 # Full _device_reference_snapshot_tick integration
 # ---------------------------------------------------------------------------
@@ -89,6 +117,7 @@ class _Harness(InstanceWorkerRollingMixin):
         self._rolling_snap_seq = 0
         self._rolling_analyze_task: asyncio.Task[None] | None = None
         self._rolling_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self._redis = object()
         # Recorded stage invocations:
         self.calls: list[str] = []
 
@@ -120,6 +149,19 @@ class _Harness(InstanceWorkerRollingMixin):
         task = self._rolling_analyze_task
         if task is not None:
             await task
+
+
+@pytest.fixture(autouse=True)
+def _active_player_for_rolling(mocker) -> None:
+    """Most harness ticks assume post-identity; boot-phase tests opt out."""
+
+    async def _read(_instance_id: str, _redis: object) -> str:
+        return "test_player"
+
+    mocker.patch(
+        "tasks.dsl_scenario_helpers._read_active_player",
+        side_effect=_read,
+    )
 
 
 @pytest.fixture
@@ -208,6 +250,24 @@ async def test_tick_busy_keeps_detect_when_flag_enabled(_isolated_refs: Any) -> 
     await h._device_reference_snapshot_tick()
     await h._finish_rolling_analysis()
     assert h.calls == ["grab", "detect", "overlay:device"], h.calls
+
+
+@pytest.mark.asyncio
+async def test_tick_idle_boot_phase_runs_device_level_overlay_only(
+    _isolated_refs: Any,
+    mocker,
+) -> None:
+    async def _no_player(_instance_id: str, _redis: object) -> str:
+        return ""
+
+    mocker.patch(
+        "tasks.dsl_scenario_helpers._read_active_player",
+        side_effect=_no_player,
+    )
+    h = _Harness(cfg=_Cfg())
+    await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
+    assert h.calls == ["grab", "detect", "overlay:device", "who_i_am"]
 
 
 @pytest.mark.asyncio

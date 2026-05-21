@@ -22,8 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_manual_run_keys_includes_known_scenario() -> None:
-    """``who_i_am`` is the canonical boot-time scenario — it must always be
-    pickable so an operator can re-run identity resolution from the UI."""
+    """``who_i_am`` must be pickable so an operator can re-run identity from the UI."""
     keys = runnable_scenario_keys(str(REPO_ROOT))
     assert "who_i_am" in keys
 

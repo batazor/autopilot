@@ -50,10 +50,16 @@ type UseInstancesOptions = {
   initialInstanceId?: string;
   /** When the list arrives, select this id if it exists (e.g. URL query). */
   preferInstanceId?: string | null;
+  /** Client-only persisted id (e.g. localStorage); read inside effects, not during render. */
+  getPersistedInstanceId?: () => string;
 };
 
 export function useInstances(options: UseInstancesOptions = {}) {
-  const { initialInstanceId = "", preferInstanceId = null } = options;
+  const {
+    initialInstanceId = "",
+    preferInstanceId = null,
+    getPersistedInstanceId,
+  } = options;
   const [instances, setInstances] = useState<string[]>([]);
   const [instanceId, setInstanceId] = useState(initialInstanceId);
   const [loading, setLoading] = useState(true);
@@ -70,6 +76,8 @@ export function useInstances(options: UseInstancesOptions = {}) {
           if (preferInstanceId && ids.includes(preferInstanceId)) {
             return preferInstanceId;
           }
+          const persisted = getPersistedInstanceId?.()?.trim() ?? "";
+          if (persisted && ids.includes(persisted)) return persisted;
           if (current && ids.includes(current)) return current;
           return ids[0] ?? "";
         });
@@ -102,10 +110,16 @@ export function useInstances(options: UseInstancesOptions = {}) {
 type UsePlayersOptions = {
   initialPlayerId?: string;
   preferPlayerId?: string | null;
+  /** Client-only persisted id (e.g. localStorage); read inside effects, not during render. */
+  getPersistedPlayerId?: () => string;
 };
 
 export function usePlayers(options: UsePlayersOptions = {}) {
-  const { initialPlayerId = "", preferPlayerId = null } = options;
+  const {
+    initialPlayerId = "",
+    preferPlayerId = null,
+    getPersistedPlayerId,
+  } = options;
   const [players, setPlayers] = useState<string[]>([]);
   const [playerId, setPlayerId] = useState(initialPlayerId);
   const [loading, setLoading] = useState(true);
@@ -122,6 +136,8 @@ export function usePlayers(options: UsePlayersOptions = {}) {
           if (preferPlayerId && ids.includes(preferPlayerId)) {
             return preferPlayerId;
           }
+          const persisted = getPersistedPlayerId?.()?.trim() ?? "";
+          if (persisted && ids.includes(persisted)) return persisted;
           if (current && ids.includes(current)) return current;
           return ids[0] ?? "";
         });

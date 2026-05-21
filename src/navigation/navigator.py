@@ -412,6 +412,34 @@ class Navigator:
     def _history_key(self, instance_id: str) -> str:
         return f"wos:instance:{instance_id}:screen_history"
 
+    async def _set_nav_expected_screen(self, instance_id: str, screen: str) -> None:
+        """Publish the hop/scenario target so the worker probes it first on each tick."""
+        if self._redis is None:
+            return
+        value = str(screen or "").strip()
+        try:
+            await self._redis.hset(
+                self._state_key(instance_id),
+                "nav_expected_screen",
+                value,
+            )
+        except Exception:
+            logger.debug(
+                "Navigator: failed to write nav_expected_screen to Redis",
+                exc_info=True,
+            )
+
+    async def _clear_nav_expected_screen(self, instance_id: str) -> None:
+        if self._redis is None:
+            return
+        try:
+            await self._redis.hdel(self._state_key(instance_id), "nav_expected_screen")
+        except Exception:
+            logger.debug(
+                "Navigator: failed to clear nav_expected_screen in Redis",
+                exc_info=True,
+            )
+
     async def _write_screen(self, instance_id: str, screen: str) -> None:
         if self._redis is None:
             return
@@ -684,7 +712,7 @@ class Navigator:
         # listed in ``screen_verify.yaml`` via landmarks, so a positive
         # detection here makes the per-rule loop redundant.
         try:
-            detected = await self._detector.detect_screen(image)
+            detected = await self._detector.detect_screen(image, expected=candidate)
         except Exception:
             detected = ScreenName.UNKNOWN
         if str(detected) == candidate:
@@ -716,7 +744,7 @@ class Navigator:
                 return True
         for attempt in range(1, attempts + 1):
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
-            detected = await self._detector.detect_screen(image)
+            detected = await self._detector.detect_screen(image, expected=target)
             if str(detected) == target:
                 return True
             for rule in rules:
@@ -744,7 +772,7 @@ class Navigator:
         *,
         state_flat: dict[str, Any] | None,
     ) -> bool:
-        detected = await self._detector.detect_screen(image)
+        detected = await self._detector.detect_screen(image, expected=target)
         if str(detected) == target:
             return True
         for rule in screen_verify_rules(target):
@@ -793,6 +821,13 @@ class Navigator:
         return ""
 
     async def navigate_to(self, target: ScreenName, instance_id: str) -> bool:
+        await self._set_nav_expected_screen(instance_id, str(target))
+        try:
+            return await self._navigate_to_impl(target, instance_id)
+        finally:
+            await self._clear_nav_expected_screen(instance_id)
+
+    async def _navigate_to_impl(self, target: ScreenName, instance_id: str) -> bool:
         # Track consecutive ``UNKNOWN`` ticks where neither the screen
         # detector nor the back-button heuristic finds anything actionable.
         # That state means something opaque (typically a full-screen ad
@@ -810,7 +845,7 @@ class Navigator:
         for attempt in range(10):
             state_flat = await self._active_player_state_flat(instance_id)
             image: np.ndarray = self._capture(instance_id)  # type: ignore[operator]
-            current = await self._detector.detect_screen(image)
+            current = await self._detector.detect_screen(image, expected=target)
 
             if current == target:
                 await self._write_screen(instance_id, str(target))
@@ -987,6 +1022,7 @@ class Navigator:
         path_csv = ",".join(s for s in full_path if s)
         route_target = str(hop_sequences[-1][0]) if hop_sequences else ""
         for hop_idx, (dst_screen, taps) in enumerate(hop_sequences, start=1):
+            await self._set_nav_expected_screen(instance_id, str(dst_screen))
             for point in taps:
                 # Static taps are region names; dynamic resolvers may return
                 # structured specs that resolve against the current frame.
@@ -1016,6 +1052,7 @@ class Navigator:
                         "on %s — aborting route",
                         instance_id,
                     )
+                    await self._clear_nav_expected_screen(instance_id)
                     return "tap_failed"
                 await asyncio.sleep(_NAV_TAP_SETTLE_S)
             await asyncio.sleep(_NAV_HOP_SETTLE_S)
@@ -1047,5 +1084,7 @@ class Navigator:
                     instance_id,
                 )
                 await self._write_screen(instance_id, "")
+                await self._clear_nav_expected_screen(instance_id)
                 return "verify_failed"
+        await self._clear_nav_expected_screen(instance_id)
         return "ok"

@@ -43,7 +43,7 @@ def test_welcome_back_routes_to_main_city() -> None:
 
 
 def test_ads_natalia_routes_to_main_city() -> None:
-    assert route_taps("ads.natalia", "main_city") == [["ads.natalia"]]
+    assert route_taps("ads.natalia", "main_city") == [["ads.natalia.title"]]
 
 
 def test_is_new_people_routes_to_and_from_main_city() -> None:

@@ -9,6 +9,8 @@ from typing import Any
 import cv2
 from mcp.server.fastmcp import FastMCP
 
+from dsl import template_resolver
+from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
 from layout.bbox_percent import bbox_percent_center_to_device_point
@@ -18,8 +20,6 @@ from layout.reference_basename import (
     suggest_reference_basename,
 )
 from navigation.detector import ScreenName
-from dsl import template_resolver
-from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY, dsl_scenario_yaml_device_level, dsl_scenario_yaml_priority
 from services import get_bot_actions, get_repo_root, get_scheduler_async_redis, get_scheduler_queue
 from tasks import dsl_runtime
 from tasks.dsl_scenario import DslScenarioTask

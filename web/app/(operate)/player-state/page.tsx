@@ -16,6 +16,8 @@ import {
   fetchSuggestedPlayer,
   syncPlayerFromCentury,
 } from "@/lib/api";
+import { playerStatsHref } from "@/lib/fleet-links";
+import Link from "next/link";
 import { PageLoading } from "@/components/ui/Spinner";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type {
@@ -29,7 +31,7 @@ type TabKey = "redis" | "persisted" | "heroes";
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: "redis", label: "Redis (live)" },
-  { key: "persisted", label: "Persisted (state.yaml)" },
+  { key: "persisted", label: "Persisted (SQLite)" },
   { key: "heroes", label: "Heroes" },
 ];
 
@@ -139,7 +141,7 @@ function PersistedPanel({
   if (persisted.parse_error) {
     return (
       <section className="panel">
-        <div className="error-banner">Cannot parse state.yaml: {persisted.parse_error}</div>
+        <div className="error-banner">Cannot parse state DB: {persisted.parse_error}</div>
         {persisted.raw_yaml ? (
           <pre style={{ overflow: "auto", fontSize: "0.8rem" }}>{persisted.raw_yaml}</pre>
         ) : null}
@@ -385,7 +387,7 @@ function PlayerStatePageInner() {
       <FleetPageHeader title="Player state" showPlayer />
       <p className="meta">
         <strong>Redis</strong> — live <code>wos:player:&lt;id&gt;:state</code> from
-        the worker. <strong>Persisted</strong> — <code>db/state.yaml</code>. Pick an
+        the worker. <strong>Persisted</strong> — <code>db/state/wos.db</code>. Pick an
         instance to pre-select the active player from Redis.
       </p>
       <ErrorBanner message={bannerError} />
@@ -423,6 +425,11 @@ function PlayerStatePageInner() {
         >
           Refresh now
         </button>
+        {playerId ? (
+          <Link href={playerStatsHref(playerId, { instanceId })} className="btn btn--ghost">
+            Statistics
+          </Link>
+        ) : null}
       </div>
 
       <AppTabs

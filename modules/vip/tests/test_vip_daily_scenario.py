@@ -9,9 +9,9 @@ import pytest
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from dsl import template_resolver
 from layout.area_manifest import load_area_doc
 from navigation.detector import ScreenDetector
-from dsl import template_resolver
 from services import get_ocr_client
 
 MODULE_DIR = Path(__file__).resolve().parents[1]

@@ -23,9 +23,9 @@ from streamlit_dnd_sortable import apply_order_to_list, sortable_list
 
 from config.reference_naming import event_icon_abs_path
 from config.startup_validation import duplicate_scenario_names_for_repo
-from navigation.screen_graph import screen_verify_screen_names
 from dsl.dsl_schema import DSL_ACTION_KEYS, dump_scenario, parse_scenario
 from dsl.registry import iter_scenario_yaml_files, scenario_roots, scenario_source_label
+from navigation.screen_graph import screen_verify_screen_names
 from tasks.dsl_exec import DSL_EXEC_REGISTRY
 from ui.module_scope import render_module_scope_selector
 

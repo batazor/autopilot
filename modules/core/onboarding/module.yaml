@@ -2,6 +2,7 @@ id: onboarding
 title: Onboarding
 description: >-
   Tutorial hand-pointer overlays that guide the first-run onboarding flow.
+  Overlay analyzers are disabled (see analyze/analyze.yaml.off).
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 wiki: false

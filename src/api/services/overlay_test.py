@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import time
 from typing import Any, TypedDict
 
 import cv2
 import numpy as np
 
-from analysis.overlay import run_overlay_analysis_sync
+from analysis.overlay import run_overlay_analysis, run_overlay_analysis_sync
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from analysis.overlay_manifest import load_merged_analyze_yaml
 from analysis.overlay_rules import (
@@ -28,10 +29,11 @@ from api.services.click_approval_overlay import (
 )
 from config.paths import repo_root
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import area_manifest_max_mtime, load_area_doc
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 from ui.reference_preview import load_rolling_instance_preview
-from ui.views.click_approvals.common import active_player_state_flat, load_area_doc
+from ui.views.click_approvals.common import active_player_state_flat
 
 _STROKE_MATCHED = "#22c55e"
 _STROKE_UNMATCHED = "#64748b"
@@ -54,17 +56,54 @@ class OverlayRuleRow(TypedDict):
     notes: str
 
 
+class ModuleAnalyzerRun(TypedDict):
+    """Per-module overlay analyzer timing (sequential probe)."""
+
+    module_id: str
+    label: str
+    duration_ms: int
+    rule_count: int
+    matched_count: int
+
+
+class PushScenarioCandidate(TypedDict):
+    """Scenario the worker would enqueue from a matched overlay rule (dry-run)."""
+
+    scenario: str
+    rule: str
+    region: str
+    priority: int
+    selected: bool
+    skip_reason: str
+
+
+class OverlayAnalysisSummary(TypedDict):
+    """Aggregate analyzer run stats for the overlay-test UI."""
+
+    module_runs: list[ModuleAnalyzerRun]
+    modules_total_ms: int
+    full_run_ms: int
+    screen_detect_ms: int
+    screen_source: str
+    push_candidates: list[PushScenarioCandidate]
+    has_active_player: bool
+    simulated_no_player: bool
+    device_level_only: bool
+
+
 class OverlayTestResult(TypedDict):
     """Response payload for ``GET /api/instances/{id}/overlay-test``."""
 
     instance_id: str
     current_screen: str
+    detected_screen: str
     active_player: str
     preview: dict[str, Any]
     rules: list[OverlayRuleRow]
     overlays: list[OverlayShape]
     total_rules: int
     matched_count: int
+    analysis: OverlayAnalysisSummary
 
 
 class ProbeCropSide(TypedDict, total=False):
@@ -453,34 +492,295 @@ def _evaluate_rules_ignoring_screen_gate(
     )
 
 
-def run_overlay_test(
+def _detect_screen_on_frame(image_bgr: np.ndarray | None) -> tuple[str, int]:
+    """Run the same screen detector as the worker on a static PNG frame."""
+    started = time.perf_counter()
+    detected = ""
+    if image_bgr is not None and image_bgr.size > 0:
+        try:
+            from navigation.detector import suggest_node_for_image_sync
+
+            suggested = suggest_node_for_image_sync(image_bgr)
+            if suggested:
+                detected = str(suggested).strip()
+        except Exception:
+            logger.debug("overlay-test: screen detect failed", exc_info=True)
+    return detected, int((time.perf_counter() - started) * 1000)
+
+
+_OVERLAY_TEST_PROBE_PLAYER = "overlay-test-probe"
+
+
+def _load_overlay_test_preview(
     *,
-    client: Any,
     instance_id: str,
-    only_current_screen: bool = False,
-    ignore_screen_gate: bool = False,
-) -> OverlayTestResult:
-    """Run all overlay rules against the latest rolling frame for ``instance_id``.
+    preview_source: str = "live",
+    preview_rel: str | None = None,
+) -> tuple[bytes | None, str, float | None, str]:
+    """Load the frame for overlay-test (rolling live or a repo-relative reference PNG)."""
+    src = (preview_source or "live").strip().lower()
+    if src == "reference":
+        rel = (preview_rel or "").strip().replace("\\", "/").lstrip("/")
+        if not rel:
+            return None, "", None, "reference"
+        try:
+            from api.services.gallery_api import read_gallery_image
 
-    ``only_current_screen``: post-filter to rules whose ``screens`` includes the
-    live ``current_screen``. Pure UI noise reduction; doesn't change what runs.
-
-    ``ignore_screen_gate``: bypass the engine's ``screens`` short-circuit so every
-    rule actually executes (operator "would this match?" probe). Mutually exclusive
-    with ``only_current_screen`` (the filter is meaningless when nothing was gated).
-    """
-    from ui.redis_client import get_instance_state
-
-    inst_state = get_instance_state(client, instance_id) or {}
-    current_screen = str(inst_state.get("current_screen") or "").strip()
-    active_player = str(inst_state.get("active_player") or "").strip()
-    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
-
+            png = read_gallery_image(rel)
+            path = (repo_root() / rel).resolve()
+            mtime = float(path.stat().st_mtime) if path.is_file() else None
+            return png, rel, mtime, "reference"
+        except (ValueError, FileNotFoundError, OSError):
+            return None, rel, None, "reference"
     png, rel, mtime = load_preview_bytes(
         instance_id=instance_id, payload=None, source="live"
     )
     if png is None:
         png, rel, mtime = load_rolling_instance_preview(instance_id)
+    return png, rel or "", mtime, "live"
+
+
+def _overlay_test_cond_context(
+    *,
+    has_active_player: bool,
+) -> tuple[dict[str, Any], bool, str]:
+    """Return ``(state_flat, simulated_no_player, active_player_label)`` — UI only, no Redis."""
+    if has_active_player:
+        return {"active_player": _OVERLAY_TEST_PROBE_PLAYER}, False, _OVERLAY_TEST_PROBE_PLAYER
+    return {"active_player": ""}, True, ""
+
+
+def _push_targets(payload: dict[str, Any]) -> list[str]:
+    raw = payload.get("pushScenario")
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("type") or "").strip()
+        if name:
+            out.append(name)
+    return out
+
+
+def _push_skip_reason(
+    target: str,
+    *,
+    repo: Any,
+    active_player: str,
+    current_screen: str,
+) -> str:
+    from dsl.dsl_schema import dsl_scenario_yaml_device_level, dsl_scenario_yaml_enabled
+
+    if dsl_scenario_yaml_enabled(repo, target) is False:
+        return "disabled"
+    if not dsl_scenario_yaml_device_level(repo, target) and not active_player.strip():
+        return "no_active_player"
+    if "${hero_id}" in target and not current_screen.startswith("page.heroes."):
+        return "no_hero_id"
+    return ""
+
+
+def _collect_push_candidates(
+    results: dict[str, Any],
+    *,
+    repo: Any,
+    active_player: str,
+    current_screen: str,
+) -> list[PushScenarioCandidate]:
+    """Dry-run overlay ``pushScenario`` selection (same priority pick as the worker)."""
+    from worker.instance_worker_overlay import _overlay_push_priority
+
+    push_payloads: list[tuple[int, int, str, dict[str, Any]]] = []
+    for order, (rule_name, payload) in enumerate(results.items()):
+        if not isinstance(payload, dict) or not payload.get("matched"):
+            continue
+        priority = _overlay_push_priority(payload)
+        if priority is not None:
+            push_payloads.append((priority, order, str(rule_name), payload))
+
+    selected_rule: str | None = None
+    for _priority, _order, rule_name, payload in sorted(
+        push_payloads, key=lambda it: (-it[0], it[1])
+    ):
+        targets = _push_targets(payload)
+        if not targets:
+            continue
+        if any(
+            _push_skip_reason(
+                target,
+                repo=repo,
+                active_player=active_player,
+                current_screen=current_screen,
+            )
+            for target in targets
+        ):
+            continue
+        selected_rule = rule_name
+        break
+
+    out: list[PushScenarioCandidate] = []
+    for _priority, _order, rule_name, payload in sorted(
+        push_payloads, key=lambda it: (-it[0], it[1])
+    ):
+        region = str(payload.get("region") or "").strip()
+        priority = _overlay_push_priority(payload) or 0
+        for target in _push_targets(payload):
+            skip_reason = _push_skip_reason(
+                target,
+                repo=repo,
+                active_player=active_player,
+                current_screen=current_screen,
+            )
+            out.append(
+                PushScenarioCandidate(
+                    scenario=target,
+                    rule=rule_name,
+                    region=region,
+                    priority=priority,
+                    selected=rule_name == selected_rule and not skip_reason,
+                    skip_reason=skip_reason,
+                )
+            )
+    return out
+
+
+def _module_has_overlay_rules(
+    repo: Any,
+    scope: str,
+    *,
+    device_level_only: bool = False,
+) -> bool:
+    """True when the module scope has overlay rules that would run in this mode."""
+    merged = load_merged_analyze_yaml(repo, module_scope=scope)
+    overlay = merged.get("overlay")
+    if not isinstance(overlay, list):
+        return False
+    rules = [r for r in overlay if isinstance(r, dict)]
+    if not rules:
+        return False
+    if not device_level_only:
+        return True
+    return any(r.get("device_level") is True for r in rules)
+
+
+async def _run_module_analyzer_breakdown_async(
+    image_bgr: np.ndarray,
+    *,
+    repo: Any,
+    area_doc: dict[str, Any],
+    current_screen: str | None,
+    state_flat: dict[str, Any] | None,
+    instance_id: str | None,
+    device_level_only: bool = False,
+) -> list[ModuleAnalyzerRun]:
+    from config.module_discovery import load_module_yaml, module_meta_id, module_storage_key
+    from dsl.registry import iter_module_analyze_manifests
+
+    runs: list[ModuleAnalyzerRun] = []
+    for manifest in iter_module_analyze_manifests(repo):
+        module_dir = manifest.parent.parent
+        module_id = module_meta_id(module_dir)
+        meta = load_module_yaml(module_dir)
+        label = str(meta.get("title") or module_id).strip() or module_id
+        scope = module_storage_key(module_dir, repo)
+        if not _module_has_overlay_rules(repo, scope, device_level_only=device_level_only):
+            runs.append(
+                ModuleAnalyzerRun(
+                    module_id=module_id,
+                    label=label,
+                    duration_ms=0,
+                    rule_count=0,
+                    matched_count=0,
+                )
+            )
+            continue
+        t0 = time.perf_counter()
+        results = await run_overlay_analysis(
+            image_bgr,
+            repo_root=repo,
+            area_doc=area_doc,
+            current_screen=current_screen,
+            state_flat=state_flat,
+            module_scope=scope,
+            instance_id=instance_id,
+            device_level_only=device_level_only,
+        )
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+        matched_count = sum(
+            1 for p in results.values() if isinstance(p, dict) and p.get("matched")
+        )
+        runs.append(
+            ModuleAnalyzerRun(
+                module_id=module_id,
+                label=label,
+                duration_ms=duration_ms,
+                rule_count=len(results),
+                matched_count=matched_count,
+            )
+        )
+    return runs
+
+
+def _run_module_analyzer_breakdown(
+    image_bgr: np.ndarray,
+    *,
+    repo: Any,
+    area_doc: dict[str, Any],
+    current_screen: str | None,
+    state_flat: dict[str, Any] | None,
+    instance_id: str | None,
+    device_level_only: bool = False,
+) -> tuple[list[ModuleAnalyzerRun], int]:
+    modules_started = time.perf_counter()
+    runs = asyncio.run(
+        _run_module_analyzer_breakdown_async(
+            image_bgr,
+            repo=repo,
+            area_doc=area_doc,
+            current_screen=current_screen,
+            state_flat=state_flat,
+            instance_id=instance_id,
+            device_level_only=device_level_only,
+        )
+    )
+    modules_total_ms = int((time.perf_counter() - modules_started) * 1000)
+    return runs, modules_total_ms
+
+
+def run_overlay_test(
+    *,
+    instance_id: str,
+    only_current_screen: bool = False,
+    ignore_screen_gate: bool = False,
+    has_active_player: bool = True,
+    detailed_analysis: bool = False,
+    preview_source: str = "live",
+    preview_rel: str | None = None,
+) -> OverlayTestResult:
+    """Run screen detect on the frame, then overlay rules (static PNG probe).
+
+    Does not read instance Redis state: ``current_screen`` comes only from frame
+    detection; ``active_player`` for ``cond`` / push dry-run comes from the
+    ``has_active_player`` request flag (UI), not live ``active_player``.
+
+    ``only_current_screen``: post-filter to rules whose ``screens`` includes the
+    detected screen. Pure UI noise reduction; doesn't change what runs.
+
+    ``ignore_screen_gate``: bypass the engine's ``screens`` short-circuit so every
+    rule actually executes (operator "would this match?" probe). Mutually exclusive
+    with ``only_current_screen`` (the filter is meaningless when nothing was gated).
+    """
+    state_flat, simulated_no_player, active_player = _overlay_test_cond_context(
+        has_active_player=has_active_player,
+    )
+
+    png, rel, mtime, frame_source = _load_overlay_test_preview(
+        instance_id=instance_id,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
+    )
 
     width = height = 0
     image_bgr: np.ndarray | None = None
@@ -489,8 +789,12 @@ def run_overlay_test(
         if image_bgr is not None:
             height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
+    detected_screen, screen_detect_ms = _detect_screen_on_frame(image_bgr)
+    overlay_screen = detected_screen
+    screen_source = "detected" if overlay_screen else "none"
+
     repo = repo_root()
-    area_doc = load_area_doc(repo / "area.json")
+    area_doc = load_area_doc(repo)
     merged = load_merged_analyze_yaml(repo)
     rules_raw_obj = merged.get("overlay") if isinstance(merged, dict) else None
     rules_raw = (
@@ -505,8 +809,25 @@ def run_overlay_test(
     rules: list[OverlayRuleRow] = []
     overlays: list[OverlayShape] = []
     matched_count = 0
+    module_runs: list[ModuleAnalyzerRun] = []
+    modules_total_ms = 0
+    full_run_ms = 0
+    push_candidates: list[PushScenarioCandidate] = []
+
+    boot_device_level_only = simulated_no_player
 
     if image_bgr is not None and rules_raw:
+        if detailed_analysis:
+            module_runs, modules_total_ms = _run_module_analyzer_breakdown(
+                image_bgr,
+                repo=repo,
+                area_doc=area_doc,
+                current_screen=overlay_screen or None,
+                state_flat=state_flat,
+                instance_id=None,
+                device_level_only=boot_device_level_only,
+            )
+        full_started = time.perf_counter()
         if ignore_screen_gate:
             results = _evaluate_rules_ignoring_screen_gate(
                 image_bgr,
@@ -519,9 +840,18 @@ def run_overlay_test(
             results = run_overlay_analysis_sync(
                 image_bgr,
                 repo_root=repo,
-                current_screen=current_screen or None,
+                current_screen=overlay_screen or None,
                 state_flat=state_flat,
+                instance_id=None,
+                device_level_only=boot_device_level_only,
             )
+        full_run_ms = int((time.perf_counter() - full_started) * 1000)
+        push_candidates = _collect_push_candidates(
+            results,
+            repo=repo,
+            active_player=active_player,
+            current_screen=overlay_screen,
+        )
         for r in rules_raw:
             name = str(r.get("name") or "").strip()
             if not name:
@@ -530,7 +860,7 @@ def run_overlay_test(
             if not isinstance(payload, dict):
                 continue
             node = rule_node.get(name, "")
-            if only_current_screen and current_screen and node and node != current_screen:
+            if only_current_screen and overlay_screen and node and node != overlay_screen:
                 continue
             matched = bool(payload.get("matched"))
             if matched:
@@ -596,7 +926,8 @@ def run_overlay_test(
 
     return OverlayTestResult(
         instance_id=instance_id,
-        current_screen=current_screen,
+        current_screen=overlay_screen,
+        detected_screen=detected_screen,
         active_player=active_player,
         preview={
             "available": png is not None,
@@ -604,11 +935,23 @@ def run_overlay_test(
             "mtime": mtime,
             "width": width,
             "height": height,
+            "source": frame_source,
         },
         rules=rules,
         overlays=overlays,
         total_rules=len(rules),
         matched_count=matched_count,
+        analysis={
+            "module_runs": module_runs,
+            "modules_total_ms": modules_total_ms,
+            "full_run_ms": full_run_ms,
+            "screen_detect_ms": screen_detect_ms,
+            "screen_source": screen_source,
+            "push_candidates": push_candidates,
+            "has_active_player": has_active_player,
+            "simulated_no_player": simulated_no_player,
+            "device_level_only": boot_device_level_only,
+        },
     )
 
 
@@ -708,8 +1051,7 @@ def _build_region_probe_crops(
 
     if ref_rel:
         try:
-            area_path = repo / "area.json"
-            area_mtime = float(area_path.stat().st_mtime) if area_path.is_file() else 0.0
+            area_mtime = area_manifest_max_mtime(repo)
             crop_path = exported_crop_png(repo, ref_rel, resolved_region)
             _ensure_fresh_reference_crop(
                 repo=repo,
@@ -772,7 +1114,7 @@ def run_area_region_probe(
             height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
     repo = repo_root()
-    area_doc = load_area_doc(repo / "area.json")
+    area_doc = load_area_doc(repo)
     regions = _area_region_names(area_doc)
     selected = (region or "").strip()
     if selected not in regions:
@@ -859,11 +1201,16 @@ def run_area_region_probe(
     )
 
 
-def load_overlay_test_image(instance_id: str) -> tuple[bytes | None, str, float | None]:
-    """Return the rolling preview PNG bytes (live source)."""
-    png, rel, mtime = load_preview_bytes(
-        instance_id=instance_id, payload=None, source="live"
+def load_overlay_test_image(
+    instance_id: str,
+    *,
+    preview_source: str = "live",
+    preview_rel: str | None = None,
+) -> tuple[bytes | None, str, float | None]:
+    """Return overlay-test frame PNG bytes (rolling or reference)."""
+    png, rel, mtime, _src = _load_overlay_test_preview(
+        instance_id=instance_id,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
     )
-    if png is None:
-        png, rel, mtime = load_rolling_instance_preview(instance_id)
     return png, rel, mtime

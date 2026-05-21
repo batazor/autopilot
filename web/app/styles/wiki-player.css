@@ -110,6 +110,81 @@
     @apply font-mono text-[10px] text-wos-text-muted;
   }
 
+  .power-growth-chart {
+    @apply w-full;
+  }
+
+  .power-growth-chart__svg {
+    @apply w-full max-w-full h-auto text-wos-text-muted;
+  }
+
+  .power-growth-chart__grid {
+    stroke: var(--border-subtle, rgba(255, 255, 255, 0.08));
+    stroke-width: 1;
+  }
+
+  .power-growth-chart__tick {
+    @apply fill-current text-[10px];
+  }
+
+  .power-growth-chart__line {
+    stroke: var(--accent, #60a5fa);
+  }
+
+  .power-growth-chart__dot {
+    fill: var(--accent, #60a5fa);
+    stroke: var(--surface, #0f1419);
+    stroke-width: 1.5;
+  }
+
+  .power-growth-chart__level line {
+    stroke: #f59e0b;
+    stroke-width: 1;
+    opacity: 0.7;
+  }
+
+  .power-growth-chart__peak {
+    fill: #f59e0b;
+    stroke: #fbbf24;
+    stroke-width: 1;
+  }
+
+  .power-growth-chart__level-label {
+    @apply fill-amber-400 text-[9px] font-medium;
+  }
+
+  .power-growth-chart__caption {
+    @apply mt-2;
+  }
+
+  .player-stats-milestones {
+    @apply flex flex-col gap-2 list-none p-0 m-0;
+  }
+
+  .player-stats-milestones li {
+    @apply flex gap-4 text-sm border-b border-wos-border-subtle/40 pb-2;
+  }
+
+  .player-stats-milestones time {
+    @apply font-mono text-wos-text-muted min-w-[6.5rem];
+  }
+
+  .metric-row {
+    @apply grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5;
+  }
+
+  .metric-card {
+    @apply rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/40 px-3 py-2;
+  }
+
+  .metric-card__label {
+    @apply block text-[11px] text-wos-text-muted uppercase tracking-wide;
+  }
+
+  .metric-card__value {
+    @apply block text-lg font-semibold mt-0.5;
+  }
+
   .player-hero-tile__tags {
     @apply text-[11px] text-amber-300;
   }

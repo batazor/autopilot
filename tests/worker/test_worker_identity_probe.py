@@ -49,6 +49,14 @@ async def test_registered_device_task_still_resolves_to_known_player(mocker) -> 
         pass
 
     mocker.patch.dict(instance_worker._TASK_REGISTRY, {"registered_task": _RegisteredTask})
+    # Production code resolves through player_ids_for_device_candidates (bluestacks
+    # title + instance_id aliases); patch that hook so the test does not depend on
+    # db/devices.yaml.
+    mocker.patch.object(
+        instance_worker,
+        "player_ids_for_device_candidates",
+        new=lambda *_names: ["765502864"],
+    )
     mocker.patch.object(instance_worker, "player_ids_for_device", new=lambda _: ["765502864"])
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", bluestacks_window_title="emulator-5554")
@@ -63,15 +71,13 @@ async def test_registered_device_task_still_resolves_to_known_player(mocker) -> 
 
 
 @pytest.mark.asyncio
-async def test_startup_identity_probe_is_enqueued_once_as_device_level() -> None:
+async def test_startup_seed_does_not_enqueue_who_i_am() -> None:
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
     worker._settings = SimpleNamespace(worker=SimpleNamespace())
     worker._queue = _FakeQueue()
+    worker._redis = None
 
     await instance_worker.InstanceWorker._seed_startup_tasks(worker)
 
-    assert [(call["task_type"], call["player_id"]) for call in worker._queue.calls] == [
-        ("who_i_am", ""),
-    ]
-    assert worker._queue.calls[0]["priority"] == 82_000
+    assert worker._queue.calls == []

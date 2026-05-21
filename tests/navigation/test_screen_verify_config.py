@@ -388,7 +388,7 @@ def test_production_screen_verify_yaml_contains_ads_natalia_rule() -> None:
     finally:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
-    expected = [{"match": "ads.natalia", "threshold": 0.9}]
+    expected = [{"match": "ads.natalia.title", "threshold": 0.9}]
     assert landmarks == expected
     assert rules == expected
 

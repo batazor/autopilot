@@ -39,6 +39,7 @@ export function runningDebugPayload(row: QueueRunningRow) {
     active_scenario: row.active_scenario,
     instance_id: row.instance_id,
     player_id: row.player_id,
+    priority: queuePriorityValue(row.priority),
     step: row.step,
     nav_target: row.nav_target,
     region: row.region,
@@ -131,11 +132,16 @@ export function CooperativePill({ cooperative }: { cooperative: boolean }) {
   return <span className="status-pill pill-busy">Coop</span>;
 }
 
-export function PriorityBadge({ priority }: { priority: number }) {
-  const hot = priority >= 50_000;
+function queuePriorityValue(priority: number | undefined): number {
+  return typeof priority === "number" && Number.isFinite(priority) ? priority : 0;
+}
+
+export function PriorityBadge({ priority }: { priority?: number }) {
+  const p = queuePriorityValue(priority);
+  const hot = p >= 50_000;
   return (
-    <span className={`queue-priority ${hot ? "queue-priority-hot" : ""}`} title={`Priority ${priority}`}>
-      {priority.toLocaleString()}
+    <span className={`queue-priority ${hot ? "queue-priority-hot" : ""}`} title={`Priority ${p}`}>
+      {p.toLocaleString()}
     </span>
   );
 }
@@ -152,13 +158,16 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
   }
   return (
     <div className="queue-running-grid">
-      {rows.map((r) => (
+      {rows.map((r) => {
+        const priority = queuePriorityValue(r.priority);
+        return (
         <article key={r.task_id} className="queue-running-card">
           <header className="queue-running-card__head">
             <span className="status-pill pill-live pulse">
               <span className="status-pill__dot" aria-hidden />
               Running
             </span>
+            <PriorityBadge priority={priority} />
             <Link href={instanceHref(r.instance_id)}>
               <strong>{r.instance_id}</strong>
             </Link>
@@ -194,6 +203,10 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
               </div>
             ) : null}
             <div>
+              <dt>Priority</dt>
+              <dd>{priority.toLocaleString()}</dd>
+            </div>
+            <div>
               <dt>Started</dt>
               <dd>{r.started}</dd>
             </div>
@@ -211,7 +224,8 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
             </div>
           </dl>
         </article>
-      ))}
+        );
+      })}
     </div>
   );
 }

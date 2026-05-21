@@ -10,9 +10,9 @@ from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from dsl import template_resolver
 from layout.area_manifest import load_area_doc
 from navigation.detector import ScreenDetector
-from dsl import template_resolver
 from services import get_ocr_client
 
 if TYPE_CHECKING:

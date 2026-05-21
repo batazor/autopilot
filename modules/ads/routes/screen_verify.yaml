@@ -1,0 +1,12 @@
+screens:
+  ads.natalia:
+    priority: 5
+    rules:
+      - match: ads.natalia.title
+        threshold: 0.9
+
+  myriad_bazaar:
+    priority: 5
+    rules:
+      - match: myriad_bazaar.title
+        threshold: 0.9

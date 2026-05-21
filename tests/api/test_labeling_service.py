@@ -44,6 +44,27 @@ def test_list_reference_paths_includes_temporal_shots_but_not_rolling(
     assert f"references/{TEMPORAL_SUBDIR}/emu-1_current_state.png" not in rels
 
 
+def test_list_reference_paths_module_scope_includes_temporal(
+    labeling_repo: Path,
+) -> None:
+    ads_root = labeling_repo / "modules" / "ads"
+    refs = ads_root / "references"
+    temporal = refs / TEMPORAL_SUBDIR
+    temporal.mkdir(parents=True)
+    (ads_root / "module.yaml").write_text(
+        "id: ads\ntitle: Ads\narea: area.yaml\nreferences: references\n",
+        encoding="utf-8",
+    )
+    (ads_root / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
+    shot = temporal / "bs1_shot_test.png"
+    shot.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    from api.services.labeling import list_reference_paths
+
+    rels = {r["rel"] for r in list_reference_paths(scope="ads", limit=50)}
+    assert "modules/ads/references/temporal/bs1_shot_test.png" in rels
+
+
 def test_import_dropped_png(labeling_repo: Path) -> None:
     from api.services.labeling import import_dropped_png
 
@@ -63,7 +84,7 @@ def test_capture_new_screenshot(labeling_repo: Path, monkeypatch: pytest.MonkeyP
         target.write_bytes(b"shot")
         return True, ""
 
-    monkeypatch.setattr(labeling_mod, "copy_rolling_preview_to", _fake_copy)
+    monkeypatch.setattr(labeling_mod, "capture_preview_to", _fake_copy)
 
     out = labeling_mod.capture_new_screenshot("emu-1")
     assert out["ok"] is True
@@ -132,6 +153,96 @@ def test_list_screen_id_options(labeling_repo: Path) -> None:
     assert "vip" in opts
     assert "custom_node" in opts
     assert "main_city" in opts
+
+
+def test_save_labeling_regions_syncs_analyze_on_bbox_rename(labeling_repo: Path) -> None:
+    import yaml
+
+    from api.services.labeling import save_labeling_regions
+
+    mod = labeling_repo / "modules" / "ads"
+    refs = mod / "references"
+    refs.mkdir(parents=True)
+    (mod / "analyze").mkdir(parents=True)
+    (mod / "module.yaml").write_text(
+        "id: ads\ntitle: Ads\narea: area.yaml\nreferences: references\nanalyze: analyze/analyze.yaml\n",
+        encoding="utf-8",
+    )
+    ref_rel = "modules/ads/references/ads.natalia.png"
+    (labeling_repo / ref_rel).write_bytes(b"x")
+    bbox = {
+        "x": 84.5,
+        "y": 3.3,
+        "width": 7.6,
+        "height": 4.6,
+        "rotation": 0.0,
+        "original_width": 720,
+        "original_height": 1280,
+    }
+    (mod / "area.yaml").write_text(
+        yaml.dump(
+            {
+                "version": 2,
+                "screens": [
+                    {
+                        "id": 1,
+                        "screen_id": "ads.natalia",
+                        "ocr": "references/ads.natalia.png",
+                        "screen_region": "ads.natalia",
+                        "regions": [
+                            {"name": "ads.natalia", "action": "exist", "bbox": bbox},
+                        ],
+                    }
+                ],
+            },
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    (mod / "analyze" / "analyze.yaml").write_text(
+        yaml.dump(
+            {
+                "overlay": [
+                    {
+                        "name": "ads.natalia.visible",
+                        "region": "ads.natalia",
+                        "action": "findIcon",
+                        "pushScenario": [{"name": "ads_natalia"}],
+                    }
+                ]
+            },
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    (mod / "scenarios").mkdir(parents=True)
+    (mod / "scenarios" / "ads_natalia.yaml").write_text(
+        "steps:\n  - click: ads.natalia\n",
+        encoding="utf-8",
+    )
+
+    out = save_labeling_regions(
+        ref_rel,
+        [{"name": "ads.natalia.title", "action": "exist", "bbox": bbox}],
+        scope="ads",
+    )
+    assert out["region_renames_synced"]
+    assert out["region_renames_synced"][0]["analyze"] is True
+
+    analyze = yaml.safe_load(
+        (mod / "analyze" / "analyze.yaml").read_text(encoding="utf-8")
+    )
+    assert analyze["overlay"][0]["region"] == "ads.natalia.title"
+
+    area = yaml.safe_load((mod / "area.yaml").read_text(encoding="utf-8"))
+    assert area["screens"][0]["screen_region"] == "ads.natalia.title"
+    assert area["screens"][0]["regions"][0]["name"] == "ads.natalia.title"
+
+    scenario = (mod / "scenarios" / "ads_natalia.yaml").read_text(encoding="utf-8")
+    assert "ads.natalia.title" in scenario
+    assert "click: ads.natalia\n" not in scenario
 
 
 def test_add_and_save_version_regions(labeling_repo: Path) -> None:

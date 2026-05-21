@@ -27,6 +27,10 @@
     @apply mt-4;
   }
 
+  .queue-pending-order-hint {
+    @apply mb-3;
+  }
+
   .queue-empty {
     @apply py-4 text-sm text-wos-text-muted;
   }

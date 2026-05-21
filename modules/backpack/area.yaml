@@ -94,3 +94,20 @@ screens:
       original_width: 720
       original_height: 1280
     has_red_dot: true
+
+- id: 54
+  screen_id: main_city
+  ocr: references/main_city_v3.png
+  regions:
+  - name: main_city.to.backpack.main_city_v3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 34.00965250965251
+      y: 91.82934782608696
+      width: 16.826254826254825
+      height: 8.170652173913043
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true

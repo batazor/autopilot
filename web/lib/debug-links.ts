@@ -52,13 +52,14 @@ export function debugRunHref(opts?: {
 
 export function overlayTestHref(
   instanceId: string,
-  opts?: { region?: string; highlight?: string },
+  opts?: { region?: string; highlight?: string; ref?: string },
 ): string {
   return `/overlay-test${buildSearch({
     instanceId,
     extra: {
       region: opts?.region ?? opts?.highlight,
       highlight: opts?.highlight ?? opts?.region,
+      ref: opts?.ref,
     },
   })}`;
 }

@@ -5,8 +5,8 @@ from api.services import routes_graph as rg
 
 def test_visible_nodes_hub_depth_limits_count() -> None:
     nodes = rg.tap_graph_nodes()
-    from ui.flow_layout import adjacency_from_edge_keys, sorted_edge_pairs, spanning_forest_edges
     from navigation.screen_graph import EDGE_TAPS
+    from ui.flow_layout import adjacency_from_edge_keys, sorted_edge_pairs, spanning_forest_edges
 
     g = adjacency_from_edge_keys(frozenset(EDGE_TAPS.keys()))
     pairs = sorted_edge_pairs(g)

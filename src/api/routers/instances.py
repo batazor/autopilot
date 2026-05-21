@@ -4,12 +4,13 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 from api.deps import get_redis
 from api.services import instance_detail as detail
+from api.services.dashboard_stream import instance_revision
 from api.services.instances import list_instance_ids
 from ui.dashboard_events import publish_dashboard_event
 
@@ -30,11 +31,20 @@ def list_instances() -> dict[str, list[str]]:
 
 
 @router.get("/{instance_id}")
-def get_instance(instance_id: str, client: RedisDep) -> dict[str, Any]:
+def get_instance(
+    instance_id: str,
+    client: RedisDep,
+    if_revision: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
     try:
-        return detail.build_instance_detail(client, instance_id)
+        revision = instance_revision(client, instance_id, use_cache=False)
+        if if_revision and if_revision == revision:
+            return {"unchanged": True, "revision": revision}
+        payload = detail.build_instance_detail(client, instance_id)
+        payload["revision"] = revision
+        return payload
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

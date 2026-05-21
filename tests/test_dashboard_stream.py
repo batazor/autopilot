@@ -1,8 +1,9 @@
 """Dashboard SSE revision fingerprints."""
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from api.services.dashboard_stream import (
     approval_revision,
@@ -14,10 +15,79 @@ from api.services.dashboard_stream import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_revision_cache():
+    with patch(
+        "api.services.dashboard_stream.get_cached_revision",
+        return_value=None,
+    ):
+        yield
+
+
 def test_queue_revision_changes_when_pending_count_changes():
     client = MagicMock()
-    view_a = {"pending_count": 1, "running": [], "history": []}
-    view_b = {"pending_count": 2, "running": [], "history": []}
+    row = {
+        "task_id": "t1",
+        "scheduled_at": 100.0,
+        "priority": 1,
+        "scenario_key": "a",
+        "instance_id": "inst-1",
+    }
+    view_a = {"pending_count": 1, "pending": [row], "running": [], "history": []}
+    view_b = {
+        "pending_count": 2,
+        "pending": [row, {**row, "task_id": "t2"}],
+        "running": [],
+        "history": [],
+    }
+    with patch(
+        "api.services.dashboard_stream.queue_api.build_queue_view",
+        side_effect=[view_a, view_b],
+    ):
+        assert queue_revision(client) != queue_revision(client)
+
+
+def test_queue_revision_changes_when_pending_identity_changes_same_count():
+    client = MagicMock()
+    pending_a = [
+        {
+            "task_id": "t1",
+            "scheduled_at": 100.0,
+            "priority": 1,
+            "scenario_key": "heroes/claim",
+            "instance_id": "inst-1",
+        }
+    ]
+    pending_b = [
+        {
+            "task_id": "t2",
+            "scheduled_at": 100.0,
+            "priority": 1,
+            "scenario_key": "heroes/claim",
+            "instance_id": "inst-1",
+        }
+    ]
+    view_a = {"pending_count": 1, "pending": pending_a, "running": [], "history": []}
+    view_b = {"pending_count": 1, "pending": pending_b, "running": [], "history": []}
+    with patch(
+        "api.services.dashboard_stream.queue_api.build_queue_view",
+        side_effect=[view_a, view_b],
+    ):
+        assert queue_revision(client) != queue_revision(client)
+
+
+def test_queue_revision_changes_when_pending_order_changes():
+    client = MagicMock()
+    row = {
+        "task_id": "t1",
+        "scheduled_at": 100.0,
+        "priority": 1,
+        "scenario_key": "a",
+        "instance_id": "inst-1",
+    }
+    row2 = {**row, "task_id": "t2", "scheduled_at": 200.0}
+    view_a = {"pending_count": 2, "pending": [row, row2], "running": [], "history": []}
+    view_b = {"pending_count": 2, "pending": [row2, row], "running": [], "history": []}
     with patch(
         "api.services.dashboard_stream.queue_api.build_queue_view",
         side_effect=[view_a, view_b],
@@ -95,7 +165,10 @@ def test_fleet_revision_changes_when_screen_changes():
             "api.services.dashboard_stream.get_instance_state",
             side_effect=[state_a, state_b],
         ),
-        patch("api.services.dashboard_stream.count_queue_tasks", return_value=0),
+        patch(
+            "api.services.dashboard_stream.compute_pending_queue_digest",
+            return_value="pending-digest",
+        ),
         patch("api.services.dashboard_stream.count_claimed_slots", return_value=0),
         patch(
             "api.services.dashboard_stream.fleet.count_live_instances",
@@ -107,6 +180,40 @@ def test_fleet_revision_changes_when_screen_changes():
         load_d.return_value.devices = []
         a = fleet_revision(client)
         b = fleet_revision(client)
+    assert a != b
+
+
+def test_instance_revision_changes_when_step_updates_same_screen():
+    client = MagicMock()
+    row_a = {
+        "current_screen": "main_city",
+        "current_scenario": "heroes/claim",
+        "last_active_scenario_step": "1",
+    }
+    row_b = {**row_a, "last_active_scenario_step": "2"}
+    path = MagicMock()
+    path.is_file.return_value = False
+    with (
+        patch(
+            "api.services.dashboard_stream.get_instance_state",
+            side_effect=[row_a, row_b],
+        ),
+        patch(
+            "api.services.dashboard_stream.count_queue_tasks_for_instance",
+            return_value=0,
+        ),
+        patch(
+            "api.services.dashboard_stream.rolling_live_preview_path",
+            return_value=path,
+        ),
+        patch(
+            "api.services.dashboard_stream.fetch_queue_history_rows",
+            return_value=[],
+        ),
+        patch("api.services.dashboard_stream.fleet.fleet_status", return_value="live"),
+    ):
+        a = instance_revision(client, "inst-1")
+        b = instance_revision(client, "inst-1")
     assert a != b
 
 
@@ -145,6 +252,19 @@ def test_notifications_revision_uses_tail_id():
     client = MagicMock()
     items_a = [{"id": "n1"}]
     items_b = [{"id": "n1"}, {"id": "n2"}]
+    with patch(
+        "api.services.dashboard_stream.notifications_api.list_notifications",
+        side_effect=[items_a, items_b],
+    ):
+        assert notifications_revision(client, "inst-1") != notifications_revision(
+            client, "inst-1"
+        )
+
+
+def test_notifications_revision_changes_when_tail_replaced_same_count():
+    client = MagicMock()
+    items_a = [{"id": "n1"}, {"id": "n2"}]
+    items_b = [{"id": "n3"}, {"id": "n2"}]
     with patch(
         "api.services.dashboard_stream.notifications_api.list_notifications",
         side_effect=[items_a, items_b],

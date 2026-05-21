@@ -22,6 +22,7 @@ from ui.redis_client import (
     push_scheduler_command,
     remove_queue_task,
     run_queue_task_now,
+    sort_queue_rows_by_execution_order,
 )
 
 
@@ -84,6 +85,7 @@ def _serialize_running(
         "step": step_now,
         "player_id": row.player_id or "(device)",
         "region": row.region or "—",
+        "priority": int(row.priority),
         "started": _rel_time(row.started_at, now) if row.started_at > 0 else "—",
         "nav_target": str(inst_state.get("nav_target") or "").strip(),
     }
@@ -120,13 +122,13 @@ def _serialize_history(row: QueueHistoryRow) -> dict[str, Any]:
         "steps": steps,
         "trace_id": row.trace_id,
         "tempo_trace_url": tempo_trace_url(row.trace_id),
-        "steps_trace": trace if trace else None,
+        "steps_trace": trace or None,
     }
 
 
 def build_queue_view(client: redis.Redis) -> dict[str, Any]:
     now = time.time()
-    pending_rows = fetch_queue_rows(client)
+    pending_rows = sort_queue_rows_by_execution_order(client, fetch_queue_rows(client))
     pending = [_serialize_pending(r, now) for r in pending_rows]
 
     running: list[dict[str, Any]] = []

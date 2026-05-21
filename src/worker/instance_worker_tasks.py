@@ -199,6 +199,7 @@ class InstanceWorkerTasksMixin(_Base):
                 "current_task_id": item.task_id,
                 "current_task_type": item.task_type,
                 "current_task_player": item.player_id,
+                "current_task_priority": str(int(item.priority)),
                 "current_task_started_at": str(time.time()),
                 "current_task_region": item.region or "",
                 "current_task_threshold": th_s,
@@ -322,6 +323,8 @@ class InstanceWorkerTasksMixin(_Base):
                 # to READY via the normal lifecycle.
                 if not _crashed:
                     await self._set_instance_state(InstanceState.READY)
+                    self.note_login_ad_task_finished(item.task_type)
+                    await self._maybe_enqueue_who_i_am_when_active_player_missing()
             # Re-enqueue only if the hand-pointer task actually matched and clicked
             # (not a false-positive overlay detection that failed the match guard).
             _hand_pointer_hit = _task_result is not None and str(
@@ -384,6 +387,7 @@ class InstanceWorkerTasksMixin(_Base):
                     "current_task_id": "",
                     "current_task_type": "",
                     "current_task_player": "",
+                    "current_task_priority": "",
                     "current_task_started_at": "",
                     "current_task_region": "",
                     "current_task_threshold": "",

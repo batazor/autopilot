@@ -115,8 +115,8 @@ def _normalize_xy(
         return {}
     xs = [raw[n][0] for n in raw]
     ys = [raw[n][1] for n in raw]
-    min_x, max_x = min(xs), max(xs)
-    min_y, max_y = min(ys), max(ys)
+    min_x, _max_x = min(xs), max(xs)
+    min_y, _max_y = min(ys), max(ys)
     out: dict[str, dict[str, float]] = {}
     for nid in raw:
         out[nid] = {
@@ -162,7 +162,7 @@ def _bfs_depths_from_root(
 
     nset = set(node_ids)
     if root_id not in nset:
-        return {nid: 0 for nid in node_ids}
+        return dict.fromkeys(node_ids, 0)
     adj = _undirected_adjacency(edge_pairs)
     depths: dict[str, int] = {root_id: 0}
     frontier = [root_id]
@@ -273,11 +273,10 @@ def layout_tree(
             x_pos[root] = x
             depth[root] = depth_level
             return x, x
-        child_ranges: list[tuple[float, float]] = []
-        for kid in kids:
-            child_ranges.append(
-                assign_subtree(kid, depth_level + 1, x_pos=x_pos, depth=depth, x_slot=x_slot)
-            )
+        child_ranges = [
+            assign_subtree(kid, depth_level + 1, x_pos=x_pos, depth=depth, x_slot=x_slot)
+            for kid in kids
+        ]
         lo = child_ranges[0][0]
         hi = child_ranges[-1][1]
         x = (lo + hi) / 2.0
@@ -578,9 +577,11 @@ def build_flow_graph(
     tree_pair_set = set(tree_edges or ())
     render_pairs = list(pairs)
     if display_tree:
-        for pair in sorted(highlight_edge_set):
-            if pair not in tree_pair_set and pair[0] in node_ids and pair[1] in node_ids:
-                render_pairs.append(pair)
+        render_pairs.extend(
+            pair
+            for pair in sorted(highlight_edge_set)
+            if pair not in tree_pair_set and pair[0] in node_ids and pair[1] in node_ids
+        )
 
     flow_edges: list[FlowEdge] = []
     for i, (src, dst) in enumerate(render_pairs):

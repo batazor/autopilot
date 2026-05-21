@@ -15,7 +15,7 @@ from conftest import make_actions, patch_dsl
 import tasks.dsl_scenario as dsl
 from century.api import CenturyAPIError, PlayerData
 from layout.types import Region as LayoutRegion
-from ocr.client import OCRResult
+from ocr.client import OcrClient, OCRResult
 
 
 def _scenario_root(tmp_path: Path) -> Path:

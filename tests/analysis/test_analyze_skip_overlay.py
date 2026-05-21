@@ -44,6 +44,9 @@ def test_skip_button_overlay_true_on_reference_png() -> None:
     doc = json.loads((REPO / "area.json").read_text(encoding="utf-8"))
     cfg = load_merged_analyze_yaml(REPO)
     overlay = cfg.get("overlay") or []
+    rule_names = [str(r.get("name") or "") for r in overlay if isinstance(r, dict)]
+    if "skip_button.visible" not in rule_names:
+        pytest.skip("skip_button.visible overlay rule disabled (onboarding analyze off)")
     out = evaluate_overlay_rules(img, doc, REPO, overlay)
 
     assert "skip_button.visible" in out

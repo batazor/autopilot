@@ -24,6 +24,7 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/overview": "overview",
   "/instance": "instance",
   "/player-state": "player-state",
+  "/player-stats": "player-stats",
   "/approvals": "approvals",
   "/overlay-test": "overlay-test",
   "/queue": "queue",

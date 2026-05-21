@@ -8,19 +8,19 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
+from analysis.login_ads import login_ad_task_types
 from analysis.overlay_manifest import (
     load_merged_analyze_yaml,
 )
 from analysis.overlay_rules import optional_push_scenario_tasks
 from config.paths import repo_root as default_repo_root
-from layout.area_manifest import load_area_doc
-from layout.area_regions import region_names_for
 from dsl import template_resolver as _tmpl
 from dsl.cron_specs import (
     load_root_mapping,
     resolve_cron_task_type,
 )
 from dsl.dsl_schema import validate_dsl_steps
+from layout.area_regions import region_names_for
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -273,6 +273,124 @@ def _check_scenario(
         )
 
 
+def _load_core_only_area_region_names(repo_root: Path) -> set[str]:
+    """Region names from root ``area.json`` only (no ``modules/*/area.yaml``)."""
+    import json
+
+    path = repo_root / "area.json"
+    if not path.is_file():
+        return set()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return set()
+    return _area_region_names(raw if isinstance(raw, dict) else {})
+
+
+def _load_merged_area_region_names(repo_root: Path) -> set[str]:
+    """Region names from core ``area.json`` plus ``modules/*/area.yaml``."""
+    try:
+        from layout.area_manifest import load_area_doc
+
+        return _area_region_names(load_area_doc(repo_root))
+    except Exception:
+        return set()
+
+
+def _overlay_rule_region_refs(rule: dict[str, Any]) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    for field in ("region", "search_region"):
+        name = str(rule.get(field) or "").strip()
+        if name:
+            out.append((field, name))
+    return out
+
+
+def _validate_overlay_runtime_area_manifest(repo_root: Path, issues: list[StartupValidationIssue]) -> None:
+    """Overlay rules must resolve in the same area doc ``run_overlay_analysis`` loads.
+
+    Startup already merged ``load_area_doc`` for generic region checks, but the
+    worker historically read core ``area.json`` only — validation passed while
+    module overlay rules returned ``unknown_region`` at runtime. This pass
+    binds checks to :func:`analysis.overlay_area.default_area_doc_for_overlay`
+    and flags module-only regions when that manifest would omit them.
+    """
+    import inspect
+
+    from analysis import overlay as overlay_mod
+    from analysis import overlay_area as overlay_area_mod
+    from analysis.overlay_area import default_area_doc_for_overlay
+
+    helper_src = inspect.getsource(overlay_area_mod.default_area_doc_for_overlay)
+    if "load_area_doc" not in helper_src:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                "src/analysis/overlay_area.py",
+                "default_area_doc_for_overlay must call layout.area_manifest.load_area_doc()",
+            )
+        )
+
+    run_src = inspect.getsource(overlay_mod.run_overlay_analysis)
+    if "default_area_doc_for_overlay" not in run_src:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                "src/analysis/overlay.py",
+                "run_overlay_analysis must call default_area_doc_for_overlay() "
+                "when area_doc is omitted (module overlay regions otherwise "
+                "resolve as unknown_region)",
+            )
+        )
+
+    try:
+        runtime_doc = default_area_doc_for_overlay(repo_root)
+    except Exception as exc:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                "overlay:runtime_area",
+                f"cannot load overlay runtime area manifest: {exc}",
+            )
+        )
+        return
+
+    runtime_names = _area_region_names(runtime_doc)
+    core_only_names = _load_core_only_area_region_names(repo_root)
+    merged_names = _load_merged_area_region_names(repo_root)
+    analyze_doc = load_merged_analyze_yaml(repo_root)
+    overlay = analyze_doc.get("overlay")
+    if not isinstance(overlay, list):
+        return
+
+    for idx, raw_rule in enumerate(overlay):
+        if not isinstance(raw_rule, dict):
+            continue
+        rule = cast("dict[str, Any]", raw_rule)
+        rule_name = str(rule.get("name") or f"overlay[{idx}]").strip()
+        source = f"analyze:{rule_name}"
+        for field, region in _overlay_rule_region_refs(rule):
+            if region in runtime_names:
+                continue
+            if region not in merged_names:
+                continue
+            module_only = region not in core_only_names
+            if module_only:
+                msg = (
+                    f"{field} {region!r} is defined under modules/*/area.yaml but "
+                    "is absent from the overlay runtime area manifest "
+                    "(default_area_doc_for_overlay). If run_overlay_analysis reads "
+                    "only core area.json, pushScenario rules such as myriad_bazaar "
+                    "never enqueue."
+                )
+            else:
+                msg = (
+                    f"{field} {region!r} is missing from the overlay runtime area "
+                    "manifest (default_area_doc_for_overlay)"
+                )
+            issues.append(StartupValidationIssue("error", source, msg))
+
+
 def _validate_analyze_manifest(
     repo_root: Path,
     issues: list[StartupValidationIssue],
@@ -328,6 +446,34 @@ def _validate_analyze_manifest(
                 source=source,
                 field="pushScenario",
                 value=task.get("dsl_scenario") or task.get("type"),
+            )
+
+
+def _validate_login_ads_boot_phase(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Login-ad overlay pushes must target ``device_level`` scenarios (boot phase 1)."""
+    for key in sorted(login_ad_task_types(repo_root)):
+        loaded = _tmpl.load_doc(repo_root, key)
+        if loaded is None:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    f"login_ads:{key}",
+                    f"overlay pushScenario {key!r} has no runnable scenario YAML",
+                )
+            )
+            continue
+        _path, raw = loaded
+        if not isinstance(raw, dict) or raw.get("device_level") is not True:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    f"login_ads:{key}",
+                    f"login-ad scenario {key!r} must declare device_level: true "
+                    "(boot phase runs before active_player)",
+                )
             )
 
 
@@ -711,6 +857,8 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         issues.append(StartupValidationIssue("error", area_path.as_posix(), "area.json not found"))
     else:
         try:
+            from layout.area_manifest import load_area_doc
+
             area_doc = load_area_doc(root)
         except Exception as exc:
             issues.append(
@@ -733,6 +881,8 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         region_names=region_names,
         red_dot_regions=red_dot_regions,
     )
+    _validate_login_ads_boot_phase(root, issues)
+    _validate_overlay_runtime_area_manifest(root, issues)
     _validate_scenarios(
         root,
         issues,

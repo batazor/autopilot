@@ -1,12 +1,14 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
+import { CopyButton } from "@/components/CopyButton";
 import { AppCheckbox, AppListbox } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
-import { fetchOverlayTest, overlayTestImageUrl } from "@/lib/api";
+import { fetchGallery, fetchOverlayTest, overlayTestImageUrl } from "@/lib/api";
+import type { GalleryItem } from "@/lib/config-pages";
 import { usePollWhenVisible, useStableCacheKey } from "@/lib/hooks";
 import {
   defaultActionVisibility,
@@ -17,6 +19,7 @@ import {
 import type { OverlayRuleRow, OverlayShape, OverlayTestResult } from "@/lib/types";
 
 const POLL_MS = 1500;
+const LIVE_PREVIEW_KEY = "__live__";
 
 function filterRules(
   rules: OverlayRuleRow[],
@@ -95,16 +98,21 @@ function filterCanvasOverlays(
 }
 
 export default function OverlayTestPage() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const regionParam =
     searchParams.get("region") ?? searchParams.get("highlight");
+  const refFromUrl = (searchParams.get("ref") ?? "").trim();
   const { instanceId, instancesError } = useFleet();
   const [result, setResult] = useState<OverlayTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   const [onlyCurrentScreen, setOnlyCurrentScreen] = useState(false);
   const [ignoreScreenGate, setIgnoreScreenGate] = useState(false);
+  const [hasActivePlayer, setHasActivePlayer] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
 
   const [textFilter, setTextFilter] = useState("");
   const [matchStatus, setMatchStatus] = useState<MatchStatusFilter>("all");
@@ -112,6 +120,85 @@ export default function OverlayTestPage() {
   const [nodeFilter, setNodeFilter] = useState("");
   const [actionsVisible, setActionsVisible] = useState(defaultActionVisibility);
   const [highlightRule, setHighlightRule] = useState<string | null>(null);
+  const [frameKey, setFrameKey] = useState(() =>
+    refFromUrl ? refFromUrl : LIVE_PREVIEW_KEY,
+  );
+  const [refFilter, setRefFilter] = useState("");
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+
+  const syncRefInUrl = useCallback(
+    (key: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (key === LIVE_PREVIEW_KEY) params.delete("ref");
+      else params.set("ref", key);
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const setFrameKeyAndUrl = useCallback(
+    (key: string) => {
+      setFrameKey(key);
+      syncRefInUrl(key);
+    },
+    [syncRefInUrl],
+  );
+
+  useEffect(() => {
+    setFrameKey(refFromUrl || LIVE_PREVIEW_KEY);
+  }, [refFromUrl]);
+
+  const previewSource =
+    frameKey === LIVE_PREVIEW_KEY ? ("live" as const) : ("reference" as const);
+  const previewRel = frameKey === LIVE_PREVIEW_KEY ? undefined : frameKey;
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchGallery("all", "")
+      .then((data) => {
+        if (!cancelled) setGalleryItems(data.items);
+      })
+      .catch(() => {
+        if (!cancelled) setGalleryItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const referenceOptions = useMemo(() => {
+    const needle = refFilter.trim().toLowerCase();
+    const filtered = galleryItems.filter((item) => {
+      if (!needle) return true;
+      const hay = `${item.rel} ${item.name} ${item.group} ${item.screen_ids.join(" ")}`.toLowerCase();
+      return hay.includes(needle);
+    });
+    const options = [
+      { value: LIVE_PREVIEW_KEY, label: "Rolling preview (live)" },
+      ...filtered.map((item) => ({
+        value: item.rel,
+        label: `${item.name} · ${item.group}`,
+      })),
+    ];
+    if (
+      frameKey !== LIVE_PREVIEW_KEY &&
+      !options.some((o) => o.value === frameKey) &&
+      (!needle || frameKey.toLowerCase().includes(needle))
+    ) {
+      options.push({ value: frameKey, label: frameKey });
+    }
+    return options;
+  }, [galleryItems, refFilter, frameKey]);
+
+  const referenceShareUrl = useMemo(() => {
+    if (frameKey === LIVE_PREVIEW_KEY) return "";
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("ref", frameKey);
+    const q = params.toString();
+    if (typeof window === "undefined") return `${pathname}?${q}`;
+    return `${window.location.origin}${pathname}?${q}`;
+  }, [frameKey, pathname, searchParams]);
 
   useEffect(() => {
     if (!regionParam?.trim()) return;
@@ -121,21 +208,40 @@ export default function OverlayTestPage() {
     setOnlyCurrentNode(false);
   }, [regionParam]);
 
-  const refresh = useCallback(async () => {
-    if (!instanceId) return;
-    try {
-      const data = await fetchOverlayTest(instanceId, {
-        onlyCurrentScreen: onlyCurrentScreen && !ignoreScreenGate,
-        ignoreScreenGate,
-      });
-      setResult(data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [instanceId, onlyCurrentScreen, ignoreScreenGate]);
+  const loadOverlay = useCallback(
+    async (opts: { detailed?: boolean; showSpinner?: boolean } = {}) => {
+      if (!instanceId) return;
+      if (opts.showSpinner) setAnalyzing(true);
+      try {
+        const data = await fetchOverlayTest(instanceId, {
+          onlyCurrentScreen: onlyCurrentScreen && !ignoreScreenGate,
+          ignoreScreenGate,
+          hasActivePlayer,
+          detailedAnalysis: opts.detailed ?? false,
+          previewSource,
+          previewRel,
+        });
+        setResult(data);
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (opts.showSpinner) setAnalyzing(false);
+      }
+    },
+    [instanceId, onlyCurrentScreen, ignoreScreenGate, hasActivePlayer, previewSource, previewRel],
+  );
 
-  usePollWhenVisible(refresh, POLL_MS, autoRefresh);
+  const analyzeScreenshot = useCallback(
+    () => loadOverlay({ detailed: true, showSpinner: true }),
+    [loadOverlay],
+  );
+
+  usePollWhenVisible(() => loadOverlay(), POLL_MS, autoRefresh);
+
+  useEffect(() => {
+    if (instanceId) void loadOverlay();
+  }, [instanceId, loadOverlay]);
 
   useEffect(() => {
     if (!regionParam?.trim() || !result?.rules.length) return;
@@ -202,8 +308,25 @@ export default function OverlayTestPage() {
 
   const imageUrl =
     result?.preview.available && instanceId
-      ? overlayTestImageUrl(instanceId, previewCacheKey)
+      ? overlayTestImageUrl(instanceId, previewCacheKey, {
+          previewSource,
+          previewRel,
+        })
       : null;
+
+  const analysisJson = useMemo(() => {
+    if (!result?.analysis) return "";
+    const payload = {
+      instance_id: result.instance_id,
+      current_screen: result.current_screen,
+      detected_screen: result.detected_screen,
+      active_player: result.active_player,
+      matched_count: result.matched_count,
+      total_rules: result.total_rules,
+      ...result.analysis,
+    };
+    return JSON.stringify(payload, null, 2);
+  }, [result]);
 
   const clearDisplayFilters = () => {
     setTextFilter("");
@@ -234,33 +357,216 @@ export default function OverlayTestPage() {
         <div className="error-banner">{error ?? instancesError}</div>
       ) : null}
 
+      <section className="panel" style={{ marginBottom: "1rem" }}>
+        <h2 style={{ marginTop: 0 }}>Frame</h2>
+        <div className="toolbar" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+          <label className="meta" style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            Filter references
+            <input
+              type="search"
+              className="labeling-search"
+              placeholder="Path, screen, module…"
+              value={refFilter}
+              onChange={(e) => setRefFilter(e.target.value)}
+              style={{ minWidth: 200 }}
+            />
+          </label>
+          <AppListbox
+            label="Image"
+            value={frameKey}
+            onChange={setFrameKeyAndUrl}
+            options={referenceOptions}
+            minWidth={320}
+            title={frameKey === LIVE_PREVIEW_KEY ? "ADB rolling preview" : frameKey}
+          />
+          {referenceShareUrl ? (
+            <CopyButton
+              text={referenceShareUrl}
+              label="Copy link"
+              title="Copy overlay-test URL with this reference image"
+            />
+          ) : null}
+          {result?.preview.rel ? (
+            <span className="meta" style={{ alignSelf: "center" }}>
+              {result.preview.source === "reference" ? "reference" : "live"}:{" "}
+              <code>{result.preview.rel}</code>
+            </span>
+          ) : null}
+        </div>
+      </section>
+
       <div className="toolbar">
         <AppCheckbox
           inline
           checked={autoRefresh}
           onChange={setAutoRefresh}
           label="Auto-refresh"
+          disabled={previewSource === "reference"}
+          title={
+            previewSource === "reference"
+              ? "Auto-refresh applies to the live rolling preview only"
+              : undefined
+          }
         />
         <button
           type="button"
-          className="btn-secondary"
-          onClick={refresh}
-          title="Re-run overlay analysis on the latest frame"
+          className="btn-primary"
+          onClick={analyzeScreenshot}
+          disabled={analyzing || !instanceId}
+          title="Run overlay analyzers on the rolling screenshot (per-module timing + queue dry-run)"
         >
-          Refresh now
+          {analyzing ? "Analyzing…" : "Analyze screenshot"}
         </button>
         {result ? (
           <span className="meta">
-            screen: <code>{result.current_screen || "—"}</code>
-            {result.active_player ? (
+            screen: <code>{result.detected_screen || "—"}</code>
+            {result.analysis?.screen_detect_ms != null ? (
               <>
                 {" "}
-                · player: <code>{result.active_player}</code>
+                · detect <code>{result.analysis.screen_detect_ms} ms</code>
               </>
             ) : null}
           </span>
         ) : null}
       </div>
+
+      {result?.analysis ? (
+        <section className="panel" style={{ marginBottom: "1rem" }}>
+          <div
+            className="toolbar"
+            style={{ marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}
+          >
+            <h2 style={{ margin: 0 }}>Analyzer run</h2>
+            <CopyButton
+              text={analysisJson}
+              label="Copy JSON"
+              title="Copy analyzer run results as JSON"
+            />
+          </div>
+          <div className="toolbar" style={{ marginBottom: "0.75rem", flexWrap: "wrap" }}>
+            <AppCheckbox
+              inline
+              checked={hasActivePlayer}
+              onChange={setHasActivePlayer}
+              label="Active player / player ID known"
+              title="When off, overlay cond gates see empty active_player (boot/login ads). Does not read Redis — probe flag only."
+            />
+            {result.analysis.simulated_no_player ? (
+              <span className="status-pill pill-stale">
+                probe: no player
+                {result.analysis.device_level_only ? " · device-level overlay only" : ""}
+              </span>
+            ) : (
+              <span className="status-pill pill-live">probe: player known (synthetic)</span>
+            )}
+            <span className="meta">
+              screen gate: <code>{result.current_screen || "—"}</code>
+              {result.analysis.screen_source ? (
+                <>
+                  {" "}
+                  (<code>{result.analysis.screen_source}</code>)
+                </>
+              ) : null}
+              {" · "}
+              detect <code>{result.analysis.screen_detect_ms ?? 0} ms</code>
+              {" · "}
+              full pass <code>{result.analysis.full_run_ms} ms</code>
+              {" · "}
+              per-module sum <code>{result.analysis.modules_total_ms} ms</code>
+            </span>
+          </div>
+
+          <p className="meta" style={{ marginBottom: "0.75rem" }}>
+            Static frame probe — screen gates use detection on this PNG only (no
+            instance Redis state).
+          </p>
+
+          {result.analysis.module_runs.length === 0 &&
+          result.analysis.modules_total_ms === 0 ? (
+            <p className="meta" style={{ marginBottom: "1rem" }}>
+              Per-module timing appears after <strong>Analyze screenshot</strong> (not on
+              auto-refresh).
+            </p>
+          ) : null}
+          {result.analysis.module_runs.length > 0 ? (
+            <div className="data-table-wrap" style={{ marginBottom: "1rem" }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Module</th>
+                    <th>Duration</th>
+                    <th>Rules</th>
+                    <th>Matched</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...result.analysis.module_runs]
+                    .sort((a, b) => b.duration_ms - a.duration_ms)
+                    .map((row) => (
+                      <tr key={row.module_id}>
+                        <td>
+                          <code>{row.module_id}</code>
+                          {row.label !== row.module_id ? (
+                            <span className="meta"> — {row.label}</span>
+                          ) : null}
+                        </td>
+                        <td>{row.duration_ms} ms</td>
+                        <td>{row.rule_count}</td>
+                        <td>{row.matched_count}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="meta">No module analyzers ran — capture a rolling preview first.</p>
+          )}
+
+          <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Queue push candidates (dry-run)</h3>
+          {result.analysis.push_candidates.length === 0 ? (
+            <p className="meta">No matched overlay rules with pushScenario on this frame.</p>
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Pick</th>
+                    <th>Scenario</th>
+                    <th>Rule</th>
+                    <th>Priority</th>
+                    <th>Region</th>
+                    <th>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.analysis.push_candidates.map((row) => (
+                    <tr key={`${row.rule}:${row.scenario}`}>
+                      <td>
+                        {row.selected ? (
+                          <span className="status-pill pill-live">would push</span>
+                        ) : (
+                          <span className="status-pill pill-stale">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <code>{row.scenario}</code>
+                      </td>
+                      <td>
+                        <code>{row.rule}</code>
+                      </td>
+                      <td>{row.priority}</td>
+                      <td>
+                        <code>{row.region || "—"}</code>
+                      </td>
+                      <td>{row.skip_reason || (row.selected ? "selected" : "")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="panel" style={{ marginBottom: "1rem" }}>
         <h2>Filters</h2>

@@ -9,7 +9,7 @@ import streamlit as st
 import yaml
 
 from analysis.overlay import run_overlay_analysis_sync
-from analysis.overlay_manifest import analyze_manifests_mtime, load_merged_analyze_yaml
+from analysis.overlay_manifest import analyze_manifests_fingerprint, load_merged_analyze_yaml
 from analysis.overlay_rules import (
     overlay_rule_screen_allowlist,
     resolved_search_region_for_findicon,
@@ -50,8 +50,8 @@ def read_rolling_png_with_retry(instance_id: str, *, attempts: int = 3) -> np.nd
 
 def mtimes(
     instance_id: str, *, repo_root: Path, area_path: Path
-) -> tuple[float | None, float | None, float | None]:
-    """Return (preview_mtime, area_mtime, analyze_mtime); None when file is absent."""
+) -> tuple[float | None, float | None, tuple[tuple[str, int, int], ...]]:
+    """Return (preview_mtime, area_mtime, analyze_manifests_fingerprint)."""
 
     def _mt(p: Path) -> float | None:
         try:
@@ -62,7 +62,7 @@ def mtimes(
     return (
         _mt(rolling_live_preview_path(instance_id)),
         _mt(area_path),
-        analyze_manifests_mtime(repo_root),
+        analyze_manifests_fingerprint(repo_root),
     )
 
 
@@ -99,7 +99,8 @@ def get_or_build_pipeline_cache(
     """Return analysis data for *instance_id*, rebuilding only when a source file changes.
 
     Caches in st.session_state[PIPELINE_OVERLAY_CACHE] keyed by ``(instance_id, current_screen)``.
-    Invalidated when the rolling PNG, area.json, module analyze mtime, **or** ``current_screen``
+    Invalidated when the rolling PNG, area.json, analyze manifest fingerprint, **or**
+    ``current_screen``
     changes — rules with YAML ``screens`` depend on Redis ``current_screen``
     (same as ``worker/instance_worker.py``).
 
@@ -109,7 +110,7 @@ def get_or_build_pipeline_cache(
     if it does, callers should bump ``force_nonce`` to invalidate.
     """
     preview_mtime, area_mtime, _ = mtimes(instance_id, repo_root=repo_root, area_path=area_path)
-    analyze_mtime = analyze_manifests_mtime(repo_root, module_scope=module_scope)
+    analyze_fp = analyze_manifests_fingerprint(repo_root, module_scope=module_scope)
     if preview_mtime is None:
         return None, False
 
@@ -125,7 +126,7 @@ def get_or_build_pipeline_cache(
         entry is not None
         and entry["preview_mtime"] == preview_mtime
         and entry["area_mtime"] == area_mtime
-        and entry["analyze_mtime"] == analyze_mtime
+        and entry["analyze_fp"] == analyze_fp
         and entry.get("current_screen", "") == screen_key
         and entry.get("module_scope", "") == scope_key
         and entry.get("nonce", 0) == nonce
@@ -152,7 +153,7 @@ def get_or_build_pipeline_cache(
     rule_order: list[str] = []
     rule_search: dict[str, str] = {}
     rule_node: dict[str, str] = {}
-    if analyze_mtime is not None:
+    if analyze_fp:
         try:
             raw_yaml = load_merged_analyze_yaml(repo_root, module_scope=module_scope)
             ov = raw_yaml.get("overlay") if isinstance(raw_yaml, dict) else None
@@ -192,7 +193,7 @@ def get_or_build_pipeline_cache(
     entry = {
         "preview_mtime": preview_mtime,
         "area_mtime": area_mtime,
-        "analyze_mtime": analyze_mtime,
+        "analyze_fp": analyze_fp,
         "nonce": nonce,
         "current_screen": screen_key,
         "module_scope": scope_key,

@@ -515,7 +515,67 @@ def screen_verify_screen_names() -> list[str]:
     if not isinstance(screens, dict):
         return []
     names = [str(screen).strip() for screen in screens if str(screen).strip()]
-    return sorted(names, key=lambda s: int((screens.get(s) or {}).get("priority") or 100))
+    return _sort_screen_names_by_priority(names, screens)
+
+
+def _sort_screen_names_by_priority(
+    names: list[str],
+    screens: dict[str, object],
+) -> list[str]:
+    def _priority(screen: str) -> int:
+        entry = screens.get(screen)
+        if not isinstance(entry, dict):
+            return 100
+        try:
+            return int(entry.get("priority") or 100)
+        except (TypeError, ValueError):
+            return 100
+
+    return sorted(names, key=_priority)
+
+
+def screen_verify_order_names(screen_names: list[str]) -> list[str]:
+    """Return ``screen_names`` sorted by ``screen_verify.yaml`` priority (low first)."""
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return [str(s).strip() for s in screen_names if str(s).strip()]
+    names = [str(s).strip() for s in screen_names if str(s).strip()]
+    return _sort_screen_names_by_priority(names, screens)
+
+
+# ``main_city`` hub priority in root ``screen_verify.yaml`` (modals use lower values).
+MAIN_CITY_HUB_PRIORITY = 10
+
+
+def screen_verify_config_fingerprint() -> tuple[Any, ...]:
+    """Fingerprint for invalidating compiled landmark caches."""
+    return _combined_config_fingerprint()
+
+
+def screen_verify_modal_preempt_names(
+    *,
+    hub_priority: int = MAIN_CITY_HUB_PRIORITY,
+) -> list[str]:
+    """Template screens to probe before confirming a ``main_city`` sticky hint.
+
+    Uses the same ``priority`` field as global detection order — typically
+    loading / rewards / popups (``priority`` < hub) run before ``main_city``.
+    """
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return []
+    out: list[str] = []
+    for name in screen_verify_screen_names():
+        entry = screens.get(name)
+        if not isinstance(entry, dict):
+            continue
+        try:
+            prio = int(entry.get("priority") or 100)
+        except (TypeError, ValueError):
+            prio = 100
+        if prio < hub_priority:
+            out.append(name)
+    return out
 
 
 def _coalesce_verify_lists(

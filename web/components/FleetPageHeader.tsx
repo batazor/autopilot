@@ -7,7 +7,7 @@ import { PlayerSelect } from "@/components/PlayerSelect";
 import { useFleet } from "@/components/FleetContextProvider";
 import {
   approvalsHref,
-  instanceHref,
+  labelingHref,
   overlayTestHref,
   playerStateHref,
   queueHref,
@@ -66,8 +66,8 @@ export function FleetPageHeader({
         ) : null}
         {!hideQuickLinks && instanceId ? (
           <nav className="fleet-header-links" aria-label="Fleet shortcuts">
-            <Link href={instanceHref(instanceId)} className="fleet-header-link">
-              Instance
+            <Link href={labelingHref({ instanceId })} className="fleet-header-link">
+              Labeling
             </Link>
             {playerId ? (
               <Link

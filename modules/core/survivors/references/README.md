@@ -2,7 +2,7 @@ Survivors reference screenshots and crops.
 
 ## Layout
 
-- **`page.*.png`**, **`isNewPeople*.png`** — committed screen references for labeling and overlay.
+- **`page.*.png`**, **`isNewPeople*.png`**, **`survivors.intro.png`** — committed screen references for labeling and overlay.
 - **`crop/`** — template tiles from labeling.
 - **`rehearsal/`** — live MCP step dumps (gitignored).
 - **`rehearsal/fixtures/<scenario>/`** — minimal committed frames for pytest.

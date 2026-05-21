@@ -318,6 +318,69 @@ def count_claimed_slots(client: redis.Redis) -> int:
     return n
 
 
+def fetch_pending_execution_order(
+    client: redis.Redis,
+    instance_id: str,
+    *,
+    current_screen: str = "",
+    redis_url: str | None = None,
+) -> list[str]:
+    """Pending task_ids for one instance in ``pop_due`` execution order (read-only)."""
+    import asyncio
+
+    import redis.asyncio as aioredis
+
+    from scheduler.queue import RedisQueue
+
+    url = redis_url or load_settings().redis.url
+    iid = str(instance_id or "").strip()
+    if not iid:
+        return []
+
+    async def _run() -> list[str]:
+        from config.redis_metrics import instrument_redis_client
+
+        aclient = aioredis.from_url(url, decode_responses=True)
+        instrument_redis_client(aclient, component="ui")
+        try:
+            q = RedisQueue(aclient, load_settings())
+            return await q.pending_execution_order(iid, current_screen=current_screen)
+        finally:
+            await aclient.aclose()
+
+    try:
+        return asyncio.run(_run())
+    except Exception:
+        return []
+
+
+def sort_queue_rows_by_execution_order(
+    client: redis.Redis, rows: list[QueueRow]
+) -> list[QueueRow]:
+    """Sort pending rows per instance using the same order as ``pop_due``."""
+    if not rows:
+        return rows
+    by_instance: dict[str, list[QueueRow]] = {}
+    for row in rows:
+        by_instance.setdefault(row.instance_id or "", []).append(row)
+
+    sorted_rows: list[QueueRow] = []
+    for iid in sorted(by_instance.keys()):
+        bucket = by_instance[iid]
+        if not iid:
+            bucket.sort(key=lambda r: (r.scheduled_at, r.task_id))
+            sorted_rows.extend(bucket)
+            continue
+        inst_state = get_instance_state(client, iid) or {}
+        screen = str(inst_state.get("current_screen") or "").strip()
+        order = fetch_pending_execution_order(client, iid, current_screen=screen)
+        rank = {tid: idx for idx, tid in enumerate(order)}
+        fallback = len(order)
+        bucket.sort(key=lambda r: (rank.get(r.task_id, fallback), r.task_id))
+        sorted_rows.extend(bucket)
+    return sorted_rows
+
+
 def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
     def _is_queue_zset_key(k: str) -> bool:
         if not k:
@@ -382,11 +445,19 @@ def _running_row_from_instance_state(
     except (TypeError, ValueError):
         started_at = 0.0
     region = state_map.get("current_task_region", "").strip() or None
+    try:
+        priority = int(
+            state_map.get("current_task_priority")
+            or state_map.get("last_active_scenario_priority")
+            or 0
+        )
+    except (TypeError, ValueError):
+        priority = 0
     return RunningQueueRow(
         task_id=task_id or "(running)",
         player_id=player,
         task_type=task_type or "(unknown)",
-        priority=0,
+        priority=priority,
         instance_id=instance_id,
         started_at=started_at,
         region=region,

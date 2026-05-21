@@ -1,10 +1,13 @@
 """Preview the latest reference screenshot from disk (no Redis)."""
 from __future__ import annotations
 
+import logging
 import shutil
 import time
 from typing import TYPE_CHECKING
 
+from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_to_file, resolve_adb_executable
+from config.loader import load_settings
 from config.paths import repo_root
 from config.reference_naming import (
     EVENTS_SUBDIR,
@@ -15,6 +18,10 @@ from config.reference_naming import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from config.loader import InstanceConfig
+
+logger = logging.getLogger(__name__)
 
 # UI capture buttons (labeling "Take screenshot", area annotator "Capture",
 # operator-on-demand "fetch screenshot") all need a fresh frame. Rather than
@@ -141,6 +148,77 @@ def copy_rolling_preview_to(
     except OSError as e:
         return False, f"copy rolling preview to {target}: {e}"
     return True, ""
+
+
+def resolve_instance_config(instance_id: str) -> InstanceConfig | None:
+    """Match ``load_settings().instances`` by ``instance_id``."""
+    iid = instance_id.strip()
+    if not iid:
+        return None
+    for inst in load_settings().instances:
+        if inst.instance_id == iid:
+            return inst
+    return None
+
+
+def _adb_screencap_to_target(
+    instance_id: str,
+    target: Path,
+    *,
+    rolling_msg: str = "",
+) -> tuple[bool, str]:
+    """Direct ADB screencap when the worker rolling PNG is missing or stale."""
+    inst = resolve_instance_config(instance_id)
+    if inst is None:
+        return False, f"unknown instance {instance_id!r}"
+    adb_exe = resolve_adb_executable(
+        str(load_settings().worker.adb_executable or DEFAULT_ADB_BIN)
+    )
+    if adb_exe is None:
+        prefix = f"{rolling_msg}; " if rolling_msg else ""
+        return False, f"{prefix}ADB executable not found"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    ok, adb_msg = adb_screencap_to_file(
+        target,
+        adb_bin=adb_exe,
+        serial=inst.bluestacks_window_title,
+    )
+    if not ok:
+        prefix = f"{rolling_msg}; " if rolling_msg else ""
+        return False, f"{prefix}direct ADB capture failed: {adb_msg}"
+    rolling = rolling_live_preview_path(instance_id)
+    try:
+        rolling.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(target, rolling)
+    except OSError:
+        logger.debug(
+            "capture_preview_to: could not refresh rolling PNG for %s",
+            instance_id,
+            exc_info=True,
+        )
+    return True, ""
+
+
+def capture_preview_to(
+    instance_id: str,
+    target: Path,
+    *,
+    stale_after_seconds: float = ROLLING_PREVIEW_STALE_AFTER_SECONDS,
+    allow_adb_fallback: bool = True,
+) -> tuple[bool, str]:
+    """Copy rolling preview to ``target``, or ADB screencap if rolling is stale/missing.
+
+    Labeling "Take screenshot" uses this so operators can capture while the worker is
+    busy (navigation, overlay tasks) and the rolling loop has not updated recently.
+    """
+    ok, msg = copy_rolling_preview_to(
+        instance_id, target, stale_after_seconds=stale_after_seconds
+    )
+    if ok:
+        return True, ""
+    if not allow_adb_fallback:
+        return False, msg
+    return _adb_screencap_to_target(instance_id, target, rolling_msg=msg)
 
 
 def load_rolling_instance_preview(instance_id: str) -> tuple[bytes | None, str, float | None]:

@@ -20,9 +20,9 @@ export const NAV_PINNED: Pick<NavItem, "href" | "label" | "description">[] = [
   },
   { href: "/queue", label: "Queue", description: "Pending & running tasks" },
   {
-    href: "/instance",
-    label: "Instance",
-    description: "Preview & manual control",
+    href: "/labeling",
+    label: "Labeling",
+    description: "Regions, references & crops",
   },
 ];
 

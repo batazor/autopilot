@@ -149,7 +149,7 @@ def put_reference_regions(
 async def post_import_png(
     instance_id: str = Form(...),
     scope: str = Form(default="core"),
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  # noqa: B008
 ) -> dict[str, Any]:
     try:
         raw = await file.read()

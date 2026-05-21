@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
-
-import pytest
 
 from api.services.click_approval_store import build_scenario_progress
 from ui.redis_client import RunningQueueRow
+
+if TYPE_CHECKING:
+    import pytest
 
 
 def test_build_scenario_progress_shows_step_while_busy_without_running_key(
@@ -82,3 +84,33 @@ def test_build_scenario_progress_running_row_match(monkeypatch: pytest.MonkeyPat
     progress = build_scenario_progress(client, "bs1", instance_state)
     assert progress["is_running"] is True
     assert progress["step_current"] == 1
+    assert progress["completed_steps"] == 2
+    assert progress["is_navigating"] is False
+
+
+def test_build_scenario_progress_navigating_zero_fill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "api.services.click_approval_store.fetch_running_queue_row",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "api.services.click_approval_store._scenario_step_summaries",
+        lambda _k: ("ocr", "exec", "push"),
+    )
+    client = MagicMock()
+    instance_state = {
+        "state": "busy",
+        "current_scenario": "who_i_am",
+        "current_task_id": "t1",
+        "current_task_type": "who_i_am",
+        "last_active_scenario_step": "0",
+        "nav_target": "chief_profile",
+    }
+    progress = build_scenario_progress(client, "bs1", instance_state)
+    assert progress["is_navigating"] is True
+    assert progress["completed_steps"] == 0
+    assert progress["progress_ratio"] == 0.0
+    assert "Navigating → chief_profile" in progress["progress_label"]
+    assert "Step 1/3" not in progress["progress_label"]

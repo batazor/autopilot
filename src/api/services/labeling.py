@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any, cast
@@ -31,10 +32,15 @@ from ui.area_annotator import (
     find_stale_crops,
 )
 from ui.labeling_helpers import build_reference_leaf_meta_index, format_reference_leaf_title
+from ui.overlay_yaml_sync import (
+    apply_region_rename,
+    cascade_primary_rename_in_regions,
+    detect_region_renames,
+)
 from ui.reference_area_sync import sync_area_json_ocr_after_reference_rename
 from ui.reference_ocr_paths import reference_basename_stem
 from ui.reference_preview import (
-    copy_rolling_preview_to,
+    capture_preview_to,
     list_reference_pngs,
     move_temporal_to_reference_basename,
     rename_reference_to_basename,
@@ -44,6 +50,8 @@ from ui.roboflow_upload import (
     load_roboflow_upload_config,
     upload_screenshot_to_roboflow,
 )
+
+logger = logging.getLogger(__name__)
 
 _REPO = repo_root()
 _ROLLING_STEM_SUFFIX = "_current_state"
@@ -73,16 +81,42 @@ def _is_rolling_preview_png(path: Path, ref_root: Path) -> bool:
     return path.stem.endswith(_ROLLING_STEM_SUFFIX)
 
 
-def list_reference_paths(*, scope: str = CORE_MODULE_KEY, limit: int = 300) -> list[dict[str, Any]]:
-    env = ls.scope_env(scope)
-    paths = list_reference_pngs(
+def _list_labeling_reference_pngs(env: ls.LabelingScopeEnv, *, limit: int) -> list[Path]:
+    """Published refs plus pending ``temporal/*_shot_*.png`` (not rolling previews)."""
+    published = list_reference_pngs(
         limit=limit,
         root=env.ref_root,
         exclude_temporal=True,
         exclude_crop=True,
         exclude_events=True,
     )
-    paths = [p for p in paths if not _is_rolling_preview_png(p, env.ref_root)]
+    published = [p for p in published if not _is_rolling_preview_png(p, env.ref_root)]
+
+    pending: list[Path] = []
+    temporal_dir = env.ref_root / TEMPORAL_SUBDIR
+    if temporal_dir.is_dir():
+        for path in temporal_dir.glob("*.png"):
+            if _is_rolling_preview_png(path, env.ref_root):
+                continue
+            pending.append(path)
+        pending.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+    seen: set[Path] = set()
+    merged: list[Path] = []
+    for path in (*pending, *published):
+        key = path.resolve()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(path)
+        if len(merged) >= limit:
+            break
+    return merged
+
+
+def list_reference_paths(*, scope: str = CORE_MODULE_KEY, limit: int = 300) -> list[dict[str, Any]]:
+    env = ls.scope_env(scope)
+    paths = _list_labeling_reference_pngs(env, limit=limit)
     area_doc = ls.load_area_doc(env)
     meta_by_rel = build_reference_leaf_meta_index(area_doc, env.ref_root)
     out: list[dict[str, Any]] = []
@@ -318,16 +352,70 @@ def save_labeling_regions(
     if version and active_version is None and found is not None:
         msg = f"unknown version: {version}"
         raise ValueError(msg)
-    _set_regions_for_edit(entry, active_version, regions)
+
+    old_regions = _regions_for_edit(entry, active_version)
+    rename_pairs = detect_region_renames(old_regions, regions)
+    synced_renames: list[dict[str, Any]] = []
+    regions_to_save = list(regions)
+    ocr_rel = str(entry.get("ocr") or ref_rel).replace("\\", "/").strip()
+    module_dir = env.ctx.module_dir
+
+    for old_name, new_name in rename_pairs:
+        if old_name.endswith(("_search", "_tap")):
+            continue
+        regions_to_save = cascade_primary_rename_in_regions(
+            regions_to_save, old_name, new_name
+        )
+        if str(entry.get("screen_region") or "").strip() == old_name:
+            entry["screen_region"] = new_name
+        sync = apply_region_rename(
+            env.repo_root,
+            old_name=old_name,
+            new_name=new_name,
+            module_dir=module_dir,
+            reference_repo_rel=ocr_rel or None,
+        )
+        synced_renames.append(sync)
+
+    _set_regions_for_edit(entry, active_version, regions_to_save)
     if screen_id is not None:
         entry["screen_id"] = str(screen_id).strip()
     screens[idx] = entry
     _atomic_write_json(env.area_path, doc)
+    crop_meta = _export_module_crops(doc, env)
+    _publish_area_manifest_changed()
     return {
         "ok": True,
-        "region_count": len(regions),
+        "region_count": len(regions_to_save),
         "active_version": active_version,
         "screen_id": str(entry.get("screen_id") or ""),
+        "region_renames_synced": synced_renames,
+        **crop_meta,
+    }
+
+
+def _publish_area_manifest_changed() -> None:
+    """Notify dashboard SSE subscribers (Region probe, overlay test) after area save."""
+    try:
+        from api.deps import get_redis
+        from ui.dashboard_events import publish_dashboard_event
+
+        publish_dashboard_event(get_redis(), topic="area", reason="labeling_save")
+    except Exception:
+        logger.debug("area manifest dashboard event skipped", exc_info=True)
+
+
+def _export_module_crops(doc: dict[str, Any], env: ls.LabelingScopeEnv) -> dict[str, Any]:
+    """Re-export all bbox crops for the module after area.json was saved."""
+    doc_export = _doc_with_repo_relative_ocr(doc, env.area_path, env.repo_root)
+    written, warnings = export_all_region_crops_for_area_doc(
+        cast("dict[str, Any]", doc_export),
+        repo_root=env.repo_root,
+    )
+    rels = [p.relative_to(env.repo_root).as_posix() for p in written]
+    return {
+        "crops_written_count": len(rels),
+        "crop_warnings": warnings[:50],
     }
 
 
@@ -384,7 +472,7 @@ def capture_new_screenshot(
         raise ValueError(msg)
     capture_bn = unique_label_capture_basename(iid)
     temp_path = temporal_png_abs_path_in_refs(env.ref_root, capture_bn)
-    ok, msg = copy_rolling_preview_to(iid, temp_path)
+    ok, msg = capture_preview_to(iid, temp_path)
     if not ok:
         raise RuntimeError(msg or "ADB capture failed")
     ref_rel = temp_path.resolve().relative_to(env.repo_root).as_posix()
@@ -411,7 +499,7 @@ def refresh_reference(
     if _is_rolling_preview_png(target, env.ref_root):
         msg = "cannot refresh rolling preview files"
         raise ValueError(msg)
-    ok, msg = copy_rolling_preview_to(iid, target)
+    ok, msg = capture_preview_to(iid, target)
     if not ok:
         raise RuntimeError(msg or "ADB capture failed")
     return {"ok": True, "ref": ref_rel, "instance_id": iid}

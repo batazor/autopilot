@@ -7,6 +7,26 @@ from layout.area_lookup import screen_region_by_name
 from layout.bbox_percent import bbox_percent_center_xy_pct
 
 
+def normalize_overlay_action(rule: dict[str, Any]) -> str:
+    """Map YAML overlay ``action`` / boolean gates to the runtime action name."""
+    action = str(rule.get("action") or "").strip()
+    if action == "exist":
+        action = "findIcon"
+    if rule.get("isRedDot") is True and action != "findIcon":
+        action = "red_dot"
+    elif rule.get("isRedDot") is False and action != "findIcon":
+        action = "red_dot_absent"
+    if rule.get("isTabActive") is True:
+        action = "tab_active"
+    elif rule.get("isTabActive") is False:
+        action = "tab_active_absent"
+    if rule.get("isWhiteBorder") is True:
+        action = "white_border"
+    elif rule.get("isWhiteBorder") is False:
+        action = "white_border_absent"
+    return action
+
+
 def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
     """Optional task enqueue hints for matched overlays.
 
@@ -118,6 +138,37 @@ def overlay_rule_screen_allowlist(rule: dict[str, Any]) -> list[str]:
             if s:
                 out.append(s)
     return out
+
+
+async def overlay_rule_cond_allows(
+    rule: dict[str, Any],
+    *,
+    instance_id: str | None = None,
+    redis_async: Any | None = None,
+    state_flat: dict[str, Any] | None = None,
+) -> bool:
+    """Whether a YAML ``cond`` on an overlay rule passes (skip rule when false)."""
+    raw = rule.get("cond")
+    if raw is None or isinstance(raw, bool):
+        return True
+    expr = str(raw).strip()
+    if not expr:
+        return True
+    inst = str(instance_id or "").strip()
+    if inst:
+        from tasks.dsl_scenario_helpers import _dsl_cond_allows_step
+
+        return await _dsl_cond_allows_step(
+            {"cond": expr},
+            inst,
+            redis_async,
+            state_flat=state_flat,
+        )
+    if state_flat is not None:
+        from layout.area_versions import eval_cond
+
+        return eval_cond(expr, state_flat)
+    return False
 
 
 def optional_ttl_seconds(rule: dict[str, Any]) -> float | None:

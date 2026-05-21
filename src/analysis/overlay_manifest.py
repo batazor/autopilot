@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from analysis.overlay_compile import CompiledOverlayPlan, compile_overlay_plan
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
@@ -66,21 +69,104 @@ def iter_analyze_manifest_paths(
     return iter_module_analyze_manifests(repo_root, module_scope)
 
 
+def _stat_fingerprint(path: Path) -> tuple[str, int, int] | None:
+    """``(resolved path, size, mtime_ns)`` for cache invalidation; ``None`` if missing."""
+    try:
+        if not path.is_file():
+            return None
+        st = path.stat()
+        return (str(path.resolve()), st.st_size, st.st_mtime_ns)
+    except OSError:
+        return None
+
+
+def _collect_analyze_files(manifest_path: Path, seen: set[Path] | None = None) -> list[Path]:
+    """Manifest plus every ``include:`` target (recursive), deduped in walk order."""
+    if seen is None:
+        seen = set()
+    resolved = manifest_path.resolve()
+    if resolved in seen or not manifest_path.is_file():
+        return []
+    seen.add(resolved)
+    out: list[Path] = [manifest_path]
+    raw = _load_yaml_dict(manifest_path)
+    inc = raw.get("include")
+    if isinstance(inc, list) and inc:
+        for inc_path in _resolve_includes(manifest_path, inc):
+            out.extend(_collect_analyze_files(inc_path, seen))
+    return out
+
+
+def analyze_manifests_fingerprint(
+    repo_root: Path,
+    module_scope: str | None = None,
+) -> tuple[tuple[str, int, int], ...]:
+    """Sorted ``(path, size, mtime_ns)`` for every manifest and ``include:`` file."""
+    entries: list[tuple[str, int, int]] = []
+    for manifest in iter_analyze_manifest_paths(repo_root, module_scope):
+        for path in _collect_analyze_files(manifest):
+            fp = _stat_fingerprint(path)
+            if fp is not None:
+                entries.append(fp)
+    entries.sort(key=lambda row: row[0])
+    return tuple(entries)
+
+
 def analyze_manifests_mtime(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> float | None:
-    """Latest mtime among module ``analyze/analyze.yaml`` files (cache invalidation)."""
+    """Latest ``st_mtime`` among manifests and ``include:`` targets (legacy float bucket)."""
     mt: float | None = None
-    for path in iter_analyze_manifest_paths(repo_root, module_scope):
-        try:
-            if not path.is_file():
-                continue
-            m = path.stat().st_mtime
-            mt = m if mt is None else max(mt, m)
-        except OSError:
-            continue
+    for _path, _size, mtime_ns in analyze_manifests_fingerprint(repo_root, module_scope):
+        m = mtime_ns / 1_000_000_000
+        mt = m if mt is None else max(mt, m)
     return mt
+
+
+def clear_merged_analyze_yaml_cache() -> None:
+    """Drop cached merged manifests (tests, hot reload)."""
+    _load_merged_analyze_yaml_cached.cache_clear()
+    _compiled_overlay_plan_cached.cache_clear()
+
+
+def compiled_overlay_plan(
+    repo_root: Path,
+    *,
+    module_scope: str | None = None,
+    device_level_only: bool = False,
+) -> CompiledOverlayPlan:
+    """Compiled overlay rules for ``run_overlay_analysis`` (mtime-keyed cache)."""
+    root = repo_root.resolve()
+    fp = analyze_manifests_fingerprint(root, module_scope)
+    return _compiled_overlay_plan_cached(
+        str(root),
+        module_scope or "",
+        fp,
+        device_level_only,
+    )
+
+
+@lru_cache(maxsize=64)
+def _compiled_overlay_plan_cached(
+    repo_root_s: str,
+    module_scope: str,
+    manifests_fp: tuple[tuple[str, int, int], ...],
+    device_level_only: bool,
+) -> CompiledOverlayPlan:
+    _ = manifests_fp
+    merged = _load_merged_analyze_yaml_cached(
+        repo_root_s, module_scope, manifests_fp
+    )
+    overlay = merged.get("overlay")
+    rules = overlay if isinstance(overlay, list) else []
+    if device_level_only:
+        rules = [
+            rule
+            for rule in rules
+            if isinstance(rule, dict) and rule.get("device_level") is True
+        ]
+    return compile_overlay_plan(rules)
 
 
 def load_merged_analyze_yaml(
@@ -89,10 +175,29 @@ def load_merged_analyze_yaml(
     module_scope: str | None = None,
 ) -> dict[str, Any]:
     """Merge ``overlay`` rules from every ``modules/core/*/analyze`` + feature module."""
+    root = repo_root.resolve()
+    fp = analyze_manifests_fingerprint(root, module_scope)
+    return _load_merged_analyze_yaml_cached(
+        str(root),
+        module_scope or "",
+        fp,
+    )
+
+
+@lru_cache(maxsize=64)
+def _load_merged_analyze_yaml_cached(
+    repo_root_s: str,
+    module_scope: str,
+    manifests_fp: tuple[tuple[str, int, int], ...],
+) -> dict[str, Any]:
+    # manifests_fp is part of the cache key; edits invalidate automatically.
+    _ = manifests_fp
+    repo_root = Path(repo_root_s)
+    scope = module_scope or None
     merged: dict[str, Any] = {}
     overlay: list[dict[str, Any]] = []
 
-    for module_manifest in iter_analyze_manifest_paths(repo_root, module_scope):
+    for module_manifest in iter_analyze_manifest_paths(repo_root, scope):
         doc = load_analyze_yaml(module_manifest)
         module_overlay = doc.get("overlay")
         if isinstance(module_overlay, list):

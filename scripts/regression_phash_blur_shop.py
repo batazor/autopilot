@@ -2,7 +2,6 @@
 """Simulate Gaussian blur before pHash on shop module title matrix (no code change)."""
 from __future__ import annotations
 
-import copy
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +39,22 @@ PAGES: list[tuple[str, str, str]] = [
     ("shop.get_gems", "page.shop.get_gems.title", "page.shop.get_gems.png"),
     ("shop.regular_pack", "page.shop.regular_pack.title", "page.shop.regular_pack.png"),
 ]
+
+
+async def _title_match_score(
+    frame: np.ndarray,
+    area_doc: dict[str, Any],
+    title_region: str,
+    screen_id: str,
+) -> float:
+    out = await evaluate_overlay_rules_async(
+        frame,
+        area_doc,
+        REPO,
+        [{"name": "t", "region": title_region, "action": "findIcon", "threshold": 0.0}],
+        current_screen=screen_id,
+    )
+    return float(out["t"].get("score") or 0.0)
 
 
 def _phash64_blur(patch_bgr: np.ndarray) -> int:
@@ -108,7 +123,7 @@ async def _eval_matrix(
                 f"score={row.get('score')} ncc={row.get('score_ncc')} matched={row.get('matched')}"
             )
 
-    for source_screen, source_title, source_png, other_screen, other_title in [
+    for source_screen, _source_title, source_png, other_screen, other_title in [
         (sn, st, sp, on, ot)
         for sn, st, sp in PAGES
         for on, ot, _ in PAGES
@@ -142,7 +157,6 @@ async def _eval_matrix(
 
 
 async def main() -> int:
-    import asyncio
 
     area_doc = load_area_doc(REPO)
 
@@ -163,20 +177,10 @@ async def main() -> int:
         frame = cv2.imread(str(REFERENCES_DIR / screenshot))
         assert frame is not None
 
-        async def one_score() -> float:
-            out = await evaluate_overlay_rules_async(
-                frame,
-                area_doc,
-                REPO,
-                [{"name": "t", "region": title_region, "action": "findIcon", "threshold": 0.0}],
-                current_screen=screen_id,
-            )
-            return float(out["t"].get("score") or 0.0)
-
         _restore_phash()
-        s0 = await one_score()
+        s0 = await _title_match_score(frame, area_doc, title_region, screen_id)
         _install_blur_phash()
-        s1 = await one_score()
+        s1 = await _title_match_score(frame, area_doc, title_region, screen_id)
         _restore_phash()
         delta = s1 - s0
         print(f"  {title_region:<42} {s0:.4f} -> {s1:.4f} ({delta:+.4f})")

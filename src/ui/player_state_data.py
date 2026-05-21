@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-import yaml
+    from config.state_schema import GamerState, StateDB
 
 from century.api import CenturyAPIError, CenturyClient
 from config.buildings import get_building_registry
@@ -16,27 +16,26 @@ from config.devices import load_devices, upsert_device_gamer
 from config.heroes import HeroDef, get_hero_registry
 from config.loader import load_settings
 from config.paths import repo_root
-from config.state_schema import GamerState, StateDB
+from config.state_sqlite import get_player_stats, load_state_db_raw, state_db_path
 from config.state_store import get_state_store
 
 _LEVEL_PREFIX = "buildings.levels."
-_STATE_PATH = repo_root() / "db" / "state.yaml"
+
+
+def state_db_file_path() -> Path:
+    return state_db_path()
 
 
 def state_yaml_path() -> Path:
-    return _STATE_PATH
+    """Legacy alias — persisted state lives in SQLite."""
+    return state_db_path()
 
 
 def load_state_db() -> tuple[StateDB | None, str | None, str]:
-    path = _STATE_PATH
-    if not path.is_file():
-        return StateDB(), None, ""
-    text = path.read_text(encoding="utf-8")
-    try:
-        raw = yaml.safe_load(text) or {}
-        return StateDB.model_validate(raw), None, text
-    except Exception as exc:
-        return None, f"{type(exc).__name__}: {exc}", text
+    db, err, raw = load_state_db_raw()
+    if err:
+        return None, err, raw
+    return db, None, raw
 
 
 def list_known_player_ids() -> list[str]:
@@ -283,39 +282,47 @@ def build_persisted_player_view(g: GamerState) -> dict[str, Any]:
 
 
 def get_persisted_player(player_id: str) -> dict[str, Any]:
-    db, yaml_err, raw_yaml = load_state_db()
-    rel = _STATE_PATH.relative_to(repo_root()).as_posix()
+    db, parse_err, raw_json = load_state_db()
+    rel = state_db_path().relative_to(repo_root()).as_posix()
     base = {
         "state_path": rel,
-        "parse_error": yaml_err,
-        "raw_yaml": raw_yaml if yaml_err else None,
+        "storage": "sqlite",
+        "parse_error": parse_err,
+        "raw_yaml": raw_json if parse_err else None,
+        "raw_json": raw_json if parse_err else None,
     }
-    if yaml_err or db is None:
+    if parse_err or db is None:
         return {**base, "player": None}
     target = str(player_id).strip()
     for g in db.gamers:
         if str(g.id) == target:
             return {**base, "player": build_persisted_player_view(g)}
-    msg = f"player not in state.yaml: {player_id}"
+    msg = f"player not in state DB: {player_id}"
     raise KeyError(msg)
 
 
 def build_state_db_overview() -> dict[str, Any]:
-    db, yaml_err, _ = load_state_db()
-    rel = _STATE_PATH.relative_to(repo_root()).as_posix()
+    db, parse_err, _ = load_state_db()
+    rel = state_db_path().relative_to(repo_root()).as_posix()
     gamers: list[dict[str, Any]] = []
-    if db and not yaml_err:
+    if db and not parse_err:
         gamers = [gamer_summary_row(g) for g in db.gamers]
+    path = state_db_path()
     return {
         "state_path": rel,
-        "parse_error": yaml_err,
-        "file_exists": _STATE_PATH.is_file(),
+        "storage": "sqlite",
+        "parse_error": parse_err,
+        "file_exists": path.is_file(),
         "gamers": gamers,
     }
 
 
+def get_player_power_stats(player_id: str) -> dict[str, Any]:
+    return get_player_stats(player_id)
+
+
 def sync_player_from_century(player_id: str) -> dict[str, Any]:
-    """Pull Century API data and persist to state.yaml (+ best-effort devices.yaml)."""
+    """Pull Century API data and persist to SQLite (+ best-effort devices.yaml)."""
     fid = int(str(player_id).strip())
     now = time.time()
     steps: list[dict[str, str]] = []
@@ -354,11 +361,11 @@ def sync_player_from_century(player_id: str) -> dict[str, Any]:
     except Exception as exc:
         return {
             "ok": False,
-            "error": f"state.yaml persist failed: {type(exc).__name__}: {exc}",
+            "error": f"state DB persist failed: {type(exc).__name__}: {exc}",
             "steps": steps,
         }
 
-    steps.append({"step": "persist", "detail": "Updated db/state.yaml"})
+    steps.append({"step": "persist", "detail": f"Updated {state_db_path().relative_to(repo_root())}"})
 
     devices_note = "skipped devices.yaml"
     try:

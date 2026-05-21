@@ -110,3 +110,48 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
+- id: 34
+  screen_id: survivor_status
+  ocr: references/survivors.intro.png
+  regions:
+  - name: survivors.intro
+    action: findIcon
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 93.6911196911197
+      y: 59.23913043478261
+      width: 4.7992277992278
+      height: 2.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
+  - name: survivors.intro_tap
+    action: click
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 74.91312741312741
+      y: 60.54347826086956
+      width: 19.14864864864865
+      height: 9.576086956521738
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    overlay_auxiliary: true
+- id: 33
+  screen_id: survivor_status
+  ocr: references/page.worker.status_overlay.png
+  regions:
+  - name: worker.status
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 7.876447876447876
+      y: 93.58695652173913
+      width: 36.3996138996139
+      height: 3.2
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280

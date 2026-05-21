@@ -89,7 +89,7 @@ export function LabelingRegionsPanel({
           </p>
         ) : null}
 
-        <button type="button" className="btn-secondary labeling-add-region" onClick={onAddRegion}>
+        <button type="button" className="btn-primary labeling-add-region" onClick={onAddRegion}>
           Add region
         </button>
 
@@ -206,7 +206,11 @@ export function LabelingRegionsPanel({
             />
             <button
               type="button"
-              className={confirmDelete ? "btn-primary" : "btn-secondary"}
+              className={
+                confirmDelete
+                  ? "btn-secondary labeling-delete-region labeling-delete-region--confirm"
+                  : "btn-secondary labeling-delete-region"
+              }
               onClick={onDelete}
             >
               {confirmDelete ? "Confirm delete" : "Delete region"}

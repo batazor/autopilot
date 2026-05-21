@@ -44,8 +44,10 @@ def test_bot_status_embedded() -> None:
 
 
 def test_start_embedded_bot_noop_when_running() -> None:
-    with patch.object(local_bot, "bot_status", return_value={"running": True, "mode": "embedded", "pid": None}):
-        with patch("ui.bot_services.ensure_embedded_bot") as ensure:
-            out = local_bot.start_embedded_bot()
-            ensure.assert_not_called()
-            assert out["running"] is True
+    with (
+        patch.object(local_bot, "bot_status", return_value={"running": True, "mode": "embedded", "pid": None}),
+        patch("ui.bot_services.ensure_embedded_bot") as ensure,
+    ):
+        out = local_bot.start_embedded_bot()
+        ensure.assert_not_called()
+        assert out["running"] is True

@@ -17,3 +17,14 @@ overlay:
       - survivor_status.status
     pushScenario:
       - name: assign_worker
+
+  - name: survivors.intro.visible
+    region: survivors.intro
+    action: findIcon
+    priority: 90_000
+    threshold: 0.9
+    ttl: 3
+    screens:
+      - survivor_status
+    pushScenario:
+      - name: survivors_intro

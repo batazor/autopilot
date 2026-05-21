@@ -10,6 +10,7 @@ from ui.player_state_data import (
     build_live_player_state,
     build_state_db_overview,
     get_persisted_player,
+    get_player_power_stats,
     list_known_player_ids,
     sync_player_from_century,
 )
@@ -27,6 +28,10 @@ def build_player_state(client: redis.Redis, player_id: str) -> dict[str, Any]:
 
 def get_persisted_state(player_id: str) -> dict[str, Any]:
     return get_persisted_player(player_id)
+
+
+def get_player_stats(player_id: str) -> dict[str, Any]:
+    return get_player_power_stats(player_id)
 
 
 def get_state_db_overview() -> dict[str, Any]:

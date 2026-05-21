@@ -86,7 +86,6 @@ async def count_next_page(threshold: float) -> int:
 
 
 async def main() -> int:
-    import asyncio
 
     fails = 0
     for thr in THRESHOLDS:

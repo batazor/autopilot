@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import cv2
 import numpy as np
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 DIGIT_CELL_W = 20
 DIGIT_CELL_H = 32
@@ -326,8 +328,7 @@ def load_dataset_manifest(dataset_root: Path) -> list[tuple[str, Path]]:
         folder = dataset_root / str(d)
         if not folder.is_dir():
             continue
-        for png in sorted(folder.glob("*.png")):
-            rows.append((str(d), png))
+        rows.extend((str(d), png) for png in sorted(folder.glob("*.png")))
     return rows
 
 

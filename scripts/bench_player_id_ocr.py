@@ -7,7 +7,8 @@ Usage (EasyOCR pulls torch on first install):
 
 Optional:
 
-    uv run --with easyocr python scripts/bench_player_id_ocr.py --fixture tests/fixtures/chief_profile_player_id_live.png
+    uv run --with easyocr python scripts/bench_player_id_ocr.py \\
+        --fixture tests/fixtures/chief_profile_player_id_live.png
 """
 from __future__ import annotations
 
@@ -21,18 +22,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
+from typing import TYPE_CHECKING  # noqa: E402
+
 from config.loader import load_settings, set_settings  # noqa: E402
+from kNN.digital.paths import model_path as knn_model_path  # noqa: E402
 from layout.area_lookup import screen_region_by_name  # noqa: E402
 from layout.types import Region  # noqa: E402
 from ocr.client import OcrClient  # noqa: E402
 from ocr.preprocess import binary_tile_for_ocr, enhance_for_ocr  # noqa: E402
 
-from kNN.digital.paths import model_path as knn_model_path  # noqa: E402
+if TYPE_CHECKING:
+    import numpy as np
 
 DEFAULT_FIXTURE = REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png"
 AREA_JSON = REPO / "area.json"
@@ -220,7 +224,8 @@ async def _async_main(fixture: Path) -> int:
         import subprocess
 
         print("\n--- EasyOCR (sidecar venv py3.12; torch has no cp313 x86 wheels) ---")
-        proc = subprocess.run(
+        proc = await asyncio.to_thread(
+            subprocess.run,
             [str(sidecar_venv), str(sidecar_script)],
             cwd=str(REPO),
             check=False,

@@ -223,8 +223,16 @@
     @apply mb-3 rounded-lg border border-wos-border-subtle bg-wos-surface/80 px-3 py-2;
   }
 
-  .approvals-payload summary {
-    @apply cursor-pointer text-sm font-medium text-wos-text;
+  .approvals-payload__summary {
+    @apply flex cursor-pointer items-center justify-between gap-2 text-sm font-medium text-wos-text;
+  }
+
+  .approvals-payload__summary-actions {
+    @apply shrink-0;
+  }
+
+  .approvals-payload__copy {
+    @apply px-2 py-1 text-xs;
   }
 
   .approvals-payload pre.code-block {

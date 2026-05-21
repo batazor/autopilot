@@ -22,6 +22,10 @@ from ui.redis_client import (
     fetch_running_queue_row,
     get_instance_state,
 )
+from ui.scenario_progress_metrics import (
+    compute_scenario_progress_metrics,
+    format_scenario_progress_label,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -73,19 +77,27 @@ def render_step_progress(
             step_iter = int(state.get("last_active_scenario_iter") or 0)
         except (TypeError, ValueError):
             step_iter = 0
-    completed = (step_display + 1) if is_running else step_display
-    ratio = completed / max(1, scenario_total_steps)
+    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
+    metrics = compute_scenario_progress_metrics(
+        step_current=step_display,
+        step_total=scenario_total_steps,
+        is_running=is_running,
+        nav_target=nav_target,
+    )
+    ratio = float(metrics["progress_ratio"])
     if scenario_total_steps > 0:
-        text = f"Step {step_display + 1}/{scenario_total_steps}"
-        if is_running and step_iter > 0:
-            text += f" · iter {step_iter}"
-        if not is_running:
-            text += " · idle"
+        text = format_scenario_progress_label(
+            scenario_label="",
+            scenario_key=scenario_key,
+            step_current=step_display,
+            step_total=scenario_total_steps,
+            step_iter=step_iter,
+            is_running=is_running,
+            is_navigating=bool(metrics["is_navigating"]),
+            nav_target=nav_target,
+        )
     else:
         text = "no steps"
-    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
-    if nav_target:
-        text += f" · navigating → {nav_target}"
     st.progress(min(1.0, max(0.0, ratio)), text=text)
 
 
@@ -183,19 +195,29 @@ def render_active_scenario_progress(
             step_iter = int(state.get("last_active_scenario_iter") or 0)
         except (TypeError, ValueError):
             step_iter = 0
-    completed = (step_display + 1) if is_running else step_display
-    ratio = completed / max(1, total)
+    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
+    metrics = compute_scenario_progress_metrics(
+        step_current=step_display,
+        step_total=total,
+        is_running=is_running,
+        nav_target=nav_target,
+    )
+    ratio = float(metrics["progress_ratio"])
     if active_scenario and total > 0:
-        text = f"{active_scenario} · Step {step_display + 1}/{total}"
-        if is_running and step_iter > 0:
-            text += f" · iter {step_iter}"
-        if not is_running:
-            text += " · idle"
+        from ui.views.click_approvals.common import scenario_display_name
+
+        text = format_scenario_progress_label(
+            scenario_label=scenario_display_name(active_scenario),
+            scenario_key=active_scenario,
+            step_current=step_display,
+            step_total=total,
+            step_iter=step_iter,
+            is_running=is_running,
+            is_navigating=bool(metrics["is_navigating"]),
+            nav_target=nav_target,
+        )
     elif active_scenario:
         text = f"{active_scenario} · running"
     else:
         text = "no active scenario"
-    nav_target = str(state.get("nav_target") or "").strip() if is_running else ""
-    if nav_target:
-        text += f" · navigating → {nav_target}"
     st.progress(min(1.0, max(0.0, ratio)), text=text)

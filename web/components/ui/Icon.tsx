@@ -14,6 +14,7 @@ export type IconName =
   | "overview"
   | "instance"
   | "player-state"
+  | "player-stats"
   | "approvals"
   | "overlay-test"
   | "queue"
@@ -113,6 +114,11 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="9" r="3.5" />
       <path d="M6 19c1.2-2.5 3.2-3.8 6-3.8s4.8 1.3 6 3.8" strokeLinecap="round" />
+    </>,
+  ),
+  "player-stats": strokeIcon(
+    <>
+      <path d="M4 18V8l4 3 4-6 4 8 4-5v10" strokeLinecap="round" strokeLinejoin="round" />
     </>,
   ),
   approvals: strokeIcon(

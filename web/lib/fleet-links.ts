@@ -33,6 +33,13 @@ export function playerStateHref(
   })}`;
 }
 
+export function playerStatsHref(
+  playerId: string,
+  opts?: { instanceId?: string },
+) {
+  return `/player-stats${buildSearch({ playerId, instanceId: opts?.instanceId })}`;
+}
+
 export function approvalsHref(
   instanceId: string,
   extra?: Record<string, string | undefined>,
@@ -42,6 +49,10 @@ export function approvalsHref(
 
 export function queueHref(opts?: { instanceId?: string; playerId?: string }) {
   return `/queue${buildSearch(opts ?? {})}`;
+}
+
+export function labelingHref(opts?: { instanceId?: string }) {
+  return `/labeling${buildSearch(opts ?? {})}`;
 }
 
 export {

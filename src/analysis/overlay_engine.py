@@ -6,15 +6,10 @@ from typing import TYPE_CHECKING, Any
 import cv2
 import numpy as np
 
+from analysis.overlay_compile import CompiledOverlayPlan, ensure_overlay_plan
 from analysis.overlay_rules import (
     centers_delta_pct_between_regions,
-    optional_expected_texts,
-    optional_min_match_saturation,
-    optional_prefer_primary_bbox,
-    optional_priority,
-    optional_push_scenario_tasks,
-    optional_ttl_seconds,
-    overlay_rule_screen_allowlist,
+    overlay_rule_cond_allows,
     resolved_search_region_for_findicon,
 )
 from layout.area_lookup import screen_region_by_name
@@ -387,18 +382,27 @@ async def evaluate_overlay_rules_async(
     image_bgr: np.ndarray,
     area_doc: dict[str, Any],
     repo_root: Path,
-    overlay_rules: list[dict[str, Any]],
+    overlay_rules: list[dict[str, Any]] | CompiledOverlayPlan,
     *,
     current_screen: str | None = None,
     rule_eval_state: dict[str, float] | None = None,
     state_flat: dict[str, Any] | None = None,
     ocr_client: OcrClient | None = None,
+    instance_id: str | None = None,
+    redis_async: Any | None = None,
+    frame_gray: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Run ordered overlay rules; returns a dict keyed by rule ``name``."""
+    plan = ensure_overlay_plan(overlay_rules)
     out: dict[str, Any] = {}
     now_mono = time.monotonic()
     cur_screen_norm = (current_screen or "").strip()
-    frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    if not plan.rules:
+        return out
+    if not any(compiled.screen.allows(cur_screen_norm) for compiled in plan):
+        return out
+    if frame_gray is None:
+        frame_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
 
     def _lookup_region(region_name: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
         return screen_region_by_name(
@@ -413,42 +417,24 @@ async def evaluate_overlay_rules_async(
     # against the primary OCR text. Replaces 130+ sequential HTTP calls on
     # ``screen_verify.yaml`` with at most 2 round-trips.
     pending_text_rules: list[dict[str, Any]] = []
-    for rule in overlay_rules:
-        if not isinstance(rule, dict):
+    for compiled in plan:
+        rule = compiled.raw
+        logical_name = compiled.logical_name
+        set_node_s = compiled.set_node_s
+        priority = compiled.priority
+        action = compiled.action
+
+        if not compiled.screen.allows(cur_screen_norm):
             continue
-        set_node = rule.get("set_node")
-        set_node_s = str(set_node).strip() if isinstance(set_node, str) else ""
-        priority = optional_priority(rule)
-        # Screen filter: skip screen-specific rules when current screen doesn't match.
-        # Compare case-insensitively (Redis / FSM may differ in casing from YAML).
-        allowlist = overlay_rule_screen_allowlist(rule)
-        if allowlist:
-            allowed_lc = {s.lower() for s in allowlist}
-            wants_unknown = "none" in allowed_lc
-            cur_lc = cur_screen_norm.lower()
-            # Glob support: a pattern that includes ``*`` or ``?`` matches
-            # any screen that fnmatch'es it — used by ``page.heroes.*``
-            # rules so the per-hero screens (62 of them) don't need to be
-            # spelled out one by one.
-            glob_patterns = [p for p in allowed_lc if "*" in p or "?" in p]
-            if cur_screen_norm:
-                matched = cur_lc in allowed_lc
-                if not matched and glob_patterns:
-                    import fnmatch
-                    matched = any(
-                        fnmatch.fnmatchcase(cur_lc, pat) for pat in glob_patterns
-                    )
-                if not matched:
-                    continue
-            else:
-                if not wants_unknown:
-                    continue
-        action = str(rule.get("action") or "").strip()
-        logical_name = str(rule.get("name") or "").strip()
-        if not logical_name:
+        if not await overlay_rule_cond_allows(
+            rule,
+            instance_id=instance_id,
+            redis_async=redis_async,
+            state_flat=state_flat,
+        ):
             continue
 
-        ttl_seconds = optional_ttl_seconds(rule)
+        ttl_seconds = compiled.ttl_seconds
         if ttl_seconds is not None and rule_eval_state is not None:
             last = rule_eval_state.get(logical_name)
             if last is not None and (now_mono - last) < ttl_seconds:
@@ -457,37 +443,10 @@ async def evaluate_overlay_rules_async(
                     "reason": "ttl_throttled",
                     "ttl": ttl_seconds,
                     "next_eval_in": max(0.0, ttl_seconds - (now_mono - last)),
-                    "region": str(rule.get("region") or "").strip(),
+                    "region": compiled.region_name,
                 }
                 continue
             rule_eval_state[logical_name] = now_mono
-
-        # `area.json` (labeling editor) uses action names:
-        # - exist -> template match (`findIcon`)
-        # - text  -> OCR (`text`)
-        if action == "exist":
-            action = "findIcon"
-        # Only `text` is supported for OCR.
-
-        # YAML may use ``isRedDot: true|false`` instead of ``action:`` (same keys as DSL).
-        # When an explicit findIcon/template action is present, keep findIcon and
-        # use isRedDot as an additional gate on the found icon.
-        if rule.get("isRedDot") is True and action != "findIcon":
-            action = "red_dot"
-        elif rule.get("isRedDot") is False and action != "findIcon":
-            action = "red_dot_absent"
-
-        # YAML may use ``isTabActive: true|false`` to gate on tab highlight state.
-        if rule.get("isTabActive") is True:
-            action = "tab_active"
-        elif rule.get("isTabActive") is False:
-            action = "tab_active_absent"
-
-        # YAML may use ``isWhiteBorder: true|false`` to gate on a near-white halo.
-        if rule.get("isWhiteBorder") is True:
-            action = "white_border"
-        elif rule.get("isWhiteBorder") is False:
-            action = "white_border_absent"
 
         if action in ("red_dot", "red_dot_absent"):
             want_present = action == "red_dot"
@@ -578,7 +537,7 @@ async def evaluate_overlay_rules_async(
                 hit_rd["tap_region"] = tap_reg_rd
                 hit_rd["tap_delta_x_pct"] = dx_pct_rd
                 hit_rd["tap_delta_y_pct"] = dy_pct_rd
-            push_tasks_rd = optional_push_scenario_tasks(rule)
+            push_tasks_rd = compiled.push_tasks
             if push_tasks_rd:
                 hit_rd["pushScenario"] = push_tasks_rd
             if set_node_s:
@@ -674,7 +633,7 @@ async def evaluate_overlay_rules_async(
                 hit_ta["tap_region"] = tap_reg_ta
                 hit_ta["tap_delta_x_pct"] = dx_pct_ta
                 hit_ta["tap_delta_y_pct"] = dy_pct_ta
-            push_tasks_ta = optional_push_scenario_tasks(rule)
+            push_tasks_ta = compiled.push_tasks
             if push_tasks_ta:
                 hit_ta["pushScenario"] = push_tasks_ta
             if set_node_s:
@@ -782,7 +741,7 @@ async def evaluate_overlay_rules_async(
             if tap_template_w > 0 and tap_template_h > 0:
                 hit_dt["template_w"] = tap_template_w
                 hit_dt["template_h"] = tap_template_h
-            push_tasks_dt = optional_push_scenario_tasks(rule)
+            push_tasks_dt = compiled.push_tasks
             if push_tasks_dt:
                 hit_dt["pushScenario"] = push_tasks_dt
             if set_node_s:
@@ -894,7 +853,7 @@ async def evaluate_overlay_rules_async(
                 hit_wb["tap_region"] = tap_reg_wb
                 hit_wb["tap_delta_x_pct"] = dx_pct_wb
                 hit_wb["tap_delta_y_pct"] = dy_pct_wb
-            push_tasks_wb = optional_push_scenario_tasks(rule)
+            push_tasks_wb = compiled.push_tasks
             if push_tasks_wb:
                 hit_wb["pushScenario"] = push_tasks_wb
             if set_node_s:
@@ -906,7 +865,7 @@ async def evaluate_overlay_rules_async(
 
         if action == "findIcon":
             region_name = str(rule.get("region") or "").strip()
-            threshold = float(rule.get("threshold", 0.7))
+            threshold = compiled.threshold
             pair = _lookup_region(region_name)
             if pair is None:
                 out[logical_name] = {
@@ -926,10 +885,10 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
-            min_sat = optional_min_match_saturation(rule)
-            push_tasks = optional_push_scenario_tasks(rule)
+            min_sat = compiled.min_match_saturation
+            push_tasks = compiled.push_tasks
 
-            direct_template = str(rule.get("template") or "").replace("\\", "/").strip()
+            direct_template = compiled.direct_template
             if direct_template:
                 template_path = (repo_root / direct_template.lstrip("/")).resolve()
                 try:
@@ -1067,8 +1026,8 @@ async def evaluate_overlay_rules_async(
                 }
                 continue
 
-            min_sat = optional_min_match_saturation(rule)
-            push_tasks = optional_push_scenario_tasks(rule)
+            min_sat = compiled.min_match_saturation
+            push_tasks = compiled.push_tasks
 
             hi, wi = int(image_bgr.shape[0]), int(image_bgr.shape[1])
             tw_tpl = int(tpl.shape[1])
@@ -1256,7 +1215,7 @@ async def evaluate_overlay_rules_async(
                         excl_r = 0
 
                     res = None
-                    if optional_prefer_primary_bbox(rule):
+                    if compiled.prefer_primary_bbox:
                         try:
                             cand = match_crop_1to1_at_bbox_percent(image_bgr, tpl, bbox)
                         except ValueError:
@@ -1568,7 +1527,7 @@ async def evaluate_overlay_rules_async(
                 "threshold": threshold,
                 "shares": shares,
             }
-            push_tasks = optional_push_scenario_tasks(rule)
+            push_tasks = compiled.push_tasks
             if push_tasks:
                 hit["pushScenario"] = push_tasks
             if set_node_s:
@@ -1579,9 +1538,9 @@ async def evaluate_overlay_rules_async(
             continue
 
         if action == "text":
-            region_name = str(rule.get("region") or "").strip()
-            threshold = float(rule.get("threshold", 0.7))
-            expected = optional_expected_texts(rule)
+            region_name = compiled.region_name
+            threshold = compiled.threshold
+            expected = list(compiled.expected)
 
             pair = _lookup_region(region_name)
             if pair is None:
@@ -1599,9 +1558,7 @@ async def evaluate_overlay_rules_async(
             # tagged once in the annotator (``type: time``) doesn't have to
             # be repeated in every overlay rule that targets it. Mirrors the
             # DSL ``ocr`` step's resolution.
-            rule_type = str(
-                rule.get("type") or reg.get("type") or ""
-            ).strip().lower()
+            rule_type = compiled.rule_type_lc or str(reg.get("type") or "").strip().lower()
             bbox = reg.get("bbox")
             if not isinstance(bbox, dict):
                 out[logical_name] = {
@@ -1633,7 +1590,7 @@ async def evaluate_overlay_rules_async(
                     "expected": expected,
                     "threshold": threshold,
                     "preprocess": preprocess,
-                    "push_tasks": optional_push_scenario_tasks(rule),
+                    "push_tasks": compiled.push_tasks,
                     "set_node_s": set_node_s,
                     "priority": priority,
                 }

@@ -4,41 +4,38 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from config.state_schema import GamerState, StateDB
+from config.state_sqlite import save_state_db, set_state_db_path_for_tests
+
 if TYPE_CHECKING:
     from pathlib import Path
 
 
 @pytest.fixture
 def player_state_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    state_yaml = tmp_path / "db" / "state.yaml"
-    state_yaml.parent.mkdir(parents=True)
-    state_yaml.write_text(
-        """
-gamers:
-  - id: 1001
-    nickname: TestPlayer
-    power: 5000
-    gems: 10
-    buildings:
-      furnace:
-        level: 7
-        power: 100
-      levels:
-        furnace: 7
-    heroes:
-      entries: {}
-""".strip()
-        + "\n",
-        encoding="utf-8",
+    db_path = tmp_path / "db" / "state" / "wos.db"
+    set_state_db_path_for_tests(db_path)
+
+    gamer = GamerState(
+        id=1001,
+        nickname="TestPlayer",
+        power=5000,
+        gems=10,
     )
+    gamer.buildings.furnace.level = 7
+    gamer.buildings.furnace.power = 100
+    gamer.buildings.levels["furnace"] = 7
+    save_state_db(StateDB(gamers=[gamer]))
+
     devices_yaml = tmp_path / "db" / "devices.yaml"
+    devices_yaml.parent.mkdir(parents=True, exist_ok=True)
     devices_yaml.write_text("devices: []\n", encoding="utf-8")
 
     import ui.player_state_data as psd
 
-    monkeypatch.setattr(psd, "_STATE_PATH", state_yaml)
     monkeypatch.setattr(psd, "repo_root", lambda: tmp_path)
-    return tmp_path
+    yield tmp_path
+    set_state_db_path_for_tests(None)
 
 
 def test_build_persisted_player_view(player_state_repo: Path) -> None:
