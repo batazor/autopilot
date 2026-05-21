@@ -1,6 +1,7 @@
 """Persistent top-left cache for full-frame template searches."""
 from __future__ import annotations
 
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -11,25 +12,33 @@ if TYPE_CHECKING:
 
 MAX_POSITIONS = 20
 
+_cache_singleton: Any = None
+_cache_lock = threading.Lock()
+
 
 def default_search_cache_dir() -> Path:
     return repo_root() / ".cache" / "wos" / "search_positions"
 
 
 def _cache() -> Any:
-    from diskcache import Cache
+    global _cache_singleton
+    if _cache_singleton is not None:
+        return _cache_singleton
+    with _cache_lock:
+        if _cache_singleton is None:
+            from diskcache import Cache
 
-    root = default_search_cache_dir()
-    root.mkdir(parents=True, exist_ok=True)
-    return Cache(str(root))
+            root = default_search_cache_dir()
+            root.mkdir(parents=True, exist_ok=True)
+            _cache_singleton = Cache(str(root))
+    return _cache_singleton
 
 
 def read_positions(key: str) -> list[dict[str, Any]]:
     if not key:
         return []
     try:
-        with _cache() as c:
-            raw = c.get(key, default=[])
+        raw = _cache().get(key, default=[])
     except Exception:
         return []
     if not isinstance(raw, list):
@@ -81,8 +90,7 @@ def record_position(key: str, *, x: int, y: int, score: float) -> None:
         merged.append({"x": int(x), "y": int(y), "score": float(score), "last_seen": now, "hits": 1})
     merged.sort(key=lambda it: (float(it["score"]), float(it["last_seen"]), int(it["hits"])), reverse=True)
     try:
-        with _cache() as c:
-            c.set(key, merged[:MAX_POSITIONS])
+        _cache().set(key, merged[:MAX_POSITIONS])
     except Exception:
         return
 

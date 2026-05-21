@@ -391,7 +391,7 @@ class SchedulerRunner:
                     if await self._redis.hget(_CRON_KEY, guard):  # type: ignore[arg-type]
                         continue
                     await self._redis.hset(_CRON_KEY, guard, "1")
-                    await self._redis.expire(_CRON_KEY, 60 * 60 * 24)
+                    await self._redis.expire(_CRON_KEY, 120)
 
                     await self._queue.schedule(
                         task_id=f"cron:{spec_slug}:{player_id}:{int(now)}",

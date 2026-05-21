@@ -7,6 +7,7 @@ node: shop.dawn_market
 steps:
   - while_match: page.shop.dawn_market.claimable
     isRedDot: true
+    max: 20
     steps:
       - click: page.shop.dawn_market.claimable
       - wait: 1s

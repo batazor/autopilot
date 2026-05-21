@@ -57,6 +57,7 @@ steps:
       - click: mail.claim.all
       - wait: 1s
       - while_match: button.claim
+        max: 10
         steps:
           - click: button.claim
           - wait: 0.5s
@@ -67,6 +68,7 @@ steps:
       - click: mail.delete.all
       - wait: 1s
       - while_match: ui.button.confirm_blue
+        max: 3
         steps:
           - click: ui.button.confirm_blue
           - wait: 0.5s

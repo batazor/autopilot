@@ -4,6 +4,7 @@ node: event.7-day
 icon: 7-day
 steps:
   - while_match: button.claim.big
+    max: 3
     steps:
       - click: button.claim.big
       - wait: 1s

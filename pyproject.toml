@@ -54,23 +54,10 @@ dev = [
     "pytest-sugar>=1.1.1",
     "pytest-timeout>=2.4.0",
 ]
-ui = [
-    "streamlit>=1.39",
-    "streamlit-autorefresh>=1.0",
-    # Local fork — actual install path is controlled by [tool.uv.sources] below.
-    "streamlit-drawable-canvas",
-    "st-ant-tree>=0.0.16",
-    "pillow>=10.0",
-    "streamlit-react-flow>=0.1.0",
-    "streamlit-dnd-sortable>=0.1.0",
-    "streamlit-nested-table>=0.1.0",
-]
-annotator = [
-    "streamlit>=1.39",
-    # Local fork — actual install path is controlled by [tool.uv.sources] below.
-    "streamlit-drawable-canvas",
-    "pillow>=10.0",
-]
+# Note: UI (Streamlit) deps live in the main ``dependencies`` list above because
+# the API server (`uv run api`) transitively imports ``ui.area_annotator``, which
+# requires streamlit-drawable-canvas. Removing the duplicated [ui]/[annotator]
+# extras avoids drift; install everything with ``uv sync``.
 
 [project.scripts]
 play = "worker.launch:main"

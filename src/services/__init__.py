@@ -14,10 +14,13 @@ intentionally small so its own mtime almost never changes.
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
 from services import _state
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -75,16 +78,22 @@ async def aclose_app_services() -> None:
     half-closed client.
     """
     if (loader := _state.pop(_K_LOADER)) is not None:
-        with suppress(Exception):
+        try:
             loader.stop_watching()
+        except Exception:
+            logger.exception("aclose_app_services: scenario loader stop_watching failed")
 
     if (runner_redis := _state.pop(_K_SCHED_ASYNC_REDIS)) is not None:
-        with suppress(Exception):
+        try:
             await runner_redis.aclose()
+        except Exception:
+            logger.exception("aclose_app_services: async Redis aclose failed")
 
     if (sync_redis := _state.pop(_K_SCHED_WAKE_REDIS)) is not None:
-        with suppress(Exception):
+        try:
             sync_redis.close()
+        except Exception:
+            logger.exception("aclose_app_services: sync Redis close failed")
 
     # Stateless services — drop refs so the next ``init`` rebuilds against
     # the current Settings.

@@ -170,6 +170,11 @@ class Supervisor:
             if proc.is_alive():
                 logger.warning("Process %s did not exit cleanly, terminating", name)
                 proc.terminate()
+                proc.join(timeout=5)
+                if proc.is_alive():
+                    logger.warning("Process %s ignored SIGTERM, killing", name)
+                    proc.kill()
+                    proc.join(timeout=5)
 
     def _find_instance(self, instance_id: str) -> InstanceConfig | None:
         for inst in self._settings.instances:

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import hashlib
 import math
+import threading
+from collections import OrderedDict
 from typing import TypedDict
 
 import cv2
@@ -31,8 +33,9 @@ _NCC_PEAK_MIN_VAL = -0.5
 # Flat patches yield spurious TM_CCOEFF_NORMED ≈ 1.0; skip them when picking peaks.
 _MIN_PATCH_GRAY_STD = 5.0
 _TEMPLATE_PHASH_CACHE_MAX = 512
-_template_phash_cache: dict[bytes, int] = {}
-_template_gray_cache: dict[bytes, np.ndarray] = {}
+_template_phash_cache: OrderedDict[bytes, int] = OrderedDict()
+_template_gray_cache: OrderedDict[bytes, np.ndarray] = OrderedDict()
+_template_cache_lock = threading.Lock()
 
 
 class TemplateMatchResult(TypedDict, total=False):
@@ -118,27 +121,33 @@ def _template_cache_key_bytes(template_bgr: np.ndarray) -> bytes:
 
 def _phash64_template_cached(template_bgr: np.ndarray) -> int:
     key = _template_cache_key_bytes(template_bgr)
-    hit = _template_phash_cache.get(key)
-    if hit is not None:
-        return hit
+    with _template_cache_lock:
+        hit = _template_phash_cache.get(key)
+        if hit is not None:
+            _template_phash_cache.move_to_end(key)
+            return hit
     digest = _phash64(template_bgr)
-    if len(_template_phash_cache) >= _TEMPLATE_PHASH_CACHE_MAX:
-        for old_key in list(_template_phash_cache.keys())[: _TEMPLATE_PHASH_CACHE_MAX // 4]:
-            _template_phash_cache.pop(old_key, None)
-    _template_phash_cache[key] = digest
+    with _template_cache_lock:
+        _template_phash_cache[key] = digest
+        _template_phash_cache.move_to_end(key)
+        while len(_template_phash_cache) > _TEMPLATE_PHASH_CACHE_MAX:
+            _template_phash_cache.popitem(last=False)
     return digest
 
 
 def _template_gray_cached(template_bgr: np.ndarray) -> np.ndarray:
     key = _template_cache_key_bytes(template_bgr)
-    hit = _template_gray_cache.get(key)
-    if hit is not None:
-        return hit
+    with _template_cache_lock:
+        hit = _template_gray_cache.get(key)
+        if hit is not None:
+            _template_gray_cache.move_to_end(key)
+            return hit
     gray = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
-    if len(_template_gray_cache) >= _TEMPLATE_PHASH_CACHE_MAX:
-        for old_key in list(_template_gray_cache.keys())[: _TEMPLATE_PHASH_CACHE_MAX // 4]:
-            _template_gray_cache.pop(old_key, None)
-    _template_gray_cache[key] = gray
+    with _template_cache_lock:
+        _template_gray_cache[key] = gray
+        _template_gray_cache.move_to_end(key)
+        while len(_template_gray_cache) > _TEMPLATE_PHASH_CACHE_MAX:
+            _template_gray_cache.popitem(last=False)
     return gray
 
 

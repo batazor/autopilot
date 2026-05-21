@@ -898,7 +898,11 @@ class RedisQueue:
             except Exception:
                 continue
             for raw, score in items:
-                data = json.loads(raw)
+                try:
+                    data = json.loads(raw)
+                except (json.JSONDecodeError, TypeError) as exc:
+                    logger.warning("peek_all: skip corrupted queue item: %s", exc)
+                    continue
                 results.append(self._build_queue_item(data, default_run_at=float(score)))
         return results
 
@@ -911,8 +915,12 @@ class RedisQueue:
                 continue
             all_items = await self._redis.zrangebyscore(ks, "-inf", "+inf")
             for raw in all_items:
-                data = json.loads(raw)
-                if data["task_id"] == task_id:
+                try:
+                    data = json.loads(raw)
+                except (json.JSONDecodeError, TypeError) as exc:
+                    logger.warning("remove: skip corrupted queue item: %s", exc)
+                    continue
+                if data.get("task_id") == task_id:
                     await self._redis.zrem(ks, raw)
                     return
 
@@ -1070,14 +1078,14 @@ class RedisQueue:
         member = f"{task_type}|{player_id}|{uuid.uuid4().hex[:8]}"
         key = _recent_runs_key(instance_id)
         try:
-            pipe = self._redis.pipeline()
+            pipe = self._redis.pipeline(transaction=True)
             pipe.zadd(key, {member: now})
             pipe.zremrangebyscore(key, "-inf", now - RECENT_RUNS_RETENTION_SECONDS)
             pipe.zremrangebyrank(key, 0, -(RECENT_RUNS_RETENTION_CAP + 1))
             pipe.expire(key, RECENT_RUNS_RETENTION_SECONDS * 2)
             await pipe.execute()
         except Exception:
-            logger.debug("recent_runs append failed", exc_info=True)
+            logger.warning("recent_runs append failed for key=%s", key, exc_info=True)
 
     def _rank_candidates(
         self,

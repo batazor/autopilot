@@ -111,6 +111,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 10,
             'steps': list([
               dict({
                 'click': 'button.claim',
@@ -134,6 +135,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'ui.button.confirm_blue',
@@ -262,6 +264,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 10,
             'steps': list([
               dict({
                 'click': 'button.claim',
@@ -285,6 +288,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'ui.button.confirm_blue',
@@ -413,6 +417,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 10,
             'steps': list([
               dict({
                 'click': 'button.claim',
@@ -436,6 +441,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'ui.button.confirm_blue',
@@ -564,6 +570,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 10,
             'steps': list([
               dict({
                 'click': 'button.claim',
@@ -587,6 +594,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'ui.button.confirm_blue',
@@ -715,6 +723,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 10,
             'steps': list([
               dict({
                 'click': 'button.claim',
@@ -738,6 +747,7 @@
             'wait': '1s',
           }),
           dict({
+            'max': 3,
             'steps': list([
               dict({
                 'click': 'ui.button.confirm_blue',

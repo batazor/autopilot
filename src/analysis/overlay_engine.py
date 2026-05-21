@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import threading
 import time
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
 import cv2
@@ -59,8 +61,11 @@ if TYPE_CHECKING:
 # bound on memory is well under 10 MB even when full. Sized to comfortably
 # cover the active overlay rule fleet (~hundreds of distinct crops).
 _TEMPLATE_CACHE_MAX = 512
-_template_cache: dict[tuple[str, int], np.ndarray] = {}
-_template_mask_cache: dict[tuple[str, int], tuple[np.ndarray, np.ndarray | None]] = {}
+_template_cache: OrderedDict[tuple[str, int], np.ndarray] = OrderedDict()
+_template_mask_cache: OrderedDict[
+    tuple[str, int], tuple[np.ndarray, np.ndarray | None]
+] = OrderedDict()
+_template_cache_lock = threading.Lock()
 
 
 def _hybrid_sliding_matched(
@@ -92,16 +97,19 @@ def _load_template_cached(path: Path) -> np.ndarray | None:
     except OSError:
         return None
     key = (str(path), mtime_ns)
-    tpl = _template_cache.get(key)
-    if tpl is not None:
-        return tpl
+    with _template_cache_lock:
+        tpl = _template_cache.get(key)
+        if tpl is not None:
+            _template_cache.move_to_end(key)
+            return tpl
     tpl = cv2.imread(str(path))
     if tpl is None:
         return None
-    if len(_template_cache) >= _TEMPLATE_CACHE_MAX:
-        for old_key in list(_template_cache.keys())[: _TEMPLATE_CACHE_MAX // 4]:
-            _template_cache.pop(old_key, None)
-    _template_cache[key] = tpl
+    with _template_cache_lock:
+        _template_cache[key] = tpl
+        _template_cache.move_to_end(key)
+        while len(_template_cache) > _TEMPLATE_CACHE_MAX:
+            _template_cache.popitem(last=False)
     return tpl
 
 
@@ -112,9 +120,11 @@ def _load_template_with_mask_cached(path: Path) -> tuple[np.ndarray, np.ndarray 
     except OSError:
         return None
     key = (str(path), mtime_ns)
-    cached = _template_mask_cache.get(key)
-    if cached is not None:
-        return cached
+    with _template_cache_lock:
+        cached = _template_mask_cache.get(key)
+        if cached is not None:
+            _template_mask_cache.move_to_end(key)
+            return cached
     raw = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
     if raw is None:
         return None
@@ -131,10 +141,11 @@ def _load_template_with_mask_cached(path: Path) -> tuple[np.ndarray, np.ndarray 
         out = (bgr, mask)
     else:
         out = (raw, None)
-    if len(_template_mask_cache) >= _TEMPLATE_CACHE_MAX:
-        for old_key in list(_template_mask_cache.keys())[: _TEMPLATE_CACHE_MAX // 4]:
-            _template_mask_cache.pop(old_key, None)
-    _template_mask_cache[key] = out
+    with _template_cache_lock:
+        _template_mask_cache[key] = out
+        _template_mask_cache.move_to_end(key)
+        while len(_template_mask_cache) > _TEMPLATE_CACHE_MAX:
+            _template_mask_cache.popitem(last=False)
     return out
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import uuid
 from typing import TYPE_CHECKING, cast
@@ -18,11 +19,28 @@ _redis_client: redis.Redis | None = None
 _APPROVAL_POLL_SECONDS = 0.2
 _APPROVAL_PREVIEW_REFRESH_SECONDS = 2.0
 _APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT = 3
-# Approval mode: there is intentionally NO non-decision exit from the wait
+# Approval mode: by default there is NO non-decision exit from the wait
 # loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
 # always the operator's. The trade-off: closing the approvals page WILL hang
 # the worker on this task until the page is reopened and a decision is given.
 #
+# Operators who want a safety-net auto-reject can set
+# ``WOS_APPROVAL_TIMEOUT_SECONDS`` (>0) to bound the wait. The request is
+# auto-rejected after that many seconds with reason ``wall_clock_timeout``.
+def _read_optional_timeout_env(name: str) -> float | None:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        val = float(raw)
+    except ValueError:
+        return None
+    return val if val > 0 else None
+
+
+_APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS = _read_optional_timeout_env(
+    "WOS_APPROVAL_TIMEOUT_SECONDS"
+)
 # How long we wait for the per-instance ``current`` slot to free up before
 # giving up (only relevant if a previous request is still in flight on the
 # same instance). Independent from the operator's review time.
@@ -516,7 +534,24 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     decision_reason = ""
     decision_detail = ""
     missing_current_republishes = 0
+    wait_deadline = (
+        time.monotonic() + _APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS
+        if _APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS is not None
+        else None
+    )
     while True:
+        if wait_deadline is not None and time.monotonic() >= wait_deadline:
+            decision = "reject"
+            decision_reason = "wall_clock_timeout"
+            decision_detail = f"{_APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS:.0f}s"
+            logger.warning(
+                "Click approval: wall-clock timeout (%.0fs) elapsed for %s "
+                "(req=%s); auto-rejecting",
+                _APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS,
+                instance_id,
+                req_id,
+            )
+            break
         raw_resp = _r_get(resp_key)
         if raw_resp:
             decision = str(raw_resp).strip().lower()

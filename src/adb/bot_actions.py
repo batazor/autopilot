@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
@@ -46,6 +47,7 @@ class BotActions:
             str,
             tuple[float, np.ndarray, FrameNormalizeTransform | None],
         ] = {}
+        self._frame_cache_lock = threading.Lock()
         self._await_next_frame: set[str] = set()
         self._FIRST_FRAME_TIMEOUT_S = _FIRST_FRAME_TIMEOUT_S
         self._NEXT_FRAME_TIMEOUT_S = _NEXT_FRAME_TIMEOUT_S
@@ -94,7 +96,8 @@ class BotActions:
     def _to_adb_point(self, instance_id: str, point: Point) -> Point:
         """Map bot-frame coordinates (720x1280) into the device touch space."""
 
-        cached = self._frame_cache.get(instance_id)
+        with self._frame_cache_lock:
+            cached = self._frame_cache.get(instance_id)
         transform = cached[2] if cached is not None else None
         if transform is None:
             latest = frame_bus.latest_snapshot(instance_id)
@@ -111,12 +114,13 @@ class BotActions:
 
     def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
         """Drop the cached framebuffer for ``instance_id`` (or all instances)."""
-        if instance_id is None:
-            self._frame_cache.clear()
-            self._await_next_frame.clear()
-        else:
-            self._frame_cache.pop(instance_id, None)
-            self._await_next_frame.add(instance_id)
+        with self._frame_cache_lock:
+            if instance_id is None:
+                self._frame_cache.clear()
+                self._await_next_frame.clear()
+            else:
+                self._frame_cache.pop(instance_id, None)
+                self._await_next_frame.add(instance_id)
 
     def capture_screen_bgr_adb(self, instance_id: str) -> np.ndarray:
         """Direct ``adb exec-out screencap`` — rolling loop only; also publishes to ``frame_bus``."""
@@ -127,8 +131,9 @@ class BotActions:
         if img is None:
             raise RuntimeError(err)
         frame_bus.publish(instance_id, img, transform=transform)
-        self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-        self._await_next_frame.discard(instance_id)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+            self._await_next_frame.discard(instance_id)
         return img
 
     def capture_screen_bgr_direct(self, instance_id: str) -> np.ndarray:
@@ -158,8 +163,9 @@ class BotActions:
         except Exception:
             return self.capture_screen_bgr_adb(instance_id)
         frame_bus.publish(instance_id, img)
-        self._frame_cache[instance_id] = (time.monotonic(), img, None)
-        self._await_next_frame.discard(instance_id)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, None)
+            self._await_next_frame.discard(instance_id)
         return img
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
@@ -169,9 +175,12 @@ class BotActions:
         device-offline, or ADB not returning screenshots), fall back to a direct
         configured direct backend so matchers / overlay DSL can still run.
         """
-        try:
-            if instance_id in self._await_next_frame:
+        with self._frame_cache_lock:
+            await_next = instance_id in self._await_next_frame
+            if await_next:
                 self._await_next_frame.discard(instance_id)
+        try:
+            if await_next:
                 snap = frame_bus.wait_for_next_snapshot(
                     instance_id, timeout=self._NEXT_FRAME_TIMEOUT_S
                 )
@@ -188,7 +197,8 @@ class BotActions:
                 instance_id,
             )
             return self.capture_screen_bgr_direct(instance_id)
-        self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
         return img
 
     def capture_screen_bgr_cached(
@@ -212,12 +222,13 @@ class BotActions:
         preserves the tap-invalidation-only behavior; pass a positive number
         to require a frame no older than that many milliseconds.
         """
-        cached = self._frame_cache.get(instance_id)
-        if cached is not None:
-            ts, frame, _transform = cached
-            if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
-                return frame
-            self._await_next_frame.add(instance_id)
+        with self._frame_cache_lock:
+            cached = self._frame_cache.get(instance_id)
+            if cached is not None:
+                ts, frame, _transform = cached
+                if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
+                    return frame
+                self._await_next_frame.add(instance_id)
         return self.capture_screen_bgr(instance_id)
 
     def tap(
