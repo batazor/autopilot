@@ -33,6 +33,8 @@ async def test_ocr_regions_maps_by_region_id_not_response_order(
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         return OCRResult(region_id=region_id, text=f"T-{region_id}", confidence=0.9)
 
@@ -62,6 +64,8 @@ async def test_ocr_regions_ignores_unknown_region_id(
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         return OCRResult(region_id="ghost" if region_id == "alpha" else region_id, text="x", confidence=0.9)
 
@@ -91,6 +95,8 @@ async def test_ocr_regions_propagates_error_field_without_cache_poisoning(
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         calls.append(region_id)
         if region_id == "alpha":
@@ -128,6 +134,8 @@ async def test_ocr_regions_warns_on_missing_region_id(
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         if region_id == "alpha":
             return OCRResult(region_id="", text="", confidence=0.0)

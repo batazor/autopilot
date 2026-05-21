@@ -14,7 +14,12 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_findicon_implicit_search_region_matches_without_yaml_key(tmp_path: Path) -> None:
+def test_findicon_matches_with_explicit_search_region(tmp_path: Path) -> None:
+    """Implicit ``{region}_search`` auto-resolution was removed — callers must
+    name the search region explicitly. End-to-end match still finds the
+    template via the named ROI and reports tap coordinates against the
+    ``hand_pointer_tap`` companion region.
+    """
     repo = tmp_path
     ref_rel = "references/tutorial.png"
     (repo / "references" / "crop").mkdir(parents=True)
@@ -48,6 +53,7 @@ def test_findicon_implicit_search_region_matches_without_yaml_key(tmp_path: Path
         {
             "name": "hand_pointer.visible",
             "region": "hand_pointer",
+            "search_region": "hand_pointer_search",
             "action": "findIcon",
             "threshold": 0.98,
         }

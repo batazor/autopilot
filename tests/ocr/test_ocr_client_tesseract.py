@@ -40,6 +40,8 @@ async def test_client_sends_clamped_crop_to_local_ocr(monkeypatch: pytest.Monkey
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         seen_shapes.append(tuple(crop.shape))
         return OCRResult(region_id=region_id, text="ok", confidence=1.0)

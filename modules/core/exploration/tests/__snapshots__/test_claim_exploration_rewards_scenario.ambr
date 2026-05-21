@@ -13,6 +13,10 @@
         'wait': '2s',
       }),
       dict({
+        'retry': dict({
+          'attempts': 3,
+          'interval': '400ms',
+        }),
         'steps': list([
           dict({
             'click': 'button.claim.big',

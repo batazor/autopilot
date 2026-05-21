@@ -32,6 +32,8 @@ def _install_crop_ocr(
         *,
         region_id: str,
         preprocess: str | None = None,
+        digit_count: int | None = None,
+        digit_x0: int = 0,
     ) -> OCRResult:
         calls.append((region_id, preprocess, tuple(crop.shape)))
         prefix = "raw" if not preprocess else str(preprocess)

@@ -8,7 +8,12 @@ _BB = {"x": 1.0, "y": 1.0, "width": 10.0, "height": 10.0}
 _BB_SEARCH = {"x": 0.0, "y": 0.0, "width": 50.0, "height": 50.0}
 
 
-def test_implicit_search_when_same_screen_aux_exists() -> None:
+def test_implicit_search_aux_region_is_ignored_without_explicit_search_region() -> None:
+    """Documents the post-refactor behaviour: a sibling ``{region}_search`` on
+    the same screen no longer auto-resolves. Movable primary regions opt in via
+    ``isSearch: true`` on the area entry; everything else takes the explicit
+    ``rule['search_region']`` only.
+    """
     doc = {
         "screens": [
             {
@@ -21,7 +26,7 @@ def test_implicit_search_when_same_screen_aux_exists() -> None:
         ]
     }
     rule: dict = {"action": "findIcon", "region": "btn"}
-    assert resolved_search_region_for_findicon(doc, "btn", "references/a.png", rule) == "btn_search"
+    assert resolved_search_region_for_findicon(doc, "btn", "references/a.png", rule) == ""
 
 
 def test_explicit_search_region_wins() -> None:
