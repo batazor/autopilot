@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -11,12 +12,13 @@ import numpy as np
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from analysis.overlay_rules import normalize_overlay_action
 from config.paths import repo_root
-from layout.area_manifest import load_area_doc
+from layout.area_manifest import area_manifest_max_mtime, load_area_doc
 from navigation.screen_graph import (
     screen_landmark_rules,
     screen_verify_config_fingerprint,
     screen_verify_modal_preempt_names,
     screen_verify_order_names,
+    screen_verify_parent,
     screen_verify_screen_names,
 )
 from ocr.client import OcrClient
@@ -82,6 +84,8 @@ def _build_screen_name_enum() -> type[StrEnum]:
 # ``StrEnum`` subclass with the three well-known members so static analysis
 # sees a normal enum class; at runtime the dynamic factory still wins.
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import numpy as np
     class ScreenName(StrEnum):
         # Sentinels + hubs (always present via ``_WELL_KNOWN_SCREEN_VALUES``).
@@ -244,11 +248,26 @@ class ScreenDetector:
         area_doc = self._load_area_doc()
         root = repo_root()
         result_cache: dict[tuple[str, str, float], dict[str, Any] | None] = {}
+        parents_negative: set[str] = set()
         for screen_s in ordered:
             try:
                 screen_name = ScreenName(screen_s)
             except ValueError:
                 continue
+            parent_s = screen_verify_parent(screen_s)
+            if parent_s:
+                if parent_s in parents_negative:
+                    continue
+                if await self._parent_gate_negative(
+                    parent_s,
+                    area_doc=area_doc,
+                    root=root,
+                    image=image,
+                    frame_gray=frame_gray,
+                    result_cache=result_cache,
+                ):
+                    parents_negative.add(parent_s)
+                    continue
             rules, groups = self._landmark_overlay_rules_cached(
                 screen_s,
                 name_prefix="screen_detector",
@@ -280,6 +299,59 @@ class ScreenDetector:
             if self._first_matching_landmark_group(out, groups):
                 return screen_name
         return ScreenName.UNKNOWN
+
+    async def _parent_gate_negative(
+        self,
+        parent_s: str,
+        *,
+        area_doc: dict[str, Any],
+        root: Path,
+        image: np.ndarray,
+        frame_gray: np.ndarray | None,
+        result_cache: dict[tuple[str, str, float], dict[str, Any] | None],
+    ) -> bool:
+        """True when ``parent_s``'s landmark groups cannot match this frame.
+
+        A child screen (e.g. ``mail.wars``) is strictly a sub-view of its parent
+        (``mail``), so if the parent's anchor template (``mail.title``) is not
+        visible, the child cannot be on screen either. Evaluating the parent's
+        rule once via the shared ``result_cache`` lets us skip the child's
+        unique ``tab_active`` / landmark template match — the actual wasted
+        cost when the bot isn't anywhere near the parent screen.
+
+        Returns ``False`` (don't skip) when the parent has no gating rules or
+        the evaluation itself fails — the legacy per-screen path then runs as
+        before, so this remains a strictly additive optimization.
+        """
+        parent_rules, parent_groups = self._landmark_overlay_rules_cached(
+            parent_s,
+            name_prefix="screen_detector",
+        )
+        if not parent_rules or not parent_groups:
+            return False
+        pending = [r for r in parent_rules if _dedup_key(r) not in result_cache]
+        if pending:
+            try:
+                new_out = await _evaluate_overlay_rules_in_thread(
+                    image,
+                    area_doc,
+                    root,
+                    pending,
+                    frame_gray=frame_gray,
+                )
+            except Exception:
+                logger.debug(
+                    "ScreenDetector: parent gate eval failed", exc_info=True
+                )
+                return False
+            for rule in pending:
+                result_cache[_dedup_key(rule)] = new_out.get(str(rule["name"]))
+        out: dict[str, Any] = {}
+        for rule in parent_rules:
+            cached = result_cache.get(_dedup_key(rule))
+            if cached is not None:
+                out[str(rule["name"])] = cached
+        return not self._first_matching_landmark_group(out, parent_groups)
 
     @staticmethod
     def _sticky_preempt_candidates(hint_name: ScreenName) -> list[str]:
@@ -489,19 +561,55 @@ async def _evaluate_overlay_rules_in_thread(
     return await asyncio.to_thread(_run)
 
 
-def suggest_node_for_image_sync(image_bgr: np.ndarray) -> str | None:
+_suggest_detector_lock = threading.Lock()
+_suggest_detector: ScreenDetector | None = None
+_suggest_detector_area_mtime: float = 0.0
+
+
+def _shared_suggest_detector() -> ScreenDetector:
+    """Process-wide :class:`ScreenDetector` for the UI suggest helper.
+
+    Building one means constructing ``OcrClient(load_settings())`` and paying
+    the first-call cache warm-up. The labeling UI and overlay-test probe both
+    hit this on every poll, so we cache the instance and invalidate its
+    ``_area_doc`` only when an ``area.json`` / module area manifest mtime
+    advances — that keeps labeling edits live without rebuilding the detector.
+    """
+    global _suggest_detector, _suggest_detector_area_mtime
+    from config.loader import load_settings
+
+    mtime = area_manifest_max_mtime(repo_root())
+    with _suggest_detector_lock:
+        if _suggest_detector is None:
+            _suggest_detector = ScreenDetector(OcrClient(load_settings()))
+            _suggest_detector_area_mtime = mtime
+        elif mtime > _suggest_detector_area_mtime:
+            _suggest_detector._area_doc = None
+            _suggest_detector_area_mtime = mtime
+        return _suggest_detector
+
+
+def suggest_node_for_image_sync(
+    image_bgr: np.ndarray,
+    *,
+    hint: ScreenName | str | None = None,
+) -> str | None:
     """Best-effort node id for ``image_bgr`` — UI-friendly sync wrapper.
 
     Returns the screen id string (e.g. ``"main_city"``) on success, or ``None``
     when no template landmark fires.
+
+    ``hint``: forwarded to :meth:`ScreenDetector.detect_screen` so callers that
+    remember a likely screen (e.g. the worker's last known screen for this
+    instance) can take the sticky verify fast path and skip the full multi-screen
+    scan when the hint still holds.
     """
     if image_bgr is None or image_bgr.ndim != 3 or image_bgr.size == 0:
         return None
-    from config.loader import load_settings
 
-    detector = ScreenDetector(OcrClient(load_settings()))
+    detector = _shared_suggest_detector()
     try:
-        result = asyncio.run(detector.detect_screen(image_bgr))
+        result = asyncio.run(detector.detect_screen(image_bgr, hint=hint))
     except Exception:
         logger.debug("suggest_node_for_image_sync: full detect_screen failed", exc_info=True)
         try:

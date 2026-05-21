@@ -413,6 +413,9 @@ def _load_screen_verify_config_cached(
                 entry["priority"] = int(priority_raw) if priority_raw is not None else 100
             except (TypeError, ValueError):
                 entry["priority"] = 100
+            parent_raw = entry_raw.get("parent") if isinstance(entry_raw, dict) else None
+            if isinstance(parent_raw, str) and parent_raw.strip():
+                entry["parent"] = parent_raw.strip()
             if rules or landmarks or "retry" in entry:
                 out_screens[str(screen).strip()] = entry
 
@@ -508,6 +511,25 @@ def screen_landmark_rules(screen: str) -> list[VerifyRule]:
         return []
     rules = entry.get("landmarks")
     return cast("list[VerifyRule]", list(rules)) if isinstance(rules, list) else []
+
+
+def screen_verify_parent(screen: str) -> str | None:
+    """Optional parent screen for ``screen`` (e.g. ``mail.wars`` -> ``mail``).
+
+    The detector gates child evaluation on the parent's anchor template — when
+    the parent's landmark group is known-negative for a frame, the child cannot
+    match either and is skipped without running its unique landmark rules.
+    """
+    screens = load_screen_verify_config().get("screens")
+    if not isinstance(screens, dict):
+        return None
+    entry = screens.get(screen)
+    if not isinstance(entry, dict):
+        return None
+    parent = entry.get("parent")
+    if isinstance(parent, str) and parent.strip():
+        return parent.strip()
+    return None
 
 
 def screen_verify_screen_names() -> list[str]:
