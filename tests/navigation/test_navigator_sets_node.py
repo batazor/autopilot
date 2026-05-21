@@ -34,7 +34,7 @@ async def test_navigator_writes_destination_node_after_route_hop(
 
     detections = [ScreenName.MAIN_CITY, ScreenName.CHIEF_PROFILE]
 
-    async def detect_screen(_image: np.ndarray) -> ScreenName:
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> ScreenName:
         return detections.pop(0) if detections else ScreenName.CHIEF_PROFILE
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
@@ -159,7 +159,7 @@ async def test_navigation_accepts_final_tab_when_parent_hop_opens_it(
         taps.append(approval_region)
         return True
 
-    async def detect_screen(_image: np.ndarray) -> ScreenName:
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName("survivor_status.status")
 
     async def wait_for_screen_verified(*_args: Any) -> bool:
@@ -239,7 +239,7 @@ async def test_navigator_verifies_destination_with_match_rule(
 
     detections = [ScreenName.MAIN_CITY]
 
-    async def detect_screen(_image: np.ndarray) -> ScreenName:
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> ScreenName:
         return detections.pop(0) if detections else ScreenName.UNKNOWN
 
     async def evaluate_overlay_rules_async(
@@ -318,7 +318,7 @@ async def test_navigator_verifies_destination_with_ocr_contains(
 
     detections = [ScreenName.MAIN_CITY]
 
-    async def detect_screen(_image: np.ndarray) -> ScreenName:
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> ScreenName:
         return detections.pop(0) if detections else ScreenName.UNKNOWN
 
     class _FakeOcr:

@@ -28,7 +28,7 @@ async def test_missing_navigation_path_is_not_logged_as_error(
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis_async)
 
-    async def detect_screen(_image: np.ndarray) -> ScreenName:
+    async def detect_screen(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.MAIN_CITY
 
     mocker.patch.object(nav._detector, "detect_screen", new=detect_screen)

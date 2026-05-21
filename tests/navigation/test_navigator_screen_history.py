@@ -161,7 +161,7 @@ async def test_recover_screen_uses_detector_short_circuit(
 
     from navigation.detector import ScreenName
 
-    async def fake_detect(_image: np.ndarray) -> ScreenName:
+    async def fake_detect(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.MAIL
 
     mocker.patch.object(nav._detector, "detect_screen", new=fake_detect)
@@ -199,7 +199,7 @@ async def test_recover_screen_returns_empty_when_detection_fails(
 
     from navigation.detector import ScreenName
 
-    async def fake_detect(_image: np.ndarray) -> ScreenName:
+    async def fake_detect(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.UNKNOWN
 
     async def fake_verify_rule(*_args: Any, **_kwargs: Any) -> bool:

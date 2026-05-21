@@ -60,8 +60,8 @@ overlay:
   - name: claim_all.visible
     region: claim_all
     action: findIcon
-    pushScenario:
-      - name: missing_claim_scenario
+    steps:
+      - push_scenario: missing_claim_scenario
 """.lstrip(),
     )
 

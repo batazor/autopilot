@@ -114,8 +114,9 @@ async def test_ocr_step_persists_integer_to_player_state(
     result = await task.execute("bs1")
 
     assert result.success is True
-    # 200×100 frame, bbox x=25 y=50 w=50 h=10 (% of frame).
-    assert captured["region"] == LayoutRegion(50, 50, 100, 10)
+    # bbox is resolved against GAME_FRAME_SIZE (720×1280), not the captured frame.
+    # x=25%, y=50%, w=50%, h=10% → (180, 640, 360, 128).
+    assert captured["region"] == LayoutRegion(180, 640, 360, 128)
     final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["player_id"] == EXPECTED_PLAYER_ID
     assert final["player_id_text"] == REAL_OCR_TEXT
@@ -303,9 +304,12 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         + actions.capture_screen_bgr_cached.call_count
     ) == 1
     assert captured["calls"] == 1
+    # Regions are resolved against GAME_FRAME_SIZE (720×1280), so
+    # 10%×720=72, 10%×1280=128, 20%×720=144, 10%×1280=128 and
+    # 40%×720=288, 50%×1280=640, 30%×720=216, 20%×1280=256.
     assert captured["regions"] == [
-        LayoutRegion(20, 10, 40, 10),
-        LayoutRegion(80, 50, 60, 20),
+        LayoutRegion(72, 128, 144, 128),
+        LayoutRegion(288, 640, 216, 256),
     ]
     pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
     assert pid == "765502864"

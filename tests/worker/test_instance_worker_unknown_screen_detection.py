@@ -22,7 +22,9 @@ class _FakeDetector:
         _image_bgr: np.ndarray,
         *,
         hint: object = None,
+        expected: object = None,
     ) -> ScreenName:
+        del expected  # accepted for signature parity with the real detector
         self.calls += 1
         self.hints_seen.append(hint)
         if isinstance(self.detected, list):
@@ -118,8 +120,13 @@ async def test_detect_clears_log_node_during_detect_and_restores_after(
         calls = 0
 
         async def detect_screen(
-            self, _image_bgr: np.ndarray, *, hint: object = None
+            self,
+            _image_bgr: np.ndarray,
+            *,
+            hint: object = None,
+            expected: object = None,
         ) -> ScreenName:
+            del hint, expected
             self.calls += 1
             seen_during.append(log_context._node.get())
             return ScreenName.MAIL

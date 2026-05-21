@@ -32,7 +32,7 @@ async def test_navigate_to_returns_false_immediately_when_navigation_tap_rejecte
         tap_calls["n"] += 1
         return False
 
-    async def detect_survivor(_image: np.ndarray) -> ScreenName:
+    async def detect_survivor(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
@@ -92,7 +92,7 @@ async def test_navigate_to_persists_intermediate_screen_identity(
         del point, kw
         return False
 
-    async def detect_survivor(_image: np.ndarray) -> ScreenName:
+    async def detect_survivor(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.MAIL
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
@@ -153,7 +153,7 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unknown_screen(
         tap_calls["n"] += 1
         return False
 
-    async def detect_unknown(_image: np.ndarray) -> ScreenName:
+    async def detect_unknown(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.UNKNOWN
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
@@ -217,7 +217,7 @@ async def test_navigate_to_fast_fails_when_unknown_screen_without_page_back(
         tap_calls["n"] += 1
         return True
 
-    async def detect_unknown(_image: np.ndarray) -> ScreenName:
+    async def detect_unknown(_image: np.ndarray, **_kwargs) -> ScreenName:
         return ScreenName.UNKNOWN
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
@@ -268,7 +268,7 @@ async def test_navigate_to_aborts_when_page_back_rejected_on_unrouted_screen(
 
     unrouted = _UnroutedScreen()
 
-    async def detect_unrouted(_image: np.ndarray):
+    async def detect_unrouted(_image: np.ndarray, **_kwargs):
         return unrouted
 
     nav = make_navigator(capture, tap, settings=settings, ocr_client=ocr_client, redis_client=redis)
