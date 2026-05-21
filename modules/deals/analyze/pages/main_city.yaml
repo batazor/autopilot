@@ -10,10 +10,10 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: deals.hall_of_heroes
-        ttl: 1m
-
+    steps:
+      - push_scenario:
+          name: deals.hall_of_heroes
+          ttl: 1m
   - name: deals.sign_in.main_city.event_icon.visible
     region: main_city.icon_search
     action: findIcon
@@ -22,10 +22,10 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: deals.sign_in
-        ttl: 1m
-
+    steps:
+      - push_scenario:
+          name: deals.sign_in
+          ttl: 1m
   - name: deals.first_purchase.main_city.event_icon.visible
     region: main_city.icon_search
     action: findIcon
@@ -34,9 +34,10 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      # Push the page-bound scenario directly — its ``nodes:`` declaration
-      # lets the scheduler navigate from main_city to deals.first_purchase
-      # via the template_icon edge, no dedicated "open" scenario needed.
-      - name: deals.first_purchase
-        ttl: 1m
+    # Push the page-bound scenario directly — its ``nodes:`` declaration
+    # lets the scheduler navigate from main_city to deals.first_purchase
+    # via the template_icon edge, no dedicated "open" scenario needed.
+    steps:
+      - push_scenario:
+          name: deals.first_purchase
+          ttl: 1m

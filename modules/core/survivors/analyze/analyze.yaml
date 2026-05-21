@@ -6,18 +6,16 @@ overlay:
     screens:
       - main_city
     ttl: 2s
-    pushScenario:
-      - name: welcome_new_survivors
-
+    steps:
+      - push_scenario: welcome_new_survivors
   - name: isWorkers.visible
     region: isWorkers
     isRedDot: true
     screens:
       - main_city
       - survivor_status.status
-    pushScenario:
-      - name: assign_worker
-
+    steps:
+      - push_scenario: assign_worker
   - name: survivors.intro.visible
     region: survivors.intro
     action: findIcon
@@ -26,5 +24,5 @@ overlay:
     ttl: 3
     screens:
       - survivor_status
-    pushScenario:
-      - name: survivors_intro
+    steps:
+      - push_scenario: survivors_intro

@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.daily_deals
-    pushScenario:
-      - name: shop.daily_deals
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.daily_deals
+          ttl: 1m

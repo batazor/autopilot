@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.dawn_market
-    pushScenario:
-      - name: shop.dawn_market
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.dawn_market
+          ttl: 1m

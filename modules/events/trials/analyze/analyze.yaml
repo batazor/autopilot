@@ -7,10 +7,10 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: event.trials
-        ttl: 1m
-
+    steps:
+      - push_scenario:
+          name: event.trials
+          ttl: 1m
   - name: trials.day.1.has_red_dot
     region: trial.day.1
     isRedDot: true
@@ -21,10 +21,10 @@ overlay:
       - event.trials.day.3
       - event.trials.day.4
       - event.trials.day.5
-    pushScenario:
-      - name: claim_trials.1
-        ttl: 5m
-
+    steps:
+      - push_scenario:
+          name: claim_trials.1
+          ttl: 5m
   - name: trials.day.2.has_red_dot
     region: trial.day.2
     isRedDot: true
@@ -35,10 +35,10 @@ overlay:
       - event.trials.day.3
       - event.trials.day.4
       - event.trials.day.5
-    pushScenario:
-      - name: claim_trials.2
-        ttl: 5m
-
+    steps:
+      - push_scenario:
+          name: claim_trials.2
+          ttl: 5m
   - name: trials.day.3.has_red_dot
     region: trial.day.3
     isRedDot: true
@@ -49,10 +49,10 @@ overlay:
       - event.trials.day.3
       - event.trials.day.4
       - event.trials.day.5
-    pushScenario:
-      - name: claim_trials.3
-        ttl: 5m
-
+    steps:
+      - push_scenario:
+          name: claim_trials.3
+          ttl: 5m
   - name: trials.day.4.has_red_dot
     region: trial.day.4
     isRedDot: true
@@ -63,10 +63,10 @@ overlay:
       - event.trials.day.3
       - event.trials.day.4
       - event.trials.day.5
-    pushScenario:
-      - name: claim_trials.4
-        ttl: 5m
-
+    steps:
+      - push_scenario:
+          name: claim_trials.4
+          ttl: 5m
   - name: trials.day.5.has_red_dot
     region: trial.day.5
     isRedDot: true
@@ -77,6 +77,7 @@ overlay:
       - event.trials.day.3
       - event.trials.day.4
       - event.trials.day.5
-    pushScenario:
-      - name: claim_trials.5
-        ttl: 5m
+    steps:
+      - push_scenario:
+          name: claim_trials.5
+          ttl: 5m

@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.get_gems
-    pushScenario:
-      - name: shop.get_gems
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.get_gems
+          ttl: 1m

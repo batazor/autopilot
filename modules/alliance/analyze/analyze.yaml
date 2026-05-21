@@ -8,5 +8,5 @@ overlay:
   screens:
   - main_city
   ttl: 2s
-  pushScenario:
-  - name: alliance.click.main_city.new_alliance.mail
+  steps:
+  - push_scenario: alliance.click.main_city.new_alliance.mail

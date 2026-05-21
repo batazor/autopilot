@@ -79,8 +79,8 @@ def _worker(
 
 
 @pytest.mark.asyncio
-async def test_login_ads_phase_active_when_pending_myriad_bazaar() -> None:
-    worker = _worker(pending_types=frozenset({"myriad_bazaar"}))
+async def test_login_ads_phase_active_when_pending_ads_natalia() -> None:
+    worker = _worker(pending_types=frozenset({"ads_natalia"}))
     assert await instance_worker.InstanceWorker._login_ads_phase_active(worker) is True
 
 
@@ -188,7 +188,6 @@ async def test_who_i_am_deferred_until_first_non_loading_screen() -> None:
 def test_login_ad_task_types_discovered_from_ads_overlay() -> None:
     """New login popups only need scenario YAML + overlay rule (no worker edit)."""
     assert login_ad_task_types(repo_root()) == frozenset({
-        "myriad_bazaar",
         "ads_natalia",
         "ads_rookie_value_pack",
         "tap_ads_legend_transcend_pack",

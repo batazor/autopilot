@@ -4,6 +4,7 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: mail.claim.system
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: mail.claim.system
+          ttl: 1m

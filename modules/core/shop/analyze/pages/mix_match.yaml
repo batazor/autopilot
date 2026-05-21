@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.mix_match
-    pushScenario:
-      - name: shop.mix_match
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.mix_match
+          ttl: 1m

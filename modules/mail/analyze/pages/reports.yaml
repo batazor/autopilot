@@ -6,9 +6,8 @@ overlay:
     min_match_saturation: 48
     screens:
       - mail.reports
-    pushScenario:
-      - name: mail.claim.reports
-
+    steps:
+      - push_scenario: mail.claim.reports
   - name: mail.tab.reports.has_red_dot
     region: mail.tab.reports
     isRedDot: true
@@ -18,6 +17,7 @@ overlay:
       - mail.alliance
       - mail.system
       - mail.starred
-    pushScenario:
-      - name: mail.claim.reports
-        ttl: 5m
+    steps:
+      - push_scenario:
+          name: mail.claim.reports
+          ttl: 5m

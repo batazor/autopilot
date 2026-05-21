@@ -18,6 +18,7 @@ overlay:
       - shop.weekly_monthly_cards
       - shop.get_gems
       - shop.regular_pack
-    pushScenario:
-      - name: shop.tab.advance
-        ttl: 5s
+    steps:
+      - push_scenario:
+          name: shop.tab.advance
+          ttl: 5s

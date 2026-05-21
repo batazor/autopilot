@@ -6,5 +6,5 @@ overlay:
     priority: 90_000
     screens:
       - main_city
-    pushScenario:
-      - name: vip.daily
+    steps:
+      - push_scenario: vip.daily

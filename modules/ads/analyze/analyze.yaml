@@ -11,9 +11,8 @@ overlay:
     cond: active_player == ""
     threshold: 0.9
     ttl: 3
-    pushScenario:
-      - name: ads_rookie_value_pack
-
+    steps:
+      - push_scenario: ads_rookie_value_pack
   - name: ads.natalia.visible
     region: ads.natalia.title
     device_level: true
@@ -23,14 +22,13 @@ overlay:
     ttl: 3
     screens:
       - ads.natalia
-    pushScenario:
-      - name: ads_natalia
-
+    steps:
+      - push_scenario: ads_natalia
   - name: ads.legend_transcend_pack.visible
     region: ads.legend_transcend_pack
     device_level: true
     action: findIcon
     cond: active_player == ""
     threshold: 0.9
-    pushScenario:
-      - name: tap_ads_legend_transcend_pack
+    steps:
+      - push_scenario: tap_ads_legend_transcend_pack

@@ -7,9 +7,8 @@ overlay:
     - building
   set_node: building
   ttl: 30s
-  pushScenario:
-    - name: building.upgrade
-
+  steps:
+    - push_scenario: building.upgrade
 - name: upgrade_building.visible
   region: upgrade_building
   action: findIcon
@@ -19,9 +18,8 @@ overlay:
   screens:
     - building
   ttl: 20s
-  pushScenario:
-    - name: building.upgrade
-
+  steps:
+    - push_scenario: building.upgrade
 - name: upgrade_big_button.visible
   region: upgrade_big_button
   action: findIcon
@@ -31,9 +29,8 @@ overlay:
   screens:
     - building
     - main_city
-  pushScenario:
-    - name: tap_upgrade_big_button
-
+  steps:
+    - push_scenario: tap_upgrade_big_button
 - name: build_button.visible
   region: build_button
   action: findIcon
@@ -43,14 +40,13 @@ overlay:
   screens:
     - building
   ttl: 5s
-  pushScenario:
-    - name: tap_build_button
-
+  steps:
+    - push_scenario: tap_build_button
 # When a building is mid-upgrade the in-game UI shows a HH:MM:SS countdown.
 # Region ``building.upgrading.time`` is tagged ``type: time`` in area.json,
 # so the engine OCRs + parses it to total seconds without an explicit
 # ``type:`` on this rule. The overlay enqueuer then treats the parsed
-# seconds as the effective ``pushScenario[].ttl`` and writes the push_ttl
+# seconds as the effective push-step ``ttl`` and writes the push_ttl
 # marker *instead of* pushing the scenario. Any further pushes of
 # ``building.upgrade`` — overlay or hand-driven — are silently dropped
 # until the in-game upgrade actually finishes. The chapter task itself
@@ -62,5 +58,5 @@ overlay:
 #   screens:
 #     - building
 #   ttl: 10s
-#   pushScenario:
-#     - name: building.upgrade
+#   steps:
+#     - push_scenario: building.upgrade

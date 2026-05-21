@@ -116,10 +116,16 @@ def test_analyze_rule_pushes_with_throttle() -> None:
     assert set(rule["screens"]) == expected_screens, (
         f"screens drift: {set(rule['screens']) ^ expected_screens}"
     )
-    pushes = rule.get("pushScenario") or []
-    advance_push = next(
-        (p for p in pushes if p.get("name") == "shop.tab.advance"), None
-    )
+    steps = rule.get("steps") or []
+    advance_push = None
+    for step in steps:
+        spec = step.get("push_scenario") if isinstance(step, dict) else None
+        if isinstance(spec, dict) and spec.get("name") == "shop.tab.advance":
+            advance_push = spec
+            break
+        if isinstance(spec, str) and spec == "shop.tab.advance":
+            advance_push = {"name": spec}
+            break
     assert advance_push is not None, f"shop.tab.advance not pushed: {rule!r}"
     ttl = str(advance_push.get("ttl", "")).strip()
     assert ttl, "push TTL missing — would hot-loop against 1Hz analyzer"

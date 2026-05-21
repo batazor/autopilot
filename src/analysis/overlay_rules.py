@@ -27,53 +27,62 @@ def normalize_overlay_action(rule: dict[str, Any]) -> str:
     return action
 
 
+def _coerce_push_scenario_step(
+    src: dict[str, Any] | str,
+) -> dict[str, Any] | None:
+    """Normalize a ``push_scenario`` payload into a push_tasks entry."""
+    if isinstance(src, str):
+        name = src.strip()
+        if not name:
+            return None
+        return {"type": name, "priority": None, "ttl": None, "dsl_scenario": None}
+    if not isinstance(src, dict):
+        return None
+    t = str(src.get("name") or src.get("type") or "").strip()
+    if not t:
+        return None
+    pr_raw = src.get("priority")
+    try:
+        pr = int(pr_raw) if pr_raw is not None else None
+    except (TypeError, ValueError):
+        pr = None
+    ttl = parse_duration_seconds(src.get("ttl"))
+    dsl = str(src.get("dsl_scenario") or "").strip() or None
+    return {"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl}
+
+
 def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
-    """Optional task enqueue hints for matched overlays.
+    """Extract ``push_scenario`` steps from an overlay rule's ``steps:`` block.
 
-    Preferred flat form:
+    The DSL grammar mirrors scenarios:
 
-    pushScenario:
-      - name: is_new_people
-        priority: 80000
-        ttl: 15m
+    steps:
+      - push_scenario: is_new_people            # string shortcut
+      - push_scenario:
+          name: claim_mail
+          priority: 80000
+          ttl: 15m
 
     Per-item ``priority`` is optional: ``worker.instance_worker_overlay`` resolves
     queue priority as: explicit push entry ``priority`` → scenario YAML top-level
     ``priority`` for the pushed name → overlay rule ``priority`` → ``80_000``.
 
-    Nested form (still supported):
-
-    pushScenario:
-      - task:
-          name: is_new_people
-          priority: 80000
+    Other DSL step types inside ``steps:`` (click, wait, cond, ...) are accepted
+    by the parser but not yet executed by the overlay engine; they are reserved
+    for a follow-up that runs analyze ``steps:`` as an inline scenario.
     """
     out: list[dict[str, Any]] = []
 
-    pu = rule.get("pushScenario")
-    if isinstance(pu, list):
-        for item in pu:
-            if not isinstance(item, dict):
+    steps = rule.get("steps")
+    if isinstance(steps, list):
+        for step in steps:
+            if not isinstance(step, dict):
                 continue
-            task = item.get("task")
-            if isinstance(task, dict):
-                src: dict[str, Any] = task
-            elif item.get("name") is not None or item.get("type") is not None:
-                src = item
-            else:
+            if "push_scenario" not in step:
                 continue
-            t = str(src.get("name") or src.get("type") or "").strip()
-            if not t:
-                continue
-            pr_raw = src.get("priority")
-            pr: int | None
-            try:
-                pr = int(pr_raw) if pr_raw is not None else None
-            except (TypeError, ValueError):
-                pr = None
-            ttl = parse_duration_seconds(src.get("ttl"))
-            dsl = str(src.get("dsl_scenario") or "").strip() or None
-            out.append({"type": t, "priority": pr, "ttl": ttl, "dsl_scenario": dsl})
+            entry = _coerce_push_scenario_step(step.get("push_scenario"))
+            if entry is not None:
+                out.append(entry)
 
     return out
 

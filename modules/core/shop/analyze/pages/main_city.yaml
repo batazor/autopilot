@@ -4,6 +4,7 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: shop.event
-        ttl: 5m
+    steps:
+      - push_scenario:
+          name: shop.event
+          ttl: 5m

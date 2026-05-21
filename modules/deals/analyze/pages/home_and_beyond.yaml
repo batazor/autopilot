@@ -8,6 +8,7 @@ overlay:
     threshold: 0.9
     screens:
       - deals.home_and_beyond
-    pushScenario:
-      - name: deals.home_and_beyond
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: deals.home_and_beyond
+          ttl: 1m

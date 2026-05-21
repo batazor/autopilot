@@ -5,5 +5,5 @@ overlay:
   isRedDot: true
   screens:
     - heroes
-  pushScenario:
-    - name: free_recrutments_today
+  steps:
+    - push_scenario: free_recrutments_today

@@ -9,10 +9,10 @@ overlay:
     threshold: 0.9
     screens:
       - deals.sign_in
-    pushScenario:
-      - name: deals.sign_in
-        ttl: 1m
-
+    steps:
+      - push_scenario:
+          name: deals.sign_in
+          ttl: 1m
   # Top-tab strip exposes a "Home & Beyond" tab. When it carries a red dot,
   # push the claim scenario — the scheduler navigates from deals.sign_in to
   # deals.home_and_beyond via the edge_taps edge ``sign_in.to.home_and_beyound``.
@@ -21,6 +21,7 @@ overlay:
     isRedDot: true
     screens:
       - deals.sign_in
-    pushScenario:
-      - name: deals.home_and_beyond
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: deals.home_and_beyond
+          ttl: 1m

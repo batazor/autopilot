@@ -14,6 +14,7 @@ overlay:
     threshold: 0.9
     screens:
       - deals.hall_of_heroes
-    pushScenario:
-      - name: hall_of_heroes.witness
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: hall_of_heroes.witness
+          ttl: 1m

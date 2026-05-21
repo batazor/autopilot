@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.weekly_monthly_cards
-    pushScenario:
-      - name: shop.weekly_monthly_cards
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.weekly_monthly_cards
+          ttl: 1m

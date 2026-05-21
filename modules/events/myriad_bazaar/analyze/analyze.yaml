@@ -9,5 +9,5 @@ overlay:
     ttl: 3
     screens:
       - myriad_bazaar
-    pushScenario:
-      - name: myriad_bazaar
+    steps:
+      - push_scenario: myriad_bazaar

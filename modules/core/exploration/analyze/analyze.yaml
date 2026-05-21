@@ -5,6 +5,7 @@ overlay:
     isRedDot: true
     screens:
       - main_city
-    pushScenario:
-      - name: claim_exploration_rewards
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: claim_exploration_rewards
+          ttl: 1m

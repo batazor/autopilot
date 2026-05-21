@@ -5,6 +5,7 @@ overlay:
     threshold: 0.9
     screens:
       - shop.construction_queue
-    pushScenario:
-      - name: shop.construction_queue
-        ttl: 1m
+    steps:
+      - push_scenario:
+          name: shop.construction_queue
+          ttl: 1m
