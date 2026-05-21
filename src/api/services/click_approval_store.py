@@ -6,6 +6,8 @@ import time
 from typing import Any
 from urllib.parse import urlencode
 
+import redis
+
 from adb.approvals import click_approval_enabled
 from api.services.click_approval_overlay import (
     build_overlays,
@@ -309,7 +311,10 @@ def clear_stale_pending(client: Any, instance_id: str, *, curr_key: str, raw: st
 
 def get_pending(client: Any, instance_id: str) -> dict[str, Any] | None:
     curr_key = _current_key(instance_id)
-    raw = client.get(curr_key)
+    try:
+        raw = client.get(curr_key)
+    except redis.RedisError:
+        return None
     if not raw:
         return None
     if clear_stale_pending(client, instance_id, curr_key=curr_key, raw=_as_text(raw)):
