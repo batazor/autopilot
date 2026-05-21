@@ -763,40 +763,6 @@ def _queue_payload_matches_scenario_ids(
     return False
 
 
-def _is_pending_queue_zset_key(client: redis.Redis, key: str) -> bool:
-    if not key.startswith("wos:queue:"):
-        return False
-    if ":history" in key or ":running" in key or ":idx:" in key:
-        return False
-    try:
-        return str(client.type(key) or "").lower() == "zset"
-    except redis.RedisError:
-        return False
-
-
-def _running_task_types(client: redis.Redis, instance_id: str) -> set[str]:
-    """Task types currently marked running for an instance (if any)."""
-    out: set[str] = set()
-    key = f"wos:queue:running:{instance_id}"
-    try:
-        raw = _r_get(client, key)
-    except redis.RedisError:
-        return out
-    if not raw:
-        return out
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return out
-    if not isinstance(data, dict):
-        return out
-    for field in ("task_type", "dsl_scenario", "scenario"):
-        val = str(data.get(field) or "").strip()
-        if val:
-            out.add(val)
-    return out
-
-
 def purge_scenarios_from_redis(
     client: redis.Redis,
     *,
@@ -813,70 +779,122 @@ def purge_scenarios_from_redis(
         return ScenarioRedisPurgeResult()
 
     player_overrides_cleared = 0
-    for pid in player_ids:
-        key = f"wos:player:{pid}:scenario"
+    if player_ids:
+        override_keys = [f"wos:player:{pid}:scenario" for pid in player_ids]
         try:
-            raw = _r_get(client, key)
+            raw_values = client.mget(override_keys)
         except redis.RedisError:
-            continue
-        if raw is None:
-            continue
-        val = raw.decode() if isinstance(raw, bytes) else str(raw)
-        if val.strip() in scenario_ids:
+            raw_values = [None] * len(override_keys)
+        keys_to_delete: list[str] = []
+        for key, raw in zip(override_keys, raw_values, strict=False):
+            if raw is None:
+                continue
+            val = raw.decode() if isinstance(raw, bytes) else str(raw)
+            if val.strip() in scenario_ids:
+                keys_to_delete.append(key)
+        if keys_to_delete:
+            pipe = client.pipeline(transaction=False)
+            for key in keys_to_delete:
+                pipe.delete(key)
             with suppress(redis.RedisError):
-                if client.delete(key):
-                    player_overrides_cleared += 1
+                results = pipe.execute()
+                player_overrides_cleared = sum(1 for r in results if r)
 
     queue_items_removed = 0
+    candidate_queue_keys: list[str] = []
     for key in client.scan_iter("wos:queue:*"):
         ks = str(key)
-        if not _is_pending_queue_zset_key(client, ks):
+        if not ks.startswith("wos:queue:"):
             continue
+        if ":history" in ks or ":running" in ks or ":idx:" in ks:
+            continue
+        candidate_queue_keys.append(ks)
+    if candidate_queue_keys:
+        type_pipe = client.pipeline(transaction=False)
+        for ks in candidate_queue_keys:
+            type_pipe.type(ks)
         try:
-            payloads = _r_zrange(client, ks, 0, -1)
+            types = type_pipe.execute()
         except redis.RedisError:
-            continue
-        for payload in payloads:
+            types = [None] * len(candidate_queue_keys)
+        zset_keys = [
+            ks
+            for ks, t in zip(candidate_queue_keys, types, strict=False)
+            if str(t or "").lower() == "zset"
+        ]
+        if zset_keys:
+            range_pipe = client.pipeline(transaction=False)
+            for ks in zset_keys:
+                range_pipe.zrange(ks, 0, -1)
             try:
-                data = json.loads(payload)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(data, dict):
-                continue
-            if _queue_payload_matches_scenario_ids(data, scenario_ids):
+                per_key_payloads = range_pipe.execute()
+            except redis.RedisError:
+                per_key_payloads = [[] for _ in zset_keys]
+            zrem_pipe = client.pipeline(transaction=False)
+            staged = 0
+            for ks, payloads in zip(zset_keys, per_key_payloads, strict=False):
+                for payload in payloads or []:
+                    try:
+                        data = json.loads(payload)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(data, dict):
+                        continue
+                    if _queue_payload_matches_scenario_ids(data, scenario_ids):
+                        zrem_pipe.zrem(ks, payload)
+                        staged += 1
+            if staged:
                 with suppress(redis.RedisError):
-                    if client.zrem(ks, payload):
-                        queue_items_removed += 1
+                    results = zrem_pipe.execute()
+                    queue_items_removed = sum(1 for r in results if r)
 
     push_ttl_deleted = 0
+    push_ttl_to_delete: list[str] = []
     for key in client.scan_iter("wos:*:push_ttl:*"):
         ks = str(key)
         suffix = ks.rsplit(":", 1)[-1]
         if suffix in scenario_ids:
-            with suppress(redis.RedisError):
-                if client.delete(ks):
-                    push_ttl_deleted += 1
+            push_ttl_to_delete.append(ks)
+    if push_ttl_to_delete:
+        pipe = client.pipeline(transaction=False)
+        for ks in push_ttl_to_delete:
+            pipe.delete(ks)
+        with suppress(redis.RedisError):
+            results = pipe.execute()
+            push_ttl_deleted = sum(1 for r in results if r)
 
     claims_deleted = 0
-    for sid in scenario_ids:
+    if scenario_ids:
+        pipe = client.pipeline(transaction=False)
+        for sid in scenario_ids:
+            pipe.delete(f"wos:claimed:{sid}")
         with suppress(redis.RedisError):
-            if client.delete(f"wos:claimed:{sid}"):
-                claims_deleted += 1
+            results = pipe.execute()
+            claims_deleted = sum(1 for r in results if r)
 
     recent_runs_pruned = 0
-    for iid in instance_ids:
-        rr_key = f"wos:instance:{iid}:recent_runs"
+    if instance_ids:
+        rr_keys = [f"wos:instance:{iid}:recent_runs" for iid in instance_ids]
+        range_pipe = client.pipeline(transaction=False)
+        for rr_key in rr_keys:
+            range_pipe.zrange(rr_key, 0, -1)
         try:
-            members = _r_zrange(client, rr_key, 0, -1)
+            per_key_members = range_pipe.execute()
         except redis.RedisError:
-            continue
-        for member in members:
-            ms = member.decode() if isinstance(member, bytes) else str(member)
-            task_type = ms.split("|", 1)[0].strip()
-            if task_type in scenario_ids:
-                with suppress(redis.RedisError):
-                    if client.zrem(rr_key, member):
-                        recent_runs_pruned += 1
+            per_key_members = [[] for _ in rr_keys]
+        rem_pipe = client.pipeline(transaction=False)
+        staged = 0
+        for rr_key, members in zip(rr_keys, per_key_members, strict=False):
+            for member in members or []:
+                ms = member.decode() if isinstance(member, bytes) else str(member)
+                task_type = ms.split("|", 1)[0].strip()
+                if task_type in scenario_ids:
+                    rem_pipe.zrem(rr_key, member)
+                    staged += 1
+        if staged:
+            with suppress(redis.RedisError):
+                results = rem_pipe.execute()
+                recent_runs_pruned = sum(1 for r in results if r)
 
     instance_state_cleared = 0
     clear_mapping = {
@@ -893,28 +911,55 @@ def purge_scenarios_from_redis(
         "last_active_scenario_iter": "",
         "last_active_scenario_trace": "",
     }
-    for iid in instance_ids:
-        running_types = _running_task_types(client, iid)
-        if running_types & scenario_ids:
-            continue
-        state_key = f"wos:instance:{iid}:state"
+    if instance_ids:
+        running_keys = [f"wos:queue:running:{iid}" for iid in instance_ids]
+        state_keys = [f"wos:instance:{iid}:state" for iid in instance_ids]
+        read_pipe = client.pipeline(transaction=False)
+        for rk in running_keys:
+            read_pipe.get(rk)
+        for sk in state_keys:
+            read_pipe.hgetall(sk)
         try:
-            state = _r_hgetall(client, state_key) or {}
+            read_results = read_pipe.execute()
         except redis.RedisError:
-            continue
-        if not state:
-            continue
-        # All Redis clients in this module use ``decode_responses=True``, so
-        # values are always ``str``. The legacy ``state.get(b"...")`` arms
-        # were a defensive bytes-fallback that ``ty`` rightly flags as
-        # ``invalid-argument-type`` against the typed dict; dropped.
-        cur_scenario = str(state.get("current_scenario") or "").strip()
-        cur_task = str(state.get("current_task_type") or "").strip()
-        if cur_scenario not in scenario_ids and cur_task not in scenario_ids:
-            continue
-        with suppress(redis.RedisError):
-            client.hset(state_key, mapping=clear_mapping)
-            instance_state_cleared += 1
+            read_results = [None] * (len(running_keys) + len(state_keys))
+        running_raws = read_results[: len(running_keys)]
+        state_results = read_results[len(running_keys) :]
+
+        write_pipe = client.pipeline(transaction=False)
+        staged = 0
+        for iid, running_raw, state in zip(
+            instance_ids, running_raws, state_results, strict=False
+        ):
+            running_types: set[str] = set()
+            if running_raw:
+                try:
+                    data = json.loads(running_raw)
+                except json.JSONDecodeError:
+                    data = None
+                if isinstance(data, dict):
+                    for field in ("task_type", "dsl_scenario", "scenario"):
+                        val = str(data.get(field) or "").strip()
+                        if val:
+                            running_types.add(val)
+            if running_types & scenario_ids:
+                continue
+            if not state:
+                continue
+            # All Redis clients in this module use ``decode_responses=True``, so
+            # values are always ``str``. The legacy ``state.get(b"...")`` arms
+            # were a defensive bytes-fallback that ``ty`` rightly flags as
+            # ``invalid-argument-type`` against the typed dict; dropped.
+            cur_scenario = str(state.get("current_scenario") or "").strip()
+            cur_task = str(state.get("current_task_type") or "").strip()
+            if cur_scenario not in scenario_ids and cur_task not in scenario_ids:
+                continue
+            write_pipe.hset(f"wos:instance:{iid}:state", mapping=clear_mapping)
+            staged += 1
+        if staged:
+            with suppress(redis.RedisError):
+                write_pipe.execute()
+                instance_state_cleared = staged
 
     return ScenarioRedisPurgeResult(
         player_overrides_cleared=player_overrides_cleared,

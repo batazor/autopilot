@@ -892,10 +892,17 @@ class RedisQueue:
             if ":running" in ks:
                 continue
             keys.append(ks)
+        if not keys:
+            return results
+        pipe = self._redis.pipeline(transaction=False)
         for key in keys:
-            try:
-                items = await self._redis.zrangebyscore(key, "-inf", "+inf", withscores=True)
-            except Exception:
+            pipe.zrangebyscore(key, "-inf", "+inf", withscores=True)
+        try:
+            per_key_items = await pipe.execute()
+        except Exception:
+            return results
+        for items in per_key_items:
+            if not items:
                 continue
             for raw, score in items:
                 try:
@@ -909,12 +916,20 @@ class RedisQueue:
     async def remove(self, task_id: str) -> None:
         import json
 
+        keys: list[str] = []
         async for key in self._redis.scan_iter(match="wos:queue:*"):
             ks = key.decode() if isinstance(key, bytes) else str(key)
             if ":running" in ks:
                 continue
-            all_items = await self._redis.zrangebyscore(ks, "-inf", "+inf")
-            for raw in all_items:
+            keys.append(ks)
+        if not keys:
+            return
+        pipe = self._redis.pipeline(transaction=False)
+        for ks in keys:
+            pipe.zrangebyscore(ks, "-inf", "+inf")
+        per_key_items = await pipe.execute()
+        for ks, all_items in zip(keys, per_key_items, strict=False):
+            for raw in all_items or []:
                 try:
                     data = json.loads(raw)
                 except (json.JSONDecodeError, TypeError) as exc:
@@ -928,8 +943,9 @@ class RedisQueue:
         """Remove all queued items matching task_type + instance_id. Returns count removed."""
         import json
 
-        all_items = await self._redis.zrangebyscore(_queue_key(instance_id), "-inf", "+inf")
-        removed = 0
+        key = _queue_key(instance_id)
+        all_items = await self._redis.zrangebyscore(key, "-inf", "+inf")
+        to_remove: list[Any] = []
         for raw in all_items:
             try:
                 data = json.loads(raw)
@@ -939,9 +955,14 @@ class RedisQueue:
                 str(data.get("task_type") or "") == task_type
                 and str(data.get("instance_id") or "") == instance_id
             ):
-                await self._redis.zrem(_queue_key(instance_id), raw)
-                removed += 1
-        return removed
+                to_remove.append(raw)
+        if not to_remove:
+            return 0
+        pipe = self._redis.pipeline(transaction=False)
+        for raw in to_remove:
+            pipe.zrem(key, raw)
+        await pipe.execute()
+        return len(to_remove)
 
     def _players_for_instance(self, instance_id: str) -> set[str]:
         for inst in self._settings.instances:
