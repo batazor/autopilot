@@ -227,7 +227,10 @@ export function clickApprovalImageUrl(
   instanceId: string,
   source: "capture" | "live" = "capture",
 ): string {
-  const q = new URLSearchParams({ source, t: String(Date.now()) });
+  // Cache-busting belongs to the caller (e.g. via &tick=<state>). Embedding
+  // Date.now() here would re-render the <img> on every parent render and
+  // trigger a refetch storm even when nothing about the image changed.
+  const q = new URLSearchParams({ source });
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/click-approval/image?${q}`;
 }
 
