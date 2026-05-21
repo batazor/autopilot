@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**Whiteout Survival Autopilot** is a multi-account Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts the same stack (bot + API + Next dev server).
+**Whiteout Survival Autopilot** is a multi-account Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts the same stack (bot + API + Next production build via `next start`).
 
 ## Key Commands
 
@@ -267,7 +267,7 @@ Two Cursor rules are applied to this repo:
 - **Python 3.13** (pinned in `.python-version`)
 - **uv** for dep management + running scripts
 - **pyproject.toml** defines all scripts:
-  - `play` — bot + API + Next.js dev server (local all-in-one)
+  - `play` — bot + API + Next.js production build (`next build` then `next start`)
   - `bot` — Headless worker + scheduler
   - `api` — FastAPI for Next.js (`web/`)
   - `mcp` — MCP server (experimental)

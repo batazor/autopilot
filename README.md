@@ -402,7 +402,7 @@ Editing the code? See [`CONTRIBUTOR.md`](CONTRIBUTOR.md) for the uv-based dev wo
 
 | Command | Role |
 |:--------|:-----|
-| `uv run play` | Worker + API + Next.js dev server (local all-in-one) |
+| `uv run play` | Worker + API + Next.js production build (local all-in-one) |
 | `uv run bot` | Headless worker + scheduler |
 | `uv run api` | FastAPI for Next.js Web UI |
 | `uv run mcp` | MCP server (experimental) |

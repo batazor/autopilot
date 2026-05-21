@@ -55,7 +55,7 @@ Entry points are defined in `pyproject.toml` under `[project.scripts]`:
 
 | Command | Role |
 |:--------|:-----|
-| `uv run play` | API + Next.js dev server (start worker from sidebar **Start bot**) |
+| `uv run play` | API + Next.js production build (`next build` → `next start`; start worker from sidebar **Start bot**) |
 | `uv run bot` | Headless worker + scheduler only |
 | `uv run api` | FastAPI for the Next.js dashboard (Redis, previews, labeling API) |
 | `uv run mcp` | MCP server for Cursor / external tooling (experimental) |

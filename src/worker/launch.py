@@ -186,8 +186,16 @@ class _PlayStack:
                 env=self._env,
                 check=True,
             )
+        print("Building Next.js (npm run build)…", flush=True)
+        subprocess.run(
+            [npm, "run", "build"],
+            cwd=str(web_dir),
+            env=self._env,
+            check=True,
+        )
+        next_bin = web_dir / "node_modules" / ".bin" / "next"
         proc = _popen(
-            [npm, "run", "dev"],
+            [str(next_bin), "start", "--port", str(port), "--hostname", host],
             cwd=web_dir,
             env=self._env,
         )
