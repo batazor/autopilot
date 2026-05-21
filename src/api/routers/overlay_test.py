@@ -47,6 +47,7 @@ def get_overlay_test(
         detailed_analysis=detailed_analysis,
         preview_source=preview_source,
         preview_rel=preview_rel,
+        client=client,
     )
 
 

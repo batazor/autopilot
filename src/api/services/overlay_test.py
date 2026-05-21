@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import time
 from typing import Any, TypedDict
 
@@ -34,6 +35,8 @@ from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import area_manifest_max_mtime, load_area_doc
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
+
+logger = logging.getLogger(__name__)
 
 _STROKE_MATCHED = "#22c55e"
 _STROKE_UNMATCHED = "#64748b"
@@ -492,15 +495,25 @@ def _evaluate_rules_ignoring_screen_gate(
     )
 
 
-def _detect_screen_on_frame(image_bgr: np.ndarray | None) -> tuple[str, int]:
-    """Run the same screen detector as the worker on a static PNG frame."""
+def _detect_screen_on_frame(
+    image_bgr: np.ndarray | None,
+    *,
+    hint: str | None = None,
+) -> tuple[str, int]:
+    """Run the same screen detector as the worker on a static PNG frame.
+
+    ``hint``: optional screen id (e.g. the instance's last known ``current_screen``
+    from Redis) forwarded to the detector so the sticky verify fast path can
+    short-circuit when the hint still holds — turning steady-state cost from a
+    full multi-screen scan into one template match.
+    """
     started = time.perf_counter()
     detected = ""
     if image_bgr is not None and image_bgr.size > 0:
         try:
             from navigation.detector import suggest_node_for_image_sync
 
-            suggested = suggest_node_for_image_sync(image_bgr)
+            suggested = suggest_node_for_image_sync(image_bgr, hint=hint)
             if suggested:
                 detected = str(suggested).strip()
         except Exception:
@@ -758,12 +771,17 @@ def run_overlay_test(
     detailed_analysis: bool = False,
     preview_source: str = "live",
     preview_rel: str | None = None,
+    client: Any | None = None,
 ) -> OverlayTestResult:
     """Run screen detect on the frame, then overlay rules (static PNG probe).
 
-    Does not read instance Redis state: ``current_screen`` comes only from frame
-    detection; ``active_player`` for ``cond`` / push dry-run comes from the
+    The reported ``current_screen`` still comes only from frame detection;
+    ``active_player`` for ``cond`` / push dry-run comes from the
     ``has_active_player`` request flag (UI), not live ``active_player``.
+
+    When ``client`` is provided, the instance's last known ``current_screen``
+    is read from Redis and forwarded to the detector as a sticky hint so the
+    fast path can short-circuit the full multi-screen template scan.
 
     ``only_current_screen``: post-filter to rules whose ``screens`` includes the
     detected screen. Pure UI noise reduction; doesn't change what runs.
@@ -789,7 +807,18 @@ def run_overlay_test(
         if image_bgr is not None:
             height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
-    detected_screen, screen_detect_ms = _detect_screen_on_frame(image_bgr)
+    screen_hint: str | None = None
+    if client is not None:
+        try:
+            from dashboard.redis_client import get_instance_state
+
+            inst_state = get_instance_state(client, instance_id) or {}
+            hint_raw = str(inst_state.get("current_screen") or "").strip()
+            screen_hint = hint_raw or None
+        except Exception:
+            logger.debug("overlay-test: hint lookup failed", exc_info=True)
+
+    detected_screen, screen_detect_ms = _detect_screen_on_frame(image_bgr, hint=screen_hint)
     overlay_screen = detected_screen
     screen_source = "detected" if overlay_screen else "none"
 
