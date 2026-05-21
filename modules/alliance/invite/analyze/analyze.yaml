@@ -1,5 +1,5 @@
 overlay:
-- name: alliance.main_city.new_alliance.mail.visible
+- name: alliance.invite.new.visible
   region: main_city.new_alliance.mail.close
   action: findIcon
   device_level: true
@@ -9,4 +9,4 @@ overlay:
   - main_city
   ttl: 2s
   steps:
-  - push_scenario: alliance.click.main_city.new_alliance.mail
+  - push_scenario: invite.new

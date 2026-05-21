@@ -21,30 +21,6 @@ export function useDocumentVisible(): boolean {
   return visible;
 }
 
-/**
- * Run `callback` immediately and on every `intervalMs` while `enabled` and
- * the document tab is visible. Polling stops in the background (saves API/Redis).
- */
-export function usePollWhenVisible(
-  callback: () => void | Promise<void>,
-  intervalMs: number,
-  enabled = true,
-): void {
-  const visible = useDocumentVisible();
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
-
-  useEffect(() => {
-    if (!enabled || !visible) return;
-    const run = () => {
-      void callbackRef.current();
-    };
-    run();
-    const id = window.setInterval(run, intervalMs);
-    return () => window.clearInterval(id);
-  }, [enabled, visible, intervalMs]);
-}
-
 type UseInstancesOptions = {
   /** Initial selection before the list loads. */
   initialInstanceId?: string;

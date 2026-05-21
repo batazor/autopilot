@@ -1,7 +1,8 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { fetchAdbStatus, fetchBotStatus, startLocalBot } from "@/lib/api";
 import {
   adbReadinessTitle,
@@ -9,44 +10,65 @@ import {
   type AdbReadiness,
 } from "@/lib/adb-device-ready";
 import type { AdbStatus } from "@/lib/config-pages";
-import { usePollWhenVisible } from "@/lib/hooks";
 import type { BotStatusView } from "@/lib/types";
 import { Icon } from "@/components/ui/Icon";
 
 const BOT_POLL_MS = 4000;
 
+type BannerStatus = {
+  bot: BotStatusView;
+  adb: AdbStatus;
+};
+
+async function fetchBannerStatus(): Promise<BannerStatus> {
+  const [bot, adb] = await Promise.all([fetchBotStatus(), fetchAdbStatus()]);
+  return { bot, adb };
+}
+
 export function BotStartBanner() {
-  const [botStatus, setBotStatus] = useState<BotStatusView | null>(null);
-  const [adbStatus, setAdbStatus] = useState<AdbStatus | null>(null);
-  const [adbReadiness, setAdbReadiness] = useState<AdbReadiness | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const [bot, adb] = await Promise.all([fetchBotStatus(), fetchAdbStatus()]);
-      setBotStatus(bot);
-      setAdbStatus(adb);
-      setAdbReadiness(evaluateAdbReadiness(adb));
-      setError(null);
-    } catch (e) {
-      setBotStatus(null);
-      setAdbStatus(null);
-      setAdbReadiness({
-        ok: false,
-        kind: "scan_error",
-        message: e instanceof Error ? e.message : "Failed to reach API",
-      });
-    } finally {
-      setLoaded(true);
-      setRefreshing(false);
-    }
-  }, []);
+  const query = useQuery<BannerStatus>({
+    queryKey: ["botStartBanner"],
+    queryFn: fetchBannerStatus,
+    refetchInterval: BOT_POLL_MS,
+  });
 
-  usePollWhenVisible(refresh, BOT_POLL_MS);
+  const startMutation = useMutation({
+    mutationFn: startLocalBot,
+    onSuccess: (view) => {
+      qc.setQueryData<BannerStatus>(["botStartBanner"], (prev) =>
+        prev ? { ...prev, bot: view } : prev,
+      );
+      setLocalError(null);
+    },
+    onError: (e) => {
+      setLocalError(e instanceof Error ? e.message : "Failed to start bot");
+    },
+  });
+
+  const botStatus = query.data?.bot ?? null;
+  const adbStatus = query.data?.adb ?? null;
+  const refreshing = query.isFetching;
+  const loaded = query.isFetched;
+
+  const adbReadiness: AdbReadiness | null = adbStatus
+    ? evaluateAdbReadiness(adbStatus)
+    : query.isError
+      ? {
+          ok: false,
+          kind: "scan_error",
+          message:
+            query.error instanceof Error
+              ? query.error.message
+              : "Failed to reach API",
+        }
+      : null;
+
+  const queryError =
+    query.isError && query.error instanceof Error ? query.error.message : null;
+  const error = localError ?? queryError;
 
   if (!loaded && !refreshing) {
     return null;
@@ -101,26 +123,13 @@ export function BotStartBanner() {
           type="button"
           className="nav-bot-banner__btn nav-bot-banner__btn--devices"
           disabled={refreshing}
-          onClick={() => void refresh()}
+          onClick={() => void query.refetch()}
         >
           {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>
     );
   }
-
-  const onStart = async () => {
-    setStarting(true);
-    setError(null);
-    try {
-      const view = await startLocalBot();
-      setBotStatus(view);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to start bot");
-    } finally {
-      setStarting(false);
-    }
-  };
 
   return (
     <div className="nav-bot-banner" role="region" aria-label="Bot worker">
@@ -144,10 +153,10 @@ export function BotStartBanner() {
       <button
         type="button"
         className="nav-bot-banner__btn"
-        disabled={starting}
-        onClick={() => void onStart()}
+        disabled={startMutation.isPending}
+        onClick={() => startMutation.mutate()}
       >
-        {starting ? "Starting…" : "Start bot"}
+        {startMutation.isPending ? "Starting…" : "Start bot"}
       </button>
     </div>
   );

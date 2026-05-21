@@ -472,10 +472,50 @@ class SchedulerRunner:
             return all_scenarios
         return filtered
 
+    async def _ensure_daily_snapshot(self) -> None:
+        """Snapshot every persisted gamer once per UTC day, regardless of worker activity.
+
+        Why: ``record_player_stats`` already upserts on every state mutation, but an
+        idle worker means no row gets written for the day. This guarantees one row
+        per (player, day) using an atomic Redis ``SET NX EX`` so multiple
+        scheduler ticks don't redo the work.
+        """
+        assert self._redis is not None
+        from datetime import UTC, datetime
+
+        day = datetime.now(tz=UTC).date().isoformat()
+        key = f"wos:scheduler:daily_snapshot:{day}"
+        # 30h TTL — long enough to outlast the day, short enough to expire before
+        # the same key could be reused next UTC day.
+        acquired = await self._redis.set(key, "1", nx=True, ex=30 * 3600)
+        if not acquired:
+            return
+
+        def _snapshot_all() -> None:
+            from config.state_sqlite import record_player_stats
+            from config.state_store import get_state_store
+
+            store = get_state_store()
+            for pid in store.all_player_ids():
+                gs = store.get(pid)
+                if gs is None:
+                    continue
+                try:
+                    record_player_stats(gs.snapshot())
+                except Exception:
+                    logger.exception("daily snapshot failed for player=%s", pid)
+
+        try:
+            await asyncio.to_thread(_snapshot_all)
+            logger.info("Daily player snapshot recorded for %s", day)
+        except Exception:
+            logger.exception("Daily snapshot routine failed")
+
     async def _run_once(self) -> None:
         # ``_connect`` runs before any tick, so both ``_queue`` and ``_redis``
         # are always populated here.
         assert self._queue is not None
+        await self._ensure_daily_snapshot()
         await self._run_cron_specs()
         player_states = await self._load_player_states()
         scenarios = self._scenario_loader.load_all()

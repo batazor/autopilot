@@ -45,7 +45,7 @@ def test_alliance_module_overlay_rule_present_in_merged_manifest() -> None:
     doc = load_merged_analyze_yaml(REPO_ROOT)
     names = _rule_names(doc)
 
-    assert "alliance.main_city.new_alliance.mail.visible" in names
+    assert "alliance.invite.new.visible" in names
 
 
 def test_core_is_new_people_module_overlay_rule_present_in_merged_manifest() -> None:

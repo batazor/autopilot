@@ -332,6 +332,50 @@ def count_claimed_slots(client: redis.Redis) -> int:
     return n
 
 
+_pending_order_loop: Any = None
+_pending_order_loop_thread: threading.Thread | None = None
+_pending_order_aclient: Any = None
+_pending_order_lock = threading.Lock()
+
+
+def _pending_order_runtime(redis_url: str) -> tuple[Any, Any]:
+    """Return (loop, aioredis client) for ``fetch_pending_execution_order``.
+
+    The original implementation called ``asyncio.run`` per request, which
+    forced a fresh ``aioredis.from_url`` connection pool (TCP handshake +
+    setup) and an ``aclose`` teardown for every UI poll — ~1s end-to-end
+    on a healthy local Redis. Keep one loop on a background thread and one
+    aioredis client across calls.
+    """
+    global _pending_order_loop, _pending_order_loop_thread, _pending_order_aclient
+
+    import asyncio
+
+    import redis.asyncio as aioredis
+
+    from config.redis_metrics import instrument_redis_client
+
+    with _pending_order_lock:
+        if _pending_order_loop is None or not _pending_order_loop.is_running():
+            loop = asyncio.new_event_loop()
+            thread = threading.Thread(
+                target=loop.run_forever,
+                name="pending-order-loop",
+                daemon=True,
+            )
+            thread.start()
+            _pending_order_loop = loop
+            _pending_order_loop_thread = thread
+            _pending_order_aclient = None
+
+        if _pending_order_aclient is None:
+            aclient = aioredis.from_url(redis_url, decode_responses=True)
+            instrument_redis_client(aclient, component="ui")
+            _pending_order_aclient = aclient
+
+        return _pending_order_loop, _pending_order_aclient
+
+
 def fetch_pending_execution_order(
     client: redis.Redis,
     instance_id: str,
@@ -342,8 +386,6 @@ def fetch_pending_execution_order(
     """Pending task_ids for one instance in ``pop_due`` execution order (read-only)."""
     import asyncio
 
-    import redis.asyncio as aioredis
-
     from scheduler.queue import RedisQueue
 
     url = redis_url or load_settings().redis.url
@@ -351,19 +393,15 @@ def fetch_pending_execution_order(
     if not iid:
         return []
 
-    async def _run() -> list[str]:
-        from config.redis_metrics import instrument_redis_client
+    loop, aclient = _pending_order_runtime(url)
 
-        aclient = aioredis.from_url(url, decode_responses=True)
-        instrument_redis_client(aclient, component="ui")
-        try:
-            q = RedisQueue(aclient, load_settings())
-            return await q.pending_execution_order(iid, current_screen=current_screen)
-        finally:
-            await aclient.aclose()
+    async def _run() -> list[str]:
+        q = RedisQueue(aclient, load_settings())
+        return await q.pending_execution_order(iid, current_screen=current_screen)
 
     try:
-        return asyncio.run(_run())
+        future = asyncio.run_coroutine_threadsafe(_run(), loop)
+        return future.result(timeout=5.0)
     except Exception:
         return []
 

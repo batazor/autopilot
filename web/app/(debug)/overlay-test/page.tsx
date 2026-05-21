@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
@@ -9,7 +10,7 @@ import { useFleet } from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { fetchGallery, fetchOverlayTest, overlayTestImageUrl } from "@/lib/api";
 import type { GalleryItem } from "@/lib/config-pages";
-import { usePollWhenVisible, useStableCacheKey } from "@/lib/hooks";
+import { useStableCacheKey } from "@/lib/hooks";
 import {
   defaultActionVisibility,
   overlayLabelRuleName,
@@ -112,7 +113,6 @@ export default function OverlayTestPage() {
   const [onlyCurrentScreen, setOnlyCurrentScreen] = useState(false);
   const [ignoreScreenGate, setIgnoreScreenGate] = useState(false);
   const [hasActivePlayer, setHasActivePlayer] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
 
   const [textFilter, setTextFilter] = useState("");
   const [matchStatus, setMatchStatus] = useState<MatchStatusFilter>("all");
@@ -227,40 +227,70 @@ export default function OverlayTestPage() {
     setOnlyCurrentNode(false);
   }, [regionParam]);
 
-  const loadOverlay = useCallback(
-    async (opts: { detailed?: boolean; showSpinner?: boolean } = {}) => {
-      if (!instanceId) return;
-      if (opts.showSpinner) setAnalyzing(true);
-      try {
-        const data = await fetchOverlayTest(instanceId, {
-          onlyCurrentScreen: onlyCurrentScreen && !ignoreScreenGate,
-          ignoreScreenGate,
-          hasActivePlayer,
-          detailedAnalysis: opts.detailed ?? false,
-          previewSource,
-          previewRel,
-        });
-        setResult(data);
-        setError(null);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (opts.showSpinner) setAnalyzing(false);
-      }
-    },
-    [instanceId, onlyCurrentScreen, ignoreScreenGate, hasActivePlayer, previewSource, previewRel],
-  );
-
-  const analyzeScreenshot = useCallback(
-    () => loadOverlay({ detailed: true, showSpinner: true }),
-    [loadOverlay],
-  );
-
-  usePollWhenVisible(() => loadOverlay(), POLL_MS, autoRefresh);
+  const overlayQuery = useQuery({
+    queryKey: [
+      "overlayTest",
+      instanceId,
+      onlyCurrentScreen,
+      ignoreScreenGate,
+      hasActivePlayer,
+      previewSource,
+      previewRel,
+    ],
+    queryFn: () =>
+      fetchOverlayTest(instanceId, {
+        onlyCurrentScreen: onlyCurrentScreen && !ignoreScreenGate,
+        ignoreScreenGate,
+        hasActivePlayer,
+        detailedAnalysis: false,
+        previewSource,
+        previewRel,
+      }),
+    enabled: !!instanceId,
+    refetchInterval: autoRefresh ? POLL_MS : false,
+  });
 
   useEffect(() => {
-    if (instanceId) void loadOverlay();
-  }, [instanceId, loadOverlay]);
+    if (overlayQuery.data) setResult(overlayQuery.data);
+  }, [overlayQuery.data]);
+
+  useEffect(() => {
+    if (overlayQuery.isError) {
+      setError(
+        overlayQuery.error instanceof Error
+          ? overlayQuery.error.message
+          : String(overlayQuery.error),
+      );
+    } else if (overlayQuery.isSuccess) {
+      setError(null);
+    }
+  }, [overlayQuery.isError, overlayQuery.isSuccess, overlayQuery.error]);
+
+  const analyzeMutation = useMutation({
+    mutationFn: () => {
+      if (!instanceId) throw new Error("no instance selected");
+      return fetchOverlayTest(instanceId, {
+        onlyCurrentScreen: onlyCurrentScreen && !ignoreScreenGate,
+        ignoreScreenGate,
+        hasActivePlayer,
+        detailedAnalysis: true,
+        previewSource,
+        previewRel,
+      });
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      setError(null);
+    },
+    onError: (e) => {
+      setError(e instanceof Error ? e.message : String(e));
+    },
+  });
+
+  const analyzing = analyzeMutation.isPending;
+  const analyzeScreenshot = useCallback(() => {
+    analyzeMutation.mutate();
+  }, [analyzeMutation]);
 
   useEffect(() => {
     if (!regionParam?.trim() || !result?.rules.length) return;

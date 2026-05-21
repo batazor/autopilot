@@ -1,5 +1,5 @@
 enabled: false
-name: Alliance click · New alliance mail
+name: Alliance · Invite · New
 node: main_city
 priority: 100000
 steps:

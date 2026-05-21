@@ -39,7 +39,12 @@ def get_instance(
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
     try:
-        revision = instance_revision(client, instance_id, use_cache=False)
+        # Cache hit is safe: instance/queue mutations publish dashboard events
+        # whose hook invalidates the per-instance revision key (see
+        # ``dashboard/dashboard_events.py``). Stale-detail risk is bounded by
+        # ``REV_TTL_SECONDS`` in ``dashboard_rev.py`` if a producer skips the
+        # publish step.
+        revision = instance_revision(client, instance_id, use_cache=True)
         if if_revision and if_revision == revision:
             return {"unchanged": True, "revision": revision}
         payload = detail.build_instance_detail(client, instance_id)

@@ -16,7 +16,7 @@ steps:
     state: exploration.state.enemyPower
 
   - click: squad_settings.quick_deploy
-  - wait: 500ms
+  - wait: 200ms
   - click: squad_settings.fight
   - wait: 10s
 

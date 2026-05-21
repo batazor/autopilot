@@ -55,6 +55,9 @@ CREATE TABLE IF NOT EXISTS player_power_daily (
     day TEXT NOT NULL,
     power INTEGER NOT NULL,
     furnace_level INTEGER NOT NULL DEFAULT 0,
+    gems INTEGER NOT NULL DEFAULT 0,
+    arena_rank INTEGER NOT NULL DEFAULT 0,
+    arena_power INTEGER NOT NULL DEFAULT 0,
     recorded_at REAL NOT NULL,
     PRIMARY KEY (player_id, day)
 );
@@ -69,7 +72,28 @@ CREATE TABLE IF NOT EXISTS player_level_events (
 
 CREATE INDEX IF NOT EXISTS idx_level_events_player
     ON player_level_events (player_id, day);
+
+CREATE TABLE IF NOT EXISTS alliance_daily (
+    alliance_name TEXT NOT NULL,
+    day TEXT NOT NULL,
+    power INTEGER NOT NULL DEFAULT 0,
+    members_count INTEGER NOT NULL DEFAULT 0,
+    members_max INTEGER NOT NULL DEFAULT 0,
+    recorded_at REAL NOT NULL,
+    PRIMARY KEY (alliance_name, day)
+);
 """
+
+_PLAYER_POWER_DAILY_COLS = ("gems", "arena_rank", "arena_power")
+
+
+def _ensure_player_power_daily_columns(conn: sqlite3.Connection) -> None:
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(player_power_daily)")}
+    for col in _PLAYER_POWER_DAILY_COLS:
+        if col not in existing:
+            conn.execute(
+                f"ALTER TABLE player_power_daily ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+            )
 
 
 def _today_iso() -> str:
@@ -84,6 +108,7 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     conn.row_factory = sqlite3.Row
     try:
         conn.executescript(_SCHEMA_SQL)
+        _ensure_player_power_daily_columns(conn)
         conn.commit()
         yield conn
     finally:
@@ -125,10 +150,17 @@ def save_state_db(db: StateDB) -> None:
 
 
 def record_player_stats(gamer: GamerState) -> None:
-    """Upsert today's power snapshot; record furnace level-up events."""
+    """Upsert today's snapshot; record furnace level-up events; mirror alliance row."""
     pid = int(gamer.id)
     power = int(gamer.power or 0)
     furnace_level = int(gamer.buildings.furnace.level or 0)
+    gems = int(gamer.gems or 0)
+    arena_rank = int(gamer.arena.rank or 0)
+    arena_power = int(gamer.arena.myPower or 0)
+    alliance_name = (gamer.alliance.name or "").strip()
+    alliance_power = int(gamer.alliance.power or 0)
+    members_count = int(gamer.alliance.members.count or 0)
+    members_max = int(gamer.alliance.members.max or 0)
     day = _today_iso()
     now = time.time()
 
@@ -136,14 +168,18 @@ def record_player_stats(gamer: GamerState) -> None:
         conn.execute(
             """
             INSERT INTO player_power_daily
-                (player_id, day, power, furnace_level, recorded_at)
-            VALUES (?, ?, ?, ?, ?)
+                (player_id, day, power, furnace_level, gems,
+                 arena_rank, arena_power, recorded_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(player_id, day) DO UPDATE SET
                 power = excluded.power,
                 furnace_level = excluded.furnace_level,
+                gems = excluded.gems,
+                arena_rank = excluded.arena_rank,
+                arena_power = excluded.arena_power,
                 recorded_at = excluded.recorded_at
             """,
-            (pid, day, power, furnace_level, now),
+            (pid, day, power, furnace_level, gems, arena_rank, arena_power, now),
         )
         prev = conn.execute(
             """
@@ -162,6 +198,20 @@ def record_player_stats(gamer: GamerState) -> None:
                 """,
                 (pid, furnace_level, day, now),
             )
+        if alliance_name:
+            conn.execute(
+                """
+                INSERT INTO alliance_daily
+                    (alliance_name, day, power, members_count, members_max, recorded_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(alliance_name, day) DO UPDATE SET
+                    power = excluded.power,
+                    members_count = excluded.members_count,
+                    members_max = excluded.members_max,
+                    recorded_at = excluded.recorded_at
+                """,
+                (alliance_name, day, alliance_power, members_count, members_max, now),
+            )
         conn.commit()
 
 
@@ -174,7 +224,7 @@ def get_player_stats(player_id: str) -> dict[str, Any]:
         ).fetchone()
         series_rows = conn.execute(
             """
-            SELECT day, power, furnace_level
+            SELECT day, power, furnace_level, gems, arena_rank, arena_power
             FROM player_power_daily
             WHERE player_id = ?
             ORDER BY day ASC
@@ -207,12 +257,49 @@ def get_player_stats(player_id: str) -> dict[str, Any]:
                 "day": r["day"],
                 "power": int(r["power"]),
                 "furnace_level": int(r["furnace_level"]),
+                "gems": int(r["gems"] or 0),
+                "arena_rank": int(r["arena_rank"] or 0),
+                "arena_power": int(r["arena_power"] or 0),
             }
             for r in series_rows
         ],
         "level_events": [
             {"day": r["day"], "level": int(r["level"])}
             for r in level_rows
+        ],
+    }
+
+
+def list_alliance_names() -> list[str]:
+    with _conn_lock, _connect() as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT alliance_name FROM alliance_daily ORDER BY alliance_name ASC"
+        ).fetchall()
+    return [r["alliance_name"] for r in rows if r["alliance_name"]]
+
+
+def get_alliance_stats(alliance_name: str) -> dict[str, Any]:
+    name = str(alliance_name).strip()
+    with _conn_lock, _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT day, power, members_count, members_max
+            FROM alliance_daily
+            WHERE alliance_name = ?
+            ORDER BY day ASC
+            """,
+            (name,),
+        ).fetchall()
+    return {
+        "alliance_name": name,
+        "series": [
+            {
+                "day": r["day"],
+                "power": int(r["power"] or 0),
+                "members_count": int(r["members_count"] or 0),
+                "members_max": int(r["members_max"] or 0),
+            }
+            for r in rows
         ],
     }
 

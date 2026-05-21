@@ -32,6 +32,7 @@ import type {
   PlayerStateView,
   PlayerPersistedView,
   PlayerStatsView,
+  AllianceStatsView,
   CenturySyncResult,
   BuildingLevelRow,
   HeroStateRow,
@@ -187,6 +188,19 @@ export async function fetchPlayerPersisted(
 export async function fetchPlayerStats(playerId: string): Promise<PlayerStatsView> {
   return apiFetch<PlayerStatsView>(
     `/api/players/${encodeURIComponent(playerId)}/stats`,
+  );
+}
+
+export async function fetchAlliances(): Promise<string[]> {
+  const res = await apiFetch<{ alliances: string[] }>("/api/alliances");
+  return res.alliances;
+}
+
+export async function fetchAllianceStats(
+  allianceName: string,
+): Promise<AllianceStatsView> {
+  return apiFetch<AllianceStatsView>(
+    `/api/alliances/${encodeURIComponent(allianceName)}/stats`,
   );
 }
 

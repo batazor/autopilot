@@ -83,6 +83,7 @@ ensure_repo_on_sys_path()
 
 from api.routers import (  # noqa: E402 — silence filter must run before transitive ``ui.*`` imports
     adb,
+    alliances,
     analyze,
     balance,
     click_approvals,
@@ -131,6 +132,7 @@ app.include_router(overview.router)
 app.include_router(queue.router)
 app.include_router(events.router)
 app.include_router(players.router)
+app.include_router(alliances.router)
 app.include_router(labeling.router)
 app.include_router(routes.router)
 app.include_router(gift_codes.router)
@@ -172,7 +174,6 @@ def main() -> None:
             "api.main:app",
             host=host,
             port=port,
-            reload=os.environ.get("WOS_API_RELOAD", "").strip().lower() in {"1", "true", "yes"},
             log_level=os.environ.get("WOS_API_LOG_LEVEL", "info"),
             timeout_graceful_shutdown=graceful_shutdown,
         )

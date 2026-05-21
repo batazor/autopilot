@@ -296,6 +296,9 @@ export type PlayerPowerDay = {
   day: string;
   power: number;
   furnace_level: number;
+  gems: number;
+  arena_rank: number;
+  arena_power: number;
 };
 
 export type PlayerLevelEvent = {
@@ -308,6 +311,18 @@ export type PlayerStatsView = {
   nickname: string;
   series: PlayerPowerDay[];
   level_events: PlayerLevelEvent[];
+};
+
+export type AllianceDay = {
+  day: string;
+  power: number;
+  members_count: number;
+  members_max: number;
+};
+
+export type AllianceStatsView = {
+  alliance_name: string;
+  series: AllianceDay[];
 };
 
 export type PlayerPersistedView = {

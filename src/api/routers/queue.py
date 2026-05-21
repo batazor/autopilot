@@ -33,7 +33,12 @@ def get_queue(
         client.ping()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
-    revision = queue_revision(client, use_cache=False)
+    # Cache hit is safe: every queue mutation publishes a dashboard event,
+    # whose ``publish_dashboard_event`` hook invalidates the cached digest
+    # via ``invalidate_revision_for_topic("queue")`` (see
+    # ``dashboard/dashboard_events.py``). With ``use_cache=False`` we paid
+    # the full rebuild on every poll (~1s once asyncio overhead was added).
+    revision = queue_revision(client, use_cache=True)
     if if_revision and if_revision == revision:
         return {"unchanged": True, "revision": revision}
     view = queue_api.build_queue_view(client)

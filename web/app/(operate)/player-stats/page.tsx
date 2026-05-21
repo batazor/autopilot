@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { PowerGrowthChart } from "@/components/player-stats/PowerGrowthChart";
+import { MetricLineChart } from "@/components/player-stats/MetricLineChart";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -104,6 +105,24 @@ function PlayerStatsContent() {
             <PowerGrowthChart
               series={stats.series}
               levelEvents={stats.level_events}
+            />
+          </section>
+
+          <section className="panel">
+            <h2 className="panel__title">Gems over time</h2>
+            <MetricLineChart
+              label="Gems"
+              series={stats.series.map((d) => ({ day: d.day, value: d.gems }))}
+              emptyMessage="No gem history yet."
+            />
+          </section>
+
+          <section className="panel">
+            <h2 className="panel__title">Arena power over time</h2>
+            <MetricLineChart
+              label="Arena power"
+              series={stats.series.map((d) => ({ day: d.day, value: d.arena_power }))}
+              emptyMessage="No arena history yet."
             />
           </section>
 

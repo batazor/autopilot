@@ -1,15 +1,14 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from "react";
 import { fetchHealth } from "@/lib/api";
-import { usePollWhenVisible } from "@/lib/hooks";
 import type { HealthView } from "@/lib/types";
 
 const HEALTH_POLL_MS = 5000;
@@ -36,26 +35,20 @@ function connectivityFrom(
 }
 
 export function ApiStatusProvider({ children }: { children: ReactNode }) {
-  const [health, setHealth] = useState<HealthView | null>(null);
-  const [fetchFailed, setFetchFailed] = useState(false);
-  const [checkedOnce, setCheckedOnce] = useState(false);
+  const query = useQuery<HealthView>({
+    queryKey: ["health"],
+    queryFn: fetchHealth,
+    refetchInterval: HEALTH_POLL_MS,
+  });
 
   const refresh = useCallback(async () => {
-    try {
-      const view = await fetchHealth();
-      setHealth(view);
-      setFetchFailed(false);
-    } catch {
-      setHealth(null);
-      setFetchFailed(true);
-    } finally {
-      setCheckedOnce(true);
-    }
-  }, []);
+    await query.refetch();
+  }, [query]);
 
-  usePollWhenVisible(refresh, HEALTH_POLL_MS);
-
-  const connectivity = connectivityFrom(health, fetchFailed, !checkedOnce);
+  const health = query.data ?? null;
+  const fetchFailed = query.isError;
+  const checking = !query.isFetchedAfterMount && query.isFetching;
+  const connectivity = connectivityFrom(health, fetchFailed, checking);
 
   const value = useMemo(
     () => ({ connectivity, health, refresh }),

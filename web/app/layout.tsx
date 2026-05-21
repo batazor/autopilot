@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { AppShell } from "@/components/AppShell";
+import { QueryProvider } from "@/components/QueryProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-prefs";
 import "./globals.css";
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {THEME_BOOT_SCRIPT}
         </Script>
         <ThemeProvider>
-          <AppShell>{children}</AppShell>
+          <QueryProvider>
+            <AppShell>{children}</AppShell>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>
