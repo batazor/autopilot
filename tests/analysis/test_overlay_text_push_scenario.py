@@ -165,10 +165,11 @@ async def test_overlay_screen_gate_is_case_insensitive(monkeypatch: Any) -> None
 
 
 @pytest.mark.asyncio
-async def test_text_rules_batch_into_two_ocr_calls(monkeypatch: Any) -> None:
-    """All ``action: text`` rules in a tick share one primary ``ocr_regions``
-    call; rules that miss against ``expected`` AND have a ``_search`` sibling
-    add to a single fallback batch — never per-rule HTTP traffic.
+async def test_text_rules_share_one_ocr_batch(monkeypatch: Any) -> None:
+    """All ``action: text`` rules in a tick share one ``ocr_regions`` call —
+    no per-rule HTTP. The implicit ``{region}_search`` fallback batch was
+    removed; rules that miss ``expected`` now simply report matched=False
+    (authors must add an explicit ``search_region`` or widen the bbox).
     """
     repo_root = Path(__file__).resolve().parents[2]
     area_doc: dict[str, Any] = json.loads(
@@ -207,20 +208,11 @@ async def test_text_rules_batch_into_two_ocr_calls(monkeypatch: Any) -> None:
             region_preprocess: list[str | None] | None = None,
         ) -> list[OCRResult]:
             ids = region_ids or [f"r{i}" for i in range(len(regions))]
-            calls.append({"phase": "primary" if not calls else "fallback", "ids": list(ids)})
-            results: list[OCRResult] = []
-            for rid in ids:
-                # Primary text doesn't contain "tap anywhere" → fallback batch
-                # gets the wider ``tapanywhereyoexit_search`` bbox.
-                if rid.startswith("search::"):
-                    results.append(
-                        OCRResult(region_id=rid, text="Tap anywhere to continue", confidence=0.97)
-                    )
-                else:
-                    results.append(
-                        OCRResult(region_id=rid, text="Bunk Beds in Shelter 2", confidence=0.9)
-                    )
-            return results
+            calls.append({"ids": list(ids)})
+            return [
+                OCRResult(region_id=rid, text="Bunk Beds in Shelter 2", confidence=0.9)
+                for rid in ids
+            ]
 
     _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
@@ -228,31 +220,28 @@ async def test_text_rules_batch_into_two_ocr_calls(monkeypatch: Any) -> None:
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
     )
 
-    assert len(calls) == 2, f"expected 2 ocr_regions calls (primary + fallback), got {len(calls)}"
-    # Primary batch covered both text rules in one HTTP round-trip.
+    assert len(calls) == 1, f"expected one batched ocr_regions call, got {len(calls)}"
     assert sorted(calls[0]["ids"]) == ["text::0", "text::1"]
-    # Fallback batch only re-OCR'd the rule whose primary failed expected match.
-    assert calls[1]["ids"] == ["search::1"]
 
     chapter = out.get("chapter.task.present")
     assert isinstance(chapter, dict) and chapter.get("matched") is True
     assert chapter.get("text") == "Bunk Beds in Shelter 2"
 
+    # Without the deprecated fallback batch the expected-text rule reports
+    # matched=False once the primary OCR didn't contain "tap anywhere".
     tap = out.get("tap.anywhere.exit")
-    assert isinstance(tap, dict) and tap.get("matched") is True
-    # Fallback win bubbles the wider-bbox text + the ``_search`` ocr_source.
-    assert tap.get("text") == "Tap anywhere to continue"
-    assert tap.get("ocr_source") == "tapanywhereyoexit_search"
+    assert isinstance(tap, dict) and tap.get("matched") is False
 
 
 @pytest.mark.asyncio
 async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> None:
     """``preprocess: enhance`` on a rule reaches ``ocr_regions`` as a
-    per-slot tag; a sibling rule without the flag stays raw.
+    per-slot tag.
 
     Locks in the per-rule gating: ``ocr.preprocess.enhance_for_ocr`` is
     opt-in, never global, otherwise high-contrast UI text gets degraded.
-    Fallback ``_search`` inherits the parent rule's tag.
+    (The deprecated ``_search`` fallback batch used to inherit the parent's
+    tag too — that path no longer exists, so we just assert the primary.)
     """
     repo_root = Path(__file__).resolve().parents[2]
     area_doc: dict[str, Any] = json.loads(
@@ -295,26 +284,17 @@ async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> No
             seen_preprocess.append(region_preprocess)
             ids = region_ids or [f"r{i}" for i in range(len(regions))]
             return [
-                # Primary text doesn't match — drives the fallback batch so
-                # we can also assert ``preprocess`` propagates onto ``_search``.
                 OCRResult(region_id=rid, text="other text", confidence=0.9)
-                if not rid.startswith("search::")
-                else OCRResult(
-                    region_id=rid, text="Tap anywhere to continue", confidence=0.97
-                )
                 for rid in ids
             ]
 
     _patch_overlay_ocr_getter(monkeypatch, _RecordingOcr())
 
-    out = await overlay_engine.evaluate_overlay_rules_async(
+    await overlay_engine.evaluate_overlay_rules_async(
         image_bgr, area_doc, repo_root, rules, rule_eval_state=None
     )
-    # Primary batch tagged enhance for both rules.
-    assert seen_preprocess[0] == ["enhance", "enhance"]
-    # Fallback batch inherits the parent's enhance.
-    assert seen_preprocess[1] == ["enhance"]
-    assert out["tap.anywhere.exit"]["matched"] is True
+    # Primary (and only) batch tagged enhance for both rules.
+    assert seen_preprocess == [["enhance", "enhance"]]
 
 
 @pytest.mark.asyncio
