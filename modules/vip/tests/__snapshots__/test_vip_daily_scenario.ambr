@@ -55,10 +55,16 @@
             'wait': '0.8s',
           }),
           dict({
-            'click': 'button.tap_anywhere_to_exit',
-          }),
-          dict({
-            'wait': '0.3s',
+            'max': 3,
+            'steps': list([
+              dict({
+                'click': 'button.tap_anywhere_to_exit',
+              }),
+              dict({
+                'wait': '0.3s',
+              }),
+            ]),
+            'while_match': 'button.tap_anywhere_to_exit',
           }),
         ]),
         'while_match': 'button.claim',
