@@ -1,6 +1,13 @@
 # Local development: builds bot + ocr from sources on this checkout.
 # For pre-built images from GHCR, use ``docker-compose.prod.yml`` instead:
 #     docker compose -f docker-compose.prod.yml up -d
+#
+# Why no unix socket here (unlike prod): the dev workflow runs Redis in
+# Docker but ``uv run play`` (bot + api + web) on the host. Bridging a unix
+# socket from a Docker volume to the host is fragile on Docker Desktop
+# (file-sharing perms / VirtioFS overhead), and loopback TCP on a single
+# machine is already fast. Prod runs everything in containers and shares
+# the socket via a named volume — see ``docker-compose.prod.yml``.
 
 services:
   redis:
