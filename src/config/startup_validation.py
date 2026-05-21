@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from analysis.login_ads import login_ad_task_types
 from analysis.overlay_manifest import (
     load_merged_analyze_yaml,
 )
@@ -449,34 +448,6 @@ def _validate_analyze_manifest(
             )
 
 
-def _validate_login_ads_boot_phase(
-    repo_root: Path,
-    issues: list[StartupValidationIssue],
-) -> None:
-    """Login-ad overlay pushes must target ``device_level`` scenarios (boot phase 1)."""
-    for key in sorted(login_ad_task_types(repo_root)):
-        loaded = _tmpl.load_doc(repo_root, key)
-        if loaded is None:
-            issues.append(
-                StartupValidationIssue(
-                    "error",
-                    f"login_ads:{key}",
-                    f"overlay pushScenario {key!r} has no runnable scenario YAML",
-                )
-            )
-            continue
-        _path, raw = loaded
-        if not isinstance(raw, dict) or raw.get("device_level") is not True:
-            issues.append(
-                StartupValidationIssue(
-                    "error",
-                    f"login_ads:{key}",
-                    f"login-ad scenario {key!r} must declare device_level: true "
-                    "(boot phase runs before active_player)",
-                )
-            )
-
-
 _REGION_STEP_KEYS = frozenset({"click", "long_click", "match", "while_match", "ocr"})
 
 
@@ -881,7 +852,6 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
         region_names=region_names,
         red_dot_regions=red_dot_regions,
     )
-    _validate_login_ads_boot_phase(root, issues)
     _validate_overlay_runtime_area_manifest(root, issues)
     _validate_scenarios(
         root,

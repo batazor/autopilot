@@ -1,10 +1,11 @@
 overlay:
-  # Login-ad overlay rules: ``device_level`` + ``cond: active_player == ""`` +
-  # ``steps: [push_scenario: ...]`` are auto-collected as boot phase-1 task
-  # types (``analysis.login_ads.login_ad_task_types``). New popup = new
-  # scenario + rule here.
-  # ``device_level: true`` — rules stay active while ``who_i_am`` (or any task) is
-  # busy; otherwise rolling uses device_level_only and login ads are invisible.
+  # Login-time popup rules. Each is ``device_level`` so it can match before
+  # ``active_player`` is known, gated on ``active_player == ""`` so it stops
+  # firing once who_i_am has resolved identity. The pushed scenarios are also
+  # ``device_level: true`` (see ``modules/ads/scenarios/*.yaml``).
+  # ads and ``who_i_am`` share the queue: the priority ordering (ads at
+  # 120_000 > who_i_am at 82_000) keeps visible popups running first without
+  # any dedicated boot phase.
   - name: ads_rookie_value_pack.visible
     region: ads_rookie_value_pack
     device_level: true

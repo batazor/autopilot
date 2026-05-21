@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 
 from adb import BotActions, click_approval_enabled
 from adb.screencap import DEFAULT_ADB_BIN
-from analysis.login_ads import login_ad_task_types
 
 # Both functions are imported solely so they live as attributes on the
 # ``worker.instance_worker`` module — ``worker.instance_worker_redis._connect``
@@ -77,15 +76,19 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
-# Boot does not seed DSL tasks here. Login ads are overlay-pushed (per-scenario
-# nodes under ``modules/ads/scenarios/``); ``who_i_am`` is enqueued by the worker
-# only after the login-ads phase drains (see ``_login_ads_phase_active``).
+# Boot does not seed DSL tasks here. Login ads are overlay-pushed
+# (per-scenario nodes under ``modules/ads/scenarios/``); ``who_i_am`` is
+# enqueued unconditionally at boot via
+# ``_maybe_enqueue_who_i_am_when_active_player_missing`` and competes with
+# overlay-pushed ads by priority (ads at 120_000 outrank identity at 82_000
+# so visible ads still run first).
 _STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = ()
 
 
 def _startup_stale_boot_task_types(root: Path) -> tuple[str, ...]:
-    """Queue types cleared on worker boot (identity + auto-discovered login ads)."""
-    return ("who_i_am", *tuple(login_ad_task_types(root)))
+    """Queue types cleared on worker boot — only identity for now."""
+    del root  # signature kept for callers; no module-discovery needed
+    return ("who_i_am",)
 _SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES = 3
 _SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS = 2.0
 
@@ -176,7 +179,6 @@ class InstanceWorker(
         self._worker_boot_at: float = 0.0
         # First screen detect that is not ``loading`` / empty — boot grace starts here.
         self._boot_interactive_at: float = 0.0
-        self._last_login_ad_finished_at: float = 0.0
         self._task_abort_result_reason: str = "aborted_for_restart"
         self._task_abort_reschedule: bool = False
 
@@ -620,8 +622,10 @@ class InstanceWorker(
     async def _seed_startup_tasks(self) -> None:
         """Clear stale boot queue items; optionally enqueue ``_STARTUP_SEED_TASKS``.
 
-        Login ads + identity use overlay + ``_maybe_enqueue_who_i_am_when_active_player_missing``
-        instead of seeding ``who_i_am`` at boot. Called after ``_startup_overlay_tick``.
+        Identity (``who_i_am``) is enqueued separately by
+        ``_maybe_enqueue_who_i_am_when_active_player_missing`` right after this
+        call, so any stale ``who_i_am`` left in the queue from the prior worker
+        is dropped here before the fresh one is published.
         """
         if self._queue is None:
             return
@@ -684,7 +688,6 @@ class InstanceWorker(
         await self._connect()
         self._worker_boot_at = time.monotonic()
         self._boot_interactive_at = 0.0
-        self._last_login_ad_finished_at = 0.0
         logger.info("Worker started for instance %s", self._cfg.instance_id)
         # Reap any pending approval from a previous session. After restart we've
         # forgotten what task owned it (``self.player_id``, in-memory state, all

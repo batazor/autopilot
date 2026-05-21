@@ -9,11 +9,11 @@ from opentelemetry import trace
 from config.log_ansi import scenario_log_label
 from config.log_context import set_log_context
 from config.tracing import set_span_attributes, trace_id_hex_for_history, traced_root
+from dashboard.dashboard_events import publish_dashboard_event_async
 from dsl.dsl_schema import DEFAULT_SCENARIO_PRIORITY
 from navigation.lifecycle_states import InstanceState
 from scheduler.wake import wake_scheduler_async
 from tasks.dsl_scenario import DslScenarioTask
-from ui.dashboard_events import publish_dashboard_event_async
 
 logger = logging.getLogger(__name__)
 
@@ -323,7 +323,6 @@ class InstanceWorkerTasksMixin(_Base):
                 # to READY via the normal lifecycle.
                 if not _crashed:
                     await self._set_instance_state(InstanceState.READY)
-                    self.note_login_ad_task_finished(item.task_type)
                     await self._maybe_enqueue_who_i_am_when_active_player_missing()
             # Re-enqueue only if the hand-pointer task actually matched and clicked
             # (not a false-positive overlay detection that failed the match guard).

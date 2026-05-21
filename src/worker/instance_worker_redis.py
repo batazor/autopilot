@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any
 
 import redis.asyncio as aioredis
 
-from analysis.login_ads import login_ad_task_types
 from config.paths import repo_root
 from config.redis_health import ping_async_redis_or_exit
 from navigation.lifecycle_states import InstanceState
@@ -20,18 +19,6 @@ from scheduler.queue import QueueItem, RedisQueue
 logger = logging.getLogger(__name__)
 
 _INST_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
-
-def _login_ad_task_types() -> frozenset[str]:
-    """Overlay-pushed login ads (see ``analysis.login_ads.login_ad_task_types``)."""
-    return login_ad_task_types(repo_root())
-
-
-# Login popups often appear a few seconds after main_city is visible (case 2/4).
-_WHO_I_AM_BOOT_GRACE_S = 8.0
-# After a login-ad scenario finishes, wait before identity so a follow-up popup
-# can be overlay-pushed and queued (stacked banners on main_city).
-_LOGIN_AD_SETTLE_S = 2.0
-
 
 
 if TYPE_CHECKING:
@@ -267,75 +254,14 @@ class InstanceWorkerRedisMixin(_Base):
             return str(getattr(self, "_last_current_screen", None) or "").strip()
         return (raw.decode() if isinstance(raw, bytes) else str(raw or "")).strip()
 
-    def _boot_ready_for_who_i_am_enqueue(self) -> bool:
-        """Whether phase-2 identity may be queued (post-load grace + post-ad settle)."""
-        interactive_at = float(getattr(self, "_boot_interactive_at", 0.0) or 0.0)
-        if interactive_at <= 0.0:
-            return False
-        last_ad_done = float(getattr(self, "_last_login_ad_finished_at", 0.0) or 0.0)
-        if last_ad_done > 0.0:
-            return time.monotonic() >= last_ad_done + _LOGIN_AD_SETTLE_S
-        return time.monotonic() - interactive_at >= _WHO_I_AM_BOOT_GRACE_S
-
-    def note_login_ad_task_finished(self, task_type: str) -> None:
-        if str(task_type or "").strip() in _login_ad_task_types():
-            self._last_login_ad_finished_at = time.monotonic()
-
-    async def _login_ads_phase_active(self) -> bool:
-        """True while a login-ad scenario is running or still pending in the queue."""
-        r = self._redis
-        if r is None:
-            return False
-        inst = self._cfg.instance_id
-        running_key = f"wos:queue:running:{inst}"
-        try:
-            raw_run = await r.get(running_key)
-        except Exception:
-            raw_run = None
-        if raw_run:
-            try:
-                pl = json.loads(
-                    raw_run.decode() if isinstance(raw_run, bytes) else str(raw_run)
-                )
-            except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
-                pl = {}
-            if str(pl.get("task_type") or "").strip() in _login_ad_task_types():
-                return True
-        try:
-            raw_cs = await r.hget(
-                _INST_STATE_KEY_FMT.format(instance_id=inst), "current_scenario"
-            )
-            cs = (raw_cs.decode() if isinstance(raw_cs, bytes) else str(raw_cs or "")).strip()
-        except Exception:
-            cs = ""
-        if cs in _login_ad_task_types():
-            return True
-        q = self._queue
-        if q is None:
-            return False
-        try:
-            from scheduler.queue import _queue_key
-
-            key = _queue_key(inst)
-            raw_items = await r.zrangebyscore(key, "-inf", "+inf")
-        except Exception:
-            logger.debug("login ads phase: queue scan failed instance=%s", inst, exc_info=True)
-            return False
-        for raw in raw_items:
-            try:
-                data = json.loads(raw)
-            except (json.JSONDecodeError, TypeError, UnicodeDecodeError):
-                continue
-            if str(data.get("task_type") or "").strip() in _login_ad_task_types():
-                return True
-        return False
-
     async def _maybe_enqueue_who_i_am_when_active_player_missing(self) -> None:
-        """Enqueue ``who_i_am`` when ``active_player`` is empty and login ads have drained.
+        """Enqueue ``who_i_am`` whenever ``active_player`` is empty.
 
-        Phase 1: overlay pushes per-ad scenarios (each with its own node). Phase 2:
-        this runs only when no login-ad task is running or queued. Also covers cleared
-        Redis state, failed probes, or manual wipes without restarting the worker.
+        Called both at boot and from each rolling tick — the dedup gate
+        (``skip_if_duplicate=True`` plus the in-flight / queued checks below)
+        keeps this idempotent. Login-ad popups are no longer a pre-phase: they
+        compete with ``who_i_am`` in the queue by priority (ads sit at 120_000,
+        ``who_i_am`` at 82_000, so visible ads still win).
         """
         if getattr(self, "_stopping", False) or getattr(self, "_ui_paused", False):
             return
@@ -344,23 +270,9 @@ class InstanceWorkerRedisMixin(_Base):
         if q is None or r is None:
             return
 
-        if await self._login_ads_phase_active():
-            logger.debug(
-                "identity probe: deferred — login ads phase active instance=%s",
-                self._cfg.instance_id,
-            )
-            return
-
         if (await self._instance_current_screen()).lower() == "loading":
             logger.debug(
                 "identity probe: deferred — game still loading instance=%s",
-                self._cfg.instance_id,
-            )
-            return
-
-        if not self._boot_ready_for_who_i_am_enqueue():
-            logger.debug(
-                "identity probe: deferred — boot grace/settle instance=%s",
                 self._cfg.instance_id,
             )
             return

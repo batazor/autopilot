@@ -32,8 +32,8 @@ async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> N
         "region": "chapter.task",
         "action": "text",
         "screens": ["main_city"],
-        "pushScenario": [
-            {"name": "chapter_task_router", "priority": 70000, "ttl": "20s"},
+        "steps": [
+            {"push_scenario": {"name": "chapter_task_router", "priority": 70000, "ttl": "20s"}},
         ],
     }
 
@@ -85,7 +85,7 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
         "region": "chapter.task",
         "action": "text",
         "screens": ["main_city"],
-        "pushScenario": [{"name": "chapter_task_router", "priority": 70000}],
+        "steps": [{"push_scenario": {"name": "chapter_task_router", "priority": 70000}}],
     }
 
     class _StubOcr:
@@ -129,7 +129,7 @@ async def test_overlay_screen_gate_is_case_insensitive(monkeypatch: Any) -> None
         "region": "chapter.task",
         "action": "text",
         "screens": ["main_city"],
-        "pushScenario": [{"name": "chapter_task_router", "priority": 70000}],
+        "steps": [{"push_scenario": {"name": "chapter_task_router", "priority": 70000}}],
     }
 
     class _StubOcr:
