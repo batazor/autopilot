@@ -15,7 +15,7 @@
       dict({
         'retry': dict({
           'attempts': 3,
-          'interval': '400ms',
+          'interval': '1s',
         }),
         'steps': list([
           dict({

@@ -7,13 +7,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import cv2
 import numpy as np
-from tenacity import RetryError
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from analysis.overlay_rules import normalize_overlay_action
 from config.paths import repo_root
-from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import load_area_doc
-from layout.types import Region
 from navigation.screen_graph import (
     screen_landmark_rules,
     screen_verify_config_fingerprint,
@@ -22,7 +20,6 @@ from navigation.screen_graph import (
     screen_verify_screen_names,
 )
 from ocr.client import OcrClient
-from ocr.fuzzy import match
 
 logger = logging.getLogger(__name__)
 
@@ -149,58 +146,6 @@ class ScreenDetector:
         return self._area_doc
 
     @staticmethod
-    def _rule_candidates(rule: dict[str, object]) -> list[str]:
-        contains = rule.get("contains")
-        if isinstance(contains, str):
-            return [contains]
-        if isinstance(contains, list):
-            return [str(x).strip() for x in contains if str(x).strip()]
-        return []
-
-    def _landmark_regions(self) -> tuple[list[Region], list[tuple[ScreenName, list[str], float, str]]]:
-        area_doc = self._load_area_doc()
-        all_regions: list[Region] = []
-        region_map: list[tuple[ScreenName, list[str], float, str]] = []
-        for screen_s in screen_verify_screen_names():
-            try:
-                screen_name = ScreenName(screen_s)
-            except ValueError:
-                continue
-            for rule in screen_landmark_rules(screen_s):
-                region_name = str(rule.get("ocr") or "").strip()
-                if not region_name:
-                    continue
-                pair = screen_region_by_name(area_doc, region_name)
-                if pair is None or not isinstance(pair[1].get("bbox"), dict):
-                    logger.warning(
-                        "ScreenDetector: landmark region %r not found for %s",
-                        region_name,
-                        screen_s,
-                    )
-                    continue
-                bbox = pair[1]["bbox"]
-                try:
-                    all_regions.append(
-                        Region(
-                            int(round(float(bbox["x"]))),
-                            int(round(float(bbox["y"]))),
-                            int(round(float(bbox["width"]))),
-                            int(round(float(bbox["height"]))),
-                        )
-                    )
-                except (KeyError, TypeError, ValueError):
-                    continue
-                threshold_raw = rule.get("threshold")
-                try:
-                    threshold = float(threshold_raw) if threshold_raw is not None else 0.8
-                except (TypeError, ValueError):
-                    threshold = 0.8
-                region_map.append(
-                    (screen_name, self._rule_candidates(rule), threshold, region_name)
-                )
-        return all_regions, region_map
-
-    @staticmethod
     def _landmark_overlay_rules_for_screen(
         screen_s: str,
         *,
@@ -282,8 +227,10 @@ class ScreenDetector:
         """Template/tab landmark scan in ``screen_verify`` priority order.
 
         Evaluates one screen at a time and stops at the first landmark group
-        that fully matches — same winner as the historical single-batch scan,
-        without running every screen's ``findIcon`` rules on every frame.
+        that fully matches. Results from a ``(action, region, threshold)`` triple
+        are cached for the duration of this call, so the next screen reusing the
+        same landmark (e.g. ``mail.title`` across ``mail.*`` sub-screens) reuses
+        the cached row instead of re-running ``cv2.matchTemplate``.
 
         ``try_first``: screens to probe before the priority list (e.g. the
         hop destination the navigator just tapped toward).
@@ -296,6 +243,7 @@ class ScreenDetector:
         ordered = self._merge_screen_probe_order(ordered, try_first=try_first)
         area_doc = self._load_area_doc()
         root = repo_root()
+        result_cache: dict[tuple[str, str, float], dict[str, Any] | None] = {}
         for screen_s in ordered:
             try:
                 screen_name = ScreenName(screen_s)
@@ -307,17 +255,28 @@ class ScreenDetector:
             )
             if not rules:
                 continue
-            try:
-                out = await evaluate_overlay_rules_async(
-                    image,
-                    area_doc,
-                    root,
-                    rules,
-                    frame_gray=frame_gray,
-                )
-            except Exception:
-                logger.debug("ScreenDetector: match landmarks failed", exc_info=True)
-                return ScreenName.UNKNOWN
+            pending = [r for r in rules if _dedup_key(r) not in result_cache]
+            if pending:
+                try:
+                    new_out = await _evaluate_overlay_rules_in_thread(
+                        image,
+                        area_doc,
+                        root,
+                        pending,
+                        frame_gray=frame_gray,
+                    )
+                except Exception:
+                    logger.debug(
+                        "ScreenDetector: match landmarks failed", exc_info=True
+                    )
+                    return ScreenName.UNKNOWN
+                for rule in pending:
+                    result_cache[_dedup_key(rule)] = new_out.get(str(rule["name"]))
+            out: dict[str, Any] = {}
+            for rule in rules:
+                cached = result_cache.get(_dedup_key(rule))
+                if cached is not None:
+                    out[str(rule["name"])] = cached
             if self._first_matching_landmark_group(out, groups):
                 return screen_name
         return ScreenName.UNKNOWN
@@ -344,31 +303,6 @@ class ScreenDetector:
             out.append(screen_s)
         return out
 
-    def _percent_region_for_name(self, region_name: str) -> Region | None:
-        pair = screen_region_by_name(self._load_area_doc(), region_name)
-        if pair is None or not isinstance(pair[1].get("bbox"), dict):
-            logger.warning("ScreenDetector: text switch region %r not found", region_name)
-            return None
-        bbox = pair[1]["bbox"]
-        try:
-            return Region(
-                int(round(float(bbox["x"]))),
-                int(round(float(bbox["y"]))),
-                int(round(float(bbox["width"]))),
-                int(round(float(bbox["height"]))),
-            )
-        except (KeyError, TypeError, ValueError):
-            return None
-
-    @staticmethod
-    def _to_pixel_region(region: Region, *, width: int, height: int) -> Region:
-        return Region(
-            int(round(float(region.x) / 100.0 * width)),
-            int(round(float(region.y) / 100.0 * height)),
-            int(round(float(region.w) / 100.0 * width)),
-            int(round(float(region.h) / 100.0 * height)),
-        )
-
     async def _verify_screen(
         self,
         image: np.ndarray,
@@ -378,10 +312,9 @@ class ScreenDetector:
     ) -> bool:
         """Sticky check: does this frame still satisfy ``screen``'s own rules?
 
-        Runs ONLY the rules attached to ``screen`` in
-        ``navigation/screen_verify.yaml`` — template landmarks first
-        (in-process ``cv2.matchTemplate``), then OCR landmarks only for
-        legacy/test configs. Short-circuits at the first hit.
+        Runs ONLY the template landmark rules attached to ``screen`` in
+        ``navigation/screen_verify.yaml`` via in-process ``cv2.matchTemplate``.
+        Short-circuits at the first matching landmark group.
 
         Big win on the steady-state case where the bot dwells on one screen
         for many ticks: skips the full multi-screen template scan.
@@ -391,75 +324,23 @@ class ScreenDetector:
             name_s,
             name_prefix="screen_detector.verify",
         )
-        ocr_landmarks = [
-            rule
-            for rule in screen_landmark_rules(name_s)
-            if str(rule.get("ocr") or "").strip()
-            and not (
-                str(rule.get("match") or "").strip()
-                or str(rule.get("tab_active") or "").strip()
+        if not overlay_rules:
+            return False
+        try:
+            out = await _evaluate_overlay_rules_in_thread(
+                image,
+                self._load_area_doc(),
+                repo_root(),
+                overlay_rules,
+                frame_gray=frame_gray,
             )
-        ]
-
-        if overlay_rules:
-            try:
-                out = await evaluate_overlay_rules_async(
-                    image,
-                    self._load_area_doc(),
-                    repo_root(),
-                    overlay_rules,
-                    frame_gray=frame_gray,
-                )
-            except Exception:
-                logger.debug(
-                    "ScreenDetector._verify_screen: overlay landmarks failed",
-                    exc_info=True,
-                )
-                out = {}
-            if self._first_matching_landmark_group(out, overlay_rule_groups):
-                return True
-
-        if ocr_landmarks:
-            h, w = int(image.shape[0]), int(image.shape[1])
-            regions = []
-            region_ids = []
-            rules_used = []
-            for rule in ocr_landmarks:
-                region_name = str(rule.get("ocr") or "").strip()
-                if not region_name:
-                    continue
-                region = self._percent_region_for_name(region_name)
-                if region is None:
-                    continue
-                regions.append(self._to_pixel_region(region, width=w, height=h))
-                region_ids.append(region_name)
-                rules_used.append(rule)
-            if regions:
-                try:
-                    results = await self._client.ocr_regions(
-                        image, regions, region_ids=region_ids
-                    )
-                except (RetryError, Exception):
-                    logger.debug(
-                        "ScreenDetector._verify_screen: OCR landmarks failed",
-                        exc_info=True,
-                    )
-                    results = []
-                for result, rule in zip(results, rules_used, strict=False):
-                    candidates = self._rule_candidates(rule)
-                    if not candidates:
-                        continue
-                    threshold_raw = rule.get("threshold")
-                    try:
-                        threshold = (
-                            float(threshold_raw) if threshold_raw is not None else 0.8
-                        )
-                    except (TypeError, ValueError):
-                        threshold = 0.8
-                    if match(result.text, candidates, threshold=threshold):
-                        return True
-
-        return False
+        except Exception:
+            logger.debug(
+                "ScreenDetector._verify_screen: overlay landmarks failed",
+                exc_info=True,
+            )
+            return False
+        return self._first_matching_landmark_group(out, overlay_rule_groups)
 
     @staticmethod
     def _parse_screen_name(value: ScreenName | str | None) -> ScreenName | None:
@@ -556,63 +437,63 @@ class ScreenDetector:
                 modal_preempt,
                 try_first=try_first,
             )
-        matched = await self._detect_by_match_landmarks(
+        return await self._detect_by_match_landmarks(
             image,
             try_first=full_try_first,
             frame_gray=frame_gray,
         )
-        if matched != ScreenName.UNKNOWN:
-            return matched
 
-        percent_regions, region_map = self._landmark_regions()
-        if not percent_regions:
-            return ScreenName.UNKNOWN
-        h, w = int(image.shape[0]), int(image.shape[1])
-        all_regions = [self._to_pixel_region(r, width=w, height=h) for r in percent_regions]
-        region_ids = [t[3] for t in region_map]
 
-        try:
-            results = await self._client.ocr_regions(image, all_regions, region_ids=region_ids)
-        except RetryError as exc:
-            # Tenacity wraps the root exception; surface the actual cause for faster diagnosis.
-            root = exc.last_attempt.exception() if exc.last_attempt else exc
-            logger.exception("OCR failed during screen detection: %s", root)
-            return ScreenName.UNKNOWN
-        except Exception:
-            logger.exception("OCR failed during screen detection")
-            return ScreenName.UNKNOWN
+def _dedup_key(rule: dict[str, Any]) -> tuple[str, str, float]:
+    """Identity for a landmark rule, sharable across screens.
 
-        # Pair OCR results back to landmarks by region_id, not by position.
-        # ``OcrClient.ocr_regions`` filters out ``None`` slots before returning,
-        # so a single dropped/error slot would shift every subsequent index and
-        # silently score the wrong screen.
-        by_rid = {t[3]: t for t in region_map}
-        scores: dict[ScreenName, int] = dict.fromkeys(ScreenName, 0)
-        for result in results:
-            entry = by_rid.get(result.region_id)
-            if entry is None:
-                continue
-            screen_name, candidates, threshold, _region_name = entry
-            if match(result.text, candidates, threshold=threshold):
-                scores[screen_name] += 1
+    Two rules with the same ``(action, region, threshold)`` produce the same
+    ``cv2.matchTemplate`` verdict on the same frame, so we evaluate them once
+    per ``detect_screen`` call and reuse the row.
+    """
+    action = normalize_overlay_action(rule) or "findIcon"
+    region = str(rule.get("region") or "").strip()
+    try:
+        threshold = float(rule.get("threshold", 0.9))
+    except (TypeError, ValueError):
+        threshold = 0.9
+    return (action, region, threshold)
 
-        best = max(scores, key=lambda s: scores[s])
-        if scores[best] > 0:
-            return best
-        return ScreenName.UNKNOWN
+
+async def _evaluate_overlay_rules_in_thread(
+    image: np.ndarray,
+    area_doc: dict[str, Any],
+    root: Any,
+    rules: list[dict[str, Any]],
+    *,
+    frame_gray: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """Run the overlay engine off the event loop.
+
+    Template matching (``cv2.matchTemplate``) is CPU-bound and otherwise blocks
+    the worker's asyncio loop for hundreds of ms per detect — stalling the
+    snapshot capture, OCR client, and Redis I/O behind it.
+    """
+
+    def _run() -> dict[str, Any]:
+        return asyncio.run(
+            evaluate_overlay_rules_async(
+                image,
+                area_doc,
+                root,
+                rules,
+                frame_gray=frame_gray,
+            )
+        )
+
+    return await asyncio.to_thread(_run)
 
 
 def suggest_node_for_image_sync(image_bgr: np.ndarray) -> str | None:
     """Best-effort node id for ``image_bgr`` — UI-friendly sync wrapper.
 
-    Tries the full :class:`ScreenDetector` pipeline first (template landmarks,
-    plus OCR landmarks only for legacy/test configs). When OCR is unavailable
-    (no backend running, network error, slow timeout) the function silently
-    falls back to the template-only landmark path so the labeling UI stays
-    usable offline.
-
     Returns the screen id string (e.g. ``"main_city"``) on success, or ``None``
-    when no rule fires / detection is unsafe to suggest.
+    when no template landmark fires.
     """
     if image_bgr is None or image_bgr.ndim != 3 or image_bgr.size == 0:
         return None

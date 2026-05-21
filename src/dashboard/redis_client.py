@@ -335,6 +335,7 @@ def count_claimed_slots(client: redis.Redis) -> int:
 _pending_order_loop: Any = None
 _pending_order_loop_thread: threading.Thread | None = None
 _pending_order_aclient: Any = None
+_pending_order_aclient_url: str = ""
 _pending_order_lock = threading.Lock()
 
 
@@ -345,9 +346,15 @@ def _pending_order_runtime(redis_url: str) -> tuple[Any, Any]:
     forced a fresh ``aioredis.from_url`` connection pool (TCP handshake +
     setup) and an ``aclose`` teardown for every UI poll — ~1s end-to-end
     on a healthy local Redis. Keep one loop on a background thread and one
-    aioredis client across calls.
+    aioredis client across calls. Rebind the client when ``redis_url``
+    changes (test containers spin up a fresh URL per run; without this
+    rebind the second test would talk to the dead first container).
     """
-    global _pending_order_loop, _pending_order_loop_thread, _pending_order_aclient
+    global \
+        _pending_order_loop, \
+        _pending_order_loop_thread, \
+        _pending_order_aclient, \
+        _pending_order_aclient_url
 
     import asyncio
 
@@ -367,13 +374,24 @@ def _pending_order_runtime(redis_url: str) -> tuple[Any, Any]:
             _pending_order_loop = loop
             _pending_order_loop_thread = thread
             _pending_order_aclient = None
+            _pending_order_aclient_url = ""
 
-        if _pending_order_aclient is None:
+        if (
+            _pending_order_aclient is None
+            or _pending_order_aclient_url != redis_url
+        ):
             aclient = aioredis.from_url(redis_url, decode_responses=True)
             instrument_redis_client(aclient, component="ui")
             _pending_order_aclient = aclient
+            _pending_order_aclient_url = redis_url
 
         return _pending_order_loop, _pending_order_aclient
+
+
+# Conservative wait for the queue future. Most calls return in <100 ms once
+# the scenario-YAML cache (``_task_types_device_level``) is warm, but the
+# first call after a process restart pays a ~10 s YAML walk for ~400 keys.
+PENDING_ORDER_TIMEOUT_SECONDS = 30.0
 
 
 def fetch_pending_execution_order(
@@ -401,7 +419,7 @@ def fetch_pending_execution_order(
 
     try:
         future = asyncio.run_coroutine_threadsafe(_run(), loop)
-        return future.result(timeout=5.0)
+        return future.result(timeout=PENDING_ORDER_TIMEOUT_SECONDS)
     except Exception:
         return []
 
