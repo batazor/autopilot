@@ -482,6 +482,13 @@ class InstanceWorkerTasksMixin(_Base):
             resume_step = 0
         if resume_step < 0:
             resume_step = 0
+        # ``skip_if_duplicate`` prevents the yield-preempt ping-pong: two
+        # same-signature items (e.g. ``who_i_am`` left over from a prior boot
+        # plus the running one being rescheduled) would otherwise both sit in
+        # queue. Device-level scenarios bypass the ``PREEMPT_MARGIN`` gate
+        # (``top_is_device_level`` in ``_preempted_by_higher_priority``), so
+        # each yields to the other and neither makes progress — the symptom is
+        # an exploding ``yield_count:*`` set under a single instance.
         await self._queue.schedule(
             task_id=item.task_id,
             player_id=item.player_id,
@@ -493,4 +500,5 @@ class InstanceWorkerTasksMixin(_Base):
             threshold=item.threshold,
             score=item.score,
             start_step_index=resume_step,
+            skip_if_duplicate=True,
         )

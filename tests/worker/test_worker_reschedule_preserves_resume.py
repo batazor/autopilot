@@ -141,3 +141,30 @@ async def test_reschedule_skips_when_no_next_run_at() -> None:
     await mixin._reschedule_if_needed(item, result)  # type: ignore[attr-defined]
 
     assert queue.calls == []
+
+
+@pytest.mark.asyncio
+async def test_reschedule_uses_skip_if_duplicate() -> None:
+    """Reschedule must dedupe against any same-signature item already queued.
+
+    Without this, two device-level scenarios with the same
+    ``(instance, task_type, player, region)`` (e.g. an orphaned ``who_i_am``
+    plus the running one's yield) end up in the queue simultaneously. Because
+    device-level tasks bypass the priority-gap gate in
+    ``_preempted_by_higher_priority`` (``top_is_device_level`` branch), each
+    yields to the other and no progress is made — the symptom is an exploding
+    ``yield_count:*`` set under a single instance.
+    """
+    queue = _CaptureQueue()
+    mixin = _make_mixin(queue)
+    item = _qitem(task_type="who_i_am", player_id="")
+    result = TaskResult(
+        success=False,
+        next_run_at=datetime.now(tz=UTC),
+        metadata={"reason": "preempted_by_higher_priority"},
+    )
+
+    await mixin._reschedule_if_needed(item, result)  # type: ignore[attr-defined]
+
+    assert len(queue.calls) == 1
+    assert queue.calls[0]["skip_if_duplicate"] is True
