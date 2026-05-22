@@ -5,6 +5,7 @@ substitution."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from dsl import template_resolver as _tmpl
 
@@ -173,3 +174,51 @@ def test_trials_event_opener_searches_current_icon_position() -> None:
     assert doc["steps"][0]["while_match"] == "main_city.icon_search"
     assert doc["steps"][0]["template"] == "modules/events/trials/references/event.trials.png"
     assert doc["steps"][0]["steps"][0]["click"] == "main_city.icon_search"
+
+
+def test_scenario_root_scan_walks_fs_once_across_many_resolves(monkeypatch) -> None:
+    """Resolving many unique keys must hit ``rglob`` once per root, not per key.
+
+    Before caching ``_scan_scenario_root``, every cache-missed ``resolve()``
+    re-walked the entire scenarios tree via ``root.rglob("*.yaml")``. With the
+    cache, the walk runs once per scenario root regardless of the number of
+    distinct keys resolved.
+    """
+    _tmpl._clear_template_resolver_caches()
+
+    rglob_calls: list[str] = []
+    real_rglob = Path.rglob
+
+    def _spy_rglob(self: Path, pattern: str) -> Any:
+        rglob_calls.append(f"{self}::{pattern}")
+        return real_rglob(self, pattern)
+
+    monkeypatch.setattr(Path, "rglob", _spy_rglob)
+
+    # Resolve a mix of literal + template keys spanning hero / tab / pointer.
+    keys = [
+        "mail.claim.system",
+        "level_up_ahmose",
+        "level_up_bahiti",
+        "level_up_doesnotexist",
+        "backpack.tab.resources",
+        "onboarding.click.hand_pointer",
+        "claim_trials.3",
+        "event.trials",
+    ]
+    for k in keys:
+        _tmpl.resolve(REPO_ROOT, k)
+
+    # Each scenario root should appear at most once in the rglob trace, and
+    # only with the broad ``*.yaml`` scan owned by ``_scan_scenario_root``.
+    # The legacy ``rglob("{key}.yaml")`` per-resolve walks must be gone.
+    per_key_walks = [c for c in rglob_calls if not c.endswith("::*.yaml")]
+    assert per_key_walks == [], (
+        f"per-key rglob walks should be eliminated, got: {per_key_walks}"
+    )
+    roots_walked = [c.rsplit("::", 1)[0] for c in rglob_calls]
+    assert len(roots_walked) == len(set(roots_walked)), (
+        f"each root should be walked at most once, got: {roots_walked}"
+    )
+
+    _tmpl._clear_template_resolver_caches()

@@ -174,19 +174,56 @@ def _stem_to_regex(stem: str) -> tuple[re.Pattern[str], list[str]]:
     return re.compile("^" + "".join(rebuilt) + "$"), axes
 
 
+@lru_cache(maxsize=32)
+def _scan_scenario_root(
+    root_s: str,
+) -> tuple[tuple[Path, ...], dict[str, Path], tuple[Path, ...]]:
+    """Walk ``root`` once. Return ``(literals, literal_by_stem, templates)``.
+
+    Both tuples exclude ``drafts/`` and are sorted by ``(relative-depth, posix
+    path)`` so first-hit semantics are deterministic. ``literal_by_stem`` maps
+    stem → first-sorted literal path for O(1) key lookup.
+
+    Cached for the process lifetime — startup validation resolves hundreds of
+    scenario keys and each fall-through used to re-walk the entire root via
+    ``rglob``. Tests that mutate the FS tree must call
+    :func:`_clear_template_resolver_caches` to invalidate.
+    """
+    root = Path(root_s)
+    literals: list[Path] = []
+    templates: list[Path] = []
+    for p in root.rglob("*.yaml"):
+        rel = p.relative_to(root).as_posix()
+        if rel.startswith("drafts/"):
+            continue
+        if _FILENAME_PLACEHOLDER_RE.search(p.name):
+            templates.append(p)
+        else:
+            literals.append(p)
+
+    def _sort_key(p: Path) -> tuple[int, str]:
+        return (len(p.relative_to(root).parts), p.as_posix())
+
+    literals.sort(key=_sort_key)
+    templates.sort(key=_sort_key)
+
+    literal_by_stem: dict[str, Path] = {}
+    for p in literals:
+        # First sorted hit wins (mirror legacy ``rglob`` + sort+pick semantics).
+        literal_by_stem.setdefault(p.stem, p)
+
+    return tuple(literals), literal_by_stem, tuple(templates)
+
+
 def _iter_template_yaml_paths(scenarios_root: Path) -> list[Path]:
     """All ``*.yaml`` whose filename contains a known ``{axis}`` placeholder.
 
     Drafts are excluded — they're never executable. Sorted for determinism.
+    Backed by :func:`_scan_scenario_root` so the underlying FS walk runs once
+    per root and is reused across literal + template lookups.
     """
-    out: list[Path] = []
-    for p in scenarios_root.rglob("*.yaml"):
-        rel = p.relative_to(scenarios_root).as_posix()
-        if rel.startswith("drafts/"):
-            continue
-        if _FILENAME_PLACEHOLDER_RE.search(p.name):
-            out.append(p)
-    return sorted(out, key=lambda p: (len(p.relative_to(scenarios_root).parts), p.as_posix()))
+    _literals, _by_stem, templates = _scan_scenario_root(str(scenarios_root))
+    return list(templates)
 
 
 def _scenario_roots(repo_root: Path) -> list[Path]:
@@ -235,15 +272,10 @@ def _resolve_cached(root_s: str, key: str) -> ResolvedScenario | None:
         return None
 
     for root in roots:
-        literal_hits: list[Path] = []
-        for p in root.rglob(f"{key}.yaml"):
-            rel = p.relative_to(root).as_posix()
-            if rel.startswith("drafts/"):
-                continue
-            literal_hits.append(p)
-        if literal_hits:
-            literal_hits.sort(key=lambda p: (len(p.relative_to(root).parts), p.as_posix()))
-            return ResolvedScenario(path=literal_hits[0], context={})
+        _literals, literal_by_stem, _templates = _scan_scenario_root(str(root))
+        hit = literal_by_stem.get(key)
+        if hit is not None:
+            return ResolvedScenario(path=hit, context={})
 
     for root in roots:
         for tmpl in _iter_template_yaml_paths(root):
@@ -268,8 +300,9 @@ def _resolve_cached(root_s: str, key: str) -> ResolvedScenario | None:
 
 
 def _clear_template_resolver_caches() -> None:
-    """Drop the resolve() cache (tests that mutate the module tree)."""
+    """Drop resolver caches (tests that mutate the module tree)."""
     _resolve_cached.cache_clear()
+    _scan_scenario_root.cache_clear()
 
 
 def render(text: str, ctx: dict[str, str]) -> str:
@@ -367,16 +400,13 @@ def iter_resolved_keys(repo_root: Path) -> list[ResolvedKey]:
     seen: set[str] = set()
 
     for root in _scenario_roots(repo_root):
-        for p in sorted(root.rglob("*.yaml")):
-            rel = p.relative_to(root).as_posix()
-            if rel.startswith("drafts/"):
+        literals, _by_stem, templates = _scan_scenario_root(str(root))
+        for p in literals:
+            if p.stem in seen:
                 continue
-            if not _FILENAME_PLACEHOLDER_RE.search(p.name):
-                if p.stem in seen:
-                    continue
-                seen.add(p.stem)
-                out.append(ResolvedKey(key=p.stem, path=p, context={}))
-                continue
+            seen.add(p.stem)
+            out.append(ResolvedKey(key=p.stem, path=p, context={}))
+        for p in templates:
             _regex, axes = _stem_to_regex(p.stem)
             if axes == ["hero"]:
                 for hid, hname in _hero_index(str(repo_root)).items():
