@@ -10,6 +10,7 @@ import {
   fetchModules,
   fetchPlayerAssignments,
   fetchWikiScopes,
+  reloadScenarios,
   setPlayerAssignment,
   setScenarioEnabled,
 } from "@/lib/api";
@@ -215,6 +216,25 @@ export default function ModulesPage() {
         </label>
         <button type="button" className="btn-secondary" onClick={() => reload()}>
           Refresh
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy === "__reload__"}
+          onClick={async () => {
+            setBusy("__reload__");
+            try {
+              const loaded = await reloadScenarios();
+              await reload();
+              showSuccess(`Reloaded scenarios from disk (${loaded} loaded)`);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : String(e));
+            } finally {
+              setBusy(null);
+            }
+          }}
+        >
+          Reload from disk
         </button>
       </div>
       <ErrorBanner message={error} />

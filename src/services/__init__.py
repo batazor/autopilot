@@ -71,17 +71,8 @@ async def init_app_services() -> None:
 
 
 async def aclose_app_services() -> None:
-    """Tear down APP-scope services that hold OS resources.
-
-    Order matters: stop the scenario watcher (filesystem observer) before
-    closing Redis so a final reload event doesn't try to publish to a
-    half-closed client.
-    """
-    if (loader := _state.pop(_K_LOADER)) is not None:
-        try:
-            loader.stop_watching()
-        except Exception:
-            logger.exception("aclose_app_services: scenario loader stop_watching failed")
+    """Tear down APP-scope services that hold OS resources."""
+    _state.pop(_K_LOADER)
 
     if (runner_redis := _state.pop(_K_SCHED_ASYNC_REDIS)) is not None:
         try:

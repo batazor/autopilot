@@ -1,34 +1,18 @@
 from __future__ import annotations
 
 import logging
-import sys
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import yaml
-from watchdog.events import FileSystemEvent, FileSystemEventHandler
-from watchdog.observers import Observer
 
 from dsl.models import Scenario
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from watchdog.observers.api import BaseObserver
-
 logger = logging.getLogger(__name__)
-
-_WATCH_LOCK = threading.RLock()
-# Guard against multiple Observer instances watching the same directory in one process.
-# This can happen when Streamlit reloads or when async services are started twice.
-_WATCHING_PATHS: set[str] = set()
-
-# macOS fires several modify events per save (open → write → close), and a
-# multi-module commit sprays dozens of .yaml writes within milliseconds.
-# Each event triggered a full ``loader.reload()`` (an ``rglob`` walk over
-# every scenario root) — debouncing collapses the burst into one re-scan.
-_RELOAD_DEBOUNCE_SECONDS = 0.5
 
 
 def _is_declarative_scenario_doc(raw: object) -> bool:
@@ -53,53 +37,6 @@ def _is_declarative_scenario_doc(raw: object) -> bool:
     return True
 
 
-def _observer_for_platform() -> BaseObserver:
-    """macOS FSEvents can error with "already scheduled" if the same tree is watched twice
-    (e.g. scheduler restart without tearing down the previous native watch). Polling avoids that.
-    """
-    if sys.platform == "darwin":
-        from watchdog.observers.polling import PollingObserver
-
-        return PollingObserver(timeout=1.0)  # type: ignore[return-value]
-    return Observer()
-
-
-class _ScenarioReloadHandler(FileSystemEventHandler):
-    def __init__(self, loader: ScenarioLoader) -> None:
-        super().__init__()
-        self._loader = loader
-        self._timer_lock = threading.Lock()
-        self._pending_timer: threading.Timer | None = None
-        self._pending_label: str = ""
-
-    def _schedule_reload(self, label: str) -> None:
-        with self._timer_lock:
-            if self._pending_timer is not None:
-                # Coalesce: cancel the in-flight timer and restart the window.
-                self._pending_timer.cancel()
-            self._pending_label = label
-            t = threading.Timer(_RELOAD_DEBOUNCE_SECONDS, self._fire_reload)
-            t.daemon = True
-            self._pending_timer = t
-            t.start()
-
-    def _fire_reload(self) -> None:
-        with self._timer_lock:
-            label = self._pending_label
-            self._pending_timer = None
-            self._pending_label = ""
-        logger.info("Scenario change debounced — reloading (last=%s)", label)
-        self._loader.reload()
-
-    def on_modified(self, event: FileSystemEvent) -> None:
-        if str(event.src_path).endswith(".yaml"):
-            self._schedule_reload(str(event.src_path))
-
-    def on_created(self, event: FileSystemEvent) -> None:
-        if str(event.src_path).endswith(".yaml"):
-            self._schedule_reload(str(event.src_path))
-
-
 class ScenarioLoader:
     def __init__(self, path: Path | list[Path]) -> None:
         if isinstance(path, Path):
@@ -108,7 +45,6 @@ class ScenarioLoader:
             self._paths = list(path)
         self._scenarios: list[Scenario] = []
         self._lock = threading.RLock()
-        self._observers: list[BaseObserver] = []
         self._on_reload: Callable[[], None] | None = None
         self.reload(fire_callback=False)
 
@@ -174,48 +110,3 @@ class ScenarioLoader:
             self.reload()
         with self._lock:
             return list(self._scenarios)
-
-    def start_watching(self) -> None:
-        with _WATCH_LOCK, self._lock:
-            for observer in self._observers:
-                try:
-                    if observer.is_alive():
-                        observer.stop()
-                        observer.join(timeout=2)
-                except Exception:
-                    logger.exception("Failed to stop previous scenario observer")
-            self._observers = []
-
-            handler = _ScenarioReloadHandler(self)
-            for root in self._paths:
-                if not root.is_dir():
-                    continue
-                watch_key = str(root.resolve())
-                if watch_key in _WATCHING_PATHS:
-                    continue
-                observer = _observer_for_platform()
-                try:
-                    observer.schedule(handler, str(root), recursive=True)
-                    observer.start()
-                except RuntimeError as exc:
-                    logger.warning("Scenario watcher start failed (%s): %s", root, exc)
-                    continue
-                self._observers.append(observer)
-                _WATCHING_PATHS.add(watch_key)
-
-    def stop_watching(self) -> None:
-        with self._lock:
-            for observer in self._observers:
-                try:
-                    observer.stop()
-                    observer.join(timeout=2)
-                except Exception:
-                    logger.exception("Failed to stop scenario observer")
-            self._observers = []
-        for root in self._paths:
-            try:
-                watch_key = str(root.resolve())
-            except OSError:
-                continue
-            with _WATCH_LOCK:
-                _WATCHING_PATHS.discard(watch_key)

@@ -30,6 +30,20 @@ def list_scenarios(scope: str = Query(default="all")) -> dict[str, object]:
     return {"scenarios": svc.list_scenarios(module_scope=scope)}
 
 
+@router.post("/scenarios/reload")
+def post_scenarios_reload() -> dict[str, object]:
+    """Re-scan scenario YAMLs from disk and wake the scheduler.
+
+    Replaces the previous watchdog-based hot reload: the UI calls this after
+    edits instead of paying for a polling observer on every scenarios tree.
+    """
+    from services import get_scenario_loader
+
+    loader = get_scenario_loader()
+    loader.reload()
+    return {"loaded": len(loader.load_all())}
+
+
 @router.patch("/scenarios/{scenario_key}/enabled")
 def patch_enabled(scenario_key: str, body: EnabledBody) -> dict[str, object]:
     try:

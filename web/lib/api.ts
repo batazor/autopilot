@@ -849,6 +849,14 @@ export async function setScenarioEnabled(
   });
 }
 
+export async function reloadScenarios(): Promise<number> {
+  const data = await apiFetch<{ loaded: number }>(
+    "/api/modules/scenarios/reload",
+    { method: "POST" },
+  );
+  return data.loaded;
+}
+
 export async function fetchPlayerAssignments(): Promise<PlayerAssignment[]> {
   const data = await apiFetch<{ players: PlayerAssignment[] }>(
     "/api/modules/players",

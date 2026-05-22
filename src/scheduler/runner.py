@@ -71,10 +71,9 @@ class SchedulerRunner:
             self._wake_sync = _redis_sync.Redis.from_url(url, socket_connect_timeout=5.0)
             instrument_redis_client(self._wake_sync, component="scheduler")
         self._scenario_loader.set_on_reload(self._on_scenarios_reloaded)
-        self._scenario_loader.start_watching()
 
     def _on_scenarios_reloaded(self) -> None:
-        """Fired from the watchdog observer thread when a scenario yaml changes.
+        """Fired after an explicit ``ScenarioLoader.reload()`` (UI button).
 
         Publishes a wake so cron yaml edits trigger immediate re-optimization
         instead of waiting up to ``interval_seconds`` for the heartbeat tick.
@@ -626,8 +625,6 @@ class SchedulerRunner:
                 except Exception:
                     logger.exception("Scheduler loop error")
         finally:
-            # Lets the next SchedulerRunner start a fresh filesystem watch (avoids duplicate FSEvents).
-            self._scenario_loader.stop_watching()
             shutdown_ortools_executor(wait=False, cancel_futures=True)
             await self._disconnect_redis()
 
