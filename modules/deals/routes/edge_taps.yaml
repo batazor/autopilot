@@ -23,10 +23,10 @@ edges:
       region: main_city.icon_search
       template: modules/deals/references/crop/main_city_main_city.to.sign_in.png
       threshold: 0.9
-    deals.first_purchase:
+    deals.vault_of_enigma:
       resolver: template_icon
       region: main_city.icon_search
-      template: modules/deals/references/crop/main_city_main_city.to.1st_purchase.png
+      template: modules/events/vault_of_enigma/references/main_city.event.vault_of_enigma.png
       threshold: 0.9
 
   deals:
@@ -35,6 +35,7 @@ edges:
     deals.first_purchase:  [deals.to.first_purchase]
     deals.home_and_beyond: [deals.to.home_and_beyond]
     deals.hall_of_heroes:  [deals.to.hall_of_heroes]
+    deals.vault_of_enigma: [deals.to.vault_of_enigma]
 
   # Cross-tab nav: sign_in has a top-tab strip that jumps to Home & Beyond.
   deals.sign_in:
@@ -42,6 +43,7 @@ edges:
     main_city: [icon.page.back]
     deals.home_and_beyond: [sign_in.to.home_and_beyound]
   deals.first_purchase:  { deals: [icon.page.back], main_city: [icon.page.back] }
+  deals.vault_of_enigma: { deals: [icon.page.back], main_city: [icon.page.back] }
   deals.home_and_beyond: { deals: [icon.page.back] }
   deals.hall_of_heroes:
     deals: [icon.page.back]

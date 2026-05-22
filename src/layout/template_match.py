@@ -554,17 +554,23 @@ def match_crop_1to1_at_bbox_percent(
         msg = "Expected HxWx3 BGR template."
         raise ValueError(msg)
     patch, (L, T) = patch_bgr_from_bbox_percent(image_bgr, bbox_percent)
+    tpl = template_bgr
+    if patch.shape != tpl.shape:
+        ph, pw = int(patch.shape[0]), int(patch.shape[1])
+        th, tw = int(tpl.shape[0]), int(tpl.shape[1])
+        try:
+            validate_live_bbox_patch_vs_reference_dims(
+                pw, ph, tw, th, reference_label="template"
+            )
+        except ValueError as e:
+            msg = (
+                f"1:1 shape mismatch: bbox patch {patch.shape} vs template {tpl.shape}. "
+                "Use the same frame size as when exporting references/crop."
+            )
+            raise ValueError(msg) from e
+        tpl = cv2.resize(tpl, (pw, ph), interpolation=cv2.INTER_LINEAR)
 
-    if patch.shape != template_bgr.shape:
-        msg = (
-            f"1:1 shape mismatch: bbox patch {patch.shape} vs template {template_bgr.shape}. "
-            "Use the same frame size as when exporting references/crop."
-        )
-        raise ValueError(
-            msg
-        )
-
-    score, hamming = _phash_match_score(patch, template_bgr)
+    score, hamming = _phash_match_score(patch, tpl)
     return _template_match_result_from_phash(score=score, hamming=hamming, top_left=(L, T))
 
 

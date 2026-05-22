@@ -2,6 +2,7 @@ enabled: true
 name: Dismiss popup on unknown screen
 device_level: true
 priority: 70_000
+
 steps:
   - while_match: claim_button_close
     max: 1

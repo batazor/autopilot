@@ -83,7 +83,15 @@ def test_apply_display_config_skips_wm_on_emulator() -> None:
 
     wm_calls = [c for c in ctrl._shell.call_args_list if c.args[:2] == ("wm", "size")]
     assert wm_calls == []
+    ctrl._shell.assert_any_call(
+        "settings",
+        "put",
+        "system",
+        "screen_brightness_mode",
+        "0",
+    )
     ctrl.set_brightness.assert_called_once_with(70)
+    ctrl.set_heads_up_notifications.assert_called_once_with(enabled=False)
     ctrl._shell.assert_any_call(
         "settings",
         "put",
@@ -119,6 +127,7 @@ def test_reset_display_overrides_clears_wm_cache() -> None:
 
     ctrl._shell.assert_any_call("wm", "size", "reset")
     ctrl._shell.assert_any_call("wm", "density", "reset")
+    ctrl.set_heads_up_notifications.assert_called_once_with(enabled=True)
     assert ctrl._screen_resolution is None
 
 

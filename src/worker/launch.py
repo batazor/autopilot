@@ -114,6 +114,7 @@ class _PlayStack:
         self._env = _prepare_child_env(self._repo)
         self._services: list[_ManagedService] = []
         self._stop_requested = False
+        self._exit_code = 0
 
     def _track(self, label: str, proc: subprocess.Popen[bytes], *, reused: bool = False) -> None:
         self._services.append(_ManagedService(label=label, proc=proc, reused=reused))
@@ -212,14 +213,21 @@ class _PlayStack:
                 print(f"Play stack: {exited[0]} exited — shutting down.", flush=True)
                 return 1
             time.sleep(1.0)
-        return 0
+        return self._exit_code
 
     def install_signal_handlers(self) -> None:
         def _handler(signum: int, _frame: object) -> None:
             del _frame
+            if self._stop_requested:
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+                signal.signal(signal.SIGTERM, signal.SIG_DFL)
+                raise KeyboardInterrupt
             self._stop_requested = True
+            self._exit_code = 128 + signum if signum != signal.SIGINT else 0
             self.shutdown()
-            raise SystemExit(128 + signum if signum != signal.SIGINT else 0)
+            # Restore defaults so OTel atexit / thread joins don't re-enter this handler.
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
 
         signal.signal(signal.SIGTERM, _handler)
         signal.signal(signal.SIGINT, _handler)
@@ -240,7 +248,10 @@ def _run_modern_play() -> None:
     skip_api = _env_flag("WOS_PLAY_NO_API")
     open_browser = _env_flag("WOS_PLAY_OPEN_BROWSER", default=True)
 
-    from config.runtime_bootstrap import bootstrap_runtime_observability
+    from config.runtime_bootstrap import (
+        bootstrap_runtime_observability,
+        shutdown_runtime_observability,
+    )
     from config.startup_validation import assert_startup_configs_valid
 
     bootstrap_runtime_observability("play")
@@ -296,6 +307,7 @@ def _run_modern_play() -> None:
         raise SystemExit(stack.monitor_until_exit())
     finally:
         stack.shutdown()
+        shutdown_runtime_observability()
 
 
 def main() -> None:

@@ -1,0 +1,5 @@
+enabled: true
+name: "Deals: open hub"
+priority: 80_000
+node: deals
+steps: []

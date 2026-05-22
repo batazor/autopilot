@@ -12,8 +12,9 @@ overlay:
       - main_city
     steps:
       - push_scenario:
-          name: deals.hall_of_heroes
+          name: deals.deals
           ttl: 1m
+  
   - name: deals.sign_in.main_city.event_icon.visible
     region: main_city.icon_search
     action: findIcon
@@ -25,19 +26,4 @@ overlay:
     steps:
       - push_scenario:
           name: deals.sign_in
-          ttl: 1m
-  - name: deals.first_purchase.main_city.event_icon.visible
-    region: main_city.icon_search
-    action: findIcon
-    template: modules/deals/references/crop/main_city_main_city.to.1st_purchase.png
-    threshold: 0.9
-    isRedDot: true
-    screens:
-      - main_city
-    # Push the page-bound scenario directly — its ``nodes:`` declaration
-    # lets the scheduler navigate from main_city to deals.first_purchase
-    # via the template_icon edge, no dedicated "open" scenario needed.
-    steps:
-      - push_scenario:
-          name: deals.first_purchase
           ttl: 1m

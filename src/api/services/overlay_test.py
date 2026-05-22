@@ -35,6 +35,7 @@ from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import area_manifest_max_mtime, load_area_doc
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
+from layout.template_match import _bbox_px_bounds, patch_bgr_from_bbox_percent
 
 logger = logging.getLogger(__name__)
 
@@ -149,15 +150,9 @@ def _coerce_float(value: object) -> float | None:
 
 
 def _bbox_pct_to_px(bb: dict[str, Any], w: int, h: int) -> tuple[int, int, int, int]:
-    x = float(bb.get("x") or 0.0)
-    y = float(bb.get("y") or 0.0)
-    bw = float(bb.get("width") or 0.0)
-    bh = float(bb.get("height") or 0.0)
-    left = max(0, min(w - 1, int(x / 100.0 * w)))
-    top = max(0, min(h - 1, int(y / 100.0 * h)))
-    right = max(left + 1, min(w, int((x + bw) / 100.0 * w)))
-    bottom = max(top + 1, min(h, int((y + bh) / 100.0 * h)))
-    return left, top, right, bottom
+    """Pixel LTRB; same floor/ceil rounding as labeling crops and ``match_crop_1to1``."""
+    bbox = {k: float(bb.get(k) or 0.0) for k in ("x", "y", "width", "height")}
+    return _bbox_px_bounds(bbox, hi=h, wi=w)
 
 
 def _decode_png_to_bgr(png: bytes) -> np.ndarray | None:
@@ -1003,21 +998,24 @@ def _ensure_fresh_reference_crop(
     crop_path: Any,
     area_mtime: float,
 ) -> None:
-    """Re-export crop when missing or older than area.json / reference PNG."""
+    """Re-export crop when missing, stale, or wrong size vs labeling bbox rounding."""
     try:
         ref_path = resolve_reference_path(repo, ref_rel)
         ref_mtime = float(ref_path.stat().st_mtime) if ref_path.is_file() else 0.0
         crop_mtime = float(crop_path.stat().st_mtime) if crop_path.is_file() else 0.0
-        if crop_path.is_file() and crop_mtime >= max(area_mtime, ref_mtime):
-            return
         img = cv2.imread(str(ref_path))
         if img is None:
             return
-        hr, wr = int(img.shape[0]), int(img.shape[1])
-        left, top, right, bottom = _bbox_pct_to_px(bbox_pct, wr, hr)
-        crop = img[top:bottom, left:right]
+        crop, _ = patch_bgr_from_bbox_percent(img, bbox_pct)
         if crop.size <= 0:
             return
+        exp_h, exp_w = int(crop.shape[0]), int(crop.shape[1])
+        if crop_path.is_file():
+            existing = cv2.imread(str(crop_path))
+            if existing is not None:
+                eh, ew = int(existing.shape[0]), int(existing.shape[1])
+                if eh == exp_h and ew == exp_w and crop_mtime >= max(area_mtime, ref_mtime):
+                    return
         crop_path.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(crop_path), crop)
     except Exception:

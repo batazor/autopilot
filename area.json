@@ -697,36 +697,6 @@
               "has_red_dot": true
             },
             {
-              "name": "main_city.event.block.1",
-              "action": "exist",
-              "threshold": 0.9,
-              "bbox": {
-                "x": 87.25868725868726,
-                "y": 8.043478260869565,
-                "width": 11.200772200772201,
-                "height": 7.199999999999999,
-                "rotation": 0.0,
-                "original_width": 720,
-                "original_height": 1280
-              },
-              "has_red_dot": true
-            },
-            {
-              "name": "main_city.event.block.2",
-              "action": "exist",
-              "threshold": 0.9,
-              "bbox": {
-                "x": 87.64478764478764,
-                "y": 15.869565217391305,
-                "width": 11.0,
-                "height": 6.8,
-                "rotation": 0.0,
-                "original_width": 720,
-                "original_height": 1280
-              },
-              "has_red_dot": true
-            },
-            {
               "name": "text.6_6",
               "action": "text",
               "type": "string",
@@ -2610,43 +2580,6 @@
       ]
     },
     {
-      "id": 52,
-      "screen_id": "main_city",
-      "ocr": "references/main_city_vip.png",
-      "regions": [
-        {
-          "name": "main_city.event.block.3",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 87.25868725868726,
-            "y": 23.369565217391305,
-            "width": 11.424710424710424,
-            "height": 6.9,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        },
-        {
-          "name": "main_city.event.block.4",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 87.25868725868726,
-            "y": 30.76086956521739,
-            "width": 10.64092664092664,
-            "height": 7.000000000000001,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "has_red_dot": true
-        }
-      ]
-    },
-    {
       "id": 57,
       "screen_id": "furnace",
       "ocr": "references/building.furnace.png",
@@ -3275,21 +3208,6 @@
             "original_height": 1280
           },
           "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
-        },
-        {
-          "name": "main_city.event.block.1",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 86.64285714285714,
-            "y": 8.740217391304348,
-            "width": 11.793436293436294,
-            "height": 7.017391304347826,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "hash": "c6739bae331b1e847c01e07a13433cffd36bbdba1e334c2c1f549c382f9c4a07"
         },
         {
           "name": "is_main_city.main_city_v3",

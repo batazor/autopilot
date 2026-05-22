@@ -19,6 +19,12 @@ screens:
     rules:
     - match: deals.hall_of_heroes.title
       threshold: 0.9
+  deals.vault_of_enigma:
+    priority: 53
+    parent: deals
+    rules:
+    - match: vault_of_enigma.title
+      threshold: 0.9
   hall_of_heroes.witness:
     priority: 54
     rules:

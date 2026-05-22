@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pytest
 
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_template_full_frame_cached,
+    patch_bgr_from_bbox_percent,
     validate_live_bbox_patch_vs_reference_dims,
 )
 
@@ -103,6 +105,34 @@ def test_validate_live_vs_reference_large_within_tolerance_ok() -> None:
     validate_live_bbox_patch_vs_reference_dims(
         100, 50, 105, 52, reference_label="exported crop"
     )
+
+
+def test_rewards_click_to_continue_bbox_matches_labeling_crop_size() -> None:
+    """Probe/overlay must use floor/ceil bbox, not int-truncation (off-by-one crops)."""
+    bbox = {
+        "x": 34.51737451737452,
+        "y": 91.52173913043478,
+        "width": 31.000000000000004,
+        "height": 4.3999999999999995,
+    }
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    patch, _ = patch_bgr_from_bbox_percent(frame, bbox)
+    assert patch.shape[:2] == (57, 224)
+
+
+def test_match_crop_1to1_tolerates_one_px_stale_crop() -> None:
+    """Stale crops exported with int() truncation still score on the live bbox patch."""
+    bbox = {
+        "x": 34.51737451737452,
+        "y": 91.52173913043478,
+        "width": 31.000000000000004,
+        "height": 4.3999999999999995,
+    }
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    patch, _ = patch_bgr_from_bbox_percent(frame, bbox)
+    stale_tpl = patch[:56, :223].copy()
+    result = match_crop_1to1_at_bbox_percent(frame, stale_tpl, bbox)
+    assert float(result["score"]) >= 0.0
 
 
 def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.MonkeyPatch) -> None:

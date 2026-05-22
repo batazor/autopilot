@@ -3,7 +3,7 @@
 Reads ``wos:instance:<id>:hero_grid_positions`` (populated by the
 ``scan_heroes_grid`` DSL exec handler) and returns the tap region for the
 grid cell currently hosting the requested hero. Registers itself on
-import — same wiring as :mod:`navigation.event_blocks_resolver`.
+import — same wiring as :mod:`navigation.template_icon_resolver`.
 
 Minimal C semantics:
 * hash empty / target absent → enqueues a fresh ``scan_heroes_grid`` for

@@ -291,7 +291,7 @@ def test_real_main_city_v2_rejects_davy_avatar_red_dot() -> None:
     rendered against open sky (surround S≈30). Hue/sat/val are identical to
     real notification badges (H=0, S=225, V=255) — only the unsaturated
     surround tells them apart. The surround-saturation gate must keep it out
-    of the ``main_city.event.block.2`` bbox."""
+    of the 1st-purchase event-icon bbox (legacy ``main_city.event.block.2`` coords)."""
     img = _load_main_city_v2()
     h, w = img.shape[:2]
     bbox = _bbox_percent(629, 201, 83, 91, frame_w=w, frame_h=h)
@@ -398,7 +398,7 @@ def test_has_frost_badge_false_on_plain_main_city_v2_bboxes() -> None:
 # Regression: "1st Purchase" event icon false positive
 # ---------------------------------------------------------------------------
 #
-# The 1st Purchase event icon at ``main_city.event.block.2`` is a character
+# The 1st Purchase event icon (≈ block-2 slot on main_city) is a character
 # portrait pasted over the snowy city background. Naively, ``has_frost_badge``
 # saw lots of cyan (snow/sky behind the icon) AND a sprinkle of pink pixels
 # (character hair / dress edges) and fired — even though the pink wasn't

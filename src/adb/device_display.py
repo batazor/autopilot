@@ -19,7 +19,7 @@ def apply_device_display_config(
 
 
 def reset_device_display_overrides(controller: AdbController, *, serial: str) -> None:
-    """Clear wm size/density overrides on ``serial``."""
+    """Clear wm size/density overrides and restore heads-up notifications on ``serial``."""
     prev = controller._serial
     try:
         controller.set_active_device(serial)

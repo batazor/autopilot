@@ -18,11 +18,9 @@ worker:
   # Applied over ADB when the worker starts (per-device overrides in db/devices.yaml → display:).
   # wm size/density are skipped for localhost emulators unless wm_size_on_emulator: true.
   device_display:
-    size: "720x1600"
+    size: "720x1280"
     density: 320
     brightness_percent: 70
-    heads_up_notifications: false
-    manual_brightness: true
     keep_screen_on: true
     # Android's normal "screen timeout" can dim the game before sleep; keep it
     # effectively disabled while the bot controls the emulator/device.

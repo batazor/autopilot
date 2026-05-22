@@ -57,6 +57,22 @@ def test_startup_pauses_when_device_offline() -> None:
     worker._bot_actions.ensure_game_foreground.assert_not_called()
 
 
+def test_startup_restarts_when_game_already_foreground() -> None:
+    worker = _Worker()
+    worker._bot_actions = MagicMock()
+    worker._bot_actions.is_game_foreground.side_effect = [True, False, True]
+
+    with patch(
+        "adb.AdbController.list_devices",
+        return_value=["127.0.0.1:5555"],
+    ):
+        ok = worker._ensure_whiteout_at_worker_start()
+
+    assert ok is True
+    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with("bs1")
+    worker._bot_actions.ensure_game_foreground.assert_not_called()
+
+
 def test_startup_launches_until_foreground() -> None:
     worker = _Worker(_default_settings(game_foreground_timeout_seconds=60))
     worker._bot_actions = MagicMock()
@@ -70,6 +86,7 @@ def test_startup_launches_until_foreground() -> None:
 
     assert ok is True
     assert worker._ui_paused is False
+    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with("bs1")
     assert worker._bot_actions.ensure_game_foreground.call_count >= 1
     worker._bot_actions.restart_application.assert_not_called()
 

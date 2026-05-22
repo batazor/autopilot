@@ -70,6 +70,30 @@ def test_trials_day_routes() -> None:
 
 
 @pytest.mark.asyncio
+async def test_trials_routes_from_main_city_by_template_icon() -> None:
+    hops = await route_hops_async(
+        "main_city",
+        "event.trials",
+        instance_id="bs1",
+        redis_client=None,
+    )
+
+    assert hops == [
+        (
+            "event.trials",
+            [
+                {
+                    "type": "template_icon",
+                    "region": "main_city.icon_search",
+                    "template": "modules/events/trials/references/event.trials.png",
+                    "threshold": 0.9,
+                }
+            ],
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_7_day_routes_from_main_city_by_template_icon() -> None:
     hops = await route_hops_async(
         "main_city",

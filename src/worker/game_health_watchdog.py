@@ -280,18 +280,10 @@ def run_forever(stop: threading.Event | None = None) -> None:
 
             if is_paused and was_auto_paused:
                 try:
-                    ba.apply_device_display(iid)
-                except Exception:
-                    logger.warning(
-                        "Watchdog: display profile failed for %s — continuing",
-                        iid,
-                        exc_info=True,
-                    )
-                try:
-                    ba.ensure_game_foreground(iid)
+                    ba.apply_display_then_launch_game(iid)
                 except Exception:
                     logger.exception(
-                        "Watchdog: ensure_game_foreground failed on %s after device online",
+                        "Watchdog: display profile / game launch failed on %s after device online",
                         iid,
                     )
                 _push_instance_command(r, iid, {"cmd": "resume"})

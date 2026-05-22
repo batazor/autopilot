@@ -1,6 +1,10 @@
 edges:
   main_city:
-    event.trials.day.1: { resolver: event_blocks, target: event.trials }
+    event.trials:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/events/trials/references/event.trials.png
+      threshold: 0.9
 
   event.trials:
     event.trials.day.1: [trial.day.1]

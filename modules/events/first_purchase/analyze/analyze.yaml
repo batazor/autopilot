@@ -1,0 +1,13 @@
+overlay:
+  - name: first_purchase.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: modules/events/first_purchase/references/main_city.event.first_purchase.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: event.first_purchase
+          ttl: 1m

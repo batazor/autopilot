@@ -160,11 +160,16 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
     # the OTLPMetricExporter reads them automatically. Periodic reader pushes
     # every 60 s by default — fast enough for most dashboards and
     # cheap relative to per-tick span volume.
-    meter_provider = MeterProvider(
-        resource=resource,
-        metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
-    )
-    metrics.set_meter_provider(meter_provider)
+    # ``OTEL_METRICS_EXPORTER=none`` opts out (mirrors the matching gate in
+    # ``logging_otel`` for ``OTEL_LOGS_EXPORTER=none``) — useful when the
+    # configured collector only accepts traces (e.g. a dedicated Tempo OTLP
+    # endpoint), so the metric exporter doesn't pound it with 404s.
+    if (os.environ.get("OTEL_METRICS_EXPORTER") or "").strip().lower() != "none":
+        meter_provider = MeterProvider(
+            resource=resource,
+            metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+        )
+        metrics.set_meter_provider(meter_provider)
 
     # Stamp every ``logging.LogRecord`` with ``otelTraceID`` / ``otelSpanID``
     # via a custom factory wrapper. ``LoggingInstrumentor`` would do this too,
@@ -184,6 +189,28 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
         instance_id or socket.gethostname(),
         os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"),
     )
+
+
+def shutdown_tracing() -> None:
+    """Flush SDK exporters before interpreter atexit. Safe if never initialised."""
+    global _INITIALIZED
+    if not _INITIALIZED:
+        return
+    try:
+        provider = trace.get_tracer_provider()
+        shutdown = getattr(provider, "shutdown", None)
+        if callable(shutdown):
+            shutdown()
+        meter_provider = metrics.get_meter_provider()
+        meter_shutdown = getattr(meter_provider, "shutdown", None)
+        if callable(meter_shutdown):
+            meter_shutdown()
+    except Exception:
+        logger.debug("shutdown_tracing: cleanup failed", exc_info=True)
+    finally:
+        if os.environ.get(_PROCESS_GUARD_ENV) == str(os.getpid()):
+            os.environ.pop(_PROCESS_GUARD_ENV, None)
+        _INITIALIZED = False
 
 
 def get_tracer() -> trace.Tracer:

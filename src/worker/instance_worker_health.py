@@ -79,10 +79,10 @@ class InstanceWorkerHealthMixin(_Base):
             return False
 
         try:
-            ba.apply_device_display(inst)
+            ba.apply_display_then_launch_game(inst)
         except Exception:
             logger.warning(
-                "Startup: display profile failed for %s — continuing",
+                "Startup: display profile / game launch failed for %s — continuing",
                 inst,
                 exc_info=True,
             )

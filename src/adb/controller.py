@@ -124,14 +124,14 @@ class AdbController:
             self._shell("wm", "density", str(int(config.density)))
             logger.info("Display: wm density %s on %s", config.density, self._serial)
 
-        if config.manual_brightness:
-            self._shell("settings", "put", "system", "screen_brightness_mode", "0")
+        # Manual brightness mode so ``brightness_percent`` via ADB is not overridden by auto.
+        self._shell("settings", "put", "system", "screen_brightness_mode", "0")
 
         if config.brightness_percent is not None:
             self.set_brightness(int(config.brightness_percent))
 
-        if config.heads_up_notifications is not None:
-            self.set_heads_up_notifications(enabled=bool(config.heads_up_notifications))
+        # Heads-up banners over the game UI; restored by :meth:`reset_display_overrides`.
+        self.set_heads_up_notifications(enabled=False)
 
         if config.keep_screen_on:
             if config.screen_off_timeout_ms is not None:
@@ -147,10 +147,11 @@ class AdbController:
             self._shell("svc", "power", "stayon", "true")
 
     def reset_display_overrides(self) -> None:
-        """Clear ``wm size`` / ``wm density`` overrides (restore physical display)."""
+        """Clear wm overrides and restore heads-up notifications."""
         self._shell("wm", "size", "reset")
         self._shell("wm", "density", "reset")
         self._screen_resolution = None
+        self.set_heads_up_notifications(enabled=True)
         logger.info("Display: wm size/density reset on %s", self._serial)
 
     # ------------------------------------------------------------------

@@ -20,3 +20,12 @@ def bootstrap_runtime_observability(
     # Profiling runs last so :func:`setup_profiling` can see the active
     # TracerProvider and wire pyroscope-otel's span processor onto it.
     setup_profiling(component, instance_id=instance_id)
+
+
+def shutdown_runtime_observability() -> None:
+    """Stop OTel exporters before process exit (avoids noisy atexit on Ctrl+C)."""
+    from config.logging_otel import shutdown_otel_logging
+    from config.tracing import shutdown_tracing
+
+    shutdown_otel_logging()
+    shutdown_tracing()

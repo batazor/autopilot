@@ -77,7 +77,7 @@ def get_adb_status() -> dict[str, Any]:
 
 
 def reset_device_display(serial: str) -> dict[str, Any]:
-    """Run ``wm size reset`` and ``wm density reset`` on a connected device."""
+    """Reset wm size/density and re-enable heads-up notifications on a device."""
     target = (serial or "").strip()
     if not target:
         raise HTTPException(status_code=400, detail="serial is required")

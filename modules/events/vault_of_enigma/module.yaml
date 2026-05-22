@@ -1,0 +1,9 @@
+id: vault_of_enigma
+title: Vault of Enigma
+description: Vault of Enigma deals tab; hub deals.title, verify vault_of_enigma.title.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: vault_of_enigma
+wiki: false

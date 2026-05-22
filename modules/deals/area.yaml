@@ -1,177 +1,268 @@
-version: 2
-screens:
-- id: 1199
-  screen_id: main_city
-  ocr: references/main_city.png
-  regions:
-  - name: main_city.to.sign_in
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 89.57528957528957
-      y: 31.847826086956523
-      width: 6.600386100386101
-      height: 4.3
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: main_city.to.deals
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 89.38223938223938
-      y: 17.82608695652174
-      width: 6.40926640926641
-      height: 3.4684782608695652
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: main_city.to.1st_purchase
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 89.57528957528957
-      y: 24.565217391304348
-      width: 6.600386100386101
-      height: 3.4
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-- id: 1200
-  screen_id: deals
-  ocr: references/page.deals.png
-  regions: []
-- id: 1201
-  screen_id: deals.sign_in
-  ocr: references/page.deals.sign_in.png
-  regions: []
-- id: 1202
-  screen_id: deals.first_purchase
-  ocr: references/page.deals.first_purchase.png
-  regions: []
-- id: 1203
-  screen_id: deals.home_and_beyond
-  ocr: references/page.deals.home_and_beyond.png
-  regions: []
-- id: 1204
-  screen_id: deals.hall_of_heroes
-  ocr: references/page.deals.hall_of_heroes.png
-  regions: []
-- id: 1205
-  screen_id: deals.sign_in
-  ocr: references/deals.sign_in.png
-  regions:
-  - name: deals.sign_in.free
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 9.227799227799228
-      y: 42.93478260869565
-      width: 20.0
-      height: 54.9
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: deals.sign_in.title
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 4.787644787644788
-      y: 15.76086956521739
-      width: 20.0
-      height: 4.8
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: sign_in.to.home_and_beyound
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 11.96911196911197
-      y: 7.5
-      width: 27.000000000000004
-      height: 5.0
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-    has_red_dot: true
-- id: 1206
-  screen_id: deals.home_and_beyond
-  ocr: references/deals.home_and_beyound.png
-  regions:
-  - name: deals.home_and_beyound.title
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 4.594594594594595
-      y: 15.76086956521739
-      width: 17.51930501930502
-      height: 4.7
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: deals.home_and_beyound.claim_all
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 31.42857142857143
-      y: 90.0
-      width: 36.3996138996139
-      height: 4.699999999999999
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-- id: 1207
-  screen_id: deals.hall_of_heroes
-  ocr: references/deals.hall_of_heroes.png
-  regions:
-  - name: deals.hall_of_heroes.title
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 4.787644787644788
-      y: 15.434782608695652
-      width: 18.6003861003861
-      height: 4.7
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: deals.hall_of_heroes.add
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 33.78378378378378
-      y: 37.28260869565217
-      width: 6.613899613899614
-      height: 3.6271739130434777
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-    has_red_dot: true
-- id: 1208
-  screen_id: hall_of_heroes.witness
-  ocr: references/hall_of_heroes.witness.png
-  regions:
-  - name: hall_of_heroes.witness.title
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 11.35135135135135
-      y: 0.32608695652173914
-      width: 19.0
-      height: 4.7
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-  - name: button.free
-    action: exist
-    threshold: 0.9
-    bbox:
-      x: 61.15830115830116
-      y: 16.41304347826087
-      width: 20.0
-      height: 3.4999999999999996
-      rotation: 0.0
-      original_width: 720
-      original_height: 1280
-    isSearch: true
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1199,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": [
+        {
+          "name": "main_city.to.sign_in",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.57528957528957,
+            "y": 31.847826086956523,
+            "width": 6.600386100386101,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_city.to.deals",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.38223938223938,
+            "y": 17.82608695652174,
+            "width": 6.40926640926641,
+            "height": 3.4684782608695652,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "main_city.to.1st_purchase",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.57528957528957,
+            "y": 24.565217391304348,
+            "width": 6.600386100386101,
+            "height": 3.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1200,
+      "screen_id": "deals",
+      "ocr": "references/page.deals.png",
+      "regions": [
+        {
+          "name": "deals.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.787833827893152,
+            "y": 0.8865666983352204,
+            "width": 14.999999999999995,
+            "height": 4.42122862113373,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1213,
+      "screen_id": "deals.vault_of_enigma",
+      "ocr": "references/page.deals.vault_of_enigma.png",
+      "regions": []
+    },
+    {
+      "id": 1201,
+      "screen_id": "deals.sign_in",
+      "ocr": "references/page.deals.sign_in.png",
+      "regions": []
+    },
+    {
+      "id": 1202,
+      "screen_id": "deals.first_purchase",
+      "ocr": "references/page.deals.first_purchase.png",
+      "regions": []
+    },
+    {
+      "id": 1203,
+      "screen_id": "deals.home_and_beyond",
+      "ocr": "references/page.deals.home_and_beyond.png",
+      "regions": []
+    },
+    {
+      "id": 1204,
+      "screen_id": "deals.hall_of_heroes",
+      "ocr": "references/page.deals.hall_of_heroes.png",
+      "regions": []
+    },
+    {
+      "id": 1205,
+      "screen_id": "deals.sign_in",
+      "ocr": "references/deals.sign_in.png",
+      "regions": [
+        {
+          "name": "deals.sign_in.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.227799227799228,
+            "y": 42.93478260869565,
+            "width": 20.0,
+            "height": 54.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.sign_in.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.787644787644788,
+            "y": 15.76086956521739,
+            "width": 20.0,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "sign_in.to.home_and_beyound",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.96911196911197,
+            "y": 7.5,
+            "width": 27.000000000000004,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 1206,
+      "screen_id": "deals.home_and_beyond",
+      "ocr": "references/deals.home_and_beyound.png",
+      "regions": [
+        {
+          "name": "deals.home_and_beyound.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.594594594594595,
+            "y": 15.76086956521739,
+            "width": 17.51930501930502,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.home_and_beyound.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.42857142857143,
+            "y": 90.0,
+            "width": 36.3996138996139,
+            "height": 4.699999999999999,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1207,
+      "screen_id": "deals.hall_of_heroes",
+      "ocr": "references/deals.hall_of_heroes.png",
+      "regions": [
+        {
+          "name": "deals.hall_of_heroes.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.787644787644788,
+            "y": 15.434782608695652,
+            "width": 18.6003861003861,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.hall_of_heroes.add",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.78378378378378,
+            "y": 37.28260869565217,
+            "width": 6.613899613899614,
+            "height": 3.6271739130434777,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    },
+    {
+      "id": 1208,
+      "screen_id": "hall_of_heroes.witness",
+      "ocr": "references/hall_of_heroes.witness.png",
+      "regions": [
+        {
+          "name": "hall_of_heroes.witness.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.35135135135135,
+            "y": 0.32608695652173914,
+            "width": 19.0,
+            "height": 4.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "button.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 61.15830115830116,
+            "y": 16.41304347826087,
+            "width": 20.0,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1209,
+      "screen_id": "",
+      "ocr": "references/deals.png",
+      "regions": []
+    }
+  ]
+}

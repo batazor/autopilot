@@ -21,75 +21,6 @@ edges:
     # caught up. If chapter.task is empty, this tap no-ops and the verifier
     # (`page.building.furniture` match) fails — scenario reschedules cleanly.
     building: [chapter.task]
-    # Dynamic edges: tap region is resolved at runtime via the `event_blocks`
-    # resolver (see navigation/event_blocks_resolver.py), which reads the
-    # Redis hash `wos:instance:<id>:event_blocks` populated by the
-    # scan_event_blocks DSL exec handler.
-    event.trials:         { resolver: event_blocks, target: event.trials }
-    event.first_purchase: { resolver: event_blocks, target: event.first_purchase }
-    event.shining_city_pack: { resolver: event_blocks, target: event.shining_city_pack }
-    event.wild_brawl: { resolver: event_blocks, target: event.wild_brawl }
-    event.dreamscape_memory: { resolver: event_blocks, target: event.dreamscape_memory }
-    event.armament_competition: { resolver: event_blocks, target: event.armament_competition }
-    event.deadshot: { resolver: event_blocks, target: event.deadshot }
-    event.tundra_album: { resolver: event_blocks, target: event.tundra_album }
-    event.defeat_nearby_beasts: { resolver: event_blocks, target: event.defeat_nearby_beasts }
-    event.silver_shell: { resolver: event_blocks, target: event.silver_shell }
-    event.snowbusters: { resolver: event_blocks, target: event.snowbusters }
-    event.journey_of_light: { resolver: event_blocks, target: event.journey_of_light }
-    event.labyrinth: { resolver: event_blocks, target: event.labyrinth }
-    event.treasure_hunter: { resolver: event_blocks, target: event.treasure_hunter }
-    event.crystal_reactivation: { resolver: event_blocks, target: event.crystal_reactivation }
-    event.vault_of_enigma: { resolver: event_blocks, target: event.vault_of_enigma }
-    event.hero_rally: { resolver: event_blocks, target: event.hero_rally }
-    event.weekly_benefits: { resolver: event_blocks, target: event.weekly_benefits }
-    event.flame_and_fang: { resolver: event_blocks, target: event.flame_and_fang }
-    event.lucky_wheel: { resolver: event_blocks, target: event.lucky_wheel }
-    event.return_to_tundra: { resolver: event_blocks, target: event.return_to_tundra }
-    event.mia_fortune: { resolver: event_blocks, target: event.mia_fortune }
-    event.ginas_revenge: { resolver: event_blocks, target: event.ginas_revenge }
-    event.heros_mission: { resolver: event_blocks, target: event.heros_mission }
-    event.frosty_fortune: { resolver: event_blocks, target: event.frosty_fortune }
-    event.king_of_icefield: { resolver: event_blocks, target: event.king_of_icefield }
-    event.frostfire_mine: { resolver: event_blocks, target: event.frostfire_mine }
-    event.tundra_trading_station: { resolver: event_blocks, target: event.tundra_trading_station }
-    event.hall_of_heroes: { resolver: event_blocks, target: event.hall_of_heroes }
-    event.tundra_adventure: { resolver: event_blocks, target: event.tundra_adventure }
-    event.fishing_tournament: { resolver: event_blocks, target: event.fishing_tournament }
-    event.grow_your_heroes: { resolver: event_blocks, target: event.grow_your_heroes }
-    event.working_overtime: { resolver: event_blocks, target: event.working_overtime }
-    event.home_and_beyond: { resolver: event_blocks, target: event.home_and_beyond }
-    event.city_development: { resolver: event_blocks, target: event.city_development }
-    event.plan_your_city: { resolver: event_blocks, target: event.plan_your_city }
-    event.trusted_chief: { resolver: event_blocks, target: event.trusted_chief }
-    event.power_up: { resolver: event_blocks, target: event.power_up }
-    event.hall_of_chief: { resolver: event_blocks, target: event.hall_of_chief }
-    event.romance_season: { resolver: event_blocks, target: event.romance_season }
-    event.state_merger: { resolver: event_blocks, target: event.state_merger }
-    event.state_transfer: { resolver: event_blocks, target: event.state_transfer }
-    event.symphony_of_change: { resolver: event_blocks, target: event.symphony_of_change }
-    event.sunfire_castle: { resolver: event_blocks, target: event.sunfire_castle }
-    event.vision_of_dawn: { resolver: event_blocks, target: event.vision_of_dawn }
-    event.brother_in_arms: { resolver: event_blocks, target: event.brother_in_arms }
-    event.officer_project: { resolver: event_blocks, target: event.officer_project }
-    event.tundra_arms_league: { resolver: event_blocks, target: event.tundra_arms_league }
-    event.tundra_trade_route: { resolver: event_blocks, target: event.tundra_trade_route }
-    event.alliance_showdown: { resolver: event_blocks, target: event.alliance_showdown }
-    event.frostdragon_tyrant: { resolver: event_blocks, target: event.frostdragon_tyrant }
-    event.canyon_clash: { resolver: event_blocks, target: event.canyon_clash }
-    event.svs: { resolver: event_blocks, target: event.svs }
-    event.foundry_battle: { resolver: event_blocks, target: event.foundry_battle }
-    event.bear_hunt: { resolver: event_blocks, target: event.bear_hunt }
-    event.crazy_joe: { resolver: event_blocks, target: event.crazy_joe }
-    event.alliance_championship: { resolver: event_blocks, target: event.alliance_championship }
-    event.mercenary_prestige: { resolver: event_blocks, target: event.mercenary_prestige }
-    event.alliance_mobilization: { resolver: event_blocks, target: event.alliance_mobilization }
-    event.develop_new_tech: { resolver: event_blocks, target: event.develop_new_tech }
-    event.tundra_star: { resolver: event_blocks, target: event.tundra_star }
-    event.daybreak_expedition: { resolver: event_blocks, target: event.daybreak_expedition }
-    event.beast_whisperer: { resolver: event_blocks, target: event.beast_whisperer }
-    event.stand_of_arms: { resolver: event_blocks, target: event.stand_of_arms }
-    event.war_preparation: { resolver: event_blocks, target: event.war_preparation }
   # arena:
   #   main_city: [icon.page.back]
   # training:
@@ -391,7 +322,7 @@ edges:
     main_city: [icon.page.back]
   event.crystal_reactivation:
     main_city: [icon.page.back]
-  event.vault_of_enigma:
+  deals.vault_of_enigma:
     main_city: [icon.page.back]
   event.hero_rally:
     main_city: [icon.page.back]

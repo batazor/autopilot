@@ -12,8 +12,6 @@ class DeviceDisplayConfig:
     size: str | None = "720x1280"
     density: int | None = 320
     brightness_percent: int | None = 70
-    heads_up_notifications: bool | None = False
-    manual_brightness: bool | None = True
     keep_screen_on: bool | None = True
     screen_off_timeout_ms: int | None = 2_147_483_647
     wm_size_on_emulator: bool | None = None
@@ -32,8 +30,6 @@ def parse_device_display(raw: object) -> DeviceDisplayConfig | None:
     size = _optional_str(raw.get("size"))
     density = _optional_int(raw.get("density"))
     brightness = _optional_int(raw.get("brightness_percent"))
-    heads_up = _optional_bool(raw.get("heads_up_notifications"))
-    manual = _optional_bool(raw.get("manual_brightness"))
     keep_on = _optional_bool(raw.get("keep_screen_on"))
     screen_off_timeout_ms = _optional_int(raw.get("screen_off_timeout_ms"))
     wm_size_on_emulator = _optional_bool(raw.get("wm_size_on_emulator"))
@@ -43,8 +39,6 @@ def parse_device_display(raw: object) -> DeviceDisplayConfig | None:
         size=size,
         density=density,
         brightness_percent=brightness,
-        heads_up_notifications=heads_up,
-        manual_brightness=manual,
         keep_screen_on=keep_on,
         screen_off_timeout_ms=screen_off_timeout_ms,
         wm_size_on_emulator=wm_size_on_emulator,
@@ -71,16 +65,6 @@ def merge_device_display(
             device_override.brightness_percent
             if device_override.brightness_percent is not None
             else base.brightness_percent
-        ),
-        heads_up_notifications=(
-            device_override.heads_up_notifications
-            if device_override.heads_up_notifications is not None
-            else base.heads_up_notifications
-        ),
-        manual_brightness=(
-            device_override.manual_brightness
-            if device_override.manual_brightness is not None
-            else base.manual_brightness
         ),
         keep_screen_on=(
             device_override.keep_screen_on

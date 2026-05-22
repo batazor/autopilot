@@ -2,17 +2,13 @@
 
 Covered assertions
 ------------------
-* Every deals entry icon (Events-style "Deals" gift box, "Sign-in" calendar,
-  "1st Purchase" portrait) is detected via the ``template_icon`` pattern
+* Every deals entry icon (Events-style "Deals" gift box, "Sign-in" calendar)
+  is detected via the ``template_icon`` pattern
   (``region: main_city.icon_search`` + per-icon template PNG) — same shape
   as ``modules/events/trials``.
 * Dynamic red-dot status matches the captured snapshot: Deals and Sign-in
   carry a real red badge (so their production overlay rules with
   ``isRedDot: true`` push the ``deals.sign_in`` claim scenario);
-  1st Purchase shows a yellow "1" badge instead, which the red-dot detector
-  intentionally does NOT count as a red dot, so its open scenario stays
-  suppressed until a real red badge appears.
-
 Templates live under ``modules/deals/references/crop/`` and are auto-exported
 by the annotator from the labeled ``main_city.to.<X>`` bboxes, so they stay
 in sync when the bbox is moved — no manual re-cropping required.
@@ -46,11 +42,6 @@ _ICONS: tuple[tuple[str, str, bool], ...] = (
         "deals.sign_in.main_city.event_icon.visible",
         "modules/deals/references/crop/main_city_main_city.to.sign_in.png",
         True,
-    ),
-    (
-        "deals.first_purchase.main_city.event_icon.visible",
-        "modules/deals/references/crop/main_city_main_city.to.1st_purchase.png",
-        False,  # yellow "1" badge — intentionally not a red dot.
     ),
 )
 

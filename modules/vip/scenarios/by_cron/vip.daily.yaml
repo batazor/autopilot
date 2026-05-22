@@ -15,7 +15,7 @@ steps:
       interval: 100ms
     steps:
       - click: page.vip.box
-      - wait: 0.5s
+      - wait: 500ms
       - while_match: button.click_to_continue
         max: 1
         retry:
@@ -23,7 +23,7 @@ steps:
           interval: 500ms
         steps:
           - click: button.click_to_continue
-          - wait: 0.5s
+          - wait: 500ms
 
   - while_match: button.claim
     max: 1
@@ -53,7 +53,7 @@ steps:
           attempts: 3
           interval: 500ms
         steps:
-          - click: button.use
+          - long_click: button.use
           - wait: 1s
       - while_match: increase_level.icon.close
         max: 1

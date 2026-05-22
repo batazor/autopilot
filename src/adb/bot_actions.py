@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 _FIRST_FRAME_TIMEOUT_S = 30.0
 _NEXT_FRAME_TIMEOUT_S = 3.0
+_DISPLAY_SETTLE_AFTER_WM_S = 5.0
 
 
 class BotActions:
@@ -88,6 +89,34 @@ class BotActions:
             serial=self._get_serial(instance_id),
             config=merged,
         )
+
+    def apply_display_then_launch_game(
+        self,
+        instance_id: str,
+        *,
+        settle_s: float = _DISPLAY_SETTLE_AFTER_WM_S,
+    ) -> None:
+        """Apply wm/density (and related settings), then start Whiteout.
+
+        If the game is already running, force-restart so it picks up the new
+        display profile instead of keeping a pre-``wm size`` layout.
+        """
+        self.apply_device_display(instance_id)
+        if settle_s > 0:
+            time.sleep(settle_s)
+        ctrl = self._controller(instance_id)
+        if ctrl.is_game_foreground():
+            logger.info(
+                "Restarting Whiteout after display profile on %s",
+                instance_id,
+            )
+            ctrl.restart_application()
+        else:
+            logger.info(
+                "Launching Whiteout after display profile on %s",
+                instance_id,
+            )
+            ctrl.ensure_game_foreground()
 
     def _adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
