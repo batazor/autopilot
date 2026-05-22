@@ -52,6 +52,34 @@ def test_skip_screen_detect_gate(task_busy: bool, flag: bool, expected: bool) ->
 
 
 @pytest.mark.parametrize(
+    ("task_busy", "navigating", "expected"),
+    [
+        # Navigation phase overrides the busy gate regardless of the flag.
+        (True, True, False),
+        # Busy without navigation still skips by default.
+        (True, False, True),
+        # Idle ignores the navigating flag (it never gates idle anyway).
+        (False, True, False),
+        (False, False, False),
+    ],
+)
+def test_skip_screen_detect_navigating_override(
+    task_busy: bool, navigating: bool, expected: bool
+) -> None:
+    """During the pre-step navigation phase, the busy gate must not silence
+    ``detect_screen`` — modal popups (myriad_bazaar, etc.) need a fresh node
+    every tick while BFS is hopping between screens."""
+    assert (
+        _rolling_should_skip_screen_detect(
+            _Cfg(),
+            task_busy=task_busy,
+            navigating=navigating,
+        )
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
     ("task_busy", "flag", "expected"),
     [
         (False, False, False),
@@ -246,6 +274,30 @@ async def test_tick_busy_keeps_detect_when_flag_enabled(_isolated_refs: Any) -> 
     flipping ``screen_detect_when_busy=True``. Overlay still gated by
     its own flag."""
     h = _Harness(cfg=_Cfg(screen_detect_when_busy=True))
+    h._task_busy.set()
+    await h._device_reference_snapshot_tick()
+    await h._finish_rolling_analysis()
+    assert h.calls == ["grab", "detect", "overlay:device"], h.calls
+
+
+@pytest.mark.asyncio
+async def test_tick_busy_keeps_detect_during_navigation(
+    _isolated_refs: Any,
+    mocker,
+) -> None:
+    """While ``nav_target`` is set (scenario in BFS hop phase), the busy
+    gate must NOT suppress detect_screen — a popup that appears mid-BFS
+    (e.g. myriad_bazaar) needs the node refreshed every tick so the
+    screen-gated overlay rule can fire."""
+
+    async def _navigating(_instance_id: str, _redis: object) -> bool:
+        return True
+
+    mocker.patch(
+        "worker.instance_worker_rolling._read_navigating",
+        side_effect=_navigating,
+    )
+    h = _Harness(cfg=_Cfg())
     h._task_busy.set()
     await h._device_reference_snapshot_tick()
     await h._finish_rolling_analysis()

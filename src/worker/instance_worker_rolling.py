@@ -42,8 +42,19 @@ def _rolling_snapshot_interval(cfg: Any) -> float:
     return float(cfg.device_reference_snapshot_interval_seconds)
 
 
-def _rolling_should_skip_screen_detect(cfg: Any, *, task_busy: bool) -> bool:
-    """Gate the screen detector during a busy task."""
+def _rolling_should_skip_screen_detect(
+    cfg: Any, *, task_busy: bool, navigating: bool = False
+) -> bool:
+    """Gate the screen detector during a busy task.
+
+    ``navigating`` overrides the busy gate: while the scenario's pre-step
+    navigation phase is in flight (``nav_target`` set in Redis), the FSM is
+    actively hopping between screens and ``current_screen`` must keep being
+    re-evaluated — otherwise a popup that appears mid-BFS (e.g. ``myriad_bazaar``)
+    is invisible to overlay rules that gate on ``screens:``.
+    """
+    if navigating:
+        return False
     return bool(task_busy) and not bool(cfg.screen_detect_when_busy)
 
 
@@ -67,6 +78,30 @@ def _rolling_overlay_device_level_only(
     if not str(active_player or "").strip():
         return True
     return _rolling_should_skip_overlay(cfg, task_busy=task_busy)
+
+
+async def _read_navigating(instance_id: str, redis_async: Any | None) -> bool:
+    """True while a DSL scenario is in its pre-step navigation phase.
+
+    ``nav_target`` is set by ``_navigate_to_node`` before ``Navigator.navigate_to``
+    and cleared after it returns. While that field is non-empty the FSM is
+    actively hopping between screens — popup pre-empts (priority<10) need a fresh
+    ``detect_screen`` every tick, not the sticky ``main_city`` carry-over.
+    """
+    if redis_async is None:
+        return False
+    try:
+        from tasks.dsl_scenario_helpers import _read_instance_state_field
+
+        value = await _read_instance_state_field(
+            instance_id, "nav_target", redis_async
+        )
+        return bool(value.strip())
+    except Exception:
+        logger.debug(
+            "rolling: failed to read nav_target for %s", instance_id, exc_info=True
+        )
+        return False
 
 
 def _node_metric_value(node: str | None) -> str:
@@ -193,12 +228,17 @@ class InstanceWorkerRollingMixin(_Base):
         cfg = self._settings.worker
         task_busy = self._task_busy.is_set()
         active_player = await _read_active_player(self._cfg.instance_id, self._redis)
+        navigating = task_busy and await _read_navigating(
+            self._cfg.instance_id, self._redis
+        )
         current_screen: str | None = None
         device_level_only = False
         outcome = "ok"
         analysis_started = time.monotonic()
         try:
-            if _rolling_should_skip_screen_detect(cfg, task_busy=task_busy):
+            if _rolling_should_skip_screen_detect(
+                cfg, task_busy=task_busy, navigating=navigating
+            ):
                 device_level_only = True
                 await self._overlay_analyze_bgr(image_bgr, device_level_only=True)
                 current_screen = getattr(self, "_last_current_screen", None)
