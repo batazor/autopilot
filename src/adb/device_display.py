@@ -13,9 +13,12 @@ def apply_device_display_config(
     *,
     serial: str,
     config: DeviceDisplayConfig,
-) -> None:
-    """Push wm size/density, brightness, and related settings to the device."""
-    controller.apply_display_config(config, serial=serial)
+) -> bool:
+    """Push wm size/density, brightness, and related settings to the device.
+
+    Returns True iff ``wm size`` / ``wm density`` actually changed.
+    """
+    return controller.apply_display_config(config, serial=serial)
 
 
 def reset_device_display_overrides(controller: AdbController, *, serial: str) -> None:

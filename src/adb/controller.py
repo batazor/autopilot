@@ -90,8 +90,15 @@ class AdbController:
         config: DeviceDisplayConfig,
         *,
         serial: str | None = None,
-    ) -> None:
-        """Apply wm size/density, brightness, and screen-on settings via ADB."""
+    ) -> bool:
+        """Apply wm size/density, brightness, and screen-on settings via ADB.
+
+        Returns True iff the ``wm size`` / ``wm density`` overrides were actually
+        changed on this call — callers (notably :meth:`BotActions.apply_display_then_launch_game`)
+        use this to decide whether the game needs a restart to pick up a new
+        display profile. Brightness / heads-up / keep-screen-on are not counted
+        because the game does not need a restart to observe them.
+        """
         import re
 
         from adb.serial import is_emulator_adb_serial
@@ -102,6 +109,7 @@ class AdbController:
             or not is_emulator_adb_serial(target_serial)
         )
         size_re = re.compile(r"^\d+x\d+$")
+        wm_changed = False
 
         if apply_wm and config.size:
             size = config.size.strip()
@@ -114,15 +122,34 @@ class AdbController:
                 else:
                     size = ""
             if size and size_re.match(size):
-                self._shell("wm", "size", size)
-                self._screen_resolution = None
-                logger.info("Display: wm size %s on %s", size, self._serial)
+                current = self._read_effective_wm_size()
+                if current != size:
+                    self._shell("wm", "size", size)
+                    self._screen_resolution = None
+                    wm_changed = True
+                    logger.info("Display: wm size %s on %s", size, self._serial)
+                else:
+                    logger.debug(
+                        "Display: wm size already %s on %s — skipping",
+                        size,
+                        self._serial,
+                    )
             elif size:
                 logger.warning("Display: invalid size %r — skipped", config.size)
 
         if apply_wm and config.density is not None:
-            self._shell("wm", "density", str(int(config.density)))
-            logger.info("Display: wm density %s on %s", config.density, self._serial)
+            target_density = int(config.density)
+            current_density = self._read_effective_wm_density()
+            if current_density != target_density:
+                self._shell("wm", "density", str(target_density))
+                wm_changed = True
+                logger.info("Display: wm density %s on %s", target_density, self._serial)
+            else:
+                logger.debug(
+                    "Display: wm density already %s on %s — skipping",
+                    target_density,
+                    self._serial,
+                )
 
         # Manual brightness mode so ``brightness_percent`` via ADB is not overridden by auto.
         self._shell("settings", "put", "system", "screen_brightness_mode", "0")
@@ -145,6 +172,55 @@ class AdbController:
             # 3 = stay awake on AC, USB, and wireless.
             self._shell("settings", "put", "global", "stay_on_while_plugged_in", "3")
             self._shell("svc", "power", "stayon", "true")
+
+        return wm_changed
+
+    def _read_effective_wm_size(self) -> str:
+        """``WxH`` of the active wm override, or empty if none / unparseable.
+
+        ``wm size`` prints ``Physical size: WxH`` always and ``Override size: WxH``
+        when a ``wm size <WxH>`` is in effect — the override is what the app sees,
+        so that wins; absent it the physical panel size is the effective size.
+        """
+        try:
+            out = self._shell("wm", "size", timeout=5.0)
+        except Exception:
+            logger.debug("wm size read failed", exc_info=True)
+            return ""
+        physical = ""
+        for line in out.splitlines():
+            s = line.strip()
+            if s.startswith("Override size:"):
+                _, _, rhs = s.partition(":")
+                return rhs.strip()
+            if s.startswith("Physical size:"):
+                _, _, rhs = s.partition(":")
+                physical = rhs.strip()
+        return physical
+
+    def _read_effective_wm_density(self) -> int | None:
+        """Effective DPI (override if set, else physical), or ``None`` on parse failure."""
+        import contextlib
+
+        try:
+            out = self._shell("wm", "density", timeout=5.0)
+        except Exception:
+            logger.debug("wm density read failed", exc_info=True)
+            return None
+        physical: int | None = None
+        for line in out.splitlines():
+            s = line.strip()
+            if s.startswith("Override density:"):
+                _, _, rhs = s.partition(":")
+                try:
+                    return int(rhs.strip())
+                except ValueError:
+                    continue
+            if s.startswith("Physical density:"):
+                _, _, rhs = s.partition(":")
+                with contextlib.suppress(ValueError):
+                    physical = int(rhs.strip())
+        return physical
 
     def reset_display_overrides(self) -> None:
         """Clear wm overrides and restore heads-up notifications."""

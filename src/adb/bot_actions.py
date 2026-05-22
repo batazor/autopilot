@@ -73,8 +73,13 @@ class BotActions:
     def _get_serial(self, instance_id: str) -> str:
         return self._get_instance(instance_id).bluestacks_window_title  # ADB serial for BlueStacks
 
-    def apply_device_display(self, instance_id: str) -> None:
-        """Apply merged worker + per-device display profile (wm, brightness, …)."""
+    def apply_device_display(self, instance_id: str) -> bool:
+        """Apply merged worker + per-device display profile (wm, brightness, …).
+
+        Returns True iff ``wm size`` / ``wm density`` actually changed on this call.
+        Brightness / heads-up / keep-screen-on don't count: the game observes
+        them without a restart.
+        """
         from adb.device_display import apply_device_display_config
         from config.device_display import merge_device_display
 
@@ -83,8 +88,8 @@ class BotActions:
             self._get_instance(instance_id).display,
         )
         if merged is None:
-            return
-        apply_device_display_config(
+            return False
+        return apply_device_display_config(
             self._controller(instance_id),
             serial=self._get_serial(instance_id),
             config=merged,
@@ -98,22 +103,32 @@ class BotActions:
     ) -> None:
         """Apply wm/density (and related settings), then start Whiteout.
 
-        If the game is already running, force-restart so it picks up the new
-        display profile instead of keeping a pre-``wm size`` layout.
+        Restart the game only when ``wm size`` / ``wm density`` actually changed
+        on this boot — otherwise an already-running app is left alone (no
+        force-stop, no relaunch). Without this check, every worker boot
+        reset the in-game session even when the display profile was already
+        applied from a prior run.
         """
-        self.apply_device_display(instance_id)
-        if settle_s > 0:
+        display_changed = self.apply_device_display(instance_id)
+        if settle_s > 0 and display_changed:
             time.sleep(settle_s)
         ctrl = self._controller(instance_id)
-        if ctrl.is_game_foreground():
+        is_fg = ctrl.is_game_foreground()
+        if is_fg and not display_changed:
             logger.info(
-                "Restarting Whiteout after display profile on %s",
+                "Whiteout already running with matching display on %s — no restart",
+                instance_id,
+            )
+            return
+        if is_fg:
+            logger.info(
+                "Restarting Whiteout after display profile change on %s",
                 instance_id,
             )
             ctrl.restart_application()
         else:
             logger.info(
-                "Launching Whiteout after display profile on %s",
+                "Launching Whiteout on %s",
                 instance_id,
             )
             ctrl.ensure_game_foreground()
