@@ -11,19 +11,24 @@
       "path": "tests/fixtures/chief_profile_player_id_live.png",
       "label": "401227964",
       "x0": 0
+    },
+    {
+      "path": "tests/fixtures/chief_profile_player_id_live_2.png",
+      "label": "765502864",
+      "x0": 0
     }
   ],
   "per_class_counts": {
-    "0": 40,
+    "0": 45,
     "1": 35,
-    "2": 45,
+    "2": 50,
     "3": 30,
-    "4": 45,
-    "5": 40,
-    "6": 45,
-    "7": 40,
-    "8": 35,
+    "4": 50,
+    "5": 50,
+    "6": 55,
+    "7": 45,
+    "8": 40,
     "9": 35
   },
-  "total_samples": 390
+  "total_samples": 435
 }

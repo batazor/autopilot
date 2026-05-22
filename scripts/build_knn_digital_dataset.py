@@ -34,6 +34,7 @@ AREA_JSON = REPO / "area.json"
 LABELED_STRIPS: list[tuple[Path, str, int]] = [
     (REPO / "references" / "crop" / "chief_profile_player.id.png", "765502864", 4),
     (REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png", "401227964", 0),
+    (REPO / "tests" / "fixtures" / "chief_profile_player_id_live_2.png", "765502864", 0),
 ]
 
 

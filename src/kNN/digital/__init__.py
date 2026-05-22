@@ -4,6 +4,8 @@ from __future__ import annotations
 from kNN.digital.classifier import (
     DEFAULT_DIGIT_COUNT,
     DEFAULT_X0,
+    DIGIT_CELL_H,
+    DIGIT_CELL_W,
     DigitClassifier,
     DigitPrediction,
     augment_glyph,
@@ -28,6 +30,8 @@ from kNN.digital.paths import dataset_dir, digital_data_dir, model_path
 __all__ = [
     "DEFAULT_DIGIT_COUNT",
     "DEFAULT_X0",
+    "DIGIT_CELL_H",
+    "DIGIT_CELL_W",
     "KNN_PREPROCESS_TAGS",
     "DigitClassifier",
     "DigitPrediction",
