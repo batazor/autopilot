@@ -124,7 +124,9 @@ def test_frostdragon_tyrant_routes_to_main_city() -> None:
 
 
 def test_rewards_routes_to_main_city() -> None:
-    assert route_taps("rewards", "main_city") == [["button.tap_anywhere_to_exit"]]
+    assert route_taps("rewards", "main_city") == [
+        ["button.tap_anywhere_to_exit", "button.click_to_continue"]
+    ]
 
 
 def test_increase_level_routes_back_to_vip() -> None:

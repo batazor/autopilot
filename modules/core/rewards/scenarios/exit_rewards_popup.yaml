@@ -6,3 +6,7 @@ steps:
     steps:
       - click: button.tap_anywhere_to_exit
       - wait: 1s
+  - match: button.click_to_continue
+    steps:
+      - click: button.click_to_continue
+      - wait: 1s
