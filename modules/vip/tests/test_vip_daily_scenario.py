@@ -125,7 +125,7 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
     3. Rewards popup -> scenario taps `button.click_to_continue`;
     4. VIP page again -> scenario probes optional `button.claim`;
     5. VIP page again -> scenario taps `page.vip.add`;
-    6. Increase Level popup -> scenario taps `button.use`, then `increase_level.icon.close`;
+    6. Increase Level popup -> scenario long-presses `button.use`, then taps `increase_level.icon.close`;
     7. VIP page again -> scenario taps `page.vip.unlock`, then `button.use` and
        `increase_level.icon.close` again.
     """
@@ -204,10 +204,12 @@ async def test_vip_daily_scenario_rehearses_main_city_to_vip_reward_popup(
         call("bs1", ANY, approval_region="page.vip.box"),
         call("bs1", ANY, approval_region="button.click_to_continue"),
         call("bs1", ANY, approval_region="page.vip.add"),
-        call("bs1", ANY, approval_region="button.use"),
         call("bs1", ANY, approval_region="increase_level.icon.close"),
         call("bs1", ANY, approval_region="page.vip.unlock"),
         call("bs1", ANY, approval_region="button.use"),
         call("bs1", ANY, approval_region="increase_level.icon.close"),
+    ]
+    assert actions.long_tap.call_args_list == [
+        call("bs1", ANY, duration_ms=800),
     ]
     assert await redis_async.hget("wos:instance:bs1:state", "current_screen") == "vip"  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]

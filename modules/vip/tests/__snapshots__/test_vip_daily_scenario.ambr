@@ -20,7 +20,7 @@
             'click': 'page.vip.box',
           }),
           dict({
-            'wait': '0.5s',
+            'wait': '500ms',
           }),
           dict({
             'max': 1,
@@ -33,7 +33,7 @@
                 'click': 'button.click_to_continue',
               }),
               dict({
-                'wait': '0.5s',
+                'wait': '500ms',
               }),
             ]),
             'while_match': 'button.click_to_continue',
@@ -90,7 +90,7 @@
             }),
             'steps': list([
               dict({
-                'click': 'button.use',
+                'long_click': 'button.use',
               }),
               dict({
                 'wait': '1s',
