@@ -41,6 +41,7 @@ def _worker(detector: _FakeDetector, redis_async: object) -> InstanceWorker:
     worker._last_detected_screen_at = 0.0
     worker._unknown_since = 0.0
     worker._screen_unknown_streak = 0
+    worker._queue = None
     return worker
 
 
@@ -324,3 +325,65 @@ async def test_dismiss_unknown_popup_skipped_below_dwell_threshold(
 
     await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
     assert scheduled == []
+
+
+@pytest.mark.asyncio
+async def test_known_after_unknown_evicts_pending_dismiss_unknown_popup(
+    redis_async: object,
+) -> None:
+    """unknown → known transition drops the stale fallback from the queue
+    and clears its NX-lock key. An already-claimed (in-flight) copy is not
+    affected — ``remove_by_task_type`` only touches ZSET members."""
+    import time as _t
+
+    detector = _FakeDetector(ScreenName.MAIL)
+    worker = _worker(detector, redis_async)
+
+    removed_calls: list[tuple[str, str]] = []
+
+    class _FakeQueue:
+        async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
+            removed_calls.append((task_type, instance_id))
+            return 1
+
+    worker._queue = _FakeQueue()
+    # Pre-seed the unknown-dwell precondition — worker was in unknown for >0s
+    # and the NX-lock from a prior fallback enqueue is still alive.
+    worker._unknown_since = _t.monotonic() - 20.0
+    lock_key = "wos:instance:bs1:dismiss_unknown_popup_lock"
+    await redis_async.set(lock_key, "1", ex=30)  # ty: ignore[unresolved-attribute]
+
+    result = await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    assert result == "mail"
+    assert worker._unknown_since == 0.0
+    assert removed_calls == [("dismiss_unknown_popup", "bs1")]
+    assert await redis_async.get(lock_key) is None  # ty: ignore[unresolved-attribute]
+
+
+@pytest.mark.asyncio
+async def test_known_after_known_does_not_touch_queue(
+    redis_async: object,
+) -> None:
+    """No unknown dwell → no eviction call. Keeps the steady-state hot path
+    free of an extra Redis round-trip on every successful screen-detect tick."""
+    detector = _FakeDetector(ScreenName.MAIL)
+    worker = _worker(detector, redis_async)
+
+    removed_calls: list[tuple[str, str]] = []
+
+    class _FakeQueue:
+        async def remove_by_task_type(self, task_type: str, instance_id: str) -> int:
+            removed_calls.append((task_type, instance_id))
+            return 0
+
+    worker._queue = _FakeQueue()
+    worker._unknown_since = 0.0  # never entered unknown dwell
+
+    await worker._detect_current_screen_on_frame(
+        np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    assert removed_calls == []

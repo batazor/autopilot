@@ -229,6 +229,35 @@ class InstanceWorkerScreenMixin(_Base):
                 "dismiss_unknown_popup: schedule failed", exc_info=True
             )
 
+    async def _drop_pending_dismiss_unknown_popup(self, detected_screen: str) -> None:
+        """On unknown → known transition, evict the stale fallback from the queue.
+
+        ``remove_by_task_type`` only touches ZSET members, so any in-flight
+        ``dismiss_unknown_popup`` already claimed by a worker keeps running.
+        The NX-lock key is also cleared so a future unknown-dwell can re-arm
+        the fallback without waiting out the 30s TTL.
+        """
+        if self._queue is None:
+            return
+        with contextlib.suppress(Exception):
+            removed = await self._queue.remove_by_task_type(
+                "dismiss_unknown_popup", self._cfg.instance_id
+            )
+            if removed:
+                logger.info(
+                    "%s: dropped %d stale dismiss_unknown_popup "
+                    "(screen=%s detected after unknown)",
+                    self._cfg.instance_id,
+                    removed,
+                    detected_screen,
+                )
+        if self._redis is not None:
+            with contextlib.suppress(Exception):
+                await self._redis.delete(
+                    f"wos:instance:{self._cfg.instance_id}"
+                    ":dismiss_unknown_popup_lock"
+                )
+
     async def _persist_overlay_ttl_snapshot(
         self, player_id: str, player_state: dict[str, float]
     ) -> None:
@@ -309,6 +338,7 @@ class InstanceWorkerScreenDetectMixin(_Base):
             detected_s = str(detected)
             self._last_detected_screen = detected_s
             self._last_detected_screen_at = time.monotonic()
+            was_unknown = self._unknown_since > 0.0
             self._unknown_since = 0.0
             self._screen_unknown_streak = 0
             if self._redis is not None:
@@ -318,6 +348,8 @@ class InstanceWorkerScreenDetectMixin(_Base):
                         "current_screen",
                         detected_s,
                     )
+            if was_unknown:
+                await self._drop_pending_dismiss_unknown_popup(detected_s)
             self._note_boot_interactive_screen(detected_s)
             set_log_context(node=detected_s)
             return detected_s
