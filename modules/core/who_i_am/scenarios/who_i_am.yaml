@@ -1,48 +1,19 @@
 enabled: true
 name: 👤 Who am I — capture chief profile
 priority: 82_000
-# Bootstraps `active_player` itself — must be runnable before any player is identified.
+
 device_level: true
-# Skip OCR/API when we already know who is on this device (see root `cond` in dsl_scenario).
 cond: active_player == ""
 
-# Root `node:` tells the runner to navigate the FSM to `chief_profile`
-# (via screen_graph BFS) before executing `steps`. After steps we explicitly
-# push ``check_main_city`` at our own priority so the bot bounces back to
-# main_city immediately — without that, it'd linger on chief_profile until
-# the next 5-min ``check_main_city`` cron tick (priority 10) and all
-# main_city-anchored overlays would starve in the meantime.
-#
-# Enqueued by the worker on boot and on every rolling tick while
-# ``active_player`` is still empty.
-# Priority 82_000 — above routine overlays (70k–80k), below tutorials
-# (85–86k) and ads (120k). Screen identity is maintained by the worker's
-# rolling detector.
 node: chief_profile
 
 steps:
-  # Read the in-game player_id displayed on the chief_profile screen and persist
-  # it under `wos:player:<player_id>:state` (field `player_id`).
-  # The OCR region name is UI-facing; `store` keeps the Redis field stable.
-  #
-  # Override the region's default threshold (0.9 — appropriate for template
-  # matches, unrealistic for Tesseract on a short numeric strip in the
-  # Whiteout font). Observed confidence on a healthy capture is ~0.08; pure
-  # noise on an empty / wrong screen is <0.01, and the `type: integer` cast
-  # below rejects anything without digits — so 0.05 admits the legitimate
-  # value while still gating out pure garbage. Without this, the OCR result
-  # is silently dropped as `low_confidence`, `active_player` is never
-  # written, and the worker loops re-enqueueing who_i_am forever.
   - ocr: player.id
     store: player_id
     type: integer
-    threshold: 0.05
-  # Century POST /api/player — nickname, stove_level, kid, etc. (requires OCR player_id).
+
   - exec: fetch_player
-  # Return to main_city right after identity is established. ``priority:
-  # 82_000`` (= our own) so the navigation runs before any lower-priority
-  # work even drains; the cron-default priority on ``check_main_city.yaml``
-  # itself is only 10 (it's a 5-min housekeeping tick).
+
   - push_scenario:
       name: check_main_city
       priority: 82_000
