@@ -5,10 +5,14 @@ import logging
 import multiprocessing
 import signal
 import time
+from contextlib import suppress as _suppress
 from dataclasses import dataclass
 
 from config.loader import InstanceConfig, get_settings, load_settings, set_settings
-from config.runtime_bootstrap import bootstrap_runtime_observability
+from config.runtime_bootstrap import (
+    bootstrap_runtime_observability,
+    shutdown_runtime_observability,
+)
 from config.startup_validation import assert_startup_configs_valid
 from worker.restart_backoff import compute_restart_delay
 
@@ -34,7 +38,29 @@ class _RestartTracker:
     restart_at: float = 0.0
 
 
+def _install_child_signal_handlers() -> None:
+    """Children ignore SIGINT (parent's SIGTERM drives shutdown).
+
+    Ctrl+C in a terminal delivers SIGINT to the whole process group, so
+    children would otherwise raise ``KeyboardInterrupt`` mid-``asyncio.run``
+    in parallel with the parent's graceful path — producing the noisy
+    OTel/multiprocessing atexit tracebacks. Ignoring SIGINT here makes the
+    parent the single source of truth: it catches the Ctrl+C, marks
+    ``_shutdown``, and ``proc.terminate()`` (SIGTERM) walks each child out.
+    """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def _term(_signum: int, _frame: object) -> None:
+        # Convert SIGTERM into a KeyboardInterrupt so ``asyncio.run`` unwinds
+        # through the ``finally`` block in ``_run`` (closing Redis, OCR, etc.)
+        # instead of dying at an arbitrary await point.
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _term)
+
+
 def _worker_process(instance_config: InstanceConfig) -> None:
+    _install_child_signal_handlers()
     bootstrap_runtime_observability("worker", instance_id=instance_config.instance_id)
 
     async def _run() -> None:
@@ -51,10 +77,19 @@ def _worker_process(instance_config: InstanceConfig) -> None:
         finally:
             await aclose_app_services()
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Flush OTel exporters here so the interpreter's atexit doesn't have
+        # to — atexit runs after signal handlers are restored to default,
+        # and a follow-up Ctrl+C would re-interrupt MeterProvider.shutdown.
+        shutdown_runtime_observability()
 
 
 def _scheduler_process() -> None:
+    _install_child_signal_handlers()
     bootstrap_runtime_observability("scheduler")
 
     async def _run() -> None:
@@ -71,12 +106,25 @@ def _scheduler_process() -> None:
         finally:
             await aclose_app_services()
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except KeyboardInterrupt:
+        pass
+    finally:
+        shutdown_runtime_observability()
 
 
-def _handle_sigterm(signum: int, frame: object) -> None:
+def _handle_shutdown_signal(signum: int, frame: object) -> None:
     global _shutdown
-    logger.info("SIGTERM received — initiating graceful shutdown")
+    name = signal.Signals(signum).name if signum in signal.Signals.__members__.values() else str(signum)
+    if _shutdown:
+        # Second Ctrl+C — give up on graceful path and let the default
+        # handler do its job (raises KeyboardInterrupt at the next opcode).
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        logger.warning("%s received again — forcing exit", name)
+        return
+    logger.info("%s received — initiating graceful shutdown", name)
     _shutdown = True
 
 
@@ -125,7 +173,8 @@ class Supervisor:
         )
 
     def run(self) -> None:
-        signal.signal(signal.SIGTERM, _handle_sigterm)
+        signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+        signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
         for instance in self._settings.instances:
             self._processes[instance.instance_id] = self._spawn_worker(instance)
@@ -162,19 +211,27 @@ class Supervisor:
                     instance = self._find_instance(name)
                     if instance:
                         self._processes[name] = self._spawn_worker(instance)
-            time.sleep(1.0)
+            # ``time.sleep`` raises if a signal handler raised — wrap so a
+            # late SIGINT during shutdown just breaks the loop cleanly
+            # instead of propagating into the join path below.
+            try:
+                time.sleep(1.0)
+            except (InterruptedError, KeyboardInterrupt):
+                break
 
         logger.info("Supervisor shutting down — waiting for workers to finish")
+        # Children ignore SIGINT; signal them explicitly so they begin
+        # tearing down in parallel rather than waiting for the 30s join.
+        for proc in self._processes.values():
+            if proc.is_alive():
+                with _suppress(ProcessLookupError, OSError):
+                    proc.terminate()
         for name, proc in self._processes.items():
             proc.join(timeout=30)
             if proc.is_alive():
-                logger.warning("Process %s did not exit cleanly, terminating", name)
-                proc.terminate()
+                logger.warning("Process %s did not exit cleanly, killing", name)
+                proc.kill()
                 proc.join(timeout=5)
-                if proc.is_alive():
-                    logger.warning("Process %s ignored SIGTERM, killing", name)
-                    proc.kill()
-                    proc.join(timeout=5)
 
     def _find_instance(self, instance_id: str) -> InstanceConfig | None:
         for inst in self._settings.instances:
@@ -189,7 +246,10 @@ def main() -> None:
     assert_startup_configs_valid()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
-    supervisor.run()
+    try:
+        supervisor.run()
+    finally:
+        shutdown_runtime_observability()
 
 
 if __name__ == "__main__":
