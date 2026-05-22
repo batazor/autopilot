@@ -47,14 +47,20 @@ export function useDashboardEventStream({
   const wasVisibleRef = useRef(visible);
 
   const topicsKey = [...topics].sort().join(",");
+  // The hook only ever invokes ``onFallbackPoll`` via ``onFallbackRef.current``,
+  // but a parent that re-creates the callback inline (new function ref every
+  // render) would otherwise re-fire every ``useEffect`` below on each render —
+  // including the immediate ``onFallbackRef.current?.()`` on connect — racing
+  // the SSE dispatch and producing duplicate toasts. Track presence only.
+  const hasFallbackPoll = Boolean(onFallbackPoll);
 
   useEffect(() => {
-    if (!enabled || !onFallbackPoll) return;
+    if (!enabled || !hasFallbackPoll) return;
     if (visible && !wasVisibleRef.current) {
       void onFallbackRef.current?.();
     }
     wasVisibleRef.current = visible;
-  }, [enabled, visible, onFallbackPoll]);
+  }, [enabled, visible, hasFallbackPoll]);
 
   useEffect(() => {
     if (!enabled || !visible || topics.length === 0) return;
@@ -117,7 +123,7 @@ export function useDashboardEventStream({
 
     connect();
 
-    if (onFallbackPoll) {
+    if (hasFallbackPoll) {
       void onFallbackRef.current?.();
       fallbackId = setInterval(() => {
         void onFallbackRef.current?.();
@@ -140,6 +146,6 @@ export function useDashboardEventStream({
     playerId,
     fallbackPollMs,
     debounceMs,
-    onFallbackPoll,
+    hasFallbackPoll,
   ]);
 }

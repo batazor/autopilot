@@ -3,6 +3,12 @@ enabled: true
 
 cron: "*/5 * * * *"
 
+# Pure node-navigation back to the hub — no player state is read or written.
+# Marked device_level so the worker can seed it at boot (player_id="") before
+# ``who_i_am`` has resolved ``active_player``; player-bound scenarios with an
+# empty player_id are otherwise skipped at scenario-load time.
+device_level: true
+
 node: main_city
 
 steps: []

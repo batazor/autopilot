@@ -84,6 +84,11 @@ export default function ApprovalsPage() {
   // dedup set in ``st.session_state``). Track the IDs we've already toasted
   // so re-polling the list doesn't re-fire the same event in a loop.
   const seenNotificationsRef = useRef<Set<string>>(new Set());
+  // Concurrent ``pollNotifications`` invocations (SSE dispatch + immediate
+  // fallback poll on connect) would both snapshot the same empty ``seen`` set
+  // and race to display the same toast twice. Drop overlapping calls — the
+  // in-flight request will still surface anything new.
+  const notificationsInFlightRef = useRef(false);
   // Remember which pending-request key was last seen so we can bump the
   // image cache key only when the underlying request actually changes
   // (otherwise we'd thrash the browser's decoded-image cache every second).
@@ -123,6 +128,8 @@ export default function ApprovalsPage() {
 
   const pollNotifications = useCallback(async () => {
     if (!instanceId) return;
+    if (notificationsInFlightRef.current) return;
+    notificationsInFlightRef.current = true;
     try {
       const items = await fetchNotifications(
         instanceId,
@@ -134,6 +141,7 @@ export default function ApprovalsPage() {
       const next: Toast[] = [];
       for (const ev of items) {
         if (!ev.id) continue;
+        if (seenNotificationsRef.current.has(ev.id)) continue;
         seenNotificationsRef.current.add(ev.id);
         next.push({ ...ev, createdAt: now, expiresAt: now + TOAST_VISIBLE_MS });
       }
@@ -147,6 +155,8 @@ export default function ApprovalsPage() {
       if (process.env.NODE_ENV !== "production") {
         console.warn("notifications poll failed", e);
       }
+    } finally {
+      notificationsInFlightRef.current = false;
     }
   }, [instanceId]);
 
@@ -202,6 +212,7 @@ export default function ApprovalsPage() {
   // event with a colliding UUID after a worker restart).
   useEffect(() => {
     seenNotificationsRef.current = new Set();
+    notificationsInFlightRef.current = false;
     setToasts([]);
     lastPendingKeyRef.current = "";
     lastPreviewMtimeRef.current = null;

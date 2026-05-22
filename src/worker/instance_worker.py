@@ -80,19 +80,24 @@ def _is_adb_offline_error(exc: BaseException) -> bool:
 # DSL scenarios pushed once per instance start. Each entry must be a key resolvable
 # by `DslScenarioTask` (i.e. a YAML file under `scenarios/**/{key}.yaml`).
 #
-# Boot does not seed DSL tasks here. Login ads are overlay-pushed
-# (per-scenario nodes under ``modules/ads/scenarios/``); ``who_i_am`` is
-# enqueued unconditionally at boot via
-# ``_maybe_enqueue_who_i_am_when_active_player_missing`` and competes with
-# overlay-pushed ads by priority (ads at 120_000 outrank identity at 82_000
-# so visible ads still run first).
-_STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = ()
+# ``who_i_am`` is enqueued separately by
+# ``_maybe_enqueue_who_i_am_when_active_player_missing`` (and only when
+# ``active_player`` is missing). ``check_main_city`` is seeded unconditionally
+# at low priority so the bot always has a navigation goal after restart — when
+# ``active_player`` is *already* set in Redis from the prior session,
+# ``who_i_am`` is skipped and nothing else would route us out of an
+# intermediate popup-bearing screen until the 5-min cron tick. The seed is
+# device_level (see ``check_main_city.yaml``) so it works without a resolved
+# ``active_player``; priority 10 keeps it below ads / overlays / identity.
+_STARTUP_SEED_TASKS: tuple[tuple[str, int], ...] = (
+    ("check_main_city", 10),
+)
 
 
 def _startup_stale_boot_task_types(root: Path) -> tuple[str, ...]:
-    """Queue types cleared on worker boot — only identity for now."""
+    """Queue types cleared on worker boot before fresh seeds are published."""
     del root  # signature kept for callers; no module-discovery needed
-    return ("who_i_am",)
+    return ("who_i_am", "check_main_city")
 _SCREEN_UNKNOWN_CLEAR_AFTER_FRAMES = 3
 _SCREEN_UNKNOWN_CLEAR_AFTER_SECONDS = 2.0
 

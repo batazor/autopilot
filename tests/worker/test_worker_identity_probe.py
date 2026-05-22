@@ -12,10 +12,17 @@ from scheduler.queue import QueueItem
 class _FakeQueue:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.removed: list[tuple[str, str]] = []
 
     async def schedule(self, **kwargs: Any) -> bool:
         self.calls.append(kwargs)
         return True
+
+    async def remove_by_task_type(
+        self, task_type: str, instance_id: str
+    ) -> int:
+        self.removed.append((task_type, instance_id))
+        return 0
 
 
 def _queue_item(task_type: str, *, player_id: str = "") -> QueueItem:
@@ -72,6 +79,10 @@ async def test_registered_device_task_still_resolves_to_known_player(mocker) -> 
 
 @pytest.mark.asyncio
 async def test_startup_seed_does_not_enqueue_who_i_am() -> None:
+    """``who_i_am`` is enqueued elsewhere (identity-probe), but the boot seed
+    *does* publish ``check_main_city`` so the bot has a navigation goal after
+    restart even when ``active_player`` is already populated from the prior
+    session. See ``_STARTUP_SEED_TASKS``."""
     worker = object.__new__(instance_worker.InstanceWorker)
     worker._cfg = SimpleNamespace(instance_id="bs1", player_ids=["765502864"])
     worker._settings = SimpleNamespace(worker=SimpleNamespace())
@@ -80,4 +91,11 @@ async def test_startup_seed_does_not_enqueue_who_i_am() -> None:
 
     await instance_worker.InstanceWorker._seed_startup_tasks(worker)
 
-    assert worker._queue.calls == []
+    scheduled_types = [c["task_type"] for c in worker._queue.calls]
+    assert "who_i_am" not in scheduled_types
+    assert scheduled_types == ["check_main_city"]
+    assert worker._queue.calls[0]["player_id"] == ""
+    assert worker._queue.calls[0]["instance_id"] == "bs1"
+    # Boot-time stale cleanup pass covers both seeded and identity types.
+    removed_types = {t for t, _ in worker._queue.removed}
+    assert {"who_i_am", "check_main_city"} <= removed_types
