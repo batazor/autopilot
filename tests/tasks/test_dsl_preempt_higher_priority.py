@@ -224,3 +224,50 @@ def test_preempt_constants_match_adr() -> None:
     """ADR §5 defaults: PREEMPT_MARGIN=5_000, max yields = 3."""
     assert PREEMPT_MARGIN == 5_000
     assert PREEMPT_MAX_YIELDS == 3
+
+
+@pytest.mark.asyncio
+async def test_no_yield_to_same_task_type_peer_at_equal_priority(
+    monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
+) -> None:
+    """A duplicate enqueue of our own scenario must NOT preempt us.
+
+    Without this guard, two device-level peers (e.g. ``who_i_am`` left over
+    from a prior boot plus the running one) ping-pong yields: the device-level
+    bypass (``not top_is_device_level``) overrides ``gap < PREEMPT_MARGIN``,
+    each yields to the other, ``yield_count`` resets per task_id and the
+    immunity threshold never sticks.
+    """
+    _patch_read_current_screen(monkeypatch)
+    # Top has the SAME task_type as the running task, same priority, different task_id.
+    _patch_peek_top(
+        monkeypatch,
+        _top(task_type="long_running_scenario", effective_priority=80_000, task_id="dup-2"),
+    )
+    task = _make_task(effective_priority=80_000, redis_client=redis_async)
+
+    result = await task._preempted_by_higher_priority("bs1", step_index=4)
+    assert result is None
+    # yield_count must not advance — we did not yield.
+    assert await redis_async.get(_yield_count_key("bs1", "running-1")) is None
+
+
+@pytest.mark.asyncio
+async def test_same_task_type_at_higher_priority_still_preempts(
+    monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
+) -> None:
+    """Guard is scoped to ``gap <= 0``: a same-type peer at strictly higher
+    priority still preempts (unusual but legitimate — e.g. operator escalated
+    a debug re-run with explicit priority bump)."""
+    _patch_read_current_screen(monkeypatch)
+    _patch_peek_top(
+        monkeypatch,
+        _top(task_type="long_running_scenario", effective_priority=88_000, task_id="dup-3"),
+    )
+    task = _make_task(effective_priority=80_000, redis_client=redis_async)
+
+    result = await task._preempted_by_higher_priority("bs1", step_index=6)
+    assert result is not None
+    md = result.metadata or {}
+    assert md["reason"] == "preempted_by_higher_priority"
+    assert md["preempted_by_priority"] == 88_000
