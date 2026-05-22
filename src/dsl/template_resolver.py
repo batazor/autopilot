@@ -214,11 +214,22 @@ def _template_match_valid(tmpl: Path, axes: list[str], ctx: dict[str, str]) -> b
 
 
 def resolve(repo_root: Path, scenario_key: str) -> ResolvedScenario | None:
-    """Literal-then-template resolution across module scenario roots."""
+    """Literal-then-template resolution across module scenario roots.
+
+    Cached by ``(repo_root, scenario_key)`` for the process lifetime — the
+    per-key ``rglob('{key}.yaml')` storm was the second-largest CPU sink in
+    the profile after :func:`iter_module_dirs`. Tests that mutate the module
+    tree should call :func:`_clear_template_resolver_caches`.
+    """
     key = (scenario_key or "").strip()
     if not key:
         return None
+    return _resolve_cached(str(repo_root.resolve()), key)
 
+
+@lru_cache(maxsize=4096)
+def _resolve_cached(root_s: str, key: str) -> ResolvedScenario | None:
+    repo_root = Path(root_s)
     roots = _scenario_roots(repo_root)
     if not roots:
         return None
@@ -254,6 +265,11 @@ def resolve(repo_root: Path, scenario_key: str) -> ResolvedScenario | None:
             if ok and _template_match_valid(tmpl, axes, ctx):
                 return ResolvedScenario(path=tmpl, context=ctx)
     return None
+
+
+def _clear_template_resolver_caches() -> None:
+    """Drop the resolve() cache (tests that mutate the module tree)."""
+    _resolve_cached.cache_clear()
 
 
 def render(text: str, ctx: dict[str, str]) -> str:

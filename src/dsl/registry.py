@@ -31,9 +31,20 @@ class ScenarioRoot:
 def scenario_roots(
     repo_root: Path,
     module_scope: str | None = None,
-) -> list[ScenarioRoot]:
-    """Return scenario roots in deterministic lookup order, optionally filtered."""
+) -> tuple[ScenarioRoot, ...]:
+    """Scenario roots in deterministic lookup order, optionally scoped.
+
+    Cached for the process lifetime — this used to be called on every
+    ``template_resolver.resolve`` (i.e. every approval-view render) and
+    triggered a full ``modules/**`` walk via :func:`iter_module_dirs`.
+    """
     scope = normalize_module_scope(module_scope)
+    return _scenario_roots_cached(str(repo_root.resolve()), scope)
+
+
+@lru_cache(maxsize=64)
+def _scenario_roots_cached(root_s: str, scope: str) -> tuple[ScenarioRoot, ...]:
+    repo_root = Path(root_s)
     roots: list[ScenarioRoot] = []
 
     for module_dir in iter_module_dirs(repo_root):
@@ -53,7 +64,13 @@ def scenario_roots(
                     module_id=module_meta_id(module_dir),
                 )
             )
-    return roots
+    return tuple(roots)
+
+
+def _clear_scenario_root_caches() -> None:
+    """Drop the scenario-roots cache (tests that mutate the module tree)."""
+    _scenario_roots_cached.cache_clear()
+    _scenario_roots_for_label.cache_clear()
 
 
 def is_under_drafts(path: Path, root: Path) -> bool:

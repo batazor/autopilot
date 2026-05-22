@@ -6,15 +6,13 @@ group sorted by relative path (case-insensitive).
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 import yaml
 
 from config.paths import repo_root as default_repo_root
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
-    from pathlib import Path
 
 CORE_MODULES_DIR = "core"
 MODULE_MANIFEST = "module.yaml"
@@ -27,13 +25,25 @@ def _module_sort_key(module_dir: Path, modules_dir: Path) -> tuple[int, str]:
     return (0 if is_core else 1, rel.as_posix().lower())
 
 
-def iter_module_dirs(repo_root: Path | None = None) -> Iterator[Path]:
-    """Yield every ``modules/**/`` dir that contains ``module.yaml``."""
+def iter_module_dirs(repo_root: Path | None = None) -> tuple[Path, ...]:
+    """Every ``modules/**/`` dir that contains ``module.yaml`` (process-cached).
+
+    The result is cached for the process lifetime — the rglob over the module
+    tree previously dominated overlay-tick / approval-view CPU. Module layout
+    is static at runtime in production; tests using ``tmp_path`` get distinct
+    cache keys. Call :func:`_clear_module_discovery_caches` if you mutate the
+    module tree inside one test.
+    """
 
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    modules_dir = root / "modules"
+    return _module_dirs_cached(str(root))
+
+
+@lru_cache(maxsize=8)
+def _module_dirs_cached(root_s: str) -> tuple[Path, ...]:
+    modules_dir = Path(root_s) / "modules"
     if not modules_dir.is_dir():
-        return
+        return ()
 
     found: list[Path] = []
     for manifest in modules_dir.rglob(MODULE_MANIFEST):
@@ -48,8 +58,12 @@ def iter_module_dirs(repo_root: Path | None = None) -> Iterator[Path]:
             continue
         found.append(module_dir)
 
-    for module_dir in sorted(found, key=lambda p: _module_sort_key(p, modules_dir)):
-        yield module_dir
+    return tuple(sorted(found, key=lambda p: _module_sort_key(p, modules_dir)))
+
+
+def _clear_module_discovery_caches() -> None:
+    """Drop module-discovery caches (tests that mutate the module tree)."""
+    _module_dirs_cached.cache_clear()
 
 
 def module_storage_key(module_dir: Path, repo_root: Path | None = None) -> str:
