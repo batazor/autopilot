@@ -21,6 +21,7 @@ from tasks.dsl_scenario_helpers import (
     _collect_ocr_store_targets,
     _dsl_cond_allows_step,
     _enqueue_scenario,
+    _jittered_wait_seconds,
     _load_area_json,
     _ocr_store_redis_fields,
     _parse_wait_seconds,
@@ -997,6 +998,162 @@ class DslScenarioExecuteMixin(_Base):
                 await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok", iterations=iterations)
                 continue
+            if "while_scroll" in step:
+                reg = str(step.get("while_scroll") or "").strip()
+                await self._write_step_context(instance_id, scenario=key)
+                direction = str(step.get("direction") or "up").strip().lower()
+                try:
+                    delta = int(step.get("delta") or 350)
+                except (TypeError, ValueError):
+                    delta = 350
+                try:
+                    duration_ms = int(step.get("duration_ms") or 300)
+                except (TypeError, ValueError):
+                    duration_ms = 300
+                try:
+                    max_iters = int(step.get("max") or 30)
+                except (TypeError, ValueError):
+                    max_iters = 30
+                max_iters = max(0, max_iters)
+                try:
+                    repeats_to_end = int(step.get("repeats_to_end") or 3)
+                except (TypeError, ValueError):
+                    repeats_to_end = 3
+                pause_s = _parse_wait_seconds(step.get("pause_ms") or step.get("pause") or "600ms")
+
+                inner_steps = step.get("steps")
+                if not isinstance(inner_steps, list):
+                    inner_steps = []
+
+                pair = screen_region_by_name(
+                    area_doc,
+                    reg,
+                    state_flat=self._state_flat(),
+                    screen_id=(await _read_current_screen(instance_id, self.redis_client)) or None,
+                )
+                bbox = pair[1].get("bbox") if pair is not None else None
+                if not isinstance(bbox, dict):
+                    logger.warning(
+                        "dsl_scenario: while_scroll region not found in area.json: %s (scenario=%s)",
+                        reg,
+                        _scen(key),
+                    )
+                    _trace_row(_resumable_step, step, "stopped", reason="region_not_found")
+                    continue
+
+                try:
+                    px = int(round(float(bbox["x"]) / 100.0 * dev_w))
+                    py = int(round(float(bbox["y"]) / 100.0 * dev_h))
+                    pw = int(round(float(bbox["width"]) / 100.0 * dev_w))
+                    ph = int(round(float(bbox["height"]) / 100.0 * dev_h))
+                except (KeyError, TypeError, ValueError):
+                    _trace_row(_resumable_step, step, "stopped", reason="invalid_bbox")
+                    continue
+                if pw <= 0 or ph <= 0:
+                    _trace_row(_resumable_step, step, "stopped", reason="invalid_bbox")
+                    continue
+
+                from analysis.scroll import ScrollEndDetector, fingerprint_region_bgr
+
+                detector = ScrollEndDetector(repeats_to_end=repeats_to_end)
+                _capture = getattr(actions, "capture_screen_bgr_cached", actions.capture_screen_bgr)
+                _invalidate = getattr(actions, "invalidate_frame_cache", None)
+
+                iterations = 0
+                inner_result: TaskResult | None = None
+                for i in range(max_iters):
+                    if await self._preempted_by_new_debug(instance_id):
+                        await self._clear_step_context(instance_id)
+                        _trace_row(_resumable_step, step, "preempted", reason="dsl_preempted_debug")
+                        return TaskResult(
+                            success=False,
+                            next_run_at=None,
+                            metadata=_fin(
+                                {
+                                    "scenario": key,
+                                    "reason": "dsl_preempted_debug",
+                                    "preempted": True,
+                                },
+                                completed=False,
+                            ),
+                        )
+                    # First iter: process the currently-visible page before any swipe.
+                    if i > 0 and direction and delta > 0:
+                        ok = await asyncio.to_thread(
+                            actions.swipe_direction,
+                            instance_id,
+                            direction=direction,
+                            delta=delta,
+                            duration_ms=duration_ms,
+                        )
+                        if not ok:
+                            _trace_row(_resumable_step, step, "stopped", reason="swipe_not_approved")
+                            return TaskResult(
+                                success=False,
+                                next_run_at=None,
+                                metadata=_fin(
+                                    {"scenario": key, "reason": "swipe_not_approved"},
+                                    completed=False,
+                                ),
+                            )
+                        if pause_s > 0:
+                            await asyncio.sleep(pause_s)
+
+                    iter_path = f"{_resumable_step}.{i}"
+                    for inner_idx, inner in enumerate(inner_steps):
+                        if not isinstance(inner, dict):
+                            continue
+                        result = await self._run_inline_step(
+                            inner,
+                            actions=actions,
+                            area_doc=area_doc,
+                            repo_root=repo_root,
+                            instance_id=instance_id,
+                            dev_w=dev_w,
+                            dev_h=dev_h,
+                            scenario_key=key,
+                            trace_path=f"{iter_path}.{inner_idx}",
+                        )
+                        if result is not None:
+                            inner_result = result
+                            break
+                    if inner_result is not None:
+                        break
+
+                    # Fingerprint AFTER inner steps so post-claim state is what we compare.
+                    if _invalidate is not None:
+                        with suppress(Exception):
+                            _invalidate(instance_id)
+                    image_bgr = await asyncio.to_thread(_capture, instance_id)
+                    patch = image_bgr[py:py + ph, px:px + pw]
+                    fp = fingerprint_region_bgr(patch)
+                    detector.push(fp)
+                    iterations += 1
+                    if detector.is_the_end():
+                        break
+
+                if inner_result is not None:
+                    md = dict(inner_result.metadata or {})
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "stopped",
+                        reason=str(md.get("reason") or ""),
+                    )
+                    return TaskResult(
+                        success=inner_result.success,
+                        next_run_at=inner_result.next_run_at,
+                        metadata=_fin(md, completed=False),
+                    )
+                logger.info(
+                    "dsl_scenario: while_scroll done scenario=%s region=%s iterations=%d",
+                    _scen(key),
+                    reg,
+                    iterations,
+                )
+                await _mark_top_level_step_done()
+                _trace_row(_resumable_step, step, "ok", iterations=iterations)
+                continue
             if "repeat" in step:
                 await self._write_step_context(instance_id, scenario=key)
                 spec = step.get("repeat")
@@ -1490,7 +1647,12 @@ class DslScenarioExecuteMixin(_Base):
                 # Supports "1200ms" (string) or seconds (number).
                 w = step.get("wait")
                 await self._write_step_context(instance_id, scenario=key)
-                seconds = _parse_wait_seconds(w)
+                from config.loader import get_settings as _get_settings
+
+                _jitter_pct = float(
+                    getattr(_get_settings().worker, "wait_jitter_pct", 0.0) or 0.0
+                )
+                seconds = _jittered_wait_seconds(_parse_wait_seconds(w), _jitter_pct)
                 if seconds > 0:
                     await asyncio.sleep(seconds)
                     # Explicit pause ⇒ assume the screen changed during it

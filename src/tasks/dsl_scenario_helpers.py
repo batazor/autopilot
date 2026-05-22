@@ -10,6 +10,7 @@ External callers should still import ``DslScenarioTask`` from
 from __future__ import annotations
 
 import logging
+import random
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -111,6 +112,7 @@ _COND_TEXT_EMPTY_TOKENS = frozenset({"null", "nil", "none", "empty"})
 _DSL_STEP_ACTION_KEYS = frozenset({
     "match",
     "while_match",
+    "while_scroll",
     "repeat",
     "loop",
     "push_scenario",
@@ -134,6 +136,7 @@ def _dsl_step_summary(step: Any) -> str:
         "click",
         "match",
         "while_match",
+        "while_scroll",
         "ocr",
         "swipe_direction",
         "push_scenario",
@@ -146,7 +149,7 @@ def _dsl_step_summary(step: Any) -> str:
         if key not in step:
             continue
         val = step[key]
-        if key in ("click", "match", "while_match", "ocr"):
+        if key in ("click", "match", "while_match", "while_scroll", "ocr"):
             s = str(val).strip()
             base = f"{key}:{s[:48]}{'…' if len(s) > 48 else ''}"
         elif key == "repeat":
@@ -568,3 +571,17 @@ def _parse_wait_seconds(value: object) -> float:
     if s.endswith("h"):
         return float(s[:-1].strip()) * 3600.0
     return 0.0
+
+
+def _jittered_wait_seconds(seconds: float, pct: float) -> float:
+    """Apply ±pct jitter to a wait duration. ``pct <= 0`` returns ``seconds`` unchanged.
+
+    Used only for the explicit DSL ``wait:`` step — long_click duration and ttl
+    must stay exact. Clamped at 0 so negative jitter on tiny waits doesn't go
+    below zero.
+    """
+    if seconds <= 0 or pct <= 0:
+        return seconds
+    pct = min(pct, 1.0)
+    factor = random.uniform(1.0 - pct, 1.0 + pct)
+    return max(0.0, seconds * factor)

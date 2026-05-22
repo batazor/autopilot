@@ -31,6 +31,7 @@ from tasks.dsl_scenario_helpers import (
     _BreakRepeat,
     _dsl_cond_allows_step,
     _enqueue_scenario,
+    _jittered_wait_seconds,
     _parse_wait_seconds,
     _read_current_screen,
 )
@@ -1020,7 +1021,14 @@ class DslScenarioInlineMixin(_Base):
                 },
             )
         if "wait" in step:
-            seconds = _parse_wait_seconds(step.get("wait"))
+            from config.loader import get_settings as _get_settings
+
+            _jitter_pct = float(
+                getattr(_get_settings().worker, "wait_jitter_pct", 0.0) or 0.0
+            )
+            seconds = _jittered_wait_seconds(
+                _parse_wait_seconds(step.get("wait")), _jitter_pct
+            )
             if seconds > 0:
                 # Chunked sleep so "Run scenario now" can preempt a long ``wait``
                 # without sitting through it. Without this, a multi-second wait

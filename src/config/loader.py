@@ -59,6 +59,14 @@ class WorkerConfig:
     """
     device_reference_snapshot_interval_seconds: float = 2.0
     """How often to overwrite the rolling preview PNG."""
+    wait_jitter_pct: float = 0.0
+    """Random jitter applied to DSL ``wait:`` durations as a fraction (e.g. ``0.15`` = ±15%).
+
+    Defaults to 0 (no jitter) so existing tests stay deterministic. Set globally in
+    ``settings.yaml`` to make per-scenario pauses look less mechanical across instances.
+    Only the explicit ``wait:`` step is jittered — ``long_click duration``, ``ttl``,
+    and retry intervals stay exact.
+    """
     adb_executable: str = ""
     """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
     device_display: DeviceDisplayConfig | None = None
