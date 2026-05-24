@@ -19,6 +19,11 @@
 # Only the maintainer's host should have this; the public key under
 # ``src/licensing/public_key.pem`` is committed and used for verification.
 .secrets/
+# Telemetry endpoint + auth header for Grafana Cloud OTLP. Maintainer-only:
+# the public repo ships ``_telemetry_secrets.py.example`` and the real file
+# is dropped in by the maintainer before the production Docker build. When
+# absent, the runtime bootstrap leaves OTel in its no-op state.
+src/config/_telemetry_secrets.py
 # Per-host license files imported via the UI. The directory is committed
 # (with a .gitkeep) so the Docker bind mount has a target before first boot,
 # but the actual license files are unique per machine and never shared.

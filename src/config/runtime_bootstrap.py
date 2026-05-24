@@ -1,10 +1,57 @@
 from __future__ import annotations
 
+import os
+
 from config.env_loader import load_env_once
 from config.logging_otel import setup_otel_logging
 from config.logging_stdout import setup_stdout_logging
 from config.profiling import setup_profiling
+from config.telemetry import setup_telemetry_metrics
 from config.tracing import setup_tracing
+
+
+def _apply_baked_telemetry_secrets() -> None:
+    """Force telemetry export through the baked Grafana Cloud OTLP endpoint.
+
+    The maintainer's production Docker build copies real Grafana Cloud creds
+    into ``src/config/_telemetry_secrets.py`` before the Nuitka compile pass,
+    which then absorbs the strings into ``config.so``. At runtime we read
+    those constants and *overwrite* the OTel SDK's standard env vars — so
+    any user-side attempt to disable export (``OTEL_SDK_DISABLED=true``) or
+    divert it (``OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost/sink``) is
+    nullified before :func:`setup_tracing` reads the env.
+
+    When the public-repo build runs without baked secrets, this function is
+    a no-op and the OTel SDK stays in its default off state — exactly the
+    behaviour we want for development.
+    """
+    try:
+        from config import _telemetry_secrets as secrets
+    except ImportError:
+        # Public-repo build with no secrets file — telemetry not enforced.
+        # Dev / tests skip the entire OTel pipeline by default.
+        return
+
+    endpoint = (getattr(secrets, "ENDPOINT", "") or "").strip()
+    auth = (getattr(secrets, "AUTH_HEADER", "") or "").strip()
+    if not endpoint:
+        # Secrets file present but empty (e.g. maintainer's local dev) —
+        # treat same as missing file.
+        return
+
+    # Unconditional overwrite: end users cannot point telemetry elsewhere
+    # by pre-setting these env vars in their shell, docker-compose, or .env.
+    os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = endpoint
+    if auth:
+        # OTel SDK reads the header as ``Key=Value,Key=Value``.
+        os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization={auth}"
+    # ``OTEL_SDK_DISABLED=true`` would short-circuit setup_tracing before it
+    # touches our forced endpoint. Strip it so the off-switch can't be used
+    # against a production build.
+    os.environ.pop("OTEL_SDK_DISABLED", None)
+    # Same logic for the per-signal opt-outs.
+    for _signal in ("METRICS", "TRACES", "LOGS"):
+        os.environ.pop(f"OTEL_{_signal}_EXPORTER", None)
 
 
 def bootstrap_runtime_observability(
@@ -15,8 +62,15 @@ def bootstrap_runtime_observability(
     """Load process env and attach stdout + optional OTel telemetry + Pyroscope profiling."""
     load_env_once()
     setup_stdout_logging()
+    # Inject baked-in OTLP creds *before* setup_tracing — that function reads
+    # ``OTEL_EXPORTER_OTLP_ENDPOINT`` and bails out (no-op tracer) when empty.
+    _apply_baked_telemetry_secrets()
     setup_tracing(component, instance_id=instance_id)
     setup_otel_logging(component, instance_id=instance_id)
+    # The user-facing telemetry gauges live in the MeterProvider that
+    # ``setup_tracing`` just installed (or didn't, in which case they
+    # silently no-op).
+    setup_telemetry_metrics()
     # Profiling runs last so :func:`setup_profiling` can see the active
     # TracerProvider and wire pyroscope-otel's span processor onto it.
     setup_profiling(component, instance_id=instance_id)

@@ -8,6 +8,7 @@ import time
 from contextlib import suppress as _suppress
 from dataclasses import dataclass
 
+from config import telemetry
 from config.loader import InstanceConfig, get_settings, load_settings, set_settings
 from config.runtime_bootstrap import (
     bootstrap_runtime_observability,
@@ -206,6 +207,10 @@ class Supervisor:
                     # Still in backoff window — keep checking other processes.
                     continue
                 tracker.restart_at = 0.0
+                # Increment the restart counter *before* re-spawning so the
+                # metric reflects the decision to restart even if the spawn
+                # itself fails. ``attempt`` is the count for this restart wave.
+                telemetry.report_restart(name, attempt=tracker.attempt)
                 if name == "scheduler":
                     self._processes["scheduler"] = self._spawn_scheduler()
                 else:
@@ -247,6 +252,7 @@ def _enforce_license_gate() -> None:
     Runs before any subprocess is spawned so a missing license fails fast
     with a single clear error instead of cascading through child crashes.
     """
+    fingerprint = generate_fingerprint()
     try:
         claims = load_license()
     except LicenseError as exc:
@@ -259,8 +265,15 @@ def _enforce_license_gate() -> None:
             "Drop a license file via the UI (/license) or set WOS_LICENSE. "
             "This host's fingerprint is: %s",
             exc.reason,
-            generate_fingerprint(),
+            fingerprint,
         )
+        # Telemetry still works here — the meter provider is up regardless of
+        # license state, and this counter is the only signal we get for
+        # "user tried to start without a valid license". Stash the fingerprint
+        # so the counter's label has *something* even though no LicenseClaims
+        # exist yet.
+        telemetry._state["host_fingerprint"] = fingerprint
+        telemetry.report_license_gate_failure(exc.code)
         raise SystemExit(78) from exc  # EX_CONFIG — config-level refusal
     days_left = claims.days_until_expiry()
     if days_left is not None and days_left < 7:
@@ -273,6 +286,9 @@ def _enforce_license_gate() -> None:
             "license OK (sub=%s, tier=%s, expires_in=%.1fd)",
             claims.sub, claims.tier, days_left if days_left is not None else float("inf"),
         )
+    # Bind the validated claims so heartbeat / uptime / workers_active
+    # observations carry user-identifying attributes.
+    telemetry.bind_license_claims(claims, host_fingerprint=fingerprint)
 
 
 def main() -> None:
@@ -282,6 +298,9 @@ def main() -> None:
     _enforce_license_gate()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
+    # The ``wos.workers.active`` gauge needs to peek at the supervisor's
+    # process table — bind it here so the callback finds it.
+    telemetry.bind_supervisor(supervisor)
     try:
         supervisor.run()
     finally:
