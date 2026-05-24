@@ -21,7 +21,10 @@ from config.loader import load_settings
 from config.paths import repo_root
 
 _REPO = repo_root()
-_SETTINGS = _REPO / "src" / "config" / "settings.yaml"
+# Display-only label. The settings used to live in ``src/config/settings.yaml``;
+# they're now baked into :mod:`config._settings_data` so the UI just shows where
+# the *historical* file lived (the dashboard's ADB page renders this as info).
+_SETTINGS_DISPLAY = "src/config/_settings_data.py"
 _DEVICES_DB_REL = "db/state/wos.db"
 
 
@@ -76,7 +79,7 @@ def get_adb_status() -> dict[str, Any]:
     return {
         "adb_executable": adb_exe,
         "devices_yaml": _DEVICES_DB_REL,
-        "settings_yaml": str(_SETTINGS.relative_to(_REPO)),
+        "settings_yaml": _SETTINGS_DISPLAY,
         "configured": configured,
         "live_devices": live,
         "scan_error": scan_error,

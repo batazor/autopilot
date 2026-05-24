@@ -32,15 +32,3 @@ def src_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def balance_config_dir(repo_root_path: Path | None = None) -> Path:
-    """``src/config/balance/`` (solver weights, profiles, hero meta)."""
-    root = (repo_root_path or repo_root()).resolve()
-    src_balance = root / "src" / "config" / "balance"
-    if src_balance.is_dir():
-        return src_balance
-    legacy = root / "config" / "balance"
-    if legacy.is_dir():
-        return legacy
-    return src_root() / "config" / "balance"
-
-

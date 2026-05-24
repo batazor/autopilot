@@ -1,24 +1,17 @@
-"""Load ``config/balance/*.yaml`` into one bundle the scorer/candidate
-generator can pass around without re-reading disk."""
+"""Bundle the scorer/candidate generator's static priors into one frozen object.
+
+Values come from :mod:`config.balance._data` (baked-in Python). The legacy
+``config/balance/*.yaml`` files were folded into that module so Nuitka can
+compile them into ``config.so`` — see the module docstring for details.
+"""
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-import yaml
-
-from config.paths import balance_config_dir
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-
-def _load_yaml(path: Path) -> dict[str, Any]:
-    if not path.is_file():
-        return {}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return raw if isinstance(raw, dict) else {}
+from config.balance._data import COST_TABLES, DEFAULTS, HERO_META, PROFILES
 
 
 @dataclass(frozen=True)
@@ -54,11 +47,12 @@ class BalanceContext:
 
 @lru_cache(maxsize=1)
 def load_balance_context() -> BalanceContext:
-    base = balance_config_dir()
-    defaults = _load_yaml(base / "defaults.yaml")
-    profiles_doc = _load_yaml(base / "profiles.yaml")
-    hero_meta = _load_yaml(base / "hero_meta.yaml")
-    cost_tables = _load_yaml(base / "cost_tables.yaml")
+    # ``deepcopy`` so downstream mutation can't corrupt the baked-in module
+    # globals (older callers occasionally pop / merge into the returned dicts).
+    defaults = copy.deepcopy(DEFAULTS)
+    profiles_doc = copy.deepcopy(PROFILES)
+    hero_meta = copy.deepcopy(HERO_META)
+    cost_tables = copy.deepcopy(COST_TABLES)
 
     profiles = dict(profiles_doc.get("profiles") or {})
     active = str(profiles_doc.get("active") or "").strip()

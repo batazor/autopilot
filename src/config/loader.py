@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import copy
 import os
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path  # noqa: TC003 — kept for the legacy ``path`` argument signature
 
-import yaml
-
+from config._settings_data import SETTINGS as _BAKED_SETTINGS
 from config.device_display import DeviceDisplayConfig, parse_device_display
 
 
@@ -104,9 +104,12 @@ def load_settings(path: Path | None = None) -> Settings:
     from config.env_loader import load_env_once
 
     load_env_once()
-    if path is None:
-        path = Path(__file__).parent / "settings.yaml"
-    raw = yaml.safe_load(path.read_text()) or {}
+    # ``path`` was a YAML override; kept in the signature for backward compat
+    # with tests but ignored. The defaults are baked into ``_settings_data`` so
+    # they ship inside the compiled ``config.so`` (Nuitka). Env-var overrides
+    # below remain the only runtime knob.
+    del path  # documented unused
+    raw = copy.deepcopy(_BAKED_SETTINGS)
 
     redis_raw = dict(raw.get("redis") or {})
     if redis_url := _env_value("WOS_REDIS_URL"):
