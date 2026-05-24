@@ -61,7 +61,7 @@ jobs:
         # Only push on push events / tags. PRs from forks can't read packages:write
         # anyway, so skip the login + push for them.
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
