@@ -9,7 +9,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def test_devices_default_to_quartz_screenshot_backend(tmp_path: Path) -> None:
+def test_devices_default_to_empty_screenshot_backend(tmp_path: Path) -> None:
+    """Empty marker = smart default (physical → minicap, emulator → quartz)
+    is chosen later by the dispatcher in bot_actions."""
     path = tmp_path / "devices.yaml"
     path.write_text(
         """
@@ -23,9 +25,27 @@ devices:
 
     registry = load_devices(path)
 
-    assert registry.devices[0].screenshot_backend == "quartz"
+    assert registry.devices[0].screenshot_backend == ""
     assert registry.devices[0].quartz_window_id is None
     assert registry.devices[0].quartz_crop is None
+
+
+def test_devices_parse_minicap_screenshot_backend(tmp_path: Path) -> None:
+    path = tmp_path / "devices.yaml"
+    path.write_text(
+        """
+devices:
+  - name: phone
+    adb_serial: RF8RC00M8MF
+    screenshot_backend: minicap
+    profiles: []
+""",
+        encoding="utf-8",
+    )
+
+    registry = load_devices(path)
+
+    assert registry.devices[0].screenshot_backend == "minicap"
 
 
 def test_devices_parse_explicit_screenshot_backend_and_quartz_hints(tmp_path: Path) -> None:

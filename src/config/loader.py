@@ -13,7 +13,11 @@ from config.device_display import DeviceDisplayConfig, parse_device_display
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
-    screenshot_backend: str = "quartz"
+    # Empty string = smart default (physical → minicap, emulator → quartz);
+    # set explicitly via devices.yaml to override.
+    screenshot_backend: str = ""
+    # Empty = smart default (physical → minitouch, emulator → adb).
+    input_backend: str = ""
     quartz_window_id: int | None = None
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
@@ -140,6 +144,7 @@ def load_settings(path: Path | None = None) -> Settings:
             instance_id=d.name,
             bluestacks_window_title=d.effective_serial,
             screenshot_backend=d.screenshot_backend,
+            input_backend=d.input_backend,
             quartz_window_id=d.quartz_window_id,
             quartz_window_title=d.quartz_window_title,
             quartz_crop=d.quartz_crop,

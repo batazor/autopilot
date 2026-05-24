@@ -2,22 +2,90 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { fetchAdbStatus, resetAdbDeviceDisplay } from "@/lib/api";
+import {
+  fetchAdbStatus,
+  fetchMinicapStatus,
+  fetchMinitouchStatus,
+  installMinicap,
+  installMinitouch,
+  resetAdbDeviceDisplay,
+  updateDeviceBackend,
+} from "@/lib/api";
+import type { MinicapStatus, MinitouchStatus } from "@/lib/config-pages";
+
+type CellEntry<T> = T | { error: string } | undefined;
+
+function renderBinaryCell(entry: CellEntry<MinicapStatus | MinitouchStatus>) {
+  if (entry === undefined) return <span className="muted">checking…</span>;
+  if ("error" in entry) {
+    return (
+      <span className="error-text" title={entry.error}>
+        error
+      </span>
+    );
+  }
+  const detail = [entry.abi, entry.sdk ? `android-${entry.sdk}` : null]
+    .filter(Boolean)
+    .join(" · ");
+  if (entry.installed) {
+    return (
+      <span className="success-text">
+        installed{detail && ` · ${detail}`}
+      </span>
+    );
+  }
+  return (
+    <span className="muted" title={entry.last_error ?? "missing"}>
+      not installed{detail && ` · ${detail}`}
+    </span>
+  );
+}
 
 export default function AdbPage() {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof fetchAdbStatus>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [resettingSerial, setResettingSerial] = useState<string | null>(null);
+  const [minicap, setMinicap] = useState<Record<string, CellEntry<MinicapStatus>>>({});
+  const [minitouch, setMinitouch] = useState<Record<string, CellEntry<MinitouchStatus>>>({});
+  const [installingMinicap, setInstallingMinicap] = useState<string | null>(null);
+  const [installingMinitouch, setInstallingMinitouch] = useState<string | null>(null);
+
+  const loadProbes = useCallback(async (serials: string[]) => {
+    const [capResults, touchResults] = await Promise.all([
+      Promise.all(
+        serials.map(async (serial) => {
+          try {
+            return [serial, await fetchMinicapStatus(serial)] as const;
+          } catch (e) {
+            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
+          }
+        }),
+      ),
+      Promise.all(
+        serials.map(async (serial) => {
+          try {
+            return [serial, await fetchMinitouchStatus(serial)] as const;
+          } catch (e) {
+            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
+          }
+        }),
+      ),
+    ]);
+    setMinicap(Object.fromEntries(capResults));
+    setMinitouch(Object.fromEntries(touchResults));
+  }, []);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      setStatus(await fetchAdbStatus());
+      const s = await fetchAdbStatus();
+      setStatus(s);
+      void loadProbes(s.live_devices.map((d) => d.serial));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [loadProbes]);
 
   useEffect(() => {
     load();
@@ -43,12 +111,87 @@ export default function AdbPage() {
     }
   };
 
+  const onInstallMinicap = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setInstallingMinicap(serial);
+    try {
+      const out = await installMinicap(serial);
+      if (out.installed) {
+        setSuccess(`Minicap installed on ${serial} (${out.abi} / android-${out.sdk})`);
+      } else {
+        setError(`Minicap install on ${serial} failed: ${out.last_error ?? "unknown error"}`);
+      }
+      setMinicap((prev) => ({ ...prev, [serial]: out }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInstallingMinicap(null);
+    }
+  };
+
+  const onInstallMinitouch = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setInstallingMinitouch(serial);
+    try {
+      const out = await installMinitouch(serial);
+      if (out.installed) {
+        setSuccess(`Minitouch installed on ${serial} (${out.abi})`);
+      } else {
+        setError(`Minitouch install on ${serial} failed: ${out.last_error ?? "unknown error"}`);
+      }
+      setMinitouch((prev) => ({ ...prev, [serial]: out }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInstallingMinitouch(null);
+    }
+  };
+
+  const [savingBackend, setSavingBackend] = useState<string | null>(null);
+
+  const onBackendChange = async (
+    serial: string,
+    field: "screenshot_backend" | "input_backend",
+    value: string,
+  ) => {
+    setError(null);
+    setSuccess(null);
+    setSavingBackend(`${serial}:${field}`);
+    try {
+      const out = await updateDeviceBackend(serial, { [field]: value });
+      const label = field === "screenshot_backend" ? "screen capture" : "input";
+      const shown = value || "auto";
+      setSuccess(
+        out.restart_required
+          ? `${label} backend on ${serial} → ${shown}. Restart the bot to apply.`
+          : `${label} backend on ${serial} → ${shown}`,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingBackend(null);
+    }
+  };
+
+  const busy =
+    installingMinicap !== null ||
+    installingMinitouch !== null ||
+    resettingSerial !== null ||
+    savingBackend !== null;
+
   return (
     <>
       <PageHeader title="ADB">
         <p className="muted">
           Configured devices vs live adb scan. Reset display clears{" "}
           <code>wm size</code> / <code>wm density</code> overrides on the device.
+          {" "}<strong>Minicap</strong> = fast screen capture (~15-40 ms/frame; physical → minicap by default, emulator → quartz).
+          {" "}<strong>Minitouch</strong> = fast taps/swipes (~5-20 ms each), but needs <code>/dev/input</code> access
+          (rooted devices or accessible emulators only) — input defaults to <code>adb</code> for universal compatibility;
+          set <code>input_backend: minitouch</code> in <code>devices.yaml</code> to opt in.
         </p>
       </PageHeader>
       <div className="toolbar">
@@ -76,6 +219,8 @@ export default function AdbPage() {
                     <th>ADB serial</th>
                     <th>Instance</th>
                     <th>Window title</th>
+                    <th>Capture</th>
+                    <th>Input</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -87,6 +232,33 @@ export default function AdbPage() {
                       </td>
                       <td>{d.instance_id || "—"}</td>
                       <td>{d.bluestacks_window_title || "—"}</td>
+                      <td>
+                        <select
+                          value={d.screenshot_backend}
+                          disabled={busy || !d.adb_serial}
+                          onChange={(e) =>
+                            onBackendChange(d.adb_serial, "screenshot_backend", e.target.value)
+                          }
+                        >
+                          <option value="">auto ({d.screenshot_backend_effective || "quartz"})</option>
+                          <option value="quartz">quartz</option>
+                          <option value="adb">adb</option>
+                          <option value="minicap">minicap</option>
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          value={d.input_backend}
+                          disabled={busy || !d.adb_serial}
+                          onChange={(e) =>
+                            onBackendChange(d.adb_serial, "input_backend", e.target.value)
+                          }
+                        >
+                          <option value="">auto (adb)</option>
+                          <option value="adb">adb</option>
+                          <option value="minitouch">minitouch</option>
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -101,31 +273,69 @@ export default function AdbPage() {
                   <tr>
                     <th>Serial</th>
                     <th>Line</th>
-                    <th>Display</th>
+                    <th>Minicap</th>
+                    <th>Minitouch</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {status.live_devices.map((d) => (
-                    <tr key={d.serial}>
-                      <td>
-                        <code>{d.serial}</code>
-                      </td>
-                      <td className="muted">{d.line}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          disabled={resettingSerial !== null}
-                          title="adb shell wm size reset && wm density reset"
-                          onClick={() => onResetDisplay(d.serial)}
-                        >
-                          {resettingSerial === d.serial
-                            ? "Resetting…"
-                            : "Reset screen"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {status.live_devices.map((d) => {
+                    const cap = minicap[d.serial];
+                    const touch = minitouch[d.serial];
+                    const capInstalled = cap && !("error" in cap) && cap.installed;
+                    const touchInstalled = touch && !("error" in touch) && touch.installed;
+                    return (
+                      <tr key={d.serial}>
+                        <td>
+                          <code>{d.serial}</code>
+                        </td>
+                        <td className="muted">{d.line}</td>
+                        <td>{renderBinaryCell(cap)}</td>
+                        <td>{renderBinaryCell(touch)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={busy}
+                            title="Download minicap prebuilt and push to /data/local/tmp"
+                            onClick={() => onInstallMinicap(d.serial)}
+                            style={{ marginRight: 6 }}
+                          >
+                            {installingMinicap === d.serial
+                              ? "Installing…"
+                              : capInstalled
+                                ? "Reinstall minicap"
+                                : "Install minicap"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={busy}
+                            title="Download minitouch prebuilt and push to /data/local/tmp"
+                            onClick={() => onInstallMinitouch(d.serial)}
+                            style={{ marginRight: 6 }}
+                          >
+                            {installingMinitouch === d.serial
+                              ? "Installing…"
+                              : touchInstalled
+                                ? "Reinstall minitouch"
+                                : "Install minitouch"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={busy}
+                            title="adb shell wm size reset && wm density reset"
+                            onClick={() => onResetDisplay(d.serial)}
+                          >
+                            {resettingSerial === d.serial
+                              ? "Resetting…"
+                              : "Reset screen"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

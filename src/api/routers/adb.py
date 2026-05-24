@@ -2,10 +2,18 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 from api.services import adb_api as svc
 
 router = APIRouter(prefix="/api/adb", tags=["adb"])
+
+
+class BackendUpdateBody(BaseModel):
+    """At least one field must be set. Empty string = remove override (auto)."""
+
+    screenshot_backend: str | None = None
+    input_backend: str | None = None
 
 
 @router.get("")
@@ -17,3 +25,41 @@ def get_status() -> dict[str, object]:
 def post_reset_device_display(serial: str) -> dict[str, object]:
     """Clear wm size/density overrides on the device (restore physical resolution)."""
     return svc.reset_device_display(serial)
+
+
+@router.get("/devices/{serial}/minicap")
+def get_minicap_status(serial: str) -> dict[str, object]:
+    """Return installed minicap binary/library state for ``serial``."""
+    return svc.get_minicap_status_for(serial)
+
+
+@router.post("/devices/{serial}/minicap/install")
+def post_install_minicap(serial: str) -> dict[str, object]:
+    """Download + push minicap prebuilts matching the device's ABI/SDK."""
+    return svc.install_minicap_for(serial)
+
+
+@router.get("/devices/{serial}/minitouch")
+def get_minitouch_status(serial: str) -> dict[str, object]:
+    """Return installed minitouch binary state for ``serial``."""
+    return svc.get_minitouch_status_for(serial)
+
+
+@router.post("/devices/{serial}/minitouch/install")
+def post_install_minitouch(serial: str) -> dict[str, object]:
+    """Download + push minitouch prebuilt matching the device's ABI."""
+    return svc.install_minitouch_for(serial)
+
+
+@router.post("/devices/{serial}/backend")
+def post_set_device_backend(serial: str, body: BackendUpdateBody) -> dict[str, object]:
+    """Rewrite devices.yaml to set/clear per-device screenshot_backend / input_backend.
+
+    Empty string clears the override (smart default); omit a field to leave it unchanged.
+    Running workers must be restarted to pick up the change.
+    """
+    return svc.set_device_backend(
+        serial,
+        screenshot_backend=body.screenshot_backend,
+        input_backend=body.input_backend,
+    )

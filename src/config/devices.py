@@ -52,7 +52,8 @@ class DeviceEntry:
     name: str
     profiles: tuple[DeviceProfile, ...]
     adb_serial: str = ""
-    screenshot_backend: str = "quartz"
+    screenshot_backend: str = ""
+    input_backend: str = ""
     quartz_window_id: int | None = None
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
@@ -142,6 +143,7 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
                 profiles=tuple(profiles),
                 adb_serial=str(d.get("adb_serial") or "").strip(),
                 screenshot_backend=_parse_screenshot_backend(d.get("screenshot_backend")),
+                input_backend=_parse_input_backend(d.get("input_backend")),
                 quartz_window_id=_parse_optional_int(d.get("quartz_window_id")),
                 quartz_window_title=str(d.get("quartz_window_title") or "").strip(),
                 quartz_crop=_parse_quartz_crop(d.get("quartz_crop")),
@@ -152,11 +154,22 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
 
 
 def _parse_screenshot_backend(raw: object) -> str:
-    backend = str(raw or "quartz").strip().lower()
-    if backend in {"quartz", "adb"}:
+    """Normalize the YAML value. Empty string is intentional: it lets the dispatcher
+    pick a smart default (physical device → minicap, emulator → quartz)."""
+    backend = str(raw or "").strip().lower()
+    if backend in {"", "quartz", "adb", "minicap"}:
         return backend
-    logger.warning("Unknown screenshot_backend=%r in devices.yaml; using quartz", raw)
-    return "quartz"
+    logger.warning("Unknown screenshot_backend=%r in devices.yaml; using auto", raw)
+    return ""
+
+
+def _parse_input_backend(raw: object) -> str:
+    """Normalize input_backend. Empty = smart default (physical → minitouch, emulator → adb)."""
+    backend = str(raw or "").strip().lower()
+    if backend in {"", "adb", "minitouch"}:
+        return backend
+    logger.warning("Unknown input_backend=%r in devices.yaml; using auto", raw)
+    return ""
 
 
 def _parse_optional_int(raw: object) -> int | None:

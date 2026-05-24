@@ -21,6 +21,8 @@ from adb.approvals import (
     _require_approval,
     click_approval_enabled,
 )
+from adb.minitouch import DEFAULT_PORT_BASE as _MINITOUCH_PORT_BASE
+from adb.minitouch import MinitouchClient
 from adb.screencap import (
     DEFAULT_ADB_BIN,
     MSG_ADB_NOT_FOUND,
@@ -72,6 +74,8 @@ class AdbController:
         device_serial: str,
         *,
         adb_bin: str = DEFAULT_ADB_BIN,
+        input_backend: str = "",
+        minitouch_port: int = _MINITOUCH_PORT_BASE,
     ) -> None:
         resolved = resolve_adb_executable(adb_bin)
         if resolved is None:
@@ -83,6 +87,15 @@ class AdbController:
         # ``True``/``False`` cached after the first ``input`` help dump.
         self._supports_motionevent: bool | None = None
         self._screen_resolution: tuple[int, int] | None = None
+        # Input backend. Default is "adb" (`adb shell input tap/swipe`) — universal,
+        # works on every device. Set ``input_backend: minitouch`` in devices.yaml
+        # to opt in on rooted devices / emulators where /dev/input is accessible.
+        # Any minitouch runtime failure flips back to "adb" for the rest of the
+        # session (sticky); minitouch is never used implicitly without opt-in.
+        explicit = (input_backend or "").strip().lower()
+        self._input_backend = explicit or "adb"
+        self._minitouch_port = minitouch_port
+        self._minitouch: MinitouchClient | None = None
         self._verify_available()
 
     def apply_display_config(
@@ -366,6 +379,94 @@ class AdbController:
     # Touch input — all with jitter to simulate natural fingers
     # ------------------------------------------------------------------
 
+    def _get_minitouch(self) -> MinitouchClient | None:
+        """Lazy-start a MinitouchClient when ``input_backend == 'minitouch'``.
+
+        Returns ``None`` and switches the backend to ``adb`` (sticky for the
+        session) on any failure — the caller should fall through to the
+        ``adb shell input`` path instead of raising.
+        """
+        if self._input_backend != "minitouch":
+            return None
+        if self._minitouch is not None and self._minitouch.is_alive():
+            return self._minitouch
+        try:
+            client = MinitouchClient(
+                serial=self._serial,
+                adb_bin=self._adb_exe,
+                port=self._minitouch_port,
+            )
+            client.start()
+        except Exception as exc:
+            logger.warning(
+                "minitouch failed for %s (%s) — falling back to `adb shell input` for this session",
+                self._serial, exc,
+            )
+            self._input_backend = "adb"
+            self._minitouch = None
+            return None
+        self._minitouch = client
+        return client
+
+    def _emit_tap(self, x: int, y: int) -> None:
+        """Send a single tap via minitouch when available, else `adb shell input tap`."""
+        mt = self._get_minitouch()
+        if mt is not None:
+            try:
+                mt.tap(x, y)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "minitouch tap failed on %s (%s) — falling back to adb shell input",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
+                with suppress(Exception):
+                    self._minitouch and self._minitouch.close()
+                self._minitouch = None
+        self._shell("input", "tap", str(x), str(y))
+
+    def _emit_long_press(self, x: int, y: int, ms: int) -> None:
+        mt = self._get_minitouch()
+        if mt is not None:
+            try:
+                mt.long_press(x, y, duration_ms=ms)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "minitouch long_press failed on %s (%s) — falling back",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
+                with suppress(Exception):
+                    self._minitouch and self._minitouch.close()
+                self._minitouch = None
+        # adb fallback: zero-distance `input swipe` is the standard long-press idiom.
+        self._shell("input", "swipe", str(x), str(y), str(x), str(y), str(ms))
+
+    def _emit_swipe_straight(
+        self, x1: int, y1: int, x2: int, y2: int, ms: int,
+    ) -> None:
+        """Straight swipe — minitouch when available, else `input touchscreen swipe`."""
+        mt = self._get_minitouch()
+        if mt is not None:
+            try:
+                mt.swipe(x1, y1, x2, y2, duration_ms=ms)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "minitouch swipe failed on %s (%s) — falling back",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
+                with suppress(Exception):
+                    self._minitouch and self._minitouch.close()
+                self._minitouch = None
+        self._shell(
+            "input", "touchscreen", "swipe",
+            str(x1), str(y1), str(x2), str(y2), str(ms),
+        )
+
     def tap(
         self,
         point: Point,
@@ -439,7 +540,7 @@ class AdbController:
                     self._refresh_rolling_preview()
                 return False
         with self._approval_execution(req_id):
-            self._shell("input", "tap", str(x), str(y))
+            self._emit_tap(x, y)
             logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
             self._refresh_rolling_preview()
         return True
@@ -614,15 +715,17 @@ class AdbController:
             self._refresh_rolling_preview()
             return True
         with self._approval_execution(req_id):
-            # Zero-distance swipe: prefer plain ``input swipe`` — ``touchscreen swipe`` often
-            # fails on emulators for press-and-hold at one pixel.
+            # When minitouch is active it handles both long-press (via the
+            # server-side ``w`` wait) and straight swipes directly. The curved
+            # ``motionevent`` chain only matters for the ADB path on emulators
+            # — minitouch's per-step ``m`` events already produce smooth motion.
             if is_long_press:
-                self._shell("input", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms))
+                self._emit_long_press(x1, y1, ms)
+            elif self._input_backend == "minitouch":
+                self._emit_swipe_straight(x1, y1, x2, y2, ms)
             elif not self._dispatch_curved_swipe(x1, y1, x2, y2, ms):
                 # motionevent unsupported or shell failed — straight fallback.
-                self._shell(
-                    "input", "touchscreen", "swipe", str(x1), str(y1), str(x2), str(y2), str(ms)
-                )
+                self._emit_swipe_straight(x1, y1, x2, y2, ms)
             logger.debug("Swipe (%d,%d)→(%d,%d) %dms on %s", x1, y1, x2, y2, ms, self._serial)
             time.sleep(_SWIPE_SETTLE_SECONDS)
             self._refresh_rolling_preview()

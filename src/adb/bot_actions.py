@@ -1,6 +1,7 @@
 """Instance-aware facade: instance_id → ADB serial → AdbController."""
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -8,9 +9,16 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from adb.controller import AdbController
-from adb.frame_normalize import GAME_FRAME_SIZE, normalized_point_to_source_point
+from adb.frame_normalize import (
+    GAME_FRAME_SIZE,
+    frame_normalize_transform_for_size,
+    normalized_point_to_source_point,
+)
+from adb.minicap import DEFAULT_PORT_BASE as _MINICAP_PORT_BASE
+from adb.minicap import MinicapClient
 from adb.quartz_screencap import quartz_screencap_bgr
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform
+from adb.serial import is_emulator_adb_serial
 from layout.types import Point
 from worker import frame_bus
 
@@ -52,14 +60,31 @@ class BotActions:
         self._await_next_frame: set[str] = set()
         self._FIRST_FRAME_TIMEOUT_S = _FIRST_FRAME_TIMEOUT_S
         self._NEXT_FRAME_TIMEOUT_S = _NEXT_FRAME_TIMEOUT_S
+        # Minicap (DeviceFarmer) clients: one persistent socket per instance.
+        # ``_minicap_fallback`` tracks instances where minicap startup failed
+        # so we don't retry every tick — they fall through to adb screencap.
+        self._minicap_clients: dict[str, MinicapClient] = {}
+        self._minicap_fallback: set[str] = set()
+        self._minicap_lock = threading.Lock()
 
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
-            serial = self._get_instance(instance_id).bluestacks_window_title
+            inst = self._get_instance(instance_id)
+            serial = inst.bluestacks_window_title
+            # Stable port per instance to avoid forward collisions across devices.
+            slot = next(
+                (i for i, x in enumerate(self._settings.instances)
+                 if x.instance_id == instance_id),
+                len(self._controllers),
+            )
+            from adb.minitouch import DEFAULT_PORT_BASE as _MT_PORT
+
             self._controllers[instance_id] = AdbController(
                 instance_id,
                 serial,
                 adb_bin=self._adb_bin(),
+                input_backend=inst.input_backend,
+                minitouch_port=_MT_PORT + slot,
             )
         return self._controllers[instance_id]
 
@@ -180,6 +205,64 @@ class BotActions:
             self._await_next_frame.discard(instance_id)
         return img
 
+    def _get_minicap_client(self, instance_id: str) -> MinicapClient:
+        """Lazy-start a persistent minicap client; one per instance, unique TCP port."""
+        with self._minicap_lock:
+            client = self._minicap_clients.get(instance_id)
+            if client is not None and client.is_alive():
+                return client
+            # Assign a stable port: base + slot index in settings.instances.
+            slot = next(
+                (i for i, inst in enumerate(self._settings.instances)
+                 if inst.instance_id == instance_id),
+                len(self._minicap_clients),
+            )
+            port = _MINICAP_PORT_BASE + slot
+            client = MinicapClient(
+                serial=self._get_serial(instance_id),
+                adb_bin=self._adb_bin(),
+                port=port,
+                target_size=GAME_FRAME_SIZE,
+            )
+            client.start()
+            self._minicap_clients[instance_id] = client
+            return client
+
+    def capture_screen_bgr_minicap(self, instance_id: str) -> np.ndarray:
+        """Capture via minicap JPEG stream. Falls back to ``capture_screen_bgr_adb`` on error."""
+        if instance_id in self._minicap_fallback:
+            return self.capture_screen_bgr_adb(instance_id)
+        img: np.ndarray | None = None
+        capture_err: str | None = None
+        try:
+            client = self._get_minicap_client(instance_id)
+            img, capture_err = client.capture(timeout_s=self._NEXT_FRAME_TIMEOUT_S)
+        except Exception as exc:
+            capture_err = str(exc)
+        if img is None:
+            logger.warning(
+                "minicap failed for %s (%s) — falling back to adb screencap for this session",
+                instance_id, capture_err or "no frame",
+            )
+            with self._minicap_lock:
+                self._minicap_fallback.add(instance_id)
+                stale = self._minicap_clients.pop(instance_id, None)
+            if stale is not None:
+                with contextlib.suppress(Exception):
+                    stale.close()
+            return self.capture_screen_bgr_adb(instance_id)
+        # Minicap delivers frames already at GAME_FRAME_SIZE (virtual P arg),
+        # so the transform is a 1:1 identity from the device's physical size.
+        transform = frame_normalize_transform_for_size(
+            (img.shape[1], img.shape[0]),
+            target_size=GAME_FRAME_SIZE,
+        )
+        frame_bus.publish(instance_id, img, transform=transform)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+            self._await_next_frame.discard(instance_id)
+        return img
+
     def capture_screen_bgr_direct(self, instance_id: str) -> np.ndarray:
         """Direct screenshot using the instance's configured backend.
 
@@ -188,9 +271,19 @@ class BotActions:
         keep making progress instead of stalling on host-window state.
         """
         inst = self._get_instance(instance_id)
-        backend = (inst.screenshot_backend or "quartz").strip().lower()
+        backend = (inst.screenshot_backend or "").strip().lower()
+        if not backend:
+            # Smart default: physical Android device → minicap (fast push stream),
+            # emulator / BlueStacks (localhost serial) → quartz (no USB hop).
+            backend = (
+                "quartz"
+                if is_emulator_adb_serial(self._get_serial(instance_id))
+                else "minicap"
+            )
         if backend == "adb":
             return self.capture_screen_bgr_adb(instance_id)
+        if backend == "minicap":
+            return self.capture_screen_bgr_minicap(instance_id)
         if backend != "quartz":
             logger.warning(
                 "Unknown screenshot backend %r for %s; using quartz",
