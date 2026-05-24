@@ -12,9 +12,9 @@ def normalize_overlay_action(rule: dict[str, Any]) -> str:
     action = str(rule.get("action") or "").strip()
     if action == "exist":
         action = "findIcon"
-    if rule.get("isRedDot") is True and action != "findIcon":
+    if rule.get("isRedDot") is True and action not in ("findIcon", "feature_match"):
         action = "red_dot"
-    elif rule.get("isRedDot") is False and action != "findIcon":
+    elif rule.get("isRedDot") is False and action not in ("findIcon", "feature_match"):
         action = "red_dot_absent"
     if rule.get("isTabActive") is True:
         action = "tab_active"
