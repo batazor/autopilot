@@ -76,6 +76,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/modules", label: "Modules" },
       { href: "/adb", label: "ADB" },
       { href: "/balance", label: "Balance" },
+      { href: "/license", label: "License" },
     ],
   },
 ];

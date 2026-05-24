@@ -1,0 +1,69 @@
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+import pytest
+
+from licensing.issue import issue_license
+from licensing.models import LicenseError
+from licensing.verify import verify_license
+
+
+def test_verify_happy_path(keypair_paths: object) -> None:
+    token, _ = issue_license(
+        sub="alice@example.com",
+        machine_id="ABCD-EFGH-IJKL-MNOP",
+        days=30,
+        tier="pro",
+        features=["heroes", "mail"],
+    )
+    claims = verify_license(token, expected_machine_id="ABCD-EFGH-IJKL-MNOP")
+    assert claims.sub == "alice@example.com"
+    assert claims.tier == "pro"
+    assert claims.features == ["heroes", "mail"]
+    assert claims.machine_id == "ABCD-EFGH-IJKL-MNOP"
+
+
+def test_verify_rejects_wrong_machine(keypair_paths: object) -> None:
+    token, _ = issue_license(
+        sub="alice@example.com", machine_id="AAAA-BBBB-CCCC-DDDD",
+    )
+    with pytest.raises(LicenseError) as exc_info:
+        verify_license(token, expected_machine_id="ZZZZ-YYYY-XXXX-WWWW")
+    assert exc_info.value.code == "machine_mismatch"
+
+
+def test_verify_rejects_expired(keypair_paths: object) -> None:
+    past = datetime.now(UTC) - timedelta(days=60)
+    token, _ = issue_license(
+        sub="alice@example.com",
+        machine_id="AAAA-BBBB-CCCC-DDDD",
+        days=30,
+        issued_at=past,
+    )
+    with pytest.raises(LicenseError) as exc_info:
+        verify_license(token)
+    assert exc_info.value.code == "expired"
+
+
+def test_verify_rejects_tampered_signature(keypair_paths: object) -> None:
+    token, _ = issue_license(sub="alice@example.com", machine_id="X")
+    # Flip a few bytes in the signature segment (last component of the JWT).
+    head, payload, sig = token.split(".")
+    bad = head + "." + payload + "." + ("A" * len(sig))
+    with pytest.raises(LicenseError) as exc_info:
+        verify_license(bad)
+    assert exc_info.value.code in {"bad_signature", "invalid"}
+
+
+def test_verify_empty_token(keypair_paths: object) -> None:
+    with pytest.raises(LicenseError) as exc_info:
+        verify_license("")
+    assert exc_info.value.code == "missing"
+
+
+def test_issue_requires_sub_and_machine(keypair_paths: object) -> None:
+    with pytest.raises(ValueError, match="sub"):
+        issue_license(sub="", machine_id="X")
+    with pytest.raises(ValueError, match="machine_id"):
+        issue_license(sub="x", machine_id="")

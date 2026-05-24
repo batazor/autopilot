@@ -106,11 +106,23 @@ services:
       # Host's adb server, untouched (default loopback bind is fine because
       # the container shares the host's lo).
       ADB_SERVER_SOCKET: tcp:127.0.0.1:5037
+      # ``WOS_LICENSE`` env var still works as an override (CI / power users)
+      # but the primary distribution path is a license file in
+      # ``./license-data/wos-license.json`` (mounted below).
+      WOS_LICENSE: ${WOS_LICENSE:-}
     volumes:
       - ${WOS_REPO:-.}/area.json:/app/area.json
       - ${WOS_REPO:-.}/references:/app/references
       - ${WOS_REPO:-.}/db:/app/db
       - redis_socket:/var/run/redis
+      # License file lives here. The directory mount (not file mount) lets the
+      # API container write to it via the /api/license/import endpoint and lets
+      # the user drop the file in manually before first boot.
+      - ${WOS_REPO:-.}/license-data:/app/license-data
+      # Stable per-host id for license binding. Mounted :ro so the container
+      # observes the same value across rebuilds. Falls back to MAC+hostname
+      # if the file is absent (e.g. on platforms without systemd).
+      - /etc/machine-id:/etc/machine-id:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "ps aux | grep -q '[w]orker.supervisor' || exit 1"]
@@ -131,11 +143,18 @@ services:
       WOS_REDIS_URL: unix:///var/run/redis/redis.sock?db=0
       WOS_API_HOST: 0.0.0.0
       WOS_API_PORT: "8765"
+      # Same license-file path as ``bot`` (mounted below). ``WOS_LICENSE`` is
+      # still honored as an env override. ``WOS_ADMIN_TOKEN`` is only set in
+      # the maintainer's environment — without it, the issuer endpoint 403s.
+      WOS_LICENSE: ${WOS_LICENSE:-}
+      WOS_ADMIN_TOKEN: ${WOS_ADMIN_TOKEN:-}
     volumes:
       - ${WOS_REPO:-.}/area.json:/app/area.json
       - ${WOS_REPO:-.}/references:/app/references
       - ${WOS_REPO:-.}/db:/app/db
       - redis_socket:/var/run/redis
+      - ${WOS_REPO:-.}/license-data:/app/license-data
+      - /etc/machine-id:/etc/machine-id:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8765/health"]

@@ -1,6 +1,11 @@
 import type {
   AdbResetDisplayResult,
   AdbStatus,
+  MinicapStatus,
+  MinicapInstallResult,
+  MinitouchStatus,
+  MinitouchInstallResult,
+  DeviceBackendUpdate,
   AnalyzeIssue,
   BalanceFileMeta,
   OptimizerMeta,
@@ -9,6 +14,11 @@ import type {
   ScenarioFileEntry,
   ScenarioTreeNode,
   GalleryItem,
+  LicenseFingerprint,
+  LicenseImportResult,
+  LicenseIssueRequest,
+  LicenseIssueResult,
+  LicenseStatus,
   ModuleRow,
   PlayerAssignment,
   ScenarioRow,
@@ -913,6 +923,46 @@ export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDis
   );
 }
 
+export async function fetchMinicapStatus(serial: string): Promise<MinicapStatus> {
+  return apiFetch<MinicapStatus>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/minicap`,
+  );
+}
+
+export async function installMinicap(serial: string): Promise<MinicapInstallResult> {
+  return apiFetch<MinicapInstallResult>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/minicap/install`,
+    { method: "POST" },
+  );
+}
+
+export async function fetchMinitouchStatus(serial: string): Promise<MinitouchStatus> {
+  return apiFetch<MinitouchStatus>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/minitouch`,
+  );
+}
+
+export async function installMinitouch(serial: string): Promise<MinitouchInstallResult> {
+  return apiFetch<MinitouchInstallResult>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/minitouch/install`,
+    { method: "POST" },
+  );
+}
+
+export async function updateDeviceBackend(
+  serial: string,
+  body: { screenshot_backend?: string; input_backend?: string },
+): Promise<DeviceBackendUpdate> {
+  return apiFetch<DeviceBackendUpdate>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/backend`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
 export async function runDebugScenario(body: {
   instance_id: string;
   scenario_key: string;
@@ -1091,5 +1141,39 @@ export async function createEditDslFile(body: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLicenseFingerprint(): Promise<LicenseFingerprint> {
+  return apiFetch<LicenseFingerprint>("/api/license/fingerprint");
+}
+
+export async function fetchLicenseStatus(): Promise<LicenseStatus> {
+  return apiFetch<LicenseStatus>("/api/license/status");
+}
+
+export async function issueLicense(
+  body: LicenseIssueRequest,
+  adminToken: string,
+): Promise<LicenseIssueResult> {
+  return apiFetch<LicenseIssueResult>("/api/license/issue", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Token": adminToken,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function importLicenseFile(
+  file: File,
+): Promise<LicenseImportResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  // Don't set Content-Type — the browser fills in multipart boundary automatically.
+  return apiFetch<LicenseImportResult>("/api/license/import", {
+    method: "POST",
+    body: fd,
   });
 }

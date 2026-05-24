@@ -14,6 +14,7 @@ from config.runtime_bootstrap import (
     shutdown_runtime_observability,
 )
 from config.startup_validation import assert_startup_configs_valid
+from licensing import LicenseError, generate_fingerprint, load_license
 from worker.restart_backoff import compute_restart_delay
 
 logger = logging.getLogger(__name__)
@@ -240,10 +241,45 @@ class Supervisor:
         return None
 
 
+def _enforce_license_gate() -> None:
+    """Refuse to start workers without a valid license bound to this host.
+
+    Runs before any subprocess is spawned so a missing license fails fast
+    with a single clear error instead of cascading through child crashes.
+    """
+    try:
+        claims = load_license()
+    except LicenseError as exc:
+        # Not using ``logger.exception`` here — the LicenseError's full
+        # context is captured in ``exc.reason`` and the fingerprint hint
+        # below. A stack trace would just be noise for users on the
+        # config-level refusal path.
+        logger.error(  # noqa: TRY400
+            "license gate: refusing to start (%s). "
+            "Drop a license file via the UI (/license) or set WOS_LICENSE. "
+            "This host's fingerprint is: %s",
+            exc.reason,
+            generate_fingerprint(),
+        )
+        raise SystemExit(78) from exc  # EX_CONFIG — config-level refusal
+    days_left = claims.days_until_expiry()
+    if days_left is not None and days_left < 7:
+        logger.warning(
+            "license expires in %.1f day(s) (sub=%s, tier=%s) — request a renewal",
+            days_left, claims.sub, claims.tier,
+        )
+    else:
+        logger.info(
+            "license OK (sub=%s, tier=%s, expires_in=%.1fd)",
+            claims.sub, claims.tier, days_left if days_left is not None else float("inf"),
+        )
+
+
 def main() -> None:
     bootstrap_runtime_observability("supervisor")
     set_settings(load_settings())
     assert_startup_configs_valid()
+    _enforce_license_gate()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     try:

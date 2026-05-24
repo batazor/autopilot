@@ -31,6 +31,7 @@ dependencies = [
     "pyroscope-otel>=0.4",
     "fastapi>=0.111",
     "uvicorn[standard]>=0.46.0",
+    "pyjwt[crypto]>=2.9",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,8 @@ play = "worker.launch:main"
 bot = "worker.supervisor:main"
 mcp = "wos_mcp.server:main"
 api = "api.main:main"
+issue-license = "licensing.cli:main"
+gen-license-keypair = "licensing.keypair_cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -96,6 +99,7 @@ packages = [
     "src/worker",
     "src/wos_mcp",
     "src/api",
+    "src/licensing",
 ]
 
 [tool.ruff]

@@ -104,6 +104,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     routes,
     wiki,
 )
+from api.routers import license as license_routes  # noqa: E402 — ``license`` is a builtin, alias to avoid shadowing
 
 
 @asynccontextmanager
@@ -148,6 +149,7 @@ app.include_router(dev_bot.router)
 app.include_router(balance.router)
 app.include_router(optimizer.router)
 app.include_router(edit_dsl.router)
+app.include_router(license_routes.router)
 
 
 @app.get("/health")
