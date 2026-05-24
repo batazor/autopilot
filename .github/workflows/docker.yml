@@ -69,7 +69,7 @@ jobs:
 
       - name: Compute image metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           # ``github.repository`` is ``owner/repo``; nested path keeps the two
           # services tidy under one repo's package namespace.
