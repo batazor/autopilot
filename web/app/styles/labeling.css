@@ -161,6 +161,23 @@
     @apply mt-1 block w-full rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm;
   }
 
+  .labeling-crop-preview {
+    @apply flex flex-col gap-1;
+  }
+
+  .labeling-crop-preview__img {
+    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input bg-center;
+    image-rendering: pixelated;
+  }
+
+  .labeling-crop-preview__caption {
+    @apply text-center;
+  }
+
+  .labeling-crop-preview__empty {
+    @apply rounded-lg border border-dashed border-wos-border-subtle px-3 py-4 text-center;
+  }
+
   .labeling-check {
     @apply flex items-center gap-2;
   }

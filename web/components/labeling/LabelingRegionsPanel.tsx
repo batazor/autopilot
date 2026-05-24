@@ -2,26 +2,58 @@
 
 import { useMemo, useState } from "react";
 import { AppCheckbox, AppListbox } from "@/components/headless";
+import { labelingImageUrl } from "@/lib/api";
 import { defaultRegion } from "@/lib/labeling-utils";
-import type { EditorRegion } from "@/lib/bbox";
+import type { EditorRegion, PercentBBox } from "@/lib/bbox";
 
 const ACTIONS = ["exist", "text", "color_check", "click"] as const;
 const OCR_TYPES = ["integer", "string", "boolean", "time"] as const;
 const COLOR_TYPES = ["red", "blue", "gray", "green"] as const;
 
+const CROP_PREVIEW_MAX_HEIGHT = 220;
+
 type Props = {
   regions: EditorRegion[];
   selectedId: string | null;
   activeVersion: string | null;
+  refRel?: string | null;
+  imageNonce?: number | string;
   onSelect: (id: string | null) => void;
   onRegionsChange: (regions: EditorRegion[]) => void;
   onDirty: () => void;
 };
 
+function cropPreviewStyle(
+  bbox: PercentBBox,
+  imageUrl: string,
+): React.CSSProperties | null {
+  const w = bbox.width;
+  const h = bbox.height;
+  if (!(w > 0) || !(h > 0) || w >= 100 || h >= 100) return null;
+  const bgW = (100 / w) * 100;
+  const bgH = (100 / h) * 100;
+  const posX = (bbox.x * 100) / (100 - w);
+  const posY = (bbox.y * 100) / (100 - h);
+  const aspect =
+    bbox.original_width > 0 && bbox.original_height > 0
+      ? (w * bbox.original_width) / (h * bbox.original_height)
+      : w / h;
+  return {
+    backgroundImage: `url("${imageUrl}")`,
+    backgroundSize: `${bgW}% ${bgH}%`,
+    backgroundPosition: `${posX}% ${posY}%`,
+    backgroundRepeat: "no-repeat",
+    aspectRatio: `${aspect}`,
+    maxHeight: `${CROP_PREVIEW_MAX_HEIGHT}px`,
+  };
+}
+
 export function LabelingRegionsPanel({
   regions,
   selectedId,
   activeVersion,
+  refRel,
+  imageNonce,
   onSelect,
   onRegionsChange,
   onDirty,
@@ -30,6 +62,12 @@ export function LabelingRegionsPanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const selected = regions.find((r) => r.id === selectedId) ?? null;
+
+  const cropStyle = useMemo(() => {
+    if (!selected || !refRel) return null;
+    const url = labelingImageUrl(refRel, imageNonce);
+    return cropPreviewStyle(selected.bbox, url);
+  }, [selected, refRel, imageNonce]);
 
   const visible = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -122,6 +160,21 @@ export function LabelingRegionsPanel({
 
         {selected ? (
           <div className="labeling-region-form">
+            {cropStyle ? (
+              <div className="labeling-crop-preview" aria-label="Crop preview">
+                <div className="labeling-crop-preview__img" style={cropStyle} />
+                <span className="meta labeling-crop-preview__caption">
+                  {Math.round((selected.bbox.width * selected.bbox.original_width) / 100)}
+                  ×
+                  {Math.round((selected.bbox.height * selected.bbox.original_height) / 100)}
+                  {" px"}
+                </span>
+              </div>
+            ) : refRel && selected ? (
+              <p className="meta labeling-crop-preview__empty">
+                Draw a region to see the crop preview.
+              </p>
+            ) : null}
             <label className="meta">
               name
               <input

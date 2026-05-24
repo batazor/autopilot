@@ -737,6 +737,8 @@ function LabelingPageInner() {
               regions={regions}
               selectedId={selectedId}
               activeVersion={activeVersion}
+              refRel={refRel || null}
+              imageNonce={imageNonce}
               onSelect={setSelectedId}
               onRegionsChange={setRegions}
               onDirty={() => setDirty(true)}
