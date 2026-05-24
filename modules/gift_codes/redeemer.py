@@ -17,16 +17,19 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-import yaml
-
 from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
 from config.devices import load_devices
-from modules.gift_codes.models import GiftCodeDB, RedeemStatus, gift_db_to_yaml_dict
+from config.giftcodes_db import (
+    list_codes,
+    set_redemption,
+    set_redemption_bulk,
+    upsert_code,
+)
+from modules.gift_codes.models import RedeemStatus
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +60,7 @@ def _is_too_frequent_error(exc: BaseException) -> bool:
 # default executor is shut down (Ctrl+C) while a coroutine is mid-``getaddrinfo`` /
 # ``connect_tcp``, the network call surfaces as a normal ``RuntimeError``. Without
 # special-casing it, the broad ``except Exception`` arms below mark the code as
-# FAILED in ``db/giftCodes.yaml`` — sticky pollution from what was just a clean exit.
+# FAILED in the gift_codes table — sticky pollution from what was just a clean exit.
 _SHUTDOWN_ERROR_MARKERS = (
     "cannot schedule new futures after shutdown",
     "event loop is closed",
@@ -132,9 +135,7 @@ def _ec_to_status(ec: ErrCode) -> RedeemStatus:
 
 
 class GiftCodeRedeemer:
-    def __init__(self, codes_path: Path, devices_path: Path) -> None:
-        self._codes_path = codes_path
-        self._devices_path = devices_path
+    def __init__(self) -> None:
         self._client = CenturyClient()
 
     # ------------------------------------------------------------------
@@ -146,13 +147,13 @@ class GiftCodeRedeemer:
         progress_cb: Callable[[int, int, str], None] | None = None,
     ) -> GiftRedeemSummary:
         summary = GiftRedeemSummary()
-        db = self._load_codes()
-        registry = load_devices(self._devices_path)
+        codes = list_codes()
+        registry = load_devices()
         all_player_ids = registry.all_player_ids()
 
         total_work = sum(
             1
-            for code in db.codes
+            for code in codes
             if not code.is_effectively_expired()
             for pid in all_player_ids
             if code.needs_redemption(pid)
@@ -161,7 +162,7 @@ class GiftCodeRedeemer:
         if progress_cb is not None:
             progress_cb(0, total_work, "starting")
 
-        for code in db.codes:
+        for code in codes:
             if code.is_effectively_expired():
                 logger.info("Skipping expired or API-dead code: %s", code.name)
                 continue
@@ -186,8 +187,12 @@ class GiftCodeRedeemer:
                 if api_ec is not None:
                     code.last_api_err_code = api_ec
                     code.last_api_msg = api_msg or None
+                    upsert_code(code.name, last_api_err_code=api_ec, last_api_msg=api_msg or "")
 
                 if status in (RedeemStatus.CDK_EXPIRED, RedeemStatus.CDK_NOT_FOUND):
+                    # Code is globally dead — stamp every known player with the
+                    # terminal status so future runs skip the whole code instantly.
+                    set_redemption_bulk(code.name, all_player_ids, status)
                     for pid in all_player_ids:
                         code.user_for[pid] = status
                         gamer = registry.get_gamer(pid)
@@ -203,6 +208,7 @@ class GiftCodeRedeemer:
                             )
                         )
                 else:
+                    set_redemption(code.name, player_id, status)
                     code.user_for[player_id] = status
                     gamer = registry.get_gamer(player_id)
                     summary.add(
@@ -216,7 +222,6 @@ class GiftCodeRedeemer:
                             api_msg=api_msg,
                         )
                     )
-                self._save_codes(db)
 
                 gamer = registry.get_gamer(player_id)
                 nick = gamer.nickname if gamer else player_id
@@ -298,39 +303,13 @@ class GiftCodeRedeemer:
 
         return RedeemStatus.FAILED, None, None
 
-    # ------------------------------------------------------------------
-    # YAML I/O
-    # ------------------------------------------------------------------
-
-    def _load_codes(self) -> GiftCodeDB:
-        raw = yaml.safe_load(self._codes_path.read_text()) or {}
-        db = GiftCodeDB.model_validate(raw)
-        for code in db.codes:
-            code.user_for = {
-                str(k): (
-                    RedeemStatus(v)
-                    if v in RedeemStatus._value2member_map_
-                    else RedeemStatus.PENDING
-                )
-                for k, v in code.user_for.items()
-            }
-        return db
-
-    def _save_codes(self, db: GiftCodeDB) -> None:
-        self._codes_path.write_text(
-            yaml.dump(gift_db_to_yaml_dict(db), allow_unicode=True, sort_keys=False)
-        )
-
-
 # ------------------------------------------------------------------
 # Convenience function used by cmd/gift_code.py
 # ------------------------------------------------------------------
 
 async def run_gift_code_redeemer(
-    codes_path: Path,
-    devices_path: Path,
     bot_instance_map: dict[str, str] | None = None,  # unused, kept for compat
     progress_cb: Callable[[int, int, str], None] | None = None,
 ) -> GiftRedeemSummary:
-    redeemer = GiftCodeRedeemer(codes_path, devices_path)
+    redeemer = GiftCodeRedeemer()
     return await redeemer.redeem_all(progress_cb=progress_cb)

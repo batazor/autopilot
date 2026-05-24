@@ -1,7 +1,7 @@
 """Append-only audit log of operator-approved upgrade commands.
 
-Lives at ``db/optimizer_history.yaml`` so it ships next to ``state.yaml``
-and is easy to diff in a review. Each entry captures the candidate, its
+Lives at ``db/optimizer_history.yaml`` (small audit log — kept as YAML
+so it stays diff-friendly in code review). Each entry captures the candidate, its
 score breakdown, the state diff that was persisted, and the active
 profile at decision time — enough to reconstruct *why* the operator
 acted (or to spot scoring drift later).

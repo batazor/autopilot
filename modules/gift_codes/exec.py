@@ -7,7 +7,6 @@ import logging
 import time
 import uuid
 from contextlib import suppress
-from pathlib import Path
 
 from dashboard.notifications import push_ui_notification
 from modules.gift_codes.redeemer import run_gift_code_redeemer
@@ -16,8 +15,6 @@ from tasks.dsl_exec import DslExecContext, DslExecHandler, _decode_redis_raw
 
 logger = logging.getLogger(__name__)
 
-_CODES_PATH = Path("db/giftCodes.yaml")
-_DEVICES_PATH = Path("db/devices.yaml")
 _GIFT_REDEEM_LOCK_KEY = "wos:gift_code_redeem:lock"
 _GIFT_REDEEM_STATE_KEY = "wos:gift_code_redeem:state"
 _GIFT_REDEEM_LOCK_TTL_SECONDS = 2 * 60 * 60
@@ -25,9 +22,9 @@ _BACKGROUND_GIFT_REDEEM_TASKS: set[asyncio.Task[None]] = set()
 
 
 async def _exec_gift_code_scrape(ctx: DslExecContext) -> None:
-    """Scrape wosrewards.com for new gift codes and append them to giftCodes.yaml."""
+    """Scrape wosrewards.com for new gift codes and upsert into the SQLite gift_codes table."""
     try:
-        new = await poll_once(_CODES_PATH)
+        new = await poll_once()
     except Exception:
         logger.exception("dsl exec gift_code_scrape: scraper failed")
         return
@@ -104,7 +101,7 @@ async def _run_gift_code_redeem_background(ctx: DslExecContext, token: str) -> N
     )
 
     try:
-        summary = await run_gift_code_redeemer(_CODES_PATH, _DEVICES_PATH)
+        summary = await run_gift_code_redeemer()
     except Exception as exc:
         finished_at = time.time()
         logger.exception("dsl exec gift_code_redeem: background redeemer failed")
@@ -171,13 +168,6 @@ async def _run_gift_code_redeem_background(ctx: DslExecContext, token: str) -> N
 
 async def _exec_gift_code_redeem(ctx: DslExecContext) -> None:
     """Start gift-code redemption in the background."""
-    if not _CODES_PATH.exists():
-        logger.warning("dsl exec gift_code_redeem: %s not found — skipping", _CODES_PATH)
-        return
-    if not _DEVICES_PATH.exists():
-        logger.warning("dsl exec gift_code_redeem: %s not found — skipping", _DEVICES_PATH)
-        return
-
     token = uuid.uuid4().hex
     if not await _acquire_gift_redeem_lock(ctx, token):
         logger.info("dsl exec gift_code_redeem: already running — skip background start")

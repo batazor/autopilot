@@ -1,16 +1,10 @@
-"""Tests for gift code Pydantic models + YAML round-trip."""
+"""Tests for gift code Pydantic models."""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from modules.gift_codes.models import (
-    GiftCode,
-    GiftCodeDB,
-    RedeemStatus,
-    gift_code_to_yaml_dict,
-    gift_db_to_yaml_dict,
-)
+from modules.gift_codes.models import GiftCode, RedeemStatus
 
 
 def _now_utc() -> datetime:
@@ -91,44 +85,17 @@ def test_needs_redemption_false_when_code_effectively_expired() -> None:
     assert code.needs_redemption("player1") is False
 
 
-def test_yaml_roundtrip_preserves_fields_and_aliases() -> None:
+def test_alias_round_trip_via_pydantic() -> None:
+    """The model still accepts YAML-style alias keys (userFor / lastApiErrCode / lastApiMsg)
+    — used by giftcodes_db.migrate_from_yaml during the one-shot import."""
     original = GiftCode(
         name="TESTCODE",
         userFor={"123": RedeemStatus.SUCCESS, "456": RedeemStatus.PENDING},
         lastApiErrCode=20000,
         lastApiMsg="ok",
     )
-
-    serialized = gift_code_to_yaml_dict(original)
-
-    assert serialized == {
-        "name": "TESTCODE",
-        "userFor": {"123": "SUCCESS", "456": "PENDING"},
-        "lastApiErrCode": 20000,
-        "lastApiMsg": "ok",
-    }
-    # Round-trips back via alias.
-    revived = GiftCode.model_validate(serialized)
+    revived = GiftCode.model_validate(original.model_dump(by_alias=True))
     assert revived.name == original.name
     assert revived.user_for == original.user_for
     assert revived.last_api_err_code == original.last_api_err_code
     assert revived.last_api_msg == original.last_api_msg
-
-
-def test_yaml_roundtrip_skips_optional_none_fields() -> None:
-    code = GiftCode(name="A", userFor={"1": RedeemStatus.PENDING})
-    row = gift_code_to_yaml_dict(code)
-    # Only required keys present — no `lastApiErrCode: null` etc.
-    assert set(row.keys()) == {"name", "userFor"}
-
-
-def test_gift_db_to_yaml_dict_serialises_all_codes() -> None:
-    db = GiftCodeDB(
-        codes=[
-            GiftCode(name="A", userFor={"1": RedeemStatus.PENDING}),
-            GiftCode(name="B", userFor={"2": RedeemStatus.SUCCESS}),
-        ],
-    )
-    out = gift_db_to_yaml_dict(db)
-    assert isinstance(out, dict)
-    assert [c["name"] for c in out["codes"]] == ["A", "B"]

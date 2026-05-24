@@ -520,7 +520,7 @@ def find_and_tap_hero(
 
     ``on_scan`` is invoked after every frame capture with the dict of
     *every* hero matched on that frame — handy for persisting which heroes
-    were seen / unlocked into state.yaml while we're already scanning the
+    were seen / unlocked into the SQLite state store while we're already scanning the
     grid for the target hero.
 
     Assumes the caller has already navigated to the ``heroes`` screen.

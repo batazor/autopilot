@@ -1,28 +1,21 @@
-"""Device registry loader — source of truth for BlueStacks instances and players.
+"""Device registry: BlueStacks instances + accounts + players.
 
-Format mirrors db/devices.yaml:
-
-    devices:
-      - name: RF8RC00M8MF          # BlueStacks serial / ADB device name
-        profiles:
-          - email: user@gmail.com  # Google account
-            gamer:
-              - id: 123456789
-                nickname: Hero1
-                level: 15   # optional; used by scenario condition player_level_min
+Persistence lives in SQLite (``src/config/devices_db.py``); this module owns
+the dataclass contract every caller uses and keeps a process-wide cache of the
+hydrated ``DeviceRegistry``. Callers should continue to call ``load_devices``,
+``upsert_device_gamer``, and ``invalidate_device_registry`` exactly as before.
 """
 from __future__ import annotations
 
 import logging
-import tempfile
 import threading
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING
 
-import yaml
+if TYPE_CHECKING:
+    from pathlib import Path
 
-from config.device_display import DeviceDisplayConfig, parse_device_display
+    from config.device_display import DeviceDisplayConfig
 
 logger = logging.getLogger(__name__)
 
@@ -105,226 +98,36 @@ class DeviceRegistry:
 
 
 def load_devices(path: Path | None = None) -> DeviceRegistry:
-    from config.paths import repo_root
+    """Return the full device registry from SQLite.
 
-    auto_create = path is None
-    if path is None:
-        path = repo_root() / "db" / "devices.yaml"
-
-    if not path.exists():
-        if auto_create:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            if not _save_devices_raw(path, {"devices": []}):
-                logger.warning("Could not create %s; using empty registry", path)
-                return DeviceRegistry(devices=[])
-            logger.info("Created empty device registry at %s", path)
-        else:
-            return DeviceRegistry(devices=[])
-
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    if not isinstance(raw, dict):
-        raw = {}
-    devices: list[DeviceEntry] = []
-    for d in raw.get("devices", []):
-        profiles: list[DeviceProfile] = []
-        for p in d.get("profiles", []):
-            gamers = tuple(
-                Gamer(
-                    id=int(g["id"]),
-                    nickname=g["nickname"],
-                    level=int(g.get("level", 0)),
-                )
-                for g in p.get("gamer", [])
-            )
-            profiles.append(DeviceProfile(email=p["email"], gamers=gamers))
-        devices.append(
-            DeviceEntry(
-                name=d["name"],
-                profiles=tuple(profiles),
-                adb_serial=str(d.get("adb_serial") or "").strip(),
-                screenshot_backend=_parse_screenshot_backend(d.get("screenshot_backend")),
-                input_backend=_parse_input_backend(d.get("input_backend")),
-                quartz_window_id=_parse_optional_int(d.get("quartz_window_id")),
-                quartz_window_title=str(d.get("quartz_window_title") or "").strip(),
-                quartz_crop=_parse_quartz_crop(d.get("quartz_crop")),
-                display=parse_device_display(d.get("display")),
-            )
-        )
-    return DeviceRegistry(devices=devices)
-
-
-def _parse_screenshot_backend(raw: object) -> str:
-    """Normalize the YAML value. Empty string is intentional: it lets the dispatcher
-    pick a smart default (physical device → minicap, emulator → quartz)."""
-    backend = str(raw or "").strip().lower()
-    if backend in {"", "quartz", "adb", "minicap"}:
-        return backend
-    logger.warning("Unknown screenshot_backend=%r in devices.yaml; using auto", raw)
-    return ""
-
-
-def _parse_input_backend(raw: object) -> str:
-    """Normalize input_backend. Empty = smart default (physical → minitouch, emulator → adb)."""
-    backend = str(raw or "").strip().lower()
-    if backend in {"", "adb", "minitouch"}:
-        return backend
-    logger.warning("Unknown input_backend=%r in devices.yaml; using auto", raw)
-    return ""
-
-
-def _parse_optional_int(raw: object) -> int | None:
-    if raw is None or str(raw).strip() == "":
-        return None
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        logger.warning("Invalid quartz_window_id=%r in devices.yaml; ignoring", raw)
-        return None
-
-
-def _parse_quartz_crop(raw: object) -> tuple[int, int, int, int] | None:
-    """Parse optional Quartz content crop as ``x,y,width,height``.
-
-    YAML may use either ``[x, y, width, height]`` or
-    ``{x: ..., y: ..., width: ..., height: ...}``.
+    ``path`` is accepted only for backwards compatibility with callers that
+    used to pass an explicit YAML file path — it's intentionally ignored.
+    SQLite is the sole source of truth; one ``wos.db`` per repo.
     """
-    if raw is None or raw == "":
-        return None
-    if isinstance(raw, dict):
-        vals = [raw.get("x"), raw.get("y"), raw.get("width"), raw.get("height")]
-    elif isinstance(raw, (list, tuple)):
-        vals = list(raw)
-    else:
-        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
-        return None
-    if len(vals) != 4:
-        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
-        return None
-    try:
-        x, y, w, h = (int(v) for v in vals)
-    except (TypeError, ValueError):
-        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
-        return None
-    if w <= 0 or h <= 0:
-        logger.warning("Invalid quartz_crop=%r in devices.yaml; using auto crop", raw)
-        return None
-    return x, y, w, h
+    from config.devices_db import load_registry
 
-
-def _load_devices_raw(path: Path) -> dict[str, object]:
-    if not path.exists():
-        return {"devices": []}
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    return raw if isinstance(raw, dict) else {"devices": []}
-
-
-def _save_devices_raw(path: Path, raw: dict[str, object]) -> bool:
-    """Atomically write *raw* to *path*.
-
-    Returns True on successful persist, False if the write failed. Failure is
-    logged but not raised, because callers still need to decide whether to
-    surface an error to the user vs. fall through to a degraded path.
-    """
-    try:
-        content = yaml.dump(raw, allow_unicode=True, sort_keys=False)
-        with tempfile.NamedTemporaryFile(
-            "w", dir=path.parent, delete=False, suffix=".tmp", encoding="utf-8"
-        ) as f:
-            f.write(content)
-            tmp = f.name
-        Path(tmp).replace(path)
-        return True
-    except Exception:
-        logger.exception("Failed to persist devices to %s", path)
-        return False
+    return load_registry()
 
 
 def upsert_device_gamer(
     *,
-    path: Path,
     device_name: str,
     player_id: str,
     nickname: str,
     email: str = "",
+    path: Path | None = None,
 ) -> bool:
-    """Ensure player exists under device profiles.
+    """Ensure ``player_id`` exists under the device's first profile.
 
-    - Creates device if missing.
-    - Uses first profile, or creates one with provided email (may be empty).
-    - Returns True when YAML was modified **and** persisted.
-    - Returns False when nothing changed OR persistence failed.
-
-    The whole load-modify-save cycle runs under ``_devices_file_lock`` so two
-    concurrent upserts can't lose each other's writes via last-writer-wins.
+    Returns True iff something was changed. Invalidates the global registry
+    cache so the next ``get_device_registry()`` reads the fresh row.
     """
-    device_name = (device_name or "").strip()
-    player_id = (player_id or "").strip()
-    if not device_name or not player_id:
-        return False
+    from config.devices_db import upsert_device_gamer as _db_upsert
 
-    with _devices_file_lock:
-        raw = _load_devices_raw(path)
-        devices_raw = raw.get("devices")
-        if not isinstance(devices_raw, list):
-            devices_raw = []
-            raw["devices"] = devices_raw
-        devices: list[Any] = cast("list[Any]", devices_raw)
-
-        # Match by friendly name OR ADB serial — callers may pass either form
-        # (UI passes `bs1`; runtime sometimes only has `127.0.0.1:5555`).
-        # Without alias matching, the same physical device would get a second
-        # entry under a different key and player→device lookups would split.
-        device: dict[str, Any] | None = None
-        for d_raw in devices:
-            if not isinstance(d_raw, dict):
-                continue
-            d = cast("dict[str, Any]", d_raw)
-            name = str(d.get("name") or "").strip()
-            serial = str(d.get("adb_serial") or "").strip()
-            if device_name in (name, serial) and (name or serial):
-                device = d
-                break
-        if device is None:
-            device = {"name": device_name, "profiles": []}
-            devices.append(device)
-
-        profiles_raw = device.get("profiles")
-        if not isinstance(profiles_raw, list):
-            profiles_raw = []
-            device["profiles"] = profiles_raw
-        profiles: list[Any] = cast("list[Any]", profiles_raw)
-
-        if not profiles:
-            profiles.append({"email": email, "gamer": []})
-
-        profile0_raw = profiles[0]
-        if not isinstance(profile0_raw, dict):
-            profile0_raw = {"email": email, "gamer": []}
-            profiles[0] = profile0_raw
-        profile0: dict[str, Any] = cast("dict[str, Any]", profile0_raw)
-
-        gamers = profile0.get("gamer")
-        if not isinstance(gamers, list):
-            gamers = []
-            profile0["gamer"] = gamers
-
-        # Update existing gamer or append new
-        for g in gamers:
-            if isinstance(g, dict) and str(g.get("id") or "").strip() == player_id:
-                old_nick = str(g.get("nickname") or "")
-                if nickname and nickname != old_nick:
-                    g["nickname"] = nickname
-                    if not _save_devices_raw(path, raw):
-                        return False
-                    _invalidate()
-                    return True
-                return False
-
-        gamers.append({"id": int(player_id), "nickname": nickname or ""})
-        if not _save_devices_raw(path, raw):
-            return False
+    changed = _db_upsert(device_name, player_id, nickname, email=email)
+    if changed:
         _invalidate()
-        return True
+    return changed
 
 
 # ---------------------------------------------------------------------------
@@ -333,10 +136,6 @@ def upsert_device_gamer(
 
 _registry: DeviceRegistry | None = None
 _registry_lock = threading.Lock()
-# Serializes the full ``load → mutate → save`` cycle in ``upsert_device_gamer``
-# so two concurrent upserts can't last-writer-win each other (UI button + DSL
-# fetch_player can race on the same ``db/devices.yaml``).
-_devices_file_lock = threading.Lock()
 
 
 def invalidate_device_registry() -> None:
@@ -367,8 +166,8 @@ def player_ids_for_device_candidates(*device_names: str) -> list[str]:
     """Player IDs for the first matching device alias.
 
     Settings historically pass the ADB serial (``bluestacks_window_title``), while
-    ``db/devices.yaml`` is often keyed by ``instance_id`` (for example ``bs1``).
-    Accept both without forcing those names to be identical.
+    ``devices`` may be keyed by ``instance_id`` (for example ``bs1``). Accept
+    both without forcing those names to be identical.
     """
     registry = get_device_registry()
     seen_names: set[str] = set()

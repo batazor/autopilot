@@ -1,4 +1,4 @@
-"""Pydantic v2 models for the full per-gamer state (mirrors db/state.yaml)."""
+"""Pydantic v2 models for the full per-gamer state (serialized to SQLite gamers.state_json)."""
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -42,7 +42,7 @@ class Resources(BaseModel):
     hero_xp: int = 0
 
     # ``extra: allow`` so we can stash manuals / per-rarity shards / event
-    # currencies in ``state.yaml`` without touching the schema each time.
+    # currencies in player state without touching the schema each time.
     # The optimizer pulls them via ``_GLOBAL_RESOURCE_KEYS`` in
     # ``optimizer/capacities.py``.
     model_config = {"extra": "allow"}

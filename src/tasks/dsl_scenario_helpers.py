@@ -483,8 +483,8 @@ def _collect_ocr_store_targets(steps: Any) -> list[tuple[str, str]]:
     the loop's exit cond on iter 0" class of bug.
 
     Returns a list of ``(scope, field_name)`` pairs. Scope is normalised to
-    ``"player"`` or ``"instance"``. ``state:`` paths (long-lived, written
-    to ``db/state.yaml``) are intentionally NOT included.
+    ``"player"`` or ``"instance"``. ``state:`` paths (long-lived, persisted
+    through the SQLite state store) are intentionally NOT included.
     """
     out: list[tuple[str, str]] = []
     if not isinstance(steps, list):

@@ -198,7 +198,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
         reason="fetch_player",
     )
 
-    # Persist to db/state.yaml
+    # Persist player snapshot to the SQLite state store.
     try:
         store = get_state_store().get_or_create(ctx.player_id, nickname=data.nickname)
         store.update_from_flat(
@@ -213,7 +213,7 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
             }
         )
     except Exception:
-        logger.exception("dsl exec fetch_player: state.yaml persist failed fid=%s", fid)
+        logger.exception("dsl exec fetch_player: state persist failed fid=%s", fid)
 
     # Persist to db/devices.yaml under current instance_id
     try:
@@ -326,7 +326,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
         )
     except Exception:
         logger.exception(
-            "dsl exec sync_building_name: state.yaml persist failed player=%s",
+            "dsl exec sync_building_name: state persist failed player=%s",
             player_id,
         )
 
@@ -345,7 +345,7 @@ async def _exec_sync_building_name(ctx: DslExecContext) -> None:
 
 
 async def _exec_sync_hero_unit(ctx: DslExecContext) -> None:
-    """Snapshot the currently-open hero card into ``db/state.yaml``.
+    """Snapshot the currently-open hero card into the SQLite state store.
 
     Expects the surrounding scenario to have just OCR'd
     ``page.heroes.unit.name`` and ``page.heroes.unit.level`` via ``store:``,
@@ -409,7 +409,7 @@ async def _exec_sync_hero_unit(ctx: DslExecContext) -> None:
         store.update_from_flat({entry_path: snapshot})
     except Exception:
         logger.exception(
-            "dsl exec sync_hero_unit: state.yaml persist failed player=%s hero=%s",
+            "dsl exec sync_hero_unit: state persist failed player=%s hero=%s",
             player_id, hero_id,
         )
         return
@@ -650,7 +650,7 @@ scan than tap a stale cell."""
 
 
 async def _exec_scan_heroes_grid(ctx: DslExecContext) -> None:
-    """Snapshot every visible hero on the ``heroes`` screen into state.yaml.
+    """Snapshot every visible hero on the ``heroes`` screen into the SQLite state store.
 
     Captures the current frame, runs grayscale NCC against every wiki icon
     under ``db/assets/wiki/heroes/<id>/``, and for each match writes to

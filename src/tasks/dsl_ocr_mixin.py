@@ -161,7 +161,7 @@ class DslOcrMixin(_Base):
               store: <field>          # Redis player/instance hash. Ephemeral —
                                       # used to share data between scenario steps
                                       # via cond/match text matches.
-              state: <dotted.path>    # db/state.yaml dot-path. Long-lived; drives
+              state: <dotted.path>    # SQLite state dot-path. Long-lived; drives
                                       # arithmetic ``cond`` (e.g.
                                       # ``exploration.state.myPower * 1.2 >= ...``).
               scope: player|instance  # default = "player" (applies to ``store:``)
@@ -452,7 +452,7 @@ class DslOcrMixin(_Base):
         # Two independent persistence channels (resolved up front so every skip
         # path can still name the intended target):
         #   - ``store: <field>`` → Redis (ephemeral, scenario-step scope).
-        #   - ``state: <dotted.path>`` → ``db/state.yaml`` (long-lived, drives
+        #   - ``state: <dotted.path>`` → SQLite state store (long-lived, drives
         #     arithmetic ``cond`` via state_flat).
         # Backward-compat: if neither is given, default to ``store: <region>``.
         raw_store = step.get("store")
@@ -694,7 +694,7 @@ class DslOcrMixin(_Base):
                     )
                     return
 
-        # ----- state.yaml (long-lived) write -----
+        # ----- SQLite state (long-lived) write -----
         state_written = False
         if state_yaml_path:
             if scope != "player" or not self.player_id:
@@ -706,8 +706,8 @@ class DslOcrMixin(_Base):
             else:
                 typed_value: Any = value
                 # ``time`` was already converted to a seconds string above;
-                # both integer and time types persist as Python ``int`` to
-                # state.yaml so arithmetic ``cond`` (e.g.
+                # both integer and time types persist as Python ``int`` to the
+                # SQLite state store so arithmetic ``cond`` (e.g.
                 # ``timer_remaining_s < 300``) works without casts.
                 if type_hint in {"int", "integer", "time"}:
                     with suppress(TypeError, ValueError):

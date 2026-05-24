@@ -209,48 +209,9 @@ async def test_scrape_swallows_scraper_errors(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.asyncio
-async def test_redeem_skips_when_codes_yaml_missing(
-    mocker: MockerFixture, tmp_path
-) -> None:
-    mocker.patch.object(gc_exec, "_CODES_PATH", tmp_path / "missing-codes.yaml")
-    mocker.patch.object(gc_exec, "_DEVICES_PATH", tmp_path / "missing-devices.yaml")
-    acquire = mocker.patch.object(
-        gc_exec, "_acquire_gift_redeem_lock", new=AsyncMock(return_value=True)
-    )
-
-    await gc_exec._exec_gift_code_redeem(_ctx(_fake_redis()))
-
-    # Early-out before reaching the lock acquisition.
-    acquire.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_redeem_skips_when_devices_yaml_missing(
-    mocker: MockerFixture, tmp_path
-) -> None:
-    codes = tmp_path / "codes.yaml"
-    codes.write_text("codes: []\n", encoding="utf-8")
-    mocker.patch.object(gc_exec, "_CODES_PATH", codes)
-    mocker.patch.object(gc_exec, "_DEVICES_PATH", tmp_path / "missing.yaml")
-    acquire = mocker.patch.object(
-        gc_exec, "_acquire_gift_redeem_lock", new=AsyncMock(return_value=True)
-    )
-
-    await gc_exec._exec_gift_code_redeem(_ctx(_fake_redis()))
-
-    acquire.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_redeem_notifies_and_skips_when_lock_already_held(
-    mocker: MockerFixture, tmp_path
+    mocker: MockerFixture,
 ) -> None:
-    codes = tmp_path / "codes.yaml"
-    devices = tmp_path / "devices.yaml"
-    codes.write_text("codes: []\n", encoding="utf-8")
-    devices.write_text("devices: []\n", encoding="utf-8")
-    mocker.patch.object(gc_exec, "_CODES_PATH", codes)
-    mocker.patch.object(gc_exec, "_DEVICES_PATH", devices)
     mocker.patch.object(
         gc_exec, "_acquire_gift_redeem_lock", new=AsyncMock(return_value=False)
     )
@@ -266,14 +227,8 @@ async def test_redeem_notifies_and_skips_when_lock_already_held(
 
 @pytest.mark.asyncio
 async def test_redeem_starts_background_task_when_lock_acquired(
-    mocker: MockerFixture, tmp_path
+    mocker: MockerFixture,
 ) -> None:
-    codes = tmp_path / "codes.yaml"
-    devices = tmp_path / "devices.yaml"
-    codes.write_text("codes: []\n", encoding="utf-8")
-    devices.write_text("devices: []\n", encoding="utf-8")
-    mocker.patch.object(gc_exec, "_CODES_PATH", codes)
-    mocker.patch.object(gc_exec, "_DEVICES_PATH", devices)
     mocker.patch.object(
         gc_exec, "_acquire_gift_redeem_lock", new=AsyncMock(return_value=True)
     )

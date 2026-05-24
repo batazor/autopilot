@@ -62,22 +62,6 @@ class GiftCode(BaseModel):
 
 
 class GiftCodeDB(BaseModel):
+    """Aggregate of GiftCode entries. Kept as a public alias for callers /
+    tests that want a single typed container around a code list."""
     codes: list[GiftCode] = []
-
-
-def gift_code_to_yaml_dict(c: GiftCode) -> dict[str, object]:
-    row: dict[str, object] = {
-        "name": c.name,
-        "userFor": {k: v.value for k, v in c.user_for.items()},
-    }
-    if c.expires is not None:
-        row["expires"] = c.expires.isoformat()
-    if c.last_api_err_code is not None:
-        row["lastApiErrCode"] = c.last_api_err_code
-    if c.last_api_msg is not None:
-        row["lastApiMsg"] = c.last_api_msg
-    return row
-
-
-def gift_db_to_yaml_dict(db: GiftCodeDB) -> dict[str, object]:
-    return {"codes": [gift_code_to_yaml_dict(c) for c in db.codes]}

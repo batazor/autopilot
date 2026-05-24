@@ -3,29 +3,18 @@ from __future__ import annotations
 
 from typing import Any
 
-import yaml
-from modules.gift_codes.models import GiftCodeDB, RedeemStatus
+from modules.gift_codes.models import RedeemStatus
 from modules.gift_codes.redeemer import run_gift_code_redeemer
 from modules.gift_codes.scraper import poll_once
 
 from config.devices import load_devices
+from config.giftcodes_db import list_codes
 from config.paths import repo_root
+from config.state_sqlite import state_db_path
 
 _REPO = repo_root()
-_CODES_PATH = _REPO / "db" / "giftCodes.yaml"
-_DEVICES_PATH = _REPO / "db" / "devices.yaml"
 
 _REDEEMED = frozenset({RedeemStatus.SUCCESS.value, RedeemStatus.ALREADY_RECEIVED.value})
-
-
-def _load_db() -> tuple[GiftCodeDB, str | None]:
-    if not _CODES_PATH.is_file():
-        return GiftCodeDB(), None
-    raw = yaml.safe_load(_CODES_PATH.read_text(encoding="utf-8")) or {}
-    try:
-        return GiftCodeDB.model_validate(raw), None
-    except Exception as exc:
-        return GiftCodeDB(), str(exc)
 
 
 def _status_token(cell: str) -> str:
@@ -62,10 +51,10 @@ def _build_row(code: Any, player_ids: list[str], registry: Any) -> dict[str, Any
 
 
 def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
-    db, parse_error = _load_db()
-    registry = load_devices(_DEVICES_PATH)
+    codes = list_codes()
+    registry = load_devices()
     player_ids = list(dict.fromkeys(registry.all_player_ids()))
-    for c in db.codes:
+    for c in codes:
         for pid in c.user_for:
             if pid not in player_ids:
                 player_ids.append(pid)
@@ -77,7 +66,7 @@ def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
     needs_run_count = 0
     redeemed_slots = 0
 
-    for code in db.codes:
+    for code in codes:
         row = _build_row(code, player_ids, registry)
         hay = " ".join(
             [
@@ -104,10 +93,10 @@ def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
             active.append(row)
 
     return {
-        "codes_path": str(_CODES_PATH.relative_to(_REPO)),
-        "devices_path": str(_DEVICES_PATH.relative_to(_REPO)),
-        "parse_error": parse_error,
-        "missing_codes_file": not _CODES_PATH.is_file(),
+        "codes_db": str(state_db_path().relative_to(_REPO)),
+        "devices_path": str(state_db_path().relative_to(_REPO)),
+        "parse_error": None,
+        "missing_codes_file": False,
         "player_ids": player_ids,
         "active": active,
         "expired": expired,
@@ -123,16 +112,10 @@ def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
 
 
 async def scrape_gift_codes() -> dict[str, Any]:
-    new = await poll_once(_CODES_PATH)
+    new = await poll_once()
     return {"ok": True, "new_codes": new, "count": len(new)}
 
 
 async def redeem_gift_codes() -> dict[str, Any]:
-    if not _CODES_PATH.is_file():
-        msg = "missing giftCodes.yaml"
-        raise FileNotFoundError(msg)
-    if not _DEVICES_PATH.is_file():
-        msg = "missing devices.yaml"
-        raise FileNotFoundError(msg)
-    await run_gift_code_redeemer(_CODES_PATH, _DEVICES_PATH)
+    await run_gift_code_redeemer()
     return {"ok": True}

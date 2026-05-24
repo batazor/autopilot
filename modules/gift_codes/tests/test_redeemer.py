@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-import yaml
 from modules.gift_codes import redeemer
 from modules.gift_codes.models import RedeemStatus
 from modules.gift_codes.redeemer import (
@@ -22,11 +21,22 @@ from modules.gift_codes.redeemer import (
 
 from century.api import CenturyAPIError, ErrCode
 from config.devices import DeviceEntry, DeviceProfile, DeviceRegistry, Gamer
+from config.giftcodes_db import get_redemption, list_codes, upsert_code
+from config.state_sqlite import set_state_db_path_for_tests
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from pytest_mock import MockerFixture
+
+
+@pytest.fixture
+def sqlite_db(tmp_path: Path) -> Path:
+    """Redirect the SQLite store to a fresh per-test DB."""
+    db_path = tmp_path / "db" / "state" / "wos.db"
+    set_state_db_path_for_tests(db_path)
+    yield db_path
+    set_state_db_path_for_tests(None)
 
 
 # ── Pure helpers ────────────────────────────────────────────────────────────
@@ -147,90 +157,6 @@ def test_result_to_dict_keeps_api_fields_when_present() -> None:
     assert out["api_msg"] == "captcha error"
 
 
-# ── YAML I/O via GiftCodeRedeemer ───────────────────────────────────────────
-
-
-def _seed_codes_yaml(path: Path, *, codes: list[dict[str, object]]) -> None:
-    path.write_text(yaml.dump({"codes": codes}, sort_keys=False), encoding="utf-8")
-
-
-def test_load_codes_returns_valid_statuses(tmp_path: Path) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(
-        codes_path,
-        codes=[
-            {
-                "name": "CODE_A",
-                "userFor": {
-                    "1": "SUCCESS",
-                    "2": "FAILED",
-                    "3": "PENDING",
-                },
-            }
-        ],
-    )
-
-    redeemer_ = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
-    db = redeemer_._load_codes()
-
-    assert db.codes[0].user_for == {
-        "1": RedeemStatus.SUCCESS,
-        "2": RedeemStatus.FAILED,
-        "3": RedeemStatus.PENDING,
-    }
-
-
-def test_load_codes_raises_on_unknown_status_string(tmp_path: Path) -> None:
-    """Documents current strict behaviour: pydantic enum validation runs first.
-
-    The post-validation coercion loop in ``_load_codes`` is a defensive no-op
-    today — pydantic rejects ``GARBAGE_STATUS`` upfront, so the loop never sees
-    invalid values. If the loader is ever loosened to coerce instead of raise,
-    this assertion should be flipped to assert PENDING coercion.
-    """
-    from pydantic import ValidationError
-
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(
-        codes_path,
-        codes=[{"name": "BAD", "userFor": {"1": "GARBAGE_STATUS"}}],
-    )
-
-    redeemer_ = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
-    with pytest.raises(ValidationError):
-        redeemer_._load_codes()
-
-
-def test_save_codes_roundtrips_through_yaml(tmp_path: Path) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(
-        codes_path,
-        codes=[
-            {
-                "name": "ROUNDTRIP",
-                "userFor": {"1": "SUCCESS"},
-                "lastApiErrCode": 20000,
-            }
-        ],
-    )
-
-    redeemer_ = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
-    db = redeemer_._load_codes()
-    db.codes[0].user_for["2"] = RedeemStatus.FAILED
-    redeemer_._save_codes(db)
-
-    reloaded = yaml.safe_load(codes_path.read_text(encoding="utf-8"))
-    assert reloaded == {
-        "codes": [
-            {
-                "name": "ROUNDTRIP",
-                "userFor": {"1": "SUCCESS", "2": "FAILED"},
-                "lastApiErrCode": 20000,
-            }
-        ]
-    }
-
-
 # ── _redeem_one state machine ───────────────────────────────────────────────
 
 
@@ -264,7 +190,7 @@ async def test_redeem_one_returns_success_on_first_attempt(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock()
 
     status, ec, msg = await r._redeem_one(123, "CODE")
@@ -281,7 +207,7 @@ async def test_redeem_one_returns_failed_when_login_fails(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock(player_ok=False)
 
     status, ec, msg = await r._redeem_one(123, "CODE")
@@ -296,7 +222,7 @@ async def test_redeem_one_retries_then_succeeds_on_captcha_error(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock(
         captcha_calls=[MagicMock(img_b64="img1"), MagicMock(img_b64="img2")],
         redeem_calls=[(ErrCode.CAPTCHA_ERROR, ""), (ErrCode.SUCCESS, "ok")],
@@ -315,7 +241,7 @@ async def test_redeem_one_gives_up_after_max_captcha_retries(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     captcha = [MagicMock(img_b64=f"img{i}") for i in range(redeemer._MAX_CAPTCHA_RETRIES)]
     r._client = _client_mock(
         captcha_calls=captcha,
@@ -334,7 +260,7 @@ async def test_redeem_one_reraises_shutdown_error_from_login(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock()
     r._client.fetch_player = AsyncMock(side_effect=RuntimeError("Event loop is closed"))
 
@@ -347,7 +273,7 @@ async def test_redeem_one_reraises_shutdown_error_from_redeem(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock()
     r._client.redeem = AsyncMock(
         side_effect=RuntimeError("cannot schedule new futures after shutdown")
@@ -362,7 +288,7 @@ async def test_redeem_one_returns_failed_when_captcha_solver_raises(
     tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
     mocker.patch.object(redeemer, "solve_captcha", side_effect=RuntimeError("no model"))
-    r = GiftCodeRedeemer(tmp_path / "c.yaml", tmp_path / "d.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock()
 
     status, ec, msg = await r._redeem_one(123, "CODE")
@@ -385,14 +311,12 @@ def _registry(*ids: int) -> DeviceRegistry:
 
 @pytest.mark.asyncio
 async def test_redeem_all_propagates_cdk_not_found_to_every_player(
-    tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(codes_path, codes=[{"name": "DEAD", "userFor": {}}])
-
+    upsert_code("DEAD")
     mocker.patch.object(redeemer, "load_devices", return_value=_registry(1, 2, 3))
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock(redeem_calls=[(ErrCode.CDK_NOT_FOUND, "not found")])
 
     summary = await r.redeem_all()
@@ -404,18 +328,19 @@ async def test_redeem_all_propagates_cdk_not_found_to_every_player(
     # First player was the actual attempter; others are marked attempted=False.
     attempted = [res for res in summary.results if res.attempted]
     assert len(attempted) == 1 and attempted[0].player_id == "1"
+    # SQLite bulk-stamp: every player row marked terminal.
+    for pid in ("1", "2", "3"):
+        assert get_redemption("DEAD", pid) == RedeemStatus.CDK_NOT_FOUND
 
 
 @pytest.mark.asyncio
 async def test_redeem_all_persists_each_player_status(
-    tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(codes_path, codes=[{"name": "FREE100", "userFor": {}}])
-
+    upsert_code("FREE100")
     mocker.patch.object(redeemer, "load_devices", return_value=_registry(1, 2))
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
-    r = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock(
         captcha_calls=[MagicMock(img_b64="img1"), MagicMock(img_b64="img2")],
         redeem_calls=[(ErrCode.SUCCESS, "ok"), (ErrCode.ALREADY_RECEIVED_1, "dup")],
@@ -423,23 +348,26 @@ async def test_redeem_all_persists_each_player_status(
 
     summary = await r.redeem_all()
 
-    persisted = yaml.safe_load(codes_path.read_text(encoding="utf-8"))
-    assert persisted["codes"][0]["userFor"] == {"1": "SUCCESS", "2": "ALREADY_RECEIVED"}
+    codes = list_codes()
+    assert len(codes) == 1
+    assert codes[0].user_for == {
+        "1": RedeemStatus.SUCCESS,
+        "2": RedeemStatus.ALREADY_RECEIVED,
+    }
     assert summary.counts_by_status() == {"ALREADY_RECEIVED": 1, "SUCCESS": 1}
 
 
 @pytest.mark.asyncio
 async def test_redeem_all_skips_codes_with_no_pending_players(
-    tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(
-        codes_path,
-        codes=[{"name": "DONE", "userFor": {"1": "SUCCESS", "2": "SUCCESS"}}],
-    )
+    from config.giftcodes_db import set_redemption
 
+    upsert_code("DONE")
+    set_redemption("DONE", "1", RedeemStatus.SUCCESS)
+    set_redemption("DONE", "2", RedeemStatus.SUCCESS)
     mocker.patch.object(redeemer, "load_devices", return_value=_registry(1, 2))
-    r = GiftCodeRedeemer(codes_path, tmp_path / "devices.yaml")
+    r = GiftCodeRedeemer()
     r._client = _client_mock()
 
     summary = await r.redeem_all()
@@ -450,16 +378,15 @@ async def test_redeem_all_skips_codes_with_no_pending_players(
 
 @pytest.mark.asyncio
 async def test_run_gift_code_redeemer_returns_summary(
-    tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:
-    codes_path = tmp_path / "codes.yaml"
-    _seed_codes_yaml(codes_path, codes=[{"name": "X", "userFor": {}}])
+    upsert_code("X")
     mocker.patch.object(redeemer, "load_devices", return_value=_registry(1))
     mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
 
     fake_client = _client_mock(redeem_calls=[(ErrCode.SUCCESS, "ok")])
     mocker.patch.object(redeemer, "CenturyClient", return_value=fake_client)
 
-    summary = await run_gift_code_redeemer(codes_path, tmp_path / "devices.yaml")
+    summary = await run_gift_code_redeemer()
 
     assert summary.counts_by_status() == {"SUCCESS": 1}

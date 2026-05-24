@@ -10,8 +10,6 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 from config.paths import repo_root
 from config.state_schema import GamerState, StateDB
 
@@ -21,7 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_LEGACY_YAML_PATH = repo_root() / "db" / "state.yaml"
 _path_override: Path | None = None
 _conn_lock = threading.RLock()
 
@@ -37,10 +34,6 @@ def state_db_path() -> Path:
 def set_state_db_path_for_tests(path: Path | None) -> None:
     global _path_override
     _path_override = path
-
-
-def legacy_yaml_path() -> Path:
-    return _LEGACY_YAML_PATH
 
 
 _SCHEMA_SQL = """
@@ -117,7 +110,6 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
 
 def load_state_db_raw() -> tuple[StateDB, str | None, str]:
     """Load StateDB from SQLite. Returns (db, parse_error, raw_json_for_debug)."""
-    migrate_from_yaml_if_needed()
     try:
         with _conn_lock, _connect() as conn:
             rows = conn.execute(
@@ -304,30 +296,3 @@ def get_alliance_stats(alliance_name: str) -> dict[str, Any]:
     }
 
 
-def migrate_from_yaml_if_needed() -> bool:
-    """Import db/state.yaml once when SQLite has no gamers."""
-    yaml_path = legacy_yaml_path()
-    if not yaml_path.is_file():
-        return False
-    with _conn_lock, _connect() as conn:
-        count = conn.execute("SELECT COUNT(*) AS n FROM gamers").fetchone()
-        if count and int(count["n"]) > 0:
-            return False
-        try:
-            raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
-            db = StateDB.model_validate(raw)
-        except Exception:
-            logger.exception("YAML → SQLite migration failed: invalid %s", yaml_path)
-            return False
-        if not db.gamers:
-            return False
-        save_state_db(db)
-        for g in db.gamers:
-            record_player_stats(g)
-        logger.info(
-            "Migrated %d gamer(s) from %s to %s",
-            len(db.gamers),
-            yaml_path,
-            state_db_path(),
-        )
-        return True
