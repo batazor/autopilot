@@ -47,6 +47,13 @@ dev = [
     "pytest-sugar>=1.1.1",
     "pytest-timeout>=2.4.0",
 ]
+# Used by the Docker build to compile selected packages (licensing, worker, …)
+# to native ``*.so`` extensions via ``scripts/compile_protected.sh``. Not needed
+# at runtime; only the produced ``.so`` files ship.
+compile = [
+    "nuitka>=2.5",
+    "ordered-set>=4.1",
+]
 [project.scripts]
 play = "worker.launch:main"
 bot = "worker.supervisor:main"
@@ -100,6 +107,7 @@ packages = [
     "src/wos_mcp",
     "src/api",
     "src/licensing",
+    "src/wiki",
 ]
 
 [tool.ruff]

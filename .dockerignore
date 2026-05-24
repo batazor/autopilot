@@ -1,0 +1,71 @@
+# Build context exclusion list. Anything not listed here is uploaded to the
+# Docker daemon on every build — keep this aggressive.
+#
+# The COPY directives in Dockerfile.bot / Dockerfile.web are the source of
+# truth for what ends up in images; entries here only affect what's *available*
+# to those COPYs.
+
+# --- VCS ---------------------------------------------------------------------
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# --- Python ------------------------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ty-cache/
+.ty-baseline.json
+*.egg-info/
+dist/
+build/
+
+# --- Node / Next.js ----------------------------------------------------------
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/tsconfig.tsbuildinfo
+
+# --- Editor / IDE / agent state ---------------------------------------------
+.idea/
+.vscode/
+.claude/
+.cursor/
+*.swp
+*~
+
+# --- OS junk -----------------------------------------------------------------
+.DS_Store
+Thumbs.db
+
+# --- Secrets / per-host data -------------------------------------------------
+.env
+.env.local
+.env.*.local
+.secrets/
+# Per-host license file lives in the bind-mounted ``license-data`` dir at
+# runtime; never bake one into the image.
+license-data/*.json
+
+# --- Docker / CI artifacts (image doesn't need its own build inputs) --------
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# --- Logs / scratch ----------------------------------------------------------
+*.log
+*.tmp
+*.bak
+coverage/
+htmlcov/
+
+# --- Local-only directories --------------------------------------------------
+stubs/

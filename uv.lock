@@ -921,6 +921,12 @@ wheels = [
 ]
 
 [[package]]
+name = "nuitka"
+version = "4.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d2/a6/8cf2a663402c057005f0328bdc691a653fa14848248358ef051f86a21880/nuitka-4.1.1.tar.gz", hash = "sha256:777e2c84d6b168f9bf78c3242b3779958865ae5815d26c76170eb830995368cc", size = 4558061, upload-time = "2026-05-19T08:44:16.716Z" }
+
+[[package]]
 name = "numpy"
 version = "2.4.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1131,6 +1137,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9e/de/911ac9e309052aca1b20b2d5549d3db45d1011e1a610e552c6ccdd1b64f8/opentelemetry_semantic_conventions-0.62b1.tar.gz", hash = "sha256:c5cc6e04a7f8c7cdd30be2ed81499fa4e75bfbd52c9cb70d40af1f9cd3619802", size = 145750, upload-time = "2026-04-24T13:15:52.236Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/a6/83dc2ab6fa397ee66fba04fe2e74bdf7be3b3870005359ceb7689103c058/opentelemetry_semantic_conventions-0.62b1-py3-none-any.whl", hash = "sha256:cf506938103d331fbb78eded0d9788095f7fd59016f2bda813c3324e5a74a93c", size = 231620, upload-time = "2026-04-24T13:15:35.454Z" },
+]
+
+[[package]]
+name = "ordered-set"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/ca/bfac8bc689799bcca4157e0e0ced07e70ce125193fc2e166d2e685b7e2fe/ordered-set-4.1.0.tar.gz", hash = "sha256:694a8e44c87657c59292ede72891eb91d34131f6531463aab3009191c77364a8", size = 12826, upload-time = "2022-01-26T14:38:56.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/33/55/af02708f230eb77084a299d7b08175cff006dea4f2721074b92cdb0296c0/ordered_set-4.1.0-py3-none-any.whl", hash = "sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562", size = 7634, upload-time = "2022-01-26T14:38:48.677Z" },
 ]
 
 [[package]]
@@ -2326,6 +2341,10 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+compile = [
+    { name = "nuitka" },
+    { name = "ordered-set" },
+]
 dev = [
     { name = "fastapi" },
     { name = "pytest" },
@@ -2349,6 +2368,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "mcp", specifier = ">=1.27.1" },
     { name = "networkx", specifier = ">=3.2" },
+    { name = "nuitka", marker = "extra == 'compile'", specifier = ">=2.5" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "openai", specifier = ">=2.36.0" },
     { name = "opencv-python", specifier = ">=4.9" },
@@ -2356,6 +2376,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.27" },
     { name = "opentelemetry-instrumentation-logging", specifier = ">=0.48b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.27" },
+    { name = "ordered-set", marker = "extra == 'compile'", specifier = ">=4.1" },
     { name = "ortools", specifier = ">=9.10" },
     { name = "pillow", specifier = ">=10.0" },
     { name = "psutil", specifier = ">=5.9" },
@@ -2380,7 +2401,7 @@ requires-dist = [
     { name = "testcontainers", marker = "extra == 'dev'", specifier = ">=4.14.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.46.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "compile"]
 
 [[package]]
 name = "wrapt"

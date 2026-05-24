@@ -1,25 +1,55 @@
-# Next.js operator dashboard (proxies /api to FastAPI).
-FROM node:22-bookworm-slim AS deps
+# syntax=docker/dockerfile:1.7
+#
+# Next.js operator dashboard. Server-side-renders + proxies ``/api`` to the
+# FastAPI service. Built with the ``standalone`` output mode so the runtime
+# image carries just Node + the minimal Next.js server (no global ``next``
+# binary, no node_modules with dev deps).
+#
+# Companion: ``Dockerfile.bot`` (worker + scheduler + FastAPI on :8765),
+# ``redis:alpine``. See ``docker-compose.prod.yml`` for the wiring.
+
+ARG NODE_VERSION=22
+
+# --- Stage 1: deps -----------------------------------------------------------
+# Just ``npm ci`` with the lockfile. The cache mount keeps ``~/.npm`` warm so
+# rebuilds without dep changes complete in seconds.
+FROM node:${NODE_VERSION}-bookworm-slim AS deps
 
 WORKDIR /app
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
+
+# --- Stage 2: builder --------------------------------------------------------
+# Reuses the populated ``node_modules`` from ``deps`` so source changes don't
+# re-trigger dependency installs.
 FROM deps AS builder
 
 COPY web/ ./
-# Server-side rewrites in the running container (see docker-compose.prod.yml).
+# Server-side rewrites + standalone output toggle. ``WOS_BUILD_STANDALONE=1``
+# is read by next.config.* to set ``output: 'standalone'``.
 ARG WOS_API_URL=http://127.0.0.1:8765
 ENV WOS_API_URL=${WOS_API_URL} \
-    WOS_BUILD_STANDALONE=1
-RUN npm run build
+    WOS_BUILD_STANDALONE=1 \
+    NEXT_TELEMETRY_DISABLED=1
 
-FROM node:22-bookworm-slim AS runner
+# Cache the Next build cache across builds — recompiling untouched files is
+# what dominates rebuild time once node_modules is stable.
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
+
+
+# --- Stage 3: runner ---------------------------------------------------------
+# Slim runtime: the standalone build is self-contained, so we copy *only* the
+# server bundle and the static asset tree.
+FROM node:${NODE_VERSION}-bookworm-slim AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
@@ -28,5 +58,10 @@ EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:3000/overview').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+LABEL org.opencontainers.image.title="whiteout-survival-autopilot-web" \
+      org.opencontainers.image.description="Next.js operator dashboard" \
+      org.opencontainers.image.source="https://github.com/batazor/whiteout-survival-autopilot" \
+      org.opencontainers.image.licenses="MIT"
 
 CMD ["node", "server.js"]

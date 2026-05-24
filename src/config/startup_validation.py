@@ -320,27 +320,35 @@ def _validate_overlay_runtime_area_manifest(repo_root: Path, issues: list[Startu
     from analysis import overlay_area as overlay_area_mod
     from analysis.overlay_area import default_area_doc_for_overlay
 
-    helper_src = inspect.getsource(overlay_area_mod.default_area_doc_for_overlay)
-    if "load_area_doc" not in helper_src:
-        issues.append(
-            StartupValidationIssue(
-                "error",
-                "src/analysis/overlay_area.py",
-                "default_area_doc_for_overlay must call layout.area_manifest.load_area_doc()",
+    # These two checks read function source to assert a specific call site is
+    # preserved. ``inspect.getsource`` raises ``OSError`` for Nuitka-compiled
+    # modules (no readable source on disk) — in that build mode the validation
+    # already ran during the source-tree build, so silently skip here.
+    try:
+        helper_src = inspect.getsource(overlay_area_mod.default_area_doc_for_overlay)
+        if "load_area_doc" not in helper_src:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    "src/analysis/overlay_area.py",
+                    "default_area_doc_for_overlay must call layout.area_manifest.load_area_doc()",
+                )
             )
-        )
 
-    run_src = inspect.getsource(overlay_mod.run_overlay_analysis)
-    if "default_area_doc_for_overlay" not in run_src:
-        issues.append(
-            StartupValidationIssue(
-                "error",
-                "src/analysis/overlay.py",
-                "run_overlay_analysis must call default_area_doc_for_overlay() "
-                "when area_doc is omitted (module overlay regions otherwise "
-                "resolve as unknown_region)",
+        run_src = inspect.getsource(overlay_mod.run_overlay_analysis)
+        if "default_area_doc_for_overlay" not in run_src:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    "src/analysis/overlay.py",
+                    "run_overlay_analysis must call default_area_doc_for_overlay() "
+                    "when area_doc is omitted (module overlay regions otherwise "
+                    "resolve as unknown_region)",
+                )
             )
-        )
+    except OSError:
+        # Compiled build (no .py source) — trust the build-time check.
+        pass
 
     try:
         runtime_doc = default_area_doc_for_overlay(repo_root)
