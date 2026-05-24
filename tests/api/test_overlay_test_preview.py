@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
+from typing import TYPE_CHECKING
 
 from api.services.overlay_test import _load_overlay_test_preview
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
 
 
 def test_load_overlay_test_preview_reference_png(
@@ -36,7 +39,7 @@ def test_load_overlay_test_preview_reference_png(
 
 
 def test_load_overlay_test_preview_reference_missing() -> None:
-    png, rel, mtime, src = _load_overlay_test_preview(
+    png, _rel, mtime, src = _load_overlay_test_preview(
         instance_id="bs1",
         preview_source="reference",
         preview_rel="references/no/such.png",
