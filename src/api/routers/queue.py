@@ -1,6 +1,8 @@
 """Queue dashboard routes."""
 from __future__ import annotations
 
+import math
+import time
 from typing import Annotated, Any
 
 import redis
@@ -22,6 +24,11 @@ class QueueRunBody(BaseModel):
 
 class QueueRemoveBody(BaseModel):
     task_ids: list[str] = Field(min_length=1)
+
+
+class QueueRescheduleBody(BaseModel):
+    task_id: str
+    scheduled_at: float = Field(description="UNIX epoch seconds")
 
 
 @router.get("/queue")
@@ -56,6 +63,24 @@ def post_queue_run_now(body: QueueRunBody, client: RedisDep) -> dict[str, bool]:
 def post_queue_remove(body: QueueRemoveBody, client: RedisDep) -> dict[str, int]:
     removed = queue_api.remove_tasks(client, body.task_ids)
     return {"removed": removed}
+
+
+@router.post("/queue/reschedule")
+def post_queue_reschedule(
+    body: QueueRescheduleBody, client: RedisDep
+) -> dict[str, bool]:
+    if not math.isfinite(body.scheduled_at):
+        raise HTTPException(status_code=400, detail="scheduled_at must be finite")
+    # Clamp to a sane window (within ±30d of now) to prevent accidental drags.
+    now = time.time()
+    if abs(body.scheduled_at - now) > 30 * 24 * 3600:
+        raise HTTPException(
+            status_code=400, detail="scheduled_at out of allowed ±30d window"
+        )
+    ok = queue_api.reschedule_task(client, body.task_id, body.scheduled_at)
+    if not ok:
+        raise HTTPException(status_code=404, detail="task not found")
+    return {"ok": ok}
 
 
 @router.post("/queue/clear-all")

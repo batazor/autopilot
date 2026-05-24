@@ -612,6 +612,45 @@ def remove_queue_task(client: redis.Redis, task_id: str) -> bool:
     return False
 
 
+def reschedule_queue_task(
+    client: redis.Redis, task_id: str, scheduled_at: float
+) -> bool:
+    """Re-score a queued task to ``scheduled_at`` (UNIX epoch seconds).
+    Rewrites the in-payload ``run_at`` field so the row stays consistent.
+    Returns ``True`` if the task was found.
+    """
+    def _is_queue_zset_key(k: str) -> bool:
+        if not k:
+            return False
+        if ":running" in k or ":idx:" in k:
+            return False
+        try:
+            return str(client.type(k) or "").lower() == "zset"
+        except redis.RedisError:
+            return False
+
+    keys: list[str] = []
+    for key in client.scan_iter("wos:queue:*"):
+        k = str(key)
+        if _is_queue_zset_key(k):
+            keys.append(k)
+    for key in keys:
+        payloads = _r_zrangebyscore(client, key, "-inf", "+inf")
+        for payload in payloads:
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+            if str(data.get("task_id", "")) != task_id:
+                continue
+            data["run_at"] = scheduled_at
+            new_payload = json.dumps(data, ensure_ascii=False)
+            client.zrem(key, payload)
+            client.zadd(key, {new_payload: scheduled_at})
+            return True
+    return False
+
+
 def run_queue_task_now(client: redis.Redis, task_id: str) -> bool:
     """Re-score a queued task to ``time.time()`` so the next scheduler tick picks
     it up immediately. Also rewrites the in-payload ``run_at`` field so the row

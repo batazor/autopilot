@@ -53,7 +53,7 @@
     {
       "id": 1200,
       "screen_id": "deals",
-      "ocr": "references/page.deals.png",
+      "ocr": "references/deals.png",
       "regions": [
         {
           "name": "deals.title",
@@ -70,36 +70,6 @@
           }
         }
       ]
-    },
-    {
-      "id": 1213,
-      "screen_id": "deals.vault_of_enigma",
-      "ocr": "references/page.deals.vault_of_enigma.png",
-      "regions": []
-    },
-    {
-      "id": 1201,
-      "screen_id": "deals.sign_in",
-      "ocr": "references/page.deals.sign_in.png",
-      "regions": []
-    },
-    {
-      "id": 1202,
-      "screen_id": "deals.first_purchase",
-      "ocr": "references/page.deals.first_purchase.png",
-      "regions": []
-    },
-    {
-      "id": 1203,
-      "screen_id": "deals.home_and_beyond",
-      "ocr": "references/page.deals.home_and_beyond.png",
-      "regions": []
-    },
-    {
-      "id": 1204,
-      "screen_id": "deals.hall_of_heroes",
-      "ocr": "references/page.deals.hall_of_heroes.png",
-      "regions": []
     },
     {
       "id": 1205,
@@ -257,12 +227,6 @@
           "isSearch": true
         }
       ]
-    },
-    {
-      "id": 1209,
-      "screen_id": "",
-      "ocr": "references/deals.png",
-      "regions": []
     }
   ]
 }

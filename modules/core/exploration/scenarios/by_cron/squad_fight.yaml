@@ -4,6 +4,7 @@ name: Squad Fight
 # A cron tick starts the redeploy loop. Victory re-pushes this scenario so the
 # chain can continue until a fight is lost.
 cron: "0 */12 * * *"
+ttl: 6h
 
 node: squad_settings
 

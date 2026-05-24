@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
-import { AppCheckbox, AppListbox } from "@/components/headless";
+import { AppCheckbox, AppListbox, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -20,6 +20,7 @@ import {
   RunningCards,
   ScenarioCell,
 } from "@/components/queue/QueueVisuals";
+import { QueuePendingGantt } from "@/components/queue/QueuePendingGantt";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
 import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
@@ -33,6 +34,7 @@ export default function QueuePage() {
   const [pick, setPick] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [pendingView, setPendingView] = useState<"table" | "timeline">("table");
   const pickRef = useRef(pick);
   pickRef.current = pick;
   const revisionRef = useRef<string | undefined>(undefined);
@@ -130,67 +132,90 @@ export default function QueuePage() {
           <code>pop_due</code>): due tasks first, then scheduled later by time.
         </p>
         {data?.pending.length ? (
-          <div className="data-table-wrap">
-            <table className="data-table queue-table">
-              <thead>
-                <tr>
-                  <th />
-                  <th>Status</th>
-                  <th>When</th>
-                  <th>Player</th>
-                  <th>Instance</th>
-                  <th>Scenario</th>
-                  <th>Region</th>
-                  <th>Coop</th>
-                  <th>Pri</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {data.pending.map((r) => (
-                  <tr key={r.task_id} className={r.overdue ? "queue-row-overdue" : undefined}>
-                    <td>
-                      <AppCheckbox
-                        checked={selected.has(r.task_id)}
-                        onChange={() => toggleSelect(r.task_id)}
-                        aria-label={`Select ${r.scenario}`}
-                      />
-                    </td>
-                    <td>
-                      <PendingSchedulePill row={r} />
-                    </td>
-                    <td className="queue-when">{r.scheduled}</td>
-                    <td>
-                      <Link href={playerStateHref(r.player_id, { instanceId: r.instance_id })}>
-                        {r.player_id}
-                      </Link>
-                    </td>
-                    <td>
-                      <Link href={instanceHref(r.instance_id)}>{r.instance_id}</Link>
-                    </td>
-                    <td>
-                      <ScenarioCell
-                        label={r.scenario}
-                        scenarioKey={r.scenario_key}
-                        instanceId={r.instance_id}
-                        playerId={r.player_id}
-                      />
-                    </td>
-                    <td className="muted">{r.region}</td>
-                    <td>
-                      <CooperativePill cooperative={r.cooperative} />
-                    </td>
-                    <td>
-                      <PriorityBadge priority={r.priority} />
-                    </td>
-                    <td>
-                      <QueuePendingActions row={r} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <AppTabs
+              selectedKey={pendingView}
+              onChange={(k) => setPendingView(k as "table" | "timeline")}
+              renderPanels={false}
+              tabs={[
+                { key: "table", label: "Table" },
+                { key: "timeline", label: "Timeline" },
+              ]}
+            />
+            {pendingView === "table" ? (
+              <div className="data-table-wrap">
+                <table className="data-table queue-table">
+                  <thead>
+                    <tr>
+                      <th />
+                      <th>Status</th>
+                      <th>When</th>
+                      <th>Player</th>
+                      <th>Instance</th>
+                      <th>Scenario</th>
+                      <th>Region</th>
+                      <th>Coop</th>
+                      <th>Pri</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.pending.map((r) => (
+                      <tr key={r.task_id} className={r.overdue ? "queue-row-overdue" : undefined}>
+                        <td>
+                          <AppCheckbox
+                            checked={selected.has(r.task_id)}
+                            onChange={() => toggleSelect(r.task_id)}
+                            aria-label={`Select ${r.scenario}`}
+                          />
+                        </td>
+                        <td>
+                          <PendingSchedulePill row={r} />
+                        </td>
+                        <td className="queue-when">{r.scheduled}</td>
+                        <td>
+                          <Link href={playerStateHref(r.player_id, { instanceId: r.instance_id })}>
+                            {r.player_id}
+                          </Link>
+                        </td>
+                        <td>
+                          <Link href={instanceHref(r.instance_id)}>{r.instance_id}</Link>
+                        </td>
+                        <td>
+                          <ScenarioCell
+                            label={r.scenario}
+                            scenarioKey={r.scenario_key}
+                            instanceId={r.instance_id}
+                            playerId={r.player_id}
+                          />
+                        </td>
+                        <td className="muted">{r.region}</td>
+                        <td>
+                          <CooperativePill cooperative={r.cooperative} />
+                        </td>
+                        <td>
+                          <PriorityBadge priority={r.priority} />
+                        </td>
+                        <td>
+                          <QueuePendingActions row={r} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <QueuePendingGantt
+                pending={data.pending}
+                history={data.history ?? []}
+                onReschedule={() => {
+                  showSuccess("Task rescheduled");
+                  void refresh();
+                }}
+                onError={(msg) => setError(msg)}
+              />
+            )}
+          </>
         ) : (
           <EmptyState
             icon="inbox-empty"

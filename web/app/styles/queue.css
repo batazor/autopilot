@@ -172,4 +172,140 @@
     @apply max-w-xl;
   }
 
+  .queue-gantt {
+    @apply mt-2 rounded-lg border border-wos-border-subtle bg-wos-panel-raised/40;
+  }
+
+  .queue-gantt__toolbar {
+    @apply flex flex-wrap items-center gap-2 border-b border-wos-border-subtle px-3 py-2 text-xs;
+  }
+
+  .queue-gantt__zoom-label {
+    @apply mr-1 text-wos-text-muted;
+  }
+
+  .queue-gantt__zoom {
+    @apply rounded-md border border-wos-border-subtle bg-wos-panel/60 px-2 py-1 text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .queue-gantt__zoom--active {
+    @apply border-sky-700/60 bg-sky-900/40 text-sky-200;
+  }
+
+  .queue-gantt__hint {
+    @apply ml-3 text-wos-text-muted italic;
+  }
+
+  .queue-gantt__legend {
+    @apply ml-auto inline-flex items-center gap-1 text-wos-text-muted;
+  }
+
+  .queue-gantt__legend-swatch {
+    @apply ml-2 inline-block h-3 w-3 rounded-sm align-middle;
+  }
+
+  .queue-gantt__legend-swatch--scheduled {
+    background-color: #0284c7;
+  }
+
+  .queue-gantt__legend-swatch--overdue {
+    background-color: #dc2626;
+  }
+
+  .queue-gantt__chart {
+    @apply overflow-auto p-2;
+  }
+
+  .queue-gantt-empty {
+    @apply rounded-lg border border-dashed border-wos-border-subtle px-3 py-6 text-center text-sm;
+  }
+
+}
+
+/* gantt-task-react v0.3.9 dark-theme overrides.
+   Class names are CSS-module hashes baked into the published bundle and the
+   component output, so they are stable per pinned version. Revisit if the
+   library is upgraded. */
+.queue-gantt__chart {
+  color: var(--wos-text);
+}
+
+/* Borders around task list + body */
+.queue-gantt__chart ._3_ygE,
+.queue-gantt__chart ._3ZbQT {
+  border-color: var(--wos-border-subtle) !important;
+}
+
+/* Vertical splitter between task list and calendar */
+.queue-gantt__chart ._2eZzQ {
+  border-right-color: var(--wos-border-subtle) !important;
+}
+
+/* Task list header cell text */
+.queue-gantt__chart ._WuQ0f {
+  color: var(--wos-text-secondary);
+}
+
+/* Task list body cell text */
+.queue-gantt__chart ._3lLk3 {
+  color: var(--wos-text);
+}
+
+/* Task list body alternating rows */
+.queue-gantt__chart ._34SS0:nth-of-type(even) {
+  background-color: var(--wos-panel-raised) !important;
+}
+
+/* SVG grid row fills (alternating) */
+.queue-gantt__chart ._2dZTy {
+  fill: transparent !important;
+}
+.queue-gantt__chart ._2dZTy:nth-child(even) {
+  fill: var(--wos-panel-raised) !important;
+}
+
+/* SVG grid strokes (rows, ticks, columns) */
+.queue-gantt__chart ._3rUKi,
+.queue-gantt__chart ._RuwuK,
+.queue-gantt__chart ._1rLuZ {
+  stroke: var(--wos-border-subtle) !important;
+}
+
+/* Calendar header date labels */
+.queue-gantt__chart ._9w8d5 {
+  fill: var(--wos-text-secondary) !important;
+}
+
+/* Bar side labels (task name printed beside the bar) */
+.queue-gantt__chart ._3KcaM,
+.queue-gantt__chart ._2q1Kt {
+  fill: var(--wos-text-secondary) !important;
+}
+
+/* Bar inside labels (project / task name printed inside the bar) */
+.queue-gantt__chart ._3zRJQ {
+  fill: #ffffff !important;
+}
+
+/* Expander chevron + month/quarter label */
+.queue-gantt__chart ._2QjE6,
+.queue-gantt__chart ._2TfEi {
+  color: var(--wos-text-muted) !important;
+}
+
+/* Today line marker */
+.queue-gantt__chart ._35nLX {
+  fill: rgba(56, 189, 248, 0.18) !important;
+  stroke: var(--wos-border) !important;
+}
+
+/* Tooltip */
+.queue-gantt__chart ._3T42e {
+  background: var(--wos-panel-raised) !important;
+  color: var(--wos-text) !important;
+  border: 1px solid var(--wos-border-subtle) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35) !important;
+}
+.queue-gantt__chart ._29NTg {
+  color: var(--wos-text-muted) !important;
 }

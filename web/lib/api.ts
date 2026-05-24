@@ -166,6 +166,18 @@ export async function removeQueueTasks(taskIds: string[]): Promise<number> {
   return data.removed;
 }
 
+export async function rescheduleQueueTask(
+  taskId: string,
+  scheduledAt: number,
+): Promise<boolean> {
+  const data = await apiFetch<{ ok: boolean }>("/api/queue/reschedule", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ task_id: taskId, scheduled_at: scheduledAt }),
+  });
+  return data.ok;
+}
+
 export async function fetchPlayers(): Promise<string[]> {
   const data = await apiFetch<{ players: string[] }>("/api/players");
   return data.players;

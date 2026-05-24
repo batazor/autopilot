@@ -15,7 +15,7 @@ steps:
       interval: 100ms
     steps:
       - click: page.vip.box
-      - wait: 500ms
+      - wait: 2s
       - while_match: button.click_to_continue
         max: 1
         retry:

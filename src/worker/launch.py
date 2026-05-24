@@ -304,7 +304,15 @@ def _run_modern_play() -> None:
         if open_browser and not skip_web:
             webbrowser.open(overview_url)
 
-        raise SystemExit(stack.monitor_until_exit())
+        try:
+            exit_code = stack.monitor_until_exit()
+        except KeyboardInterrupt:
+            # Second Ctrl+C during shutdown re-enters the signal handler and
+            # raises to escalate. Swallow it here so the user sees a clean
+            # 130 exit instead of a stack trace.
+            print("Forced shutdown after second Ctrl+C.", flush=True)
+            exit_code = 130
+        raise SystemExit(exit_code)
     finally:
         stack.shutdown()
         shutdown_runtime_observability()

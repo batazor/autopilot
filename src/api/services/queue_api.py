@@ -20,6 +20,7 @@ from dashboard.redis_client import (
     get_instance_state,
     push_scheduler_command,
     remove_queue_task,
+    reschedule_queue_task,
     run_queue_task_now,
     sort_queue_rows_by_execution_order,
 )
@@ -173,3 +174,13 @@ def remove_tasks(client: redis.Redis, task_ids: list[str]) -> int:
 
         publish_dashboard_event(client, topic="queue", reason="remove")
     return removed
+
+
+def reschedule_task(client: redis.Redis, task_id: str, scheduled_at: float) -> bool:
+    ok = reschedule_queue_task(client, task_id, scheduled_at)
+    if ok:
+        push_scheduler_command(client, {"cmd": "optimize_now"})
+        from dashboard.dashboard_events import publish_dashboard_event
+
+        publish_dashboard_event(client, topic="queue", reason="reschedule")
+    return ok

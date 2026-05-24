@@ -157,17 +157,33 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
     trace.set_tracer_provider(provider)
 
     # Metrics share the OTLP endpoint / headers / protocol envvars with traces;
-    # the OTLPMetricExporter reads them automatically. Periodic reader pushes
-    # every 60 s by default — fast enough for most dashboards and
-    # cheap relative to per-tick span volume.
+    # the OTLPMetricExporter reads them automatically.
     # ``OTEL_METRICS_EXPORTER=none`` opts out (mirrors the matching gate in
     # ``logging_otel`` for ``OTEL_LOGS_EXPORTER=none``) — useful when the
     # configured collector only accepts traces (e.g. a dedicated Tempo OTLP
     # endpoint), so the metric exporter doesn't pound it with 404s.
+    # Default export interval is 5 min (vs SDK's 60 s): we run N worker
+    # processes + supervisor + scheduler + api, each pushing independently —
+    # Grafana Cloud's free tier returns 429 if every process hits it every
+    # minute. The metrics we publish (heartbeat / uptime / workers) are
+    # gauges, so 5 min cadence is plenty for dashboards.
+    # ``OTEL_METRIC_EXPORT_INTERVAL`` (milliseconds) overrides.
     if (os.environ.get("OTEL_METRICS_EXPORTER") or "").strip().lower() != "none":
+        try:
+            export_interval_millis = int(
+                (os.environ.get("OTEL_METRIC_EXPORT_INTERVAL") or "").strip()
+                or 300_000
+            )
+        except ValueError:
+            export_interval_millis = 300_000
         meter_provider = MeterProvider(
             resource=resource,
-            metric_readers=[PeriodicExportingMetricReader(OTLPMetricExporter())],
+            metric_readers=[
+                PeriodicExportingMetricReader(
+                    OTLPMetricExporter(),
+                    export_interval_millis=export_interval_millis,
+                )
+            ],
         )
         metrics.set_meter_provider(meter_provider)
 

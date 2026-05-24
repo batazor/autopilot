@@ -44,7 +44,7 @@ function cropPreviewStyle(
     backgroundPosition: `${posX}% ${posY}%`,
     backgroundRepeat: "no-repeat",
     aspectRatio: `${aspect}`,
-    maxHeight: `${CROP_PREVIEW_MAX_HEIGHT}px`,
+    maxWidth: `${CROP_PREVIEW_MAX_HEIGHT * aspect}px`,
   };
 }
 

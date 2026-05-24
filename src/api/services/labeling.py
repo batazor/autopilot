@@ -334,6 +334,18 @@ def save_labeling_regions(
 
     found = ls.entry_for_ref(doc, ref_rel, env)
     if found is None:
+        sid_clean = (screen_id or "").strip()
+        if not regions and not sid_clean and not version:
+            return {
+                "ok": True,
+                "region_count": 0,
+                "active_version": None,
+                "screen_id": "",
+                "region_renames_synced": [],
+                "crops_written_count": 0,
+                "crop_warnings": [],
+                "skipped": "empty-save-for-unknown-ref",
+            }
         ocr_rel = (
             ref_rel
             if ref_rel.startswith(env.references_prefix + "/")
