@@ -292,7 +292,11 @@ def _enforce_license_gate() -> None:
 
 
 def main() -> None:
-    bootstrap_runtime_observability("supervisor")
+    # Stamp ``service.instance.id`` with the host fingerprint instead of the
+    # hostname (Docker container IDs churn on every recreate — each restart
+    # would spawn a fresh time series in Prometheus until the old ones aged
+    # out). Fingerprint is stable per host: same machine = same id.
+    bootstrap_runtime_observability("supervisor", instance_id=generate_fingerprint())
     set_settings(load_settings())
     assert_startup_configs_valid()
     _enforce_license_gate()

@@ -49,9 +49,16 @@ def _apply_baked_telemetry_secrets() -> None:
     # touches our forced endpoint. Strip it so the off-switch can't be used
     # against a production build.
     os.environ.pop("OTEL_SDK_DISABLED", None)
-    # Same logic for the per-signal opt-outs.
-    for _signal in ("METRICS", "TRACES", "LOGS"):
-        os.environ.pop(f"OTEL_{_signal}_EXPORTER", None)
+    # Metrics is the signal that carries our user-facing telemetry — make
+    # absolutely sure the user can't disable it via the per-signal opt-out.
+    os.environ.pop("OTEL_METRICS_EXPORTER", None)
+    # Logs and traces are *forced off* — the maintainer's metrics-only
+    # access policy doesn't carry ``logs:write`` or ``traces:write`` scope,
+    # so attempting export just spams 401s. Set the per-signal disable
+    # explicitly so the SDK skips them at the source instead of hammering
+    # the OTLP endpoint every batch.
+    os.environ["OTEL_LOGS_EXPORTER"] = "none"
+    os.environ["OTEL_TRACES_EXPORTER"] = "none"
 
 
 def bootstrap_runtime_observability(
