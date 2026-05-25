@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.alliance_championship:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/events/alliance_championship/references/main_city.event.alliance_championship.png
+      threshold: 0.9
+
+  event.alliance_championship:
+    main_city: [icon.page.back]

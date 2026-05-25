@@ -38,11 +38,6 @@ from dashboard.reference_preview import (
     move_temporal_to_reference_basename,
     rename_reference_to_basename,
 )
-from dashboard.roboflow_upload import (
-    build_coco_annotation,
-    load_roboflow_upload_config,
-    upload_screenshot_to_roboflow,
-)
 from layout.area_versions import (
     VERSION_ID_RE,
     compile_cond,
@@ -655,60 +650,6 @@ def rename_reference(
         msg_sync = f"area.json sync failed: {sync_err}"
         raise RuntimeError(msg_sync) from None
     return out
-
-
-def roboflow_status() -> dict[str, Any]:
-    config, missing = load_roboflow_upload_config()
-    if config is None:
-        return {"configured": False, "missing": missing}
-    return {
-        "configured": True,
-        "project": config.project,
-        "batch_name": config.batch_name,
-        "workspace": config.workspace,
-    }
-
-
-def upload_reference_to_roboflow(
-    ref_rel: str,
-    *,
-    version: str | None = None,
-    scope: str = CORE_MODULE_KEY,
-) -> dict[str, Any]:
-    env = ls.scope_env(scope)
-    ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
-    if ls.is_pending_temporal_ref(ref_rel, env):
-        msg = "promote the capture before uploading to Roboflow"
-        raise ValueError(msg)
-    upload_path = (env.repo_root / ref_rel).resolve()
-    if not upload_path.is_file():
-        msg = f"reference not found: {ref_rel}"
-        raise FileNotFoundError(msg)
-    config, missing = load_roboflow_upload_config()
-    if config is None:
-        msg = "Roboflow not configured: missing " + ", ".join(missing)
-        raise RuntimeError(msg)
-
-    doc = ls.load_area_doc(env)
-    found = ls.entry_for_ref(doc, ref_rel, env)
-    if found is None:
-        msg = "no area.json entry for this reference"
-        raise ValueError(msg)
-    _idx, entry = found
-    active_version = _resolve_edit_version(entry, version)
-    rel_under = ls.rel_under_ref_root(ref_rel, env)
-    annotation = build_coco_annotation(
-        image_path=upload_path,
-        image_rel=rel_under,
-        entry=entry,
-        active_version=active_version,
-    )
-    upload_screenshot_to_roboflow(upload_path, config, annotation=annotation)
-    return {
-        "ok": True,
-        "annotation_count": len(annotation.get("annotations") or []),
-        "batch_name": config.batch_name,
-    }
 
 
 def add_version(

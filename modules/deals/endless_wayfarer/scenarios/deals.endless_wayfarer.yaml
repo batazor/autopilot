@@ -1,0 +1,16 @@
+enabled: true
+name: Endless Wayfarer
+node: deals.endless_wayfarer
+icon: endless_wayfarer
+steps:
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - click: tapanywhereyoexit

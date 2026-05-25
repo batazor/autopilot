@@ -1,0 +1,8 @@
+id: deals_hall_of_heroes
+title: Deals — Hall of Heroes
+description: Hall of Heroes deals sub-tab and Witness sub-page claim flow.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: hall_of_heroes
+wiki: false

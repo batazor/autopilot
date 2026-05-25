@@ -1,8 +1,0 @@
-id: deals
-title: Deals
-description: Deals page automation — sign-in, 1st purchase, home and beyond, hall of heroes.
-scenarios: scenarios
-analyze: analyze/analyze.yaml
-area: area.yaml
-references: references
-wiki: false

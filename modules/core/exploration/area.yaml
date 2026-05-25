@@ -32,8 +32,7 @@ screens:
     ocr: references/page.exploration.victory.png
     regions:
       - name: page.exploration.victory.title
-        action: text
-        type: string
+        action: exist
         threshold: 0.9
         bbox:
           x: 29.88416988416989

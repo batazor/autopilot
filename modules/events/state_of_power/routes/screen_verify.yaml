@@ -1,0 +1,5 @@
+screens:
+  event.state_of_power:
+    rules:
+      - match: event.state_of_power
+        threshold: 0.9

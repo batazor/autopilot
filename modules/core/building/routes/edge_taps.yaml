@@ -1,0 +1,17 @@
+edges:
+  # Tapping the chapter task banner navigates the camera to the active
+  # building and opens its panel. Used by `building.upgrade` (node: building)
+  # when chapter_task_router has just clicked chapter.task but the overlay
+  # `set_node: building` from `page.building.furniture.present` hasn't yet
+  # caught up. If chapter.task is empty, this tap no-ops and the verifier
+  # (`page.building.furniture` match) fails — scenario reschedules cleanly.
+  main_city:
+    building: [chapter.task]
+
+  building:
+    main_city: [from.building.to.main_city]
+
+  # Furnace screen reuses the generic building→main_city back tap — both
+  # screens share the same chrome (back arrow at the same coords).
+  furnace:
+    main_city: [from.building.to.main_city]

@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "screen_id": "main_city",
+      "regions": [
+        {
+          "name": "main_city.to.sign_in",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 89.57528957528957,
+            "y": 31.847826086956523,
+            "width": 6.600386100386101,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 1205,
+      "screen_id": "deals.sign_in",
+      "ocr": "references/deals.sign_in.png",
+      "regions": [
+        {
+          "name": "deals.sign_in.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 9.227799227799228,
+            "y": 42.93478260869565,
+            "width": 20.0,
+            "height": 54.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "deals.sign_in.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.787644787644788,
+            "y": 15.76086956521739,
+            "width": 20.0,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "sign_in.to.home_and_beyound",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.96911196911197,
+            "y": 7.5,
+            "width": 27.000000000000004,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        }
+      ]
+    }
+  ]
+}

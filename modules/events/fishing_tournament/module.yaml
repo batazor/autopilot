@@ -1,0 +1,9 @@
+id: fishing_tournament
+title: Fishing Tournament
+description: Limited-time Fishing Tournament event; opens from the main_city event strip.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: fishing_tournament
+wiki: false

@@ -1,0 +1,6 @@
+edges:
+  main_city:
+    chief_profile: [to_chief_profile]
+
+  chief_profile:
+    main_city: [icon.page.back]

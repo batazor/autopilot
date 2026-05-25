@@ -1,0 +1,5 @@
+screens:
+  event.castle_battle:
+    rules:
+      - match: event.castle_battle
+        threshold: 0.9

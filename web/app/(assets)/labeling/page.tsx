@@ -27,7 +27,6 @@ import {
   fetchLabelingScopes,
   fetchLabelingScreenIds,
   fetchLabelingStaleCrops,
-  fetchRoboflowStatus,
   importLabelingPng,
   labelingImageUrl,
   promoteLabelingReference,
@@ -37,7 +36,6 @@ import {
   suggestLabelingVersionId,
   syncLabelingVersionRegions,
   updateLabelingVersionCond,
-  uploadLabelingToRoboflow,
 } from "@/lib/api";
 import type { EditorRegion } from "@/lib/bbox";
 import {
@@ -52,7 +50,6 @@ import type {
   LabelingReferenceMeta,
   LabelingScopeOption,
   LabelingStaleCrop,
-  RoboflowStatus,
 } from "@/lib/types";
 
 function LabelingPageInner() {
@@ -86,7 +83,6 @@ function LabelingPageInner() {
   const [refFilter, setRefFilter] = useState("");
   const [imageNonce, setImageNonce] = useState(0);
   const [basename, setBasename] = useState("");
-  const [roboflow, setRoboflow] = useState<RoboflowStatus | null>(null);
   const [newVersionId, setNewVersionId] = useState("v2");
   const [newVersionCond, setNewVersionCond] = useState("");
   const [editVersionCond, setEditVersionCond] = useState("");
@@ -170,9 +166,6 @@ function LabelingPageInner() {
         setScopesReady(true);
       })
       .catch((e: Error) => setError(e.message));
-    fetchRoboflowStatus()
-      .then(setRoboflow)
-      .catch(() => setRoboflow({ configured: false }));
   }, [params]);
 
   useEffect(() => {
@@ -450,16 +443,6 @@ function LabelingPageInner() {
     });
   };
 
-  const onRoboflowUpload = async () => {
-    if (!refRel || busy || isPending) return;
-    await runBusy(async () => {
-      const out = await uploadLabelingToRoboflow(refRel, moduleScope, activeVersion);
-      showSuccess(
-        `Uploaded ${out.annotation_count} annotation(s) to batch ${out.batch_name}`,
-      );
-    });
-  };
-
   const onAddVersion = async () => {
     if (!refRel || busy) return;
     await runBusy(async () => {
@@ -618,19 +601,6 @@ function LabelingPageInner() {
           onClick={onWriteCrops}
         >
           Write crops
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={!refRel || isPending || busy || !roboflow?.configured}
-          title={
-            roboflow?.configured
-              ? `Upload to ${roboflow.project}`
-              : `Missing: ${roboflow?.missing?.join(", ") ?? "ROBOFLOW_* env"}`
-          }
-          onClick={onRoboflowUpload}
-        >
-          Upload to Roboflow
         </button>
       </div>
 

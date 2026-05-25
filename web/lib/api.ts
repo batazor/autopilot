@@ -31,7 +31,6 @@ import type {
   LabelingReferenceMeta,
   LabelingScopeOption,
   LabelingStaleCrop,
-  RoboflowStatus,
   NotificationEvent,
   OverlayTestResult,
   RoutesGraphResponse,
@@ -619,22 +618,6 @@ export async function renameLabelingReference(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ref: refRel, basename, instance_id: instanceId }),
-  });
-}
-
-export async function fetchRoboflowStatus(): Promise<RoboflowStatus> {
-  return apiFetch("/api/labeling/roboflow/status");
-}
-
-export async function uploadLabelingToRoboflow(
-  refRel: string,
-  scope: string,
-  version?: string | null,
-): Promise<{ ok: boolean; annotation_count: number; batch_name: string }> {
-  return apiFetch(`/api/labeling/roboflow/upload${labelingScopeQuery(scope)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ref: refRel, version: version ?? null }),
   });
 }
 

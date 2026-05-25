@@ -1,0 +1,5 @@
+screens:
+  deals.tundra_trading_station:
+    rules:
+      - match: tundra_trading_station.title
+        threshold: 0.9

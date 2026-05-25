@@ -1,0 +1,8 @@
+edges:
+  deals.hall_of_heroes:
+    deals: [icon.page.back]
+    hall_of_heroes.witness: [deals.hall_of_heroes.add]
+
+  # Witness is a sub-page off Hall of Heroes; back chevron returns to the hub.
+  hall_of_heroes.witness:
+    deals.hall_of_heroes: [icon.page.back]

@@ -1,0 +1,9 @@
+id: journey_treasures
+title: Journey Treasures
+description: Journey Treasures deals sub-tab; opens via main_city event strip or deals hub.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+icon: journey_treasures
+wiki: false

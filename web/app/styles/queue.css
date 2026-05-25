@@ -68,7 +68,7 @@
   }
 
   .queue-sort-btn {
-    @apply inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-inherit font-inherit hover:text-wos-text;
+    @apply inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-inherit font-[inherit] hover:text-wos-text;
   }
 
   .queue-table .queue-reason {

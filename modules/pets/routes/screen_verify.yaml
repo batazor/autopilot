@@ -1,0 +1,9 @@
+screens:
+  pets:
+    rules:
+      - match: pets.title
+        threshold: 0.9
+  pets.pet_skill:
+    rules:
+      - match: pets.pet_skill.title
+        threshold: 0.9

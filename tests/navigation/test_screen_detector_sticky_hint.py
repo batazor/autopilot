@@ -85,7 +85,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     yield
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
@@ -251,7 +251,7 @@ text_switch:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         detector = ScreenDetector(OcrClient(get_settings()))
@@ -304,7 +304,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:
         detector = ScreenDetector(OcrClient(get_settings()))

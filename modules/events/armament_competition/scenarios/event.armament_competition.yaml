@@ -1,0 +1,16 @@
+enabled: true
+name: Armament Competition
+node: event.armament_competition
+icon: armament_competition
+steps:
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - click: tapanywhereyoexit

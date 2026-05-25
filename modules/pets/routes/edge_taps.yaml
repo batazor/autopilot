@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    pets:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/pets/references/main_city.pets.png
+      threshold: 0.9
+
+  pets:
+    main_city: [icon.page.back]

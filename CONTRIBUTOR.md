@@ -73,7 +73,7 @@ Requires **Node.js 20+** in `web/` (`npm` on PATH; `play` runs `npm install` onc
 
 **Split terminals** (optional): `uv run bot`, `uv run api`, `cd web && npm run dev`.
 
-**Labeling** (versions, Roboflow, basename promote): http://127.0.0.1:3000/labeling.
+**Labeling** (versions, basename promote): http://127.0.0.1:3000/labeling.
 
 **Wiki FAQ sync** (live progress): http://127.0.0.1:3000/wiki → FAQ tab.
 

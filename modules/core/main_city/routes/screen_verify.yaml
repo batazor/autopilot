@@ -1,0 +1,6 @@
+screens:
+  main_city:
+    priority: 10
+    rules:
+    - match: icon.world
+      threshold: 0.9

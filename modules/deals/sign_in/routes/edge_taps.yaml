@@ -1,0 +1,13 @@
+edges:
+  main_city:
+    deals.sign_in:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/deals/sign_in/references/crop/main_city_main_city.to.sign_in.png
+      threshold: 0.9
+
+  deals.sign_in:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]
+    # Cross-tab nav: sign_in has a top-tab strip that jumps to Home & Beyond.
+    deals.home_and_beyond: [sign_in.to.home_and_beyound]

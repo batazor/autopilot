@@ -384,8 +384,8 @@ class ScreenDetector:
     ) -> bool:
         """Sticky check: does this frame still satisfy ``screen``'s own rules?
 
-        Runs ONLY the template landmark rules attached to ``screen`` in
-        ``navigation/screen_verify.yaml`` via in-process ``cv2.matchTemplate``.
+        Runs ONLY the template landmark rules attached to ``screen`` in the
+        per-module ``routes/screen_verify.yaml`` via in-process ``cv2.matchTemplate``.
         Short-circuits at the first matching landmark group.
 
         Big win on the steady-state case where the bot dwells on one screen

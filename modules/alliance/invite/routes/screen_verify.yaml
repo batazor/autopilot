@@ -1,0 +1,6 @@
+screens:
+  alliance.invitation:
+    priority: 20
+    rules:
+    - match: alliance.title
+      threshold: 0.9

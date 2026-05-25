@@ -1,0 +1,5 @@
+screens:
+  deals.hero_rally:
+    rules:
+      - match: hero_rally.title
+        threshold: 0.9

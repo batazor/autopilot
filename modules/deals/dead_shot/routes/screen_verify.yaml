@@ -1,0 +1,5 @@
+screens:
+  deals.dead_shot:
+    rules:
+      - match: dead_shot.title
+        threshold: 0.9

@@ -11,6 +11,11 @@ screens:
       threshold: 0.9
     - match: squad_settings.fight
       threshold: 0.9
+  exploration.victory:
+    priority: 20
+    rules:
+    - match: page.exploration.victory.title
+      threshold: 0.9
   exploration.defeat:
     priority: 20
     rules:

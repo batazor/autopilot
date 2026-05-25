@@ -1,0 +1,5 @@
+screens:
+  event.alliance_championship:
+    rules:
+      - match: event.alliance_championship
+        threshold: 0.9

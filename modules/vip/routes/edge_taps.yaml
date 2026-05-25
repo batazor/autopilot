@@ -1,0 +1,9 @@
+edges:
+  main_city:
+    vip: [page.vip]
+
+  vip:
+    main_city: [icon.page.back]
+
+  increase_level:
+    vip: [increase_level.icon.close]

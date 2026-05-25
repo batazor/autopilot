@@ -1,0 +1,7 @@
+screens:
+  deals.vault_of_enigma:
+    priority: 53
+    parent: deals
+    rules:
+    - match: vault_of_enigma.title
+      threshold: 0.74

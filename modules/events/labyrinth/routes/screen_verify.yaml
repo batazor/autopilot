@@ -1,0 +1,5 @@
+screens:
+  event.labyrinth:
+    rules:
+      - match: event.labyrinth
+        threshold: 0.9

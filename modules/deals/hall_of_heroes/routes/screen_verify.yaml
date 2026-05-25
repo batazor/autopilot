@@ -1,0 +1,11 @@
+screens:
+  deals.hall_of_heroes:
+    priority: 53
+    rules:
+    - match: deals.hall_of_heroes.title
+      threshold: 0.9
+  hall_of_heroes.witness:
+    priority: 54
+    rules:
+    - match: hall_of_heroes.witness.title
+      threshold: 0.9

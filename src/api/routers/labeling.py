@@ -59,11 +59,6 @@ class RenameBody(BaseModel):
     instance_id: str
 
 
-class RoboflowUploadBody(BaseModel):
-    ref: str
-    version: str | None = None
-
-
 class AddVersionBody(BaseModel):
     ref: str
     version_id: str
@@ -241,28 +236,6 @@ def post_rename(
     try:
         return labeling_svc.rename_reference(
             body.ref, body.basename, body.instance_id, scope=scope
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/roboflow/status")
-def get_roboflow_status() -> dict[str, Any]:
-    return labeling_svc.roboflow_status()
-
-
-@router.post("/roboflow/upload")
-def post_roboflow_upload(
-    body: RoboflowUploadBody,
-    scope: str = Query(default="core"),
-) -> dict[str, Any]:
-    try:
-        return labeling_svc.upload_reference_to_roboflow(
-            body.ref, version=body.version, scope=scope
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -1,0 +1,5 @@
+screens:
+  event.foundry_battle:
+    rules:
+      - match: event.foundry_battle
+        threshold: 0.9

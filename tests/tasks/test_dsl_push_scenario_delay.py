@@ -105,8 +105,19 @@ async def test_state_field_ref_not_hms_returns_none() -> None:
 
 @pytest.mark.asyncio
 async def test_numeric_delay_rejected() -> None:
-    # Bare numbers are NOT a valid delay — only hh:mm:ss literal or state ref.
-    # A bare int/float is stringified; "60" has no ":" → treated as state field
-    # name, which won't resolve in an empty store → None (skip enqueue).
+    # Bare numbers are NOT a valid delay — only hh:mm:ss / suffix literal or
+    # state ref. A bare int/float is stringified; "60" has no ":" and no
+    # suffix → treated as state field name, which won't resolve in an empty
+    # store → None (skip enqueue).
     assert await _resolve(60) is None
-    assert await _resolve("30m") is None
+    assert await _resolve("60") is None
+
+
+@pytest.mark.asyncio
+async def test_suffix_literal_delay() -> None:
+    # ``Ns`` / ``Nms`` / ``Nm`` / ``Nh`` map straight through ``_parse_wait_seconds``.
+    assert await _resolve("500ms") == 0.5
+    assert await _resolve("30s") == 30.0
+    assert await _resolve("15m") == 900.0
+    assert await _resolve("6h") == 21600.0
+    assert await _resolve("1.5h") == 5400.0

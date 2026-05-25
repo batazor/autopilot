@@ -1,0 +1,11 @@
+edges:
+  main_city:
+    deals.journey_treasures:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/deals/journey_treasures/references/main_city.deals.journey_treasures.png
+      threshold: 0.9
+
+  deals.journey_treasures:
+    deals: [icon.page.back]
+    main_city: [icon.page.back]

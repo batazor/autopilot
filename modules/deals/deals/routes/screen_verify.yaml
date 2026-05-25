@@ -1,0 +1,6 @@
+screens:
+  deals:
+    priority: 60
+    rules:
+    - match: deals.title
+      threshold: 0.9

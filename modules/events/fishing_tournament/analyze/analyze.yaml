@@ -1,0 +1,13 @@
+overlay:
+  - name: fishing_tournament.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: modules/events/fishing_tournament/references/main_city.event.fishing_tournament.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: event.fishing_tournament
+          ttl: 1m

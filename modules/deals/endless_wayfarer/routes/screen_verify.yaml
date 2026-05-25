@@ -1,0 +1,5 @@
+screens:
+  deals.endless_wayfarer:
+    rules:
+      - match: endless_wayfarer.title
+        threshold: 0.9

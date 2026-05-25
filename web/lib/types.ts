@@ -445,14 +445,6 @@ export type LabelingDocument = {
   redirect_version?: string | null;
 };
 
-export type RoboflowStatus = {
-  configured: boolean;
-  missing?: string[];
-  project?: string;
-  batch_name?: string;
-  workspace?: string | null;
-};
-
 export type OverlayRuleRow = {
   name: string;
   node: string;

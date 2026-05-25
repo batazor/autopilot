@@ -1,0 +1,16 @@
+enabled: true
+name: Foundry Battle
+node: event.foundry_battle
+icon: foundry_battle
+steps:
+  - while_match: button.claim
+    max: 3
+    steps:
+      - click: button.claim
+      - wait: 1s
+  - while_match: button.claim.big
+    max: 3
+    steps:
+      - click: button.claim.big
+      - wait: 1s
+      - click: tapanywhereyoexit

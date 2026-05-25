@@ -1,0 +1,6 @@
+screens:
+  deals.first_purchase:
+    priority: 51
+    rules:
+    - match: deals.first_purchase.title
+      threshold: 0.9

@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.foundry_battle:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: modules/events/foundry_battle/references/main_city.event.foundry_battle.png
+      threshold: 0.9
+
+  event.foundry_battle:
+    main_city: [icon.page.back]

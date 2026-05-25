@@ -1,0 +1,20 @@
+overlay:
+  # The ``+`` button in the rewards panel renders with a tiny red dot when
+  # there is something new to claim on the Witness sub-page. The dot is too
+  # small for ``find_red_dots`` HSV/circularity gates, so we use the labeled
+  # bbox as a template instead — ``findIcon`` only fires when the button is
+  # drawn in the "with red dot" variant.
+  #
+  # When matched, push the witness scenario; the scheduler navigates via the
+  # ``deals.hall_of_heroes → hall_of_heroes.witness`` edge (taps the same
+  # button) and then runs the ``while_match: button.free`` claim loop.
+  - name: deals.hall_of_heroes.add.has_dot
+    region: deals.hall_of_heroes.add
+    action: findIcon
+    threshold: 0.9
+    screens:
+      - deals.hall_of_heroes
+    steps:
+      - push_scenario:
+          name: hall_of_heroes.witness
+          ttl: 1m

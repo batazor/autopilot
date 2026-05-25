@@ -1,0 +1,15 @@
+screens:
+  vip:
+    priority: 30
+    rules:
+    - match: page.vip.box
+      threshold: 0.9
+    - match: page.vip.add
+      threshold: 0.9
+    - match: page.vip.unlock
+      threshold: 0.9
+  increase_level:
+    priority: 5
+    rules:
+    - match: increase_level.title
+      threshold: 0.9

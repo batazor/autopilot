@@ -33,7 +33,7 @@ def test_area_screen_region_adds_screen_landmark(mocker, tmp_path: Path) -> None
         ),
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     # Per-hero wiki screens are synthesized from the real heroes index; the
     # test wants to assert the area-region path in isolation, so suppress them.

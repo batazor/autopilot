@@ -1,0 +1,13 @@
+overlay:
+  - name: hero_rally.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: modules/deals/hero_rally/references/main_city.deals.hero_rally.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: deals.hero_rally
+          ttl: 1m

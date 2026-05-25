@@ -13,8 +13,16 @@ if TYPE_CHECKING:
 
 
 def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
-    (root / "navigation").mkdir()
-    (root / "navigation" / "edge_taps.yaml").write_text(text, encoding="utf-8")
+    # Validator now walks per-module ``routes/edge_taps.yaml`` only — no canonical
+    # file exists. Stash the fixture under a tiny throwaway module so iter_module_dirs
+    # picks it up.
+    mod = root / "modules" / "core" / "_edge_taps_fixture"
+    (mod / "routes").mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text(
+        "id: _edge_taps_fixture\ntitle: edge taps fixture\nwiki: false\n",
+        encoding="utf-8",
+    )
+    (mod / "routes" / "edge_taps.yaml").write_text(text, encoding="utf-8")
 
 
 def _write_module_overlay(root: Path, module_id: str, overlay_yaml: str) -> Path:

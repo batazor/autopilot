@@ -8,12 +8,12 @@ Usage pattern
 
 **Redis ``nav_error``:** the part before ``→`` is the navigator's last known source
 screen (from detection), not the DSL scenario id. Directed taps are defined in
-``navigation/edge_taps.yaml`` (this module only loads them).
+per-module ``modules/<id>/routes/edge_taps.yaml`` (this module only loads them).
 
 Adding a new screen
 --------------------
-- Add ``src → dst: [region, ...]`` to ``navigation/edge_taps.yaml`` (regions must exist in area.json).
-- Add ``rules`` to ``modules/<id>/screen_verify.yaml`` (detection + nav verify). Optional
+- Add ``src → dst: [region, ...]`` to ``modules/<id>/routes/edge_taps.yaml`` (regions must exist in area.json).
+- Add ``rules`` to ``modules/<id>/routes/screen_verify.yaml`` (detection + nav verify). Optional
   ``landmarks`` only when detection must differ (e.g. shop sub-tabs).
 - Add coordinate constants to ``layout.screens``.
 """
@@ -55,7 +55,7 @@ A ``None`` return makes :func:`route_taps_async` fail the whole route — the
 caller (Navigator) treats it as a routing failure and retries later."""
 
 # ---------------------------------------------------------------------------
-# Tap registry — loaded from navigation/edge_taps.yaml
+# Tap registry — loaded from per-module routes/edge_taps.yaml
 # ---------------------------------------------------------------------------
 
 
@@ -122,12 +122,11 @@ def _load_edge_taps() -> tuple[
 
 
 def _edge_taps_yaml_paths() -> list[Path]:
-    root_path = Path(__file__).resolve().with_name("edge_taps.yaml")
-    paths = [root_path] if root_path.is_file() else []
-
+    """Every per-module ``edge_taps.yaml`` / ``routes/edge_taps.yaml``."""
     from config.module_discovery import iter_module_dirs
     from config.paths import repo_root
 
+    paths: list[Path] = []
     root = repo_root()
     for module_dir in iter_module_dirs(root):
         for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
@@ -184,31 +183,23 @@ async def _resolve_dynamic_edge(
 # Destination verification config
 # ---------------------------------------------------------------------------
 
-def _screen_verify_yaml_path() -> Path:
-    return Path(__file__).resolve().with_name("screen_verify.yaml")
+def _screen_verify_yaml_paths() -> list[Path]:
+    """Every per-module ``screen_verify.yaml`` / ``routes/screen_verify.yaml``.
 
-
-def _module_screen_verify_yaml_paths() -> list[Path]:
+    Unit tests monkeypatch this entire function with ``new=lambda: [cfg]`` to
+    inject a single temp-file fixture in isolation.
+    """
     from config.module_discovery import iter_module_dirs
     from config.paths import repo_root
 
-    root = repo_root()
     paths: list[Path] = []
+    root = repo_root()
     for module_dir in iter_module_dirs(root):
         for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
             path = module_dir / rel
             if path.is_file():
                 paths.append(path)
-    return paths
-
-
-def _screen_verify_yaml_paths() -> list[Path]:
-    path = _screen_verify_yaml_path()
-    paths = [path]
-    # Unit tests monkeypatch the root YAML path to a temp file; in that mode,
-    # keep the fixture isolated and do not merge production module manifests.
-    if path.resolve() == Path(__file__).resolve().with_name("screen_verify.yaml"):
-        paths.extend(_module_screen_verify_yaml_paths())
+                break
     return paths
 
 

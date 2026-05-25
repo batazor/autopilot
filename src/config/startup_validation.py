@@ -727,37 +727,28 @@ def _validate_cron_specs(
             )
 
 
-def _edge_taps_yaml_path(repo_root: Path) -> Path | None:
-    """Path to edge taps: ``src/navigation`` (matches ``screen_graph``) or legacy ``navigation/``."""
+def _edge_taps_yaml_paths(repo_root: Path) -> list[Path]:
+    """Every per-module ``edge_taps.yaml`` / ``routes/edge_taps.yaml`` the
+    screen_graph loader merges."""
 
-    src = repo_root / "src" / "navigation" / "edge_taps.yaml"
-    if src.is_file():
-        return src
-    legacy = repo_root / "navigation" / "edge_taps.yaml"
-    if legacy.is_file():
-        return legacy
-    return None
+    from config.module_discovery import iter_module_dirs
+
+    paths: list[Path] = []
+    for module_dir in iter_module_dirs(repo_root):
+        for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
+            mod_path = module_dir / rel
+            if mod_path.is_file():
+                paths.append(mod_path)
+                break
+    return paths
 
 
-def _validate_edge_taps(
-    repo_root: Path,
+def _validate_edge_taps_file(
+    path: Path,
     issues: list[StartupValidationIssue],
     *,
     region_names: set[str],
 ) -> None:
-    canonical = repo_root / "src" / "navigation" / "edge_taps.yaml"
-    path = _edge_taps_yaml_path(repo_root)
-    if path is None:
-        issues.append(
-            StartupValidationIssue(
-                "error",
-                canonical.as_posix(),
-                "navigation edge_taps.yaml not found "
-                "(expected src/navigation/edge_taps.yaml or navigation/edge_taps.yaml)",
-            )
-        )
-        return
-
     doc = _load_yaml_dict(path)
     if "__load_error__" in doc:
         issues.append(
@@ -770,6 +761,8 @@ def _validate_edge_taps(
         return
 
     edges = doc.get("edges")
+    if edges is None:
+        return
     if not isinstance(edges, dict):
         issues.append(
             StartupValidationIssue("error", path.as_posix(), "edges must be a mapping")
@@ -824,6 +817,18 @@ def _validate_edge_taps(
                     field="tap",
                     value=tap,
                 )
+
+
+def _validate_edge_taps(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+    *,
+    region_names: set[str],
+) -> None:
+    """Walk every per-module ``edge_taps.yaml``."""
+
+    for path in _edge_taps_yaml_paths(repo_root):
+        _validate_edge_taps_file(path, issues, region_names=region_names)
 
 
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:

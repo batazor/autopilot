@@ -43,7 +43,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
@@ -94,7 +94,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     detector = ScreenDetector(OcrClient(get_settings()))
@@ -143,7 +143,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
@@ -195,7 +195,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
@@ -260,7 +260,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
@@ -312,7 +312,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(

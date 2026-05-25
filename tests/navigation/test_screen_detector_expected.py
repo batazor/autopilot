@@ -33,7 +33,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    mocker.patch.object(screen_graph, "_screen_verify_yaml_path", new=lambda: cfg)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
     mocker.patch.object(
         screen_graph,
         "screen_verify_screen_names",

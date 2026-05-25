@@ -368,6 +368,7 @@ async def _dsl_cond_allows_step(
 
 
 _HMS_RE = re.compile(r"(?:(\d{1,3}):)?(\d{1,2}):(\d{2})")
+_DURATION_SUFFIX_RE = re.compile(r"^\d+(?:\.\d+)?\s*(?:ms|s|m|h)$", re.IGNORECASE)
 
 
 def _parse_hms_to_seconds(text: str) -> int | None:
@@ -404,22 +405,26 @@ async def _resolve_push_delay_seconds(
     instance_id: str,
     redis_async: Any | None,
 ) -> float | None:
-    """Resolve a ``push_scenario.delay`` spec into seconds. Strict ``hh:mm:ss``.
+    """Resolve a ``push_scenario.delay`` spec into seconds.
 
     Returns:
       - ``0.0`` — no delay specified (caller enqueues immediately).
       - ``float`` ≥ 0 — delay resolved.
       - ``None`` — ``delay`` WAS specified but could not be resolved (state
-        field empty / value not ``hh:mm:ss``). The caller MUST skip the
+        field empty / value not parseable). The caller MUST skip the
         ``push_scenario`` entirely. This is the DSL-level guard against a
         missed OCR re-pushing the same scenario with delay 0 in a tight loop.
 
-    Two forms when ``delay`` is truthy:
-      1. Literal — string containing ``:``, parsed as ``hh:mm:ss`` / ``mm:ss``.
-      2. State field reference — any other non-empty string (e.g.
+    Three forms when ``delay`` is truthy:
+      1. Suffix literal — ``"500ms"`` / ``"30s"`` / ``"15m"`` / ``"6h"``.
+      2. ``hh:mm:ss`` / ``mm:ss`` literal — any string containing ``:``.
+      3. State field reference — any other non-empty string (e.g.
          ``"artisans_trove.delay"``). Resolved against player-scoped state
          first (where ``ocr: store:`` lands by default), then instance-scoped.
          The fetched value must itself be ``hh:mm:ss``.
+
+    Bare numbers (``60`` / ``"60"``) are NOT accepted — they're ambiguous
+    with state-field names and would silently mask a missed OCR. Use ``"60s"``.
     """
     if delay is None:
         return 0.0
@@ -435,6 +440,9 @@ async def _resolve_push_delay_seconds(
             "push_scenario: failed to parse delay time literal %r — skipping push", s
         )
         return None
+
+    if _DURATION_SUFFIX_RE.match(s):
+        return _parse_wait_seconds(s)
 
     pid = await _read_active_player(instance_id, redis_async)
     cur = ""

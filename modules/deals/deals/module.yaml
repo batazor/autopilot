@@ -1,0 +1,8 @@
+id: deals_deals
+title: Deals — Hub
+description: Deals hub entry; main_city → deals icon detection and open scenario.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+references: references
+icon: deals
+wiki: false

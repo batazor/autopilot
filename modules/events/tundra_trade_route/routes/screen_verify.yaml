@@ -1,0 +1,5 @@
+screens:
+  event.tundra_trade_route:
+    rules:
+      - match: event.tundra_trade_route
+        threshold: 0.9

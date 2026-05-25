@@ -65,7 +65,7 @@ All routes below are implemented in Next.js.
 | `/routes` | Debug | Screen route planner + edge table |
 | `/optimizer` | Debug | Queue optimizer debug |
 | `/gallery` | Assets | Redirects to `/labeling` |
-| `/labeling` | Assets | **Konva** editor: regions, versions, basename promote, Roboflow upload, capture, crops |
+| `/labeling` | Assets | **Konva** editor: regions, versions, basename promote, capture, crops |
 | `/edit-dsl` | Assets | Module DSL editor (form + YAML preview) |
 | `/analyze` | Assets | Analyzer / overlay rules viewer |
 | `/wiki` | Assets | Wiki reference (buildings, heroes, items, gear, FAQ); sync scripts with progress on FAQ |
@@ -74,7 +74,7 @@ All routes below are implemented in Next.js.
 | `/adb` | Config | ADB devices |
 | `/balance` | Config | Resource balance view |
 
-**Labeling** ([Konva](https://konvajs.org/) at `/labeling`): draw/move/resize regions, metadata, save `area.json` (base or `versions[vN].regions[]`), capture/refresh/discard, basename **promote** from `temporal/`, **rename**, version cond/sync/bind, **Roboflow** upload (`ROBOFLOW_*` env).
+**Labeling** ([Konva](https://konvajs.org/) at `/labeling`): draw/move/resize regions, metadata, save `area.json` (base or `versions[vN].regions[]`), capture/refresh/discard, basename **promote** from `temporal/`, **rename**, version cond/sync/bind.
 
 **Wiki FAQ sync** (`/wiki` → FAQ tab): run sync scripts with live log + progress (`WikiFaqSync`).
 

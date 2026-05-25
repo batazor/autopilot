@@ -1,0 +1,5 @@
+screens:
+  deals.bank:
+    rules:
+      - match: bank.title
+        threshold: 0.9

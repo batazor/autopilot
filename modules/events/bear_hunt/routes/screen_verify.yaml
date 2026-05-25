@@ -1,0 +1,5 @@
+screens:
+  event.bear_hunt:
+    rules:
+      - match: event.bear_hunt
+        threshold: 0.9
