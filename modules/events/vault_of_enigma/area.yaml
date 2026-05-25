@@ -10,7 +10,7 @@
         {
           "name": "vault_of_enigma.title",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.75,
           "bbox": {
             "x": 4.966074525067203,
             "y": 16.506176622371306,
@@ -41,7 +41,7 @@
     {
       "id": 1212,
       "screen_id": "",
-      "ocr": "references/vault_of_enigma.png",
+      "ocr": "references/page.vault_of_enigma.png",
       "regions": [
         {
           "name": "region",

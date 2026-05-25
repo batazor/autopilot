@@ -11,8 +11,10 @@ overlay:
       - push_scenario:
           name: deals.vault_of_enigma
           ttl: 1m
+  
   - name: vault_of_enigma.box.has_red_dot
     region: vault_of_enigma.box
+    threshold: 0.85
     isRedDot: true
     screens:
       - deals.vault_of_enigma

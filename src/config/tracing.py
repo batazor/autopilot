@@ -96,6 +96,121 @@ def _install_log_record_factory() -> None:
     _LOG_FACTORY_INSTALLED = True
 
 
+# ---------------------------------------------------------------------------
+# Rate-limit-aware OTLP metric exporter
+# ---------------------------------------------------------------------------
+#
+# The stock HTTP metric exporter treats 429 as non-retryable
+# (``opentelemetry.exporter.otlp.proto.http._common._is_retryable`` covers
+# 408 and 5xx only). On Grafana Cloud's free OTLP gateway — which throttles
+# us when N processes (supervisor + scheduler + N workers + api) push every
+# 5 min — that means each batch logs ERROR, returns FAILURE, and the next
+# tick 5 min later hits the same wall. No back-off; a steady drum-beat of
+# 429s at the gateway and ERROR lines in the journal.
+#
+# This wrapper:
+#   * Honors ``Retry-After`` on 429 (falls back to a 10 min default when the
+#     header is absent) and short-circuits ``export`` to SUCCESS while the
+#     cool-down is active — so we actually stop pounding the gateway.
+#   * Logs a single WARN per cool-down window (not per batch).
+#   * Pairs with a logging filter on the SDK exporter's logger that swallows
+#     the base class's "Failed to export metrics batch ... 429" ERROR.
+
+_429_LOGGER_NAME = "opentelemetry.exporter.otlp.proto.http.metric_exporter"
+_429_FILTER_INSTALLED = False
+
+
+class _Suppress429ExportError(logging.Filter):
+    """Drop the SDK's per-batch ERROR for 429; our wrapper logs once per window."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno < logging.ERROR:
+            return True
+        msg = record.getMessage()
+        return not ("Failed to export metrics batch" in msg and "429" in msg)
+
+
+def _install_429_log_filter() -> None:
+    global _429_FILTER_INSTALLED
+    if _429_FILTER_INSTALLED:
+        return
+    logging.getLogger(_429_LOGGER_NAME).addFilter(_Suppress429ExportError())
+    _429_FILTER_INSTALLED = True
+
+
+def _build_rate_limited_metric_exporter_class() -> type:
+    """Build the wrapper lazily so import cost stays inside ``setup_tracing``."""
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
+    from opentelemetry.sdk.metrics.export import MetricExportResult
+
+    class _RateLimitedExporter(OTLPMetricExporter):
+        _MIN_COOLDOWN_SEC = 60.0
+        _DEFAULT_COOLDOWN_SEC = 600.0  # 10 min when no Retry-After header
+
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            self._cooldown_until_monotonic = 0.0
+            self._last_warn_monotonic = -float("inf")
+
+        def _export(self, serialized_data: Any, timeout_sec: float) -> Any:
+            import time as _time
+
+            resp = super()._export(serialized_data, timeout_sec)
+            if getattr(resp, "status_code", None) == 429:
+                cooldown = self._DEFAULT_COOLDOWN_SEC
+                retry_after = None
+                try:
+                    retry_after = resp.headers.get("Retry-After")
+                except AttributeError:
+                    retry_after = None
+                if retry_after:
+                    try:
+                        cooldown = max(
+                            self._MIN_COOLDOWN_SEC, float(retry_after)
+                        )
+                    except ValueError:
+                        cooldown = self._DEFAULT_COOLDOWN_SEC
+                now = _time.monotonic()
+                self._cooldown_until_monotonic = now + cooldown
+                if now - self._last_warn_monotonic >= cooldown:
+                    logger.warning(
+                        "OTLP metrics rate-limited (429) by %s — backing off for %.0fs",
+                        os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") or "<unset>",
+                        cooldown,
+                    )
+                    self._last_warn_monotonic = now
+            return resp
+
+        def export(
+            self,
+            metrics_data: Any,
+            timeout_millis: float = 10000,
+            **kwargs: Any,
+        ) -> MetricExportResult:
+            import time as _time
+
+            if _time.monotonic() < self._cooldown_until_monotonic:
+                # Drop the batch silently while the gateway is cooling down.
+                # Returning SUCCESS keeps the PeriodicExportingMetricReader
+                # quiet — we already warned once at cool-down entry.
+                return MetricExportResult.SUCCESS
+            return super().export(metrics_data, timeout_millis, **kwargs)
+
+    return _RateLimitedExporter
+
+
+def _RateLimitedOTLPMetricExporter(*args: Any, **kwargs: Any) -> Any:
+    """Factory that builds (once) and instantiates the wrapper class."""
+    cls = globals().get("__RATE_LIMITED_EXPORTER_CLS")
+    if cls is None:
+        cls = _build_rate_limited_metric_exporter_class()
+        globals()["__RATE_LIMITED_EXPORTER_CLS"] = cls
+    _install_429_log_filter()
+    return cls(*args, **kwargs)
+
+
 def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
     """Initialize the OTel SDK for the calling process.
 
@@ -131,12 +246,6 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
 
     # Imports kept inside the function so projects without the SDK installed
     # (or with it explicitly disabled) don't pay the import cost.
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
-        OTLPMetricExporter,
-    )
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-        OTLPSpanExporter,
-    )
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
     from opentelemetry.sdk.resources import Resource
@@ -153,7 +262,18 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
         }
     )
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    # ``OTEL_TRACES_EXPORTER=none`` opts out of span export at the source.
+    # The env var only affects SDK auto-detection — explicitly constructing
+    # ``OTLPSpanExporter()`` here would still push, so we gate it ourselves
+    # (mirrors the ``OTEL_METRICS_EXPORTER=none`` gate below). The maintainer's
+    # Grafana Cloud access policy carries ``metrics:write`` only, so every span
+    # batch would otherwise log ERROR with a 401 from the OTLP gateway.
+    if (os.environ.get("OTEL_TRACES_EXPORTER") or "").strip().lower() != "none":
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter,
+        )
+
+        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
 
     # Metrics share the OTLP endpoint / headers / protocol envvars with traces;
@@ -180,7 +300,7 @@ def setup_tracing(component: str, *, instance_id: str | None = None) -> None:
             resource=resource,
             metric_readers=[
                 PeriodicExportingMetricReader(
-                    OTLPMetricExporter(),
+                    _RateLimitedOTLPMetricExporter(),
                     export_interval_millis=export_interval_millis,
                 )
             ],

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import re
@@ -8,6 +9,7 @@ import uuid
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+from analysis.overlay_compile import get_inline_steps
 from analysis.overlay_duration import parse_duration_seconds
 from config.paths import repo_root
 from config.tracing import overlay_push_scenario_counter
@@ -17,6 +19,8 @@ from dsl.dsl_schema import (
     dsl_scenario_yaml_enabled,
     dsl_scenario_yaml_priority,
 )
+from layout.types import Point
+from tasks.dsl_scenario_helpers import _dsl_cond_allows_step, _parse_wait_seconds
 
 
 def _record_push_scenario(
@@ -115,6 +119,7 @@ class InstanceWorkerOverlayMixin(_Base):
     _cfg: Any
     _redis: Any
     _queue: Any
+    _bot_actions: Any
 
     async def _resolve_hero_id_from_screen(self) -> str:
         """Return the hero id encoded in the current Redis ``current_screen``.
@@ -149,8 +154,12 @@ class InstanceWorkerOverlayMixin(_Base):
     ) -> None:
         """Handle matched overlay rules.
 
-        Policy: overlay analysis never enqueues tap actions. It may only enqueue DSL scenarios
-        via `pushScenario` (and other non-tap metadata).
+        Two execution paths from a matched rule:
+          * ``pushScenario`` items → enqueued as DSL scenarios (device-level).
+          * Inline ``steps:`` (``click`` / ``wait`` / cond-guarded variants) →
+            executed in-process by :meth:`_execute_inline_overlay_steps`. Use
+            rule-level ``ttl:`` to prevent tight loops — the engine skips
+            re-evaluating the rule for ``ttl_seconds`` after a match.
 
         ``pushScenario`` tasks are always **device-level** (``player_id=""``): they do not require
         a configured player; the worker resolves an active player only when the task needs one.
@@ -160,24 +169,26 @@ class InstanceWorkerOverlayMixin(_Base):
         if self._queue is None:
             return
         now = time.time()
-        matched_payloads: list[dict[str, Any]] = []
-        push_payloads: list[tuple[int, int, dict[str, Any]]] = []
-        for order, payload in enumerate(overlay_results.values()):
+        matched_payloads: list[tuple[str, dict[str, Any]]] = []
+        push_payloads: list[tuple[int, int, str, dict[str, Any]]] = []
+        for order, (rule_name, payload) in enumerate(overlay_results.items()):
             if not isinstance(payload, dict):
                 continue
             if not payload.get("matched"):
                 continue
-            matched_payloads.append(payload)
+            matched_payloads.append((rule_name, payload))
             priority = _overlay_push_priority(payload)
             if priority is not None:
-                push_payloads.append((priority, order, payload))
+                push_payloads.append((priority, order, rule_name, payload))
 
         # A single overlay frame can contain multiple true signals (for example
         # a toast plus a red-dot badge). Starting all resulting scenarios from
         # the same frame causes navigation churn and state flicker, so pick one
         # push candidate per analyzer tick. Higher priority wins; YAML/order is
         # the deterministic tie-breaker.
-        for _priority, _order, payload in sorted(push_payloads, key=lambda it: (-it[0], it[1])):
+        for _priority, _order, _rule_name, payload in sorted(
+            push_payloads, key=lambda it: (-it[0], it[1])
+        ):
             try:
                 handled = await self._enqueue_push_scenarios_from_overlay(
                     payload, player_id="", run_at=now, active_player=active_player
@@ -189,7 +200,7 @@ class InstanceWorkerOverlayMixin(_Base):
 
         # Still persist non-push matched overlays (e.g. set_node/text state), but
         # skip lower-priority push payloads once one scenario was handled.
-        for payload in matched_payloads:
+        for _rule_name, payload in matched_payloads:
             if _overlay_push_priority(payload) is not None:
                 continue
             try:
@@ -198,6 +209,124 @@ class InstanceWorkerOverlayMixin(_Base):
                 )
             except Exception:
                 logger.debug("Failed to process non-push overlay payload", exc_info=True)
+
+        # Inline steps run AFTER the push handling so any ``push_scenario``
+        # sibling in the rule still hits the queue first. Independent of the
+        # "single push per tick" gate above — a rule that detects a red-dot
+        # box should both push a follow-up scenario AND tap the box immediately
+        # if it lists both.
+        for rule_name, payload in matched_payloads:
+            try:
+                await self._execute_inline_overlay_steps(rule_name, payload)
+            except Exception:
+                logger.debug(
+                    "overlay inline steps: execution failed rule=%s",
+                    rule_name,
+                    exc_info=True,
+                )
+
+    async def _execute_inline_overlay_steps(
+        self, rule_name: str, payload: dict[str, Any]
+    ) -> None:
+        """Execute a rule's inline ``steps:`` block (``click`` / ``wait`` /
+        cond-guarded variants) directly on the bot.
+
+        Tight-loop protection is the rule's ``ttl:`` — once a rule matches, the
+        engine won't re-evaluate it for ``ttl_seconds``. For inline-click rules
+        always set a ``ttl:`` (5s is a reasonable default), otherwise every
+        analyzer tick re-fires the click while the red dot lingers.
+
+        Click target resolution: only ``click: <region>`` matching the rule's
+        own region is supported here (uses the payload's match coordinates).
+        Different regions need a real scenario — the overlay hot path doesn't
+        load area.json.
+        """
+        steps = get_inline_steps(rule_name)
+        if not steps:
+            return
+        actions = self._bot_actions
+        if actions is None:
+            return
+        instance_id = str(self._cfg.instance_id)
+        rule_region = str(payload.get("region") or "").strip()
+        # Prefer the real match center (``tap_match_*_pct``) — for ``isSearch``
+        # / red-dot rules that's where the artifact actually lives. Fall back
+        # to bbox center (``tap_*_pct``) for static regions.
+        cx_pct = _overlay_metric_float(payload.get("tap_match_x_pct"))
+        cy_pct = _overlay_metric_float(payload.get("tap_match_y_pct"))
+        if cx_pct is None or cy_pct is None:
+            cx_pct = _overlay_metric_float(payload.get("tap_x_pct"))
+            cy_pct = _overlay_metric_float(payload.get("tap_y_pct"))
+
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            if not await _dsl_cond_allows_step(
+                step, instance_id, self._redis, state_flat=None
+            ):
+                continue
+
+            if "click" in step:
+                region = str(step.get("click") or "").strip()
+                if not region:
+                    continue
+                if region != rule_region:
+                    logger.warning(
+                        "overlay inline click: rule=%s wants to tap %r but only the "
+                        "rule's own region (%r) is supported on the overlay hot path",
+                        rule_name, region, rule_region,
+                    )
+                    continue
+                if cx_pct is None or cy_pct is None:
+                    logger.debug(
+                        "overlay inline click: rule=%s missing tap coords — skipping",
+                        rule_name,
+                    )
+                    continue
+                try:
+                    dev_w, dev_h = actions.screen_resolution(instance_id)
+                except Exception:
+                    logger.debug(
+                        "overlay inline click: screen_resolution failed for %s",
+                        instance_id,
+                        exc_info=True,
+                    )
+                    continue
+                pt = Point(
+                    int(round(cx_pct / 100.0 * dev_w)),
+                    int(round(cy_pct / 100.0 * dev_h)),
+                )
+                try:
+                    tapped = await asyncio.to_thread(
+                        actions.tap, instance_id, pt, approval_region=region
+                    )
+                except Exception:
+                    logger.debug(
+                        "overlay inline click: tap raised rule=%s region=%s",
+                        rule_name, region,
+                        exc_info=True,
+                    )
+                    continue
+                if not tapped:
+                    logger.info(
+                        "overlay inline click: rejected/blocked rule=%s region=%s",
+                        rule_name, region,
+                    )
+                continue
+
+            if "wait" in step:
+                try:
+                    secs = _parse_wait_seconds(step.get("wait"))
+                except Exception:
+                    secs = 0.0
+                if secs > 0:
+                    await asyncio.sleep(secs)
+                continue
+
+            logger.debug(
+                "overlay inline: unsupported step in rule=%s — keys=%s",
+                rule_name, sorted(k for k in step if k != "cond"),
+            )
 
     async def _enqueue_push_scenarios_from_overlay(
         self,

@@ -398,6 +398,67 @@ def _parse_hms_to_seconds(text: str) -> int | None:
     return h * 3600 + mn * 60 + sec
 
 
+async def _resolve_push_delay_seconds(
+    delay: object,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+) -> float | None:
+    """Resolve a ``push_scenario.delay`` spec into seconds. Strict ``hh:mm:ss``.
+
+    Returns:
+      - ``0.0`` — no delay specified (caller enqueues immediately).
+      - ``float`` ≥ 0 — delay resolved.
+      - ``None`` — ``delay`` WAS specified but could not be resolved (state
+        field empty / value not ``hh:mm:ss``). The caller MUST skip the
+        ``push_scenario`` entirely. This is the DSL-level guard against a
+        missed OCR re-pushing the same scenario with delay 0 in a tight loop.
+
+    Two forms when ``delay`` is truthy:
+      1. Literal — string containing ``:``, parsed as ``hh:mm:ss`` / ``mm:ss``.
+      2. State field reference — any other non-empty string (e.g.
+         ``"artisans_trove.delay"``). Resolved against player-scoped state
+         first (where ``ocr: store:`` lands by default), then instance-scoped.
+         The fetched value must itself be ``hh:mm:ss``.
+    """
+    if delay is None:
+        return 0.0
+    s = str(delay).strip()
+    if not s:
+        return 0.0
+
+    if ":" in s:
+        parsed = _parse_hms_to_seconds(s)
+        if parsed is not None:
+            return float(parsed)
+        logger.warning(
+            "push_scenario: failed to parse delay time literal %r — skipping push", s
+        )
+        return None
+
+    pid = await _read_active_player(instance_id, redis_async)
+    cur = ""
+    if pid:
+        cur = await _read_player_state_field(pid, s, redis_async)
+    if not cur:
+        cur = await _read_instance_state_field(instance_id, s, redis_async)
+    if not cur:
+        logger.warning(
+            "push_scenario: delay state field %r unset — skipping push "
+            "(player=%s, instance=%s)",
+            s, pid or "-", instance_id,
+        )
+        return None
+    parsed = _parse_hms_to_seconds(cur)
+    if parsed is None:
+        logger.warning(
+            "push_scenario: state value %r=%r is not hh:mm:ss — skipping push",
+            s, cur,
+        )
+        return None
+    return float(parsed)
+
+
 async def _enqueue_scenario(
     *,
     redis_async: Any | None,

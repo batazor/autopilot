@@ -67,9 +67,8 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
     queue priority as: explicit push entry ``priority`` → scenario YAML top-level
     ``priority`` for the pushed name → overlay rule ``priority`` → ``80_000``.
 
-    Other DSL step types inside ``steps:`` (click, wait, cond, ...) are accepted
-    by the parser but not yet executed by the overlay engine; they are reserved
-    for a follow-up that runs analyze ``steps:`` as an inline scenario.
+    Non-``push_scenario`` step types are extracted separately by
+    :func:`optional_inline_steps` and executed inline by the worker.
     """
     out: list[dict[str, Any]] = []
 
@@ -84,6 +83,42 @@ def optional_push_scenario_tasks(rule: dict[str, Any]) -> list[dict[str, Any]]:
             if entry is not None:
                 out.append(entry)
 
+    return out
+
+
+# Step keys executed inline by the worker after a rule matches. Kept tight on
+# purpose: anything that needs a full step loop / sub-frame OCR / state lookup
+# (``while_match``, ``match``, ``ocr``, ``repeat``) belongs in a scenario, not
+# on the per-tick overlay hot path.
+_INLINE_STEP_KEYS = frozenset({"click", "wait"})
+
+
+def optional_inline_steps(rule: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract non-``push_scenario`` steps from an overlay rule's ``steps:``.
+
+    Returns a list of dicts preserved verbatim (worker reads ``click`` /
+    ``wait`` / ``cond``). Unsupported step types are skipped silently — they're
+    parser-accepted but only ``push_scenario`` and the keys in
+    :data:`_INLINE_STEP_KEYS` execute today.
+
+    Each entry may also carry a ``cond:`` guard; that's evaluated by the
+    worker against player/instance state before the step fires.
+    """
+    out: list[dict[str, Any]] = []
+    steps = rule.get("steps")
+    if not isinstance(steps, list):
+        return out
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        # ``push_scenario`` items flow through ``optional_push_scenario_tasks``
+        # — skip them here so the same step isn't enqueued and clicked twice.
+        if "push_scenario" in step:
+            continue
+        # Quick guard: at least one supported action key must be present.
+        if not any(k in step for k in _INLINE_STEP_KEYS):
+            continue
+        out.append(dict(step))
     return out
 
 

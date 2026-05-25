@@ -77,6 +77,30 @@
     @apply opacity-100;
   }
 
+  .headless-switch-field {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .headless-switch-field--inline {
+    @apply text-sm text-wos-text-secondary;
+  }
+
+  .headless-switch-field__label {
+    @apply cursor-pointer select-none text-sm text-wos-text-secondary data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-switch {
+    @apply relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-wos-border-subtle bg-wos-input transition hover:border-wos-border focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:border-sky-500/80 data-checked:bg-sky-500 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-switch__thumb {
+    @apply pointer-events-none ml-0.5 inline-block size-4 translate-x-0 transform rounded-full bg-white shadow ring-0 transition duration-150 ease-out;
+  }
+
+  .headless-switch[data-checked] .headless-switch__thumb {
+    @apply translate-x-4;
+  }
+
   .headless-dialog-root {
     @apply relative z-50;
   }

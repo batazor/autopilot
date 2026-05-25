@@ -66,6 +66,12 @@ screens:
     rules:
     - match: page.shop.get_gems.title
       threshold: 0.9
+  shop.artisans_trove:
+    parent: shop
+    priority: 55
+    rules:
+    - match: artisans_trove.title
+      threshold: 0.9
   shop:
     priority: 60
     rules:

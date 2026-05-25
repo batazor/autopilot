@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { AppCheckbox, AppListbox, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -20,7 +20,7 @@ import {
   RunningCards,
   ScenarioCell,
 } from "@/components/queue/QueueVisuals";
-import { QueuePendingGantt } from "@/components/queue/QueuePendingGantt";
+import { QueuePendingCalendar } from "@/components/queue/QueuePendingCalendar";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
 import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
@@ -35,6 +35,38 @@ export default function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [pendingView, setPendingView] = useState<"table" | "timeline">("table");
+  const [pendingSort, setPendingSort] = useState<{
+    col: "schedule" | "instance" | "player";
+    dir: "asc" | "desc";
+  }>({ col: "schedule", dir: "asc" });
+
+  const cycleSort = (col: "instance" | "player") => {
+    setPendingSort((prev) => {
+      if (prev.col !== col) return { col, dir: "asc" };
+      if (prev.dir === "asc") return { col, dir: "desc" };
+      return { col: "schedule", dir: "asc" };
+    });
+  };
+
+  const sortedPending = useMemo(() => {
+    const rows = data?.pending ?? [];
+    if (pendingSort.col === "schedule") return rows;
+    const sign = pendingSort.dir === "asc" ? 1 : -1;
+    const key = pendingSort.col === "instance" ? "instance_id" : "player_id";
+    return [...rows].sort((a, b) => {
+      const cmp = a[key].localeCompare(b[key], undefined, {
+        numeric: true,
+        sensitivity: "base",
+      });
+      if (cmp !== 0) return sign * cmp;
+      return a.scheduled_at - b.scheduled_at;
+    });
+  }, [data?.pending, pendingSort]);
+
+  const sortArrow = (col: "instance" | "player") => {
+    if (pendingSort.col !== col) return "";
+    return pendingSort.dir === "asc" ? " ↑" : " ↓";
+  };
   const pickRef = useRef(pick);
   pickRef.current = pick;
   const revisionRef = useRef<string | undefined>(undefined);
@@ -128,8 +160,17 @@ export default function QueuePage() {
       <section className="panel queue-panel">
         <h2>Pending ({data?.pending_count ?? 0})</h2>
         <p className="meta queue-pending-order-hint">
-          Sorted per instance in execution order (same ranking as the worker&apos;s{" "}
-          <code>pop_due</code>): due tasks first, then scheduled later by time.
+          {pendingSort.col === "schedule" ? (
+            <>
+              Sorted per instance in execution order (same ranking as the worker&apos;s{" "}
+              <code>pop_due</code>): due tasks first, then scheduled later by time.
+            </>
+          ) : (
+            <>
+              Sorted by <strong>{pendingSort.col}</strong> ({pendingSort.dir}). Click the
+              column header again to toggle direction or reset to schedule order.
+            </>
+          )}
         </p>
         {data?.pending.length ? (
           <>
@@ -150,8 +191,42 @@ export default function QueuePage() {
                       <th />
                       <th>Status</th>
                       <th>When</th>
-                      <th>Player</th>
-                      <th>Instance</th>
+                      <th
+                        aria-sort={
+                          pendingSort.col === "player"
+                            ? pendingSort.dir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                      >
+                        <button
+                          type="button"
+                          className="queue-sort-btn"
+                          onClick={() => cycleSort("player")}
+                          title="Sort by player"
+                        >
+                          Player{sortArrow("player")}
+                        </button>
+                      </th>
+                      <th
+                        aria-sort={
+                          pendingSort.col === "instance"
+                            ? pendingSort.dir === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                        }
+                      >
+                        <button
+                          type="button"
+                          className="queue-sort-btn"
+                          onClick={() => cycleSort("instance")}
+                          title="Sort by instance"
+                        >
+                          Instance{sortArrow("instance")}
+                        </button>
+                      </th>
                       <th>Scenario</th>
                       <th>Region</th>
                       <th>Coop</th>
@@ -160,7 +235,7 @@ export default function QueuePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.pending.map((r) => (
+                    {sortedPending.map((r) => (
                       <tr key={r.task_id} className={r.overdue ? "queue-row-overdue" : undefined}>
                         <td>
                           <AppCheckbox
@@ -205,7 +280,7 @@ export default function QueuePage() {
                 </table>
               </div>
             ) : (
-              <QueuePendingGantt
+              <QueuePendingCalendar
                 pending={data.pending}
                 history={data.history ?? []}
                 onReschedule={() => {

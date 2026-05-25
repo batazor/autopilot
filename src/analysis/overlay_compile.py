@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 from analysis.overlay_rules import (
     normalize_overlay_action,
     optional_expected_texts,
+    optional_inline_steps,
     optional_min_match_saturation,
     optional_prefer_primary_bbox,
     optional_priority,
@@ -62,6 +63,7 @@ class CompiledOverlayRule:
     region_name: str
     threshold: float
     push_tasks: list[dict[str, Any]]
+    inline_steps: tuple[dict[str, Any], ...]
     expected: tuple[str, ...]
     screen: ScreenGate
     is_red_dot_required: bool | None
@@ -114,6 +116,14 @@ def compile_overlay_rule(rule: dict[str, Any]) -> CompiledOverlayRule | None:
     set_node_s = str(set_node).strip() if isinstance(set_node, str) else ""
     is_red_dot = rule.get("isRedDot")
     is_red_dot_required = is_red_dot if isinstance(is_red_dot, bool) else None
+    inline_steps = tuple(optional_inline_steps(rule))
+    # Process-local registry: worker looks up inline steps by rule name from
+    # the matched payload, sidestepping the need to plumb a new field through
+    # the ~15 ``hit[...]`` sites in ``overlay_engine``. Each (re)compile wins.
+    if inline_steps:
+        _INLINE_STEPS_REGISTRY[logical_name] = inline_steps
+    else:
+        _INLINE_STEPS_REGISTRY.pop(logical_name, None)
     return CompiledOverlayRule(
         raw=rule,
         logical_name=logical_name,
@@ -124,6 +134,7 @@ def compile_overlay_rule(rule: dict[str, Any]) -> CompiledOverlayRule | None:
         region_name=str(rule.get("region") or "").strip(),
         threshold=_rule_threshold(rule),
         push_tasks=optional_push_scenario_tasks(rule),
+        inline_steps=inline_steps,
         expected=tuple(optional_expected_texts(rule)),
         screen=_screen_gate_from_rule(rule),
         is_red_dot_required=is_red_dot_required,
@@ -134,6 +145,22 @@ def compile_overlay_rule(rule: dict[str, Any]) -> CompiledOverlayRule | None:
         rule_type_lc=str(rule.get("type") or "").strip().lower(),
         cond_expr=_cond_expr(rule),
     )
+
+
+_INLINE_STEPS_REGISTRY: dict[str, tuple[dict[str, Any], ...]] = {}
+
+
+def get_inline_steps(rule_name: str) -> tuple[dict[str, Any], ...]:
+    """Look up inline ``steps:`` for a compiled overlay rule by name.
+
+    Empty tuple if the rule has no inline steps (or hasn't been compiled).
+    """
+    return _INLINE_STEPS_REGISTRY.get(rule_name, ())
+
+
+def _reset_inline_steps_registry() -> None:
+    """Test helper: drop the inline-steps registry."""
+    _INLINE_STEPS_REGISTRY.clear()
 
 
 def _cond_expr(rule: dict[str, Any]) -> str | None:

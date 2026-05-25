@@ -6,10 +6,11 @@ node: shop.daily_deals
 
 steps:
   - while_match: box.free
+    threshold: 0.73
     max: 1
     retry:
-      attempts: 5
-      interval: 300ms
+      attempts: 3
+      interval: 500ms
     steps:
       - click: box.free
       - wait: 1s

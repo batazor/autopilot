@@ -13,6 +13,7 @@ edges:
     shop.regular_pack:         [shop.to.regular_pack]
     shop.dawn_fund:            [shop.to.dawn_fund]
     shop.get_gems:             [shop.to.get_gems]
+    shop.artisans_trove:       [shop.to.artisans_trove]
 
   # All tabs return to shop hub via back swipe or tab bar click
   shop.dawn_market:         { shop: [page.shop.title] }
@@ -25,3 +26,4 @@ edges:
   shop.regular_pack:        { shop: [page.shop.title] }
   shop.dawn_fund:           { shop: [page.shop.title] }
   shop.get_gems:            { shop: [page.shop.title] }
+  shop.artisans_trove:      { shop: [page.shop.title] }

@@ -67,6 +67,10 @@
     @apply whitespace-nowrap text-sm text-wos-text-secondary;
   }
 
+  .queue-sort-btn {
+    @apply inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-inherit font-inherit hover:text-wos-text;
+  }
+
   .queue-table .queue-reason {
     @apply max-w-[28rem] truncate text-sm text-red-200/90;
   }
@@ -172,140 +176,56 @@
     @apply max-w-xl;
   }
 
-  .queue-gantt {
+  .queue-cal {
     @apply mt-2 rounded-lg border border-wos-border-subtle bg-wos-panel-raised/40;
   }
 
-  .queue-gantt__toolbar {
+  .queue-cal__legend {
     @apply flex flex-wrap items-center gap-2 border-b border-wos-border-subtle px-3 py-2 text-xs;
   }
 
-  .queue-gantt__zoom-label {
-    @apply mr-1 text-wos-text-muted;
+  .queue-cal__chip {
+    @apply inline-flex items-center gap-1.5 rounded-md border border-wos-border-subtle bg-wos-panel/60 px-2 py-1 text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
   }
 
-  .queue-gantt__zoom {
-    @apply rounded-md border border-wos-border-subtle bg-wos-panel/60 px-2 py-1 text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
+  .queue-cal__chip--off {
+    @apply opacity-60 line-through;
   }
 
-  .queue-gantt__zoom--active {
-    @apply border-sky-700/60 bg-sky-900/40 text-sky-200;
+  .queue-cal__chip-swatch {
+    @apply inline-block h-3 w-3 rounded-sm border;
   }
 
-  .queue-gantt__hint {
-    @apply ml-3 text-wos-text-muted italic;
-  }
-
-  .queue-gantt__legend {
-    @apply ml-auto inline-flex items-center gap-1 text-wos-text-muted;
-  }
-
-  .queue-gantt__legend-swatch {
-    @apply ml-2 inline-block h-3 w-3 rounded-sm align-middle;
-  }
-
-  .queue-gantt__legend-swatch--scheduled {
-    background-color: #0284c7;
-  }
-
-  .queue-gantt__legend-swatch--overdue {
-    background-color: #dc2626;
-  }
-
-  .queue-gantt__chart {
+  .queue-cal__chart {
     @apply overflow-auto p-2;
+    min-height: 480px;
   }
 
-  .queue-gantt-empty {
+  .queue-cal__chart > * {
+    height: 100%;
+    min-height: 480px;
+  }
+
+  .queue-cal-empty {
     @apply rounded-lg border border-dashed border-wos-border-subtle px-3 py-6 text-center text-sm;
   }
 
 }
 
-/* gantt-task-react v0.3.9 dark-theme overrides.
-   Class names are CSS-module hashes baked into the published bundle and the
-   component output, so they are stable per pinned version. Revisit if the
-   library is upgraded. */
-.queue-gantt__chart {
-  color: var(--wos-text);
-}
-
-/* Borders around task list + body */
-.queue-gantt__chart ._3_ygE,
-.queue-gantt__chart ._3ZbQT {
-  border-color: var(--wos-border-subtle) !important;
-}
-
-/* Vertical splitter between task list and calendar */
-.queue-gantt__chart ._2eZzQ {
-  border-right-color: var(--wos-border-subtle) !important;
-}
-
-/* Task list header cell text */
-.queue-gantt__chart ._WuQ0f {
-  color: var(--wos-text-secondary);
-}
-
-/* Task list body cell text */
-.queue-gantt__chart ._3lLk3 {
-  color: var(--wos-text);
-}
-
-/* Task list body alternating rows */
-.queue-gantt__chart ._34SS0:nth-of-type(even) {
-  background-color: var(--wos-panel-raised) !important;
-}
-
-/* SVG grid row fills (alternating) */
-.queue-gantt__chart ._2dZTy {
-  fill: transparent !important;
-}
-.queue-gantt__chart ._2dZTy:nth-child(even) {
-  fill: var(--wos-panel-raised) !important;
-}
-
-/* SVG grid strokes (rows, ticks, columns) */
-.queue-gantt__chart ._3rUKi,
-.queue-gantt__chart ._RuwuK,
-.queue-gantt__chart ._1rLuZ {
-  stroke: var(--wos-border-subtle) !important;
-}
-
-/* Calendar header date labels */
-.queue-gantt__chart ._9w8d5 {
-  fill: var(--wos-text-secondary) !important;
-}
-
-/* Bar side labels (task name printed beside the bar) */
-.queue-gantt__chart ._3KcaM,
-.queue-gantt__chart ._2q1Kt {
-  fill: var(--wos-text-secondary) !important;
-}
-
-/* Bar inside labels (project / task name printed inside the bar) */
-.queue-gantt__chart ._3zRJQ {
-  fill: #ffffff !important;
-}
-
-/* Expander chevron + month/quarter label */
-.queue-gantt__chart ._2QjE6,
-.queue-gantt__chart ._2TfEi {
-  color: var(--wos-text-muted) !important;
-}
-
-/* Today line marker */
-.queue-gantt__chart ._35nLX {
-  fill: rgba(56, 189, 248, 0.18) !important;
-  stroke: var(--wos-border) !important;
-}
-
-/* Tooltip */
-.queue-gantt__chart ._3T42e {
-  background: var(--wos-panel-raised) !important;
-  color: var(--wos-text) !important;
-  border: 1px solid var(--wos-border-subtle) !important;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35) !important;
-}
-.queue-gantt__chart ._29NTg {
-  color: var(--wos-text-muted) !important;
-}
+/* Per-calendar event colours. Hash-stable: same (instance,player) → same index.
+   Keep the palette in sync with PALETTE in QueuePendingCalendar.tsx. */
+.queue-cal-c0  { background-color: #0ea5e9 !important; border-color: #0284c7 !important; }
+.queue-cal-c1  { background-color: #22c55e !important; border-color: #16a34a !important; }
+.queue-cal-c2  { background-color: #f97316 !important; border-color: #ea580c !important; }
+.queue-cal-c3  { background-color: #a855f7 !important; border-color: #9333ea !important; }
+.queue-cal-c4  { background-color: #ec4899 !important; border-color: #db2777 !important; }
+.queue-cal-c5  { background-color: #eab308 !important; border-color: #ca8a04 !important; }
+.queue-cal-c6  { background-color: #14b8a6 !important; border-color: #0d9488 !important; }
+.queue-cal-c7  { background-color: #ef4444 !important; border-color: #dc2626 !important; }
+.queue-cal-c8  { background-color: #6366f1 !important; border-color: #4f46e5 !important; }
+.queue-cal-c9  { background-color: #84cc16 !important; border-color: #65a30d !important; }
+.queue-cal-c10 { background-color: #06b6d4 !important; border-color: #0891b2 !important; }
+.queue-cal-c11 { background-color: #f43f5e !important; border-color: #e11d48 !important; }
+.queue-cal-c12 { background-color: #8b5cf6 !important; border-color: #7c3aed !important; }
+.queue-cal-c13 { background-color: #10b981 !important; border-color: #059669 !important; }
+.queue-cal-c14 { background-color: #f59e0b !important; border-color: #d97706 !important; }

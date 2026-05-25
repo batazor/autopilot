@@ -34,6 +34,7 @@ from tasks.dsl_scenario_helpers import (
     _jittered_wait_seconds,
     _parse_wait_seconds,
     _read_current_screen,
+    _resolve_push_delay_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -1072,16 +1073,22 @@ class DslScenarioInlineMixin(_Base):
                     pr = int(spec.get("priority") or self.priority)
                 except (TypeError, ValueError):
                     pr = self.priority
-                try:
-                    delay_s = float(spec.get("delay_seconds") or 0.0)
-                except (TypeError, ValueError):
-                    delay_s = 0.0
+                delay_s = await _resolve_push_delay_seconds(
+                    spec.get("delay"),
+                    instance_id=instance_id,
+                    redis_async=self.redis_client,
+                )
                 skip_dup = bool(spec.get("skip_if_duplicate", True))
             else:
                 name = str(spec or "").strip()
                 pr = self.priority
                 delay_s = 0.0
                 skip_dup = True
+            if delay_s is None:
+                self._append_trace_row(
+                    trace_path, step, "skipped", reason="delay_unresolved"
+                )
+                return None
             if name:
                 await _enqueue_scenario(
                     redis_async=self.redis_client,

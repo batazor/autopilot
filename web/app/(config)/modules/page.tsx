@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AppListbox } from "@/components/headless";
+import { AppListbox, AppSwitch } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { debugRunHref, editDslHref } from "@/lib/debug-links";
 import { PageHeader } from "@/components/PageHeader";
@@ -58,16 +58,16 @@ function ModuleScenarios({
             <td>{s.name}</td>
             <td>{s.steps}</td>
             <td>{s.device_level ? "yes" : "no"}</td>
-            <td>{enabledLabel(s.enabled)}</td>
-            <td className="module-scenario-actions">
-              <button
-                type="button"
-                className="btn-secondary"
+            <td>
+              <AppSwitch
+                checked={s.enabled === true}
                 disabled={busyKey === s.key}
-                onClick={() => onToggle(s)}
-              >
-                Toggle
-              </button>
+                onChange={() => onToggle(s)}
+                aria-label={`Enable scenario ${s.name}`}
+                title={enabledLabel(s.enabled)}
+              />
+            </td>
+            <td className="module-scenario-actions">
               <Link
                 href={editDslHref({ module: moduleKey, scenario: s.path })}
                 className="queue-task-actions__link"

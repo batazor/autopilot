@@ -246,10 +246,6 @@
     @apply mb-3 flex-wrap gap-2;
   }
 
-  .labeling-module-select select {
-    @apply ml-1.5 min-w-[10rem] rounded-lg border border-wos-border-subtle bg-wos-input px-2 py-1.5 text-sm text-wos-text;
-  }
-
   .labeling-refresh-confirm {
     @apply mb-3 rounded-lg border border-amber-500/35 bg-amber-500/8 p-3;
   }

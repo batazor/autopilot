@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { AppListbox } from "@/components/headless";
-import { LabelingModuleSelect } from "@/components/labeling/LabelingModuleSelect";
+import { LabelingModuleCombobox } from "@/components/labeling/LabelingModuleCombobox";
 import {
   filterReferences,
   isPendingCapture,
@@ -76,7 +76,7 @@ export function LabelingReferencePanel({
     <details className="labeling-panel-block" open>
       <summary className="labeling-panel-block__title">Reference image</summary>
       <div className="labeling-panel-block__body labeling-ref-picker">
-        <LabelingModuleSelect
+        <LabelingModuleCombobox
           scopes={scopes}
           scope={moduleScope}
           onChange={onModuleChange}
