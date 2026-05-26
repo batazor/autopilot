@@ -6,6 +6,23 @@ from typing import Any
 from layout.area_versions import pick_active_version, resolve_region_with_version
 
 
+def region_tap_hold_ms(region: dict[str, Any] | None) -> int:
+    """Read ``tap_hold_ms`` off a region dict, clamped to ``>= 0``.
+
+    Regions whose physical button debounces fast taps (``tap anywhere to
+    exit``-style dismiss prompts) set this to opt into a long-press; anyone
+    routing a tap through ``BotActions.tap`` should forward the result as
+    ``hold_ms=...`` so the controller dispatches a swipe-hold instead of a
+    zero-duration ``input tap``.
+    """
+    if not isinstance(region, dict):
+        return 0
+    try:
+        return max(0, int(region.get("tap_hold_ms") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
 def screen_region_by_name(
     area_doc: dict[str, Any],
     region_name: str,

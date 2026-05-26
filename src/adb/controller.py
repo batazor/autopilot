@@ -310,14 +310,30 @@ class AdbController:
         if self._screen_resolution is not None:
             return self._screen_resolution
         out = self._shell("wm", "size")
+        # Override (if set via `wm size WxH`) wins over Physical: screencap also
+        # returns the override size, so taps must use the same coordinate space.
+        physical: tuple[int, int] | None = None
+        override: tuple[int, int] | None = None
         for line in out.splitlines():
-            if "Override size:" in line or "Physical size:" in line:
-                parts = line.split()
-                if parts:
-                    w_str, _, h_str = parts[-1].partition("x")
-                    if w_str.isdigit() and h_str.isdigit():
-                        self._screen_resolution = (int(w_str), int(h_str))
-                        return self._screen_resolution
+            is_override = "Override size:" in line
+            is_physical = "Physical size:" in line
+            if not (is_override or is_physical):
+                continue
+            parts = line.split()
+            if not parts:
+                continue
+            w_str, _, h_str = parts[-1].partition("x")
+            if not (w_str.isdigit() and h_str.isdigit()):
+                continue
+            size = (int(w_str), int(h_str))
+            if is_override:
+                override = size
+            else:
+                physical = size
+        chosen = override or physical
+        if chosen is not None:
+            self._screen_resolution = chosen
+            return chosen
         msg = f"Cannot parse screen resolution from: {out!r}"
         raise RuntimeError(msg)
 
@@ -476,6 +492,7 @@ class AdbController:
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
         revalidate: Callable[[], bool] | None = None,
+        hold_ms: int = 0,
     ) -> bool:
         """Tap center of Point with ±2 px jitter.
 
@@ -488,16 +505,26 @@ class AdbController:
         ``template_icon`` navigator to re-verify the icon is still under the
         recorded coordinates — without it, a minutes-old approval can fire a
         tap on a now-empty spot after a rotating event icon has cycled away.
+
+        ``hold_ms``: when > 0, dispatch as a long-press (zero-distance swipe
+        held for ``hold_ms``) instead of an instantaneous tap. Some game
+        overlays (``tap anywhere to exit``-style dismiss prompts) debounce
+        out the ~0 ms DOWN→UP sequence ``input tap`` emits and only respond
+        to a touch that lingers; per-region ``tap_hold_ms`` in ``area.json``
+        opts those targets into long-press here.
         """
         x = _jitter(point.x, 2)
         y = _jitter(point.y, 2)
         preview = preview_point or Point(x, y)
+        hold = max(0, int(hold_ms))
         ap: dict[str, object] = {
             "type": "tap",
             "x": int(preview.x),
             "y": int(preview.y),
             "serial": self._serial,
         }
+        if hold > 0:
+            ap["hold_ms"] = hold
         ar = str(approval_region or "").strip()
         if ar:
             ap["region"] = ar
@@ -540,8 +567,14 @@ class AdbController:
                     self._refresh_rolling_preview()
                 return False
         with self._approval_execution(req_id):
-            self._emit_tap(x, y)
-            logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
+            if hold > 0:
+                self._emit_long_press(x, y, hold)
+                logger.debug(
+                    "Long-tap (%d, %d) hold=%dms on %s", x, y, hold, self._serial
+                )
+            else:
+                self._emit_tap(x, y)
+                logger.debug("Tap (%d, %d) on %s", x, y, self._serial)
             self._refresh_rolling_preview()
         return True
 

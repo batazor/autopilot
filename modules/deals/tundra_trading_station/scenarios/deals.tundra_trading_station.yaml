@@ -3,14 +3,4 @@ name: Tundra Trading Station
 node: deals.tundra_trading_station
 icon: tundra_trading_station
 steps:
-  - while_match: button.claim
-    max: 3
-    steps:
-      - click: button.claim
-      - wait: 1s
-  - while_match: button.claim.big
-    max: 3
-    steps:
-      - click: button.claim.big
-      - wait: 1s
-      - click: tapanywhereyoexit
+  - exec: put_all_red_dots

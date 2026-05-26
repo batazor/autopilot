@@ -7,9 +7,7 @@ screens:
   squad_settings:
     priority: 30
     rules:
-    - match: squad_settings.quick_deploy
-      threshold: 0.9
-    - match: squad_settings.fight
+    - match: squad_settings.title
       threshold: 0.9
   exploration.victory:
     priority: 20

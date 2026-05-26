@@ -19,6 +19,8 @@ from dsl.dsl_schema import (
     dsl_scenario_yaml_enabled,
     dsl_scenario_yaml_priority,
 )
+from layout.area_lookup import region_tap_hold_ms, screen_region_by_name
+from layout.area_manifest import load_area_doc
 from layout.types import Point
 from tasks.dsl_scenario_helpers import _dsl_cond_allows_step, _parse_wait_seconds
 
@@ -296,9 +298,26 @@ class InstanceWorkerOverlayMixin(_Base):
                     int(round(cx_pct / 100.0 * dev_w)),
                     int(round(cy_pct / 100.0 * dev_h)),
                 )
+                hold_ms = 0
+                try:
+                    pair = screen_region_by_name(load_area_doc(repo_root()), region)
+                    if pair is not None:
+                        hold_ms = region_tap_hold_ms(pair[1])
+                except Exception:
+                    logger.debug(
+                        "overlay inline click: hold_ms lookup failed rule=%s region=%s",
+                        rule_name, region,
+                        exc_info=True,
+                    )
+                tap_kwargs: dict[str, Any] = {"approval_region": region}
+                if hold_ms > 0:
+                    tap_kwargs["hold_ms"] = hold_ms
                 try:
                     tapped = await asyncio.to_thread(
-                        actions.tap, instance_id, pt, approval_region=region
+                        actions.tap,
+                        instance_id,
+                        pt,
+                        **tap_kwargs,
                     )
                 except Exception:
                     logger.debug(

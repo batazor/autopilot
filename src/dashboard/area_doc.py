@@ -59,6 +59,7 @@ class RegionDict(TypedDict, total=False):
     overlay_auxiliary: bool
     has_red_dot: bool
     isSearch: bool
+    tap_hold_ms: int
 
 
 class VersionDict(TypedDict, total=False):

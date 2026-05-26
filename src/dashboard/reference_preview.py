@@ -97,7 +97,10 @@ def _is_unanswerable_reference(root: Path, p: Path) -> bool:
         rel = p.relative_to(root)
     except ValueError:
         return False
-    return any("unanswerable" in part.lower() for part in rel.parts)
+    return any(
+        ("unanswerable" in part.lower()) or ("rehearsal" in part.lower())
+        for part in rel.parts
+    )
 
 
 def _newest_png_for_instance_then_any(root: Path, instance_id: str) -> Path | None:

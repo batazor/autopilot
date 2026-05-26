@@ -3,6 +3,7 @@ overlay:
   - name: alliance_helper_button.visible
     region: button.alliance.help
     action: findIcon
+    device_level: true
     screens:
       - main_city
       - world

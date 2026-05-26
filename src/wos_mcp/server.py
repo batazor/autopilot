@@ -232,17 +232,20 @@ async def tap_region(
         raise TypeError(msg)
 
     from adb.frame_normalize import GAME_FRAME_SIZE
+    from layout.area_lookup import region_tap_hold_ms
 
     actions = get_bot_actions()
     frame_w, frame_h = GAME_FRAME_SIZE
     point = bbox_percent_center_to_device_point(bbox, frame_w, frame_h)
-    ok = actions.tap(
-        instance_id,
-        point,
-        approval_region=region,
-        approval_source="mcp.rehearsal",
-        approval_context={"current_screen": current},
-    )
+    tap_kwargs: dict[str, Any] = {
+        "approval_region": region,
+        "approval_source": "mcp.rehearsal",
+        "approval_context": {"current_screen": current},
+    }
+    hold_ms = region_tap_hold_ms(reg)
+    if hold_ms > 0:
+        tap_kwargs["hold_ms"] = hold_ms
+    ok = actions.tap(instance_id, point, **tap_kwargs)
     return {
         "instance_id": instance_id,
         "current_screen": current,

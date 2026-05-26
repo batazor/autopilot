@@ -19,6 +19,7 @@ export type EditorRegion = {
   has_red_dot?: boolean;
   isSearch?: boolean;
   type?: string;
+  tap_hold_ms?: number;
 };
 
 export function pctToPixels(

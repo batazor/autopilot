@@ -63,7 +63,8 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "isSearch": true
+          "isSearch": true,
+          "tap_hold_ms": 200
         }
       ]
     },

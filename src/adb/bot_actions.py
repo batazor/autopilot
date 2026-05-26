@@ -377,6 +377,7 @@ class BotActions:
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
         revalidate: Callable[[], bool] | None = None,
+        hold_ms: int = 0,
     ) -> bool:
         adb_point = self._to_adb_point(instance_id, point)
         self.invalidate_frame_cache(instance_id)
@@ -387,6 +388,7 @@ class BotActions:
             approval_source=approval_source,
             approval_context=approval_context,
             revalidate=revalidate,
+            hold_ms=hold_ms,
         )
 
     def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:

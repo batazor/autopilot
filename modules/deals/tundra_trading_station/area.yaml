@@ -1,2 +1,11 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "deals",
+      "ocr": "references/tundra_trading_station.png",
+      "regions": []
+    }
+  ]
+}

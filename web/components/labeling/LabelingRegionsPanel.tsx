@@ -74,6 +74,7 @@ export function LabelingRegionsPanel({
         const flags = [
           r.overlay_auxiliary ? "aux" : null,
           r.has_red_dot ? "dot" : null,
+          r.tap_hold_ms && r.tap_hold_ms > 0 ? `hold ${r.tap_hold_ms}ms` : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -94,6 +95,8 @@ export function LabelingRegionsPanel({
       if (!patch.isSearch && "isSearch" in patch) delete merged.isSearch;
       if (!patch.overlay_auxiliary && "overlay_auxiliary" in patch)
         delete merged.overlay_auxiliary;
+      if ("tap_hold_ms" in patch && !(Number(patch.tap_hold_ms ?? 0) > 0))
+        delete merged.tap_hold_ms;
       return merged;
     });
     onRegionsChange(next);
@@ -253,6 +256,18 @@ export function LabelingRegionsPanel({
               }
               label="Overlay auxiliary"
             />
+            <label className="meta">
+              tap hold (ms)
+              <input
+                type="number"
+                min={0}
+                step={50}
+                value={selected.tap_hold_ms ?? 0}
+                onChange={(e) =>
+                  patchSelected({ tap_hold_ms: Math.max(0, Number(e.target.value) || 0) })
+                }
+              />
+            </label>
             <button
               type="button"
               className={

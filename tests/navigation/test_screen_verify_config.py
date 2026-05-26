@@ -232,6 +232,7 @@ def test_production_screen_verify_yaml_contains_squad_settings_rule() -> None:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     expected = [
+        {"match": "squad_settings.title", "threshold": 0.9},
         {"match": "squad_settings.quick_deploy", "threshold": 0.9},
         {"match": "squad_settings.fight", "threshold": 0.9},
     ]

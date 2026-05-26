@@ -413,11 +413,17 @@ class DslScenarioInlineMixin(_Base):
         if self._implicit_match_for_region == region:
             self._implicit_match_for_region = ""
 
+        from layout.area_lookup import region_tap_hold_ms
+
+        tap_kwargs: dict[str, Any] = {"approval_region": region}
+        hold_ms = region_tap_hold_ms(pair[1])
+        if hold_ms > 0:
+            tap_kwargs["hold_ms"] = hold_ms
         tapped = await asyncio.to_thread(
             actions.tap,
             instance_id,
             pt,
-            approval_region=region,
+            **tap_kwargs,
         )
         if not tapped:
             logger.info(

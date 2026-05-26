@@ -173,16 +173,18 @@ class Navigator:
             approval_context["path"] = path_csv
         if hop_index is not None:
             approval_context["hop_index"] = str(hop_index)
+        from layout.area_lookup import region_tap_hold_ms
+
+        hold_ms = region_tap_hold_ms(reg)
         if self._tap_supports_approval_source():
-            return bool(
-                self._tap(
-                    instance_id,
-                    pt,
-                    approval_region=str(reg.get("name") or region_name),
-                    approval_source="navigation",
-                    approval_context=approval_context,
-                )
-            )  # type: ignore[operator]
+            tap_kwargs: dict[str, Any] = {
+                "approval_region": str(reg.get("name") or region_name),
+                "approval_source": "navigation",
+                "approval_context": approval_context,
+            }
+            if hold_ms > 0:
+                tap_kwargs["hold_ms"] = hold_ms
+            return bool(self._tap(instance_id, pt, **tap_kwargs))  # type: ignore[operator]
         return bool(
             self._tap(
                 instance_id,
