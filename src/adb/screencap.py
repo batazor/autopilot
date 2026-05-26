@@ -79,16 +79,27 @@ def _stderr_or_signal_detail(returncode: int, stderr: bytes) -> str:
     return text or "unknown error"
 
 
-def adb_screencap_raw_png(
-    adb_bin: str = DEFAULT_ADB_BIN,
-    serial: str | None = None,
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+# Standard PNG terminator: the IEND chunk is fixed-size and always last.
+# Truncated transfers (USB hiccup, race on the adb stdout pipe) miss this byte
+# sequence — libpng/cv2 then bail with "PNG input buffer is incomplete".
+_PNG_IEND_TRAILER = b"\x00\x00\x00\x00IEND\xaeB`\x82"
+_ADB_SCREENCAP_RETRIES = 2
+_ADB_SCREENCAP_RETRY_SLEEP_S = 0.05
+
+
+def _adb_screencap_raw_png_once(
     *,
-    timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
-) -> tuple[bytes | None, str]:
-    """Return raw device PNG bytes without letterbox normalization."""
-    resolved = resolve_adb_executable(adb_bin)
-    if resolved is None:
-        return None, MSG_ADB_NOT_FOUND
+    resolved: str,
+    serial: str | None,
+    timeout_seconds: float,
+) -> tuple[bytes | None, str, bool]:
+    """One ``adb exec-out screencap -p`` call. Returns ``(data, err, transient)``.
+
+    ``transient=True`` marks failures worth retrying (truncated transfer,
+    missing PNG magic) — the caller's retry loop reissues the subprocess for
+    those, and surfaces persistent failures (timeout, ADB not found) directly.
+    """
     cmd: list[str] = [resolved]
     if serial and str(serial).strip():
         cmd.extend(["-s", str(serial).strip()])
@@ -103,9 +114,9 @@ def adb_screencap_raw_png(
     except subprocess.TimeoutExpired:
         msg = f"ADB screencap timed out after {timeout_seconds:.1f}s (serial={serial!r})."
         logger.debug("ADB screencap timeout: exe=%s serial=%s", resolved, serial)
-        return None, msg
+        return None, msg, False
     except FileNotFoundError:
-        return None, f"Failed to run {resolved!r} (FileNotFoundError)."
+        return None, f"Failed to run {resolved!r} (FileNotFoundError).", False
     if proc.returncode != 0:
         detail = _stderr_or_signal_detail(proc.returncode, proc.stderr)
         msg = f"ADB failed (exit {proc.returncode}): {detail}"
@@ -115,9 +126,9 @@ def adb_screencap_raw_png(
             serial,
             detail,
         )
-        return None, msg
+        return None, msg, False
     data = proc.stdout
-    if not data.startswith(b"\x89PNG"):
+    if not data.startswith(_PNG_MAGIC):
         msg = (
             "ADB did not return PNG. Check `adb devices` and "
             "**bluestacks_window_title** (serial); verify USB authorization."
@@ -128,8 +139,60 @@ def adb_screencap_raw_png(
             serial,
             len(data or b""),
         )
-        return None, msg
-    return data, ""
+        # Treat as transient — sometimes the first byte is OK but the stream is
+        # garbage from a stale exec-out; a retry typically gets a clean frame.
+        return None, msg, True
+    if not data.endswith(_PNG_IEND_TRAILER):
+        msg = (
+            f"ADB screencap truncated (missing PNG IEND trailer, {len(data)}B)."
+        )
+        logger.debug(
+            "ADB screencap truncated: exe=%s serial=%s bytes=%d tail=%r",
+            resolved,
+            serial,
+            len(data),
+            data[-16:],
+        )
+        return None, msg, True
+    return data, "", False
+
+
+def adb_screencap_raw_png(
+    adb_bin: str = DEFAULT_ADB_BIN,
+    serial: str | None = None,
+    *,
+    timeout_seconds: float = DEFAULT_ADB_TIMEOUT_SECONDS,
+) -> tuple[bytes | None, str]:
+    """Return raw device PNG bytes without letterbox normalization.
+
+    Transient transport errors (truncated PNG, missing magic from a stale
+    exec-out stream) are retried up to ``_ADB_SCREENCAP_RETRIES`` times; the
+    final attempt's error message is surfaced if all retries fail.
+    """
+    import time as _time
+
+    resolved = resolve_adb_executable(adb_bin)
+    if resolved is None:
+        return None, MSG_ADB_NOT_FOUND
+    last_err = ""
+    for attempt in range(_ADB_SCREENCAP_RETRIES + 1):
+        data, err, transient = _adb_screencap_raw_png_once(
+            resolved=resolved, serial=serial, timeout_seconds=timeout_seconds
+        )
+        if data is not None:
+            if attempt > 0:
+                logger.debug(
+                    "ADB screencap recovered after %d retry(s): serial=%s",
+                    attempt,
+                    serial,
+                )
+            return data, ""
+        last_err = err
+        if not transient:
+            return None, err
+        if attempt < _ADB_SCREENCAP_RETRIES:
+            _time.sleep(_ADB_SCREENCAP_RETRY_SLEEP_S)
+    return None, last_err
 
 
 def adb_screencap_png(
