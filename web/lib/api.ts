@@ -6,7 +6,6 @@ import type {
   MinitouchStatus,
   MinitouchInstallResult,
   DeviceBackendUpdate,
-  AnalyzeIssue,
   BalanceFileMeta,
   OptimizerMeta,
   OptimizerSolveResult,
@@ -177,6 +176,24 @@ export async function rescheduleQueueTask(
   return data.ok;
 }
 
+export async function createQueueTask(body: {
+  scenario_key: string;
+  instance_id: string;
+  player_id?: string;
+  scheduled_at: number;
+  priority?: number;
+}): Promise<{ task_id: string }> {
+  const data = await apiFetch<{ ok: boolean; task_id: string; queue_key: string }>(
+    "/api/queue/enqueue",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+  return { task_id: data.task_id };
+}
+
 export async function fetchPlayers(): Promise<string[]> {
   const data = await apiFetch<{ players: string[] }>("/api/players");
   return data.players;
@@ -238,6 +255,7 @@ export interface DeletePlayerResult {
   ok: boolean;
   player_id: string;
   sqlite: Record<string, number>;
+  device_rows_deleted: number;
   redis_keys_deleted: number;
 }
 
@@ -912,17 +930,6 @@ export function galleryImageUrl(rel: string): string {
   return `${base}/api/gallery/image?path=${encodeURIComponent(rel)}&t=${Date.now()}`;
 }
 
-export async function fetchAnalyzeAudit(
-  scope = "all",
-): Promise<{
-  scope: string;
-  manifest_count: number;
-  issue_count: number;
-  issues: AnalyzeIssue[];
-}> {
-  return apiFetch(`/api/analyze/audit?scope=${encodeURIComponent(scope)}`);
-}
-
 export async function fetchAdbStatus(): Promise<AdbStatus> {
   return apiFetch<AdbStatus>("/api/adb");
 }
@@ -1074,11 +1081,18 @@ export async function fetchEditDslCatalog(
 
 export async function fetchEditDslMeta(): Promise<{
   regions: string[];
+  region_refs: Record<string, string>;
+  region_screens: Record<string, string>;
   fsm_nodes: string[];
   exec_names: string[];
   scenario_keys: string[];
 }> {
   return apiFetch("/api/edit-dsl/meta");
+}
+
+/** Stable URL for a region's crop thumbnail. 404 if no crop is on disk. */
+export function editDslRegionPreviewUrl(regionName: string): string {
+  return `${base}/api/edit-dsl/region-preview?name=${encodeURIComponent(regionName)}`;
 }
 
 export type EditScenarioDocument = Record<string, unknown>;

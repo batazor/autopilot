@@ -91,6 +91,10 @@
     @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
+  .btn-success {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
   .error-banner {
     @apply mb-3 rounded-lg border border-red-400/40 bg-red-950/40 px-3 py-2.5 text-sm text-red-100;
   }

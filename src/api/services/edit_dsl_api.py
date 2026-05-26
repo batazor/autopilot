@@ -22,9 +22,12 @@ from config.module_registry import normalize_module_scope
 from config.paths import repo_root
 from config.reference_naming import event_icon_abs_path
 from config.startup_validation import duplicate_scenario_names_for_repo
+from dashboard.area_doc import crop_path_for_entry_region
 from dsl.cron_specs import _is_under_drafts
 from dsl.dsl_schema import dump_scenario, parse_scenario
 from dsl.registry import iter_scenario_yaml_files, scenario_roots, scenario_source_label
+from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import load_area_doc
 from navigation.screen_graph import screen_verify_screen_names
 from tasks.dsl_exec import DSL_EXEC_REGISTRY
 
@@ -277,11 +280,14 @@ def validate_yaml(*, yaml_text: str | None = None, document: dict[str, Any] | No
         except TypeError as exc:
             return {"valid": False, "error": str(exc)}
     elif yaml_text is not None:
-        raw = yaml.safe_load(yaml_text) or {}
+        try:
+            raw = yaml.safe_load(yaml_text) or {}
+        except yaml.YAMLError as exc:
+            return {"valid": False, "error": str(exc), "preview": ""}
         if not isinstance(raw, dict):
-            return {"valid": False, "error": "root must be a mapping"}
+            return {"valid": False, "error": "root must be a mapping", "preview": ""}
     else:
-        return {"valid": False, "error": "yaml or document required"}
+        return {"valid": False, "error": "yaml or document required", "preview": ""}
     ok, err = _validate_doc(raw)
     preview = ""
     if ok:
@@ -330,31 +336,59 @@ def event_icon_path(slug: str) -> Path | None:
     return event_icon_abs_path(_REPO, slug)
 
 
+def region_crop_path(region_name: str) -> Path | None:
+    """Resolve the on-disk crop PNG for ``region_name`` (first matching screen)."""
+    name = (region_name or "").strip()
+    if not name:
+        return None
+    area_path = _REPO / "area.json"
+    if not area_path.is_file():
+        return None
+    try:
+        doc = json.loads(area_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    pair = screen_region_by_name(doc, name)
+    if pair is None:
+        return None
+    entry, _ = pair
+    crop = crop_path_for_entry_region(_REPO, entry, name)
+    if crop is None or not crop.is_file():
+        return None
+    return crop
+
+
 def editor_meta() -> dict[str, Any]:
-    path = _REPO / "area.json"
     regions: list[str] = []
-    if path.is_file():
-        try:
-            doc = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            doc = {}
-        seen: set[str] = set()
-        for screen in doc.get("screens", []) or []:
-            if not isinstance(screen, dict):
-                continue
-            sources = [screen.get("regions") or []]
-            sources.extend(
-                ver.get("regions") or []
-                for ver in screen.get("versions") or []
-                if isinstance(ver, dict)
-            )
-            for regs in sources:
-                for reg in regs or []:
-                    name = str((reg or {}).get("name") or "").strip()
-                    if name and name not in seen:
-                        seen.add(name)
-                        regions.append(name)
-        regions.sort()
+    region_refs: dict[str, str] = {}
+    region_screens: dict[str, str] = {}
+    try:
+        doc = load_area_doc(_REPO)
+    except Exception:
+        doc = {}
+    seen: set[str] = set()
+    for screen in doc.get("screens", []) or []:
+        if not isinstance(screen, dict):
+            continue
+        ref_path = str(screen.get("ocr") or "").replace("\\", "/").strip()
+        screen_id = str(screen.get("screen_id") or "").strip()
+        sources = [screen.get("regions") or []]
+        sources.extend(
+            ver.get("regions") or []
+            for ver in screen.get("versions") or []
+            if isinstance(ver, dict)
+        )
+        for regs in sources:
+            for reg in regs or []:
+                name = str((reg or {}).get("name") or "").strip()
+                if name and name not in seen:
+                    seen.add(name)
+                    regions.append(name)
+                    if ref_path:
+                        region_refs[name] = ref_path
+                    if screen_id:
+                        region_screens[name] = screen_id
+    regions.sort()
     scenario_keys = sorted({p.stem for _root, p in iter_scenario_yaml_files(_REPO)})
     try:
         fsm_nodes = screen_verify_screen_names() or []
@@ -362,6 +396,8 @@ def editor_meta() -> dict[str, Any]:
         fsm_nodes = []
     return {
         "regions": regions,
+        "region_refs": region_refs,
+        "region_screens": region_screens,
         "fsm_nodes": list(fsm_nodes),
         "exec_names": sorted(DSL_EXEC_REGISTRY.keys()),
         "scenario_keys": scenario_keys,

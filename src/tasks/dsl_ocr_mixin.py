@@ -34,6 +34,20 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+def parse_ocr_integer(text: str) -> int | None:
+    """Strip non-digits from ``text`` and return the int — None if no digits.
+
+    Game UI labels OCR as ``"1,234,567"`` / ``"1 234 567"`` / ``"12345"``;
+    the digit-only pass handles thousands separators uniformly. Magnitude
+    suffixes (``"12.3M"``) collapse to ``123`` — callers that need lossless
+    suffix expansion must preprocess before calling.
+    """
+    digits = re.sub(r"\D+", "", str(text or ""))
+    if not digits:
+        return None
+    return int(digits)
+
+
 # OCR may reuse a recent framebuffer instead of issuing a fresh ADB screencap
 # when sibling ``match`` / ``while_match`` steps just warmed the per-instance
 # cache. Capped at 300 ms so timer/countdown reads still see a fresh frame —
@@ -492,8 +506,8 @@ class DslOcrMixin(_Base):
         type_hint = str(step.get("type") or region_def.get("type") or "string").strip().lower()
         value: str = text
         if type_hint in {"int", "integer"}:
-            digits = re.sub(r"\D+", "", text)
-            if not digits:
+            parsed = parse_ocr_integer(text)
+            if parsed is None:
                 logger.warning(
                     "dsl_scenario: store skipped field=%s reason=integer_cast_failed "
                     "value=%r region=%s scenario=%s",
@@ -512,7 +526,7 @@ class DslOcrMixin(_Base):
                     raw_text=text,
                 )
                 return
-            value = digits
+            value = str(parsed)
         elif type_hint == "time":
             seconds = _parse_hms_to_seconds(text)
             if seconds is None:

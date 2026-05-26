@@ -84,7 +84,6 @@ ensure_repo_on_sys_path()
 from api.routers import (  # noqa: E402 — silence filter must run before transitive ``ui.*`` imports
     adb,
     alliances,
-    analyze,
     balance,
     click_approvals,
     debug_scenarios,
@@ -142,7 +141,6 @@ app.include_router(click_approvals.router)
 app.include_router(overlay_test.router)
 app.include_router(modules.router)
 app.include_router(gallery.router)
-app.include_router(analyze.router)
 app.include_router(adb.router)
 app.include_router(debug_scenarios.router)
 app.include_router(dev_bot.router)

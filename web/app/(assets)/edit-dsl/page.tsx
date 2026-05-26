@@ -7,6 +7,7 @@ import { AppListbox } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading, Spinner } from "@/components/ui/Spinner";
 import { ScenarioEditor } from "@/components/edit-dsl/ScenarioEditor";
+import { ScenarioTree } from "@/components/edit-dsl/ScenarioTree";
 import type { EditorMeta } from "@/components/edit-dsl/StepCard";
 import {
   createEditDslFile,
@@ -22,41 +23,6 @@ import type {
 } from "@/lib/config-pages";
 import type { ScenarioDocument } from "@/lib/edit-dsl/dsl";
 import type { WikiScope } from "@/lib/wiki";
-
-function TreePicker({
-  nodes,
-  selected,
-  onSelect,
-}: {
-  nodes: ScenarioTreeNode[];
-  selected: string;
-  onSelect: (rel: string) => void;
-}) {
-  return (
-    <ul className="scenario-tree">
-      {nodes.map((n) =>
-        n.is_dir ? (
-          <li key={n.value}>
-            <span className="muted">{n.title}</span>
-            {n.children && (
-              <TreePicker nodes={n.children} selected={selected} onSelect={onSelect} />
-            )}
-          </li>
-        ) : (
-          <li key={n.value}>
-            <button
-              type="button"
-              className={selected === n.value ? "tree-link active" : "tree-link"}
-              onClick={() => onSelect(n.value)}
-            >
-              {n.title}
-            </button>
-          </li>
-        ),
-      )}
-    </ul>
-  );
-}
 
 function resolveQueryScenario(
   files: ScenarioFileEntry[],
@@ -236,7 +202,11 @@ function EditDslPageInner() {
               ))}
             </ul>
           ) : (
-            <TreePicker nodes={tree} selected={selectedRel} onSelect={setSelectedRel} />
+            <ScenarioTree
+              nodes={tree}
+              selected={selectedRel}
+              onSelect={setSelectedRel}
+            />
           )}
 
           <hr />

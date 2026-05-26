@@ -24,6 +24,7 @@ export type FleetContextValue = {
   playerId: string;
   setInstanceId: (id: string) => void;
   setPlayerId: (id: string) => void;
+  refreshPlayers: () => Promise<string[]>;
   instancesLoading: boolean;
   playersLoading: boolean;
   instancesError: string | null;
@@ -57,6 +58,7 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
     setPlayerId: setPlayerIdState,
     loading: playersLoading,
     error: playersError,
+    refresh: refreshPlayers,
   } = usePlayers({
     preferPlayerId: urlPlayerId,
     getPersistedPlayerId: loadFleetPlayerId,
@@ -121,6 +123,7 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
       playerId,
       setInstanceId,
       setPlayerId,
+      refreshPlayers,
       instancesLoading,
       playersLoading,
       instancesError,
@@ -133,6 +136,7 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
       playerId,
       setInstanceId,
       setPlayerId,
+      refreshPlayers,
       instancesLoading,
       playersLoading,
       instancesError,

@@ -80,6 +80,14 @@ def get_event_icon(slug: str = Query(...)) -> FileResponse:
     return FileResponse(path)
 
 
+@router.get("/region-preview")
+def get_region_preview(name: str = Query(..., min_length=1)) -> FileResponse:
+    path = svc.region_crop_path(name)
+    if path is None:
+        raise HTTPException(status_code=404, detail="region crop not found")
+    return FileResponse(path, media_type="image/png")
+
+
 @router.post("/create")
 def post_create(body: CreateBody) -> dict[str, object]:
     try:

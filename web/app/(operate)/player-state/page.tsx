@@ -6,7 +6,7 @@ import { BuildingLevelsTable } from "@/components/player-state/BuildingLevelsTab
 import { CollapsiblePanel } from "@/components/player-state/CollapsiblePanel";
 import { HeroTileGrid } from "@/components/player-state/HeroTileGrid";
 import { SearchField } from "@/components/player-state/SearchField";
-import { AppListbox, AppTabs } from "@/components/headless";
+import { AppConfirmDialog, AppListbox, AppTabs } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -264,6 +264,7 @@ function PlayerStatePageInner() {
     playerId,
     setPlayerId,
     players,
+    refreshPlayers,
     instancesError,
     playersError,
   } = useFleet();
@@ -275,6 +276,7 @@ function PlayerStatePageInner() {
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [bldgFilter, setBldgFilter] = useState("");
   const [heroFilter, setHeroFilter] = useState("");
   const [fieldFilter, setFieldFilter] = useState("");
@@ -370,16 +372,13 @@ function PlayerStatePageInner() {
     }
   };
 
-  const onDelete = async () => {
+  const onDelete = () => {
     if (!playerId || deleting) return;
-    const confirmed = window.confirm(
-      `Удалить все данные игрока ${playerId}?\n\n` +
-        "Будут стёрты:\n" +
-        "  • Redis: wos:player:<id>:* (state, scenario, TTL)\n" +
-        "  • SQLite: gamers, player_power_daily, player_level_events\n\n" +
-        "Это необратимо.",
-    );
-    if (!confirmed) return;
+    setDeleteConfirmOpen(true);
+  };
+
+  const runDelete = async () => {
+    if (!playerId || deleting) return;
     setDeleting(true);
     setError(null);
     try {
@@ -389,13 +388,15 @@ function PlayerStatePageInner() {
         0,
       );
       showSuccess(
-        `Удалён ${result.player_id} · Redis: ${result.redis_keys_deleted} ключ(ей) · SQLite: ${sqliteSum} строк`,
+        `Deleted ${result.player_id} · Redis: ${result.redis_keys_deleted} key(s) · SQLite: ${sqliteSum} rows`,
       );
       setLive(null);
       setPersisted(null);
       setPlayerId("");
       playerTouchedRef.current = false;
       setPlayerTouched(false);
+      setDeleteConfirmOpen(false);
+      await refreshPlayers();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -471,9 +472,9 @@ function PlayerStatePageInner() {
             className="btn-danger"
             disabled={deleting}
             onClick={onDelete}
-            title="Стереть Redis-state и SQLite-записи этого игрока"
+            title="Wipe this player's Redis state and SQLite records"
           >
-            {deleting ? "Удаление…" : "Удалить игрока"}
+            {deleting ? "Deleting…" : "Delete player"}
           </button>
         ) : null}
       </div>
@@ -721,6 +722,29 @@ function PlayerStatePageInner() {
           </p>
         </section>
       ) : null}
+
+      <AppConfirmDialog
+        open={deleteConfirmOpen}
+        onClose={() => {
+          if (!deleting) setDeleteConfirmOpen(false);
+        }}
+        onConfirm={runDelete}
+        title={`Delete player ${playerId}?`}
+        confirmLabel={deleting ? "Deleting…" : "Delete player"}
+        variant="danger"
+        busy={deleting}
+      >
+        <p>This will wipe all data for this player. This is irreversible.</p>
+        <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem" }}>
+          <li>
+            Redis: <code>wos:player:&lt;id&gt;:*</code> (state, scenario, TTL)
+          </li>
+          <li>
+            SQLite: <code>gamers</code>, <code>player_power_daily</code>,{" "}
+            <code>player_level_events</code>
+          </li>
+        </ul>
+      </AppConfirmDialog>
     </>
   );
 }

@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
+import threading
 import time
+from collections import OrderedDict
 from typing import Any, TypedDict
 
 import cv2
@@ -519,6 +522,79 @@ def _detect_screen_on_frame(
 _OVERLAY_TEST_PROBE_PLAYER = "overlay-test-probe"
 
 
+# Process-local cache: maps ``instance_id`` to the last detected screen for that
+# overlay-test session. Used as ``hint`` for the next probe when Redis has no
+# live ``current_screen`` (worker not running) — keeps the sticky verify fast
+# path warm across probes instead of always falling back to a cold full scan.
+_overlay_test_hint_cache_lock = threading.Lock()
+_overlay_test_hint_cache: dict[str, str] = {}
+
+
+def _overlay_test_remember_hint(instance_id: str, detected: str) -> None:
+    if not instance_id or not detected:
+        return
+    with _overlay_test_hint_cache_lock:
+        _overlay_test_hint_cache[instance_id] = detected
+
+
+def _overlay_test_recall_hint(instance_id: str) -> str | None:
+    if not instance_id:
+        return None
+    with _overlay_test_hint_cache_lock:
+        return _overlay_test_hint_cache.get(instance_id)
+
+
+# Process-local LRU of recent detection results keyed by ``(frame_hash, area_mtime)``.
+# Hashing a 720×1280 BGR frame with blake2b runs in ~3–5 ms — orders of magnitude
+# cheaper than re-running the full multi-screen scan. ``area_mtime`` invalidates
+# the cache when ``area.json`` is edited (region geometry or templates changed).
+_OVERLAY_TEST_RESULT_CACHE_MAX = 32
+_overlay_test_result_cache_lock = threading.Lock()
+_overlay_test_result_cache: OrderedDict[tuple[bytes, float], str] = OrderedDict()
+
+
+def _overlay_test_frame_fingerprint(png_bytes: bytes | None) -> bytes | None:
+    """Cheap content hash for the PNG payload backing this probe.
+
+    Hashing the raw PNG bytes (not the decoded BGR array) avoids a cv2.imdecode
+    pass when the cache hits. The Next.js dashboard re-polls overlay-test with
+    the same preview PNG until the worker captures a new frame, so the hit rate
+    is very high for steady-state probes.
+    """
+    if not png_bytes:
+        return None
+    return hashlib.blake2b(png_bytes, digest_size=16).digest()
+
+
+def _overlay_test_result_cache_get(
+    fingerprint: bytes | None,
+    area_mtime: float,
+) -> str | None:
+    if fingerprint is None:
+        return None
+    key = (fingerprint, area_mtime)
+    with _overlay_test_result_cache_lock:
+        cached = _overlay_test_result_cache.get(key)
+        if cached is not None:
+            _overlay_test_result_cache.move_to_end(key)
+        return cached
+
+
+def _overlay_test_result_cache_put(
+    fingerprint: bytes | None,
+    area_mtime: float,
+    detected: str,
+) -> None:
+    if fingerprint is None or not detected:
+        return
+    key = (fingerprint, area_mtime)
+    with _overlay_test_result_cache_lock:
+        _overlay_test_result_cache[key] = detected
+        _overlay_test_result_cache.move_to_end(key)
+        while len(_overlay_test_result_cache) > _OVERLAY_TEST_RESULT_CACHE_MAX:
+            _overlay_test_result_cache.popitem(last=False)
+
+
 def _load_overlay_test_preview(
     *,
     instance_id: str,
@@ -813,9 +889,30 @@ def run_overlay_test(
         except Exception:
             logger.debug("overlay-test: hint lookup failed", exc_info=True)
 
-    detected_screen, screen_detect_ms = _detect_screen_on_frame(image_bgr, hint=screen_hint)
+    # When the live worker isn't running, Redis ``current_screen`` is empty and
+    # every probe pays the cold-path scan. Fall back to the last detection we
+    # saw for this overlay-test session so the sticky verify path can take over.
+    if screen_hint is None:
+        screen_hint = _overlay_test_recall_hint(instance_id)
+
+    # Content-hash cache: when the dashboard repolls with the same preview PNG
+    # (worker hasn't captured a fresh frame yet), skip the full scan entirely.
+    frame_fp = _overlay_test_frame_fingerprint(png)
+    area_mtime_for_cache = area_manifest_max_mtime(repo_root())
+    cached_detected = _overlay_test_result_cache_get(frame_fp, area_mtime_for_cache)
+    if cached_detected is not None:
+        detected_screen = cached_detected
+        screen_detect_ms = 0
+    else:
+        detected_screen, screen_detect_ms = _detect_screen_on_frame(
+            image_bgr, hint=screen_hint
+        )
+        if detected_screen:
+            _overlay_test_result_cache_put(frame_fp, area_mtime_for_cache, detected_screen)
     overlay_screen = detected_screen
     screen_source = "detected" if overlay_screen else "none"
+    if detected_screen:
+        _overlay_test_remember_hint(instance_id, detected_screen)
 
     repo = repo_root()
     area_doc = load_area_doc(repo)
@@ -841,7 +938,12 @@ def run_overlay_test(
     boot_device_level_only = simulated_no_player
 
     if image_bgr is not None and rules_raw:
-        if detailed_analysis:
+        # When no screen is detected and the screen gate is active, virtually
+        # all rules get filtered by ``screens:`` — the per-module breakdown
+        # then records ~40 empty rows at ~50 ms setup each. Skip it; the full
+        # run below still surfaces any device-level matches at a fraction of
+        # the cost.
+        if detailed_analysis and (overlay_screen or ignore_screen_gate):
             module_runs, modules_total_ms = _run_module_analyzer_breakdown(
                 image_bgr,
                 repo=repo,

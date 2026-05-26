@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { saveEditScenarioDocument, validateEditScenarioDocument } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppTabs } from "@/components/headless";
+import {
+  saveEditScenarioDocument,
+  saveEditScenarioFile,
+  validateEditScenarioDocument,
+  validateEditScenarioYaml,
+} from "@/lib/api";
 import {
   cloneDocument,
   ensureStepsList,
@@ -10,6 +16,11 @@ import {
 import { ScenarioHeaderForm } from "./ScenarioHeaderForm";
 import { StepsList } from "./StepsList";
 import type { EditorMeta } from "./StepCard";
+import {
+  YamlMonacoEditor,
+  parseYamlErrorLocation,
+  type YamlMarker,
+} from "./YamlMonacoEditor";
 
 type Props = {
   rel: string;
@@ -18,23 +29,46 @@ type Props = {
   onSaved: () => void;
 };
 
+type EditorTab = "form" | "yaml";
+
+/**
+ * Module-level ref so the active editor tab survives `key={editorKey}`
+ * remounts when the user switches scenarios in the sidebar.
+ */
+const persistedTabRef: { current: EditorTab } = { current: "form" };
+
 export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   const [doc, setDoc] = useState<ScenarioDocument>(() => cloneDocument(initialDoc));
   const [dirty, setDirty] = useState(false);
   const [valid, setValid] = useState(true);
   const [validationError, setValidationError] = useState("");
   const [yamlPreview, setYamlPreview] = useState("");
-  const [showYaml, setShowYaml] = useState(false);
   const [collisions, setCollisions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [tab, setTabState] = useState<EditorTab>(persistedTabRef.current);
+  const setTab = useCallback((t: EditorTab) => {
+    persistedTabRef.current = t;
+    setTabState(t);
+  }, []);
+  const regionMeta = useMemo(
+    () => ({ regions: meta.regions, region_refs: meta.region_refs }),
+    [meta.regions, meta.region_refs],
+  );
+  const [yamlDraft, setYamlDraft] = useState("");
+  const [yamlDirty, setYamlDirty] = useState(false);
+  const [yamlValid, setYamlValid] = useState(true);
+  const [yamlError, setYamlError] = useState("");
+  const [yamlMarkers, setYamlMarkers] = useState<YamlMarker[]>([]);
 
   useEffect(() => {
     setDoc(cloneDocument(initialDoc));
     setDirty(false);
     setMessage(null);
     setError(null);
+    setYamlDirty(false);
   }, [rel, initialDoc]);
 
   const runValidate = useCallback(async (d: ScenarioDocument) => {
@@ -52,6 +86,16 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
     return () => clearTimeout(t);
   }, [doc, runValidate]);
 
+  // Refill YAML draft from preview when entering the tab (unless user has unsaved edits).
+  useEffect(() => {
+    if (tab === "yaml" && !yamlDirty) {
+      setYamlDraft(yamlPreview);
+      setYamlValid(true);
+      setYamlError("");
+      setYamlMarkers([]);
+    }
+  }, [tab, yamlPreview, yamlDirty]);
+
   const updateDoc = (next: ScenarioDocument) => {
     setDoc(next);
     setDirty(true);
@@ -61,7 +105,7 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   const saveDisabled =
     busy || !valid || !nameValue || collisions.length > 0 || !dirty;
 
-  async function handleSave() {
+  async function handleSaveForm() {
     setBusy(true);
     setError(null);
     try {
@@ -78,10 +122,69 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
     }
   }
 
+  const runYamlValidate = useCallback(async (text: string) => {
+    try {
+      const r = await validateEditScenarioYaml(text);
+      setYamlValid(r.valid);
+      setYamlError(r.error);
+      if (!r.valid && r.error) {
+        const loc = parseYamlErrorLocation(r.error);
+        setYamlMarkers([
+          {
+            message: r.error,
+            line: loc.line,
+            column: loc.column,
+            severity: "error",
+          },
+        ]);
+      } else {
+        setYamlMarkers([]);
+      }
+      return r;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setYamlValid(false);
+      setYamlError(msg);
+      setYamlMarkers([{ message: msg, line: 1, severity: "error" }]);
+      return { valid: false, error: msg, preview: "" };
+    }
+  }, []);
+
+  async function handleValidateYaml() {
+    return runYamlValidate(yamlDraft);
+  }
+
+  // Debounced live validation as the user types.
+  useEffect(() => {
+    if (tab !== "yaml") return;
+    if (!yamlDirty) return;
+    const t = setTimeout(() => {
+      runYamlValidate(yamlDraft).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [tab, yamlDraft, yamlDirty, runYamlValidate]);
+
+  async function handleSaveYaml() {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await handleValidateYaml();
+      if (!r.valid) return;
+      await saveEditScenarioFile(rel, yamlDraft);
+      setMessage(`Saved ${rel} (backup written)`);
+      setYamlDirty(false);
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const steps = ensureStepsList(doc);
 
-  return (
-    <div className="edit-scenario-editor">
+  const formPanel = (
+    <>
       <ScenarioHeaderForm
         doc={doc}
         rel={rel}
@@ -104,9 +207,9 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
       <div className="toolbar">
         <button
           type="button"
-          className="btn-primary"
+          className="btn-success"
           disabled={saveDisabled}
-          onClick={handleSave}
+          onClick={handleSaveForm}
         >
           Save
         </button>
@@ -121,15 +224,80 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
           <pre className="code-block">{validationError}</pre>
         </details>
       )}
+    </>
+  );
 
-      <details
-        className="edit-scenario-yaml-preview"
-        open={showYaml}
-        onToggle={(e) => setShowYaml((e.target as HTMLDetailsElement).open)}
-      >
-        <summary>YAML preview</summary>
-        <pre className="code-block">{yamlPreview || "(validate to preview)"}</pre>
-      </details>
+  const yamlPanel = (
+    <div className="edit-scenario-yaml-tab">
+      <p className="muted">
+        Edit raw YAML. Saving from this tab writes the raw text — switch back to
+        the form to keep editing structurally.
+      </p>
+      <YamlMonacoEditor
+        value={yamlDraft}
+        onChange={(v) => {
+          setYamlDraft(v);
+          setYamlDirty(true);
+        }}
+        markers={yamlMarkers}
+        scenarioTimeline
+        regionMeta={regionMeta}
+      />
+      <div className="toolbar">
+        <button
+          type="button"
+          className="btn-success"
+          disabled={busy || !yamlDirty || !yamlValid}
+          onClick={handleSaveYaml}
+        >
+          Save YAML
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy || !yamlDirty}
+          onClick={handleValidateYaml}
+        >
+          Validate
+        </button>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy || !yamlDirty}
+          onClick={() => {
+            setYamlDraft(yamlPreview);
+            setYamlDirty(false);
+            setYamlValid(true);
+            setYamlError("");
+            setYamlMarkers([]);
+          }}
+        >
+          Reset
+        </button>
+        {!yamlValid && (
+          <span className="error-banner">YAML invalid — fix before saving.</span>
+        )}
+        {yamlValid && yamlDirty && <span className="muted">Unsaved changes</span>}
+      </div>
+      {!yamlValid && yamlError && (
+        <details className="edit-scenario-validation">
+          <summary>Validation details</summary>
+          <pre className="code-block">{yamlError}</pre>
+        </details>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="edit-scenario-editor">
+      <AppTabs
+        selectedKey={tab}
+        onChange={(k) => setTab(k as EditorTab)}
+        tabs={[
+          { key: "form", label: "Form", panel: formPanel },
+          { key: "yaml", label: "YAML", panel: yamlPanel },
+        ]}
+      />
 
       {message && <p className="muted">{message}</p>}
       {error && <p className="error-banner">{error}</p>}

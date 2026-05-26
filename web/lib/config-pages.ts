@@ -37,14 +37,6 @@ export type GalleryItem = {
   size_bytes: number;
 };
 
-export type AnalyzeIssue = {
-  manifest: string;
-  rule: string;
-  severity: string;
-  source: string;
-  message: string;
-};
-
 export type AdbDeviceRow = {
   name: string;
   adb_serial: string;

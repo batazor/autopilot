@@ -36,7 +36,6 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/wiki": "wiki",
   "/labeling": "labeling",
   "/edit-dsl": "edit-dsl",
-  "/analyze": "analyze",
   "/modules": "modules",
   "/adb": "adb",
   "/balance": "balance",

@@ -181,7 +181,27 @@
   }
 
   .queue-cal__legend {
-    @apply flex flex-wrap items-center gap-2 border-b border-wos-border-subtle px-3 py-2 text-xs;
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-wos-border-subtle px-3 py-2 text-xs;
+  }
+
+  .queue-cal__legend-chips {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .queue-cal__legend-controls {
+    @apply flex flex-wrap items-center gap-3;
+  }
+
+  .queue-cal__toggle {
+    @apply inline-flex cursor-pointer items-center gap-1.5 text-wos-text-muted hover:text-wos-text;
+  }
+
+  .queue-cal__toggle input {
+    @apply h-3.5 w-3.5 cursor-pointer accent-sky-400;
+  }
+
+  .queue-cal__now-btn {
+    @apply inline-flex cursor-pointer items-center gap-1 rounded-md border border-sky-700/60 bg-sky-900/30 px-2.5 py-1 text-sky-100 hover:bg-sky-800/40 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .queue-cal__chip {
@@ -196,8 +216,12 @@
     @apply inline-block h-3 w-3 rounded-sm border;
   }
 
+  .queue-cal__body {
+    @apply flex flex-col gap-3 p-2 lg:flex-row;
+  }
+
   .queue-cal__chart {
-    @apply overflow-auto p-2;
+    @apply min-w-0 flex-1 overflow-auto;
     min-height: 480px;
   }
 
@@ -206,10 +230,170 @@
     min-height: 480px;
   }
 
+  /* The SVAR ContextMenu wraps its children in an inline <span data-menu-ignore="true">.
+     Force it to behave like a block so the Calendar inside fills the chart height. */
+  .queue-cal__chart [data-menu-ignore="true"] {
+    @apply block;
+    height: 100%;
+  }
+
+  .queue-cal__detail {
+    @apply flex flex-col gap-3 rounded-lg border border-wos-border-subtle bg-wos-panel/80 p-3 lg:sticky lg:top-3 lg:max-h-[calc(100vh-2rem)] lg:w-80 lg:shrink-0 lg:self-start lg:overflow-auto;
+  }
+
+  .queue-cal__detail-head {
+    @apply flex items-start gap-2;
+  }
+
+  .queue-cal__detail-titles {
+    @apply min-w-0 flex-1;
+  }
+
+  .queue-cal__detail-scenario {
+    @apply m-0 font-semibold text-wos-text break-words;
+  }
+
+  .queue-cal__detail-key {
+    @apply m-0 font-mono text-[11px] text-wos-text-muted break-all;
+  }
+
+  .queue-cal__detail-close {
+    @apply inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-lg leading-none text-wos-text-muted hover:bg-wos-panel-raised hover:text-wos-text;
+  }
+
+  .queue-cal__detail-pills {
+    @apply flex flex-wrap items-center gap-1.5;
+  }
+
+  .queue-cal__detail-meta {
+    @apply m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs;
+  }
+
+  .queue-cal__detail-meta > div {
+    @apply contents;
+  }
+
+  .queue-cal__detail-meta dt {
+    @apply text-wos-text-muted;
+  }
+
+  .queue-cal__detail-meta dd {
+    @apply m-0 break-words font-medium text-wos-text-secondary;
+  }
+
+  .queue-cal__detail-rel {
+    @apply mt-0.5 text-[11px];
+  }
+
+  .queue-cal__detail-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .queue-cal__detail-shift {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .queue-cal__detail-shift .btn-secondary {
+    @apply px-2 py-0.5 text-[11px];
+  }
+
+  .queue-cal__detail-links {
+    @apply flex flex-wrap items-center gap-2 border-t border-wos-border-subtle pt-2;
+  }
+
+  .queue-cal__detail-reason {
+    @apply font-mono text-[11px] text-red-200/90 break-words;
+  }
+
+  .queue-cal__detail-hint {
+    @apply m-0 text-[11px];
+  }
+
+  .queue-cal__tooltip {
+    @apply flex flex-col gap-1 rounded-md border border-wos-border-subtle bg-wos-panel/95 px-2.5 py-1.5 text-xs text-wos-text shadow-lg;
+    max-width: 18rem;
+  }
+
+  .queue-cal__tooltip-title {
+    @apply font-medium text-wos-text break-words;
+  }
+
+  .queue-cal__tooltip-meta {
+    @apply flex flex-wrap items-center gap-2 text-[11px];
+  }
+
+  .queue-cal__tooltip-kind {
+    @apply rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide;
+  }
+
+  .queue-cal__tooltip-kind--pending {
+    @apply bg-sky-900/60 text-sky-200;
+  }
+
+  .queue-cal__tooltip-kind--history {
+    @apply bg-zinc-800/80 text-zinc-300;
+  }
+
+  .queue-cal__tooltip-hint {
+    @apply text-[10px];
+  }
+
   .queue-cal-empty {
     @apply rounded-lg border border-dashed border-wos-border-subtle px-3 py-6 text-center text-sm;
   }
 
+  .queue-create-dialog {
+    @apply max-w-lg;
+  }
+
+  .queue-create-dialog__fields {
+    @apply mt-1 flex flex-col gap-3;
+  }
+
+  .queue-create-dialog__field {
+    @apply flex flex-col gap-1 text-sm text-wos-text;
+  }
+
+  .queue-create-dialog__field > span {
+    @apply text-xs font-medium uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .queue-create-dialog__input {
+    @apply w-full rounded-md border border-wos-border-subtle bg-wos-panel px-2.5 py-1.5 text-sm text-wos-text outline-none focus:border-sky-500 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+}
+
+.queue-cal-event--selected {
+  outline: 2px solid rgba(255, 255, 255, 0.85) !important;
+  outline-offset: -1px;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.45) !important;
+}
+
+/* History overlay: dashed, faded, tinted by outcome. */
+.queue-cal-event--history-ok {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.55) !important;
+  border-style: dashed !important;
+  color: rgba(220, 252, 231, 0.9) !important;
+}
+
+.queue-cal-event--history-fail {
+  background-color: rgba(239, 68, 68, 0.22) !important;
+  border-color: rgba(239, 68, 68, 0.6) !important;
+  border-style: dashed !important;
+  color: rgba(254, 226, 226, 0.95) !important;
+}
+
+/* The Calendar's built-in "now" indicator: make it readable on the dark theme. */
+.wx-now-line {
+  background-color: rgba(244, 63, 94, 0.85) !important;
+  height: 2px !important;
+}
+
+.wx-now-dot {
+  background-color: rgb(244, 63, 94) !important;
+  box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.25) !important;
 }
 
 /* Per-calendar event colours. Hash-stable: same (instance,player) → same index.

@@ -1,16 +1,32 @@
 "use client";
 
 import { AppListbox } from "@/components/headless";
+import { editDslRegionPreviewUrl } from "@/lib/api";
 import { SWIPE_DIRECTIONS, detectStepType, type ScenarioStep } from "@/lib/edit-dsl/dsl";
 import { SelectWithFreetext } from "./SelectWithFreetext";
 import { StepsList } from "./StepsList";
 
+const regionPreview = (value: string) =>
+  value.trim() ? editDslRegionPreviewUrl(value.trim()) : null;
+
 export type EditorMeta = {
   regions: string[];
+  region_refs?: Record<string, string>;
+  region_screens?: Record<string, string>;
   fsm_nodes: string[];
   exec_names: string[];
   scenario_keys: string[];
 };
+
+function labelingHrefForRegion(meta: EditorMeta, value: string): string | null {
+  const name = value.trim();
+  if (!name) return null;
+  const ref = meta.region_refs?.[name];
+  const params = new URLSearchParams();
+  if (ref) params.set("ref", ref);
+  params.set("region", name);
+  return `/labeling?${params.toString()}`;
+}
 
 type Props = {
   step: ScenarioStep;
@@ -29,6 +45,7 @@ function setCond(step: ScenarioStep, cond: string, stype: string) {
 export function StepCard({ step, path, depth, meta, onChange }: Props) {
   const stype = detectStepType(step);
   const pk = path.join("/");
+  const regionLabelingHref = (v: string) => labelingHrefForRegion(meta, v);
 
   const update = (patch: ScenarioStep) => {
     onChange({ ...step, ...patch });
@@ -61,6 +78,9 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
           value={String(step.click ?? "")}
           options={meta.regions}
           onChange={(v) => update({ click: v })}
+          previewUrl={regionPreview}
+          labelingHref={regionLabelingHref}
+          warnIfUnknown
         />
       )}
 
@@ -71,6 +91,9 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
             value={String(step.long_click ?? "")}
             options={meta.regions}
             onChange={(v) => update({ long_click: v })}
+            previewUrl={regionPreview}
+            labelingHref={regionLabelingHref}
+            warnIfUnknown
           />
           <label className="field-row">
             <span>duration (e.g. 800ms)</span>
@@ -89,6 +112,9 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
             value={String(step.match ?? "")}
             options={meta.regions}
             onChange={(v) => update({ match: v })}
+            previewUrl={regionPreview}
+            labelingHref={regionLabelingHref}
+            warnIfUnknown
           />
           <MatchParams step={step} onChange={onChange} pk={pk} />
         </>
@@ -104,6 +130,9 @@ export function StepCard({ step, path, depth, meta, onChange }: Props) {
           value={String(step.ocr ?? "")}
           options={meta.regions}
           onChange={(v) => update({ ocr: v })}
+          previewUrl={regionPreview}
+          labelingHref={regionLabelingHref}
+          warnIfUnknown
         />
       )}
 
@@ -245,6 +274,9 @@ function WhileMatchBlock({
         value={String(step.while_match ?? "")}
         options={meta.regions}
         onChange={(v) => onChange({ ...step, while_match: v })}
+        previewUrl={regionPreview}
+        labelingHref={(v) => labelingHrefForRegion(meta, v)}
+        warnIfUnknown
       />
       <div className="form-grid-2">
         <label className="field-row">

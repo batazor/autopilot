@@ -25,7 +25,6 @@ export type IconName =
   | "wiki"
   | "labeling"
   | "edit-dsl"
-  | "analyze"
   | "modules"
   | "adb"
   | "balance"
@@ -176,12 +175,6 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M8 6h10v14H8z" />
       <path d="M6 9H4M6 13H4M6 17H4" strokeLinecap="round" />
-    </>,
-  ),
-  analyze: strokeIcon(
-    <>
-      <circle cx="11" cy="11" r="5" />
-      <path d="M15 15l4 4" strokeLinecap="round" />
     </>,
   ),
   modules: strokeIcon(

@@ -62,7 +62,6 @@ export const NAV_GROUPS: NavGroup[] = [
     tabs: [
       { href: "/labeling", label: "Labeling" },
       { href: "/edit-dsl", label: "DSL editor" },
-      { href: "/analyze", label: "Analyze" },
       { href: "/wiki", label: "Wiki reference" },
       { href: "/gift-codes", label: "Gift codes" },
     ],

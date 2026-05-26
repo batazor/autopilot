@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import threading
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -84,8 +85,6 @@ def _build_screen_name_enum() -> type[StrEnum]:
 # ``StrEnum`` subclass with the three well-known members so static analysis
 # sees a normal enum class; at runtime the dynamic factory still wins.
 if TYPE_CHECKING:
-    from pathlib import Path
-
     import numpy as np
     class ScreenName(StrEnum):
         # Sentinels + hubs (always present via ``_WELL_KNOWN_SCREEN_VALUES``).
@@ -230,11 +229,14 @@ class ScreenDetector:
     ) -> ScreenName:
         """Template/tab landmark scan in ``screen_verify`` priority order.
 
-        Evaluates one screen at a time and stops at the first landmark group
-        that fully matches. Results from a ``(action, region, threshold)`` triple
-        are cached for the duration of this call, so the next screen reusing the
-        same landmark (e.g. ``mail.title`` across ``mail.*`` sub-screens) reuses
-        the cached row instead of re-running ``cv2.matchTemplate``.
+        Cold-path optimisation: instead of looping screen-by-screen (each call
+        spending ~thread+event-loop overhead in ``_evaluate_overlay_rules_in_thread``),
+        we collect the *union* of unique ``(action, region, threshold)`` landmark
+        rules across all candidate screens and evaluate them in **at most two
+        batches**: parent/unparented rules first, then child rules only for
+        parents whose anchor group fired. Group resolution then happens locally
+        in priority order — preserving the "first-match wins" semantics without
+        paying the N×overhead.
 
         ``try_first``: screens to probe before the priority list (e.g. the
         hop destination the navigator just tapped toward).
@@ -247,111 +249,130 @@ class ScreenDetector:
         ordered = self._merge_screen_probe_order(ordered, try_first=try_first)
         area_doc = self._load_area_doc()
         root = repo_root()
-        result_cache: dict[tuple[str, str, float], dict[str, Any] | None] = {}
-        parents_negative: set[str] = set()
+
+        entries: list[
+            tuple[str, ScreenName, list[dict[str, Any]], list[list[str]], str | None]
+        ] = []
+        referenced_parents: set[str] = set()
         for screen_s in ordered:
             try:
                 screen_name = ScreenName(screen_s)
             except ValueError:
                 continue
-            parent_s = screen_verify_parent(screen_s)
-            if parent_s:
-                if parent_s in parents_negative:
-                    continue
-                if await self._parent_gate_negative(
-                    parent_s,
-                    area_doc=area_doc,
-                    root=root,
-                    image=image,
-                    frame_gray=frame_gray,
-                    result_cache=result_cache,
-                ):
-                    parents_negative.add(parent_s)
-                    continue
             rules, groups = self._landmark_overlay_rules_cached(
                 screen_s,
                 name_prefix="screen_detector",
             )
             if not rules:
                 continue
-            pending = [r for r in rules if _dedup_key(r) not in result_cache]
-            if pending:
-                try:
-                    new_out = await _evaluate_overlay_rules_in_thread(
-                        image,
-                        area_doc,
-                        root,
-                        pending,
-                        frame_gray=frame_gray,
-                    )
-                except Exception:
-                    logger.debug(
-                        "ScreenDetector: match landmarks failed", exc_info=True
-                    )
-                    return ScreenName.UNKNOWN
-                for rule in pending:
-                    result_cache[_dedup_key(rule)] = new_out.get(str(rule["name"]))
-            out: dict[str, Any] = {}
+            parent_s = screen_verify_parent(screen_s)
+            if parent_s:
+                referenced_parents.add(parent_s)
+            entries.append((screen_s, screen_name, rules, groups, parent_s))
+
+        if not entries:
+            return ScreenName.UNKNOWN
+
+        result_by_key: dict[tuple[str, str, float], dict[str, Any] | None] = {}
+
+        # Phase 1: all rules of unparented screens + every referenced parent's
+        # own rules. This covers the gating templates the parent gate needs
+        # plus everything required to resolve top-level (non-mail-style) screens.
+        phase1: dict[tuple[str, str, float], dict[str, Any]] = {}
+        for _screen_s, _name, rules, _groups, parent_s in entries:
+            if parent_s is not None:
+                continue
             for rule in rules:
-                cached = result_cache.get(_dedup_key(rule))
-                if cached is not None:
-                    out[str(rule["name"])] = cached
-            if self._first_matching_landmark_group(out, groups):
-                return screen_name
-        return ScreenName.UNKNOWN
+                phase1.setdefault(_dedup_key(rule), rule)
+        for parent_s in referenced_parents:
+            parent_rules, _parent_groups = self._landmark_overlay_rules_cached(
+                parent_s,
+                name_prefix="screen_detector",
+            )
+            for rule in parent_rules:
+                phase1.setdefault(_dedup_key(rule), rule)
 
-    async def _parent_gate_negative(
-        self,
-        parent_s: str,
-        *,
-        area_doc: dict[str, Any],
-        root: Path,
-        image: np.ndarray,
-        frame_gray: np.ndarray | None,
-        result_cache: dict[tuple[str, str, float], dict[str, Any] | None],
-    ) -> bool:
-        """True when ``parent_s``'s landmark groups cannot match this frame.
-
-        A child screen (e.g. ``mail.wars``) is strictly a sub-view of its parent
-        (``mail``), so if the parent's anchor template (``mail.title``) is not
-        visible, the child cannot be on screen either. Evaluating the parent's
-        rule once via the shared ``result_cache`` lets us skip the child's
-        unique ``tab_active`` / landmark template match — the actual wasted
-        cost when the bot isn't anywhere near the parent screen.
-
-        Returns ``False`` (don't skip) when the parent has no gating rules or
-        the evaluation itself fails — the legacy per-screen path then runs as
-        before, so this remains a strictly additive optimization.
-        """
-        parent_rules, parent_groups = self._landmark_overlay_rules_cached(
-            parent_s,
-            name_prefix="screen_detector",
-        )
-        if not parent_rules or not parent_groups:
-            return False
-        pending = [r for r in parent_rules if _dedup_key(r) not in result_cache]
-        if pending:
+        if phase1:
             try:
-                new_out = await _evaluate_overlay_rules_in_thread(
+                out1 = await _evaluate_overlay_rules_in_thread(
                     image,
                     area_doc,
                     root,
-                    pending,
+                    list(phase1.values()),
                     frame_gray=frame_gray,
                 )
             except Exception:
                 logger.debug(
-                    "ScreenDetector: parent gate eval failed", exc_info=True
+                    "ScreenDetector: phase1 landmark batch failed", exc_info=True
                 )
-                return False
-            for rule in pending:
-                result_cache[_dedup_key(rule)] = new_out.get(str(rule["name"]))
-        out: dict[str, Any] = {}
-        for rule in parent_rules:
-            cached = result_cache.get(_dedup_key(rule))
-            if cached is not None:
-                out[str(rule["name"])] = cached
-        return not self._first_matching_landmark_group(out, parent_groups)
+                return ScreenName.UNKNOWN
+            for key, rule in phase1.items():
+                result_by_key[key] = out1.get(str(rule["name"]))
+
+        # Resolve which referenced parents have their anchor group satisfied.
+        # Children of negative parents are skipped from phase 2 entirely — the
+        # same optimisation the old _parent_gate_negative provided, just done
+        # once after the batched evaluation.
+        parents_negative: set[str] = set()
+        for parent_s in referenced_parents:
+            parent_rules, parent_groups = self._landmark_overlay_rules_cached(
+                parent_s,
+                name_prefix="screen_detector",
+            )
+            if not parent_rules or not parent_groups:
+                # No gating rules — treat as "let children through".
+                continue
+            out_p: dict[str, Any] = {}
+            for rule in parent_rules:
+                cached = result_by_key.get(_dedup_key(rule))
+                if cached is not None:
+                    out_p[str(rule["name"])] = cached
+            if not self._first_matching_landmark_group(out_p, parent_groups):
+                parents_negative.add(parent_s)
+
+        # Phase 2: child rules whose parent fired. Only rules not already
+        # evaluated in phase 1 are added — the dedup key keeps mail.title
+        # (shared between parent ``mail`` and child ``mail.wars``) from
+        # re-running cv2.matchTemplate.
+        phase2: dict[tuple[str, str, float], dict[str, Any]] = {}
+        for _screen_s, _name, rules, _groups, parent_s in entries:
+            if parent_s is None or parent_s in parents_negative:
+                continue
+            for rule in rules:
+                key = _dedup_key(rule)
+                if key in result_by_key:
+                    continue
+                phase2.setdefault(key, rule)
+
+        if phase2:
+            try:
+                out2 = await _evaluate_overlay_rules_in_thread(
+                    image,
+                    area_doc,
+                    root,
+                    list(phase2.values()),
+                    frame_gray=frame_gray,
+                )
+            except Exception:
+                logger.debug(
+                    "ScreenDetector: phase2 landmark batch failed", exc_info=True
+                )
+                return ScreenName.UNKNOWN
+            for key, rule in phase2.items():
+                result_by_key[key] = out2.get(str(rule["name"]))
+
+        # First-match-wins resolution in priority order.
+        for _screen_s, screen_name, rules, groups, parent_s in entries:
+            if parent_s is not None and parent_s in parents_negative:
+                continue
+            out_s: dict[str, Any] = {}
+            for rule in rules:
+                cached = result_by_key.get(_dedup_key(rule))
+                if cached is not None:
+                    out_s[str(rule["name"])] = cached
+            if self._first_matching_landmark_group(out_s, groups):
+                return screen_name
+        return ScreenName.UNKNOWN
 
     @staticmethod
     def _sticky_preempt_candidates(hint_name: ScreenName) -> list[str]:
@@ -532,6 +553,21 @@ def _dedup_key(rule: dict[str, Any]) -> tuple[str, str, float]:
     return (action, region, threshold)
 
 
+_LANDMARK_PARALLEL_THRESHOLD = 6
+"""Below this rule count, the chunk overhead outweighs cv2 parallelism gains."""
+
+
+def _landmark_worker_count() -> int:
+    """Worker count for parallel landmark batches.
+
+    cv2.matchTemplate releases the GIL, so real CPU parallelism is possible.
+    Cap at 4 to leave headroom for the worker's snapshot capture, OCR client,
+    and Redis I/O on the same machine.
+    """
+    cpu = os.cpu_count() or 1
+    return max(1, min(4, cpu))
+
+
 async def _evaluate_overlay_rules_in_thread(
     image: np.ndarray,
     area_doc: dict[str, Any],
@@ -540,25 +576,50 @@ async def _evaluate_overlay_rules_in_thread(
     *,
     frame_gray: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """Run the overlay engine off the event loop.
+    """Run the overlay engine off the event loop, optionally in parallel.
 
     Template matching (``cv2.matchTemplate``) is CPU-bound and otherwise blocks
     the worker's asyncio loop for hundreds of ms per detect — stalling the
     snapshot capture, OCR client, and Redis I/O behind it.
+
+    Cold-path optimisation: when the batch has enough landmark rules to amortise
+    the chunking overhead, split into ``_landmark_worker_count()`` shards and
+    evaluate them in parallel threads via ``asyncio.gather``. Each shard runs
+    its own ``asyncio.run`` over the engine on a subset of rules, which is safe
+    because the engine's findIcon/tab_active paths don't share mutable state
+    across rules — only read-only caches (template/region lookups).
     """
 
-    def _run() -> dict[str, Any]:
+    def _run(subset: list[dict[str, Any]]) -> dict[str, Any]:
         return asyncio.run(
             evaluate_overlay_rules_async(
                 image,
                 area_doc,
                 root,
-                rules,
+                subset,
                 frame_gray=frame_gray,
             )
         )
 
-    return await asyncio.to_thread(_run)
+    n_workers = _landmark_worker_count()
+    if n_workers <= 1 or len(rules) < _LANDMARK_PARALLEL_THRESHOLD:
+        return await asyncio.to_thread(_run, rules)
+
+    # Stripe rules across shards so each shard sees a mix of fast/slow rules.
+    # Sequential chunking would put adjacent (likely-similar-cost) rules in the
+    # same shard, leading to long-tail stragglers.
+    shards: list[list[dict[str, Any]]] = [[] for _ in range(n_workers)]
+    for idx, rule in enumerate(rules):
+        shards[idx % n_workers].append(rule)
+    shards = [shard for shard in shards if shard]
+
+    shard_outs = await asyncio.gather(
+        *(asyncio.to_thread(_run, shard) for shard in shards)
+    )
+    merged: dict[str, Any] = {}
+    for shard_out in shard_outs:
+        merged.update(shard_out)
+    return merged
 
 
 _suggest_detector_lock = threading.Lock()

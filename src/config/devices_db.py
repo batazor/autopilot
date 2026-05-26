@@ -349,6 +349,42 @@ def upsert_device_gamer(
     return changed
 
 
+def delete_device_gamer(player_id: str | int) -> int:
+    """Remove ``player_id`` from every device profile.
+
+    Returns the number of device_profile_gamers rows deleted. Empty profiles are
+    left behind (they're cheap and `upsert_device_gamer` reuses them).
+    """
+    try:
+        pid_int = int(str(player_id).strip())
+    except (TypeError, ValueError):
+        return 0
+    now = time.time()
+    with _conn_lock, _connect() as conn:
+        affected_devices = [
+            row["device_name"]
+            for row in conn.execute(
+                "SELECT DISTINCT dp.device_name AS device_name "
+                "FROM device_profile_gamers g "
+                "JOIN device_profiles dp ON dp.id = g.profile_id "
+                "WHERE g.player_id = ?",
+                (pid_int,),
+            ).fetchall()
+        ]
+        cur = conn.execute(
+            "DELETE FROM device_profile_gamers WHERE player_id = ?",
+            (pid_int,),
+        )
+        deleted = int(cur.rowcount or 0)
+        if affected_devices:
+            conn.executemany(
+                "UPDATE devices SET updated_at = ? WHERE name = ?",
+                [(now, name) for name in affected_devices],
+            )
+        conn.commit()
+    return deleted
+
+
 # ---------------------------------------------------------------------------
 # bulk load → DeviceRegistry
 # ---------------------------------------------------------------------------

@@ -31,6 +31,14 @@ class QueueRescheduleBody(BaseModel):
     scheduled_at: float = Field(description="UNIX epoch seconds")
 
 
+class QueueEnqueueBody(BaseModel):
+    scenario_key: str = Field(min_length=1)
+    instance_id: str = Field(min_length=1)
+    player_id: str = ""
+    scheduled_at: float = Field(description="UNIX epoch seconds")
+    priority: int = 50_000
+
+
 @router.get("/queue")
 def get_queue(
     client: RedisDep,
@@ -81,6 +89,37 @@ def post_queue_reschedule(
     if not ok:
         raise HTTPException(status_code=404, detail="task not found")
     return {"ok": ok}
+
+
+@router.post("/queue/enqueue")
+def post_queue_enqueue(body: QueueEnqueueBody, client: RedisDep) -> dict[str, Any]:
+    if not math.isfinite(body.scheduled_at):
+        raise HTTPException(status_code=400, detail="scheduled_at must be finite")
+    now = time.time()
+    if abs(body.scheduled_at - now) > 30 * 24 * 3600:
+        raise HTTPException(
+            status_code=400, detail="scheduled_at out of allowed ±30d window"
+        )
+    from api.services.instances import list_instance_ids
+
+    if body.instance_id not in list_instance_ids():
+        raise HTTPException(
+            status_code=404, detail=f"unknown instance: {body.instance_id}"
+        )
+    try:
+        result = queue_api.enqueue_user_task(
+            client,
+            scenario_key=body.scenario_key,
+            instance_id=body.instance_id,
+            player_id=body.player_id,
+            scheduled_at=body.scheduled_at,
+            priority=body.priority,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, **result}
 
 
 @router.post("/queue/clear-all")

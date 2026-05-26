@@ -1,0 +1,18 @@
+enabled: true
+name: "🪪 Sync chief profile"
+
+# OCR pulls of total power + kingdom state from the chief profile screen.
+# The Century API doesn't expose either, so this is the only source that
+# populates `gamer.power` / `gamer.state` in SQLite — feeds `/player-stats`.
+cron: "0 */3 * * *"
+
+node: chief_profile
+
+steps:
+  - ocr: player.power
+    type: integer
+    state: power
+
+  - ocr: player.state
+    type: integer
+    state: state

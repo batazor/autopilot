@@ -39,7 +39,15 @@
   }
 
   .edit-scenario-step-card {
-    @apply mb-3 border border-wos-border p-3;
+    @apply mb-3 rounded border border-wos-border p-3 transition-colors duration-100;
+  }
+
+  .edit-scenario-step-card:hover {
+    @apply border-sky-500/60 bg-wos-input/40;
+  }
+
+  .edit-scenario-step-card:focus-within {
+    @apply border-sky-400 bg-wos-input/60;
   }
 
   .edit-scenario-step-head {
@@ -51,7 +59,12 @@
   }
 
   .edit-scenario-step-actions {
-    @apply ml-auto flex gap-1;
+    @apply ml-auto flex gap-1 opacity-60 transition-opacity duration-100;
+  }
+
+  .edit-scenario-step-card:hover .edit-scenario-step-actions,
+  .edit-scenario-step-card:focus-within .edit-scenario-step-actions {
+    @apply opacity-100;
   }
 
   .edit-scenario-step-fields {
@@ -73,6 +86,54 @@
   .edit-scenario-yaml-preview,
   .edit-scenario-validation {
     @apply mt-4;
+  }
+
+  .select-with-preview {
+    @apply flex items-start gap-2;
+  }
+
+  .region-preview-thumb {
+    @apply h-10 w-10 shrink-0 rounded border border-slate-700 bg-slate-900 object-contain;
+  }
+
+  .region-preview-thumb-wrap {
+    @apply relative inline-flex shrink-0;
+  }
+
+  .region-preview-thumb-link {
+    @apply inline-flex shrink-0 cursor-pointer;
+  }
+
+  .region-preview-popover {
+    @apply pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 rounded border border-slate-700 bg-slate-950 p-2 opacity-0 shadow-lg transition-opacity duration-100;
+  }
+
+  .region-preview-thumb-wrap:hover .region-preview-popover {
+    @apply visible opacity-100;
+  }
+
+  .region-preview-popover-img {
+    @apply max-h-64 max-w-xs object-contain;
+  }
+
+  .region-preview-popover-caption {
+    @apply mt-1 block text-center font-mono text-xs text-slate-300;
+  }
+
+  .region-labeling-link {
+    @apply ml-2 text-xs font-normal text-sky-400 underline-offset-2 hover:text-sky-300 hover:underline;
+  }
+
+  .region-unknown-warning {
+    @apply ml-2 text-xs font-normal text-amber-400;
+  }
+
+  .edit-scenario-yaml-tab {
+    @apply mt-2 flex flex-col gap-2;
+  }
+
+  .edit-scenario-yaml-tab textarea {
+    @apply min-h-[320px] w-full rounded border border-slate-700 bg-slate-950 p-2 font-mono text-xs leading-relaxed text-slate-100;
   }
 
 }

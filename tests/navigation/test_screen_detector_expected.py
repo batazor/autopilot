@@ -34,14 +34,21 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    mocker.patch.object(
-        screen_graph,
-        "screen_verify_screen_names",
-        return_value=["loading", "mail"],
-    )
-    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    import navigation.detector as detector_module
 
-    probe_order: list[str] = []
+    mocker.patch.object(
+        detector_module,
+        "screen_verify_screen_names",
+        new=lambda: ["loading", "mail"],
+    )
+    mocker.patch.object(
+        detector_module,
+        "screen_verify_parent",
+        new=lambda _s: None,
+    )
+    detector_module.ScreenDetector._landmark_rules_cache.clear()
+    detector_module.ScreenDetector._landmark_rules_cache_fp = None
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     async def evaluate_overlay_rules_async(
         _image: np.ndarray,
@@ -50,15 +57,14 @@ screens:
         rules: list[dict[str, Any]],
         **_kwargs: Any,
     ) -> dict[str, Any]:
-        name = str(rules[0]["name"])
-        if "mail" in name:
-            probe_order.append("mail")
-            return {name: {"matched": True}}
-        if "loading" in name:
-            probe_order.append("loading")
-        return {name: {"matched": False}}
-
-    import navigation.detector as detector_module
+        # All landmark rules are batched in one call. ``mail.title`` matches;
+        # ``text.survival`` does not. Resolution then picks ``mail`` first
+        # because ``expected="mail"`` puts it at the head of the priority list.
+        out: dict[str, Any] = {}
+        for rule in rules:
+            name = str(rule["name"])
+            out[name] = {"matched": "mail" in name}
+        return out
 
     mocker.patch.object(
         detector_module,
@@ -77,7 +83,6 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.MAIL
-    assert probe_order == ["mail"]
 
 
 def test_merge_screen_probe_order_prepends_without_duplicates() -> None:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -25,6 +26,8 @@ from dashboard.redis_client import (
     sort_queue_rows_by_execution_order,
 )
 from dsl import template_resolver as _tmpl
+from optimizer import enqueue_envelope
+from optimizer.dispatcher import TaskEnvelope
 
 
 def _rel_time(ts: float, now: float) -> str:
@@ -184,3 +187,49 @@ def reschedule_task(client: redis.Redis, task_id: str, scheduled_at: float) -> b
 
         publish_dashboard_event(client, topic="queue", reason="reschedule")
     return ok
+
+
+def enqueue_user_task(
+    client: redis.Redis,
+    *,
+    scenario_key: str,
+    instance_id: str,
+    player_id: str,
+    scheduled_at: float,
+    priority: int = 50_000,
+) -> dict[str, Any]:
+    """Enqueue an operator-created task from the calendar UI.
+
+    Resolves the scenario via the template resolver, builds a TaskEnvelope,
+    and pushes through the same ZADD path the optimizer uses so the worker
+    picks it up via ``pop_due`` indistinguishably from auto-scheduled work.
+    """
+    resolved = _tmpl.resolve(repo_root(), scenario_key)
+    if resolved is None:
+        msg = f"unknown scenario: {scenario_key}"
+        raise KeyError(msg)
+    doc = _tmpl.load_doc(repo_root(), scenario_key)
+    device_level = bool(doc and doc[1].get("device_level") is True)
+    pid = (player_id or "").strip()
+    if not device_level and not pid:
+        msg = "player_id required for account-level scenarios"
+        raise ValueError(msg)
+    env = TaskEnvelope(
+        task_id=f"manual:{uuid.uuid4().hex[:12]}",
+        task_type="dsl_scenario",
+        player_id=pid,
+        instance_id=str(instance_id),
+        dsl_scenario=scenario_key,
+        set_node="",
+        region=None,
+        priority=int(priority),
+        run_at=float(scheduled_at),
+    )
+    qk = enqueue_envelope(env, client)
+    push_scheduler_command(client, {"cmd": "optimize_now"})
+    from dashboard.dashboard_events import publish_dashboard_event
+
+    publish_dashboard_event(
+        client, topic="queue", instance_id=instance_id, reason="enqueue"
+    )
+    return {"task_id": env.task_id, "queue_key": qk}

@@ -1,4 +1,4 @@
-"""Screen detector runs landmark rules per screen and stops on first match."""
+"""Screen detector batches landmark rules and resolves matches in priority order."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ocr.client import OcrClient
 
 
 @pytest.mark.asyncio
-async def test_detect_by_match_landmarks_evaluates_per_screen_until_hit(
+async def test_detect_by_match_landmarks_batches_and_resolves_in_priority_order(
     mocker,
     tmp_path,
 ) -> None:
@@ -38,11 +38,20 @@ screens:
         encoding="utf-8",
     )
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
+    import navigation.detector as detector_module
+
     mocker.patch.object(
-        screen_graph,
+        detector_module,
         "screen_verify_screen_names",
-        return_value=["loading", "main_city", "mail"],
+        new=lambda: ["loading", "main_city", "mail"],
     )
+    mocker.patch.object(
+        detector_module,
+        "screen_verify_parent",
+        new=lambda _s: None,
+    )
+    detector_module.ScreenDetector._landmark_rules_cache.clear()
+    detector_module.ScreenDetector._landmark_rules_cache_fp = None
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     batch_sizes: list[int] = []
@@ -60,8 +69,6 @@ screens:
             for rule in rules
         }
 
-    import navigation.detector as detector_module
-
     mocker.patch.object(
         detector_module,
         "evaluate_overlay_rules_async",
@@ -78,8 +85,14 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     assert detected == ScreenName.MAIN_CITY
-    assert batch_sizes == [1, 2]
-    assert len(batch_sizes) == 2
+    # All unparented screens are batched in one call now (down from N
+    # per-screen calls). Priority order still picks ``main_city`` over the
+    # non-matching ``loading`` and the unevaluated-by-mock ``mail``.
+    assert len(batch_sizes) == 1
+    # Batch contains every unique landmark across the three test screens
+    # (``text.survival`` + ``icon.world`` + ``mail.title``, plus
+    # ``main_city.title`` merged from area.json's ``screen_region``).
+    assert batch_sizes[0] >= 3
 
 
 def test_screen_verify_order_names_sorts_by_priority() -> None:

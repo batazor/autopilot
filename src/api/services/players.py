@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import redis
 
+from config.devices import invalidate_device_registry
+from config.devices_db import delete_device_gamer
 from config.state_sqlite import delete_player_state
 from dashboard.player_state_data import (
     build_live_player_state,
@@ -45,11 +47,15 @@ def century_sync(player_id: str) -> dict[str, Any]:
 
 def delete_player(client: redis.Redis, player_id: str) -> dict[str, Any]:
     sqlite_counts = delete_player_state(player_id)
+    device_rows_deleted = delete_device_gamer(player_id)
+    if device_rows_deleted:
+        invalidate_device_registry()
     redis_deleted = delete_player_redis(client, player_id)
     return {
         "ok": True,
         "player_id": str(player_id),
         "sqlite": sqlite_counts,
+        "device_rows_deleted": device_rows_deleted,
         "redis_keys_deleted": redis_deleted,
     }
 

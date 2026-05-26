@@ -5,4 +5,5 @@ description: >-
   used by identity bootstrap and navigation verification.
 area: area.yaml
 references: references
+scenarios: scenarios
 

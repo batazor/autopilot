@@ -101,11 +101,35 @@ export function usePlayers(options: UsePlayersOptions = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const ids = await fetchPlayers();
+      setPlayers(ids);
+      setPlayerId((current) => {
+        if (preferPlayerId && ids.includes(preferPlayerId)) {
+          return preferPlayerId;
+        }
+        const persisted = getPersistedPlayerId?.()?.trim() ?? "";
+        if (persisted && ids.includes(persisted)) return persisted;
+        if (current && ids.includes(current)) return current;
+        return ids[0] ?? "";
+      });
+      setError(null);
+      return ids;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return [] as string[];
+    } finally {
+      setLoading(false);
+    }
+  }, [preferPlayerId, getPersistedPlayerId]);
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    fetchPlayers()
-      .then((ids) => {
+    void (async () => {
+      try {
+        const ids = await fetchPlayers();
         if (cancelled) return;
         setPlayers(ids);
         setPlayerId((current) => {
@@ -118,15 +142,14 @@ export function usePlayers(options: UsePlayersOptions = {}) {
           return ids[0] ?? "";
         });
         setError(null);
-      })
-      .catch((e) => {
+      } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : String(e));
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -139,7 +162,7 @@ export function usePlayers(options: UsePlayersOptions = {}) {
     }
   }, [preferPlayerId, players]);
 
-  return { players, playerId, setPlayerId, loading, error };
+  return { players, playerId, setPlayerId, loading, error, refresh: load };
 }
 
 /** Bump a string/number cache key only when `next` differs from the last seen value. */

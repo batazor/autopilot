@@ -287,6 +287,24 @@ export default function QueuePage() {
                   showSuccess("Task rescheduled");
                   void refresh();
                 }}
+                onRunNow={() => {
+                  showSuccess("Task moved to front of queue");
+                  void refresh();
+                }}
+                onDelete={(taskId) => {
+                  showSuccess("Removed 1 task");
+                  setSelected((prev) => {
+                    if (!prev.has(taskId)) return prev;
+                    const next = new Set(prev);
+                    next.delete(taskId);
+                    return next;
+                  });
+                  void refresh();
+                }}
+                onCreated={() => {
+                  showSuccess("Task scheduled");
+                  void refresh();
+                }}
                 onError={(msg) => setError(msg)}
               />
             )}
