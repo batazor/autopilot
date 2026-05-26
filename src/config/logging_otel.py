@@ -46,7 +46,7 @@ def _is_truthy_env(name: str) -> bool:
 
 def _project_version() -> str:
     try:
-        return _md.version("whiteout-survival-autopilot")
+        return _md.version("autopilot")
     except _md.PackageNotFoundError:
         return "0.0.0"
 

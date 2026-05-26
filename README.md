@@ -216,8 +216,8 @@ The **Next.js dashboard** ([`web/README.md`](web/README.md)) is the primary UI (
 
 ```sh
 # Clone (just for the compose files + config templates)
-git clone https://github.com/batazor/whiteout-survival-autopilot.git
-cd whiteout-survival-autopilot
+git clone https://github.com/batazor/autopilot.git
+cd autopilot
 
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
@@ -239,8 +239,8 @@ open http://127.0.0.1:3000/overview
 
 ```sh
 # Clone (just for the compose files + config templates)
-git clone https://github.com/batazor/whiteout-survival-autopilot.git
-cd whiteout-survival-autopilot
+git clone https://github.com/batazor/autopilot.git
+cd autopilot
 
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
@@ -266,8 +266,8 @@ xdg-open http://127.0.0.1:3000/overview
 
 ```powershell
 # Clone (just for the compose files + config templates)
-git clone https://github.com/batazor/whiteout-survival-autopilot.git
-cd whiteout-survival-autopilot
+git clone https://github.com/batazor/autopilot.git
+cd autopilot
 
 # Bring up the host's ADB and confirm BlueStacks is visible
 adb start-server
@@ -294,9 +294,9 @@ start http://127.0.0.1:3000/overview
 
 | Service | Image | Notes |
 |:--------|:------|:------|
-| `bot` | `ghcr.io/batazor/whiteout-survival-autopilot/bot:latest` | Headless worker + scheduler + local Tesseract OCR. Multi-arch (amd64+arm64). |
+| `bot` | `ghcr.io/batazor/autopilot/bot:latest` | Headless worker + scheduler + local Tesseract OCR. Multi-arch (amd64+arm64). |
 | `api` | same `bot` image, `command: api` | FastAPI for the Web UI (`:8765`). |
-| `web` | `ghcr.io/batazor/whiteout-survival-autopilot/web:latest` | Next.js operator dashboard (`:3000`). Multi-arch. |
+| `web` | `ghcr.io/batazor/autopilot/web:latest` | Next.js operator dashboard (`:3000`). Multi-arch. |
 | `redis` | `redis:alpine` | Queue + state. |
 
 <details>

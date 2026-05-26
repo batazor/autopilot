@@ -231,7 +231,7 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
     redis_async: object,
 ) -> None:
     """After >= 10s unknown with no global match, the fallback enqueues
-    ``dismiss_unknown_popup``. A second call within the 30s lock is a no-op."""
+    ``dismiss_unknown_popup``. A second call within the 10s lock is a no-op."""
     import time as _t
 
     detector = _FakeDetector(ScreenName.MAIL)
@@ -252,7 +252,7 @@ async def test_dismiss_unknown_popup_enqueues_when_unknown_for_10s_and_no_matche
     assert scheduled[0]["player_id"] == ""
     assert scheduled[0]["instance_id"] == "bs1"
 
-    # Redis NX lock prevents re-enqueue within 30s.
+    # Redis NX lock prevents re-enqueue within 10s.
     await worker._maybe_dismiss_unknown_popup({}, current_screen=None)
     assert len(scheduled) == 1
 
@@ -351,7 +351,7 @@ async def test_known_after_unknown_evicts_pending_dismiss_unknown_popup(
     # and the NX-lock from a prior fallback enqueue is still alive.
     worker._unknown_since = _t.monotonic() - 20.0
     lock_key = "wos:instance:bs1:dismiss_unknown_popup_lock"
-    await redis_async.set(lock_key, "1", ex=30)  # ty: ignore[unresolved-attribute]
+    await redis_async.set(lock_key, "1", ex=10)  # ty: ignore[unresolved-attribute]
 
     result = await worker._detect_current_screen_on_frame(
         np.zeros((10, 10, 3), dtype=np.uint8),

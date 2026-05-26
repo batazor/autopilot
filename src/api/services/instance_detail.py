@@ -84,6 +84,7 @@ def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, An
         "preview_available": preview_path.is_file(),
         "preview_mtime": preview_mtime,
         "history": hist_out,
+        "test_module": (row.get("test_module") or "").strip(),
         "state": row,
     }
 

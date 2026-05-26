@@ -22,10 +22,13 @@ import {
   clickApprovalImageUrl,
   fetchAreaRegionProbe,
   fetchClickApproval,
+  fetchInstanceTestModule,
+  fetchModules,
   fetchNotifications,
   overlayTestImageUrl,
   resetCurrentScreen,
   setApprovalEnabled,
+  setInstanceTestModule,
   submitDecision,
 } from "@/lib/api";
 import type {
@@ -34,6 +37,7 @@ import type {
   NotificationEvent,
   ScenarioProgress,
 } from "@/lib/types";
+import type { ModuleRow } from "@/lib/config-pages";
 import { debugRunHref, editDslHref, overlayTestHref } from "@/lib/debug-links";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 const NOTIFICATIONS_MAX_AGE_S = 30;
@@ -48,12 +52,14 @@ type Decision = "approve" | "reject" | "skip";
 // (operators routinely change their mind between approve/reject before the
 // previous request returns, and the old "global busy flag" pattern made
 // that impossible).
-type BusyAction = Decision | "toggle" | "clear-pending" | "clear-queue" | "reset-screen" | null;
+type BusyAction = Decision | "toggle" | "clear-pending" | "clear-queue" | "reset-screen" | "test-module" | null;
 
 const SCREENSHOT_SOURCE_OPTIONS = [
   { value: "capture", label: "Captured (request)" },
   { value: "live", label: "Live rolling" },
 ];
+
+const TEST_MODULE_ALL = "";
 
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
@@ -75,6 +81,8 @@ export default function ApprovalsPage() {
   const [probeTick, setProbeTick] = useState(0);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
+  const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [testModule, setTestModule] = useState<string>(TEST_MODULE_ALL);
   // Inline confirm state for destructive actions — replaces window.confirm()
   // which was the only thing in this page that broke the dark-themed look.
   const [confirmAction, setConfirmAction] = useState<
@@ -222,6 +230,44 @@ export default function ApprovalsPage() {
     lastPreviewMtimeRef.current = null;
     if (instanceId) void refresh();
   }, [imageSource, instanceId, refresh]);
+
+  // Module list for the "Test module" filter. Loaded once per session — the
+  // catalog rarely changes between page loads and the /modules page already
+  // handles add/remove flows.
+  useEffect(() => {
+    fetchModules("all")
+      .then((rows) => setModules(rows.filter((m) => (m.id || "").trim())))
+      .catch(() => setModules([]));
+  }, []);
+
+  // Sync currently-selected test_module from Redis whenever the instance
+  // changes (operator may have set it from a previous tab / session).
+  useEffect(() => {
+    if (!instanceId) {
+      setTestModule(TEST_MODULE_ALL);
+      return;
+    }
+    fetchInstanceTestModule(instanceId)
+      .then((m) => setTestModule(m || TEST_MODULE_ALL))
+      .catch(() => setTestModule(TEST_MODULE_ALL));
+  }, [instanceId]);
+
+  const onChangeTestModule = useCallback(
+    async (next: string) => {
+      if (!instanceId) return;
+      const target = next === TEST_MODULE_ALL ? "" : next;
+      setBusyAction("test-module");
+      try {
+        const applied = await setInstanceTestModule(instanceId, target);
+        setTestModule(applied || TEST_MODULE_ALL);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusyAction(null);
+      }
+    },
+    [instanceId],
+  );
 
   useEffect(() => {
     const region = searchParams.get("region");
@@ -506,6 +552,18 @@ export default function ApprovalsPage() {
         <div className="error-banner">{error ?? instancesError}</div>
       ) : null}
 
+      {testModule ? (
+        <div
+          className="approvals-callout approvals-callout--warn"
+          role="status"
+          aria-live="polite"
+        >
+          Test mode: only <code>{testModule}</code> scenarios and analyzers run.
+          Other queued tasks stay parked until you switch back to{" "}
+          <strong>All modules</strong>.
+        </div>
+      ) : null}
+
       <div className="toolbar approvals-toolbar">
         {/* Promoted to a real toggle so the most important global safety
             switch isn't a 16px checkbox shoved between two dropdowns. */}
@@ -536,6 +594,21 @@ export default function ApprovalsPage() {
           onChange={(next) => setImageSource(next as "capture" | "live")}
           minWidth={210}
           isSearchable={false}
+        />
+        <AppSelect
+          label="Module"
+          options={[
+            { value: TEST_MODULE_ALL, label: "All modules" },
+            ...modules.map((m) => ({
+              value: m.id,
+              label: `${m.title || m.id} · ${m.id}`,
+            })),
+          ]}
+          value={testModule}
+          onChange={(next) => void onChangeTestModule(next)}
+          minWidth={260}
+          isSearchable
+          disabled={!instanceId || busyAction === "test-module"}
         />
         <AppCheckbox
           inline

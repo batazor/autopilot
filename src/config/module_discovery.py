@@ -64,6 +64,7 @@ def _module_dirs_cached(root_s: str) -> tuple[Path, ...]:
 def _clear_module_discovery_caches() -> None:
     """Drop module-discovery caches (tests that mutate the module tree)."""
     _module_dirs_cached.cache_clear()
+    _iter_module_area_manifests_cached.cache_clear()
 
 
 def module_storage_key(module_dir: Path, repo_root: Path | None = None) -> str:
@@ -128,12 +129,17 @@ def module_matches_scope(module_dir: Path, scope: str, repo_root: Path) -> bool:
 
 
 def iter_module_area_manifests(repo_root: Path) -> list[Path]:
-    """Module-local area manifests in deterministic order."""
+    """Module-local area manifests in deterministic order (process-cached)."""
+    return list(_iter_module_area_manifests_cached(str(repo_root.resolve())))
+
+
+@lru_cache(maxsize=4)
+def _iter_module_area_manifests_cached(root_s: str) -> tuple[Path, ...]:
     out: list[Path] = []
-    for module_dir in iter_module_dirs(repo_root):
+    for module_dir in iter_module_dirs(Path(root_s)):
         for name in ("area.yaml", "area.yml", "area.json"):
             manifest = module_dir / name
             if manifest.is_file():
                 out.append(manifest)
                 break
-    return out
+    return tuple(out)

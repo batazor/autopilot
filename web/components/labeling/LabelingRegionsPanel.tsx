@@ -58,7 +58,6 @@ export function LabelingRegionsPanel({
   onRegionsChange,
   onDirty,
 }: Props) {
-  const [filter, setFilter] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const selected = regions.find((r) => r.id === selectedId) ?? null;
@@ -69,11 +68,22 @@ export function LabelingRegionsPanel({
     return cropPreviewStyle(selected.bbox, url);
   }, [selected, refRel, imageNonce]);
 
-  const visible = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return regions;
-    return regions.filter((r) => r.name.toLowerCase().includes(q));
-  }, [regions, filter]);
+  const regionOptions = useMemo(
+    () =>
+      regions.map((r) => {
+        const flags = [
+          r.overlay_auxiliary ? "aux" : null,
+          r.has_red_dot ? "dot" : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return {
+          value: r.id,
+          label: flags ? `${r.name} · ${flags}` : r.name,
+        };
+      }),
+    [regions],
+  );
 
   const patchSelected = (patch: Partial<EditorRegion>) => {
     if (!selected) return;
@@ -131,32 +141,18 @@ export function LabelingRegionsPanel({
           Add region
         </button>
 
-        <input
-          type="search"
-          className="labeling-search"
-          placeholder="Filter regions…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+        <AppListbox
+          fullWidth
+          label="Region"
+          value={selectedId ?? ""}
+          onChange={(id) => {
+            onSelect(id || null);
+            setConfirmDelete(false);
+          }}
+          options={regionOptions}
+          placeholder={regions.length ? "Select region…" : "No regions yet"}
+          disabled={regions.length === 0}
         />
-
-        <ul className="region-list">
-          {visible.map((r) => (
-            <li key={r.id}>
-              <button
-                type="button"
-                className={r.id === selectedId ? "active" : undefined}
-                onClick={() => {
-                  onSelect(r.id);
-                  setConfirmDelete(false);
-                }}
-              >
-                {r.name}
-                {r.overlay_auxiliary ? " · aux" : ""}
-                {r.has_red_dot ? " · dot" : ""}
-              </button>
-            </li>
-          ))}
-        </ul>
 
         {selected ? (
           <div className="labeling-region-form">

@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
     defaultHref: "/labeling",
     tabs: [
       { href: "/labeling", label: "Labeling" },
+      { href: "/gallery", label: "Gallery" },
       { href: "/edit-dsl", label: "DSL editor" },
       { href: "/wiki", label: "Wiki reference" },
       { href: "/gift-codes", label: "Gift codes" },

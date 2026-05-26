@@ -176,6 +176,52 @@ async def test_node_bound_scenario_retries_when_screen_identity_empty(
 
 
 @pytest.mark.asyncio
+async def test_device_level_node_bound_scenario_retries_when_screen_identity_empty(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """A ``device_level: true`` scenario that declares ``node:`` must still be
+    gated on screen identity. Navigation cannot route from an unknown source,
+    so burning the attempt only feeds a hot retry loop — ``who_i_am`` is the
+    motivating case (overlay-pushed every rolling tick while
+    ``active_player`` stays empty)."""
+
+    _write_scenario(
+        tmp_path,
+        {
+            "device_level": True,
+            "node": "chief_profile",
+            "steps": [{"exec": "should_not_run"}],
+        },
+    )
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    fired = {"count": 0}
+
+    async def _should_not_run(_ctx: Any) -> None:
+        fired["count"] += 1
+
+    import tasks.dsl_exec as dsl_exec
+
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"should_not_run": _should_not_run})
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="",
+        scenario_key="scn",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert result.next_run_at is not None
+    assert result.metadata["reason"] == "awaiting_screen_identity"
+    assert result.metadata["scenario_completed"] is False
+    assert fired["count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_gate_skipped_on_resume(
     tmp_path: Path,
     mocker,

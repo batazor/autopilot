@@ -870,6 +870,30 @@ export async function fetchModules(scope = "all"): Promise<ModuleRow[]> {
   return data.modules;
 }
 
+export async function fetchInstanceTestModule(
+  instanceId: string,
+): Promise<string> {
+  const data = await apiFetch<{ module: string }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/test-module`,
+  );
+  return data.module || "";
+}
+
+export async function setInstanceTestModule(
+  instanceId: string,
+  module: string,
+): Promise<string> {
+  const data = await apiFetch<{ module: string }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/test-module`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ module }),
+    },
+  );
+  return data.module || "";
+}
+
 export async function fetchModuleScenarios(scope = "all"): Promise<ScenarioRow[]> {
   const data = await apiFetch<{ scenarios: ScenarioRow[] }>(
     `/api/modules/scenarios?scope=${encodeURIComponent(scope)}`,

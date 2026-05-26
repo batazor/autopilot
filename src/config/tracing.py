@@ -56,7 +56,7 @@ def _is_truthy_env(name: str) -> bool:
 
 def _project_version() -> str:
     try:
-        return _md.version("whiteout-survival-autopilot")
+        return _md.version("autopilot")
     except _md.PackageNotFoundError:
         return "0.0.0"
 
@@ -632,6 +632,40 @@ def overlay_push_scenario_counter() -> Counter:
             description="Overlay-driven pushScenario attempts by scenario/screen/region/outcome.",
         )
         _METRICS_CACHE["overlay_push_scenario_count"] = c
+    return c
+
+
+def dismiss_unknown_popup_counter() -> Counter:
+    """Counter of ``dismiss_unknown_popup`` fallback events.
+
+    Partitioned by ``instance_id`` and ``outcome``:
+
+    - ``enqueued`` — push succeeded; task is on the queue
+    - ``locked`` — NX-EX lock held, push skipped (retry backoff active)
+    - ``error`` — ``queue.schedule()`` raised
+    - ``dropped_on_recovery`` — pending fallback removed from queue after
+      unknown→known screen transition (emitted per task removed)
+
+    Use cases:
+
+    - High ``enqueued`` rate per instance → real popup not covered by the 6
+      hardcoded close buttons, or detector chronically returns unknown.
+    - High ``enqueued`` without matching ``dropped_on_recovery`` → fallback
+      runs but doesn't recover; consider expanding the scenario or pausing
+      the instance for operator review.
+    - ``locked`` spikes → scenario runtime exceeds the lock TTL or
+      something is pushing on every tick.
+    """
+    c = _METRICS_CACHE.get("dismiss_unknown_popup_count")
+    if c is None:
+        c = get_meter().create_counter(
+            name="wos.dismiss_unknown_popup.count",
+            description=(
+                "dismiss_unknown_popup fallback events by instance/outcome "
+                "(enqueued, locked, error, dropped_on_recovery)."
+            ),
+        )
+        _METRICS_CACHE["dismiss_unknown_popup_count"] = c
     return c
 
 

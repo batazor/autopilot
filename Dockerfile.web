@@ -59,9 +59,9 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:3000/overview').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-LABEL org.opencontainers.image.title="whiteout-survival-autopilot-web" \
+LABEL org.opencontainers.image.title="autopilot-web" \
       org.opencontainers.image.description="Next.js operator dashboard" \
-      org.opencontainers.image.source="https://github.com/batazor/whiteout-survival-autopilot" \
+      org.opencontainers.image.source="https://github.com/batazor/autopilot" \
       org.opencontainers.image.licenses="MIT"
 
 CMD ["node", "server.js"]

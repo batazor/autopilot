@@ -116,14 +116,25 @@ def iter_module_analyze_manifests(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> list[Path]:
-    """Module-local analyze manifests in deterministic order."""
+    """Module-local analyze manifests in deterministic order.
+
+    When ``module_scope`` selects a specific module, infrastructure modules
+    listed in :data:`config.test_module.INFRASTRUCTURE_MODULE_IDS` (e.g.
+    ``core/popup``) are still included — without them the game gets stuck on
+    unknown popups during test-module runs.
+    """
+    from config.test_module import INFRASTRUCTURE_MODULE_IDS
+
     scope = normalize_module_scope(module_scope)
     out: list[Path] = []
+    specific_scope = scope not in (ALL_MODULES_KEY, CORE_MODULE_KEY)
     for module_dir in iter_module_dirs(repo_root):
         if scope == CORE_MODULE_KEY and not is_core_nested_module(module_dir, repo_root):
             continue
-        if scope not in (ALL_MODULES_KEY, CORE_MODULE_KEY) and not module_matches_scope(
-            module_dir, scope, repo_root
+        if (
+            specific_scope
+            and not module_matches_scope(module_dir, scope, repo_root)
+            and module_meta_id(module_dir) not in INFRASTRUCTURE_MODULE_IDS
         ):
             continue
         manifest = module_dir / "analyze" / "analyze.yaml"

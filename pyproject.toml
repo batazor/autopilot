@@ -1,5 +1,5 @@
 [project]
-name = "whiteout-survival-autopilot"
+name = "autopilot"
 version = "0.1.0"
 description = "Multi-account Whiteout Survival automation bot"
 requires-python = ">=3.13"

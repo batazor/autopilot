@@ -101,6 +101,102 @@ wheels = [
 ]
 
 [[package]]
+name = "autopilot"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "ddddocr" },
+    { name = "diskcache" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "mcp" },
+    { name = "networkx" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "opencv-python" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-exporter-otlp-proto-http" },
+    { name = "opentelemetry-instrumentation-logging" },
+    { name = "opentelemetry-sdk" },
+    { name = "ortools" },
+    { name = "pillow" },
+    { name = "psutil" },
+    { name = "pydantic" },
+    { name = "pyjwt", extra = ["crypto"] },
+    { name = "pyroscope-io" },
+    { name = "pyroscope-otel" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "rapidfuzz" },
+    { name = "redis", extra = ["hiredis"] },
+    { name = "tenacity" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+compile = [
+    { name = "nuitka" },
+    { name = "ordered-set" },
+]
+dev = [
+    { name = "fastapi" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-clarity" },
+    { name = "pytest-mock" },
+    { name = "pytest-sugar" },
+    { name = "pytest-timeout" },
+    { name = "ruff" },
+    { name = "syrupy" },
+    { name = "testcontainers" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.12" },
+    { name = "ddddocr", specifier = ">=1.4" },
+    { name = "diskcache", specifier = ">=5.6.3" },
+    { name = "fastapi", specifier = ">=0.111" },
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.111" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "mcp", specifier = ">=1.27.1" },
+    { name = "networkx", specifier = ">=3.2" },
+    { name = "nuitka", marker = "extra == 'compile'", specifier = ">=2.5" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "openai", specifier = ">=2.36.0" },
+    { name = "opencv-python", specifier = ">=4.9" },
+    { name = "opentelemetry-api", specifier = ">=1.27" },
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.27" },
+    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.48b0" },
+    { name = "opentelemetry-sdk", specifier = ">=1.27" },
+    { name = "ordered-set", marker = "extra == 'compile'", specifier = ">=4.1" },
+    { name = "ortools", specifier = ">=9.10" },
+    { name = "pillow", specifier = ">=10.0" },
+    { name = "psutil", specifier = ">=5.9" },
+    { name = "pydantic", specifier = ">=2.7" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
+    { name = "pyroscope-io", specifier = ">=0.8" },
+    { name = "pyroscope-otel", specifier = ">=0.4" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
+    { name = "pytest-clarity", marker = "extra == 'dev'", specifier = ">=1.0.1" },
+    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.15.1" },
+    { name = "pytest-sugar", marker = "extra == 'dev'", specifier = ">=1.1.1" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.4.0" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "rapidfuzz", specifier = ">=3.9" },
+    { name = "redis", extras = ["hiredis"], specifier = ">=5.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "syrupy", marker = "extra == 'dev'", specifier = ">=5.2.0" },
+    { name = "tenacity", specifier = ">=8.3" },
+    { name = "testcontainers", marker = "extra == 'dev'", specifier = ">=4.14.2" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.46.0" },
+]
+provides-extras = ["dev", "compile"]
+
+[[package]]
 name = "beautifulsoup4"
 version = "4.14.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1933,102 +2029,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/9f/3e/28135a24e384493fa804216b79a6a6759a38cc4ff59118787b9fb693df93/websockets-16.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b14dc141ed6d2dde437cddb216004bcac6a1df0935d79656387bd41632ba0bbd", size = 178531, upload-time = "2026-01-10T09:23:35.016Z" },
     { url = "https://files.pythonhosted.org/packages/6f/28/258ebab549c2bf3e64d2b0217b973467394a9cea8c42f70418ca2c5d0d2e/websockets-16.0-py3-none-any.whl", hash = "sha256:1637db62fad1dc833276dded54215f2c7fa46912301a24bd94d45d46a011ceec", size = 171598, upload-time = "2026-01-10T09:23:45.395Z" },
 ]
-
-[[package]]
-name = "whiteout-survival-autopilot"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "beautifulsoup4" },
-    { name = "ddddocr" },
-    { name = "diskcache" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "mcp" },
-    { name = "networkx" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "opencv-python" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-exporter-otlp-proto-http" },
-    { name = "opentelemetry-instrumentation-logging" },
-    { name = "opentelemetry-sdk" },
-    { name = "ortools" },
-    { name = "pillow" },
-    { name = "psutil" },
-    { name = "pydantic" },
-    { name = "pyjwt", extra = ["crypto"] },
-    { name = "pyroscope-io" },
-    { name = "pyroscope-otel" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "rapidfuzz" },
-    { name = "redis", extra = ["hiredis"] },
-    { name = "tenacity" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-compile = [
-    { name = "nuitka" },
-    { name = "ordered-set" },
-]
-dev = [
-    { name = "fastapi" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-clarity" },
-    { name = "pytest-mock" },
-    { name = "pytest-sugar" },
-    { name = "pytest-timeout" },
-    { name = "ruff" },
-    { name = "syrupy" },
-    { name = "testcontainers" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "ddddocr", specifier = ">=1.4" },
-    { name = "diskcache", specifier = ">=5.6.3" },
-    { name = "fastapi", specifier = ">=0.111" },
-    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.111" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "mcp", specifier = ">=1.27.1" },
-    { name = "networkx", specifier = ">=3.2" },
-    { name = "nuitka", marker = "extra == 'compile'", specifier = ">=2.5" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "openai", specifier = ">=2.36.0" },
-    { name = "opencv-python", specifier = ">=4.9" },
-    { name = "opentelemetry-api", specifier = ">=1.27" },
-    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.27" },
-    { name = "opentelemetry-instrumentation-logging", specifier = ">=0.48b0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.27" },
-    { name = "ordered-set", marker = "extra == 'compile'", specifier = ">=4.1" },
-    { name = "ortools", specifier = ">=9.10" },
-    { name = "pillow", specifier = ">=10.0" },
-    { name = "psutil", specifier = ">=5.9" },
-    { name = "pydantic", specifier = ">=2.7" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.9" },
-    { name = "pyroscope-io", specifier = ">=0.8" },
-    { name = "pyroscope-otel", specifier = ">=0.4" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.2" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
-    { name = "pytest-clarity", marker = "extra == 'dev'", specifier = ">=1.0.1" },
-    { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.15.1" },
-    { name = "pytest-sugar", marker = "extra == 'dev'", specifier = ">=1.1.1" },
-    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.4.0" },
-    { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rapidfuzz", specifier = ">=3.9" },
-    { name = "redis", extras = ["hiredis"], specifier = ">=5.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
-    { name = "syrupy", marker = "extra == 'dev'", specifier = ">=5.2.0" },
-    { name = "tenacity", specifier = ">=8.3" },
-    { name = "testcontainers", marker = "extra == 'dev'", specifier = ">=4.14.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.46.0" },
-]
-provides-extras = ["dev", "compile"]
 
 [[package]]
 name = "wrapt"

@@ -5,8 +5,7 @@
       "args": [
         "run",
         "mcp"
-      ],
-      "cwd": "/Users/batazor/myproject/whiteout-survival-autopilot"
+      ]
     }
   }
 }

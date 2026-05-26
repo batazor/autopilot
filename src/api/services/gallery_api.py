@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from config.module_discovery import is_core_nested_module
 from config.module_registry import (
     ALL_MODULES_KEY,
     CORE_MODULE_KEY,
@@ -55,11 +56,44 @@ def _refs_for_png(rel: str, area_doc: dict[str, Any]) -> list[str]:
     return out
 
 
+def _collect_reference_roots(ctx: WikiModuleContext) -> list[Path]:
+    """Aggregate references_dir across modules for ``all`` / ``core`` scopes."""
+    roots: list[Path] = []
+    seen: set[Path] = set()
+
+    def _push(p: Path) -> None:
+        r = p.resolve()
+        if r not in seen:
+            seen.add(r)
+            roots.append(r)
+
+    if ctx.is_all:
+        for mctx in list_labeling_modules(_REPO):
+            _push(mctx.references_dir)
+        return roots
+    if ctx.module_id is None:
+        _push(ctx.references_dir)
+        for mctx in list_labeling_modules(_REPO):
+            if mctx.module_dir is not None and is_core_nested_module(mctx.module_dir, _REPO):
+                _push(mctx.references_dir)
+        return roots
+    _push(ctx.references_dir)
+    return roots
+
+
 def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
     ctx = _context_for_scope(scope)
     area_doc, ref_prefix = _area_doc_for_context(ctx)
-    ref_root = (_REPO / ref_prefix).resolve()
-    paths = list_reference_pngs(limit=500, root=ref_root, exclude_temporal=True, exclude_crop=True)
+    roots = _collect_reference_roots(ctx)
+    seen_paths: set[Path] = set()
+    paths: list[Path] = []
+    for r in roots:
+        for p in list_reference_pngs(limit=500, root=r, exclude_temporal=True, exclude_crop=True):
+            if p not in seen_paths:
+                seen_paths.add(p)
+                paths.append(p)
+    paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    paths = paths[:500]
     q = query.strip().lower()
     items: list[dict[str, Any]] = []
     prefix_slash = ref_prefix.rstrip("/") + "/"
@@ -68,7 +102,7 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
             rel = p.relative_to(_REPO).as_posix()
         except ValueError:
             continue
-        if not ctx.is_all and not rel.startswith(prefix_slash):
+        if (not ctx.is_all and ctx.module_id is not None) and not rel.startswith(prefix_slash):
             continue
         tail = rel.split(prefix_slash, 1)[-1] if prefix_slash in rel else rel
         sids = _refs_for_png(tail, area_doc)
@@ -90,6 +124,15 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
 
 def _node_group(rel: str) -> str:
     parts = rel.replace("\\", "/").split("/")
+    if parts and parts[0] == "modules":
+        try:
+            refs_idx = parts.index("references")
+        except ValueError:
+            refs_idx = -1
+        if refs_idx > 1:
+            return "/".join(parts[1:refs_idx])
+        if len(parts) >= 2:
+            return parts[1]
     if len(parts) >= 2 and parts[0] == "references" and len(parts) > 2:
         return parts[1]
     if len(parts) >= 2:

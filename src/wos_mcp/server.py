@@ -26,7 +26,7 @@ from tasks.dsl_scenario import DslScenarioTask
 from tasks.dsl_scenario_helpers import _read_active_player, _read_current_screen
 
 mcp = FastMCP(
-    "whiteout-survival-autopilot",
+    "autopilot",
     instructions=(
         "Live rehearsal tools for Whiteout Survival scenarios. "
         "All clicks and screenshots go through the bot runtime APIs, not raw adb shell commands."

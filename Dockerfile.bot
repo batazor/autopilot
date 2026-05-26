@@ -161,9 +161,9 @@ ENV PYTHONUNBUFFERED=1 \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
     CMD sh -c "ps aux | grep -q '[w]orker.supervisor' || exit 1"
 
-LABEL org.opencontainers.image.title="whiteout-survival-autopilot-bot" \
+LABEL org.opencontainers.image.title="autopilot-bot" \
       org.opencontainers.image.description="WOS automation bot (worker + scheduler + API)" \
-      org.opencontainers.image.source="https://github.com/batazor/whiteout-survival-autopilot" \
+      org.opencontainers.image.source="https://github.com/batazor/autopilot" \
       org.opencontainers.image.licenses="MIT"
 
 CMD ["bot"]

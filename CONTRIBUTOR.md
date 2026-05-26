@@ -37,8 +37,8 @@ The serial column must match `bluestacks_window_title` loaded from `db/devices.y
 ## Setup
 
 ```sh
-git clone https://github.com/batazor/whiteout-survival-autopilot.git
-cd whiteout-survival-autopilot
+git clone https://github.com/batazor/autopilot.git
+cd autopilot
 
 # Python 3.13 + project deps (from uv.lock)
 uv sync

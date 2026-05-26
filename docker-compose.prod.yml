@@ -87,7 +87,7 @@ services:
       retries: 3
 
   bot:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/autopilot}/bot:${WOS_IMAGE_TAG:-latest}
     # host-mode: shared loopback with the host so ``adb`` and the
     # ``127.0.0.1:5037`` server are reachable without ``adb -a`` (which would
     # expose ADB on every interface, including LAN). See header for the
@@ -132,7 +132,7 @@ services:
       retries: 3
 
   api:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/bot:${WOS_IMAGE_TAG:-latest}
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/autopilot}/bot:${WOS_IMAGE_TAG:-latest}
     command: ["api"]
     depends_on:
       redis:
@@ -164,7 +164,7 @@ services:
       retries: 3
 
   web:
-    image: ${WOS_REGISTRY:-ghcr.io/batazor/whiteout-survival-autopilot}/web:${WOS_IMAGE_TAG:-latest}
+    image: ${WOS_REGISTRY:-ghcr.io/batazor/autopilot}/web:${WOS_IMAGE_TAG:-latest}
     depends_on:
       api:
         condition: service_healthy

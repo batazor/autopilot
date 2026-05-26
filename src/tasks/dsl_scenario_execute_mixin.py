@@ -353,14 +353,14 @@ class DslScenarioExecuteMixin(_Base):
         # ``node:`` / ``nodes:`` it expects ``current_screen`` to be *known* on
         # entry. If identity is temporarily blank, do not burn the queued
         # scenario: yield it back with a short retry so the rolling detector can
-        # restore the node. ``device_level: true`` scenarios (overlay-pushed ad
-        # dismissals, identity probe, unstuck fallback) opt out and run
-        # regardless of FSM state.
+        # restore the node. This applies to ``device_level: true`` scenarios as
+        # well when they declare ``node:`` — navigation cannot route from an
+        # unknown source, and burning the attempt only feeds a hot retry loop
+        # (e.g. ``who_i_am`` re-enqueued every rolling tick).
         cur_screen_at_entry = ""
         if (
             target_node
             and self.start_step_index <= 0
-            and not is_device_level
             and self.redis_client is not None
         ):
             cur_screen_at_entry = await _read_current_screen(

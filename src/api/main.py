@@ -86,6 +86,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     alliances,
     balance,
     click_approvals,
+    config_reload,
     debug_scenarios,
     dev_bot,
     edit_dsl,
@@ -148,6 +149,7 @@ app.include_router(balance.router)
 app.include_router(optimizer.router)
 app.include_router(edit_dsl.router)
 app.include_router(license_routes.router)
+app.include_router(config_reload.router)
 
 
 @app.get("/health")

@@ -1,7 +1,6 @@
 """Module DSL YAML editor API."""
 from __future__ import annotations
 
-import json
 import re
 import shutil
 from datetime import UTC, datetime
@@ -341,11 +340,8 @@ def region_crop_path(region_name: str) -> Path | None:
     name = (region_name or "").strip()
     if not name:
         return None
-    area_path = _REPO / "area.json"
-    if not area_path.is_file():
-        return None
     try:
-        doc = json.loads(area_path.read_text(encoding="utf-8"))
+        doc = load_area_doc(_REPO)
     except Exception:
         return None
     pair = screen_region_by_name(doc, name)

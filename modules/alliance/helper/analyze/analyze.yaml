@@ -2,10 +2,10 @@
 overlay:
   - name: alliance_helper_button.visible
     region: button.alliance.help
+    action: findIcon
     screens:
       - main_city
       - world
     priority: 100_000
     steps:
       - click: button.alliance.help
-      - wait: 400ms

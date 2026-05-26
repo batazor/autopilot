@@ -16,18 +16,6 @@ screens:
           rotation: 0.0
           original_width: 720
           original_height: 1280
-      - name: button.tap_anywhere_to_exit
-        action: exist
-        threshold: 0.9
-        bbox:
-          x: 31.042471042471046
-          y: 90.97826086956522
-          width: 37.6003861003861
-          height: 3.4999999999999996
-          rotation: 0.0
-          original_width: 720
-          original_height: 1280
-        isSearch: true
 
   - id: 77
     screen_id: rewards
@@ -46,14 +34,3 @@ screens:
           original_width: 720
           original_height: 1280
         isSearch: true
-      - name: button.click_to_continue
-        action: exist
-        threshold: 0.9
-        bbox:
-          x: 34.51737451737452
-          y: 91.52173913043478
-          width: 31.000000000000004
-          height: 4.3999999999999995
-          rotation: 0.0
-          original_width: 720
-          original_height: 1280

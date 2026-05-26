@@ -189,18 +189,24 @@ def _screen_verify_yaml_paths() -> list[Path]:
     Unit tests monkeypatch this entire function with ``new=lambda: [cfg]`` to
     inject a single temp-file fixture in isolation.
     """
-    from config.module_discovery import iter_module_dirs
     from config.paths import repo_root
 
+    return list(_screen_verify_yaml_paths_cached(str(repo_root().resolve())))
+
+
+@lru_cache(maxsize=4)
+def _screen_verify_yaml_paths_cached(root_s: str) -> tuple[Path, ...]:
+    from config.module_discovery import iter_module_dirs
+
     paths: list[Path] = []
-    root = repo_root()
+    root = Path(root_s)
     for module_dir in iter_module_dirs(root):
         for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
             path = module_dir / rel
             if path.is_file():
                 paths.append(path)
                 break
-    return paths
+    return tuple(paths)
 
 
 def _area_json_path() -> Path:
@@ -268,14 +274,39 @@ def _file_fingerprint(path: Path) -> tuple[str, int, int]:
     return (str(path), int(st.st_mtime_ns), int(st.st_size))
 
 
-def _combined_config_fingerprint() -> tuple[
+_FpType = tuple[
     tuple[tuple[str, int, int], ...],
     tuple[tuple[str, int, int], ...],
-]:
-    return (
-        tuple(_file_fingerprint(path) for path in _screen_verify_yaml_paths()),
-        tuple(_file_fingerprint(path) for path in _area_yaml_paths()),
-    )
+]
+_cached_combined_fingerprint: _FpType | None = None
+
+
+def _combined_config_fingerprint() -> _FpType:
+    """Stat config files once per process lifetime.
+
+    Config files are static at runtime in production — re-stat'ing every
+    detect_screen tick dominated CPU (~30% of total in the pyroscope profile).
+    Call ``invalidate_screen_verify_config()`` (or ``config.reload.reload_config()``)
+    when the labeling editor / reload button mutates the on-disk config.
+    """
+    global _cached_combined_fingerprint
+    if _cached_combined_fingerprint is None:
+        _cached_combined_fingerprint = (
+            tuple(_file_fingerprint(path) for path in _screen_verify_yaml_paths()),
+            tuple(_file_fingerprint(path) for path in _area_yaml_paths()),
+        )
+    return _cached_combined_fingerprint
+
+
+def invalidate_screen_verify_config() -> None:
+    """Drop the frozen fingerprint + parsed config cache + path lists.
+
+    Wired to the dashboard reload button and to tests that mutate config files.
+    """
+    global _cached_combined_fingerprint
+    _cached_combined_fingerprint = None
+    _screen_verify_yaml_paths_cached.cache_clear()
+    _load_screen_verify_config_cached.cache_clear()
 
 
 def _area_screen_region_landmarks(root: Path) -> dict[str, list[VerifyRule]]:
@@ -475,7 +506,7 @@ def load_screen_verify_config(
     )
 
 
-load_screen_verify_config.cache_clear = _load_screen_verify_config_cached.cache_clear  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+load_screen_verify_config.cache_clear = invalidate_screen_verify_config  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 
 def screen_verify_rules(screen: str) -> list[VerifyRule]:

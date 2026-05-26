@@ -56,7 +56,7 @@ export function SelectWithFreetext({
   const unknown = warnIfUnknown && !!cur && !options.includes(cur);
 
   return (
-    <label className="app-select-field">
+    <div className="app-select-field">
       <span>
         {label}
         {href && (
@@ -67,7 +67,6 @@ export function SelectWithFreetext({
               className="region-labeling-link"
               target="_blank"
               rel="noreferrer"
-              onClick={(e) => e.stopPropagation()}
             >
               labeling ↗
             </Link>
@@ -102,7 +101,7 @@ export function SelectWithFreetext({
           <RegionPreviewThumb src={preview} alt={cur} labelingHref={href} />
         ) : null}
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -132,7 +131,6 @@ function RegionPreviewThumb({
       target="_blank"
       rel="noreferrer"
       className="region-preview-thumb-link"
-      onClick={(e) => e.stopPropagation()}
       title={`${alt} — click to open in labeling`}
     >
       {thumb}

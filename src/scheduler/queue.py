@@ -588,15 +588,23 @@ class RedisQueue:
 
         instance_players = self._players_for_instance(instance_id)
         ap = ""
+        test_module = ""
         try:
-            raw_ap = await self._redis.hget(
-                f"wos:instance:{instance_id}:state", "active_player"
+            raw_state = await self._redis.hmget(
+                f"wos:instance:{instance_id}:state",
+                ["active_player", "test_module"],
             )
+        except Exception:
+            raw_state = []
+        if raw_state:
+            raw_ap = raw_state[0] if len(raw_state) > 0 else None
             ap = (raw_ap.decode() if isinstance(raw_ap, bytes) else str(raw_ap or "")).strip()
             if ap:
                 instance_players = instance_players | {ap}
-        except Exception:
-            pass
+            raw_tm = raw_state[1] if len(raw_state) > 1 else None
+            test_module = (
+                raw_tm.decode() if isinstance(raw_tm, bytes) else str(raw_tm or "")
+            ).strip()
 
         if str(current_screen or "").strip().lower() == "loading":
             return []
@@ -651,6 +659,19 @@ class RedisQueue:
                 x for x in due
                 if bool(x[1].get("debug"))
                 or str(x[1].get("task_type") or "") in device_level
+            ]
+            if not due:
+                return []
+
+        if test_module:
+            from config.test_module import task_payload_allowed
+
+            due = [
+                x for x in due
+                if bool(x[1].get("debug"))
+                or task_payload_allowed(
+                    x[1], test_module=test_module, repo_root=repo_root()
+                )
             ]
             if not due:
                 return []

@@ -2,27 +2,6 @@
   "version": 2,
   "screens": [
     {
-      "id": 1,
-      "screen_id": "",
-      "ocr": "references/skip_button.png",
-      "regions": [
-        {
-          "name": "skip_button",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 80.98841698841699,
-            "y": 6.110869565217391,
-            "width": 13.08687258687259,
-            "height": 2.7782608695652176,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
       "id": 2,
       "screen_id": "",
       "ocr": "references/hand_pointer.png",
@@ -147,21 +126,6 @@
             "y": 39.45652173913044,
             "width": 16.77027027027027,
             "height": 3.7695652173913046,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "isSearch": true
-        },
-        {
-          "name": "claim_button_close",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 92.66409266409266,
-            "y": 7.391304347826087,
-            "width": 6.0,
-            "height": 3.9000000000000004,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -674,27 +638,6 @@
             "y": 42.707608695652176,
             "width": 88.41891891891892,
             "height": 15.289130434782608,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ]
-    },
-    {
-      "id": 24,
-      "screen_id": "",
-      "ocr": "references/skip_text.png",
-      "regions": [
-        {
-          "name": "skip_text_button",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 86.89382239382239,
-            "y": 93.03152173913044,
-            "width": 10.6003861003861,
-            "height": 5.3,
             "rotation": 0.0,
             "original_width": 720,
             "original_height": 1280
@@ -2482,28 +2425,6 @@
         }
       ],
       "screen_region": "alliance.title"
-    },
-    {
-      "id": 75,
-      "screen_id": "heroes.sr.new",
-      "ocr": "references/heroes.sr.new.png",
-      "regions": [
-        {
-          "name": "heroes.sr.new.close",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 28.339768339768344,
-            "y": 95.43478260869566,
-            "width": 42.99999999999999,
-            "height": 4.3,
-            "rotation": 0.0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        }
-      ],
-      "screen_region": "heroes.sr.new.close"
     }
   ]
 }

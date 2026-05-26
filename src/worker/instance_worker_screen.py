@@ -12,6 +12,7 @@ from analysis.overlay_ttl_state import (
 )
 from config.log_context import set_log_context
 from config.paths import repo_root
+from config.tracing import dismiss_unknown_popup_counter
 from navigation.detector import ScreenName
 
 logger = logging.getLogger(__name__)
@@ -78,14 +79,17 @@ class InstanceWorkerScreenMixin(_Base):
                         raw.decode() if isinstance(raw, bytes) else str(raw)
                     ).strip()
 
-                cur_raw, ap_raw = await self._redis.hmget(
-                    state_key, "current_screen", "active_player"
+                cur_raw, ap_raw, tm_raw = await self._redis.hmget(
+                    state_key, "current_screen", "active_player", "test_module"
                 )
                 if current_screen is None:
                     cur = _field(cur_raw)
                     current_screen = cur or None
                 ap = _field(ap_raw)
                 active_player = ap or None
+                test_module = _field(tm_raw) or None
+            else:
+                test_module = None
 
             self._last_current_screen = current_screen
             # Update log context so every line emitted from this overlay tick
@@ -142,6 +146,7 @@ class InstanceWorkerScreenMixin(_Base):
                 state_flat=state_flat,
                 ocr_client=self._ocr_client,
                 device_level_only=device_level_only,
+                module_scope=test_module,
                 instance_id=self._cfg.instance_id,
                 redis_async=self._redis,
             )
@@ -170,8 +175,11 @@ class InstanceWorkerScreenMixin(_Base):
         Fires only when (a) current_screen is hard-cleared to None, (b) the
         worker has been in that state for >= 10s, and (c) no global overlay
         rule matched this tick — i.e. ad/popup analyzers without a node
-        binding produced nothing. A 30s Redis NX-EX lock keeps the scenario
-        from re-enqueueing on every 1 Hz rolling tick while it runs.
+        binding produced nothing. A 10s Redis NX-EX lock acts as a retry
+        backoff: if the dismiss scenario runs but the screen stays unknown
+        (unknown→unknown is not a transition, so `_drop_pending_…` won't
+        clear the lock), the TTL is the only thing that lets a future
+        attempt re-arm.
         """
         if current_screen:
             return
@@ -191,7 +199,7 @@ class InstanceWorkerScreenMixin(_Base):
         if self._redis is not None:
             try:
                 acquired = bool(
-                    await self._redis.set(lock_key, "1", nx=True, ex=30)
+                    await self._redis.set(lock_key, "1", nx=True, ex=10)
                 )
             except Exception:
                 logger.debug(
@@ -200,6 +208,13 @@ class InstanceWorkerScreenMixin(_Base):
                 )
                 acquired = True
             if not acquired:
+                dismiss_unknown_popup_counter().add(
+                    1,
+                    attributes={
+                        "instance_id": self._cfg.instance_id,
+                        "outcome": "locked",
+                    },
+                )
                 return
         import uuid as _uuid
 
@@ -224,9 +239,23 @@ class InstanceWorkerScreenMixin(_Base):
                 self._cfg.instance_id,
                 time.monotonic() - unknown_since,
             )
+            dismiss_unknown_popup_counter().add(
+                1,
+                attributes={
+                    "instance_id": self._cfg.instance_id,
+                    "outcome": "enqueued",
+                },
+            )
         except Exception:
             logger.debug(
                 "dismiss_unknown_popup: schedule failed", exc_info=True
+            )
+            dismiss_unknown_popup_counter().add(
+                1,
+                attributes={
+                    "instance_id": self._cfg.instance_id,
+                    "outcome": "error",
+                },
             )
 
     async def _drop_pending_dismiss_unknown_popup(self, detected_screen: str) -> None:
@@ -235,7 +264,7 @@ class InstanceWorkerScreenMixin(_Base):
         ``remove_by_task_type`` only touches ZSET members, so any in-flight
         ``dismiss_unknown_popup`` already claimed by a worker keeps running.
         The NX-lock key is also cleared so a future unknown-dwell can re-arm
-        the fallback without waiting out the 30s TTL.
+        the fallback without waiting out the 10s TTL.
         """
         if self._queue is None:
             return
@@ -250,6 +279,13 @@ class InstanceWorkerScreenMixin(_Base):
                     self._cfg.instance_id,
                     removed,
                     detected_screen,
+                )
+                dismiss_unknown_popup_counter().add(
+                    int(removed),
+                    attributes={
+                        "instance_id": self._cfg.instance_id,
+                        "outcome": "dropped_on_recovery",
+                    },
                 )
         if self._redis is not None:
             with contextlib.suppress(Exception):

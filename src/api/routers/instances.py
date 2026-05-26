@@ -12,6 +12,10 @@ from api.deps import get_redis
 from api.services import instance_detail as detail
 from api.services.dashboard_stream import instance_revision
 from api.services.instances import list_instance_ids
+from config.test_module import (
+    get_instance_test_module,
+    set_instance_test_module,
+)
 from dashboard.dashboard_events import publish_dashboard_event
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
@@ -23,6 +27,10 @@ class InstanceCommandBody(BaseModel):
     cmd: Literal["pause", "resume", "restart", "switch_player", "run_task"]
     player_id: str | None = None
     task_type: str | None = None
+
+
+class TestModuleBody(BaseModel):
+    module: str | None = None
 
 
 @router.get("")
@@ -104,3 +112,28 @@ def post_instance_command(
             client, topic="queue", instance_id=instance_id, reason=body.cmd
         )
     return {"ok": True}
+
+
+@router.get("/{instance_id}/test-module")
+def get_test_module(instance_id: str, client: RedisDep) -> dict[str, str]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    return {"module": get_instance_test_module(client, instance_id)}
+
+
+@router.put("/{instance_id}/test-module")
+def put_test_module(
+    instance_id: str,
+    body: TestModuleBody,
+    client: RedisDep,
+) -> dict[str, str]:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    value = set_instance_test_module(client, instance_id, body.module)
+    publish_dashboard_event(
+        client, topic="instance", instance_id=instance_id, reason="test_module"
+    )
+    publish_dashboard_event(
+        client, topic="queue", instance_id=instance_id, reason="test_module"
+    )
+    return {"module": value}
