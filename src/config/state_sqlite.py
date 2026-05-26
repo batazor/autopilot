@@ -141,6 +141,22 @@ def save_state_db(db: StateDB) -> None:
         conn.commit()
 
 
+def delete_player_state(player_id: str | int) -> dict[str, int]:
+    """Wipe all persisted rows for one player across gamers + stats tables."""
+    try:
+        pid = int(str(player_id).strip())
+    except (TypeError, ValueError) as exc:
+        msg = f"invalid player_id: {player_id!r}"
+        raise ValueError(msg) from exc
+    counts: dict[str, int] = {}
+    with _conn_lock, _connect() as conn:
+        for table in ("gamers", "player_power_daily", "player_level_events"):
+            cur = conn.execute(f"DELETE FROM {table} WHERE player_id = ?", (pid,))
+            counts[table] = int(cur.rowcount or 0)
+        conn.commit()
+    return counts
+
+
 def record_player_stats(gamer: GamerState) -> None:
     """Upsert today's snapshot; record furnace level-up events; mirror alliance row."""
     pid = int(gamer.id)

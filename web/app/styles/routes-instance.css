@@ -56,7 +56,12 @@
   }
 
   .instance-grid {
-    @apply grid gap-5 lg:grid-cols-2;
+    @apply grid gap-5 lg:max-w-4xl lg:grid-cols-2;
+  }
+
+  .instance-preview-img {
+    @apply block w-full rounded-md;
+    max-width: 360px;
   }
 
   .instance-history-panel {

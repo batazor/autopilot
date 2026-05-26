@@ -56,10 +56,7 @@
     @apply border-amber-700/70 bg-amber-950/50 text-amber-200 hover:border-amber-500 hover:bg-amber-900/60 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/40;
   }
 
-  /* Filled destructive button for the inline-confirm pattern (Reset panel). */
-  .btn-danger {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60;
-  }
+  /* Filled destructive button — promoted to ui-core.css `.btn-danger` for cross-page reuse. */
 
   .danger-confirm {
     @apply inline-flex items-center gap-2;

@@ -764,6 +764,25 @@ def get_player_state_hash(client: redis.Redis, player_id: str) -> dict[str, str]
     }
 
 
+def delete_player_redis(client: redis.Redis, player_id: str) -> int:
+    """Delete every ``wos:player:<id>:*`` key for one player. Returns key count."""
+    pid = str(player_id or "").strip()
+    if not pid:
+        return 0
+    pattern = f"wos:player:{pid}:*"
+    deleted = 0
+    try:
+        keys = list(client.scan_iter(match=pattern))
+    except redis.RedisError:
+        return 0
+    for key in keys:
+        try:
+            deleted += int(client.delete(key) or 0)
+        except redis.RedisError:
+            continue
+    return deleted
+
+
 def get_player_scenario(client: redis.Redis, player_id: str) -> str | None:
     key = f"wos:player:{player_id}:scenario"
     raw = _r_get(client, key)

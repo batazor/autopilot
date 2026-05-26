@@ -220,7 +220,7 @@ function InstancePageInner() {
             <img
               src={previewUrl}
               alt="Rolling instance preview"
-              style={{ maxWidth: "100%", borderRadius: 6 }}
+              className="instance-preview-img"
             />
           ) : (
             <p className="meta">

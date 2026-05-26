@@ -11,6 +11,7 @@ import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import {
+  deletePlayer,
   fetchPlayerPersisted,
   fetchPlayerState,
   fetchSuggestedPlayer,
@@ -273,6 +274,7 @@ function PlayerStatePageInner() {
   const [persisted, setPersisted] = useState<PlayerPersistedView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [bldgFilter, setBldgFilter] = useState("");
   const [heroFilter, setHeroFilter] = useState("");
   const [fieldFilter, setFieldFilter] = useState("");
@@ -368,6 +370,39 @@ function PlayerStatePageInner() {
     }
   };
 
+  const onDelete = async () => {
+    if (!playerId || deleting) return;
+    const confirmed = window.confirm(
+      `Удалить все данные игрока ${playerId}?\n\n` +
+        "Будут стёрты:\n" +
+        "  • Redis: wos:player:<id>:* (state, scenario, TTL)\n" +
+        "  • SQLite: gamers, player_power_daily, player_level_events\n\n" +
+        "Это необратимо.",
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const result = await deletePlayer(playerId);
+      const sqliteSum = Object.values(result.sqlite || {}).reduce(
+        (a, b) => a + b,
+        0,
+      );
+      showSuccess(
+        `Удалён ${result.player_id} · Redis: ${result.redis_keys_deleted} ключ(ей) · SQLite: ${sqliteSum} строк`,
+      );
+      setLive(null);
+      setPersisted(null);
+      setPlayerId("");
+      playerTouchedRef.current = false;
+      setPlayerTouched(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const heroView = persisted?.player?.heroes;
 
   const filteredHashFields = useMemo(() => {
@@ -429,6 +464,17 @@ function PlayerStatePageInner() {
           <Link href={playerStatsHref(playerId, { instanceId })} className="btn btn--ghost">
             Statistics
           </Link>
+        ) : null}
+        {playerId ? (
+          <button
+            type="button"
+            className="btn-danger"
+            disabled={deleting}
+            onClick={onDelete}
+            title="Стереть Redis-state и SQLite-записи этого игрока"
+          >
+            {deleting ? "Удаление…" : "Удалить игрока"}
+          </button>
         ) : null}
       </div>
 

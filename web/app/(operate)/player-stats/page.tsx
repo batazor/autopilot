@@ -1,8 +1,10 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PowerGrowthChart } from "@/components/player-stats/PowerGrowthChart";
 import { MetricLineChart } from "@/components/player-stats/MetricLineChart";
+import { AppTabs } from "@/components/headless";
 import { useFleet } from "@/components/FleetContextProvider";
 import { ErrorBanner } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
@@ -12,8 +14,29 @@ import { PageLoading } from "@/components/ui/Spinner";
 import type { PlayerStatsView } from "@/lib/types";
 import Link from "next/link";
 
+type StatsTabKey = "power" | "gems" | "arena" | "milestones";
+
+const STATS_TABS: { key: StatsTabKey; label: string }[] = [
+  { key: "power", label: "Power" },
+  { key: "gems", label: "Gems" },
+  { key: "arena", label: "Arena" },
+  { key: "milestones", label: "Milestones" },
+];
+
 function PlayerStatsContent() {
   const { instanceId, playerId, playersError } = useFleet();
+  const params = useSearchParams();
+  const router = useRouter();
+  const tabParam = (params.get("tab") as StatsTabKey) || "power";
+  const tab: StatsTabKey = STATS_TABS.some((t) => t.key === tabParam)
+    ? tabParam
+    : "power";
+
+  const setTab = (key: StatsTabKey) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", key);
+    router.replace(url.pathname + url.search);
+  };
 
   const [stats, setStats] = useState<PlayerStatsView | null>(null);
   const [loading, setLoading] = useState(false);
@@ -100,43 +123,60 @@ function PlayerStatsContent() {
             </div>
           </div>
 
-          <section className="panel">
-            <h2 className="panel__title">Power over time</h2>
-            <PowerGrowthChart
-              series={stats.series}
-              levelEvents={stats.level_events}
-            />
-          </section>
+          <AppTabs
+            tabs={STATS_TABS}
+            selectedKey={tab}
+            onChange={(key) => setTab(key as StatsTabKey)}
+            renderPanels={false}
+          />
 
-          <section className="panel">
-            <h2 className="panel__title">Gems over time</h2>
-            <MetricLineChart
-              label="Gems"
-              series={stats.series.map((d) => ({ day: d.day, value: d.gems }))}
-              emptyMessage="No gem history yet."
-            />
-          </section>
+          {tab === "power" ? (
+            <section className="panel">
+              <h2 className="panel__title">Power over time</h2>
+              <PowerGrowthChart
+                series={stats.series}
+                levelEvents={stats.level_events}
+              />
+            </section>
+          ) : null}
 
-          <section className="panel">
-            <h2 className="panel__title">Arena power over time</h2>
-            <MetricLineChart
-              label="Arena power"
-              series={stats.series.map((d) => ({ day: d.day, value: d.arena_power }))}
-              emptyMessage="No arena history yet."
-            />
-          </section>
+          {tab === "gems" ? (
+            <section className="panel">
+              <h2 className="panel__title">Gems over time</h2>
+              <MetricLineChart
+                label="Gems"
+                series={stats.series.map((d) => ({ day: d.day, value: d.gems }))}
+                emptyMessage="No gem history yet."
+              />
+            </section>
+          ) : null}
 
-          {stats.level_events.length > 0 ? (
+          {tab === "arena" ? (
+            <section className="panel">
+              <h2 className="panel__title">Arena power over time</h2>
+              <MetricLineChart
+                label="Arena power"
+                series={stats.series.map((d) => ({ day: d.day, value: d.arena_power }))}
+                emptyMessage="No arena history yet."
+              />
+            </section>
+          ) : null}
+
+          {tab === "milestones" ? (
             <section className="panel">
               <h2 className="panel__title">Level milestones</h2>
-              <ul className="player-stats-milestones">
-                {stats.level_events.map((ev) => (
-                  <li key={`${ev.day}-${ev.level}`}>
-                    <time dateTime={ev.day}>{ev.day}</time>
-                    <span>Furnace level {ev.level}</span>
-                  </li>
-                ))}
-              </ul>
+              {stats.level_events.length > 0 ? (
+                <ul className="player-stats-milestones">
+                  {stats.level_events.map((ev) => (
+                    <li key={`${ev.day}-${ev.level}`}>
+                      <time dateTime={ev.day}>{ev.day}</time>
+                      <span>Furnace level {ev.level}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="meta">No milestones recorded yet.</p>
+              )}
             </section>
           ) : null}
         </>

@@ -87,6 +87,10 @@
     @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-wos-border bg-wos-panel-raised px-3 py-2 text-sm font-medium text-wos-text transition hover:border-wos-border-subtle hover:bg-wos-surface disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
   .error-banner {
     @apply mb-3 rounded-lg border border-red-400/40 bg-red-950/40 px-3 py-2.5 text-sm text-red-100;
   }

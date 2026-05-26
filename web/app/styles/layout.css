@@ -49,6 +49,10 @@
     @apply mb-4;
   }
 
+  .page-stack {
+    @apply flex flex-col gap-5;
+  }
+
   .toolbar--spaced {
     @apply mt-4;
   }

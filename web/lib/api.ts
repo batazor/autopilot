@@ -234,6 +234,22 @@ export async function syncPlayerFromCentury(
   );
 }
 
+export interface DeletePlayerResult {
+  ok: boolean;
+  player_id: string;
+  sqlite: Record<string, number>;
+  redis_keys_deleted: number;
+}
+
+export async function deletePlayer(
+  playerId: string,
+): Promise<DeletePlayerResult> {
+  return apiFetch<DeletePlayerResult>(
+    `/api/players/${encodeURIComponent(playerId)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function fetchClickApproval(
   instanceId: string,
   source: "capture" | "live" = "capture",

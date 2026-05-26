@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import redis
 
+from config.state_sqlite import delete_player_state
 from dashboard.player_state_data import (
     build_live_player_state,
     build_state_db_overview,
@@ -14,7 +15,7 @@ from dashboard.player_state_data import (
     list_known_player_ids,
     sync_player_from_century,
 )
-from dashboard.redis_client import get_player_state_hash
+from dashboard.redis_client import delete_player_redis, get_player_state_hash
 
 
 def list_player_ids() -> list[str]:
@@ -40,6 +41,17 @@ def get_state_db_overview() -> dict[str, Any]:
 
 def century_sync(player_id: str) -> dict[str, Any]:
     return sync_player_from_century(player_id)
+
+
+def delete_player(client: redis.Redis, player_id: str) -> dict[str, Any]:
+    sqlite_counts = delete_player_state(player_id)
+    redis_deleted = delete_player_redis(client, player_id)
+    return {
+        "ok": True,
+        "player_id": str(player_id),
+        "sqlite": sqlite_counts,
+        "redis_keys_deleted": redis_deleted,
+    }
 
 
 def suggest_active_player_id(client: redis.Redis, instance_id: str) -> str:

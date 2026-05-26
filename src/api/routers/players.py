@@ -66,3 +66,15 @@ def post_century_sync(player_id: str, client: RedisDep) -> dict[str, Any]:
         client, topic="player", player_id=player_id, reason="century_sync"
     )
     return result
+
+
+@router.delete("/players/{player_id}")
+def delete_player(player_id: str, client: RedisDep) -> dict[str, Any]:
+    try:
+        result = players_svc.delete_player(client, player_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    publish_dashboard_event(
+        client, topic="player", player_id=player_id, reason="deleted"
+    )
+    return result
