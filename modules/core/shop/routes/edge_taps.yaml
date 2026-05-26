@@ -14,14 +14,15 @@ edges:
     shop.dawn_fund:            [shop.to.dawn_fund]
     shop.get_gems:             [shop.to.get_gems]
 
-  # All tabs return to shop hub via back swipe or tab bar click
-  shop.dawn_market:         { shop: [page.shop.title] }
-  shop.mix_match:           { shop: [page.shop.title] }
-  shop.chief_stamina:       { shop: [page.shop.title] }
-  shop.ice_conqueror:       { shop: [page.shop.title] }
-  shop.construction_queue:  { shop: [page.shop.title] }
-  shop.daily_deals:         { shop: [page.shop.title] }
-  shop.weekly_monthly_cards: { shop: [page.shop.title] }
-  shop.regular_pack:        { shop: [page.shop.title] }
-  shop.dawn_fund:           { shop: [page.shop.title] }
-  shop.get_gems:            { shop: [page.shop.title] }
+  # Shop tabs close directly to main_city via icon.page.back — there is no
+  # tab → hub edge (cross-tab navigation goes main_city → shop → tab).
+  shop.dawn_market:         { main_city: [icon.page.back] }
+  shop.mix_match:           { main_city: [icon.page.back] }
+  shop.chief_stamina:       { main_city: [icon.page.back] }
+  shop.ice_conqueror:       { main_city: [icon.page.back] }
+  shop.construction_queue:  { main_city: [icon.page.back] }
+  shop.daily_deals:         { main_city: [icon.page.back] }
+  shop.weekly_monthly_cards: { main_city: [icon.page.back] }
+  shop.regular_pack:        { main_city: [icon.page.back] }
+  shop.dawn_fund:           { main_city: [icon.page.back] }
+  shop.get_gems:            { main_city: [icon.page.back] }

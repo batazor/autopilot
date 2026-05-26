@@ -10,17 +10,39 @@ edges:
     backpack.gear: [page.backpack.gear]
     backpack.other: [page.backpack.other]
 
+  # All 5 tabs share the same tab strip — cross-tab edges go directly via
+  # the target tab's region instead of bouncing through main_city → backpack.
   backpack.resources:
     main_city: [icon.page.back]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.gear: [page.backpack.gear]
+    backpack.other: [page.backpack.other]
 
   backpack.speedup:
     main_city: [icon.page.back]
+    backpack.resources: [page.backpack.resources]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.gear: [page.backpack.gear]
+    backpack.other: [page.backpack.other]
 
   backpack.bonus:
     main_city: [icon.page.back]
+    backpack.resources: [page.backpack.resources]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.gear: [page.backpack.gear]
+    backpack.other: [page.backpack.other]
 
   backpack.gear:
     main_city: [icon.page.back]
+    backpack.resources: [page.backpack.resources]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.other: [page.backpack.other]
 
   backpack.other:
     main_city: [icon.page.back]
+    backpack.resources: [page.backpack.resources]
+    backpack.speedup: [page.backpack.speedup]
+    backpack.bonus: [page.backpack.bonus]
+    backpack.gear: [page.backpack.gear]
