@@ -55,3 +55,68 @@ def test_audit_ok_when_region_and_action_valid(tmp_path: Path) -> None:
     rules = [{"name": "ok_rule", "action": "findIcon", "region": "btn_ok"}]
     issues = audit_overlay_rules(area, rules, repo_root_path=tmp_path)
     assert issues == []
+
+
+def test_audit_flags_missing_action(tmp_path: Path) -> None:
+    """Overlay rule without ``action:`` would silently no-op at runtime
+    (overlay_engine marks it as ``unsupported_action``). Catch at audit time."""
+    area = {
+        "screens": [
+            {
+                "id": "main",
+                "regions": [
+                    {"name": "btn_ok", "action": "exist", "bbox": {"x": 1, "y": 2, "w": 3, "h": 4}},
+                ],
+            }
+        ]
+    }
+    rules = [
+        {
+            "name": "missing_action",
+            "region": "btn_ok",
+            "steps": [{"click": "btn_ok"}],
+        }
+    ]
+    issues = audit_overlay_rules(area, rules, repo_root_path=tmp_path)
+    messages = {i.message for i in issues}
+    assert any("no `action:`" in m and "unsupported_action" in m for m in messages)
+
+
+def test_audit_accepts_red_dot_gate_without_explicit_action(tmp_path: Path) -> None:
+    """``isRedDot: true`` alone is enough — normalize_overlay_action derives
+    the action from the boolean gate, so the rule must not be flagged."""
+    area = {
+        "screens": [
+            {
+                "id": "main",
+                "regions": [
+                    {
+                        "name": "btn_ok",
+                        "action": "exist",
+                        "has_red_dot": True,
+                        "bbox": {"x": 1, "y": 2, "w": 3, "h": 4},
+                    },
+                ],
+            }
+        ]
+    }
+    rules = [{"name": "red_dot_gated", "region": "btn_ok", "isRedDot": True}]
+    issues = audit_overlay_rules(area, rules, repo_root_path=tmp_path)
+    assert issues == []
+
+
+def test_audit_flags_unknown_action(tmp_path: Path) -> None:
+    area = {
+        "screens": [
+            {
+                "id": "main",
+                "regions": [
+                    {"name": "btn_ok", "action": "exist", "bbox": {"x": 1, "y": 2, "w": 3, "h": 4}},
+                ],
+            }
+        ]
+    }
+    rules = [{"name": "weird", "action": "bogus_match", "region": "btn_ok"}]
+    issues = audit_overlay_rules(area, rules, repo_root_path=tmp_path)
+    messages = {i.message for i in issues}
+    assert any("not dispatched by overlay_engine" in m for m in messages)

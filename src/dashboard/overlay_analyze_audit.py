@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from analysis.overlay_rules import optional_push_scenario_tasks
+from analysis.overlay_rules import normalize_overlay_action, optional_push_scenario_tasks
 from config.module_registry import (
     ALL_MODULES_KEY,
     CORE_MODULE_KEY,
@@ -27,6 +27,22 @@ from config.startup_validation import (
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+
+# Action keys dispatched by ``overlay_engine.evaluate_overlay_rules_async`` —
+# kept in sync with the ``if action == ...`` ladder in ``overlay_engine.py``.
+# Anything outside this set falls through to the ``unsupported_action`` branch
+# and the rule silently never matches at runtime.
+_SUPPORTED_OVERLAY_ACTIONS: frozenset[str] = frozenset({
+    "findIcon",
+    "feature_match",
+    "text",
+    "color_check",
+    "detectTabs",
+    "red_dot", "red_dot_absent",
+    "tab_active", "tab_active_absent",
+    "white_border", "white_border_absent",
+})
 
 
 @dataclass(frozen=True)
@@ -123,6 +139,27 @@ def audit_overlay_rule(
                 "overlay YAML must use `findIcon`, not `exist` (exist is for area.json only)",
             )
         )
+    else:
+        normalized = normalize_overlay_action(rule)
+        if not normalized:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    source,
+                    "overlay rule has no `action:` (and no isRedDot/isTabActive/isWhiteBorder "
+                    "gate) — overlay_engine will mark it as unsupported_action and the rule "
+                    "will never match",
+                )
+            )
+        elif normalized not in _SUPPORTED_OVERLAY_ACTIONS:
+            issues.append(
+                StartupValidationIssue(
+                    "error",
+                    source,
+                    f"overlay rule action={normalized!r} is not dispatched by overlay_engine "
+                    f"(supported: {sorted(_SUPPORTED_OVERLAY_ACTIONS)})",
+                )
+            )
     if not rule_name or rule_name == "(unnamed)":
         issues.append(
             StartupValidationIssue(
