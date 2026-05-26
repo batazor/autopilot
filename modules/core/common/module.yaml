@@ -1,0 +1,8 @@
+id: common
+title: Generic UI buttons
+description: >-
+  Shared, screen-agnostic UI buttons (close, back, tap-to-exit, skip, etc.).
+  Holds regions + crops for buttons that aren't owned by any one feature module.
+area: area.yaml
+references: references
+wiki: false

@@ -1,0 +1,181 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1400,
+      "screen_id": "",
+      "ocr": "references/claim.png",
+      "regions": [
+        {
+          "name": "claim_button_close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 92.66409266409266,
+            "y": 7.391304347826087,
+            "width": 6.0,
+            "height": 3.9000000000000004,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1401,
+      "screen_id": "",
+      "ocr": "references/chief_profile.png",
+      "regions": [
+        {
+          "name": "icon.page.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.7702702702702703,
+            "y": 0.5163043478260869,
+            "width": 10.832046332046332,
+            "height": 4.95,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1402,
+      "screen_id": "",
+      "ocr": "references/page.rewards.png",
+      "regions": [
+        {
+          "name": "button.tap_anywhere_to_exit",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.042471042471046,
+            "y": 90.97826086956522,
+            "width": 37.6003861003861,
+            "height": 3.4999999999999996,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1403,
+      "screen_id": "",
+      "ocr": "references/page.rewards_popup.png",
+      "regions": [
+        {
+          "name": "button.click_to_continue",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.51737451737452,
+            "y": 91.52173913043478,
+            "width": 31.000000000000004,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1404,
+      "screen_id": "",
+      "ocr": "references/heroes.sr.new.png",
+      "regions": [
+        {
+          "name": "heroes.sr.new.close",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 28.339768339768344,
+            "y": 95.43478260869566,
+            "width": 42.99999999999999,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1405,
+      "screen_id": "",
+      "ocr": "references/skip_button.png",
+      "regions": [
+        {
+          "name": "skip_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.98841698841699,
+            "y": 6.110869565217391,
+            "width": 13.08687258687259,
+            "height": 2.7782608695652176,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1406,
+      "screen_id": "",
+      "ocr": "references/skip_text.png",
+      "regions": [
+        {
+          "name": "skip_text_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 86.89382239382239,
+            "y": 93.03152173913044,
+            "width": 10.6003861003861,
+            "height": 5.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 1407,
+      "screen_id": "",
+      "ocr": "references/pure_heart_pack.png",
+      "regions": [
+        {
+          "name": "button.free",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 31.649963653269193,
+            "y": 81.36427082387068,
+            "width": 37.88701631363963,
+            "height": 5.789633426442388,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}
