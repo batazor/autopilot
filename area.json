@@ -1,17 +1,4 @@
 {
   "version": 2,
-  "screens": [
-    {
-      "id": 67,
-      "screen_id": "",
-      "ocr": "references/events/event.weekly_benefits.png",
-      "regions": []
-    },
-    {
-      "id": 68,
-      "screen_id": "",
-      "ocr": "references/events/event.crystal_reactivation.png",
-      "regions": []
-    }
-  ]
+  "screens": []
 }
