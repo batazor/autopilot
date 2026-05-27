@@ -223,5 +223,5 @@ def build_overview(client: redis.Redis) -> dict[str, Any]:
             "paused": paused,
         },
         "fleet": fleet,
-        "has_devices_yaml": bool(db_registry.devices),
+        "has_devices": bool(db_registry.devices),
     }

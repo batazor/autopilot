@@ -151,7 +151,7 @@ export type FleetInstanceRow = {
 export type OverviewView = {
   metrics: OverviewMetrics;
   fleet: FleetInstanceRow[];
-  has_devices_yaml: boolean;
+  has_devices: boolean;
 };
 
 export type QueuePendingRow = {

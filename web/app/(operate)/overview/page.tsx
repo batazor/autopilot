@@ -90,8 +90,27 @@ export default function OverviewPage() {
 
       <section className="panel">
         <h2>Fleet</h2>
-        {!data?.has_devices_yaml ? (
-          <p className="meta">No entries in db/devices.yaml — configure ADB first.</p>
+        {data && !data.has_devices ? (
+          <div className="ui-empty">
+            <h3 className="ui-empty__title">No devices configured yet</h3>
+            <p className="ui-empty__desc">
+              Connect an Android emulator or physical device via ADB, then add it to the
+              fleet. The bot has nothing to do until at least one device is configured.
+            </p>
+            <div className="ui-empty__action flex gap-2">
+              <Link href="/adb" className="btn-primary">
+                Add device
+              </Link>
+              <a
+                href="https://github.com/batazor/autopilot#emulator-requirements"
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary"
+              >
+                Setup docs
+              </a>
+            </div>
+          </div>
         ) : null}
         {loading && !data ? (
           <DataTableSkeleton
@@ -107,7 +126,7 @@ export default function OverviewPage() {
             ]}
             rows={4}
           />
-        ) : (
+        ) : data?.has_devices ? (
           <div className="data-table-wrap">
             <table className="data-table">
               <thead>
@@ -133,7 +152,7 @@ export default function OverviewPage() {
               </tbody>
             </table>
           </div>
-        )}
+        ) : null}
         {data?.fleet.length ? (
           <p className="meta mt-3">
             Click a row to open the instance. Pause/resume runs on that instance only.
