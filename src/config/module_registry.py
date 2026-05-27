@@ -150,14 +150,10 @@ def _module_default_ref(meta: dict[str, Any]) -> str | None:
 
 
 def _default_module_references_dir(repo_root: Path, module_dir: Path) -> Path:
-    if _module_discovery.is_core_nested_module(module_dir, repo_root):
-        return repo_root / "references"
     return module_dir / "references"
 
 
 def _default_module_area_path(repo_root: Path, module_dir: Path) -> Path:
-    if _module_discovery.is_core_nested_module(module_dir, repo_root):
-        return repo_root / "area.json"
     for name in ("area.yaml", "area.yml", "area.json"):
         candidate = module_dir / name
         if candidate.is_file():

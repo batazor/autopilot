@@ -128,10 +128,12 @@ def _load_area_doc_cached(
     _ = fingerprint
     repo_root = Path(repo_root_s)
     path = Path(area_path_s) if area_path_s else default_area_json_path(repo_root)
-    if not path.is_file():
+    if path.is_file():
+        merged = _load_area_mapping(path)
+    elif custom_only:
         return {}
-
-    merged = _load_area_mapping(path)
+    else:
+        merged = {"version": 2, "screens": []}
     merged.pop("fsm", None)
     screens = merged.get("screens")
     if not isinstance(screens, list):

@@ -216,17 +216,18 @@ def _area_json_path() -> Path:
 
 
 def _area_yaml_paths() -> list[Path]:
+    """Per-module area manifests plus the root ``area.json`` placeholder.
+
+    The root path is included even when the file is missing so callers that
+    derive the repo root from ``paths[0].parent`` keep working after the
+    migration drained ``area.json`` into per-module ``area.yaml`` files.
+    """
     from config.module_discovery import iter_module_area_manifests
     from config.paths import repo_root
 
     root = repo_root()
-    area_path = _area_json_path()
-    paths = [area_path]
-    if (
-        area_path.is_file()
-        and area_path.resolve() == (root / "area.json").resolve()
-    ):
-        paths.extend(iter_module_area_manifests(root))
+    paths: list[Path] = [_area_json_path()]
+    paths.extend(iter_module_area_manifests(root))
     return paths
 
 
@@ -355,6 +356,8 @@ def _load_screen_verify_config_cached(
     """
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
+    from config.paths import repo_root
+
     if (
         fp
         and isinstance(fp[0], tuple)
@@ -367,8 +370,6 @@ def _load_screen_verify_config_cached(
             "tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]", fp
         )
         paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
-        from config.paths import repo_root
-
         root = Path(area_fps_[0][0]).parent if area_fps_ else repo_root()
     elif fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
         yaml_fps_, area_fp_ = cast(
@@ -385,8 +386,6 @@ def _load_screen_verify_config_cached(
     else:
         fp_single = cast("tuple[str, int, int]", fp)
         paths = [Path(fp_single[0])]
-        from config.paths import repo_root
-
         root = repo_root()
 
     docs: list[dict[str, Any]] = []

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -8,6 +7,7 @@ import numpy as np
 import pytest
 
 from analysis import overlay_engine
+from layout.area_manifest import load_area_doc
 from ocr.client import OCRResult
 
 if TYPE_CHECKING:
@@ -23,9 +23,7 @@ async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> N
     Text rules must attach ``pushScenario`` like findIcon/color_check do.
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
     rule = {
         "name": "chapter.task.present",
@@ -76,9 +74,7 @@ async def test_overlay_action_text_attaches_push_scenario(monkeypatch: Any) -> N
 @pytest.mark.asyncio
 async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: Any) -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
     rule = {
         "name": "chapter.task.present",
@@ -120,9 +116,7 @@ async def test_overlay_action_text_skipped_when_screen_not_allowed(monkeypatch: 
 @pytest.mark.asyncio
 async def test_overlay_screen_gate_is_case_insensitive(monkeypatch: Any) -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
     rule = {
         "name": "chapter.task.present",
@@ -172,9 +166,7 @@ async def test_text_rules_share_one_ocr_batch(monkeypatch: Any) -> None:
     (authors must add an explicit ``search_region`` or widen the bbox).
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [
@@ -244,9 +236,7 @@ async def test_rule_preprocess_flag_flows_to_ocr_regions(monkeypatch: Any) -> No
     tag too — that path no longer exists, so we just assert the primary.)
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [
@@ -305,9 +295,7 @@ async def test_type_time_auto_enables_fast_line_preprocess(monkeypatch: Any) -> 
     silently revert overlay timers to block-style segmentation.
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [
@@ -353,9 +341,7 @@ async def test_explicit_preprocess_overrides_type_derived_default(monkeypatch: A
     timer regions where ``det=False`` misreads the line layout.
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [
@@ -402,9 +388,7 @@ async def test_no_preprocess_keyword_when_flag_absent(monkeypatch: Any) -> None:
     requests (omitted key, not a null value).
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [
@@ -453,9 +437,7 @@ async def test_text_rules_skip_fallback_batch_when_all_primaries_match(
     round-trip.
     """
     repo_root = Path(__file__).resolve().parents[2]
-    area_doc: dict[str, Any] = json.loads(
-        (repo_root / "area.json").read_text(encoding="utf-8")
-    )
+    area_doc: dict[str, Any] = load_area_doc(repo_root)
     image_bgr = np.zeros((720, 1280, 3), dtype=np.uint8)
 
     rules = [

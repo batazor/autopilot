@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
@@ -8,7 +7,6 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _VICTORY_REF = _REPO_ROOT / "references" / "page.squad_settings.status.victory.png"
-_AREA_JSON = _REPO_ROOT / "area.json"
 
 
 def _assert_local_ocr_available() -> None:
@@ -34,6 +32,7 @@ async def test_ocr_squad_settings_status_reads_victory() -> None:
     import cv2
 
     from layout.area_lookup import screen_region_by_name
+    from layout.area_manifest import load_area_doc
     from layout.types import Region as LayoutRegion
     from ocr.client import OcrClient
 
@@ -42,16 +41,15 @@ async def test_ocr_squad_settings_status_reads_victory() -> None:
             f"reference image missing: {_VICTORY_REF} — capture a victory"
             " screenshot under references/ to enable this OCR smoke test"
         )
-    assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
     _assert_local_ocr_available()
 
     image = cv2.imread(str(_VICTORY_REF))
     assert image is not None, f"failed to decode {_VICTORY_REF}"
     h, w = int(image.shape[0]), int(image.shape[1])
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    area_doc = load_area_doc(_REPO_ROOT)
     pair = screen_region_by_name(area_doc, "page.squad_settings.status")
-    assert pair is not None, "area.json has no `page.squad_settings.status` region"
+    assert pair is not None, "merged area manifest has no `page.squad_settings.status` region"
     region_def = pair[1]
     bbox = region_def.get("bbox")
     assert isinstance(bbox, dict), f"region missing bbox: {region_def!r}"

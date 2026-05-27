@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import cv2
 import numpy as np
 import pytest
 
+from layout.area_manifest import load_area_doc
 from layout.template_match import (
     match_crop_1to1_at_bbox_percent,
     match_template_full_frame_cached,
@@ -18,25 +18,27 @@ from layout.template_match import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_SKIP_FULL = REPO_ROOT / "references" / "skip_button.png"
-_SKIP_CROP = REPO_ROOT / "references" / "crop" / "skip_button_skip_button.png"
-_AREA_JSON = REPO_ROOT / "area.json"
-_CHIEF_TITLE_CROP = REPO_ROOT / "references" / "crop" / "chief_profile_chief_profile.title.png"
-_CHIEF_LIVE_SCREEN = REPO_ROOT / "references" / "temporal" / "bs1_approval_current.png"
+_SKIP_FULL = REPO_ROOT / "modules/core/common/references/skip_button.png"
+_SKIP_CROP = REPO_ROOT / "modules/core/common/references/crop/skip_button_skip_button.png"
+_CHIEF_TITLE_CROP = (
+    REPO_ROOT
+    / "modules/core/chief_profile/references/crop/chief_profile_chief_profile.title.png"
+)
+_CHIEF_LIVE_SCREEN = REPO_ROOT / "temporal" / "bs1_approval_current.png"
 
 
 @pytest.mark.skipif(
-    not _SKIP_FULL.is_file() or not _SKIP_CROP.is_file() or not _AREA_JSON.is_file(),
-    reason="skip_button reference assets or area.json missing",
+    not _SKIP_FULL.is_file() or not _SKIP_CROP.is_file(),
+    reason="skip_button reference assets missing",
 )
 def test_skip_button_crop_1to1_matches_bbox_patch() -> None:
-    doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    doc = load_area_doc(REPO_ROOT)
     screens = doc.get("screens") or []
     screen = next(
         (s for s in screens if Path(str(s.get("ocr") or "")).stem == _SKIP_FULL.stem),
         None,
     )
-    assert screen is not None, "area.json must contain an entry for references/skip_button.png"
+    assert screen is not None, "merged area manifest must contain a skip_button screen"
 
     region = next(
         (r for r in screen.get("regions") or [] if str(r.get("name")) == "skip_button"),
@@ -60,14 +62,12 @@ def test_skip_button_crop_1to1_matches_bbox_patch() -> None:
 
 
 @pytest.mark.skipif(
-    not _CHIEF_TITLE_CROP.is_file()
-    or not _CHIEF_LIVE_SCREEN.is_file()
-    or not _AREA_JSON.is_file(),
+    not _CHIEF_TITLE_CROP.is_file() or not _CHIEF_LIVE_SCREEN.is_file(),
     reason="chief_profile.title crop or live debug screenshot missing",
 )
 def test_chief_profile_title_phash_passes_on_animated_header() -> None:
     """Old crop must still match when header sparkles differ (pHash, no pixel compare)."""
-    doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    doc = load_area_doc(REPO_ROOT)
     screen = next(
         (s for s in doc.get("screens") or [] if str(s.get("screen_id")) == "chief_profile"),
         None,
@@ -152,7 +152,7 @@ def test_full_frame_cached_match_uses_cached_position(monkeypatch: pytest.Monkey
     )
 
     # Use an exact cached top-left from the fixture bbox.
-    doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    doc = load_area_doc(REPO_ROOT)
     screen = next(s for s in doc.get("screens") or [] if Path(str(s.get("ocr") or "")).stem == _SKIP_FULL.stem)
     region = next(r for r in screen.get("regions") or [] if str(r.get("name")) == "skip_button")
     hi, wi = image.shape[:2]

@@ -708,7 +708,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CHIEF_PROFILE_REF = (
     _REPO_ROOT / "modules/core/chief_profile/references/chief_profile.png"
 )
-_AREA_JSON = _REPO_ROOT / "area.json"
 # Real in-game player_id printed on the labelled chief_profile reference image.
 _REFERENCE_PLAYER_ID = "765502864"
 
@@ -743,7 +742,6 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     from ocr.client import OcrClient
 
     assert _CHIEF_PROFILE_REF.is_file(), f"reference image missing: {_CHIEF_PROFILE_REF}"
-    assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
     _assert_local_ocr_available()
 
     image = cv2.imread(str(_CHIEF_PROFILE_REF))
@@ -805,7 +803,6 @@ async def test_ocr_chief_profile_player_id_live_knn_pipeline(
     assert _CHIEF_PROFILE_LIVE_FIXTURE.is_file(), (
         f"fixture missing: {_CHIEF_PROFILE_LIVE_FIXTURE}"
     )
-    assert _AREA_JSON.is_file()
     _assert_local_ocr_available()
 
     image = cv2.imread(str(_CHIEF_PROFILE_LIVE_FIXTURE))

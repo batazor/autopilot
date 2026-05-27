@@ -1,27 +1,25 @@
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 
 import cv2
 import pytest
 
 from analysis import overlay_engine
+from layout.area_manifest import load_area_doc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-_SKIP_FULL = REPO_ROOT / "references" / "skip_button.png"
-_AREA_JSON = REPO_ROOT / "area.json"
+_SKIP_FULL = REPO_ROOT / "modules/core/common/references/skip_button.png"
 
 
 @pytest.mark.asyncio
 async def test_findicon_uses_full_frame_cache_for_is_search_region() -> None:
     image = cv2.imread(str(_SKIP_FULL))
-    if image is None or not _AREA_JSON.is_file():
+    if image is None:
         pytest.skip("skip_button fixture missing")
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
-    area_doc = copy.deepcopy(area_doc)
+    area_doc = copy.deepcopy(load_area_doc(REPO_ROOT))
     screen = next(
         s
         for s in area_doc.get("screens") or []

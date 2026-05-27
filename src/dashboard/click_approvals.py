@@ -6,7 +6,6 @@ into the import graph.
 """
 from __future__ import annotations
 
-import json
 import time
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,12 @@ from typing import Any
 from dashboard.redis_client import get_instance_state
 from dsl import template_resolver as _tmpl
 from layout.area_lookup import screen_region_by_name
+from layout.area_manifest import (
+    area_manifest_max_mtime,
+)
+from layout.area_manifest import (
+    load_area_doc as _load_merged_area_doc,
+)
 from layout.area_versions import effective_ocr_for_region, region_version_of
 
 _AREA_DOC_TTL_S = 60.0
@@ -27,27 +32,23 @@ def scenario_display_name(scenario_key: str) -> str:
 
 
 def load_area_doc(area_path: Path) -> dict[str, Any]:
-    """Read ``area.json`` with a 60s mtime-keyed cache.
+    """Merged ``area.json`` + ``modules/<id>/area.yaml`` with a 60s mtime cache.
 
-    Previously ``@st.cache_data(ttl=60)``; now a small TTL-respecting dict so
-    every API request doesn't re-read the file.
+    ``area_path`` is treated as a hint pointing at the repository root
+    (typically ``<repo>/area.json``); the merged loader rediscovers module
+    manifests from the parent directory regardless.
     """
-    try:
-        mtime = area_path.stat().st_mtime if area_path.is_file() else 0.0
-    except OSError:
-        mtime = 0.0
-    key = (str(area_path), mtime)
+    repo_root = area_path.resolve().parent
+    fingerprint = area_manifest_max_mtime(repo_root)
+    key = (str(repo_root), fingerprint)
     now = time.monotonic()
     cached = _area_doc_cache.get(key)
     if cached is not None and (now - cached[0]) < _AREA_DOC_TTL_S:
         return cached[1]
-    if not area_path.is_file():
-        doc: dict[str, Any] = {}
-    else:
-        try:
-            doc = json.loads(area_path.read_text(encoding="utf-8"))
-        except Exception:
-            doc = {}
+    try:
+        doc = _load_merged_area_doc(repo_root)
+    except Exception:
+        doc = {}
     _area_doc_cache[key] = (now, doc)
     return doc
 

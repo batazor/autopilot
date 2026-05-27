@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_MAIN_CITY_REF = _REPO_ROOT / "references" / "main_city.png"
-_AREA_JSON = _REPO_ROOT / "area.json"
+_MAIN_CITY_REF = _REPO_ROOT / "modules/core/main_city/references/main_city.png"
 
 
 def _assert_local_ocr_available() -> None:
@@ -33,20 +31,20 @@ async def test_ocr_main_city_chapter_task_against_real_tesseract() -> None:
     import cv2  # heavy import
 
     from layout.area_lookup import screen_region_by_name
+    from layout.area_manifest import load_area_doc
     from layout.types import Region as LayoutRegion
     from ocr.client import OcrClient
 
     assert _MAIN_CITY_REF.is_file(), f"reference image missing: {_MAIN_CITY_REF}"
-    assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
     _assert_local_ocr_available()
 
     image = cv2.imread(str(_MAIN_CITY_REF))
     assert image is not None, f"failed to decode {_MAIN_CITY_REF}"
     h, w = int(image.shape[0]), int(image.shape[1])
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    area_doc = load_area_doc(_REPO_ROOT)
     pair = screen_region_by_name(area_doc, "chapter.task")
-    assert pair is not None, "area.json has no `chapter.task` region"
+    assert pair is not None, "merged area manifest has no `chapter.task` region"
     bbox = pair[1].get("bbox")
     assert isinstance(bbox, dict), f"`chapter.task` region is missing a bbox: {pair[1]!r}"
 

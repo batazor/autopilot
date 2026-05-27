@@ -68,9 +68,7 @@ def test_nested_module_context_uses_storage_key_and_area_yaml(tmp_path: Path) ->
     assert get_wiki_module(tmp_path, "trials").storage_key == "events/trials"
 
 
-def test_core_module_defaults_to_root_area_and_references(tmp_path: Path) -> None:
-    (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
-    (tmp_path / "references").mkdir()
+def test_core_module_defaults_to_local_area_and_references(tmp_path: Path) -> None:
     mod = tmp_path / "modules" / "core" / "chief_profile"
     mod.mkdir(parents=True)
     (mod / "module.yaml").write_text(
@@ -80,9 +78,9 @@ def test_core_module_defaults_to_root_area_and_references(tmp_path: Path) -> Non
 
     ctx = get_wiki_module(tmp_path, "chief_profile")
 
-    assert ctx.area_path.resolve() == (tmp_path / "area.json").resolve()
-    assert ctx.references_dir.resolve() == (tmp_path / "references").resolve()
-    assert ctx.references_prefix == "references"
+    assert ctx.area_path.resolve() == (mod / "area.yaml").resolve()
+    assert ctx.references_dir.resolve() == (mod / "references").resolve()
+    assert ctx.references_prefix == "modules/core/chief_profile/references"
 
 
 def test_module_default_ref_from_manifest(tmp_path: Path) -> None:

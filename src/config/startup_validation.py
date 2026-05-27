@@ -835,23 +835,19 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     issues: list[StartupValidationIssue] = []
 
-    area_path = root / "area.json"
     area_doc: dict[str, Any] = {}
-    if not area_path.is_file():
-        issues.append(StartupValidationIssue("error", area_path.as_posix(), "area.json not found"))
-    else:
-        try:
-            from layout.area_manifest import load_area_doc
+    try:
+        from layout.area_manifest import load_area_doc
 
-            area_doc = load_area_doc(root)
-        except Exception as exc:
-            issues.append(
-                StartupValidationIssue(
-                    "error",
-                    area_path.as_posix(),
-                    f"cannot parse merged area docs: {exc}",
-                )
+        area_doc = load_area_doc(root)
+    except Exception as exc:
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                "modules/**/area.yaml",
+                f"cannot parse merged area docs: {exc}",
             )
+        )
 
     region_names = _area_region_names(area_doc)
     red_dot_regions = _area_regions_with_red_dot_capability(area_doc)

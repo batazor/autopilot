@@ -433,14 +433,13 @@ def _labeling_href_for_region(
     from dashboard.click_approvals import (
         active_player_state_flat,
         labeling_query_params_for_area_region,
-        load_area_doc,
     )
+    from layout.area_manifest import load_area_doc
 
     reg = _as_text(region_name)
     if not reg:
         return ""
-    area_path = repo_root() / "area.json"
-    area_doc = load_area_doc(area_path)
+    area_doc = load_area_doc(repo_root())
     state_flat = active_player_state_flat(client=client, instance_id=instance_id)
     qp = labeling_query_params_for_area_region(area_doc, reg, state_flat=state_flat)
     if not qp:
