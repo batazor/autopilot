@@ -31,7 +31,7 @@ def test_envelope_round_trip(keypair_paths: object, tmp_path) -> None:
     assert envelope["machine_id"] == "ABCD-EFGH-IJKL-MNOP"
     assert envelope["token"] == token
 
-    out_path = tmp_path / "wos-license.json"
+    out_path = tmp_path / "licence.json"
     save_license_file(envelope, out_path)
     assert out_path.is_file()
     loaded = load_token_from_file(out_path)
@@ -85,6 +85,6 @@ def test_license_path_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path) ->
 def test_save_creates_parent_directory(keypair_paths: object, tmp_path) -> None:
     token, payload = issue_license(sub="x@y", machine_id="X")
     envelope = build_envelope(token, payload)
-    deep = tmp_path / "a" / "b" / "c" / "wos-license.json"
+    deep = tmp_path / "a" / "b" / "c" / "licence.json"
     save_license_file(envelope, deep)
     assert deep.is_file()

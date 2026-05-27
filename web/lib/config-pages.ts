@@ -188,6 +188,8 @@ export type LicenseStatus = {
   expires_at: string | null;
   days_left: number | null;
   machine_id: string | null;
+  max_devices: number | null;
+  max_players_per_device: number | null;
   admin_enabled: boolean;
   license_file: string;
 };
@@ -201,6 +203,7 @@ export type LicenseEnvelope = {
   tier: string | null;
   features: string[];
   max_devices: number | null;
+  max_players_per_device: number | null;
   token: string;
 };
 
@@ -211,6 +214,7 @@ export type LicenseIssueRequest = {
   tier: string;
   features: string[];
   max_devices: number;
+  max_players_per_device: number;
 };
 
 export type LicenseIssueResult = {

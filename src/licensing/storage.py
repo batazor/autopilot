@@ -19,9 +19,9 @@ canonical claims. The other fields are derived at issue-time for convenience.
 
 The loader is forgiving: a file containing *just* a bare JWT string (no JSON
 envelope) is accepted too, so power users can hand-roll one with a single
-``echo "$TOKEN" > wos-license.json``.
+``echo "$TOKEN" > licence.json``.
 
-Default location: ``<repo_root>/license-data/wos-license.json`` — a directory
+Default location: ``<repo_root>/license-data/licence.json`` — a directory
 mount (not a file mount) so Docker can bind it before the file exists and the
 UI can write to it.
 """
@@ -38,7 +38,7 @@ from licensing.models import LicenseError
 LICENSE_FILE_ENV = "WOS_LICENSE_FILE"
 LICENSE_TOKEN_ENV = "WOS_LICENSE"
 ENVELOPE_FORMAT = "wos-license-v1"
-DEFAULT_FILENAME = "wos-license.json"
+DEFAULT_FILENAME = "licence.json"
 DEFAULT_DIRNAME = "license-data"
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -84,6 +84,7 @@ def build_envelope(token: str, payload: dict[str, Any]) -> dict[str, Any]:
         "tier": payload.get("tier"),
         "features": list(payload.get("features") or []),
         "max_devices": payload.get("max_devices"),
+        "max_players_per_device": payload.get("max_players_per_device"),
         "token": token,
     }
 

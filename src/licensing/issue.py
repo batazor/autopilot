@@ -20,6 +20,7 @@ def issue_license(
     tier: str = "pro",
     features: list[str] | None = None,
     max_devices: int = 1,
+    max_players_per_device: int = 3,
     issued_at: datetime | None = None,
 ) -> tuple[str, dict[str, object]]:
     """Sign and return ``(token, payload)``.
@@ -40,6 +41,7 @@ def issue_license(
 
     days = max(1, min(int(days), _MAX_DAYS))
     max_devices = max(1, min(int(max_devices), 100))
+    max_players_per_device = max(1, min(int(max_players_per_device), 100))
 
     now = issued_at or datetime.now(UTC)
     expires = now + timedelta(days=days)
@@ -53,6 +55,7 @@ def issue_license(
         "tier": tier,
         "features": list(features or []),
         "max_devices": max_devices,
+        "max_players_per_device": max_players_per_device,
     }
 
     private_key = load_private_key()

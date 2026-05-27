@@ -98,7 +98,7 @@ export default function LicensePage() {
         <p className="muted">
           The bot worker refuses to start without a valid license bound to this
           host. Send your fingerprint below to the maintainer, then import the
-          <code> .wos-license.json</code> file they send back.
+          <code> .licence.json</code> file they send back.
         </p>
       </PageHeader>
 
@@ -140,7 +140,31 @@ export default function LicensePage() {
             </div>
             <div>
               <div className="muted">Tier</div>
-              <div>{status.tier ?? "—"}</div>
+              <div>
+                {status.tier ?? "—"}
+                {status.tier === "trial" ? (
+                  <span
+                    style={{
+                      marginLeft: 8,
+                      padding: "1px 6px",
+                      borderRadius: 4,
+                      fontSize: 11,
+                      background: "var(--wos-status-warn-bg)",
+                      color: "var(--wos-status-warn-fg)",
+                    }}
+                  >
+                    TRIAL
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div>
+              <div className="muted">Limits</div>
+              <div>
+                {status.max_devices !== null && status.max_players_per_device !== null
+                  ? `${status.max_devices} device${status.max_devices === 1 ? "" : "s"} × ${status.max_players_per_device} players`
+                  : "—"}
+              </div>
             </div>
             <div>
               <div className="muted">Features</div>
@@ -181,14 +205,14 @@ export default function LicensePage() {
       <section className="card" style={{ marginBottom: 16 }}>
         <h2>Import license file</h2>
         <p className="muted">
-          Select the <code>.wos-license.json</code> file the maintainer sent
+          Select the <code>.licence.json</code> file the maintainer sent
           you. It will be verified against this host and saved to the path
           shown above. The bot picks it up on next restart.
         </p>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,application/json,.wos-license"
+          accept=".json,application/json,.licence"
           onChange={onFileSelected}
           disabled={importing}
           style={{ display: "none" }}

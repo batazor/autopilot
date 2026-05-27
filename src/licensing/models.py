@@ -24,9 +24,10 @@ class LicenseClaims:
 
     sub: str                       # user email or stable id
     machine_id: str                # bound host fingerprint
-    tier: str                      # free / pro / enterprise, etc.
+    tier: str                      # trial / pro / enterprise, etc.
     features: list[str] = field(default_factory=list)
     max_devices: int = 1
+    max_players_per_device: int = 3
     issued_at: datetime | None = None
     expires_at: datetime | None = None
     jti: str | None = None
@@ -55,6 +56,8 @@ class LicenseStatus:
     expires_at: datetime | None = None
     days_left: float | None = None
     machine_id: str | None = None  # current host fingerprint (always populated)
+    max_devices: int | None = None
+    max_players_per_device: int | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -67,4 +70,6 @@ class LicenseStatus:
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "days_left": self.days_left,
             "machine_id": self.machine_id,
+            "max_devices": self.max_devices,
+            "max_players_per_device": self.max_players_per_device,
         }

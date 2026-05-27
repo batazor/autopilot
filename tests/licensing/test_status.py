@@ -44,7 +44,7 @@ def test_status_active_via_file(
     token, payload = issue_license(
         sub="bob@example.com", machine_id=host_fp, features=["mail"],
     )
-    license_file = tmp_path / "wos-license.json"
+    license_file = tmp_path / "licence.json"
     save_license_file(build_envelope(token, payload), license_file)
     monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     status = license_status()
@@ -61,7 +61,7 @@ def test_env_takes_precedence_over_file(
     file_token, file_payload = issue_license(
         sub="file-user@example.com", machine_id=host_fp,
     )
-    license_file = tmp_path / "wos-license.json"
+    license_file = tmp_path / "licence.json"
     save_license_file(build_envelope(file_token, file_payload), license_file)
     monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     monkeypatch.setenv("WOS_LICENSE", env_token)

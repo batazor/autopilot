@@ -2,7 +2,7 @@
 
 Token resolution order:
     1. ``WOS_LICENSE`` env var — explicit override (CI, power users)
-    2. License file on disk (default: ``<repo>/license-data/wos-license.json``)
+    2. License file on disk (default: ``<repo>/license-data/licence.json``)
 
 The file is the primary distribution mechanism for end users; the env var is
 kept as an escape hatch so existing setups don't break.
@@ -67,6 +67,8 @@ def license_status() -> LicenseStatus:
         expires_at=claims.expires_at,
         days_left=claims.days_until_expiry(),
         machine_id=machine_id,
+        max_devices=claims.max_devices,
+        max_players_per_device=claims.max_players_per_device,
     )
 
 

@@ -78,3 +78,6 @@ references/temporal/
 result/
 .bench_crops/
 
+# Signed licence envelopes — must never be committed (real JWTs).
+*.licence.json
+*.wos-license.json

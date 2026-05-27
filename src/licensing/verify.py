@@ -35,6 +35,7 @@ def _claims_from_payload(payload: dict[str, Any]) -> LicenseClaims:
         tier=str(payload.get("tier") or "free"),
         features=features,
         max_devices=int(payload.get("max_devices") or 1),
+        max_players_per_device=int(payload.get("max_players_per_device") or 3),
         issued_at=_coerce_datetime(payload.get("iat")),
         expires_at=_coerce_datetime(payload.get("exp")),
         jti=str(payload["jti"]) if payload.get("jti") else None,
@@ -86,7 +87,12 @@ def verify_license(
 
     claims = _claims_from_payload(payload)
 
-    if expected_machine_id is not None and claims.machine_id != expected_machine_id:
+    # ``*`` is a wildcard machine_id used by trial tokens that any host can run.
+    if (
+        expected_machine_id is not None
+        and claims.machine_id != "*"
+        and claims.machine_id != expected_machine_id
+    ):
         msg = (
             f"license bound to a different machine (token: {claims.machine_id}, "
             f"this host: {expected_machine_id})"

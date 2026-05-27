@@ -33,6 +33,14 @@ def test_verify_rejects_wrong_machine(keypair_paths: object) -> None:
     assert exc_info.value.code == "machine_mismatch"
 
 
+def test_verify_accepts_wildcard_machine_id(keypair_paths: object) -> None:
+    """Trial tokens carry machine_id='*' and bypass the host-binding check."""
+    token, _ = issue_license(sub="trial@autopilot", machine_id="*")
+    claims = verify_license(token, expected_machine_id="ANY-HOST-FINGERPRINT")
+    assert claims.machine_id == "*"
+    assert claims.sub == "trial@autopilot"
+
+
 def test_verify_rejects_expired(keypair_paths: object) -> None:
     past = datetime.now(UTC) - timedelta(days=60)
     token, _ = issue_license(

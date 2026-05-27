@@ -18,7 +18,7 @@ function slugForEmail(sub: string): string {
 
 function downloadEnvelope(result: LicenseIssueResult): void {
   const sub = String(result.envelope.issued_to ?? "user");
-  const filename = `${slugForEmail(sub)}.wos-license.json`;
+  const filename = `${slugForEmail(sub)}.licence.json`;
   const blob = new Blob([JSON.stringify(result.envelope, null, 2)], {
     type: "application/json",
   });
@@ -42,6 +42,7 @@ type FormState = {
   tier: string;
   features: string;
   maxDevices: number;
+  maxPlayersPerDevice: number;
 };
 
 const DEFAULTS: FormState = {
@@ -51,6 +52,7 @@ const DEFAULTS: FormState = {
   tier: "pro",
   features: "",
   maxDevices: 1,
+  maxPlayersPerDevice: 3,
 };
 
 function parseFeatures(raw: string): string[] {
@@ -97,7 +99,8 @@ export default function LicenseAdminPage() {
       form.machineId.trim().length > 0 &&
       form.days >= 1 &&
       form.days <= 365 &&
-      form.maxDevices >= 1,
+      form.maxDevices >= 1 &&
+      form.maxPlayersPerDevice >= 1,
     [adminToken, form, submitting],
   );
 
@@ -120,6 +123,7 @@ export default function LicenseAdminPage() {
           tier: form.tier.trim() || "pro",
           features: parseFeatures(form.features),
           max_devices: form.maxDevices,
+          max_players_per_device: form.maxPlayersPerDevice,
         },
         adminToken.trim(),
       );
@@ -253,6 +257,22 @@ export default function LicenseAdminPage() {
             />
           </label>
 
+          <label>
+            <span>Max players per device</span>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              value={form.maxPlayersPerDevice}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  maxPlayersPerDevice: Number(e.target.value),
+                })
+              }
+            />
+          </label>
+
           <div style={{ gridColumn: "1 / -1", marginTop: 12 }}>
             <button type="submit" className="btn-primary" disabled={!canSubmit}>
               {submitting ? "Issuing…" : "Issue license"}
@@ -265,9 +285,9 @@ export default function LicenseAdminPage() {
         <section className="card">
           <h2>Issued license</h2>
           <p className="muted">
-            Download the <code>.wos-license.json</code> file and send it to the
+            Download the <code>.licence.json</code> file and send it to the
             user. They import it via <code>/license</code> in their UI (or drop
-            it into <code>license-data/wos-license.json</code> manually).
+            it into <code>license-data/licence.json</code> manually).
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <button
@@ -275,7 +295,7 @@ export default function LicenseAdminPage() {
               className="btn-primary"
               onClick={() => downloadEnvelope(result)}
             >
-              Download .wos-license.json
+              Download .licence.json
             </button>
             <CopyButton text={result.token} label="Copy raw token" />
             <CopyButton

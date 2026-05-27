@@ -67,6 +67,7 @@ def issue(
     tier: str,
     features: list[str],
     max_devices: int,
+    max_players_per_device: int = 3,
 ) -> dict[str, Any]:
     """Mint a license and return ``{ token, payload, envelope }``."""
     try:
@@ -77,6 +78,7 @@ def issue(
             tier=tier,
             features=features,
             max_devices=max_devices,
+            max_players_per_device=max_players_per_device,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

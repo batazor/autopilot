@@ -20,6 +20,7 @@ class IssueRequest(BaseModel):
     tier: str = Field("pro", min_length=1)
     features: list[str] = Field(default_factory=list)
     max_devices: int = Field(1, ge=1, le=100)
+    max_players_per_device: int = Field(3, ge=1, le=100)
 
 
 @router.get("/fingerprint")
@@ -48,12 +49,13 @@ def post_issue(
         tier=body.tier,
         features=body.features,
         max_devices=body.max_devices,
+        max_players_per_device=body.max_players_per_device,
     )
 
 
 @router.post("/import")
 async def post_import(
-    file: Annotated[UploadFile, File(description=".wos-license.json envelope or bare JWT")],
+    file: Annotated[UploadFile, File(description=".licence.json envelope or bare JWT")],
 ) -> dict[str, Any]:
     """User-side import: validate against this host and persist to disk."""
     content = await file.read(_MAX_UPLOAD_BYTES + 1)
