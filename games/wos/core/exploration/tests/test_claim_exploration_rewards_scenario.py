@@ -19,7 +19,9 @@ if TYPE_CHECKING:
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REPO_ROOT = MODULE_DIR.parents[3]
 REFERENCES_DIR = MODULE_DIR / "references"
-REWARDS_REFERENCES_DIR = REPO_ROOT / "modules" / "core" / "rewards" / "references"
+REWARDS_REFERENCES_DIR = (
+    REPO_ROOT / "games" / "wos" / "core" / "rewards" / "references"
+)
 REHEARSAL_FIXTURES_DIR = REFERENCES_DIR / "rehearsal" / "fixtures" / "claim_exploration_rewards"
 
 

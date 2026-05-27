@@ -25,7 +25,9 @@ from layout.red_dot_detector import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MAIN_CITY_V2_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "main_city_v2_red_dots.png"
-MAIN_CITY_BASE_REFERENCE = REPO_ROOT / "references" / "main_city.png"
+MAIN_CITY_BASE_REFERENCE = (
+    REPO_ROOT / "games" / "wos" / "core" / "main_city" / "references" / "main_city.png"
+)
 FROST_WORKERS_FIXTURE = REPO_ROOT / "tests" / "fixtures" / "red_dot_frost_workers.png"
 EVENT_1ST_PURCHASE_FALSE_POSITIVE = (
     REPO_ROOT / "tests" / "fixtures" / "event_block_1st_purchase_false_positive.png"

@@ -183,7 +183,16 @@ def test_scenario_root_scan_walks_fs_once_across_many_resolves(monkeypatch) -> N
     re-walked the entire scenarios tree via ``root.rglob("*.yaml")``. With the
     cache, the walk runs once per scenario root regardless of the number of
     distinct keys resolved.
+
+    Module-discovery's ``module.yaml`` rglob is also cached process-wide; we
+    pre-warm it before installing the spy so a cold cache from earlier tests
+    doesn't show up as a phantom per-key walk in the trace.
     """
+    from config.module_discovery import iter_module_dirs
+
+    # Warm the per-game module-discovery cache so the assertion below only
+    # measures resolver-level walks, not first-touch discovery.
+    iter_module_dirs(REPO_ROOT)
     _tmpl._clear_template_resolver_caches()
 
     rglob_calls: list[str] = []

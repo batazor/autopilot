@@ -174,7 +174,7 @@ def _stem_to_regex(stem: str) -> tuple[re.Pattern[str], list[str]]:
     return re.compile("^" + "".join(rebuilt) + "$"), axes
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=256)
 def _scan_scenario_root(
     root_s: str,
 ) -> tuple[tuple[Path, ...], dict[str, Path], tuple[Path, ...]]:

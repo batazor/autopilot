@@ -15,7 +15,7 @@
             'wait': '1s',
           }),
         ]),
-        'template': 'modules/backpack/references/crop/main_city_vip_main_city.to.backpack.png',
+        'template': 'games/wos/backpack/references/crop/main_city_vip_main_city.to.backpack.png',
         'threshold': 0.9,
         'while_match': 'main_city.to.backpack',
       }),

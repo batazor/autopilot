@@ -20,7 +20,7 @@
             'click': 'page.vip.box',
           }),
           dict({
-            'wait': '500ms',
+            'wait': '2s',
           }),
           dict({
             'max': 1,
