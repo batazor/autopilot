@@ -3,9 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from games.wos.gift_codes.models import RedeemStatus
-from games.wos.gift_codes.redeemer import run_gift_code_redeemer
-from games.wos.gift_codes.scraper import poll_once
+from century.gift_codes.models import RedeemStatus
+from century.gift_codes.wos import poll_once, run_gift_code_redeemer
 
 from config.devices import load_devices
 from config.giftcodes_db import list_codes

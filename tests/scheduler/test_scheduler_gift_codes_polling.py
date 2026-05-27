@@ -149,8 +149,8 @@ async def test_gift_codes_polling_skips_when_redeem_lock_is_held(
 
     # Only Kingshot ran; WOS was blocked by the foreign lock.
     import_calls = [c.args[0] for c in fake.import_module.call_args_list]
-    assert "games.kingshot.gift_codes" in import_calls
-    assert "games.wos.gift_codes" not in import_calls
+    assert "century.gift_codes.kingshot" in import_calls
+    assert "century.gift_codes.wos" not in import_calls
 
     # WOS cadence key did get set (acquired before the redeem-lock check),
     # so the scheduler won't keep retrying every 30s — it waits the full

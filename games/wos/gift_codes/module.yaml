@@ -1,5 +1,0 @@
-id: gift_codes
-title: Gift codes
-description: Scrape wosrewards.com for promo codes and redeem them via the Century API.
-exec: exec.py
-wiki: false

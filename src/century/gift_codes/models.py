@@ -1,4 +1,4 @@
-"""Gift code data models."""
+"""Gift code data models — shared across WOS and Kingshot redeemers."""
 
 from __future__ import annotations
 

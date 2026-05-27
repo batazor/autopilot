@@ -4,7 +4,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from games.wos.gift_codes.models import GiftCode, RedeemStatus
+
+from century.gift_codes.models import GiftCode, RedeemStatus
 
 
 def _now_utc() -> datetime:

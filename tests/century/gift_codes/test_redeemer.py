@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from games.wos.gift_codes import redeemer
-from games.wos.gift_codes.models import RedeemStatus
-from games.wos.gift_codes.redeemer import (
+
+from century.api import CenturyAPIError, ErrCode
+from century.gift_codes import wos as redeemer
+from century.gift_codes.models import RedeemStatus
+from century.gift_codes.wos import (
     GiftCodeRedeemer,
     GiftRedeemResult,
     GiftRedeemSummary,
@@ -18,8 +20,6 @@ from games.wos.gift_codes.redeemer import (
     _jittered,
     run_gift_code_redeemer,
 )
-
-from century.api import CenturyAPIError, ErrCode
 from config.devices import DeviceEntry, DeviceProfile, DeviceRegistry, Gamer
 from config.giftcodes_db import get_redemption, list_codes, upsert_code
 from config.state_sqlite import set_state_db_path_for_tests

@@ -946,10 +946,12 @@ _CORE_DSL_EXEC_REGISTRY: dict[str, DslExecHandler] = {
 
 def build_dsl_exec_registry(repo_root: Path | None = None) -> dict[str, DslExecHandler]:
     """Core handlers plus optional ``modules/<id>/exec.py`` contributions."""
+    from century.gift_codes.exec import DSL_EXEC_HANDLERS as GIFT_CODES_HANDLERS
     from config.module_exec_registry import load_module_exec_handlers
 
     return {
         **_CORE_DSL_EXEC_REGISTRY,
+        **GIFT_CODES_HANDLERS,
         **load_module_exec_handlers(repo_root),
     }
 

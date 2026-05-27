@@ -1,21 +1,21 @@
-"""Kingshot gift-code redeemer.
+"""Kingshot gift-code aggregator scraper + Century API redeemer.
 
-Flow per player per code (no captcha, unlike WOS):
+Two responsibilities co-located so the scheduler can drive ``poll_once``
+and ``run_gift_code_redeemer`` as one logical poller per game:
 
-  1. POST /api/player    — login / verify fid
-  2. POST /api/gift_code — redeem (with ms timestamp)
-  3. Translate err_code → :class:`RedeemStatus`
+- :func:`poll_once` — fetch new codes from the Kingshot aggregator
+  (``ks-gift-code-api.whiteout-bot.com``) and upsert into the SQLite
+  ``gift_codes`` table scoped to ``game="kingshot"``.
+- :func:`run_gift_code_redeemer` — for every code that still needs work,
+  log each known account in (``/api/player``) and submit (``/api/gift_code``
+  with ms timestamp). No captcha step (Kingshot's API skips it).
 
-Differences from the WOS redeemer (``games.wos.gift_codes.redeemer``):
-
-- No captcha step → no ddddocr, no 8 s captcha backoff.
-- New ``40004 TIMEOUT_RETRY`` err_code → internal retry with exponential
-  backoff; surfaces as ``FAILED`` only after the retry budget is exhausted.
-- ``40017 RECHARGE_MONEY`` / ``40018 RECHARGE_MONEY_VIP`` → terminal-per-player
-  status :attr:`RedeemStatus.VIP_LEVEL_TOO_LOW` (mirrors the WOS handling of
-  ``STOVE_LEVEL_TOO_LOW``).
-- Lower throttle defaults — without captcha pressure 1 s / 4 s between players
-  and codes is safe; WOS keeps the older 2 s / 10 s values.
+Differences from the WOS module (:mod:`century.gift_codes.wos`):
+- No captcha — no ddddocr, no captcha backoff.
+- New ``40004 TIMEOUT_RETRY`` err_code → internal retry; only surfaces as
+  ``FAILED`` after the budget is exhausted.
+- ``40017`` / ``40018`` → terminal-per-player :attr:`RedeemStatus.VIP_LEVEL_TOO_LOW`.
+- Tighter inter-call cadence (no captcha pressure).
 """
 
 from __future__ import annotations
@@ -23,16 +23,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from games.wos.gift_codes.models import RedeemStatus
+import httpx
 
 from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.games import KINGSHOT
+from century.gift_codes.models import RedeemStatus
 from config.devices import load_devices
 from config.giftcodes_db import (
+    code_exists,
     list_codes,
     list_external_gamers,
     set_redemption,
@@ -51,9 +55,116 @@ _GAME_ID = KINGSHOT.id
 # Pro feature flag for redeeming codes against accounts the bot doesn't own
 # (alliance members, partner farms, etc.). Gated at three layers: this
 # redeemer (here), the API (rejects POST/DELETE on the table), and the UI.
-# Belt-and-suspenders — a stale DB row from a downgraded license still
-# stops being processed because the feature check is on every redeem run.
 _EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
+
+# ── Scraper ────────────────────────────────────────────────────────────────
+
+_AGGREGATOR_URL = KINGSHOT.aggregator_url
+_AGGREGATOR_KEY = KINGSHOT.aggregator_api_key
+_POLL_INTERVAL_SECONDS = 3600  # check every hour
+_CODE_RE = re.compile(r"^[a-zA-Z0-9]+$")
+_DATE_FMT = "%d.%m.%Y"
+
+
+async def fetch_codes_from_aggregator() -> list[tuple[str, datetime | None]]:
+    """Fetch ``[(code, discovered_at), ...]`` from the Kingshot aggregator.
+
+    The date column is optional — malformed dates are tolerated (the bot
+    upstream sometimes drops them), but malformed code strings are dropped.
+
+    Raises:
+        httpx.RequestError: network/TLS/timeout problems.
+        httpx.HTTPStatusError: non-2xx response.
+    """
+    headers = {"X-API-Key": _AGGREGATOR_KEY}
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        resp = await client.get(_AGGREGATOR_URL, headers=headers)
+        resp.raise_for_status()
+        body = resp.json()
+
+    out: list[tuple[str, datetime | None]] = []
+    for raw in body.get("codes") or []:
+        parts = str(raw).strip().split()
+        if not parts:
+            continue
+        code = parts[0]
+        if not _CODE_RE.fullmatch(code):
+            continue
+        discovered_at: datetime | None = None
+        if len(parts) >= 2:
+            try:
+                discovered_at = datetime.strptime(parts[1], _DATE_FMT).replace(tzinfo=UTC)
+            except ValueError:
+                discovered_at = None
+        out.append((code, discovered_at))
+    return out
+
+
+def add_new_codes(found: list[tuple[str, datetime | None]]) -> list[str]:
+    """Insert any genuinely new codes into SQLite. Returns the names added.
+
+    ``discovered_at`` is stored as ``expires`` on the upsert call — same
+    semantic as WOS's wosrewards.com pipeline, where the date column is
+    informational and real expiry is driven by API err_codes.
+    """
+    added: list[str] = []
+    for code, discovered_at in found:
+        if code_exists(code, game=_GAME_ID):
+            continue
+        upsert_code(code, game=_GAME_ID, expires=discovered_at)
+        added.append(code)
+        logger.info("New Kingshot code discovered: %s", code)
+    return added
+
+
+async def poll_once() -> list[str]:
+    """One scrape cycle. Returns newly added codes (empty list if none)."""
+    try:
+        found = await fetch_codes_from_aggregator()
+    except httpx.HTTPStatusError as e:
+        logger.warning(
+            "Kingshot aggregator returned HTTP %s: %s",
+            e.response.status_code, e.request.url,
+        )
+        return []
+    except httpx.RequestError as e:
+        logger.warning("Kingshot aggregator unreachable: %s: %s", type(e).__name__, e)
+        return []
+    except Exception:
+        logger.exception("Kingshot aggregator fetch failed")
+        return []
+
+    logger.debug("Kingshot aggregator: %d codes in response", len(found))
+    try:
+        return add_new_codes(found)
+    except Exception:
+        logger.exception("failed to persist new Kingshot gift codes to SQLite")
+        return []
+
+
+async def run_scraper_loop(
+    on_new_codes: object | None = None,
+    interval: int = _POLL_INTERVAL_SECONDS,
+) -> None:
+    """Continuously poll the Kingshot aggregator and optionally call ``on_new_codes(list[str])``."""
+    logger.info("Kingshot gift-code scraper started, interval=%ds", interval)
+    while True:
+        try:
+            new = await poll_once()
+            if new and on_new_codes is not None:
+                try:
+                    await on_new_codes(new)  # type: ignore[operator]  # ty: ignore[call-non-callable]
+                except Exception:
+                    logger.exception("on_new_codes callback failed for %s", new)
+        except asyncio.CancelledError:
+            logger.info("Kingshot gift-code scraper cancelled")
+            raise
+        except Exception:
+            logger.exception("scraper iteration crashed; continuing after interval")
+        await asyncio.sleep(interval)
+
+
+# ── Redeemer ───────────────────────────────────────────────────────────────
 
 # No captcha pressure → tighter cadence is safe. The aggregator + redeem
 # endpoint will push back with 40004 (TIMEOUT_RETRY) or HTTP 429 if we
@@ -339,11 +450,6 @@ class GiftCodeRedeemer:
         # Retry budget exhausted on TIMEOUT_RETRY.
         logger.warning("Kingshot redeem fid=%d code=%s exhausted TIMEOUT_RETRY budget", fid, code)
         return RedeemStatus.FAILED, ErrCode.TIMEOUT_RETRY.value, "TIMEOUT RETRY"
-
-
-# ------------------------------------------------------------------
-# Convenience entry point (matches the WOS module's signature)
-# ------------------------------------------------------------------
 
 
 async def run_gift_code_redeemer(

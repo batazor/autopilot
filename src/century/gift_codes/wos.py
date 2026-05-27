@@ -1,11 +1,14 @@
-"""Gift code redeemer via Century Game API (no UI navigation required).
+"""WOS gift-code scraper + Century API redeemer.
 
-Flow per player per code:
-  1. POST /api/player  — login / verify fid
-  2. POST /api/captcha — get CAPTCHA image
-  3. Solve CAPTCHA with ddddocr
-  4. POST /api/gift_code — redeem
-  5. Retry up to 3× on CAPTCHA errors (40101 / 40103)
+Two responsibilities, intentionally co-located so the scheduler can drive
+``poll_once`` and ``run_gift_code_redeemer`` as one logical poller per game:
+
+- :func:`poll_once` — scrape https://www.wosrewards.com/ for new codes and
+  upsert them into the SQLite ``gift_codes`` table (game-scoped to ``wos``).
+- :func:`run_gift_code_redeemer` — for every code that still needs work,
+  log each known account in and submit it via the Century Game API. Steps
+  per (player × code): ``/api/player``, ``/api/captcha`` (ddddocr solve),
+  ``/api/gift_code``, with up to 3 captcha retries.
 """
 
 from __future__ import annotations
@@ -17,12 +20,15 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from games.wos.gift_codes.models import RedeemStatus
+import httpx
+from bs4 import BeautifulSoup  # type: ignore[import-untyped]
 
 from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
+from century.gift_codes.models import RedeemStatus
 from config.devices import load_devices
 from config.giftcodes_db import (
+    code_exists,
     list_codes,
     list_external_gamers,
     set_redemption,
@@ -31,13 +37,103 @@ from config.giftcodes_db import (
 )
 from licensing.gate import has_feature
 
-_GAME_ID = "wos"
-_EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
+
+_GAME_ID = "wos"
+_EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
+
+# ── Scraper ────────────────────────────────────────────────────────────────
+
+_REWARDS_URL = "https://www.wosrewards.com/"
+_POLL_INTERVAL_SECONDS = 3600  # check every hour
+
+
+async def fetch_codes_from_web() -> list[str]:
+    """Scrape wosrewards.com and return all gift code strings found.
+
+    Raises:
+        httpx.RequestError: network/TLS/timeout problems.
+        httpx.HTTPStatusError: non-2xx response.
+    """
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        resp = await client.get(_REWARDS_URL)
+        resp.raise_for_status()
+        html = resp.text
+
+    soup = BeautifulSoup(html, "html.parser")
+    codes: list[str] = []
+    for tag in soup.find_all("h5", class_="font-bold"):
+        text = tag.get_text(strip=True)
+        if text:
+            codes.append(text)
+    return codes
+
+
+def add_new_codes(found: list[str]) -> list[str]:
+    """Insert any genuinely new codes into SQLite. Returns the names added."""
+    added: list[str] = []
+    for code in found:
+        if not code_exists(code):
+            upsert_code(code)
+            added.append(code)
+            logger.info("New code discovered: %s", code)
+    return added
+
+
+async def poll_once() -> list[str]:
+    """One scrape cycle. Returns newly added codes (empty list if none).
+
+    Network/HTTP problems are logged as warnings (transient, expected).
+    Unexpected errors (parsing, DB, validation) are logged with traceback.
+    """
+    try:
+        found = await fetch_codes_from_web()
+    except httpx.HTTPStatusError as e:
+        logger.warning(
+            "wosrewards returned HTTP %s: %s", e.response.status_code, e.request.url
+        )
+        return []
+    except httpx.RequestError as e:
+        logger.warning("wosrewards unreachable: %s: %s", type(e).__name__, e)
+        return []
+    except Exception:
+        logger.exception("wosrewards fetch failed")
+        return []
+
+    logger.debug("wosrewards: found %d codes on page", len(found))
+    try:
+        return add_new_codes(found)
+    except Exception:
+        logger.exception("failed to persist new gift codes to SQLite")
+        return []
+
+
+async def run_scraper_loop(
+    on_new_codes: object | None = None,
+    interval: int = _POLL_INTERVAL_SECONDS,
+) -> None:
+    """Continuously poll wosrewards.com and optionally call on_new_codes(list[str])."""
+    logger.info("WOS rewards scraper started, interval=%ds", interval)
+    while True:
+        try:
+            new = await poll_once()
+            if new and on_new_codes is not None:
+                try:
+                    await on_new_codes(new)  # type: ignore[operator]  # ty: ignore[call-non-callable]
+                except Exception:
+                    logger.exception("on_new_codes callback failed for %s", new)
+        except asyncio.CancelledError:
+            logger.info("WOS rewards scraper cancelled")
+            raise
+        except Exception:
+            logger.exception("scraper iteration crashed; continuing after interval")
+        await asyncio.sleep(interval)
+
+
+# ── Redeemer ───────────────────────────────────────────────────────────────
 
 _MAX_CAPTCHA_RETRIES = 3
 _INTER_PLAYER_DELAY = 2.0   # seconds between players
@@ -327,9 +423,6 @@ class GiftCodeRedeemer:
 
         return RedeemStatus.FAILED, None, None
 
-# ------------------------------------------------------------------
-# Convenience function used by cmd/gift_code.py
-# ------------------------------------------------------------------
 
 async def run_gift_code_redeemer(
     bot_instance_map: dict[str, str] | None = None,  # unused, kept for compat

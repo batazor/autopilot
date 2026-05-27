@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
     from pathlib import Path
 
-    from games.wos.gift_codes.models import GiftCode, RedeemStatus
+    from century.gift_codes.models import GiftCode, RedeemStatus
 
 logger = logging.getLogger(__name__)
 
@@ -272,7 +272,7 @@ def list_codes(*, game: str | None = _DEFAULT_GAME) -> list[GiftCode]:
     Pass ``game=None`` to load every game's codes (used by the dashboard).
     Pass an explicit ID to filter to one game (the redeemer's normal mode).
     """
-    from games.wos.gift_codes.models import GiftCode, RedeemStatus
+    from century.gift_codes.models import GiftCode, RedeemStatus
 
     with _conn_lock, _connect() as conn:
         if game is None:
@@ -319,7 +319,7 @@ def get_redemption(
     code_name: str, player_id: str, *, game: str = _DEFAULT_GAME
 ) -> RedeemStatus | None:
     """Return the recorded status for one (code, player), or ``None`` if missing."""
-    from games.wos.gift_codes.models import RedeemStatus
+    from century.gift_codes.models import RedeemStatus
 
     with _conn_lock, _connect() as conn:
         row = conn.execute(

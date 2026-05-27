@@ -39,8 +39,8 @@ _CRON_KEY = "wos:scheduler:cron:last_run"
 # (game_id, module path with poll_once + run_gift_code_redeemer, redeem-coordination
 # lock key shared with games/<game>/gift_codes/exec.py manual UI path)
 _GIFT_CODE_GAMES: list[tuple[str, str, str]] = [
-    ("wos", "games.wos.gift_codes", "wos:gift_code_redeem:lock"),
-    ("kingshot", "games.kingshot.gift_codes", "wos:gift_code_redeem:lock:kingshot"),
+    ("wos", "century.gift_codes.wos", "wos:gift_code_redeem:lock"),
+    ("kingshot", "century.gift_codes.kingshot", "wos:gift_code_redeem:lock:kingshot"),
 ]
 _GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
 _GIFT_CODE_LOCK_TTL_S = 2 * 60 * 60

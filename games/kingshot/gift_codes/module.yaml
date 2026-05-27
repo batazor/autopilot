@@ -1,5 +1,0 @@
-id: gift_codes
-title: Gift codes (Kingshot)
-description: Aggregator-based code discovery + Century API redeemer for Kingshot (no captcha).
-exec: exec.py
-wiki: false
