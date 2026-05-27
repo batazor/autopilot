@@ -16,11 +16,11 @@ function slugForEmail(sub: string): string {
   );
 }
 
-function downloadEnvelope(result: LicenseIssueResult): void {
-  const sub = String(result.envelope.issued_to ?? "user");
-  const filename = `${slugForEmail(sub)}.licence.json`;
-  const blob = new Blob([JSON.stringify(result.envelope, null, 2)], {
-    type: "application/json",
+function downloadToken(result: LicenseIssueResult): void {
+  const sub = String((result.payload as Record<string, unknown>).sub ?? "user");
+  const filename = `${slugForEmail(sub)}.licence.jwt`;
+  const blob = new Blob([result.token + "\n"], {
+    type: "application/jwt",
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -285,17 +285,18 @@ export default function LicenseAdminPage() {
         <section className="card">
           <h2>Issued license</h2>
           <p className="muted">
-            Download the <code>.licence.json</code> file and send it to the
-            user. They import it via <code>/license</code> in their UI (or drop
-            it into <code>license-data/licence.json</code> manually).
+            Download the <code>.licence.jwt</code> file (raw signed JWT — all
+            claims are inside it) and send it to the user. They import it via{" "}
+            <code>/license</code> in the UI (or drop it into{" "}
+            <code>license-data/licence.jwt</code> manually).
           </p>
           <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
             <button
               type="button"
               className="btn-primary"
-              onClick={() => downloadEnvelope(result)}
+              onClick={() => downloadToken(result)}
             >
-              Download .licence.json
+              Download .licence.jwt
             </button>
             <CopyButton text={result.token} label="Copy raw token" />
             <CopyButton
@@ -304,7 +305,7 @@ export default function LicenseAdminPage() {
             />
           </div>
           <details style={{ marginTop: 16 }}>
-            <summary className="muted">Envelope contents</summary>
+            <summary className="muted">Decoded JWT claims (read-only)</summary>
             <pre
               style={{
                 fontSize: 12,
@@ -315,7 +316,7 @@ export default function LicenseAdminPage() {
                 overflow: "auto",
               }}
             >
-              {JSON.stringify(result.envelope, null, 2)}
+              {JSON.stringify(result.payload, null, 2)}
             </pre>
           </details>
         </section>

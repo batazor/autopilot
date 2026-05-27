@@ -12,10 +12,9 @@ from licensing.keys import admin_issuing_available
 from licensing.models import LicenseError
 from licensing.status import license_status
 from licensing.storage import (
-    build_envelope,
     extract_token,
     license_path,
-    save_license_file,
+    save_token_to_file,
 )
 from licensing.verify import verify_license
 
@@ -69,7 +68,11 @@ def issue(
     max_devices: int,
     max_players_per_device: int = 3,
 ) -> dict[str, Any]:
-    """Mint a license and return ``{ token, payload, envelope }``."""
+    """Mint a license and return ``{ token, payload }``.
+
+    ``payload`` is the JWT claims for display/inspection; ``token`` is the
+    authoritative signed string the user must keep.
+    """
     try:
         token, payload = issue_license(
             sub=sub,
@@ -84,21 +87,20 @@ def issue(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except LicenseError as exc:
         raise HTTPException(status_code=500, detail=exc.reason) from exc
-    envelope = build_envelope(token, payload)
-    return {"token": token, "payload": payload, "envelope": envelope}
+    return {"token": token, "payload": payload}
 
 
 def import_license_file(content: bytes) -> dict[str, Any]:
-    """User-side: validate uploaded file and write it to the configured path.
+    """User-side: validate uploaded JWT and write it to the configured path.
 
     Refuses files that:
-    - aren't a JSON envelope or bare JWT,
+    - aren't a valid JWT shape,
     - have an invalid signature,
-    - bind a different machine id,
+    - bind a different machine id (wildcard ``*`` accepts any host),
     - have already expired.
 
-    On success returns the new status (so the UI can render the result without
-    a follow-up round-trip).
+    On success returns the new status so the UI can render the result without
+    a follow-up round-trip.
     """
     try:
         token = extract_token(content)
@@ -112,14 +114,7 @@ def import_license_file(content: bytes) -> dict[str, Any]:
         status_code = 400 if exc.code in {"bad_signature", "bad_payload", "invalid"} else 409
         raise HTTPException(status_code=status_code, detail=exc.reason) from exc
 
-    # Round-trip the envelope through ``extract_token`` -> we already have the
-    # token. Reconstruct a clean envelope from the verified claims so a sloppy
-    # upload (e.g., raw JWT with no metadata) still produces a tidy file on disk.
-    import jwt
-
-    payload = jwt.decode(token, options={"verify_signature": False})
-    envelope = build_envelope(token, payload)
-    path = save_license_file(envelope)
+    path = save_token_to_file(token)
 
     return {
         "ok": True,

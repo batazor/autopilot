@@ -1,44 +1,27 @@
-"""License file format + persistence.
+"""License file persistence.
 
-The license file is a JSON *envelope* — the JWT plus advisory metadata so the
-user can inspect the file without booting the bot:
+The license file is the **raw JWT** — nothing else. All license metadata
+(tier, machine_id, max_devices, max_players_per_device, expiry, features)
+lives inside the signed JWT and the runtime verifies that signature.
 
-    {
-      "format": "wos-license-v1",
-      "issued_to": "alice@example.com",
-      "issued_at": "2026-05-25T10:00:00+00:00",
-      "expires_at": "2026-06-24T10:00:00+00:00",
-      "machine_id": "ABCD-EFGH-IJKL-MNOP",
-      "tier": "pro",
-      "features": ["heroes", "mail"],
-      "token": "eyJhbGc...Mp1tAuyu..."
-    }
+We deliberately do **not** wrap the JWT in a JSON envelope: any field
+outside the signature is advisory/untrusted, and shipping a JSON wrapper
+invited "but the file says tier=pro" arguments. The token is authoritative.
 
-Only ``token`` is authoritative — the JWT itself is signed and carries the
-canonical claims. The other fields are derived at issue-time for convenience.
-
-The loader is forgiving: a file containing *just* a bare JWT string (no JSON
-envelope) is accepted too, so power users can hand-roll one with a single
-``echo "$TOKEN" > licence.json``.
-
-Default location: ``<repo_root>/license-data/licence.json`` — a directory
-mount (not a file mount) so Docker can bind it before the file exists and the
-UI can write to it.
+Default location: ``<repo_root>/license-data/licence.jwt`` — a directory
+mount (not a file mount) so Docker can bind it before the file exists and
+the UI can write to it.
 """
 from __future__ import annotations
 
-import json
 import os
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from licensing.models import LicenseError
 
 LICENSE_FILE_ENV = "WOS_LICENSE_FILE"
 LICENSE_TOKEN_ENV = "WOS_LICENSE"
-ENVELOPE_FORMAT = "wos-license-v1"
-DEFAULT_FILENAME = "licence.json"
+DEFAULT_FILENAME = "licence.jwt"
 DEFAULT_DIRNAME = "license-data"
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -59,45 +42,11 @@ def license_path() -> Path:
     return Path(override) if override else default_license_path()
 
 
-def build_envelope(token: str, payload: dict[str, Any]) -> dict[str, Any]:
-    """Build the JSON envelope around a signed JWT.
-
-    All metadata fields come from the same ``payload`` that was signed —
-    nothing the loader trusts is duplicated, so a divergence between
-    envelope metadata and JWT claims is harmless (claims win).
-    """
-    def _iso(field: str) -> str | None:
-        ts = payload.get(field)
-        if ts is None:
-            return None
-        try:
-            return datetime.fromtimestamp(float(ts), tz=UTC).isoformat()
-        except (TypeError, ValueError):
-            return None
-
-    return {
-        "format": ENVELOPE_FORMAT,
-        "issued_to": payload.get("sub"),
-        "issued_at": _iso("iat"),
-        "expires_at": _iso("exp"),
-        "machine_id": payload.get("machine_id"),
-        "tier": payload.get("tier"),
-        "features": list(payload.get("features") or []),
-        "max_devices": payload.get("max_devices"),
-        "max_players_per_device": payload.get("max_players_per_device"),
-        "token": token,
-    }
-
-
-def envelope_bytes(envelope: dict[str, Any]) -> bytes:
-    """Stable serialization used for download + on-disk writes."""
-    return json.dumps(envelope, indent=2, sort_keys=False).encode("utf-8")
-
-
 def extract_token(content: str | bytes) -> str:
-    """Pull a JWT out of either an envelope JSON or a raw token blob.
+    """Pull the JWT out of a license file's content.
 
-    Raises :class:`LicenseError` if neither shape produces a token.
+    The file is expected to contain a bare JWT (three base64url segments
+    separated by ``.``). Whitespace is trimmed; anything else raises.
     """
     text = content.decode("utf-8") if isinstance(content, bytes) else content
     text = text.strip()
@@ -105,22 +54,9 @@ def extract_token(content: str | bytes) -> str:
         msg = "license file is empty"
         raise LicenseError(msg, code="bad_file")
 
-    # Try JSON envelope first.
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        data = None
-    if isinstance(data, dict):
-        token = str(data.get("token") or "").strip()
-        if not token:
-            msg = "license file envelope has no 'token' field"
-            raise LicenseError(msg, code="bad_file")
-        return token
-
-    # Fall back to treating the whole thing as a bare JWT.
-    # Minimal sanity check — three base64url segments separated by dots.
-    if text.count(".") != 2 or " " in text or "\n" in text:
-        msg = "license file is neither a valid JSON envelope nor a bare JWT"
+    # JWT shape check: exactly two dots, no whitespace inside.
+    if text.count(".") != 2 or " " in text or "\n" in text or "\t" in text:
+        msg = "license file is not a valid JWT (expected three base64url segments separated by dots)"
         raise LicenseError(msg, code="bad_file")
     return text
 
@@ -139,12 +75,16 @@ def load_token_from_file(path: Path | None = None) -> str:
     return extract_token(content)
 
 
-def save_license_file(envelope: dict[str, Any], path: Path | None = None) -> Path:
-    """Atomically write the envelope to disk. Creates parent dir if missing."""
+def save_token_to_file(token: str, path: Path | None = None) -> Path:
+    """Atomically write the JWT to disk. Creates parent dir if missing."""
+    token = (token or "").strip()
+    if not token:
+        msg = "refusing to save empty token"
+        raise LicenseError(msg, code="bad_file")
     path = path or license_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_bytes(envelope_bytes(envelope))
+    tmp.write_text(token + "\n", encoding="utf-8")
     # ``Path.replace`` is atomic on POSIX even across same-filesystem moves —
     # readers see either the old or new file, never a half-written one.
     tmp.replace(path)

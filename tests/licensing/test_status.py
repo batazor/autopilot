@@ -6,7 +6,7 @@ from licensing.fingerprint import generate_fingerprint
 from licensing.issue import issue_license
 from licensing.models import LicenseError
 from licensing.status import license_status, load_license
-from licensing.storage import build_envelope, save_license_file
+from licensing.storage import save_token_to_file
 
 
 def test_status_missing_when_nothing_configured(
@@ -41,11 +41,11 @@ def test_status_active_via_file(
 ) -> None:
     monkeypatch.delenv("WOS_LICENSE", raising=False)
     host_fp = generate_fingerprint()
-    token, payload = issue_license(
+    token, _ = issue_license(
         sub="bob@example.com", machine_id=host_fp, features=["mail"],
     )
-    license_file = tmp_path / "licence.json"
-    save_license_file(build_envelope(token, payload), license_file)
+    license_file = tmp_path / "licence.jwt"
+    save_token_to_file(token, license_file)
     monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     status = license_status()
     assert status.active is True
@@ -58,11 +58,11 @@ def test_env_takes_precedence_over_file(
 ) -> None:
     host_fp = generate_fingerprint()
     env_token, _ = issue_license(sub="env-user@example.com", machine_id=host_fp)
-    file_token, file_payload = issue_license(
+    file_token, _ = issue_license(
         sub="file-user@example.com", machine_id=host_fp,
     )
-    license_file = tmp_path / "licence.json"
-    save_license_file(build_envelope(file_token, file_payload), license_file)
+    license_file = tmp_path / "licence.jwt"
+    save_token_to_file(file_token, license_file)
     monkeypatch.setenv("WOS_LICENSE_FILE", str(license_file))
     monkeypatch.setenv("WOS_LICENSE", env_token)
 

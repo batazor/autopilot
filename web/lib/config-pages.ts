@@ -194,19 +194,6 @@ export type LicenseStatus = {
   license_file: string;
 };
 
-export type LicenseEnvelope = {
-  format: string;
-  issued_to: string | null;
-  issued_at: string | null;
-  expires_at: string | null;
-  machine_id: string | null;
-  tier: string | null;
-  features: string[];
-  max_devices: number | null;
-  max_players_per_device: number | null;
-  token: string;
-};
-
 export type LicenseIssueRequest = {
   sub: string;
   machine_id: string;
@@ -220,7 +207,6 @@ export type LicenseIssueRequest = {
 export type LicenseIssueResult = {
   token: string;
   payload: Record<string, unknown>;
-  envelope: LicenseEnvelope;
 };
 
 export type LicenseImportResult = {

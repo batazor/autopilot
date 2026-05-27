@@ -55,7 +55,7 @@ def post_issue(
 
 @router.post("/import")
 async def post_import(
-    file: Annotated[UploadFile, File(description=".licence.json envelope or bare JWT")],
+    file: Annotated[UploadFile, File(description="raw JWT (e.g. licence.jwt)")],
 ) -> dict[str, Any]:
     """User-side import: validate against this host and persist to disk."""
     content = await file.read(_MAX_UPLOAD_BYTES + 1)

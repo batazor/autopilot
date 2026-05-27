@@ -98,7 +98,7 @@ export default function LicensePage() {
         <p className="muted">
           The bot worker refuses to start without a valid license bound to this
           host. Send your fingerprint below to the maintainer, then import the
-          <code> .licence.json</code> file they send back.
+          <code> .licence.jwt</code> file they send back.
         </p>
       </PageHeader>
 
@@ -205,14 +205,14 @@ export default function LicensePage() {
       <section className="card" style={{ marginBottom: 16 }}>
         <h2>Import license file</h2>
         <p className="muted">
-          Select the <code>.licence.json</code> file the maintainer sent
+          Select the <code>.licence.jwt</code> file the maintainer sent
           you. It will be verified against this host and saved to the path
           shown above. The bot picks it up on next restart.
         </p>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".json,application/json,.licence"
+          accept=".jwt,.licence,.txt,text/plain,application/jwt"
           onChange={onFileSelected}
           disabled={importing}
           style={{ display: "none" }}
