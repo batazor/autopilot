@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { BotStartBanner } from "@/components/BotStartBanner";
+import { OnboardingChecklist } from "@/components/onboarding/OnboardingChecklist";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
@@ -149,6 +150,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
       </div>
 
       <BotStartBanner />
+      <OnboardingChecklist />
 
       <div className="nav-search-wrap">
         <label className="sr-only" htmlFor="nav-filter">

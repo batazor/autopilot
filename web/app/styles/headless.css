@@ -221,4 +221,40 @@
     @apply text-wos-text-muted;
   }
 
+  .onboarding-checklist {
+    @apply mx-3 mt-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/60 px-3 py-2.5 text-xs;
+  }
+
+  .onboarding-checklist__header {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .onboarding-checklist__title {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-wos-text-muted;
+  }
+
+  .onboarding-checklist__dismiss {
+    @apply -mr-1 flex h-5 w-5 items-center justify-center rounded text-base leading-none text-wos-text-muted hover:bg-wos-surface hover:text-wos-text;
+  }
+
+  .onboarding-checklist__list {
+    @apply m-0 flex list-none flex-col gap-1 p-0;
+  }
+
+  .onboarding-checklist__item {
+    @apply flex items-center gap-2 text-wos-text-secondary;
+  }
+
+  .onboarding-checklist__item.is-done {
+    @apply text-wos-text-muted line-through;
+  }
+
+  .onboarding-checklist__bullet {
+    @apply inline-flex h-4 w-4 items-center justify-center text-[11px];
+  }
+
+  .onboarding-checklist__item.is-done .onboarding-checklist__bullet {
+    @apply text-emerald-400;
+  }
+
 }
