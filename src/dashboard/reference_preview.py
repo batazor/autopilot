@@ -12,6 +12,7 @@ from config.paths import repo_root
 from config.reference_naming import (
     EVENTS_SUBDIR,
     TEMPORAL_SUBDIR,
+    instance_preview_root,
     reference_file_basename,
     rolling_preview_basename,
 )
@@ -113,8 +114,8 @@ def _newest_png_for_instance_then_any(root: Path, instance_id: str) -> Path | No
 
 
 def rolling_live_preview_path(instance_id: str) -> Path:
-    """Worker + Instance rolling frame: ``references/temporal/{instance_id}_current_state.png``."""
-    return references_root() / TEMPORAL_SUBDIR / f"{rolling_preview_basename(instance_id)}.png"
+    """Worker + Instance rolling frame: ``temporal/{instance_id}_current_state.png``."""
+    return instance_preview_root(repo_root()) / f"{rolling_preview_basename(instance_id)}.png"
 
 
 def copy_rolling_preview_to(
@@ -251,7 +252,7 @@ def resolve_rename_source_path(
     if name_input.strip():
         base = reference_file_basename(name_input.strip(), instance_id)
         if base == rolling_preview_basename(instance_id):
-            p = root / TEMPORAL_SUBDIR / f"{base}.png"
+            p = instance_preview_root(repo_root()) / f"{base}.png"
         else:
             p = root / f"{base}.png"
         if p.is_file():

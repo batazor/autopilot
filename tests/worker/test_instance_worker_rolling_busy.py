@@ -195,7 +195,7 @@ def _active_player_for_rolling(mocker) -> None:
 @pytest.fixture
 def _isolated_refs(mocker, tmp_path: Any) -> Any:
     """Redirect rolling-preview PNG writes to ``tmp_path`` so tests don't
-    dirty the repo's real ``references/temporal/`` directory."""
+    dirty the repo's real ``temporal/`` directory."""
     import worker.instance_worker_rolling as rolling_mod
 
     base_dir = tmp_path / "refs"

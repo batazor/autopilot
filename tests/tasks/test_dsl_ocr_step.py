@@ -792,7 +792,7 @@ async def test_ocr_chief_profile_player_id_live_knn_pipeline(
 ) -> None:
     """Regression: ``who_i_am`` uses ``kNN/digital`` on narrowed ``player.id``.
 
-    Fixture copied from ``references/temporal/bs1_approval_current.png``.
+    Fixture copied from ``temporal/bs1_approval_current.png``.
     """
     from kNN.digital.paths import model_path
 

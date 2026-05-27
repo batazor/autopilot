@@ -577,7 +577,7 @@ class InstanceWorker(
     def _remove_stale_temporal_screenshots_on_boot(self) -> None:
         """Delete rolling/approval PNGs left over from the previous worker run.
 
-        The analyzer reads ``references/temporal/<iid>_current_state.png`` on
+        The analyzer reads ``temporal/<iid>_current_state.png`` on
         every overlay tick. After a restart that file still holds the last
         frame from the dead process; if the new capture is slow (device offline,
         ADB reconnect, foreground-the-game wait), the analyzer can match

@@ -11,14 +11,17 @@ from layout.area_manifest import load_area_doc
 from layout.template_match import _phash_match_score, patch_bgr_from_bbox_percent
 
 REPO = Path(__file__).resolve().parents[2]
-FRAME = REPO / "references/temporal/bs1_current_state.png"
+FRAME = REPO / "temporal/bs1_current_state.png"
 WELCOME_BACK_BBOX = {
     "x": 35.13899613899614,
     "y": 18.515217391304347,
     "width": 29.44401544401545,
     "height": 2.1869565217391305,
 }
-TEMPLATE = REPO / "references/crop/welcome_back_text.welcome_back.png"
+TEMPLATE = (
+    REPO
+    / "modules/core/welcome_back/references/crop/welcome_back_text.welcome_back.png"
+)
 THRESHOLD = 0.9
 
 

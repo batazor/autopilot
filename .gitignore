@@ -64,7 +64,7 @@ db/*.yaml
 db/state/
 
 # --- Runtime / bot process ----------------------------------------------------
-references/temporal/
+temporal/
 # Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
 **/rehearsal/*
 !**/rehearsal/fixtures/

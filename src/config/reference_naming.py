@@ -12,11 +12,20 @@ if TYPE_CHECKING:
 _REF_NAME_MAX = 120
 _DEFAULT_BASE_SUFFIX = "current_state"
 
-# Rolling OCR / UI preview captures (not shown in Labeling tree).
+# Per-module Labeling subdir for pending captures (e.g. ``modules/<id>/references/temporal/``).
 TEMPORAL_SUBDIR = "temporal"
+
+# Top-level directory for live ADB rolling/approval previews. Hosted outside
+# ``references/`` so the Labeling references tree stays free of instance state.
+INSTANCE_PREVIEW_DIR = "temporal"
 
 # Event icons (rendered next to scenario names in the UI).
 EVENTS_SUBDIR = "events"
+
+
+def instance_preview_root(repo_root: Path) -> Path:
+    """Top-level directory for ADB rolling/approval previews (``<repo>/temporal``)."""
+    return repo_root / INSTANCE_PREVIEW_DIR
 
 
 def event_icon_abs_path(repo_root: Path, slug: str) -> Path | None:
@@ -52,18 +61,20 @@ def rolling_preview_basename(instance_id: str) -> str:
 
 
 def reference_png_abs_path(repo_root: Path, base: str, instance_id: str) -> Path:
-    """Path for ``references/temporal/<base>.png`` (preview) or ``references/<base>.png``."""
-    refs = repo_root / "references"
+    """Path for the rolling preview PNG (``<repo>/temporal/<base>.png``) or
+    a published reference (``<repo>/references/<base>.png``)."""
     if base == rolling_preview_basename(instance_id):
-        out = refs / TEMPORAL_SUBDIR / f"{base}.png"
+        out = instance_preview_root(repo_root) / f"{base}.png"
         out.parent.mkdir(parents=True, exist_ok=True)
         return out
-    return refs / f"{base}.png"
+    return repo_root / "references" / f"{base}.png"
 
 
 def temporal_png_abs_path(repo_root: Path, base: str) -> Path:
-    """Path for a temporary PNG under ``references/temporal/<base>.png`` (non-rolling)."""
-    return temporal_png_abs_path_in_refs(repo_root / "references", base)
+    """Path for an instance-level rolling/approval preview (``<repo>/temporal/<base>.png``)."""
+    out = instance_preview_root(repo_root) / f"{base}.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    return out
 
 
 def temporal_png_abs_path_in_refs(references_dir: Path, base: str) -> Path:

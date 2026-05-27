@@ -43,7 +43,7 @@ def _area_doc() -> dict[str, Any]:
 
 
 def _safe_output_path(output: str | None, *, default_name: str) -> Path:
-    rel = str(output or "").strip() or f"references/temporal/{default_name}"
+    rel = str(output or "").strip() or f"temporal/{default_name}"
     path = Path(rel)
     if path.is_absolute() or ".." in path.parts:
         msg = "output must be a repo-relative path without '..'"
