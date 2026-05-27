@@ -34,9 +34,9 @@ class InstanceWorkerUiMixin(_Base):
 
     async def _push_ui_screenshot(self, reference_name: str | None = None) -> None:
         root = repo_root()
-        (root / "references").mkdir(parents=True, exist_ok=True)
         base = reference_file_basename(reference_name, self._cfg.instance_id)
         path = reference_png_abs_path(root, base, self._cfg.instance_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
         ok, msg = adb_screencap_to_file(
             path,
             adb_bin=self._worker_adb_bin(),
