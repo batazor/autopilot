@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import re
@@ -538,7 +539,6 @@ class SchedulerRunner:
         vice-versa) sees *already running* instead of racing.
         """
         assert self._redis is not None
-        import importlib
 
         for game_id, module_path, redeem_lock_key in _GIFT_CODE_GAMES:
             # 30s scheduler ticks must not re-fire inside the 6-hour cron
@@ -564,7 +564,7 @@ class SchedulerRunner:
 
             task = asyncio.create_task(
                 self._gift_codes_run_once(
-                    game_id, module_path, redeem_lock_key, token, importlib,
+                    game_id, module_path, redeem_lock_key, token,
                 ),
                 name=f"gift-codes-poll-{game_id}",
             )
@@ -577,12 +577,11 @@ class SchedulerRunner:
         module_path: str,
         redeem_lock_key: str,
         token: str,
-        importlib_mod: object,
     ) -> None:
         """One scrape+redeem cycle. Releases the redeem lock only if we still own it."""
         assert self._redis is not None
         try:
-            mod = importlib_mod.import_module(module_path)  # type: ignore[attr-defined]
+            mod = importlib.import_module(module_path)
             try:
                 new_codes = await mod.poll_once()
                 logger.info(
