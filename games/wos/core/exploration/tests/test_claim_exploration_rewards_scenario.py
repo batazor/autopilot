@@ -106,5 +106,13 @@ async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
         ),
         call("bs1", ANY, approval_region="button.claim"),
         call("bs1", ANY, approval_region="button.claim.big"),
-        call("bs1", ANY, approval_region="button.tap_anywhere_to_exit"),
+        # ``button.tap_anywhere_to_exit`` carries ``tap_hold_ms: 200`` in
+        # ``games/wos/core/common/area.yaml`` so the production tap propagates
+        # ``hold_ms=200`` (long-press dismiss to avoid spawning followups).
+        call(
+            "bs1",
+            ANY,
+            approval_region="button.tap_anywhere_to_exit",
+            hold_ms=200,
+        ),
     ]

@@ -49,7 +49,10 @@ async def test_main_city_vault_icon_template_loads() -> None:
 def test_screen_verify_registers_deals_vault_of_enigma() -> None:
     screen_graph.load_screen_verify_config.cache_clear()
     try:
-        expected = [{"match": "vault_of_enigma.title", "threshold": 0.9}]
+        # ``routes/screen_verify.yaml`` pins this at 0.74 — the icon is small
+        # and overprinted with the event ribbon, so the stricter 0.9 from the
+        # underlying ``area.yaml`` region was missing the right frame.
+        expected = [{"match": "vault_of_enigma.title", "threshold": 0.74}]
         assert screen_graph.screen_verify_rules("deals.vault_of_enigma") == expected
         assert screen_graph.screen_landmark_rules("deals.vault_of_enigma") == expected
     finally:
@@ -85,6 +88,11 @@ async def test_main_city_routes_to_deals_vault_of_enigma() -> None:
 
 @pytest.mark.asyncio
 async def test_deals_hub_routes_to_vault_tab() -> None:
+    """Vault of Enigma is reached via a template-icon resolver from
+    ``main_city``, not via a static ``deals → vault`` tap region. From the
+    deals hub the BFS therefore backs out to ``main_city`` and then forward
+    to the vault — there's no shortcut edge to take.
+    """
     screen_graph.load_screen_verify_config.cache_clear()
     try:
         hops = await screen_graph.route_hops_async(
@@ -94,7 +102,18 @@ async def test_deals_hub_routes_to_vault_tab() -> None:
             redis_client=None,
         )
         assert hops == [
-            ("deals.vault_of_enigma", ["deals.to.vault_of_enigma"]),
+            ("main_city", ["icon.page.back"]),
+            (
+                "deals.vault_of_enigma",
+                [
+                    {
+                        "region": "main_city.icon_search",
+                        "template": "games/wos/events/vault_of_enigma/references/main_city.event.vault_of_enigma.png",
+                        "threshold": 0.9,
+                        "type": "template_icon",
+                    },
+                ],
+            ),
         ]
     finally:
         screen_graph.load_screen_verify_config.cache_clear()

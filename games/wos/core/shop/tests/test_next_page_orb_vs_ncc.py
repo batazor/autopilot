@@ -24,14 +24,19 @@ from layout.template_match import match_template_full_frame_cached, template_cac
 MODULE_DIR = Path(__file__).resolve().parents[1]
 REFERENCES_DIR = MODULE_DIR / "references"
 REPO_ROOT = MODULE_DIR.parents[3]
-TEMPLATE_PATH = REPO_ROOT / "references" / "crop" / "page.shop_shop.tab.next_page.png"
+# After Phase 3, per-module crops live next to the module they label. The
+# ``v1_`` prefix tags this as the base shop layout's arrow (vs the
+# ``dawn_market_`` variant for the dawn-fund sub-page).
+TEMPLATE_PATH = (
+    REFERENCES_DIR / "crop" / "page.shop.v1_shop.tab.next_page.png"
+)
 
 # Per area.yaml: bbox is x=92.08, y=8.48, w=4.60, h=2.99 (percent) but the
 # rule sets ``isSearch: true`` so the runtime scans the full frame. Mirror
 # that here for a like-for-like NCC comparison.
 FULL_BBOX = {"x": 0.0, "y": 0.0, "width": 100.0, "height": 100.0}
 
-# Production thresholds (see modules/core/shop/area.yaml + analyze/pages/common.yaml).
+# Production thresholds (see games/wos/core/shop/area.yaml + analyze/pages/common.yaml).
 NCC_PROD_THRESHOLD = 0.8
 ORB_TRIAL_THRESHOLD = 0.4  # inlier-ratio; same scale as feature_match action gate
 

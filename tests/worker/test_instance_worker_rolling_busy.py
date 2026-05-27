@@ -181,7 +181,13 @@ class _Harness(InstanceWorkerRollingMixin):
 
 @pytest.fixture(autouse=True)
 def _active_player_for_rolling(mocker) -> None:
-    """Most harness ticks assume post-identity; boot-phase tests opt out."""
+    """Most harness ticks assume post-identity; boot-phase tests opt out.
+
+    Also stubs ``_read_navigating`` to ``False`` so the busy-gate tests don't
+    inadvertently consult a shared testcontainer Redis where another test
+    may have left ``nav_target`` set for instance ``bs1`` — that pollution
+    flipped ``navigating`` true and bypassed the skip-detect-while-busy gate.
+    """
 
     async def _read(_instance_id: str, _redis: object) -> str:
         return "test_player"
@@ -189,6 +195,14 @@ def _active_player_for_rolling(mocker) -> None:
     mocker.patch(
         "tasks.dsl_scenario_helpers._read_active_player",
         side_effect=_read,
+    )
+
+    async def _nav_false(_instance_id: str, _redis: object) -> bool:
+        return False
+
+    mocker.patch(
+        "worker.instance_worker_rolling._read_navigating",
+        side_effect=_nav_false,
     )
 
 

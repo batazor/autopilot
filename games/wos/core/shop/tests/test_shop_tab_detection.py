@@ -65,12 +65,13 @@ async def test_daily_deals_next_page_carousel_arrows(
     threshold: float,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Count how many ``shop.tab.next_page`` matches appear on ``page.shop.daily_deals.png``.
+    """``shop.tab.next_page`` is detected on the daily-deals carousel.
 
     The region carries ``isSearch: true`` so the matcher scans the whole frame —
     we iterate with ``exclude_top_lefts`` to enumerate every distinct match above
-    *threshold*. The tab strip has two identical carousel arrows (left + right
-    edges), so the matcher legitimately reports both.
+    *threshold*. The current crop is directional (right-pointing chevron) so
+    only the right-edge arrow matches; the test guards that one stays
+    detectable across both production thresholds (0.85, 0.9).
     """
     frame = _load_bgr("page.shop.daily_deals.png")
 
@@ -104,9 +105,13 @@ async def test_daily_deals_next_page_carousel_arrows(
     with capsys.disabled():
         print(f"\n[daily_deals @ thr={threshold}] matches={len(found)} -> {found}")
 
-    assert len(found) == 2, (
-        f"[daily_deals @ thr={threshold}] expected 2 shop.tab.next_page matches "
-        f"(left + right carousel arrows), got {len(found)}: {found}"
+    assert len(found) == 1, (
+        f"[daily_deals @ thr={threshold}] expected 1 shop.tab.next_page match "
+        f"(right-edge carousel arrow), got {len(found)}: {found}"
+    )
+    # Right edge of the tab strip, at ~92% of frame width.
+    assert found[0]["top_left"][0] > frame.shape[1] * 0.8, (
+        f"expected match near the right edge, got top_left={found[0]['top_left']}"
     )
 
 
