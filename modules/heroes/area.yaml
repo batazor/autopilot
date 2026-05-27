@@ -1,8 +1,391 @@
 version: 2
-# Screen scaffolds for the heroes feature module. Regions are added via the
-# annotator UI — do not hand-edit ``regions``.
 screens:
 - id: 1300
   screen_id: heroes.sr.new
   ocr: references/heroes.sr.new.png
+  regions: []
+- id: 41
+  screen_id: hero.recrutment
+  ocr: references/page.hero.recrutment.png
+  regions:
+  - name: key.silver
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 29.305019305019307
+      y: 1.7391304347826086
+      width: 12.200772200772201
+      height: 2.6
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: key.gold
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 55.173745173745175
+      y: 1.7391304347826086
+      width: 12.3996138996139
+      height: 2.6
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: diamond
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 81.27413127413128
+      y: 1.8478260869565217
+      width: 12.6003861003861
+      height: 2.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: isHeroRecruitment
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 74.9034749034749
+      y: 1.3043478260869565
+      width: 6.0
+      height: 3.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: free_recruitments_today
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 43.59073359073359
+      y: 60.21739130434783
+      width: 7.399613899613899
+      height: 2.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: hero.recrutment.advanced.free
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 21.003861003861005
+      y: 65.8695652173913
+      width: 10.513513513513514
+      height: 2.356521739130435
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
+- id: 47
+  screen_id: heroes
+  ocr: references/page.heroes.png
+  regions:
+  - name: heroes.recruit
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 26.40926640926641
+      y: 90.43478260869566
+      width: 47.0
+      height: 8.2
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: heroes.grid
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 3.2432432432432434
+      y: 7.282608695652174
+      width: 93.0
+      height: 80.3
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r0c0
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 9.86100386100386
+      y: 15.078260869565218
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r0c1
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 32.91698841698842
+      y: 15.078260869565218
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r0c2
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 55.972972972972975
+      y: 15.078260869565218
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r0c3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.02702702702703
+      y: 15.078260869565218
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r1c0
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 9.86100386100386
+      y: 37.03152173913043
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r1c1
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 32.91698841698842
+      y: 37.03152173913043
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r1c2
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 55.972972972972975
+      y: 37.03152173913043
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r1c3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.02702702702703
+      y: 37.03152173913043
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r2c0
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 9.86100386100386
+      y: 58.98478260869565
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r2c1
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 32.91698841698842
+      y: 58.98478260869565
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r2c2
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 55.972972972972975
+      y: 58.98478260869565
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r2c3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.02702702702703
+      y: 58.98478260869565
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r3c0
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 9.86100386100386
+      y: 80.93804347826087
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r3c1
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 32.91698841698842
+      y: 80.93804347826087
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r3c2
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 55.972972972972975
+      y: 80.93804347826087
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: heroes.grid.r3c3
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 79.02702702702703
+      y: 80.93804347826087
+      width: 11.111969111969112
+      height: 6.25
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+- id: 50
+  screen_id: heroes
+  ocr: references/page.heroes.unit.png
+  regions:
+  - name: page.heroes.unit.name
+    action: text
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 29.111969111969117
+      y: 0.21739130434782608
+      width: 52.60038610038611
+      height: 4.1
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.heroes.unit.level
+    action: text
+    type: integer
+    threshold: 0.9
+    bbox:
+      x: 44.16988416988417
+      y: 75.8695652173913
+      width: 11.3996138996139
+      height: 3.9999999999999996
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.heroes.unit.wiki
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 90.34749034749035
+      y: 0.6521739130434783
+      width: 9.0
+      height: 4.7
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.heroes.unit.previously_unit
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 2.277992277992278
+      y: 51.73913043478261
+      width: 9.200772200772201
+      height: 6.5
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.heroes.unit.next_unit
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 88.61003861003861
+      y: 51.52173913043478
+      width: 8.3996138996139
+      height: 6.4
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+  - name: page.heroes.unit.upgrade
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 30.694980694980696
+      y: 84.02173913043478
+      width: 33.89959459459459
+      height: 2.6728260869565217
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    has_red_dot: true
+  - name: page.heroes.unit.upgrade_tap
+    action: click
+    type: string
+    threshold: 0.9
+    bbox:
+      x: 67.76061776061776
+      y: 82.93478260869566
+      width: 6.608108108108107
+      height: 2.6728260869565217
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    overlay_auxiliary: true
+- id: 60
+  screen_id: ''
+  ocr: references/box.gift.png
+  regions:
+  - name: box.gift
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 80.5019305019305
+      y: 32.06521739130435
+      width: 5.828185328185328
+      height: 2.6
+      rotation: 0.0
+      original_width: 720
+      original_height: 1280
+    isSearch: true
+- id: 65
+  screen_id: heroes
+  ocr: references/page.heroes.3.png
   regions: []

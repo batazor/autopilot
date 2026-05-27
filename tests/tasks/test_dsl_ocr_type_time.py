@@ -38,7 +38,7 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
         # bbox ``building.upgrading.time`` (x=72.16% y=55.43% w=15.4% h=2.7%).
         # Locks in the round-trip the production overlay rule relies on for
         # ``throttle_push: building.upgrade`` (see analyze_building.yaml and
-        # modules/core/building/scenarios/building.upgrade.yaml).
+        # modules/core/building/common/scenarios/building.upgrade.yaml).
         ("00:00:27", 27),
     ],
 )
@@ -364,7 +364,13 @@ async def test_ocr_step_time_building_upgrading_reference_image(
     annotator and the px crop shifts, this test fails — a deliberate guard
     against silent breakage of the chapter-task throttle path.
     """
-    img = cv2.imread(str(Path("references/building.upgrading.png").resolve()))
+    img = cv2.imread(
+        str(
+            Path(
+                "modules/core/building/common/references/building.upgrading.png"
+            ).resolve()
+        )
+    )
     assert img is not None, "reference image is missing"
     h, w = img.shape[:2]
     assert (w, h) == (720, 1280), "reference image must be the 720×1280 capture baseline"

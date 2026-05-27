@@ -12,7 +12,6 @@ S and mid V. Both layers of coverage:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -28,8 +27,8 @@ from layout.tab_active_detector import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MAIL_FIXTURE = REPO_ROOT / "references" / "mail_page.png"
 MAIL_MODULE_REFERENCES = REPO_ROOT / "modules" / "mail" / "references"
+MAIL_FIXTURE = MAIL_MODULE_REFERENCES / "mail_page.png"
 TRIALS_FIXTURE = REPO_ROOT / "modules" / "events" / "trials" / "references" / "page.trials.png"
 
 ACTIVE_TAB = "mail.tab.system"
@@ -50,7 +49,7 @@ ALL_MAIL_TABS = tuple(MAIL_TAB_FIXTURES)
 
 
 def _load_area() -> dict[str, Any]:
-    return json.loads((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    return load_area_doc(REPO_ROOT)
 
 
 def _bbox_for(area_doc: dict[str, Any], name: str) -> dict[str, float]:

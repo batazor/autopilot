@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import re
 import shutil
@@ -14,6 +13,7 @@ from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from century.api import CenturyAPIError, PlayerData
+from layout.area_manifest import load_area_doc
 from layout.types import Region as LayoutRegion
 from ocr.client import OcrClient, OCRResult
 
@@ -705,7 +705,9 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_CHIEF_PROFILE_REF = _REPO_ROOT / "references" / "chief_profile.png"
+_CHIEF_PROFILE_REF = (
+    _REPO_ROOT / "modules/core/chief_profile/references/chief_profile.png"
+)
 _AREA_JSON = _REPO_ROOT / "area.json"
 # Real in-game player_id printed on the labelled chief_profile reference image.
 _REFERENCE_PLAYER_ID = "765502864"
@@ -748,7 +750,7 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     assert image is not None, f"failed to decode {_CHIEF_PROFILE_REF}"
     h, w = int(image.shape[0]), int(image.shape[1])
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    area_doc = load_area_doc(_REPO_ROOT)
     # Canonical region name in area.json is ``player.id`` (dotted), which is
     # also what ``who_i_am`` scenario consumes via ``ocr: player.id``.
     pair = screen_region_by_name(area_doc, "player.id")
@@ -810,7 +812,7 @@ async def test_ocr_chief_profile_player_id_live_knn_pipeline(
     assert image is not None
     h, w = int(image.shape[0]), int(image.shape[1])
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    area_doc = load_area_doc(_REPO_ROOT)
     pair = screen_region_by_name(area_doc, "player.id")
     assert pair is not None
     bbox = pair[1].get("bbox")

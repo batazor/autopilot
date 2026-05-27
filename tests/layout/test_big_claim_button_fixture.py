@@ -1,25 +1,27 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any
 
 import cv2
 import pytest
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
+from layout.area_manifest import load_area_doc
 
 
 @pytest.mark.asyncio
 async def test_big_claim_button_matches_on_mail_fixture() -> None:
     repo_root = Path(__file__).resolve().parents[2]
-    fixture = repo_root / "references" / "big_claim_button.png"
+    fixture = (
+        repo_root
+        / "modules/core/common/references/big_claim_button.png"
+    )
     assert fixture.is_file()
 
     image_bgr = cv2.imread(str(fixture))
     assert image_bgr is not None
 
-    area_doc: dict[str, Any] = json.loads((repo_root / "area.json").read_text(encoding="utf-8"))
+    area_doc = load_area_doc(repo_root)
     rule = {
         "name": "test.button.claim.big.visible",
         "region": "button.claim.big",

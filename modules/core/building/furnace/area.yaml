@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 57,
+      "screen_id": "furnace",
+      "ocr": "references/building.furnace.png",
+      "regions": [
+        {
+          "name": "building.furnace.max_power",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.64478764478764,
+            "y": 92.73913043478261,
+            "width": 6.984555984555985,
+            "height": 3.8282608695652174,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "building.furnace",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.0849420849420848,
+            "y": 54.78260869565217,
+            "width": 17.6003861003861,
+            "height": 3.298,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

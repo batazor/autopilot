@@ -555,8 +555,8 @@ class DslOcrMixin(_Base):
         # via ``push_scenario:``) are silently dropped until the marker
         # expires. Pairs with ``type: time`` for the "building is upgrading,
         # don't re-fire chapter task until done" idiom (see
-        # ``modules/core/building/scenarios/building.upgrade.yaml`` ↔
-        # ``modules/core/building/analyze/analyze.yaml``). Same key shape
+        # ``modules/core/building/common/scenarios/building.upgrade.yaml`` ↔
+        # ``modules/core/building/common/analyze/analyze.yaml``). Same key shape
         # and scope as ``_enqueue_push_scenarios_from_overlay``'s push-level
         # ttl throttle so a single marker covers both push sources.
         throttle_target_raw = step.get("throttle_push")

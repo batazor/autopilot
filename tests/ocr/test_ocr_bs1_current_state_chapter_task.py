@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 from pathlib import Path
 
@@ -8,7 +7,6 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "bs1_current_state.png"
-_AREA_JSON = _REPO_ROOT / "area.json"
 
 
 def _assert_local_ocr_available() -> None:
@@ -32,20 +30,20 @@ async def test_ocr_bs1_current_state_chapter_task_prints_text() -> None:
     import cv2
 
     from layout.area_lookup import screen_region_by_name
+    from layout.area_manifest import load_area_doc
     from layout.types import Region as LayoutRegion
     from ocr.client import OcrClient
 
     assert _FIXTURE.is_file(), f"fixture missing: {_FIXTURE}"
-    assert _AREA_JSON.is_file(), f"area.json missing: {_AREA_JSON}"
     _assert_local_ocr_available()
 
     image = cv2.imread(str(_FIXTURE))
     assert image is not None, f"failed to decode {_FIXTURE}"
     h, w = int(image.shape[0]), int(image.shape[1])
 
-    area_doc = json.loads(_AREA_JSON.read_text(encoding="utf-8"))
+    area_doc = load_area_doc(_REPO_ROOT)
     pair = screen_region_by_name(area_doc, "chapter.task")
-    assert pair is not None, "area.json has no `chapter.task` region"
+    assert pair is not None, "merged area manifest has no `chapter.task` region"
     bbox = pair[1].get("bbox")
     assert isinstance(bbox, dict)
 

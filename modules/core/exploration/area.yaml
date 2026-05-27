@@ -128,6 +128,128 @@
           }
         }
       ]
+    },
+    {
+      "id": 43,
+      "screen_id": "exploration",
+      "ocr": "references/exploration.png",
+      "regions": [
+        {
+          "name": "exploration.to.squad_settings",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.343629343629345,
+            "y": 89.8913043478261,
+            "width": 20.0,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "screen_id": "squad_settings",
+      "ocr": "references/page.squad_settings.png",
+      "regions": [
+        {
+          "name": "exploration.level",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.13513513513514,
+            "y": 7.934782608695652,
+            "width": 9.35907335907336,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "squad_settings.quick_deploy",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 10.772200772200772,
+            "y": 91.52173913043478,
+            "width": 32.2007722007722,
+            "height": 4.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "squad_settings.fight",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.22779922779923,
+            "y": 91.73913043478261,
+            "width": 27.000000000000004,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exploration.state.myPower",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 18.10810810810811,
+            "y": 9.23913043478261,
+            "width": 18.2007722007722,
+            "height": 3.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "exploration.state.enemyPower",
+          "action": "text",
+          "type": "integer",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 62.74131274131274,
+            "y": 9.23913043478261,
+            "width": 18.7992277992278,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "screen_id": "squad_settings",
+      "ocr": "references/page.squad_settings.status.defeat.png",
+      "regions": [
+        {
+          "name": "page.squad_settings.status.defeat",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 34.32432432432432,
+            "y": 76.41304347826087,
+            "width": 31.7992277992278,
+            "height": 4.3999999999999995,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

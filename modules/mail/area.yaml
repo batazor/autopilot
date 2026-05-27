@@ -1,0 +1,186 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 16,
+      "screen_id": "mail",
+      "ocr": "references/mail_page.png",
+      "regions": [
+        {
+          "name": "button.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.3474903474903475,
+            "y": -0.10869565217391304,
+            "width": 10.6003861003861,
+            "height": 5.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mail.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 11.544401544401545,
+            "y": 0.32608695652173914,
+            "width": 12.23938223938224,
+            "height": 4.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "mail.tab.wars",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.0,
+            "y": 5.3,
+            "width": 22.2007722007722,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.alliance",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 22.586872586872587,
+            "y": 5.3,
+            "width": 17.3996138996139,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.system",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 40.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.reports",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 60.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.tab.starred",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 80.0,
+            "y": 5.3,
+            "width": 20.0,
+            "height": 4.5,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "has_red_dot": true
+        },
+        {
+          "name": "mail.gift",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 85.65637065637065,
+            "y": 17.391304347826086,
+            "width": 10.3996138996139,
+            "height": 5.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "mail.claim.all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 56.33204633204633,
+            "y": 93.15217391304348,
+            "width": 37.26061776061776,
+            "height": 6.4,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        },
+        {
+          "name": "mail.delete.all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 4.787644787644788,
+            "y": 93.15217391304348,
+            "width": 41.92084942084942,
+            "height": 5.831521739130435,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "screen_id": "suggestion_box",
+      "ocr": "references/postman.png",
+      "regions": [
+        {
+          "name": "isPostman",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 20.617760617760617,
+            "y": 70.69565217391305,
+            "width": 8.6003861003861,
+            "height": 4.3,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    }
+  ]
+}

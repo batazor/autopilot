@@ -11,27 +11,27 @@ this module pins down the new pieces:
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 import cv2
 
 import tasks.dsl_scenario as dsl
+from layout.area_manifest import load_area_doc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MAIL_FIXTURE = REPO_ROOT / "references" / "mail_page.png"
+MAIL_FIXTURE = REPO_ROOT / "modules" / "mail" / "references" / "mail_page.png"
 
 
 def _load_bbox(name: str) -> dict[str, float]:
-    doc: dict[str, Any] = json.loads((REPO_ROOT / "area.json").read_text(encoding="utf-8"))
+    doc: dict[str, Any] = load_area_doc(REPO_ROOT)
     for entry in doc.get("screens", []):
         for r in entry.get("regions", []):
             if r.get("name") == name:
                 bbox = r.get("bbox")
                 assert isinstance(bbox, dict)
                 return bbox
-    msg = f"region {name!r} not found in area.json"
+    msg = f"region {name!r} not found in merged area manifest"
     raise AssertionError(msg)
 
 

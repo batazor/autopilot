@@ -1,0 +1,278 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 7,
+      "screen_id": "building",
+      "ocr": "references/upgrade_building.png",
+      "regions": [
+        {
+          "name": "upgrade_building",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 75.25096525096525,
+            "y": 49.130434782608695,
+            "width": 20.0,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "screen_id": "building",
+      "ocr": "references/build_building_item.png",
+      "regions": [
+        {
+          "name": "build_building_item",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.67181467181467,
+            "y": 49.23913043478261,
+            "width": 20.0,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "screen_id": "building",
+      "ocr": "references/upgrade_button.png",
+      "regions": [
+        {
+          "name": "upgrade_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.47876447876448,
+            "y": 40.0,
+            "width": 20.0,
+            "height": 3.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "screen_id": "building",
+      "ocr": "references/go_button.png",
+      "regions": [
+        {
+          "name": "go_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 77.18146718146718,
+            "y": 59.02173913043478,
+            "width": 15.799227799227799,
+            "height": 2.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "screen_id": "building",
+      "ocr": "references/build_button.png",
+      "regions": [
+        {
+          "name": "build_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 41.46718146718147,
+            "y": 91.52173913043478,
+            "width": 20.0,
+            "height": 2.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "screen_id": "building",
+      "ocr": "references/upgrade_big_button.png",
+      "regions": [
+        {
+          "name": "upgrade_big_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 39.729729729729726,
+            "y": 91.6304347826087,
+            "width": 20.0,
+            "height": 2.847826086956522,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "screen_id": "building",
+      "ocr": "references/add_worker_button.png",
+      "regions": [
+        {
+          "name": "add_worker_button",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 62.907335907335906,
+            "y": 81.41304347826087,
+            "width": 6.399613899613899,
+            "height": 3.2,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "screen_id": "mail",
+      "ocr": "references/go_big_button.png",
+      "regions": [
+        {
+          "name": "button.go.big",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.745173745173744,
+            "y": 79.23913043478261,
+            "width": 32.3996138996139,
+            "height": 5.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "aliases": [
+            "icon.a_blue_folder_with_the_number_60"
+          ],
+          "isSearch": true
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "screen_id": "building",
+      "ocr": "references/page.building.furniture.png",
+      "regions": [
+        {
+          "name": "page.building.furniture",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.756756756756758,
+            "y": 92.17391304347827,
+            "width": 20.0,
+            "height": 5.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "from.building.to.main_city",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.702702702702704,
+            "y": 15.652173913043478,
+            "width": 73.3996138996139,
+            "height": 10.0,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "building.name",
+          "action": "text",
+          "type": "string",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.698841698841699,
+            "y": 34.67391304347826,
+            "width": 61.2007722007722,
+            "height": 9.064130434782609,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "screen_id": "building",
+      "ocr": "references/building.upgrade.png",
+      "regions": [
+        {
+          "name": "building.upgrade",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 20.81081081081081,
+            "y": 91.84782608695652,
+            "width": 60.20077220077219,
+            "height": 2.541304347826087,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "screen_id": "building",
+      "ocr": "references/building.upgrading.png",
+      "regions": [
+        {
+          "name": "building.upgrading.time",
+          "action": "text",
+          "type": "time",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 72.16216216216216,
+            "y": 55.43478260869565,
+            "width": 15.3996138996139,
+            "height": 2.7,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -24,7 +24,6 @@ frame). If we ever swap to a less consistent icon source, switch to
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import dataclass
@@ -147,12 +146,14 @@ class HeroMatch:
 
 @lru_cache(maxsize=1)
 def _heroes_grid_bbox_percent() -> dict[str, float]:
-    area = json.loads((default_repo_root() / "area.json").read_text(encoding="utf-8"))
+    from layout.area_manifest import load_area_doc
+
+    area = load_area_doc(default_repo_root())
     for screen in area.get("screens", []):
         for region in screen.get("regions", []):
             if region.get("name") == "heroes.grid":
                 return dict(region["bbox"])
-    msg = "heroes.grid region not found in area.json"
+    msg = "heroes.grid region not found in merged area manifest"
     raise RuntimeError(msg)
 
 

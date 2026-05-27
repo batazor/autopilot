@@ -136,7 +136,7 @@ def test_cascade_aux_region_names_empty_for_blank_input() -> None:
 def test_building_furniture_overlay_uses_image_match() -> None:
     repo = Path(__file__).resolve().parents[2]
     doc = yaml.safe_load(
-        (repo / "modules/core/building/analyze/analyze.yaml").read_text(encoding="utf-8")
+        (repo / "modules/core/building/common/analyze/analyze.yaml").read_text(encoding="utf-8")
     )
     rules = doc.get("overlay") or []
     assert not any(

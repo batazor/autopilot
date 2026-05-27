@@ -511,6 +511,69 @@
           "has_red_dot": true
         }
       ]
+    },
+    {
+      "id": 62,
+      "screen_id": "shop",
+      "ocr": "references/page.shop.png",
+      "regions": [
+        {
+          "name": "page.shop.dawnMarket",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 15.984555984555984,
+            "y": 9.347826086956522,
+            "width": 6.2007722007721995,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.training",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.55598455598456,
+            "y": 10.434782608695652,
+            "width": 6.2007722007721995,
+            "height": 3.1,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop.riseofthecity",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 70.42471042471043,
+            "y": 10.652173913043478,
+            "width": 5.7992277992278,
+            "height": 2.9,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "page.shop",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.266409266409266,
+            "y": 0.32608695652173914,
+            "width": 20.0,
+            "height": 6.8,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
     }
   ]
 }

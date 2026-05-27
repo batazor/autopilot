@@ -656,3 +656,7 @@ screens:
       rotation: 0.0
       original_width: 720
       original_height: 1280
+- id: 42
+  screen_id: ''
+  ocr: references/main_city_v2.png
+  regions: []

@@ -1,0 +1,7 @@
+id: building/furnace
+title: Building · Furnace
+description: Furnace screen automation (max-power tap and related popups).
+scenarios: scenarios
+area: area.yaml
+references: references
+wiki: false

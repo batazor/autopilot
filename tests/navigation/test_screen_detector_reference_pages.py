@@ -49,6 +49,10 @@ async def test_screen_detector_identifies_reference_pages(
 ) -> None:
     if filename == "isNewPeople.png":
         path = _REPO_ROOT / "modules/core/survivors/references" / filename
+    elif filename == "chief_profile.png":
+        path = _REPO_ROOT / "modules/core/chief_profile/references" / filename
+    elif filename == "mail_page.png":
+        path = _REPO_ROOT / "modules/mail/references" / filename
     else:
         path = _REPO_ROOT / "references" / filename
     assert path.is_file(), f"reference image missing: {path}"

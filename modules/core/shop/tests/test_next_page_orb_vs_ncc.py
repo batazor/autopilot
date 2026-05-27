@@ -103,7 +103,7 @@ def test_bench_orb_vs_ncc_on_shop_pages(
         print(f"\n{'fixture':45s} {'NCC':>8s} {'ORB':>8s}  ncc>=0.80  orb>=0.40")
         print("-" * 80)
         for name, ncc, orb, ncc_ok, orb_ok in rows:
-            print(f"{name:45s} {ncc:8.3f} {orb:8.3f}  {str(ncc_ok):>9s}  {str(orb_ok):>9s}")
+            print(f"{name:45s} {ncc:8.3f} {orb:8.3f}  {ncc_ok!s:>9s}  {orb_ok!s:>9s}")
         print("-- negative (should NOT match) --")
         for name, ncc, orb in neg_rows:
             print(f"{name:45s} {ncc:8.3f} {orb:8.3f}")

@@ -1,0 +1,10 @@
+id: building/common
+title: Building · Common
+description: >-
+  Shared building-screen automation — chapter-task upgrades, big upgrade button
+  taps, and overlay-driven pushes when the generic building UI is visible.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false
