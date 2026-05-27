@@ -63,6 +63,7 @@ def _wire_runner(
         return None
 
     runner._run_cron_specs = _no_cron  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
+    runner._run_gift_codes_polling = _no_cron  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     runner._load_player_states = _player_states  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     runner._build_player_instance_map = _player_instance_map  # type: ignore[assignment]  # ty: ignore[invalid-assignment]
     runner._active_scenario_id = _active_scenario_id  # type: ignore[assignment]  # ty: ignore[invalid-assignment]

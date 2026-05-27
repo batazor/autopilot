@@ -34,6 +34,17 @@ logger = logging.getLogger(__name__)
 _SCHEDULER_UI_QUEUE = WAKE_CHANNEL
 _CRON_KEY = "wos:scheduler:cron:last_run"
 
+# Gift codes — global poller, see SchedulerRunner._run_gift_codes_polling.
+# (game_id, module path with poll_once + run_gift_code_redeemer, redeem-coordination
+# lock key shared with games/<game>/gift_codes/exec.py manual UI path)
+_GIFT_CODE_GAMES: list[tuple[str, str, str]] = [
+    ("wos", "games.wos.gift_codes", "wos:gift_code_redeem:lock"),
+    ("kingshot", "games.kingshot.gift_codes", "wos:gift_code_redeem:lock:kingshot"),
+]
+_GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
+_GIFT_CODE_LOCK_TTL_S = 2 * 60 * 60
+_BACKGROUND_GIFT_CODE_TASKS: set[asyncio.Task[None]] = set()
+
 
 class SchedulerRunner:
     def __init__(
@@ -510,11 +521,110 @@ class SchedulerRunner:
         except Exception:
             logger.exception("Daily snapshot routine failed")
 
+    async def _run_gift_codes_polling(self) -> None:
+        """Scrape + redeem gift codes once globally per game, every 6 hours.
+
+        Replaces the per-account cron fan-out previously driven by
+        ``games/<game>/gift_codes/scenarios/by_cron/redeem_gift_codes.yaml``.
+        That scenario was scheduled per (device × player), so on a multi-account
+        setup the scrape hit the public aggregator N times and N-1 redeem
+        tasks just bounced off the in-flight Redis lock. Gift-code work has
+        no per-account or per-device state — driving it from the scheduler
+        runs each step exactly once and keeps the bot queue free.
+
+        Coordination with the UI manual-trigger path is via the same
+        ``wos:gift_code_redeem:lock[:game]`` key the exec handler uses, so a
+        user clicking *Redeem now* while the scheduler is mid-cycle (or
+        vice-versa) sees *already running* instead of racing.
+        """
+        assert self._redis is not None
+        import importlib
+
+        for game_id, module_path, redeem_lock_key in _GIFT_CODE_GAMES:
+            # 30s scheduler ticks must not re-fire inside the 6-hour cron
+            # window. Atomic SET NX EX; first boot acquires immediately
+            # (no key) so cold start runs once right away.
+            cadence_key = f"wos:scheduler:gift_codes_poll:{game_id}"
+            acquired = await self._redis.set(
+                cadence_key, "1", nx=True, ex=_GIFT_CODE_POLL_INTERVAL_S,
+            )
+            if not acquired:
+                continue
+
+            token = f"scheduler:{game_id}:{int(time.time())}"
+            redeem_held = await self._redis.set(
+                redeem_lock_key, token, nx=True, ex=_GIFT_CODE_LOCK_TTL_S,
+            )
+            if not redeem_held:
+                logger.info(
+                    "gift_codes_poll[%s]: redeem lock held by another caller; skip",
+                    game_id,
+                )
+                continue
+
+            task = asyncio.create_task(
+                self._gift_codes_run_once(
+                    game_id, module_path, redeem_lock_key, token, importlib,
+                ),
+                name=f"gift-codes-poll-{game_id}",
+            )
+            _BACKGROUND_GIFT_CODE_TASKS.add(task)
+            task.add_done_callback(_BACKGROUND_GIFT_CODE_TASKS.discard)
+
+    async def _gift_codes_run_once(
+        self,
+        game_id: str,
+        module_path: str,
+        redeem_lock_key: str,
+        token: str,
+        importlib_mod: object,
+    ) -> None:
+        """One scrape+redeem cycle. Releases the redeem lock only if we still own it."""
+        assert self._redis is not None
+        try:
+            mod = importlib_mod.import_module(module_path)  # type: ignore[attr-defined]
+            try:
+                new_codes = await mod.poll_once()
+                logger.info(
+                    "gift_codes_poll[%s]: scrape found %d new code(s)",
+                    game_id,
+                    len(new_codes),
+                )
+            except Exception:
+                logger.exception("gift_codes_poll[%s]: scrape failed", game_id)
+            try:
+                summary = await mod.run_gift_code_redeemer()
+                counts = summary.counts_by_status()
+                counts_s = ", ".join(f"{k}={v}" for k, v in counts.items()) or "nothing"
+                logger.info(
+                    "gift_codes_poll[%s]: redeem done total=%d %s",
+                    game_id,
+                    len(summary.results),
+                    counts_s,
+                )
+            except Exception:
+                logger.exception("gift_codes_poll[%s]: redeem failed", game_id)
+        finally:
+            # Only release if we still own the token — a parallel manual
+            # trigger may have replaced it (e.g. after our TTL).
+            try:
+                raw = await self._redis.get(redeem_lock_key)
+                current = raw.decode() if isinstance(raw, bytes) else (raw or "")
+                if current == token:
+                    await self._redis.delete(redeem_lock_key)
+            except Exception:
+                logger.debug(
+                    "gift_codes_poll[%s]: lock release failed",
+                    game_id,
+                    exc_info=True,
+                )
+
     async def _run_once(self) -> None:
         # ``_connect`` runs before any tick, so both ``_queue`` and ``_redis``
         # are always populated here.
         assert self._queue is not None
         await self._ensure_daily_snapshot()
+        await self._run_gift_codes_polling()
         await self._run_cron_specs()
         player_states = await self._load_player_states()
         scenarios = self._scenario_loader.load_all()

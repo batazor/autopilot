@@ -1,8 +1,0 @@
-name: 🎁 Redeem Gift Codes
-enabled: true
-
-cron: "0 */6 * * *"
-
-steps:
-  - exec: gift_code_scrape
-  - exec: gift_code_redeem
