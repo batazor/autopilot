@@ -20,8 +20,6 @@ export function LabelingModuleCombobox({ scopes, scope, onChange, busy }: Props)
         .sort((a, b) => {
           if (a.value === "all") return -1;
           if (b.value === "all") return 1;
-          if (a.value === "core") return -1;
-          if (b.value === "core") return 1;
           return a.value.localeCompare(b.value, undefined, { sensitivity: "base" });
         }),
     [scopes],

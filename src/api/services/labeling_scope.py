@@ -10,7 +10,6 @@ from config.module_registry import (
     CORE_MODULE_KEY,
     WikiModuleContext,
     all_modules_context,
-    core_module_context,
     list_labeling_modules,
     merge_all_area_docs,
     normalize_module_scope,
@@ -38,14 +37,12 @@ class LabelingScopeEnv:
 
 def context_for_scope(scope: str | None) -> WikiModuleContext:
     key = normalize_module_scope(scope)
-    if key == ALL_MODULES_KEY:
+    if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO)
-    if key == CORE_MODULE_KEY:
-        return core_module_context(_REPO)
     for ctx in list_labeling_modules(_REPO):
         if ctx.storage_key == key or ctx.module_id == key:
             return ctx
-    return core_module_context(_REPO)
+    return all_modules_context(_REPO)
 
 
 def scope_env(scope: str | None) -> LabelingScopeEnv:
@@ -60,10 +57,7 @@ def scope_env(scope: str | None) -> LabelingScopeEnv:
 
 def list_labeling_scopes() -> list[dict[str, Any]]:
     root = _REPO.resolve()
-    ctxs: list[WikiModuleContext] = [
-        all_modules_context(root),
-        core_module_context(root),
-    ]
+    ctxs: list[WikiModuleContext] = [all_modules_context(root)]
     ctxs.extend(c for c in list_labeling_modules(root) if c.module_id is not None)
     out: list[dict[str, Any]] = []
     for ctx in ctxs:

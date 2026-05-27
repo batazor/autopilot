@@ -27,12 +27,17 @@ export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
   };
 }
 
-/** Infer module scope from a repo-relative reference path. */
+/** Infer module scope from a repo-relative reference path.
+ *
+ * Returns the first path segment after ``modules/`` (the module slug);
+ * returns ``null`` for unrecognised paths. Root ``references/`` was drained
+ * during the modules migration, so there's no longer a "core" scope to
+ * infer there.
+ */
 export function inferScopeFromRef(refRel: string): string | null {
   const rel = refRel.replace(/\\/g, "/").trim();
   const m = rel.match(/^modules\/([^/]+)\/references\//);
   if (m) return m[1];
-  if (rel.startsWith("references/")) return "core";
   return null;
 }
 

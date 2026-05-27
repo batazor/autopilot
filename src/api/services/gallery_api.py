@@ -10,7 +10,6 @@ from config.module_registry import (
     CORE_MODULE_KEY,
     WikiModuleContext,
     all_modules_context,
-    core_module_context,
     list_labeling_modules,
     merge_all_area_docs,
     normalize_module_scope,
@@ -24,10 +23,8 @@ _REPO = repo_root()
 
 def _context_for_scope(scope: str) -> WikiModuleContext:
     scope = normalize_module_scope(scope)
-    if scope == ALL_MODULES_KEY:
+    if scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO)
-    if scope == CORE_MODULE_KEY:
-        return core_module_context(_REPO)
     for ctx in list_labeling_modules(_REPO):
         if ctx.storage_key == scope or ctx.module_id == scope:
             return ctx

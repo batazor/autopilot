@@ -13,29 +13,20 @@ from config.module_registry import (
 )
 
 
-def test_list_wiki_modules_includes_core_and_feature_modules(tmp_path: Path) -> None:
-    (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
-    (tmp_path / "references").mkdir()
+def test_list_wiki_modules_returns_feature_modules(tmp_path: Path) -> None:
     mod = tmp_path / "modules" / "vip"
-    mod.mkdir(parents=True)
+    (mod / "references").mkdir(parents=True)
     (mod / "module.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "id": "vip",
-                "title": "VIP",
-                "references": "../../references",
-                "area": "../../area.json",
-            }
-        ),
+        yaml.safe_dump({"id": "vip", "title": "VIP", "references": "references"}),
         encoding="utf-8",
     )
 
     ctxs = list_wiki_modules(tmp_path)
     keys = [c.storage_key for c in ctxs]
-    assert keys[0] == CORE_MODULE_KEY
     assert "vip" in keys
+    assert CORE_MODULE_KEY not in keys  # Core scope is no longer enumerated
     vip = get_wiki_module(tmp_path, "vip")
-    assert vip.references_dir.resolve() == (tmp_path / "references").resolve()
+    assert vip.references_dir.resolve() == (mod / "references").resolve()
     assert vip.area_path.resolve() == (mod / "area.yaml").resolve()
 
 

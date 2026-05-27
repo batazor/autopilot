@@ -61,7 +61,7 @@ function LabelingPageInner() {
 
   const [scopes, setScopes] = useState<LabelingScopeOption[]>([]);
   const [scopesReady, setScopesReady] = useState(false);
-  const [moduleScope, setModuleScope] = useState(moduleParam || "core");
+  const [moduleScope, setModuleScope] = useState(moduleParam || "all");
   const {
     instances,
     instanceId,
@@ -159,9 +159,9 @@ function LabelingPageInner() {
         const initial =
           (fromUrl && list.some((s) => s.key === fromUrl) && fromUrl) ||
           (fromRef && list.some((s) => s.key === fromRef) && fromRef) ||
-          list.find((s) => s.key === "core")?.key ||
+          list.find((s) => s.key === "all")?.key ||
           list[0]?.key ||
-          "core";
+          "all";
         setModuleScope(initial);
         setScopesReady(true);
       })

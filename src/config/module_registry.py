@@ -87,10 +87,7 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
     :func:`analyzer_module_scope_options`.
     """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    opts: list[tuple[str, str]] = [
-        (ALL_MODULES_KEY, "All"),
-        (CORE_MODULE_KEY, "Core"),
-    ]
+    opts: list[tuple[str, str]] = [(ALL_MODULES_KEY, "All")]
     opts.extend(
         (ctx.storage_key, ctx.title)
         for ctx in list_wiki_modules(root)
@@ -110,10 +107,7 @@ def analyzer_module_scope_options(
     that don't expose a wiki picker.
     """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    opts: list[tuple[str, str]] = [
-        (ALL_MODULES_KEY, "All"),
-        (CORE_MODULE_KEY, "Core"),
-    ]
+    opts: list[tuple[str, str]] = [(ALL_MODULES_KEY, "All")]
     opts.extend(
         (ctx.storage_key, ctx.title)
         for ctx in list_labeling_modules(root)
@@ -198,21 +192,6 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
     )
 
 
-def core_module_context(repo_root: Path | None = None) -> WikiModuleContext:
-    root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    refs = root / "references"
-    return WikiModuleContext(
-        module_id=None,
-        title="Core",
-        repo_root=root,
-        module_dir=None,
-        references_dir=refs,
-        references_prefix="references",
-        area_path=root / "area.json",
-        is_all=False,
-    )
-
-
 def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
     """Merged view across core + every ``modules/<id>/`` area/references tree."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
@@ -230,9 +209,9 @@ def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
 
 
 def list_wiki_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
-    """Core first, then registered modules in discovery order (excludes wiki: false modules)."""
+    """Registered modules in discovery order (excludes ``wiki: false`` modules)."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    out: list[WikiModuleContext] = [core_module_context(root)]
+    out: list[WikiModuleContext] = []
     for module_dir in _module_discovery.iter_module_dirs(root):
         meta = _load_module_yaml(module_dir)
         if meta.get("wiki") is False:
@@ -242,23 +221,22 @@ def list_wiki_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
 
 
 def list_labeling_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
-    """Core first, then all registered modules in discovery order.
+    """All registered modules in discovery order.
 
     Unlike ``list_wiki_modules``, this includes modules with ``wiki: false``
     because the Labeling UI is independent of the wiki module picker.
     """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    out: list[WikiModuleContext] = [core_module_context(root)]
-    out.extend(_module_context(root, module_dir) for module_dir in _module_discovery.iter_module_dirs(root))
-    return out
+    return [
+        _module_context(root, module_dir)
+        for module_dir in _module_discovery.iter_module_dirs(root)
+    ]
 
 
 def get_wiki_module(repo_root: Path | None, module_key: str | None) -> WikiModuleContext:
     key = normalize_module_scope(module_key)
-    if key == ALL_MODULES_KEY:
+    if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(repo_root)
-    if key == CORE_MODULE_KEY:
-        return core_module_context(repo_root)
     for ctx in list_wiki_modules(repo_root):
         if ctx.storage_key == key or ctx.module_id == key:
             return ctx

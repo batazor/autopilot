@@ -124,8 +124,7 @@ def test_get_wiki_module_all_context(tmp_path: Path) -> None:
     assert ctx.storage_key == ALL_MODULES_KEY
 
 
-def test_module_scope_options_includes_all_and_core(tmp_path: Path) -> None:
-    (tmp_path / "area.json").write_text("{}", encoding="utf-8")
+def test_module_scope_options_starts_with_all(tmp_path: Path) -> None:
     keys = [k for k, _ in module_scope_options(tmp_path)]
     assert keys[0] == ALL_MODULES_KEY
-    assert keys[1] == CORE_MODULE_KEY
+    assert CORE_MODULE_KEY not in keys  # Core scope no longer enumerated

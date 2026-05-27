@@ -101,8 +101,6 @@ function GalleryPageInner() {
         .sort((a, b) => {
           if (a.value === "all") return -1;
           if (b.value === "all") return 1;
-          if (a.value === "core") return -1;
-          if (b.value === "core") return 1;
           return a.value.localeCompare(b.value, undefined, {
             sensitivity: "base",
           });
@@ -138,7 +136,7 @@ function GalleryPageInner() {
       return;
     }
     const refRel = preview.rel;
-    const scopeForRef = inferScopeFromRef(refRel) ?? "core";
+    const scopeForRef = inferScopeFromRef(refRel) ?? "all";
     setPreviewScope(scopeForRef);
     let cancelled = false;
     fetchLabelingDocument(refRel, scopeForRef)
