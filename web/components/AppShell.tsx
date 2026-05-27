@@ -5,6 +5,7 @@ import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
 import { AppNav } from "@/components/AppNav";
 import { FeedbackProvider } from "@/components/feedback";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/ui";
 
@@ -54,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>
+      <OnboardingWizard />
     </div>
     </FeedbackProvider>
     </ApiStatusProvider>

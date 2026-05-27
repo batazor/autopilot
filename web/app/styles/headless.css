@@ -133,4 +133,92 @@
     @apply border-red-500 bg-red-600 hover:bg-red-500;
   }
 
+  .onboarding-wizard {
+    @apply max-w-lg;
+  }
+
+  .onboarding-wizard__header {
+    @apply flex items-start justify-between gap-3;
+  }
+
+  .onboarding-wizard__skip {
+    @apply text-xs text-wos-text-muted hover:text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__steps {
+    @apply mt-4 mb-2 flex list-none gap-2 p-0 text-xs text-wos-text-muted;
+  }
+
+  .onboarding-wizard__step-pill {
+    @apply flex flex-1 items-center gap-2 rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/40 px-2 py-1.5;
+  }
+
+  .onboarding-wizard__step-pill.is-active {
+    @apply border-sky-500/70 bg-sky-500/10 text-wos-text;
+  }
+
+  .onboarding-wizard__step-pill.is-done {
+    @apply border-emerald-500/40 bg-emerald-500/5 text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__step-num {
+    @apply inline-flex h-5 w-5 items-center justify-center rounded-full bg-wos-surface text-[10px] font-semibold;
+  }
+
+  .onboarding-wizard__body {
+    @apply min-h-[10rem];
+  }
+
+  .onboarding-wizard__panel {
+    @apply flex flex-col gap-3 text-sm text-wos-text-secondary;
+  }
+
+  .onboarding-wizard__panel > p {
+    @apply m-0;
+  }
+
+  .onboarding-wizard__success {
+    @apply text-emerald-300;
+  }
+
+  .onboarding-wizard__hint {
+    @apply text-xs text-wos-text-muted;
+  }
+
+  .onboarding-wizard__error {
+    @apply mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-2.5 py-1.5 text-xs text-red-100;
+  }
+
+  .onboarding-health-rows {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .onboarding-health-row {
+    @apply grid grid-cols-[1.25rem_6rem_1fr] items-center gap-2 rounded-lg border border-wos-border-subtle/60 bg-wos-panel-raised/40 px-2.5 py-1.5 text-xs;
+  }
+
+  .onboarding-health-row__dot {
+    @apply text-base leading-none;
+  }
+
+  .onboarding-health-row__detail {
+    @apply truncate text-wos-text-muted;
+  }
+
+  .onboarding-health-row--ok .onboarding-health-row__dot {
+    @apply text-emerald-400;
+  }
+
+  .onboarding-health-row--warn .onboarding-health-row__dot {
+    @apply text-amber-400;
+  }
+
+  .onboarding-health-row--fail .onboarding-health-row__dot {
+    @apply text-red-400;
+  }
+
+  .onboarding-health-row--loading .onboarding-health-row__dot {
+    @apply text-wos-text-muted;
+  }
+
 }
