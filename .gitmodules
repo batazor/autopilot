@@ -1,0 +1,3 @@
+[submodule "page"]
+	path = page
+	url = git@github.com:batazor/autopilot-page.git
