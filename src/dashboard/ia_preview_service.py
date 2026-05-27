@@ -17,7 +17,7 @@ from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_png
 from config.devices import player_ids_for_device_candidates
 from config.loader import load_settings
 from config.paths import repo_root
-from config.reference_naming import reference_png_abs_path, rolling_preview_basename
+from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from navigation.detector import ScreenDetector, ScreenName
 from ocr.client import OcrClient
 
@@ -161,10 +161,9 @@ def _preview_loop() -> None:
                     )
                     last_error_at[inst.instance_id] = now
                 continue
-            path = reference_png_abs_path(
+            path = temporal_png_abs_path(
                 root,
                 rolling_preview_basename(inst.instance_id),
-                inst.instance_id,
             )
             try:
                 _write_png_atomic(path, data)

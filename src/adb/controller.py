@@ -31,7 +31,6 @@ from adb.screencap import (
 )
 from config.paths import repo_root
 from config.reference_naming import (
-    reference_png_abs_path,
     rolling_preview_basename,
     temporal_png_abs_path,
 )
@@ -960,10 +959,9 @@ class AdbController:
         try:
             png = self.screenshot_bytes()
             root = repo_root()
-            path = reference_png_abs_path(
+            path = temporal_png_abs_path(
                 root,
                 rolling_preview_basename(self._instance_id),
-                self._instance_id,
             )
             self._write_png_bytes_atomic(path=path, png=png, tmp_prefix=tmp_prefix)
             return path, root
@@ -975,10 +973,9 @@ class AdbController:
         try:
             png = self.screenshot_bytes()
             root = repo_root()
-            rolling_path = reference_png_abs_path(
+            rolling_path = temporal_png_abs_path(
                 root,
                 rolling_preview_basename(self._instance_id),
-                self._instance_id,
             )
             approval_path = temporal_png_abs_path(
                 root,

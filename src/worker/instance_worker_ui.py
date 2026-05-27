@@ -6,10 +6,6 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any
 
-from adb.screencap import adb_screencap_to_file
-from config.paths import repo_root
-from config.reference_naming import reference_file_basename, reference_png_abs_path
-
 logger = logging.getLogger(__name__)
 
 
@@ -31,22 +27,6 @@ class InstanceWorkerUiMixin(_Base):
 
     def _worker_adb_bin(self) -> str:  # provided by InstanceWorker
         raise NotImplementedError
-
-    async def _push_ui_screenshot(self, reference_name: str | None = None) -> None:
-        root = repo_root()
-        base = reference_file_basename(reference_name, self._cfg.instance_id)
-        path = reference_png_abs_path(root, base, self._cfg.instance_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        ok, msg = adb_screencap_to_file(
-            path,
-            adb_bin=self._worker_adb_bin(),
-            serial=self._cfg.bluestacks_window_title,
-        )
-        if ok:
-            logger.debug("[ui] %s: saved screenshot %s", self._cfg.instance_id, path)
-            return
-        logger.error("[ui] %s: screenshot failed: %s", self._cfg.instance_id, msg)
-        raise RuntimeError(msg)
 
     async def _schedule_manual_task(self, player_id: str, task_type: str) -> None:
         if self._queue is None:
@@ -84,17 +64,6 @@ class InstanceWorkerUiMixin(_Base):
                 if self._redis is not None:
                     await self._redis.hset(inst_key, "paused", "0")
                 logger.info("UI pause cleared for %s", self._cfg.instance_id)
-            case "screenshot":
-                try:
-                    ref = data.get("name")
-                    if ref is None:
-                        ref = data.get("reference_name")
-                    ref_s = str(ref).strip() if ref is not None else None
-                    if ref_s == "":
-                        ref_s = None
-                    await self._push_ui_screenshot(reference_name=ref_s)
-                except Exception:
-                    logger.exception("UI screenshot failed")
             case "switch_player":
                 pid = str(data.get("player_id", ""))
                 if pid:

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from config.paths import repo_root
-from config.reference_naming import reference_file_basename, reference_png_abs_path
+from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from config.tracing import screenshot_analysis_duration_histogram
 
 logger = logging.getLogger(__name__)
@@ -316,8 +316,9 @@ class InstanceWorkerRollingMixin(_Base):
     async def _device_reference_snapshot_tick(self, *, analyze: bool = True) -> None:
         """Screenshot → rolling preview PNG; optionally run screen/overlay analysis."""
         root = repo_root()
-        base = reference_file_basename(None, self._cfg.instance_id)
-        path = reference_png_abs_path(root, base, self._cfg.instance_id)
+        path = temporal_png_abs_path(
+            root, rolling_preview_basename(self._cfg.instance_id)
+        )
 
         logger.debug(
             "[rolling] %s: screenshot (backend=%s serial=%s) → %s",

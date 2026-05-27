@@ -58,16 +58,6 @@ def rolling_preview_basename(instance_id: str) -> str:
     return f"{instance_id}_{_DEFAULT_BASE_SUFFIX}"
 
 
-def reference_png_abs_path(repo_root: Path, base: str, instance_id: str) -> Path:
-    """Path for the rolling preview PNG (``<repo>/temporal/<base>.png``) or
-    a published reference (``<repo>/references/<base>.png``)."""
-    if base == rolling_preview_basename(instance_id):
-        out = instance_preview_root(repo_root) / f"{base}.png"
-        out.parent.mkdir(parents=True, exist_ok=True)
-        return out
-    return repo_root / "references" / f"{base}.png"
-
-
 def temporal_png_abs_path(repo_root: Path, base: str) -> Path:
     """Path for an instance-level rolling/approval preview (``<repo>/temporal/<base>.png``)."""
     out = instance_preview_root(repo_root) / f"{base}.png"

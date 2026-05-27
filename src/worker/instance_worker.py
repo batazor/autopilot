@@ -24,8 +24,7 @@ from config.devices import (  # noqa: F401 — re-exported for redis/test monkey
 )
 from config.paths import repo_root
 from config.reference_naming import (
-    reference_file_basename,
-    reference_png_abs_path,
+    rolling_preview_basename,
     temporal_png_abs_path,
 )
 from navigation.detector import ScreenDetector
@@ -590,10 +589,8 @@ class InstanceWorker(
         """
         root = repo_root()
         targets = [
-            reference_png_abs_path(
-                root,
-                reference_file_basename(None, self._cfg.instance_id),
-                self._cfg.instance_id,
+            temporal_png_abs_path(
+                root, rolling_preview_basename(self._cfg.instance_id)
             ),
             temporal_png_abs_path(root, f"{self._cfg.instance_id}_approval_current"),
         ]
@@ -762,10 +759,8 @@ class InstanceWorker(
             self._worker_adb_bin(),
         )
         root = repo_root()
-        rolling_path = reference_png_abs_path(
-            root,
-            reference_file_basename(None, self._cfg.instance_id),
-            self._cfg.instance_id,
+        rolling_path = temporal_png_abs_path(
+            root, rolling_preview_basename(self._cfg.instance_id)
         )
         logger.info(
             "Rolling preview %s: interval=%.2fs path=%s",

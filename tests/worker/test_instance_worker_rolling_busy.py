@@ -201,14 +201,14 @@ def _isolated_refs(mocker, tmp_path: Any) -> Any:
     base_dir = tmp_path / "refs"
     base_dir.mkdir()
 
-    def _fake_basename(_raw: str | None, _iid: str) -> str:
+    def _fake_basename(_iid: str) -> str:
         return "rolling_preview"
 
-    def _fake_abs_path(_root: Any, base: str, _iid: str) -> Any:
+    def _fake_abs_path(_root: Any, base: str) -> Any:
         return base_dir / f"{base}.png"
 
-    mocker.patch.object(rolling_mod, "reference_file_basename", new=_fake_basename)
-    mocker.patch.object(rolling_mod, "reference_png_abs_path", new=_fake_abs_path)
+    mocker.patch.object(rolling_mod, "rolling_preview_basename", new=_fake_basename)
+    mocker.patch.object(rolling_mod, "temporal_png_abs_path", new=_fake_abs_path)
     return base_dir
 
 
