@@ -1,0 +1,62 @@
+overlay:
+- name: page.building.furniture.present
+  region: page.building.furniture
+  action: findIcon
+  threshold: 0.9
+  screens:
+    - building
+  set_node: building
+  ttl: 30s
+  steps:
+    - push_scenario: building.upgrade
+- name: upgrade_building.visible
+  region: upgrade_building
+  action: findIcon
+  priority: 80_000
+  threshold: 0.87
+  min_match_saturation: 48
+  screens:
+    - building
+  ttl: 20s
+  steps:
+    - push_scenario: building.upgrade
+- name: upgrade_big_button.visible
+  region: upgrade_big_button
+  action: findIcon
+  priority: 70_000
+  threshold: 0.92
+  min_match_saturation: 48
+  screens:
+    - building
+    - main_city
+  steps:
+    - push_scenario: tap_upgrade_big_button
+- name: build_button.visible
+  region: build_button
+  action: findIcon
+  priority: 70_000
+  threshold: 0.98
+  min_match_saturation: 48
+  screens:
+    - building
+  ttl: 5s
+  steps:
+    - push_scenario: tap_build_button
+# When a building is mid-upgrade the in-game UI shows a HH:MM:SS countdown.
+# Region ``building.upgrading.time`` is tagged ``type: time`` in area.json,
+# so the engine OCRs + parses it to total seconds without an explicit
+# ``type:`` on this rule. The overlay enqueuer then treats the parsed
+# seconds as the effective push-step ``ttl`` and writes the push_ttl
+# marker *instead of* pushing the scenario. Any further pushes of
+# ``building.upgrade`` — overlay or hand-driven — are silently dropped
+# until the in-game upgrade actually finishes. The chapter task itself
+# does the same at its tail (games/wos/core/building/scenarios/building.upgrade.yaml).
+# OCR/time overlay disabled:
+# - name: building.upgrading.detected
+#   region: building.upgrading.time
+#   action: text
+#   screens:
+#     - building
+#   ttl: 10s
+#   steps:
+#     - push_scenario: building.upgrade

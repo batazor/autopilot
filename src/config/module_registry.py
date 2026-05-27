@@ -1,4 +1,4 @@
-"""Wiki / labeling module contexts (core ``area.json`` + optional ``modules/<id>/``)."""
+"""Wiki / labeling module contexts (per-module ``area.yaml`` only)."""
 from __future__ import annotations
 
 import copy
@@ -8,6 +8,12 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 import config.module_discovery as _module_discovery
+from config.games import (
+    MODULES_DIR_NAME,
+    default_game,
+    is_module_reference,
+    modules_path_prefix,
+)
 from config.paths import repo_root as default_repo_root
 
 if TYPE_CHECKING:
@@ -27,7 +33,9 @@ class WikiModuleContext:
     module_dir: Path | None
     references_dir: Path
     references_prefix: str
-    area_path: Path
+    # ``None`` for the merged "All" context — that scope has no single
+    # writable file; readers must use ``merge_all_area_docs`` instead.
+    area_path: Path | None
     default_ref: str | None = None
     is_all: bool = False
     storage_key_override: str | None = None
@@ -64,11 +72,15 @@ def module_scope_label(scope: str) -> str:
     return scope
 
 
-def list_registered_module_ids(repo_root: Path | None = None) -> list[str]:
-    """Sorted module ids (``modules/core/*`` and feature modules)."""
+def list_registered_module_ids(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> list[str]:
+    """Sorted module ids (``games/<game>/core/*`` and feature modules)."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     out: list[str] = []
-    for module_dir in _module_discovery.iter_module_dirs(root):
+    for module_dir in _module_discovery.iter_module_dirs(root, game=game):
         meta = _load_module_yaml(module_dir)
         if meta.get("wiki") is False:
             continue
@@ -77,7 +89,11 @@ def list_registered_module_ids(repo_root: Path | None = None) -> list[str]:
     return out
 
 
-def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]:
+def module_scope_options(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> list[tuple[str, str]]:
     """``[(storage_key, label), ...]`` for selectboxes — All, Core, then modules.
 
     Excludes modules with ``wiki: false`` because this list drives the wiki /
@@ -90,7 +106,7 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
     opts: list[tuple[str, str]] = [(ALL_MODULES_KEY, "All")]
     opts.extend(
         (ctx.storage_key, ctx.title)
-        for ctx in list_wiki_modules(root)
+        for ctx in list_wiki_modules(root, game=game)
         if ctx.module_id is not None
     )
     return opts
@@ -98,6 +114,8 @@ def module_scope_options(repo_root: Path | None = None) -> list[tuple[str, str]]
 
 def analyzer_module_scope_options(
     repo_root: Path | None = None,
+    *,
+    game: str | None = None,
 ) -> list[tuple[str, str]]:
     """``[(storage_key, label), ...]`` for the manual-rehearsal analyzer scope picker.
 
@@ -110,7 +128,7 @@ def analyzer_module_scope_options(
     opts: list[tuple[str, str]] = [(ALL_MODULES_KEY, "All")]
     opts.extend(
         (ctx.storage_key, ctx.title)
-        for ctx in list_labeling_modules(root)
+        for ctx in list_labeling_modules(root, game=game)
         if ctx.module_id is not None
     )
     return opts
@@ -155,7 +173,12 @@ def _default_module_area_path(repo_root: Path, module_dir: Path) -> Path:
     return module_dir / "area.yaml"
 
 
-def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
+def _module_context(
+    repo_root: Path,
+    module_dir: Path,
+    *,
+    game: str | None = None,
+) -> WikiModuleContext:
     repo_root = repo_root.resolve()
     meta = _load_module_yaml(module_dir)
     module_id = str(meta.get("id") or module_dir.name).strip() or module_dir.name
@@ -170,14 +193,7 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
     area_decl = str(meta.get("area") or "").strip()
     area_path = _default_module_area_path(repo_root, module_dir)
     if area_decl:
-        resolved_area = _resolve_under_module(module_dir, area_decl, "area.yaml")
-        is_external = resolved_area.resolve() != (repo_root / "area.json").resolve()
-        if is_external or _module_discovery.is_core_nested_module(module_dir, repo_root):
-            area_path = resolved_area
-        elif area_path.is_file():
-            pass
-        else:
-            area_path = module_dir / "area.yaml"
+        area_path = _resolve_under_module(module_dir, area_decl, "area.yaml")
 
     return WikiModuleContext(
         module_id=module_id,
@@ -188,12 +204,19 @@ def _module_context(repo_root: Path, module_dir: Path) -> WikiModuleContext:
         references_prefix=_references_repo_prefix(repo_root, references_dir),
         area_path=area_path,
         default_ref=_module_default_ref(meta),
-        storage_key_override=_module_discovery.module_storage_key(module_dir, repo_root),
+        storage_key_override=_module_discovery.module_storage_key(
+            module_dir, repo_root, game=game
+        ),
     )
 
 
 def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
-    """Merged view across core + every ``modules/<id>/`` area/references tree."""
+    """Merged view across every ``modules/<id>/`` area/references tree.
+
+    ``area_path`` is ``None`` — there is no single writable file for this
+    scope. Readers go through :func:`merge_all_area_docs`; writers must
+    refuse the "All" scope or dispatch per-module.
+    """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     refs = root / "references"
     return WikiModuleContext(
@@ -203,50 +226,77 @@ def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
         module_dir=None,
         references_dir=refs,
         references_prefix="references",
-        area_path=root / "area.json",
+        area_path=None,
         is_all=True,
     )
 
 
-def list_wiki_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
+def list_wiki_modules(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> list[WikiModuleContext]:
     """Registered modules in discovery order (excludes ``wiki: false`` modules)."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
+    g = (game or default_game()).strip()
     out: list[WikiModuleContext] = []
-    for module_dir in _module_discovery.iter_module_dirs(root):
+    for module_dir in _module_discovery.iter_module_dirs(root, game=g):
         meta = _load_module_yaml(module_dir)
         if meta.get("wiki") is False:
             continue
-        out.append(_module_context(root, module_dir))
+        out.append(_module_context(root, module_dir, game=g))
     return out
 
 
-def list_labeling_modules(repo_root: Path | None = None) -> list[WikiModuleContext]:
+def list_labeling_modules(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> list[WikiModuleContext]:
     """All registered modules in discovery order.
 
     Unlike ``list_wiki_modules``, this includes modules with ``wiki: false``
     because the Labeling UI is independent of the wiki module picker.
     """
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
+    g = (game or default_game()).strip()
     return [
-        _module_context(root, module_dir)
-        for module_dir in _module_discovery.iter_module_dirs(root)
+        _module_context(root, module_dir, game=g)
+        for module_dir in _module_discovery.iter_module_dirs(root, game=g)
     ]
 
 
-def get_wiki_module(repo_root: Path | None, module_key: str | None) -> WikiModuleContext:
+def get_wiki_module(
+    repo_root: Path | None,
+    module_key: str | None,
+    *,
+    game: str | None = None,
+) -> WikiModuleContext:
     key = normalize_module_scope(module_key)
     if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(repo_root)
-    for ctx in list_wiki_modules(repo_root):
+    for ctx in list_wiki_modules(repo_root, game=game):
         if ctx.storage_key == key or ctx.module_id == key:
+            return ctx
+        # Accept the unprefixed storage path too — older URLs / configs may
+        # carry ``events/trials`` instead of ``wos:events/trials``.
+        sk = ctx.storage_key
+        if ":" in sk and sk.split(":", 1)[1] == key:
             return ctx
     return all_modules_context(repo_root)
 
 
-def path_matches_module_scope(path: Path, repo_root: Path, module_scope: str | None) -> bool:
+def path_matches_module_scope(
+    path: Path,
+    repo_root: Path,
+    module_scope: str | None,
+    *,
+    game: str | None = None,
+) -> bool:
     """Whether ``path`` (under ``repo_root``) belongs to the active module scope."""
     scope = normalize_module_scope(module_scope)
     root = repo_root.resolve()
+    g = (game or default_game()).strip()
     try:
         rel = path.resolve().relative_to(root).as_posix()
     except ValueError:
@@ -254,11 +304,15 @@ def path_matches_module_scope(path: Path, repo_root: Path, module_scope: str | N
     if scope == ALL_MODULES_KEY:
         return True
     if scope == CORE_MODULE_KEY:
-        return rel.startswith(f"modules/{_module_discovery.CORE_MODULES_DIR}/")
+        return rel.startswith(
+            f"{modules_path_prefix(g)}/{_module_discovery.CORE_MODULES_DIR}/"
+        )
 
     path_resolved = path.resolve()
-    for module_dir in _module_discovery.iter_module_dirs(root):
-        if scope not in _module_discovery.module_scope_aliases(module_dir, root):
+    for module_dir in _module_discovery.iter_module_dirs(root, game=g):
+        if scope not in _module_discovery.module_scope_aliases(
+            module_dir, root, game=g
+        ):
             continue
         module_resolved = module_dir.resolve()
         if path_resolved == module_resolved or module_resolved in path_resolved.parents:
@@ -267,7 +321,7 @@ def path_matches_module_scope(path: Path, repo_root: Path, module_scope: str | N
 
 
 def merge_all_area_docs(repo_root: Path | None = None) -> dict[str, Any]:
-    """Union of screens from core ``area.json`` and each module area manifest."""
+    """Union of screens from every per-module ``area.yaml`` manifest."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     from layout.area_manifest import load_area_doc
 
@@ -281,13 +335,13 @@ def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:
     if ctx.is_all:
         if raw.startswith("references/"):
             return True
-        return raw.startswith("modules/") and "/references/" in raw
+        return is_module_reference(raw) and "/references/" in raw
     prefix = ctx.references_prefix.rstrip("/") + "/"
     if ctx.module_id is None:
-        if raw.startswith("modules/"):
+        if is_module_reference(raw):
             return False
         return raw.startswith("references/")
-    return raw.startswith((prefix, f"modules/{ctx.module_id}/"))
+    return raw.startswith((prefix, f"{MODULES_DIR_NAME}/{ctx.module_id}/"))
 
 
 def filter_area_doc_for_context(doc: dict[str, Any], ctx: WikiModuleContext) -> dict[str, Any]:

@@ -1,0 +1,13 @@
+overlay:
+  - name: endless_wayfarer.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/deals/endless_wayfarer/references/main_city.deals.endless_wayfarer.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: deals.endless_wayfarer
+          ttl: 1m

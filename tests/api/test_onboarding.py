@@ -55,7 +55,7 @@ class _FakeRedis:
 
 @pytest.fixture
 def devices_db(tmp_path: Path) -> Path:
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
     yield db_path
     set_state_db_path_for_tests(None)

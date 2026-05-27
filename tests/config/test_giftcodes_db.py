@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from modules.gift_codes.models import RedeemStatus
+from games.wos.gift_codes.models import RedeemStatus
 
 from config.giftcodes_db import (
     code_exists,
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def sqlite_db(tmp_path: Path) -> Path:
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
     yield db_path
     set_state_db_path_for_tests(None)

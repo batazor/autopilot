@@ -85,7 +85,6 @@ class AreaDocDict(TypedDict, total=False):
 
 
 REPO_ROOT = repo_root()
-AREA_JSON_PATH = REPO_ROOT / "area.json"
 REFERENCES_DIR = REPO_ROOT / "references"
 
 
@@ -512,7 +511,7 @@ def _entry_region_names(entry: AreaEntryDict) -> list[str]:
 
 
 def _doc_with_repo_relative_ocr(
-    doc: AreaDocDict, area_path: Path, repo_root: Path
+    doc: AreaDocDict, area_path: Path | None, repo_root: Path
 ) -> AreaDocDict:
     """Prefix module-local ``ocr`` fields with the module directory.
 
@@ -523,22 +522,30 @@ def _doc_with_repo_relative_ocr(
     write crops under the root ``references/crop/`` instead of
     ``modules/<id>/references/crop/``.
 
-    Idempotent: returns the original doc when ``area_path`` is not under
-    ``modules/<id>/`` or when an entry's ``ocr`` already starts with
-    ``modules/``.
+    Idempotent: returns the original doc when ``area_path`` is ``None`` (the
+    merged "All" scope already carries fully-normalized paths), when the path
+    is not under ``modules/<id>/``, or when an entry's ``ocr`` already starts
+    with ``modules/``.
     """
+    from config.games import GAMES_DIR_NAME, is_known_game, modules_path_prefix
+
+    if area_path is None:
+        return doc
     try:
         rel = area_path.parent.relative_to(repo_root)
     except ValueError:
         return doc
     parts = rel.parts
-    if len(parts) < 2 or parts[0] != "modules":
+    # Module area paths live at games/<game>/<module-id>/area.yaml — need at
+    # least three segments and a known game in the second one.
+    if len(parts) < 3 or parts[0] != GAMES_DIR_NAME or not is_known_game(parts[1]):
         return doc
     prefix = "/".join(parts)
+    modules_prefix_for = modules_path_prefix(parts[1]) + "/"
 
     def _prefix(value: str) -> str:
         v = (value or "").strip()
-        if not v or v.startswith("modules/"):
+        if not v or v.startswith(modules_prefix_for):
             return v
         return f"{prefix}/{v}"
 

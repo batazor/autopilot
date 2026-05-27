@@ -18,11 +18,11 @@ from layout.template_match import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-_SKIP_FULL = REPO_ROOT / "modules/core/common/references/skip_button.png"
-_SKIP_CROP = REPO_ROOT / "modules/core/common/references/crop/skip_button_skip_button.png"
+_SKIP_FULL = REPO_ROOT / "games/wos/core/common/references/skip_button.png"
+_SKIP_CROP = REPO_ROOT / "games/wos/core/common/references/crop/skip_button_skip_button.png"
 _CHIEF_TITLE_CROP = (
     REPO_ROOT
-    / "modules/core/chief_profile/references/crop/chief_profile_chief_profile.title.png"
+    / "games/wos/core/chief_profile/references/crop/chief_profile_chief_profile.title.png"
 )
 _CHIEF_LIVE_SCREEN = REPO_ROOT / "temporal" / "bs1_approval_current.png"
 

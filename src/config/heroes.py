@@ -1,6 +1,6 @@
 """Hero registry loader.
 
-Source of truth: ``modules/core/heroes/wiki/heroes/index.yaml`` and per-hero YAML.
+Source of truth: ``<modules_root>/core/heroes/wiki/heroes/index.yaml`` and per-hero YAML.
 """
 from __future__ import annotations
 
@@ -10,14 +10,15 @@ from pathlib import Path
 
 import yaml
 
+from config.games import default_game, modules_root_for
 from config.paths import repo_root as default_repo_root
 
-HEROES_MODULE_REL = Path("modules") / "core" / "heroes" / "wiki" / "heroes"
+HEROES_MODULE_REL = Path("core") / "heroes" / "wiki" / "heroes"
 
 
 def heroes_wiki_dir(repo_root: Path | None = None) -> Path:
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    return root / HEROES_MODULE_REL
+    return modules_root_for(default_game(), repo_root=root) / HEROES_MODULE_REL
 
 
 def hero_index_path(repo_root: Path | None = None) -> Path:

@@ -12,6 +12,8 @@ from config.devices_db import (
     device_exists,
     load_registry,
     set_device_backend,
+    set_device_game,
+    set_profile_game,
     upsert_device,
     upsert_device_gamer,
 )
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def sqlite_db(tmp_path: Path) -> Path:
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
     yield db_path
     set_state_db_path_for_tests(None)
@@ -185,3 +187,74 @@ def test_delete_device_cascades_profiles_and_gamers(sqlite_db: Path) -> None:
 
 def test_delete_unknown_device_returns_false(sqlite_db: Path) -> None:
     assert delete_device("ghost") is False
+
+
+# ---------------------------------------------------------------------------
+# game column (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def test_new_device_defaults_to_wos(sqlite_db: Path) -> None:
+    upsert_device("bs1")
+    entry = load_registry().devices[0]
+    assert entry.game == "wos"
+
+
+def test_upsert_device_accepts_explicit_game(sqlite_db: Path) -> None:
+    upsert_device("bs1", game="kingshot")
+    assert load_registry().devices[0].game == "kingshot"
+
+
+def test_upsert_device_preserves_game_when_omitted(sqlite_db: Path) -> None:
+    upsert_device("bs1", game="kingshot")
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")  # no game kwarg
+    entry = load_registry().devices[0]
+    assert entry.game == "kingshot"
+    assert entry.adb_serial == "127.0.0.1:5555"
+
+
+def test_upsert_device_rejects_unknown_game(sqlite_db: Path) -> None:
+    with pytest.raises(ValueError, match="unknown game id"):
+        upsert_device("bs1", game="brawl_stars")
+
+
+def test_set_device_game_updates_existing(sqlite_db: Path) -> None:
+    upsert_device("bs1")
+    assert set_device_game("bs1", "kingshot") == "kingshot"
+    assert load_registry().devices[0].game == "kingshot"
+
+
+def test_set_device_game_rejects_unknown_game(sqlite_db: Path) -> None:
+    upsert_device("bs1")
+    with pytest.raises(ValueError, match="unknown game id"):
+        set_device_game("bs1", "brawl_stars")
+
+
+def test_set_device_game_missing_device(sqlite_db: Path) -> None:
+    with pytest.raises(KeyError, match="device not found"):
+        set_device_game("ghost", "wos")
+
+
+def test_profile_inherits_device_game_by_default(sqlite_db: Path) -> None:
+    upsert_device("bs1", game="kingshot")
+    upsert_device_gamer("bs1", "111", "alice")
+    profile = load_registry().devices[0].profiles[0]
+    assert profile.game == "kingshot"
+
+
+def test_set_profile_game_overrides_device_default(sqlite_db: Path) -> None:
+    upsert_device("bs1", game="wos")
+    upsert_device_gamer("bs1", "111", "alice")
+    # Profile id of the first profile under bs1
+    import sqlite3
+    conn = sqlite3.connect(str(sqlite_db))
+    profile_id = conn.execute(
+        "SELECT id FROM device_profiles WHERE device_name = ? ORDER BY id LIMIT 1", ("bs1",)
+    ).fetchone()[0]
+    conn.close()
+
+    assert set_profile_game(profile_id, "kingshot") == "kingshot"
+    profile = load_registry().devices[0].profiles[0]
+    assert profile.game == "kingshot"
+    # Device default unchanged
+    assert load_registry().devices[0].game == "wos"

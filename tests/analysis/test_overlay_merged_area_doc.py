@@ -16,27 +16,15 @@ def test_merged_area_doc_includes_myriad_bazaar_title_region() -> None:
     assert screen_region_by_name(doc, "myriad_bazaar.title") is not None
 
 
-def test_core_area_json_alone_lacks_module_regions() -> None:
-    import json
-
-    core_path = repo_root() / "area.json"
-    if not core_path.is_file():
-        # Root area.json was drained during the modules migration; the
-        # "core-only" view is now intrinsically empty.
-        return
-    core_only = json.loads(core_path.read_text(encoding="utf-8"))
-    assert screen_region_by_name(core_only, "myriad_bazaar.title") is None
-
-
 @pytest.mark.asyncio
 async def test_run_overlay_analysis_loads_merged_area_doc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression: must call ``load_area_doc``, not read ``area.json`` only."""
+    """Regression: overlay analysis must source area from merged module manifests."""
     calls: list[bool] = []
     real = load_area_doc
 
-    def _spy(root, area_path=None):
+    def _spy(root):
         calls.append(True)
-        return real(root, area_path)
+        return real(root)
 
     monkeypatch.setattr("analysis.overlay_area.default_area_doc_for_overlay", _spy)
     await run_overlay_analysis(

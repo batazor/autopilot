@@ -306,6 +306,10 @@ def _gamer_shop_default() -> dict[str, object]:
 
 class GamerState(BaseModel):
     id: int
+    # Game the player belongs to (registry id from ``config.games.GAMES``).
+    # Defaults to the platform's default game (currently "wos") so legacy
+    # state that pre-dates Phase 2b loads with the intended game.
+    game: str = "wos"
     nickname: str = ""
     kid: int = 0
     state: int = 0

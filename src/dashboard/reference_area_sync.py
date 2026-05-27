@@ -77,8 +77,8 @@ def sync_area_json_ocr_after_reference_rename(
 
     Returns ``(ok, error_message, entries_updated)``. ``error_message`` is empty on success.
     """
-    area_path = area_path or (repo_root / "area.json")
-    if not area_path.is_file():
+    _ = repo_root  # area_path must be provided — no implicit root fallback
+    if area_path is None or not area_path.is_file():
         return True, "", 0
 
     try:

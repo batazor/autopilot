@@ -14,16 +14,17 @@ def safe_crop_filename_part(name: str, fallback: str = "region") -> str:
 
 def exported_crop_png(repo_root: Path, reference_repo_rel: str, region_name: str) -> Path:
     """Path for the crop file produced by ``export_region_crops`` / Labeling **Write crops**."""
+    from config.games import is_module_reference
 
     stem = Path(reference_repo_rel).stem
     label = safe_crop_filename_part(region_name)
     filename = f"{stem}_{label}.png"
     ref_parts = Path(reference_repo_rel).parts
-    if len(ref_parts) >= 3 and ref_parts[0] == "modules":
+    if is_module_reference(reference_repo_rel):
         try:
             references_idx = ref_parts.index("references")
         except ValueError:
-            references_idx = 2
+            references_idx = 4  # games/<game>/<module>/<refs>
         module_root = repo_root.joinpath(*ref_parts[:references_idx])
         module_crop = module_root / "references" / "crop" / filename
         if module_crop.is_file():

@@ -142,10 +142,15 @@ def _append_module_wiki_entries(
         by_id[eid] = entry
 
 
-def _iter_module_wiki_dirs(repo_root: Path, entity: EntityKey) -> list[tuple[str, Path]]:
+def _iter_module_wiki_dirs(
+    repo_root: Path,
+    entity: EntityKey,
+    *,
+    game: str | None = None,
+) -> list[tuple[str, Path]]:
     """``[(module_id, .../wiki/<entity>/), ...]`` in discovery order."""
     out: list[tuple[str, Path]] = []
-    for module_dir in iter_module_dirs(repo_root):
+    for module_dir in iter_module_dirs(repo_root, game=game):
         wiki_entity_dir = module_dir / "wiki" / entity
         if not wiki_entity_dir.is_dir():
             continue
@@ -158,6 +163,7 @@ def load_merged_entries(
     *,
     repo_root: Path | None = None,
     module_scope: str | None = None,
+    game: str | None = None,
 ) -> list[WikiEntry]:
     """Core entries first, then per-module additions; module overrides take precedence.
 
@@ -190,8 +196,8 @@ def load_merged_entries(
             by_id[eid] = entry
 
     if scope == CORE_MODULE_KEY:
-        for module_dir in iter_module_dirs(root):
-            if not is_core_nested_module(module_dir, root):
+        for module_dir in iter_module_dirs(root, game=game):
+            if not is_core_nested_module(module_dir, root, game=game):
                 continue
             wiki_entity_dir = module_dir / "wiki" / entity
             if not wiki_entity_dir.is_dir():
@@ -207,7 +213,7 @@ def load_merged_entries(
             )
         return [by_id[eid] for eid in order]
 
-    for module_id, wiki_entity_dir in _iter_module_wiki_dirs(root, entity):
+    for module_id, wiki_entity_dir in _iter_module_wiki_dirs(root, entity, game=game):
         if scope != ALL_MODULES_KEY and module_id != scope:
             continue
         _append_module_wiki_entries(
@@ -228,12 +234,13 @@ def find_entry(
     entity_id: str,
     *,
     repo_root: Path | None = None,
+    game: str | None = None,
 ) -> WikiEntry | None:
     """Convenience lookup by id across merged sources."""
     target = (entity_id or "").strip()
     if not target:
         return None
-    for entry in load_merged_entries(entity, repo_root=repo_root):
+    for entry in load_merged_entries(entity, repo_root=repo_root, game=game):
         if entry.id == target:
             return entry
     return None

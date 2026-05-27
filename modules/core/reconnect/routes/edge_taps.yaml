@@ -1,6 +1,0 @@
-# Network disconnect overlay: tapping ``icon.reconnect`` drops the client back
-# to main_city. The region itself is defined in root ``area.json`` (screen
-# entry ``reconnect``) — see ``modules/core/reconnect/`` for the module owner.
-edges:
-  reconnect:
-    main_city: [icon.reconnect]

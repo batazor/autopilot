@@ -12,6 +12,8 @@ from api.services.overlay_test import (
     _module_has_overlay_rules,
     _run_module_analyzer_breakdown_async,
 )
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -26,7 +28,7 @@ def test_module_has_overlay_rules_false_for_empty_list(tmp_path: Path) -> None:
 
 
 def test_module_has_overlay_rules_boot_mode_requires_device_level(tmp_path: Path) -> None:
-    mod = tmp_path / "modules" / "building"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "building"
     (mod / "analyze").mkdir(parents=True)
     (mod / "analyze" / "analyze.yaml").write_text(
         "overlay:\n"

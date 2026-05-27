@@ -21,7 +21,7 @@ from layout.area_manifest import load_area_doc
 from layout.tabs_strip_segmenter import detect_tabs_in_strip
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SHOP_REFS = REPO_ROOT / "modules" / "core" / "shop" / "references"
+SHOP_REFS = REPO_ROOT / "games" / "wos" / "core" / "shop" / "references"
 STRIP_REGION = "shop.tabs_strip"
 
 

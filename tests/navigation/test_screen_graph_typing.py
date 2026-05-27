@@ -85,7 +85,7 @@ async def test_trials_routes_from_main_city_by_template_icon() -> None:
                 {
                     "type": "template_icon",
                     "region": "main_city.icon_search",
-                    "template": "modules/events/trials/references/event.trials.png",
+                    "template": "games/wos/events/trials/references/event.trials.png",
                     "threshold": 0.9,
                 }
             ],
@@ -109,7 +109,7 @@ async def test_7_day_routes_from_main_city_by_template_icon() -> None:
                 {
                     "type": "template_icon",
                     "region": "main_city.icon_search",
-                    "template": "modules/events/7-day/references/main_city.event.7-day.png",
+                    "template": "games/wos/events/7-day/references/main_city.event.7-day.png",
                     "threshold": 0.9,
                 }
             ],

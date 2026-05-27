@@ -51,15 +51,12 @@ COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
-# Step 2: project source. The data dirs (``db/``, ``references/``, ``area.json``)
-# are bind-mounted in prod compose so users edit them without rebuilding the
-# image — they're baked in here too so a bare ``docker run`` of this image
-# still works for smoke tests.
+# Step 2: project source. ``db/`` is bind-mounted in prod compose so users
+# edit it without rebuilding the image; it's baked in here too so a bare
+# ``docker run`` of this image still works for smoke tests.
 COPY src/ ./src/
-COPY modules/ ./modules/
+COPY games/ ./games/
 COPY db/ ./db/
-COPY references/ ./references/
-COPY area.json ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
@@ -143,10 +140,8 @@ WORKDIR /app
 # self-sufficient for startup.
 COPY --from=compiler /app/.venv ./.venv
 COPY --from=compiler /app/src ./src
-COPY --from=compiler /app/modules ./modules
+COPY --from=compiler /app/games ./games
 COPY --from=compiler /app/db ./db
-COPY --from=compiler /app/references ./references
-COPY --from=compiler /app/area.json ./area.json
 
 # License-data directory exists in the image so a fresh ``docker run`` that
 # *doesn't* bind-mount one still has a valid target path for the loader. The

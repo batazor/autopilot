@@ -76,12 +76,16 @@ def _handlers_from_module(mod: object, module_id: str) -> dict[str, DslExecHandl
     return out
 
 
-def load_module_exec_handlers(repo_root: Path | None = None) -> dict[str, DslExecHandler]:
+def load_module_exec_handlers(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> dict[str, DslExecHandler]:
     """Discover and import every module ``exec.py`` (or ``module.yaml`` ``exec:`` path)."""
     ensure_repo_on_sys_path()
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     merged: dict[str, DslExecHandler] = {}
-    for module_dir in iter_module_dirs(root):
+    for module_dir in iter_module_dirs(root, game=game):
         meta = _load_module_yaml(module_dir)
         module_id = module_meta_id(module_dir)
         exec_decl = str(meta.get("exec") or "exec.py").strip() or "exec.py"

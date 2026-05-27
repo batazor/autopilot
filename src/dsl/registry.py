@@ -31,6 +31,8 @@ class ScenarioRoot:
 def scenario_roots(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> tuple[ScenarioRoot, ...]:
     """Scenario roots in deterministic lookup order, optionally scoped.
 
@@ -38,20 +40,27 @@ def scenario_roots(
     ``template_resolver.resolve`` (i.e. every approval-view render) and
     triggered a full ``modules/**`` walk via :func:`iter_module_dirs`.
     """
+    from config.games import default_game
+
     scope = normalize_module_scope(module_scope)
-    return _scenario_roots_cached(str(repo_root.resolve()), scope)
+    g = (game or default_game()).strip()
+    return _scenario_roots_cached(str(repo_root.resolve()), scope, g)
 
 
 @lru_cache(maxsize=64)
-def _scenario_roots_cached(root_s: str, scope: str) -> tuple[ScenarioRoot, ...]:
+def _scenario_roots_cached(
+    root_s: str, scope: str, game: str
+) -> tuple[ScenarioRoot, ...]:
     repo_root = Path(root_s)
     roots: list[ScenarioRoot] = []
 
-    for module_dir in iter_module_dirs(repo_root):
-        if scope == CORE_MODULE_KEY and not is_core_nested_module(module_dir, repo_root):
+    for module_dir in iter_module_dirs(repo_root, game=game):
+        if scope == CORE_MODULE_KEY and not is_core_nested_module(
+            module_dir, repo_root, game=game
+        ):
             continue
         if scope not in (ALL_MODULES_KEY, CORE_MODULE_KEY) and not module_matches_scope(
-            module_dir, scope, repo_root
+            module_dir, scope, repo_root, game=game
         ):
             continue
         scen_dir = module_dir / "scenarios"
@@ -85,10 +94,12 @@ def is_under_drafts(path: Path, root: Path) -> bool:
 def iter_scenario_yaml_files(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> list[tuple[ScenarioRoot, Path]]:
     """All scenario YAMLs from core and modules, excluding drafts."""
     out: list[tuple[ScenarioRoot, Path]] = []
-    for root in scenario_roots(repo_root, module_scope):
+    for root in scenario_roots(repo_root, module_scope, game=game):
         for path in root.path.rglob("*.yaml"):
             if is_under_drafts(path, root.path):
                 continue
@@ -96,12 +107,16 @@ def iter_scenario_yaml_files(
     return sorted(out, key=lambda item: (item[0].label, item[1].as_posix()))
 
 
-def scenario_yaml_tree_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+def scenario_yaml_tree_fingerprint(
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> tuple[str, tuple[tuple[str, int, int], ...]]:
     """Stable (mtime, size) fingerprint for every runnable scenario YAML (core + modules)."""
 
     root = repo_root.resolve()
     items: list[tuple[str, int, int]] = []
-    for _sr, path in iter_scenario_yaml_files(root):
+    for _sr, path in iter_scenario_yaml_files(root, game=game):
         try:
             st = path.stat()
         except OSError:
@@ -115,6 +130,8 @@ def scenario_yaml_tree_fingerprint(repo_root: Path) -> tuple[str, tuple[tuple[st
 def iter_module_analyze_manifests(
     repo_root: Path,
     module_scope: str | None = None,
+    *,
+    game: str | None = None,
 ) -> list[Path]:
     """Module-local analyze manifests in deterministic order.
 
@@ -128,12 +145,14 @@ def iter_module_analyze_manifests(
     scope = normalize_module_scope(module_scope)
     out: list[Path] = []
     specific_scope = scope not in (ALL_MODULES_KEY, CORE_MODULE_KEY)
-    for module_dir in iter_module_dirs(repo_root):
-        if scope == CORE_MODULE_KEY and not is_core_nested_module(module_dir, repo_root):
+    for module_dir in iter_module_dirs(repo_root, game=game):
+        if scope == CORE_MODULE_KEY and not is_core_nested_module(
+            module_dir, repo_root, game=game
+        ):
             continue
         if (
             specific_scope
-            and not module_matches_scope(module_dir, scope, repo_root)
+            and not module_matches_scope(module_dir, scope, repo_root, game=game)
             and module_meta_id(module_dir) not in INFRASTRUCTURE_MODULE_IDS
         ):
             continue
@@ -144,15 +163,25 @@ def iter_module_analyze_manifests(
 
 
 @lru_cache(maxsize=16)
-def _scenario_roots_for_label(repo_root_s: str) -> tuple[tuple[str, str, str | None], ...]:
+def _scenario_roots_for_label(
+    repo_root_s: str, game: str
+) -> tuple[tuple[str, str, str | None], ...]:
     """Cached ``scenario_roots`` rows as strings (``Path`` is not hashable)."""
-    roots = scenario_roots(Path(repo_root_s), ALL_MODULES_KEY)
+    roots = scenario_roots(Path(repo_root_s), ALL_MODULES_KEY, game=game)
     return tuple((str(r.path), r.label, r.module_id) for r in roots)
 
 
-def scenario_source_label(path: Path, repo_root: Path) -> str:
+def scenario_source_label(
+    path: Path,
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> str:
     """Human-readable source label for logs/UI, relative to its scenario root."""
-    for root_path, label, module_id in _scenario_roots_for_label(str(repo_root)):
+    from config.games import default_game
+
+    g = (game or default_game()).strip()
+    for root_path, label, module_id in _scenario_roots_for_label(str(repo_root), g):
         try:
             rel = path.relative_to(root_path).as_posix()
         except ValueError:

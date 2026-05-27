@@ -68,10 +68,12 @@ def _worker_process(instance_config: InstanceConfig) -> None:
     async def _run() -> None:
         from services import (
             aclose_app_services,
+            bind_active_game,
             init_app_services,
             instance_worker_session,
         )
 
+        bind_active_game(instance_config.game)
         await init_app_services()
         try:
             async with instance_worker_session(instance_config) as worker:
@@ -302,7 +304,7 @@ def main() -> None:
     _enforce_license_gate()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
-    # The ``wos.workers.active`` gauge needs to peek at the supervisor's
+    # The ``autopilot.workers.active`` gauge needs to peek at the supervisor's
     # process table — bind it here so the callback finds it.
     telemetry.bind_supervisor(supervisor)
     try:

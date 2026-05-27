@@ -84,6 +84,32 @@ export async function fetchInstances(): Promise<string[]> {
   return data.instances;
 }
 
+/** ``{instance_id: game_id}`` for every device in the registry. */
+export async function fetchInstanceGames(): Promise<Record<string, string>> {
+  const data = await apiFetch<{ games: Record<string, string> }>(
+    "/api/instances/games",
+  );
+  return data.games ?? {};
+}
+
+// Active game id for the next API call. FleetContextProvider keeps this in
+// lockstep with ``useFleet().game`` via :func:`setActiveGame`. Module-scoped
+// query builders (``labelingScopeQuery``, ``modulesScopeQuery``) read it so
+// every request carries ``?game=`` without each callsite threading it.
+let _activeGame = "";
+
+export function setActiveGame(game: string): void {
+  _activeGame = (game || "").trim();
+}
+
+export function getActiveGame(): string {
+  return _activeGame;
+}
+
+function gameQueryEntries(): Record<string, string> {
+  return _activeGame ? { game: _activeGame } : {};
+}
+
 export async function fetchOverview(): Promise<OverviewView> {
   return apiFetch<OverviewView>("/api/overview");
 }
@@ -420,7 +446,7 @@ function labelingScopeQuery(
   scope: string,
   extra?: Record<string, string> | null,
 ): string {
-  const q = new URLSearchParams({ scope });
+  const q = new URLSearchParams({ scope, ...gameQueryEntries() });
   if (extra) {
     for (const [k, v] of Object.entries(extra)) {
       if (v) q.set(k, v);
@@ -750,8 +776,116 @@ export async function redeemGiftCodes(): Promise<{ ok: boolean }> {
   return apiFetch("/api/gift-codes/redeem", { method: "POST" });
 }
 
+// ---------------------------------------------------------------------------
+// Gift-code external accounts (Pro feature)
+// ---------------------------------------------------------------------------
+
+export type ExternalAccount = {
+  game: string;
+  player_id: number;
+  nickname: string;
+  label: string;
+  enabled: boolean;
+  added_at: number;
+  last_seen_at: number | null;
+};
+
+export type ExternalAccountsView = {
+  game: string;
+  feature_licensed: boolean;
+  accounts: ExternalAccount[];
+  count: number;
+};
+
+export type ExternalAccountInput = {
+  player_id: number;
+  nickname?: string;
+  label?: string;
+  enabled?: boolean;
+  // Hit /api/player to confirm the fid and auto-populate nickname.
+  // Disable for bulk import after pre-validation.
+  validate_fid?: boolean;
+};
+
+// Distinct error type so the UI can branch on 402 vs other failures.
+export class FeatureLockedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "FeatureLockedError";
+  }
+}
+
+async function externalAccountsFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${base}${path}`, { cache: "no-store", ...init });
+  if (res.status === 402) {
+    const detail = await res.json().catch(() => ({ msg: "feature_not_licensed" }));
+    throw new FeatureLockedError(
+      typeof detail === "object" && detail && "msg" in detail
+        ? String((detail as { msg: unknown }).msg)
+        : "feature not licensed",
+    );
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`${path}: ${res.status}${text ? ` — ${text}` : ""}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function fetchExternalAccounts(game: string): Promise<ExternalAccountsView> {
+  const q = new URLSearchParams({ game }).toString();
+  return externalAccountsFetch<ExternalAccountsView>(
+    `/api/gift-codes/external-accounts?${q}`,
+  );
+}
+
+export async function upsertExternalAccount(
+  game: string,
+  payload: ExternalAccountInput,
+): Promise<{ ok: boolean; account: ExternalAccount }> {
+  const q = new URLSearchParams({ game }).toString();
+  return externalAccountsFetch(
+    `/api/gift-codes/external-accounts?${q}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function toggleExternalAccount(
+  game: string,
+  playerId: number,
+  enabled: boolean,
+): Promise<{ ok: boolean }> {
+  const q = new URLSearchParams({ game }).toString();
+  return externalAccountsFetch(
+    `/api/gift-codes/external-accounts/${playerId}?${q}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    },
+  );
+}
+
+export async function deleteExternalAccount(
+  game: string,
+  playerId: number,
+): Promise<{ ok: boolean }> {
+  const q = new URLSearchParams({ game }).toString();
+  return externalAccountsFetch(
+    `/api/gift-codes/external-accounts/${playerId}?${q}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function fetchWikiScopes(): Promise<WikiScope[]> {
-  const data = await apiFetch<{ scopes: WikiScope[] }>("/api/wiki/scopes");
+  const q = new URLSearchParams(gameQueryEntries()).toString();
+  const data = await apiFetch<{ scopes: WikiScope[] }>(
+    `/api/wiki/scopes${q ? `?${q}` : ""}`,
+  );
   return data.scopes;
 }
 
@@ -760,7 +894,7 @@ export async function fetchWikiEntries(
   scope: string,
   q = "",
 ): Promise<{ entries: WikiEntrySummary[]; count: number }> {
-  const params = new URLSearchParams({ scope });
+  const params = new URLSearchParams({ scope, ...gameQueryEntries() });
   if (q) params.set("q", q);
   return apiFetch(`/api/wiki/${entity}?${params}`);
 }
@@ -774,7 +908,7 @@ export async function fetchWikiDetail(
   id: string,
   scope: string,
 ): Promise<WikiDetail> {
-  const params = new URLSearchParams({ scope });
+  const params = new URLSearchParams({ scope, ...gameQueryEntries() });
   return apiFetch<WikiDetail>(`/api/wiki/${entity}/${encodeURIComponent(id)}?${params}`);
 }
 
@@ -865,9 +999,14 @@ export async function runWikiSync(
   }
 }
 
+function modulesScopeQuery(scope: string): string {
+  const q = new URLSearchParams({ scope, ...gameQueryEntries() });
+  return `?${q}`;
+}
+
 export async function fetchModules(scope = "all"): Promise<ModuleRow[]> {
   const data = await apiFetch<{ modules: ModuleRow[] }>(
-    `/api/modules?scope=${encodeURIComponent(scope)}`,
+    `/api/modules${modulesScopeQuery(scope)}`,
   );
   return data.modules;
 }
@@ -883,11 +1022,15 @@ export type CreateModuleInput = {
 export async function createModule(
   body: CreateModuleInput,
 ): Promise<ModuleRow> {
-  const data = await apiFetch<{ module: ModuleRow }>("/api/modules", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const q = new URLSearchParams(gameQueryEntries()).toString();
+  const data = await apiFetch<{ module: ModuleRow }>(
+    `/api/modules${q ? `?${q}` : ""}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
   return data.module;
 }
 
@@ -917,7 +1060,7 @@ export async function setInstanceTestModule(
 
 export async function fetchModuleScenarios(scope = "all"): Promise<ScenarioRow[]> {
   const data = await apiFetch<{ scenarios: ScenarioRow[] }>(
-    `/api/modules/scenarios?scope=${encodeURIComponent(scope)}`,
+    `/api/modules/scenarios${modulesScopeQuery(scope)}`,
   );
   return data.scenarios;
 }
@@ -1127,6 +1270,11 @@ export async function optimizerQueue(body: {
   });
 }
 
+function editDslQuery(extra: Record<string, string> = {}): string {
+  const q = new URLSearchParams({ ...gameQueryEntries(), ...extra });
+  return q.toString();
+}
+
 export async function fetchEditDslCatalog(
   scope = "all",
 ): Promise<{
@@ -1134,7 +1282,7 @@ export async function fetchEditDslCatalog(
   tree: ScenarioTreeNode[];
   modules: EditableModuleEntry[];
 }> {
-  return apiFetch(`/api/edit-dsl/catalog?scope=${encodeURIComponent(scope)}`);
+  return apiFetch(`/api/edit-dsl/catalog?${editDslQuery({ scope })}`);
 }
 
 export async function fetchEditDslMeta(): Promise<{
@@ -1145,7 +1293,8 @@ export async function fetchEditDslMeta(): Promise<{
   exec_names: string[];
   scenario_keys: string[];
 }> {
-  return apiFetch("/api/edit-dsl/meta");
+  const q = editDslQuery();
+  return apiFetch(`/api/edit-dsl/meta${q ? `?${q}` : ""}`);
 }
 
 /** Stable URL for a region's crop thumbnail. 404 if no crop is on disk. */
@@ -1162,11 +1311,11 @@ export async function fetchEditScenarioFile(rel: string): Promise<{
   valid: boolean;
   validation_error: string;
 }> {
-  return apiFetch(`/api/edit-dsl/file?rel=${encodeURIComponent(rel)}`);
+  return apiFetch(`/api/edit-dsl/file?${editDslQuery({ rel })}`);
 }
 
 export async function saveEditScenarioFile(rel: string, yaml: string): Promise<void> {
-  await apiFetch(`/api/edit-dsl/file?rel=${encodeURIComponent(rel)}`, {
+  await apiFetch(`/api/edit-dsl/file?${editDslQuery({ rel })}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ yaml }),
@@ -1177,7 +1326,7 @@ export async function saveEditScenarioDocument(
   rel: string,
   document: EditScenarioDocument,
 ): Promise<void> {
-  await apiFetch(`/api/edit-dsl/file?rel=${encodeURIComponent(rel)}`, {
+  await apiFetch(`/api/edit-dsl/file?${editDslQuery({ rel })}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ document }),

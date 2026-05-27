@@ -3,13 +3,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.services import labeling as labeling_svc
+from api.services.game_resolver import request_game
 
-router = APIRouter(prefix="/api/labeling", tags=["labeling"])
+# Every labeling endpoint runs through ``request_game`` so the per-request
+# game context var is populated before the service layer reads it (see
+# ``api.services.labeling_scope._request_game``). Endpoints accept either
+# ``?game=`` directly or fall back to ``?instance_id=`` for the resolution.
+router = APIRouter(
+    prefix="/api/labeling",
+    tags=["labeling"],
+    dependencies=[Depends(request_game)],
+)
 
 
 class SaveRegionsBody(BaseModel):

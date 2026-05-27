@@ -122,11 +122,15 @@ def _scenario_row(
     }
 
 
-def list_scenarios(*, module_scope: str = "all") -> list[dict[str, Any]]:
+def list_scenarios(
+    *,
+    module_scope: str = "all",
+    game: str | None = None,
+) -> list[dict[str, Any]]:
     cache = _ScenarioListCache()
     out: list[dict[str, Any]] = []
     for rk in _tmpl.iter_resolved_keys(_REPO):
-        if not path_matches_module_scope(rk.path, _REPO, module_scope):
+        if not path_matches_module_scope(rk.path, _REPO, module_scope, game=game):
             continue
         out.append(
             _scenario_row(rk.path, context=rk.context, key=rk.key, cache=cache),
@@ -160,12 +164,16 @@ def _group_scenarios_by_module(
     return by_module
 
 
-def list_modules(*, module_scope: str = "all") -> list[dict[str, Any]]:
+def list_modules(
+    *,
+    module_scope: str = "all",
+    game: str | None = None,
+) -> list[dict[str, Any]]:
     scope = normalize_module_scope(module_scope)
     module_dirs = [
         module_dir
-        for module_dir in iter_module_dirs(_REPO)
-        if module_matches_scope(module_dir, scope, _REPO)
+        for module_dir in iter_module_dirs(_REPO, game=game)
+        if module_matches_scope(module_dir, scope, _REPO, game=game)
     ]
     scenarios_by_module = _group_scenarios_by_module(module_dirs)
     out: list[dict[str, Any]] = []
@@ -190,11 +198,11 @@ def list_modules(*, module_scope: str = "all") -> list[dict[str, Any]]:
         out.append(
             {
                 "id": module_id,
-                "storage_key": module_storage_key(module_dir, _REPO),
+                "storage_key": module_storage_key(module_dir, _REPO, game=game),
                 "title": title,
                 "description": description,
                 "wiki": wiki,
-                "core": is_core_nested_module(module_dir, _REPO),
+                "core": is_core_nested_module(module_dir, _REPO, game=game),
                 "rel_path": module_dir.relative_to(_REPO).as_posix(),
                 "scenarios_dir": scen_dir.relative_to(_REPO).as_posix()
                 if has_scenarios and scen_dir is not None
@@ -263,8 +271,9 @@ def create_module(
     description: str = "",
     parent: str = "",
     wiki: bool = False,
+    game: str | None = None,
 ) -> dict[str, Any]:
-    """Scaffold a new module under ``modules/[<parent>/]<id>/``.
+    """Scaffold a new module under ``games/<game>/[<parent>/]<id>/``.
 
     Writes ``module.yaml``, an empty ``analyze/analyze.yaml``, and a
     ``scenarios/.gitkeep`` so the overlay engine and scenario loader pick the
@@ -285,14 +294,17 @@ def create_module(
     title_norm = (title or "").strip() or mid
     desc_norm = (description or "").strip()
 
-    modules_root = _REPO / "modules"
+    from config.games import default_game, modules_root_for
+
+    g = (game or default_game()).strip()
+    modules_root = modules_root_for(g, repo_root=_REPO)
     module_dir = modules_root / parent_norm / mid if parent_norm else modules_root / mid
 
     if module_dir.exists():
         rel = module_dir.relative_to(_REPO).as_posix()
         msg = f"module path already exists: {rel}"
         raise FileExistsError(msg)
-    existing_ids = {module_meta_id(d) for d in iter_module_dirs(_REPO)}
+    existing_ids = {module_meta_id(d) for d in iter_module_dirs(_REPO, game=g)}
     if mid in existing_ids:
         msg = f"module id already taken: {mid}"
         raise FileExistsError(msg)

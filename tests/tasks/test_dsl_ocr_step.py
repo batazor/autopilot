@@ -13,13 +13,15 @@ from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
 from century.api import CenturyAPIError, PlayerData
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from layout.area_manifest import load_area_doc
 from layout.types import Region as LayoutRegion
 from ocr.client import OcrClient, OCRResult
 
 
 def _scenario_root(tmp_path: Path) -> Path:
-    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenario_root = mod / "scenarios"
     scenario_root.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
@@ -706,7 +708,7 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CHIEF_PROFILE_REF = (
-    _REPO_ROOT / "modules/core/chief_profile/references/chief_profile.png"
+    _REPO_ROOT / "games/wos/core/chief_profile/references/chief_profile.png"
 )
 # Real in-game player_id printed on the labelled chief_profile reference image.
 _REFERENCE_PLAYER_ID = "765502864"

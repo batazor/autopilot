@@ -124,12 +124,15 @@ def discover_shop_tab_templates(
     strip_y_lo = float(strip_bbox.get("y", 0.0))
     strip_y_hi = strip_y_lo + float(strip_bbox.get("height", 0.0))
 
+    from config.games import MODULES_DIR_NAME
+
+    shop_path_fragment = f"{MODULES_DIR_NAME}/core/shop"
     templates: dict[str, np.ndarray] = {}
     for screen in area_doc.get("screens", []) or []:
         if not isinstance(screen, dict):
             continue
         ocr_rel = str(screen.get("ocr", "")).strip()
-        if "modules/core/shop" not in ocr_rel:
+        if shop_path_fragment not in ocr_rel:
             continue
         for reg in screen.get("regions", []) or []:
             if not isinstance(reg, dict):

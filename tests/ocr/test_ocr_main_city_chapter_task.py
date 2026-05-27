@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_MAIN_CITY_REF = _REPO_ROOT / "modules/core/main_city/references/main_city.png"
+_MAIN_CITY_REF = _REPO_ROOT / "games/wos/core/main_city/references/main_city.png"
 
 
 def _assert_local_ocr_available() -> None:

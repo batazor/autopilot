@@ -2,16 +2,26 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import config.module_discovery as module_discovery
+import config.paths as paths
+import layout.area_manifest as area_manifest
 import navigation.screen_graph as screen_graph
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
+def _isolate_from_real_repo(mocker, tmp_path: Path) -> None:
+    """Point repo_root at ``tmp_path`` so production area.yaml files don't leak in."""
+    mocker.patch.object(paths, "repo_root", new=lambda: tmp_path)
+    module_discovery._clear_module_discovery_caches()
+    area_manifest.clear_area_doc_cache()
+
+
 def test_screen_verify_config_loads_rules_from_yaml(mocker, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
-    area = tmp_path / "area.json"
-    area.write_text('{"screens":[]}', encoding="utf-8")
     cfg.write_text(
         """
 retry:
@@ -36,8 +46,8 @@ screens:
 """,
         encoding="utf-8",
     )
+    _isolate_from_real_repo(mocker, tmp_path)
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
@@ -59,8 +69,6 @@ screens:
 
 def test_screen_verify_rules_only_mirrors_landmarks(mocker, tmp_path: Path) -> None:
     cfg = tmp_path / "screen_verify.yaml"
-    area = tmp_path / "area.json"
-    area.write_text('{"screens":[]}', encoding="utf-8")
     cfg.write_text(
         """
 screens:
@@ -71,8 +79,8 @@ screens:
 """,
         encoding="utf-8",
     )
+    _isolate_from_real_repo(mocker, tmp_path)
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [cfg])
-    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:
@@ -85,8 +93,6 @@ screens:
 
 def test_screen_verify_config_merges_module_yaml(mocker, tmp_path: Path) -> None:
     root_cfg = tmp_path / "screen_verify.yaml"
-    area = tmp_path / "area.json"
-    area.write_text('{"screens":[]}', encoding="utf-8")
     root_cfg.write_text(
         """
 retry:
@@ -99,7 +105,7 @@ screens:
 """,
         encoding="utf-8",
     )
-    module_cfg = tmp_path / "modules" / "core" / "chief_profile" / "screen_verify.yaml"
+    module_cfg = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "chief_profile" / "screen_verify.yaml"
     module_cfg.parent.mkdir(parents=True)
     module_cfg.write_text(
         """
@@ -111,8 +117,8 @@ screens:
 """,
         encoding="utf-8",
     )
+    _isolate_from_real_repo(mocker, tmp_path)
     mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=lambda: [root_cfg, module_cfg])
-    mocker.patch.object(screen_graph, "_area_json_path", new=lambda: area)
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
     try:

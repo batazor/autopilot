@@ -18,6 +18,8 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
 from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
@@ -63,7 +65,7 @@ def test_parse_hms_invalid(text: object) -> None:
 
 
 def _scenario_root(tmp_path: Path) -> Path:
-    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenario_root = mod / "scenarios"
     scenario_root.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
@@ -367,7 +369,7 @@ async def test_ocr_step_time_building_upgrading_reference_image(
     img = cv2.imread(
         str(
             Path(
-                "modules/core/building/common/references/building.upgrading.png"
+                "games/wos/core/building/common/references/building.upgrading.png"
             ).resolve()
         )
     )

@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from worker.instance_worker_overlay import InstanceWorkerOverlayMixin
 
 if TYPE_CHECKING:
@@ -100,7 +102,7 @@ async def test_overlay_enqueue_skips_disabled_scenario(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenarios_dir = module_dir / "scenarios"
     scenarios_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")

@@ -1,12 +1,16 @@
-"""Century Game API client for Whiteout Survival.
+"""Century Game gift-code API client (WOS + Kingshot).
 
-Endpoints:
+The protocol is identical across games:
+
   POST /api/player      — player info (login step)
-  POST /api/captcha     — get CAPTCHA image
+  POST /api/captcha     — get CAPTCHA image (WOS only)
   POST /api/gift_code   — redeem gift code (returns err_code + msg)
 
-All requests are signed with MD5:
-  sign = md5(sorted_params_string + SALT)
+What varies per game is captured in ``GameConfig`` (host, MD5 salt, whether
+captcha exists, time unit for ``/api/gift_code``). Pass one to ``CenturyClient``
+at construction.
+
+All payloads are signed: ``sign = md5(sorted_params_string + game.salt)``.
 """
 from __future__ import annotations
 
@@ -19,46 +23,29 @@ from enum import IntEnum
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-logger = logging.getLogger(__name__)
+from century.games import WOS, GameConfig
+from century.headers import build_headers
 
-_API_BASE = "https://wos-giftcode-api.centurygame.com/api"
-_SALT = "tB87#kPtkxqOS2"
-_HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "content-type": "application/x-www-form-urlencoded",
-    "origin": "https://wos-giftcode.centurygame.com",
-    "referer": "https://wos-giftcode.centurygame.com/",
-    "user-agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ),
-}
+logger = logging.getLogger(__name__)
 
 
 class ErrCode(IntEnum):
     SUCCESS = 20000
+    TIMEOUT_RETRY = 40004           # Kingshot — server-side timeout, retry the request
     ALREADY_RECEIVED_1 = 40008
     ALREADY_RECEIVED_2 = 40011
-    ALREADY_RECEIVED_3 = 40005  # "USED" — player already claimed this code
+    ALREADY_RECEIVED_3 = 40005      # "USED" — player already claimed this code
     CDK_EXPIRED = 40007
     CDK_NOT_FOUND = 40014
-    STOVE_LEVEL_TOO_LOW = 40006  # furnace level requirement not met
-    CAPTCHA_TOO_FREQUENT = 40101
-    CAPTCHA_ERROR = 40103
+    STOVE_LEVEL_TOO_LOW = 40006     # furnace/town-center level requirement not met
+    RECHARGE_MONEY = 40017          # Kingshot — VIP-only code, account VIP too low
+    RECHARGE_MONEY_VIP = 40018      # Kingshot — VIP-only code, account VIP too low
+    CAPTCHA_TOO_FREQUENT = 40101    # WOS only
+    CAPTCHA_ERROR = 40103           # WOS only
 
 
 def _md5(s: str) -> str:
     return hashlib.md5(s.encode()).hexdigest()
-
-
-def _timestamp() -> str:
-    return str(int(time.time()))
-
-
-def _sign(*pairs: tuple[str, str]) -> str:
-    """Build sorted param string and sign with SALT."""
-    param_str = "&".join(f"{k}={v}" for k, v in sorted(pairs))
-    return _md5(param_str + _SALT)
 
 
 @dataclass(frozen=True)
@@ -106,10 +93,37 @@ def _raise_for_status(resp: httpx.Response, *, endpoint: str) -> None:
 
 
 class CenturyClient:
-    """Async HTTP client for the Century Game gift code API."""
+    """Async HTTP client for the Century Game gift-code API."""
 
-    def __init__(self, timeout: float = 30.0) -> None:
+    def __init__(self, game: GameConfig = WOS, timeout: float = 30.0) -> None:
+        self._game = game
         self._timeout = timeout
+        # Headers are fixed per client instance: same browser identity for
+        # every call avoids the "UA flipping mid-session" tell.
+        self._headers = build_headers(origin=game.redemption_url)
+
+    @property
+    def game(self) -> GameConfig:
+        return self._game
+
+    # ------------------------------------------------------------------
+    # Signing helpers
+    # ------------------------------------------------------------------
+
+    def _sign(self, *pairs: tuple[str, str]) -> str:
+        param_str = "&".join(f"{k}={v}" for k, v in sorted(pairs))
+        return _md5(param_str + self._game.salt)
+
+    @staticmethod
+    def _ts_seconds() -> str:
+        return str(int(time.time()))
+
+    def _ts_redeem(self) -> str:
+        """Timestamp for ``/api/gift_code``. KS expects milliseconds, WOS seconds."""
+        now = time.time()
+        if self._game.redeem_time_unit == "ms":
+            return str(int(now * 1000))
+        return str(int(now))
 
     # ------------------------------------------------------------------
     # Player info
@@ -117,12 +131,12 @@ class CenturyClient:
 
     @_CENTURY_RETRY
     async def fetch_player(self, fid: int) -> PlayerData:
-        ts = _timestamp()
-        sign = _sign(("fid", str(fid)), ("time", ts))
+        ts = self._ts_seconds()
+        sign = self._sign(("fid", str(fid)), ("time", ts))
         data = {"fid": str(fid), "time": ts, "sign": sign}
 
-        async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
-            resp = await client.post(f"{_API_BASE}/player", data=data)
+        async with httpx.AsyncClient(headers=self._headers, timeout=self._timeout) as client:
+            resp = await client.post(f"{self._game.base_url}/player", data=data)
             _raise_for_status(resp, endpoint="player")
             body = resp.json()
 
@@ -143,17 +157,21 @@ class CenturyClient:
         )
 
     # ------------------------------------------------------------------
-    # Captcha
+    # Captcha (WOS only — Kingshot's API does not require captcha)
     # ------------------------------------------------------------------
 
     @_CENTURY_RETRY
     async def fetch_captcha(self, fid: int) -> CaptchaData:
-        ts = _timestamp()
-        sign = _sign(("fid", str(fid)), ("init", "0"), ("time", ts))
+        if not self._game.has_captcha:
+            msg = f"{self._game.id}: gift-code API has no captcha endpoint"
+            raise CenturyAPIError(msg)
+
+        ts = self._ts_seconds()
+        sign = self._sign(("fid", str(fid)), ("init", "0"), ("time", ts))
         data = {"fid": str(fid), "init": "0", "time": ts, "sign": sign}
 
-        async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
-            resp = await client.post(f"{_API_BASE}/captcha", data=data)
+        async with httpx.AsyncClient(headers=self._headers, timeout=self._timeout) as client:
+            resp = await client.post(f"{self._game.base_url}/captcha", data=data)
             _raise_for_status(resp, endpoint="captcha")
             body = resp.json()
 
@@ -167,30 +185,45 @@ class CenturyClient:
     # Gift code redemption
     # ------------------------------------------------------------------
 
-    async def redeem(self, fid: int, code: str, captcha_code: str) -> tuple[ErrCode, str]:
-        ts = _timestamp()
-        sign = _sign(
-            ("captcha_code", captcha_code),
-            ("cdk", code),
-            ("fid", str(fid)),
-            ("time", ts),
-        )
-        data = {
-            "fid": str(fid),
-            "cdk": code,
-            "captcha_code": captcha_code,
-            "time": ts,
-            "sign": sign,
-        }
+    async def redeem(
+        self, fid: int, code: str, captcha_code: str | None = None
+    ) -> tuple[ErrCode, str]:
+        """POST ``/api/gift_code``.
 
-        async with httpx.AsyncClient(headers=_HEADERS, timeout=self._timeout) as client:
-            resp = await client.post(f"{_API_BASE}/gift_code", data=data)
+        ``captcha_code`` is required when ``game.has_captcha`` is True (WOS);
+        ignored otherwise (Kingshot — the API accepts the raw cdk + fid).
+        """
+        ts = self._ts_redeem()
+        if self._game.has_captcha:
+            if not captcha_code:
+                msg = f"{self._game.id}: captcha_code required"
+                raise CenturyAPIError(msg)
+            sign = self._sign(
+                ("captcha_code", captcha_code),
+                ("cdk", code),
+                ("fid", str(fid)),
+                ("time", ts),
+            )
+            data = {
+                "fid": str(fid),
+                "cdk": code,
+                "captcha_code": captcha_code,
+                "time": ts,
+                "sign": sign,
+            }
+        else:
+            sign = self._sign(("cdk", code), ("fid", str(fid)), ("time", ts))
+            data = {"fid": str(fid), "cdk": code, "time": ts, "sign": sign}
+
+        async with httpx.AsyncClient(headers=self._headers, timeout=self._timeout) as client:
+            resp = await client.post(f"{self._game.base_url}/gift_code", data=data)
             _raise_for_status(resp, endpoint="gift_code")
             body = resp.json()
 
         ec_raw = body.get("err_code", -1)
         msg = str(body.get("msg") or "")
-        logger.debug("redeem fid=%d code=%s ec=%s msg=%s", fid, code, ec_raw, msg)
+        logger.debug("redeem game=%s fid=%d code=%s ec=%s msg=%s",
+                     self._game.id, fid, code, ec_raw, msg)
         try:
             ec = ErrCode(int(ec_raw))
         except ValueError as exc:

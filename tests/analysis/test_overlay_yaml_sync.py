@@ -6,6 +6,8 @@ from pathlib import Path
 
 import yaml
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from dashboard.overlay_yaml_sync import (
     cascade_aux_region_names,
     detect_region_renames,
@@ -16,7 +18,7 @@ from dashboard.overlay_yaml_sync import (
 
 def _write_module_analyze(tmp_path: Path, raw: dict) -> None:
     """Real module layout so :func:`iter_analyze_manifest_paths` finds YAML."""
-    mod = tmp_path / "modules" / "zz_overlay_sync_test"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "zz_overlay_sync_test"
     mod.mkdir(parents=True)
     (mod / "module.yaml").write_text(
         yaml.dump({"id": "zz_overlay_sync_test", "name": "test"}),
@@ -41,7 +43,7 @@ def test_sync_sets_and_clears_search_and_tap_keys(tmp_path: Path) -> None:
         ]
     }
     _write_module_analyze(tmp_path, raw)
-    path = tmp_path / "modules" / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
+    path = _modules_root_for(_default_game(), repo_root=tmp_path) / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
 
     assert sync_findicon_overlay_aux_keys(tmp_path, "foo", use_search=True) is True
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -92,7 +94,7 @@ def test_rename_findicon_overlay_primary_updates_region_and_aux_keys(tmp_path: P
         ]
     }
     _write_module_analyze(tmp_path, raw)
-    path = tmp_path / "modules" / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
+    path = _modules_root_for(_default_game(), repo_root=tmp_path) / "zz_overlay_sync_test" / "analyze" / "analyze.yaml"
 
     assert rename_findicon_overlay_primary(tmp_path, "old", "new") is True
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -136,7 +138,7 @@ def test_cascade_aux_region_names_empty_for_blank_input() -> None:
 def test_building_furniture_overlay_uses_image_match() -> None:
     repo = Path(__file__).resolve().parents[2]
     doc = yaml.safe_load(
-        (repo / "modules/core/building/common/analyze/analyze.yaml").read_text(encoding="utf-8")
+        (repo / "games/wos/core/building/common/analyze/analyze.yaml").read_text(encoding="utf-8")
     )
     rules = doc.get("overlay") or []
     assert not any(

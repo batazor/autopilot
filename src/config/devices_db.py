@@ -14,7 +14,7 @@ callers continue to call ``load_devices()`` / ``upsert_device_gamer()`` exactly
 as before — this module just swaps the storage backend underneath.
 
 Shares the same SQLite file as ``state_sqlite`` / ``giftcodes_db`` (one
-``wos.db`` for all durable persistence).
+``state.db`` for all durable persistence).
 """
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS devices (
     quartz_crop_h INTEGER,
     display_json TEXT,
     device_order INTEGER NOT NULL DEFAULT 0,
+    game TEXT NOT NULL DEFAULT 'wos',
     updated_at REAL NOT NULL
 );
 
@@ -59,7 +60,8 @@ CREATE TABLE IF NOT EXISTS device_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     device_name TEXT NOT NULL REFERENCES devices(name) ON DELETE CASCADE,
     email TEXT NOT NULL DEFAULT '',
-    profile_order INTEGER NOT NULL DEFAULT 0
+    profile_order INTEGER NOT NULL DEFAULT 0,
+    game TEXT NOT NULL DEFAULT 'wos'
 );
 
 CREATE TABLE IF NOT EXISTS device_profile_gamers (
@@ -80,6 +82,20 @@ VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "minicap", "scrcpy"}
 VALID_INPUT_BACKENDS = frozenset({"", "adb", "minitouch", "scrcpy"})
 
 
+def _ensure_game_columns(conn: sqlite3.Connection) -> None:
+    """One-time migration: add ``game`` column to legacy DB rows.
+
+    Existing deployments created before Phase 2 lack the column. SQLite can't
+    add NOT NULL columns with a literal default in one step on older DBs, so
+    we detect and ALTER if missing. Backfills to ``'wos'`` since that was the
+    only game until this phase.
+    """
+    for table in ("devices", "device_profiles"):
+        cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if "game" not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN game TEXT NOT NULL DEFAULT 'wos'")
+
+
 @contextmanager
 def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     db_path = path or state_db_path()
@@ -89,6 +105,7 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     try:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(_SCHEMA_SQL)
+        _ensure_game_columns(conn)
         conn.commit()
         yield conn
     finally:
@@ -134,22 +151,41 @@ def upsert_device(
     quartz_crop: tuple[int, int, int, int] | None = None,
     display: DeviceDisplayConfig | None = None,
     device_order: int = 0,
+    game: str | None = None,
 ) -> None:
-    """Insert or replace a device row (does NOT touch profiles/gamers)."""
+    """Insert or replace a device row (does NOT touch profiles/gamers).
+
+    ``game`` defaults to ``'wos'`` for new rows and is preserved for existing
+    rows when omitted — pass an explicit value to switch games.
+    """
+    from config.games import default_game, is_known_game
+
     name = (name or "").strip()
     if not name:
         msg = "device name is required"
         raise ValueError(msg)
+    if game is not None and not is_known_game(game):
+        msg = f"unknown game id: {game!r}"
+        raise ValueError(msg)
     now = time.time()
     crop = quartz_crop or (None, None, None, None)
+    game_value = (game or default_game()).strip()
     with _conn_lock, _connect() as conn:
+        # When ``game`` is omitted, keep whatever the existing row had (or fall
+        # back to default_game() for new rows).
+        if game is None:
+            row = conn.execute(
+                "SELECT game FROM devices WHERE name = ?", (name,)
+            ).fetchone()
+            if row is not None:
+                game_value = row["game"]
         conn.execute(
             "INSERT INTO devices "
             "(name, adb_serial, screenshot_backend, input_backend, "
             "quartz_window_id, quartz_window_title, "
             "quartz_crop_x, quartz_crop_y, quartz_crop_w, quartz_crop_h, "
-            "display_json, device_order, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "display_json, device_order, game, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(name) DO UPDATE SET "
             "adb_serial = excluded.adb_serial, "
             "screenshot_backend = excluded.screenshot_backend, "
@@ -162,6 +198,7 @@ def upsert_device(
             "quartz_crop_h = excluded.quartz_crop_h, "
             "display_json = excluded.display_json, "
             "device_order = excluded.device_order, "
+            "game = excluded.game, "
             "updated_at = excluded.updated_at",
             (
                 name, adb_serial.strip(),
@@ -169,10 +206,60 @@ def upsert_device(
                 input_backend.strip().lower(),
                 quartz_window_id, quartz_window_title.strip(),
                 crop[0], crop[1], crop[2], crop[3],
-                _serialize_display(display), device_order, now,
+                _serialize_display(display), device_order, game_value, now,
             ),
         )
         conn.commit()
+
+
+def set_device_game(name: str, game: str) -> str:
+    """Update only the ``game`` field on an existing device. Returns the new value.
+
+    Raises ``KeyError`` if the device doesn't exist or ``ValueError`` if
+    ``game`` is not in the registry.
+    """
+    from config.games import is_known_game
+
+    name = (name or "").strip()
+    if not name:
+        msg = "device name is required"
+        raise ValueError(msg)
+    if not is_known_game(game):
+        msg = f"unknown game id: {game!r}"
+        raise ValueError(msg)
+    with _conn_lock, _connect() as conn:
+        row = conn.execute("SELECT 1 FROM devices WHERE name = ?", (name,)).fetchone()
+        if row is None:
+            msg = f"device not found: {name!r}"
+            raise KeyError(msg)
+        conn.execute(
+            "UPDATE devices SET game = ?, updated_at = ? WHERE name = ?",
+            (game, time.time(), name),
+        )
+        conn.commit()
+    return game
+
+
+def set_profile_game(profile_id: int, game: str) -> str:
+    """Override the per-profile game (defaults to the device's game otherwise)."""
+    from config.games import is_known_game
+
+    if not is_known_game(game):
+        msg = f"unknown game id: {game!r}"
+        raise ValueError(msg)
+    with _conn_lock, _connect() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM device_profiles WHERE id = ?", (int(profile_id),)
+        ).fetchone()
+        if row is None:
+            msg = f"profile not found: {profile_id!r}"
+            raise KeyError(msg)
+        conn.execute(
+            "UPDATE device_profiles SET game = ? WHERE id = ?",
+            (game, int(profile_id)),
+        )
+        conn.commit()
+    return game
 
 
 def delete_device(name: str) -> bool:
@@ -301,10 +388,16 @@ def upsert_device_gamer(
             (canonical,),
         ).fetchone()
         if profile_row is None:
+            # New profile inherits the device's game so the registry stays
+            # internally consistent without forcing every caller to know it.
+            device_game_row = conn.execute(
+                "SELECT game FROM devices WHERE name = ?", (canonical,)
+            ).fetchone()
+            device_game = (device_game_row["game"] if device_game_row else "wos") or "wos"
             cur = conn.execute(
-                "INSERT INTO device_profiles (device_name, email, profile_order) "
-                "VALUES (?, ?, 0)",
-                (canonical, email),
+                "INSERT INTO device_profiles (device_name, email, profile_order, game) "
+                "VALUES (?, ?, 0, ?)",
+                (canonical, email, device_game),
             )
             profile_id = cur.lastrowid
             changed = True
@@ -423,9 +516,13 @@ def load_registry() -> Any:
     for g in gamer_rows:
         gamers_by_profile.setdefault(g["profile_id"], []).append(g)
 
+    from config.games import default_game as _default_game
+
     entries: list[DeviceEntry] = []
     for d in device_rows:
         profile_entries: list[DeviceProfile] = []
+        d_keys = d.keys()
+        device_game = (d["game"] if "game" in d_keys else _default_game()) or _default_game()
         for profile_id, prow in profiles_by_device.get(d["name"], []):
             gamer_objs = tuple(
                 Gamer(
@@ -435,7 +532,17 @@ def load_registry() -> Any:
                 )
                 for g in gamers_by_profile.get(profile_id, [])
             )
-            profile_entries.append(DeviceProfile(email=prow["email"] or "", gamers=gamer_objs))
+            prow_keys = prow.keys()
+            profile_game = (
+                prow["game"] if "game" in prow_keys else device_game
+            ) or device_game
+            profile_entries.append(
+                DeviceProfile(
+                    email=prow["email"] or "",
+                    gamers=gamer_objs,
+                    game=profile_game,
+                )
+            )
 
         crop: tuple[int, int, int, int] | None
         if all(d[c] is not None for c in ("quartz_crop_x", "quartz_crop_y", "quartz_crop_w", "quartz_crop_h")):
@@ -459,6 +566,7 @@ def load_registry() -> Any:
                 quartz_window_title=d["quartz_window_title"] or "",
                 quartz_crop=crop,
                 display=_deserialize_display(d["display_json"]),
+                game=device_game,
             )
         )
     return DeviceRegistry(devices=entries)

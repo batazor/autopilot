@@ -16,7 +16,7 @@ from config.loader import Settings, load_settings, reset_settings, set_settings
 from ocr.client import OcrClient
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator, Iterator
+    from collections.abc import AsyncIterator, Callable, Iterator
     from pathlib import Path
 
     from pytest_mock import MockerFixture
@@ -171,6 +171,31 @@ def patch_dsl(
         mocker.patch.object(dsl, "_repo_root", return_value=repo_root)
     mocker.patch.object(dsl_runtime, "bot_actions", return_value=actions)
     mocker.patch.object(dsl, "BotActions", return_value=actions)
+
+
+@pytest.fixture
+def make_module_tree(tmp_path: Path) -> Callable[..., Path]:
+    """Build a fake module tree at the location ``modules_root_for`` resolves to.
+
+    Use this instead of hardcoding ``tmp_path / "modules" / "core" / ...`` so the
+    test transparently follows Phase 3's directory move from ``modules/`` to
+    ``games/<game>/`` — the helper resolves the right path for the migration
+    phase the code currently sits in.
+
+    Example::
+
+        mod_dir = make_module_tree("core/test_scenarios")
+        (mod_dir / "scenarios" / "foo.yaml").write_text(...)
+    """
+    from config.games import modules_root_for as _modules_root_for
+
+    def _make(module_id: str = "core/test_scenarios", game: str = "wos") -> Path:
+        root = _modules_root_for(game, repo_root=tmp_path)
+        mod = root / module_id
+        mod.mkdir(parents=True, exist_ok=True)
+        return mod
+
+    return _make
 
 
 _INTEGRATION_TIMEOUT_S = 180

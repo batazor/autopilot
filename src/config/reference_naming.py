@@ -43,9 +43,12 @@ def event_icon_abs_path(repo_root: Path, slug: str) -> Path | None:
     s = str(slug or "").strip()
     if not s:
         return None
+    from config.games import default_game, modules_root_for
+
+    events_dir = modules_root_for(default_game(), repo_root=repo_root) / "events"
     candidates = (
-        repo_root / "modules" / "events" / s / "references" / "logo.png",
-        repo_root / "modules" / "events" / s / "references" / f"event.{s}.png",
+        events_dir / s / "references" / "logo.png",
+        events_dir / s / "references" / f"event.{s}.png",
     )
     for path in candidates:
         if path.is_file():

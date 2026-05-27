@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from config.module_registry import (
     ALL_MODULES_KEY,
     CORE_MODULE_KEY,
@@ -24,11 +26,11 @@ def test_normalize_module_scope_defaults_to_all() -> None:
 
 
 def test_scenario_roots_filter_core_only(tmp_path: Path) -> None:
-    core = tmp_path / "modules" / "core" / "bootstrap_probe"
+    core = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "bootstrap_probe"
     (core / "scenarios").mkdir(parents=True)
     (core / "module.yaml").write_text("id: bootstrap_probe\ntitle: Bootstrap\n", encoding="utf-8")
     (core / "scenarios" / "a.yaml").write_text("steps: []\n", encoding="utf-8")
-    mod = tmp_path / "modules" / "mail"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "mail"
     (mod / "scenarios").mkdir(parents=True)
     (mod / "module.yaml").write_text("id: mail\ntitle: Mail\n", encoding="utf-8")
     (mod / "scenarios" / "read.yaml").write_text("steps: []\n", encoding="utf-8")
@@ -44,21 +46,21 @@ def test_scenario_roots_filter_core_only(tmp_path: Path) -> None:
 
 
 def test_path_matches_module_scope(tmp_path: Path) -> None:
-    core = tmp_path / "modules" / "core" / "bootstrap_probe" / "scenarios" / "x.yaml"
+    core = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "bootstrap_probe" / "scenarios" / "x.yaml"
     core.parent.mkdir(parents=True)
-    (tmp_path / "modules" / "core" / "bootstrap_probe" / "module.yaml").write_text(
+    (_modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "bootstrap_probe" / "module.yaml").write_text(
         "id: bootstrap_probe\n", encoding="utf-8"
     )
     core.write_text("", encoding="utf-8")
-    nested = tmp_path / "modules" / "core" / "bootstrap_probe" / "scenarios" / "z.yaml"
+    nested = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "bootstrap_probe" / "scenarios" / "z.yaml"
     nested.parent.mkdir(parents=True, exist_ok=True)
-    (tmp_path / "modules" / "core" / "bootstrap_probe" / "module.yaml").write_text(
+    (_modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "bootstrap_probe" / "module.yaml").write_text(
         "id: bootstrap_probe\n", encoding="utf-8"
     )
     nested.write_text("", encoding="utf-8")
-    mod = tmp_path / "modules" / "vip" / "scenarios" / "y.yaml"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "vip" / "scenarios" / "y.yaml"
     mod.parent.mkdir(parents=True)
-    (tmp_path / "modules" / "vip" / "module.yaml").write_text("id: vip\n", encoding="utf-8")
+    (_modules_root_for(_default_game(), repo_root=tmp_path) / "vip" / "module.yaml").write_text("id: vip\n", encoding="utf-8")
     mod.write_text("", encoding="utf-8")
 
     assert path_matches_module_scope(core, tmp_path, ALL_MODULES_KEY)
@@ -74,11 +76,11 @@ def test_path_matches_module_scope(tmp_path: Path) -> None:
 def test_iter_module_dirs_discovers_nested_module_yaml(tmp_path: Path) -> None:
     from config.module_discovery import iter_module_dirs, module_storage_key
 
-    event_pkg = tmp_path / "modules" / "core" / "event"
+    event_pkg = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "event"
     seven = event_pkg / "events" / "7-day"
-    trials = tmp_path / "modules" / "events" / "trials"
-    draft = tmp_path / "modules" / "draft" / "scratch"
-    core_draft = tmp_path / "modules" / "core" / "draft" / "scratch"
+    trials = _modules_root_for(_default_game(), repo_root=tmp_path) / "events" / "trials"
+    draft = _modules_root_for(_default_game(), repo_root=tmp_path) / "draft" / "scratch"
+    core_draft = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "draft" / "scratch"
     (seven / "scenarios").mkdir(parents=True)
     (trials / "scenarios").mkdir(parents=True)
     (draft / "scenarios").mkdir(parents=True)
@@ -99,12 +101,12 @@ def test_iter_module_dirs_discovers_nested_module_yaml(tmp_path: Path) -> None:
     assert trials in dirs
     assert draft not in dirs
     assert core_draft not in dirs
-    assert module_storage_key(seven, tmp_path) == "core/event/events/7-day"
-    assert module_storage_key(trials, tmp_path) == "events/trials"
+    assert module_storage_key(seven, tmp_path) == "wos:core/event/events/7-day"
+    assert module_storage_key(trials, tmp_path) == "wos:events/trials"
 
 
 def test_path_matches_module_scope_event_child(tmp_path: Path) -> None:
-    event_pkg = tmp_path / "modules" / "core" / "event"
+    event_pkg = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "event"
     seven = event_pkg / "events" / "7-day"
     nested = seven / "scenarios" / "x.yaml"
     nested.parent.mkdir(parents=True)

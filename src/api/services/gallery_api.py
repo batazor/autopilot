@@ -34,7 +34,7 @@ def _context_for_scope(scope: str) -> WikiModuleContext:
 def _area_doc_for_context(ctx: WikiModuleContext) -> tuple[dict[str, Any], str]:
     if ctx.is_all:
         return merge_all_area_docs(ctx.repo_root), ctx.references_prefix
-    doc = load_json(ctx.area_path) if ctx.area_path.is_file() else {}
+    doc = load_json(ctx.area_path) if ctx.area_path is not None and ctx.area_path.is_file() else {}
     return doc if isinstance(doc, dict) else {}, ctx.references_prefix
 
 
@@ -120,16 +120,16 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
 
 
 def _node_group(rel: str) -> str:
+    from config.games import split_repo_relative
+
+    split = split_repo_relative(rel)
+    if split is not None:
+        module_id, tail = split
+        # Use the last segment of module_id as the group label (preserves the
+        # pre-Phase 3 behaviour where the group was the first segment after
+        # ``modules/``).
+        return module_id.rsplit("/", 1)[-1] if not tail else module_id
     parts = rel.replace("\\", "/").split("/")
-    if parts and parts[0] == "modules":
-        try:
-            refs_idx = parts.index("references")
-        except ValueError:
-            refs_idx = -1
-        if refs_idx > 1:
-            return "/".join(parts[1:refs_idx])
-        if len(parts) >= 2:
-            return parts[1]
     if len(parts) >= 2 and parts[0] == "references" and len(parts) > 2:
         return parts[1]
     if len(parts) >= 2:

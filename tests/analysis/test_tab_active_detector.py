@@ -27,9 +27,9 @@ from layout.tab_active_detector import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MAIL_MODULE_REFERENCES = REPO_ROOT / "modules" / "mail" / "references"
+MAIL_MODULE_REFERENCES = REPO_ROOT / "games" / "wos" / "mail" / "references"
 MAIL_FIXTURE = MAIL_MODULE_REFERENCES / "mail_page.png"
-TRIALS_FIXTURE = REPO_ROOT / "modules" / "events" / "trials" / "references" / "page.trials.png"
+TRIALS_FIXTURE = REPO_ROOT / "games" / "wos" / "events" / "trials" / "references" / "page.trials.png"
 
 ACTIVE_TAB = "mail.tab.system"
 INACTIVE_TABS = (

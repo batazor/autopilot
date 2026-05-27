@@ -20,6 +20,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from dsl.dsl_schema import OCR_SCOPES, DslStep, validate_dsl_steps
 
 
@@ -116,7 +118,7 @@ async def test_execute_fails_fast_on_invalid_scope(
 
     from tasks import dsl_scenario as dsl
 
-    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scen_dir = module_dir / "scenarios"
     scen_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")

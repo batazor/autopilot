@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from config.wiki_sources import CORE_SOURCE, find_entry, load_merged_entries
 
 if TYPE_CHECKING:
@@ -37,7 +39,7 @@ def _seed_core_items(root: Path) -> None:
 
 
 def _seed_module(root: Path, module_id: str, items_index: list[dict[str, Any]]) -> Path:
-    module_dir = root / "modules" / module_id
+    module_dir = root / "games" / "wos" / module_id
     (module_dir / "module.yaml").parent.mkdir(parents=True, exist_ok=True)
     (module_dir / "module.yaml").write_text(f"id: {module_id}\ntitle: {module_id.title()}\n", encoding="utf-8")
     _write_yaml(module_dir / "wiki" / "items" / "index.yaml", {"items": items_index})
@@ -117,7 +119,7 @@ def test_module_without_module_yaml_is_ignored(tmp_path: Path) -> None:
     # Bare modules/<id>/wiki/items dir with no module.yaml shouldn't be merged —
     # module.yaml is the gate that marks a directory as a real module.
     _write_yaml(
-        tmp_path / "modules" / "stray" / "wiki" / "items" / "index.yaml",
+        _modules_root_for(_default_game(), repo_root=tmp_path) / "stray" / "wiki" / "items" / "index.yaml",
         {"items": [{"id": "stray_item", "name": "Stray"}]},
     )
 

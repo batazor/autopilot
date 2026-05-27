@@ -1,0 +1,16 @@
+overlay:
+  # Hub-level icon: tap the Deals icon in main_city → open the deals hub.
+  # Each deals sub-tab (sign_in / hall_of_heroes / vault_of_enigma / …)
+  # owns its own main_city icon rule in its sub-module's analyze.yaml.
+  - name: deals.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/deals/deals/references/crop/main_city_main_city.to.deals.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: deals.deals
+          ttl: 1m

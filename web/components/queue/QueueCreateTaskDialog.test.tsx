@@ -13,7 +13,7 @@ const deviceLevelScenario: ScenarioRow = {
   device_level: true,
   steps: 3,
   source: "core/popup",
-  path: "modules/core/popup/scenarios/dismiss.yaml",
+  path: "games/wos/core/popup/scenarios/dismiss.yaml",
 };
 
 const accountScenario: ScenarioRow = {
@@ -23,7 +23,7 @@ const accountScenario: ScenarioRow = {
   device_level: false,
   steps: 5,
   source: "heroes",
-  path: "modules/heroes/scenarios/promote.yaml",
+  path: "games/wos/heroes/scenarios/promote.yaml",
 };
 
 function arrange(overrides: Partial<Parameters<typeof QueueCreateTaskDialog>[0]> = {}) {

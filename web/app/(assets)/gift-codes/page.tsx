@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ExternalAccountsPanel } from "@/components/gift-codes/ExternalAccountsPanel";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchGiftCodes,
@@ -8,6 +9,11 @@ import {
   scrapeGiftCodes,
 } from "@/lib/api";
 import type { GiftCodeRow } from "@/lib/wiki";
+
+const KNOWN_GAMES: { id: string; label: string }[] = [
+  { id: "wos", label: "Whiteout Survival" },
+  { id: "kingshot", label: "Kingshot" },
+];
 
 const STATUS_CLASS: Record<string, string> = {
   PENDING: "pill-paused",
@@ -88,6 +94,9 @@ export default function GiftCodesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // External accounts are game-scoped (one row per ``(game, player_id)``);
+  // default to WOS to match the legacy default in giftcodes_db.
+  const [externalGame, setExternalGame] = useState<string>(KNOWN_GAMES[0]?.id ?? "wos");
 
   const load = useCallback(async () => {
     try {
@@ -208,6 +217,27 @@ export default function GiftCodesPage() {
           ) : null}
         </>
       ) : null}
+
+      <section className="panel panel--spaced" style={{ marginBottom: "0.5rem" }}>
+        <div className="toolbar" style={{ margin: 0 }}>
+          <label htmlFor="external-game" className="meta">
+            External accounts game
+          </label>
+          <select
+            id="external-game"
+            value={externalGame}
+            onChange={(e) => setExternalGame(e.target.value)}
+          >
+            {KNOWN_GAMES.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.label} ({g.id})
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      <ExternalAccountsPanel game={externalGame} />
     </>
   );
 }

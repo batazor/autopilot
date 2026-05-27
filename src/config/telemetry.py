@@ -9,7 +9,7 @@ Why observable gauges (not regular gauges):
     once per export cycle for every running bot. Observable gauges fit
     naturally — the OTel SDK invokes the callback at each export, so the
     series stays alive while the process is up and goes stale when it dies.
-    Grafana's ``count(count by(sub) (wos_bot_heartbeat[5m]))`` then yields
+    Grafana's ``count(count by(sub) (autopilot_heartbeat[5m]))`` then yields
     "distinct subjects seen in the last 5 minutes".
 
 Bind-then-setup ordering:
@@ -88,7 +88,7 @@ def _common_attributes() -> dict[str, str]:
 
     If you ever need to segment by tier/version, add them as labels on a
     *separate*, lower-frequency metric (e.g. a once-per-session
-    ``wos.license.session`` counter with all the metadata) so the
+    ``autopilot.license.session`` counter with all the metadata) so the
     high-frequency gauges stay lean.
     """
     claims = _state.get("license_claims")
@@ -153,7 +153,7 @@ def _restart_counter() -> metrics.Counter:
     c = _counters.get("restarts")
     if c is None:
         c = _get_meter().create_counter(
-            name="wos.bot.restarts",
+            name="autopilot.restarts",
             description="Worker / scheduler restarts triggered by the supervisor.",
         )
         _counters["restarts"] = c
@@ -164,7 +164,7 @@ def _license_gate_counter() -> metrics.Counter:
     c = _counters.get("license_gate_failures")
     if c is None:
         c = _get_meter().create_counter(
-            name="wos.license.gate_failures",
+            name="autopilot.license.gate_failures",
             description="License gate refusals at supervisor startup.",
         )
         _counters["license_gate_failures"] = c
@@ -225,7 +225,7 @@ def setup_telemetry_metrics() -> None:
     # ``registered`` so we don't re-register if the env arrives later.
     meter = _get_meter()
     meter.create_observable_gauge(
-        name="wos.bot.heartbeat",
+        name="autopilot.heartbeat",
         callbacks=[_heartbeat_cb],
         description=(
             "Constant 1 emitted every export interval — count distinct "
@@ -233,13 +233,13 @@ def setup_telemetry_metrics() -> None:
         ),
     )
     meter.create_observable_gauge(
-        name="wos.bot.uptime_seconds",
+        name="autopilot.uptime_seconds",
         callbacks=[_uptime_cb],
         unit="s",
         description="Seconds since the supervisor process started.",
     )
     meter.create_observable_gauge(
-        name="wos.workers.active",
+        name="autopilot.workers.active",
         callbacks=[_workers_active_cb],
         description="Number of alive worker subprocesses (scheduler excluded).",
     )

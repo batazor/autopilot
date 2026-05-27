@@ -20,7 +20,7 @@ WELCOME_BACK_BBOX = {
 }
 TEMPLATE = (
     REPO
-    / "modules/core/welcome_back/references/crop/welcome_back_text.welcome_back.png"
+    / "games/wos/core/welcome_back/references/crop/welcome_back_text.welcome_back.png"
 )
 THRESHOLD = 0.9
 

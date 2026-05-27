@@ -35,7 +35,8 @@ export type IconName =
   | "inbox-empty"
   | "list-empty"
   | "warning"
-  | "alert";
+  | "alert"
+  | "discord";
 
 const SIZE_CLASS: Record<IconSize, string> = {
   sm: "ui-icon--sm",
@@ -242,6 +243,19 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+    </>,
+  ),
+  // Discord glyph — stylized chat-bubble outline with two eye dots. Kept
+  // monochrome / stroke-only so it follows the surrounding text color
+  // instead of forcing the Discord brand purple.
+  discord: strokeIcon(
+    <>
+      <path
+        d="M7 6.5C9 5.7 11 5.5 12 5.5s3 .2 5 1L18.5 7c1.5 2 2.2 4.5 2 7-1.4 1.1-2.8 1.8-4.2 2.2l-.8-1.4c.7-.3 1.4-.7 2-1.2-2.6 1.4-5.4 1.4-8 0 .6.5 1.3.9 2 1.2l-.8 1.4c-1.4-.4-2.8-1.1-4.2-2.2-.2-2.5.5-5 2-7L7 6.5z"
+        strokeLinejoin="round"
+      />
+      <circle cx="9.5" cy="12" r="1" />
+      <circle cx="14.5" cy="12" r="1" />
     </>,
   ),
 };

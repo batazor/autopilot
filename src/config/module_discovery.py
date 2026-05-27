@@ -1,8 +1,13 @@
-"""Discover feature and core modules under ``modules/``.
+"""Discover feature and core modules under :func:`modules_root_for`.
 
 Any directory that contains ``module.yaml`` is a module root (searched recursively).
-Discovery order: all ``modules/core/**`` first, then other ``modules/**``, each
-group sorted by relative path (case-insensitive).
+Discovery order: all ``core/**`` first, then other modules, each group sorted by
+relative path (case-insensitive).
+
+Phase 4: every helper that resolves a module-tree path takes an explicit
+``game`` argument. Call sites without an instance context can pass ``None`` to
+get the default game, but workers and game-scoped API handlers should always
+thread the active game through so Kingshot modules don't leak into WOS state.
 """
 from __future__ import annotations
 
@@ -12,11 +17,16 @@ from typing import Any
 
 import yaml
 
+from config.games import default_game, modules_root_for
 from config.paths import repo_root as default_repo_root
 
 CORE_MODULES_DIR = "core"
 MODULE_MANIFEST = "module.yaml"
 IGNORED_MODULE_DIR_NAMES = frozenset({"draft", "drafts"})
+
+
+def _resolve_game(game: str | None) -> str:
+    return (game or default_game()).strip()
 
 
 def _module_sort_key(module_dir: Path, modules_dir: Path) -> tuple[int, str]:
@@ -25,23 +35,30 @@ def _module_sort_key(module_dir: Path, modules_dir: Path) -> tuple[int, str]:
     return (0 if is_core else 1, rel.as_posix().lower())
 
 
-def iter_module_dirs(repo_root: Path | None = None) -> tuple[Path, ...]:
-    """Every ``modules/**/`` dir that contains ``module.yaml`` (process-cached).
+def iter_module_dirs(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> tuple[Path, ...]:
+    """Every ``games/<game>/**/`` dir that contains ``module.yaml`` (process-cached).
 
     The result is cached for the process lifetime — the rglob over the module
     tree previously dominated overlay-tick / approval-view CPU. Module layout
     is static at runtime in production; tests using ``tmp_path`` get distinct
     cache keys. Call :func:`_clear_module_discovery_caches` if you mutate the
     module tree inside one test.
+
+    ``game`` defaults to :func:`config.games.default_game` so legacy callers
+    that haven't been threaded through yet keep working on WOS.
     """
 
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
-    return _module_dirs_cached(str(root))
+    return _module_dirs_cached(_resolve_game(game), str(root))
 
 
-@lru_cache(maxsize=8)
-def _module_dirs_cached(root_s: str) -> tuple[Path, ...]:
-    modules_dir = Path(root_s) / "modules"
+@lru_cache(maxsize=16)
+def _module_dirs_cached(game: str, root_s: str) -> tuple[Path, ...]:
+    modules_dir = modules_root_for(game, repo_root=Path(root_s))
     if not modules_dir.is_dir():
         return ()
 
@@ -67,23 +84,49 @@ def _clear_module_discovery_caches() -> None:
     _iter_module_area_manifests_cached.cache_clear()
 
 
-def module_storage_key(module_dir: Path, repo_root: Path | None = None) -> str:
-    """Stable id for logs/UI: ``core/a/b`` under ``modules/core/``, else ``a/b``."""
+def module_storage_key(
+    module_dir: Path,
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> str:
+    """Game-prefixed stable id for logs/UI/Redis.
+
+    Returns ``"<game>:core/a/b"`` (or ``"<game>:a/b"`` for non-core modules).
+    Falls back to ``module_dir.name`` when the path isn't under the game's
+    modules root. Phase 4: the ``<game>:`` prefix is what lets Redis keys built
+    from the storage key stay disjoint between games.
+    """
+    g = _resolve_game(game)
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     try:
-        rel = module_dir.resolve().relative_to((root / "modules").resolve())
+        rel = module_dir.resolve().relative_to(
+            modules_root_for(g, repo_root=root).resolve()
+        )
     except ValueError:
         return module_dir.name
     parts = rel.parts
     if parts and parts[0] == CORE_MODULES_DIR:
-        return "/".join((CORE_MODULES_DIR, *parts[1:]))
-    return "/".join(parts) if parts else module_dir.name
+        suffix = "/".join((CORE_MODULES_DIR, *parts[1:]))
+    elif parts:
+        suffix = "/".join(parts)
+    else:
+        return module_dir.name
+    return f"{g}:{suffix}"
 
 
-def is_core_nested_module(module_dir: Path, repo_root: Path | None = None) -> bool:
+def is_core_nested_module(
+    module_dir: Path,
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> bool:
+    g = _resolve_game(game)
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     try:
-        rel = module_dir.resolve().relative_to((root / "modules").resolve())
+        rel = module_dir.resolve().relative_to(
+            modules_root_for(g, repo_root=root).resolve()
+        )
     except ValueError:
         return False
     return bool(rel.parts) and rel.parts[0] == CORE_MODULES_DIR
@@ -102,41 +145,75 @@ def module_meta_id(module_dir: Path) -> str:
     return str(meta.get("id") or module_dir.name).strip() or module_dir.name
 
 
-def module_scope_aliases(module_dir: Path, repo_root: Path) -> frozenset[str]:
-    """Strings that may select this module in UI / path filters."""
-    storage = module_storage_key(module_dir, repo_root)
+def module_scope_aliases(
+    module_dir: Path,
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> frozenset[str]:
+    """Strings that may select this module in UI / path filters.
+
+    The game-prefixed storage key (``wos:core/heroes``) is included alongside
+    its unprefixed forms (``core/heroes``, ``heroes``) so scope strings from
+    older URLs / configs still match.
+    """
+    from config.games import modules_path_prefix
+
+    g = _resolve_game(game)
+    storage = module_storage_key(module_dir, repo_root, game=g)
+    storage_unprefixed = storage.removeprefix(f"{g}:")
     meta_id = module_meta_id(module_dir)
-    aliases = {meta_id, storage, module_dir.name, storage.split("/")[-1]}
+    aliases = {
+        meta_id,
+        storage,
+        storage_unprefixed,
+        module_dir.name,
+        storage_unprefixed.split("/")[-1],
+    }
     try:
         rel = module_dir.resolve().relative_to(repo_root.resolve()).as_posix()
         aliases.add(rel)
-        if rel.startswith("modules/"):
-            aliases.add(rel.removeprefix("modules/"))
+        prefix = f"{modules_path_prefix(g)}/"
+        if rel.startswith(prefix):
+            aliases.add(rel.removeprefix(prefix))
     except ValueError:
         pass
     return frozenset(aliases)
 
 
-def module_matches_scope(module_dir: Path, scope: str, repo_root: Path) -> bool:
+def module_matches_scope(
+    module_dir: Path,
+    scope: str,
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> bool:
     """Whether ``module_dir`` belongs to wiki/overlay scope ``scope``."""
     from config.module_registry import ALL_MODULES_KEY, CORE_MODULE_KEY
 
+    g = _resolve_game(game)
     if scope == ALL_MODULES_KEY:
         return True
     if scope == CORE_MODULE_KEY:
-        return is_core_nested_module(module_dir, repo_root)
-    return scope in module_scope_aliases(module_dir, repo_root)
+        return is_core_nested_module(module_dir, repo_root, game=g)
+    return scope in module_scope_aliases(module_dir, repo_root, game=g)
 
 
-def iter_module_area_manifests(repo_root: Path) -> list[Path]:
+def iter_module_area_manifests(
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> list[Path]:
     """Module-local area manifests in deterministic order (process-cached)."""
-    return list(_iter_module_area_manifests_cached(str(repo_root.resolve())))
+    return list(
+        _iter_module_area_manifests_cached(_resolve_game(game), str(repo_root.resolve()))
+    )
 
 
-@lru_cache(maxsize=4)
-def _iter_module_area_manifests_cached(root_s: str) -> tuple[Path, ...]:
+@lru_cache(maxsize=8)
+def _iter_module_area_manifests_cached(game: str, root_s: str) -> tuple[Path, ...]:
     out: list[Path] = []
-    for module_dir in iter_module_dirs(Path(root_s)):
+    for module_dir in iter_module_dirs(Path(root_s), game=game):
         for name in ("area.yaml", "area.yml", "area.json"):
             manifest = module_dir / name
             if manifest.is_file():

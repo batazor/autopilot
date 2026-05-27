@@ -1,6 +1,0 @@
-id: heroes
-title: Heroes
-description: >-
-  Heroes screen — grid scan, per-hero upgrade/recruit templates, wiki sync,
-  and cron recruitment. Screen regions and reference PNGs live in the
-  ``modules/heroes/`` feature module; merged at runtime via load_area_doc.

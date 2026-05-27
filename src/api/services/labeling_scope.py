@@ -27,7 +27,7 @@ _REPO = repo_root()
 class LabelingScopeEnv:
     ctx: WikiModuleContext
     ref_root: Path
-    area_path: Path
+    area_path: Path | None
     references_prefix: str
 
     @property
@@ -35,18 +35,34 @@ class LabelingScopeEnv:
         return self.ctx.repo_root.resolve()
 
 
-def context_for_scope(scope: str | None) -> WikiModuleContext:
+def _request_game(explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    from api.services.game_resolver import current_request_game
+
+    return current_request_game()
+
+
+def context_for_scope(
+    scope: str | None,
+    *,
+    game: str | None = None,
+) -> WikiModuleContext:
+    g = _request_game(game)
     key = normalize_module_scope(scope)
     if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO)
-    for ctx in list_labeling_modules(_REPO):
+    for ctx in list_labeling_modules(_REPO, game=g):
         if ctx.storage_key == key or ctx.module_id == key:
+            return ctx
+        sk = ctx.storage_key
+        if ":" in sk and sk.split(":", 1)[1] == key:
             return ctx
     return all_modules_context(_REPO)
 
 
-def scope_env(scope: str | None) -> LabelingScopeEnv:
-    ctx = context_for_scope(scope)
+def scope_env(scope: str | None, *, game: str | None = None) -> LabelingScopeEnv:
+    ctx = context_for_scope(scope, game=game)
     return LabelingScopeEnv(
         ctx=ctx,
         ref_root=ctx.references_dir.resolve(),
@@ -55,10 +71,11 @@ def scope_env(scope: str | None) -> LabelingScopeEnv:
     )
 
 
-def list_labeling_scopes() -> list[dict[str, Any]]:
+def list_labeling_scopes(*, game: str | None = None) -> list[dict[str, Any]]:
     root = _REPO.resolve()
+    g = _request_game(game)
     ctxs: list[WikiModuleContext] = [all_modules_context(root)]
-    ctxs.extend(c for c in list_labeling_modules(root) if c.module_id is not None)
+    ctxs.extend(c for c in list_labeling_modules(root, game=g) if c.module_id is not None)
     out: list[dict[str, Any]] = []
     for ctx in ctxs:
         default_ref = (ctx.default_ref or "").replace("\\", "/").strip().lstrip("/")
@@ -70,7 +87,9 @@ def list_labeling_scopes() -> list[dict[str, Any]]:
                 if ctx.module_id is not None
                 else ctx.title,
                 "references_prefix": ctx.references_prefix,
-                "area_path": str(ctx.area_path.relative_to(root)),
+                "area_path": (
+                    str(ctx.area_path.relative_to(root)) if ctx.area_path is not None else None
+                ),
                 "default_ref": default_ref or None,
                 "is_all": ctx.is_all,
             }
@@ -81,7 +100,7 @@ def list_labeling_scopes() -> list[dict[str, Any]]:
 def load_area_doc(env: LabelingScopeEnv) -> dict[str, Any]:
     if env.ctx.is_all:
         return merge_all_area_docs(env.repo_root)
-    if env.area_path.is_file():
+    if env.area_path is not None and env.area_path.is_file():
         doc = load_json(env.area_path)
         if isinstance(doc, dict):
             doc.setdefault("version", 2)

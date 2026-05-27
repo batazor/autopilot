@@ -272,22 +272,8 @@ def _check_scenario(
         )
 
 
-def _load_core_only_area_region_names(repo_root: Path) -> set[str]:
-    """Region names from root ``area.json`` only (no ``modules/*/area.yaml``)."""
-    import json
-
-    path = repo_root / "area.json"
-    if not path.is_file():
-        return set()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return set()
-    return _area_region_names(raw if isinstance(raw, dict) else {})
-
-
 def _load_merged_area_region_names(repo_root: Path) -> set[str]:
-    """Region names from core ``area.json`` plus ``modules/*/area.yaml``."""
+    """Region names merged across every per-module ``area.yaml`` manifest."""
     try:
         from layout.area_manifest import load_area_doc
 
@@ -363,7 +349,6 @@ def _validate_overlay_runtime_area_manifest(repo_root: Path, issues: list[Startu
         return
 
     runtime_names = _area_region_names(runtime_doc)
-    core_only_names = _load_core_only_area_region_names(repo_root)
     merged_names = _load_merged_area_region_names(repo_root)
     analyze_doc = load_merged_analyze_yaml(repo_root)
     overlay = analyze_doc.get("overlay")
@@ -381,20 +366,11 @@ def _validate_overlay_runtime_area_manifest(repo_root: Path, issues: list[Startu
                 continue
             if region not in merged_names:
                 continue
-            module_only = region not in core_only_names
-            if module_only:
-                msg = (
-                    f"{field} {region!r} is defined under modules/*/area.yaml but "
-                    "is absent from the overlay runtime area manifest "
-                    "(default_area_doc_for_overlay). If run_overlay_analysis reads "
-                    "only core area.json, pushScenario rules such as myriad_bazaar "
-                    "never enqueue."
-                )
-            else:
-                msg = (
-                    f"{field} {region!r} is missing from the overlay runtime area "
-                    "manifest (default_area_doc_for_overlay)"
-                )
+            msg = (
+                f"{field} {region!r} is defined under games/wos/*/area.yaml but is "
+                "absent from the overlay runtime area manifest "
+                "(default_area_doc_for_overlay)"
+            )
             issues.append(StartupValidationIssue("error", source, msg))
 
 
@@ -406,12 +382,14 @@ def _validate_analyze_manifest(
     red_dot_regions: set[str],
 ) -> None:
     analyze_doc = load_merged_analyze_yaml(repo_root)
+    from config.games import MODULES_DIR_NAME
+
     overlay = analyze_doc.get("overlay")
     if not isinstance(overlay, list):
         issues.append(
             StartupValidationIssue(
                 "error",
-                "modules/*/analyze/analyze.yaml",
+                f"{MODULES_DIR_NAME}/*/analyze/analyze.yaml",
                 "merged analyze overlay is missing or invalid",
             )
         )
@@ -729,17 +707,23 @@ def _validate_cron_specs(
 
 def _edge_taps_yaml_paths(repo_root: Path) -> list[Path]:
     """Every per-module ``edge_taps.yaml`` / ``routes/edge_taps.yaml`` the
-    screen_graph loader merges."""
+    screen_graph loader merges.
 
+    Validation runs once at supervisor boot and must catch issues in every
+    registered game's edges, so we walk all games here.
+    """
+
+    from config.games import iter_games
     from config.module_discovery import iter_module_dirs
 
     paths: list[Path] = []
-    for module_dir in iter_module_dirs(repo_root):
-        for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
-            mod_path = module_dir / rel
-            if mod_path.is_file():
-                paths.append(mod_path)
-                break
+    for g in iter_games(repo_root):
+        for module_dir in iter_module_dirs(repo_root, game=g):
+            for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
+                mod_path = module_dir / rel
+                if mod_path.is_file():
+                    paths.append(mod_path)
+                    break
     return paths
 
 
@@ -841,10 +825,12 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
 
         area_doc = load_area_doc(root)
     except Exception as exc:
+        from config.games import MODULES_DIR_NAME
+
         issues.append(
             StartupValidationIssue(
                 "error",
-                "modules/**/area.yaml",
+                f"{MODULES_DIR_NAME}/**/area.yaml",
                 f"cannot parse merged area docs: {exc}",
             )
         )

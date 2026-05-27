@@ -1,0 +1,13 @@
+overlay:
+  - name: state_of_power.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/events/state_of_power/references/main_city.event.state_of_power.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: event.state_of_power
+          ttl: 1m

@@ -73,11 +73,13 @@ def _hero_ids() -> list[str]:
     return sorted({h.id for h in get_hero_registry().heroes})
 
 
-def _load_edge_taps() -> tuple[
+def _load_edge_taps(
+    game: str | None = None,
+) -> tuple[
     dict[tuple[str, str], list[Tap]],
     dict[tuple[str, str], DynamicEdgeSpec],
 ]:
-    """Parse root + module edge_taps.yaml into static + dynamic registries.
+    """Parse module edge_taps.yaml into static + dynamic registries for ``game``.
 
     Edge value forms:
     * ``str`` — single static tap region (legacy shorthand).
@@ -85,10 +87,14 @@ def _load_edge_taps() -> tuple[
     * ``dict`` — dynamic edge resolved at runtime via an :data:`EDGE_RESOLVERS`
       entry; the dict is opaque to the loader and passed through to the
       resolver as-is.
+
+    Phase 4: ``game`` defaults to :func:`services.get_active_game` so worker
+    processes pick up only their bound game's edges. API / scheduler call
+    sites that need cross-game routing pass ``game`` explicitly.
     """
     static: dict[tuple[str, str], list[Tap]] = {}
     dynamic: dict[tuple[str, str], DynamicEdgeSpec] = {}
-    for path in _edge_taps_yaml_paths():
+    for path in _edge_taps_yaml_paths(game=game):
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         edges_raw = raw.get("edges", {})
         if not isinstance(edges_raw, dict):
@@ -121,14 +127,14 @@ def _load_edge_taps() -> tuple[
     return static, dynamic
 
 
-def _edge_taps_yaml_paths() -> list[Path]:
-    """Every per-module ``edge_taps.yaml`` / ``routes/edge_taps.yaml``."""
+def _edge_taps_yaml_paths(*, game: str | None = None) -> list[Path]:
+    """Every per-module ``edge_taps.yaml`` / ``routes/edge_taps.yaml`` for ``game``."""
     from config.module_discovery import iter_module_dirs
     from config.paths import repo_root
 
     paths: list[Path] = []
     root = repo_root()
-    for module_dir in iter_module_dirs(root):
+    for module_dir in iter_module_dirs(root, game=game):
         for rel in ("edge_taps.yaml", "routes/edge_taps.yaml"):
             path = module_dir / rel
             if path.is_file():
@@ -136,17 +142,72 @@ def _edge_taps_yaml_paths() -> list[Path]:
     return paths
 
 
-EDGE_TAPS, EDGE_DYNAMIC = _load_edge_taps()
+# ---------------------------------------------------------------------------
+# Per-game graph cache. Workers bind ``services.bind_active_game`` before
+# they import this module, so the first access populates the cache for the
+# bound game; API / scheduler may add more games on demand via
+# :func:`graph_for_game`.
+# ---------------------------------------------------------------------------
+_GAME_GRAPHS: dict[
+    str,
+    tuple[
+        dict[tuple[str, str], list[Tap]],
+        dict[tuple[str, str], DynamicEdgeSpec],
+        dict[str, set[str]],
+    ],
+] = {}
 
-# ---------------------------------------------------------------------------
-# Adjacency graph derived from BOTH static and dynamic edges.
-# BFS only needs topology; per-edge resolution happens at route-walk time.
-# ---------------------------------------------------------------------------
-_TAPS_GRAPH: dict[str, set[str]] = {}
-for _src, _dst in EDGE_TAPS:
-    _TAPS_GRAPH.setdefault(_src, set()).add(_dst)
-for _src, _dst in EDGE_DYNAMIC:
-    _TAPS_GRAPH.setdefault(_src, set()).add(_dst)
+
+def _resolve_active_game() -> str:
+    try:
+        from services import get_active_game
+
+        return get_active_game()
+    except Exception:
+        from config.games import default_game
+
+        return default_game()
+
+
+def graph_for_game(
+    game: str | None = None,
+) -> tuple[
+    dict[tuple[str, str], list[Tap]],
+    dict[tuple[str, str], DynamicEdgeSpec],
+    dict[str, set[str]],
+]:
+    """``(EDGE_TAPS, EDGE_DYNAMIC, _TAPS_GRAPH)`` for ``game`` (cached per process)."""
+    g = (game or _resolve_active_game()).strip() or _resolve_active_game()
+    cached = _GAME_GRAPHS.get(g)
+    if cached is not None:
+        return cached
+    static, dynamic = _load_edge_taps(game=g)
+    graph: dict[str, set[str]] = {}
+    for s, d in static:
+        graph.setdefault(s, set()).add(d)
+    for s, d in dynamic:
+        graph.setdefault(s, set()).add(d)
+    _GAME_GRAPHS[g] = (static, dynamic, graph)
+    return _GAME_GRAPHS[g]
+
+
+def invalidate_edge_taps_cache() -> None:
+    """Drop the per-game graph cache (reload button / tests)."""
+    _GAME_GRAPHS.clear()
+
+
+# Module-level attribute access via ``__getattr__`` so legacy callers that do
+# ``from navigation.screen_graph import EDGE_TAPS`` keep working without
+# threading the game through. They get a snapshot of the active game's edges
+# at the moment of import — fine for worker processes (one game per process)
+# and for API processes that read these at module load before serving multi-
+# game requests through the explicit accessors.
+def __getattr__(name: str) -> Any:
+    if name in {"EDGE_TAPS", "EDGE_DYNAMIC", "_TAPS_GRAPH"}:
+        static, dynamic, graph = graph_for_game()
+        return {"EDGE_TAPS": static, "EDGE_DYNAMIC": dynamic, "_TAPS_GRAPH": graph}[name]
+    msg = f"module {__name__!r} has no attribute {name!r}"
+    raise AttributeError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -168,8 +229,10 @@ async def _resolve_dynamic_edge(
     *,
     instance_id: str,
     redis_client: Any,
+    game: str | None = None,
 ) -> list[Tap] | None:
-    spec = EDGE_DYNAMIC.get((src, dst))
+    _static, dynamic, _graph = graph_for_game(game)
+    spec = dynamic.get((src, dst))
     if spec is None:
         return None
     name = str(spec.get("resolver") or "").strip()
@@ -191,16 +254,20 @@ def _screen_verify_yaml_paths() -> list[Path]:
     """
     from config.paths import repo_root
 
-    return list(_screen_verify_yaml_paths_cached(str(repo_root().resolve())))
+    return list(
+        _screen_verify_yaml_paths_cached(
+            str(repo_root().resolve()), _resolve_active_game()
+        )
+    )
 
 
-@lru_cache(maxsize=4)
-def _screen_verify_yaml_paths_cached(root_s: str) -> tuple[Path, ...]:
+@lru_cache(maxsize=8)
+def _screen_verify_yaml_paths_cached(root_s: str, game: str) -> tuple[Path, ...]:
     from config.module_discovery import iter_module_dirs
 
     paths: list[Path] = []
     root = Path(root_s)
-    for module_dir in iter_module_dirs(root):
+    for module_dir in iter_module_dirs(root, game=game):
         for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
             path = module_dir / rel
             if path.is_file():
@@ -209,26 +276,12 @@ def _screen_verify_yaml_paths_cached(root_s: str) -> tuple[Path, ...]:
     return tuple(paths)
 
 
-def _area_json_path() -> Path:
-    from config.paths import repo_root
-
-    return repo_root() / "area.json"
-
-
 def _area_yaml_paths() -> list[Path]:
-    """Per-module area manifests plus the root ``area.json`` placeholder.
-
-    The root path is included even when the file is missing so callers that
-    derive the repo root from ``paths[0].parent`` keep working after the
-    migration drained ``area.json`` into per-module ``area.yaml`` files.
-    """
+    """Every per-module ``area.yaml`` manifest, for config-fingerprint caching."""
     from config.module_discovery import iter_module_area_manifests
     from config.paths import repo_root
 
-    root = repo_root()
-    paths: list[Path] = [_area_json_path()]
-    paths.extend(iter_module_area_manifests(root))
-    return paths
+    return list(iter_module_area_manifests(repo_root(), game=_resolve_active_game()))
 
 
 def _normalize_verify_rule(raw: object) -> VerifyRule | None:
@@ -308,6 +361,7 @@ def invalidate_screen_verify_config() -> None:
     _cached_combined_fingerprint = None
     _screen_verify_yaml_paths_cached.cache_clear()
     _load_screen_verify_config_cached.cache_clear()
+    invalidate_edge_taps_cache()
 
 
 def _area_screen_region_landmarks(root: Path) -> dict[str, list[VerifyRule]]:
@@ -354,9 +408,12 @@ def _load_screen_verify_config_cached(
 
     Cache key includes file mtime/size so edits are picked up automatically.
     """
+    from config.paths import repo_root
+
     if fp is None:
         return _load_screen_verify_config_cached(_combined_config_fingerprint())
-    from config.paths import repo_root
+
+    root = repo_root()
 
     if (
         fp
@@ -364,29 +421,25 @@ def _load_screen_verify_config_cached(
         and fp[0]
         and isinstance(fp[0][0], tuple)
         and isinstance(fp[1], tuple)
-        and (not fp[1] or isinstance(fp[1][0], tuple))
     ):
-        yaml_fps_, area_fps_ = cast(
-            "tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]", fp
+        yaml_fps_, _ = cast(
+            "tuple[tuple[tuple[str, int, int], ...], tuple[tuple[str, int, int], ...]]",
+            fp,
         )
         paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
-        root = Path(area_fps_[0][0]).parent if area_fps_ else repo_root()
     elif fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
-        yaml_fps_, area_fp_ = cast(
+        yaml_fps_, _ = cast(
             "tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]", fp
         )
         paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
-        root = Path(area_fp_[0]).parent
     elif fp and isinstance(fp[0], tuple):
-        yaml_fp_, area_fp_ = cast(
+        yaml_fp_, _ = cast(
             "tuple[tuple[str, int, int], tuple[str, int, int]]", fp
         )
         paths = [Path(yaml_fp_[0])]
-        root = Path(area_fp_[0]).parent
     else:
         fp_single = cast("tuple[str, int, int]", fp)
         paths = [Path(fp_single[0])]
-        root = repo_root()
 
     docs: list[dict[str, Any]] = []
     for path in paths:
@@ -686,7 +739,7 @@ def screen_verify_retry(screen: str | None = None) -> tuple[int, float]:
 # BFS path finder
 # ---------------------------------------------------------------------------
 
-def bfs_route(src: str, dst: str) -> list[str] | None:
+def bfs_route(src: str, dst: str, *, game: str | None = None) -> list[str] | None:
     """Shortest path [src, …, dst] over the tap-action graph; None if unreachable.
 
     Uses sorted neighbor iteration for deterministic results when multiple
@@ -694,11 +747,12 @@ def bfs_route(src: str, dst: str) -> list[str] | None:
     """
     if src == dst:
         return [src]
+    _static, _dynamic, graph = graph_for_game(game)
     visited: set[str] = {src}
     queue: deque[list[str]] = deque([[src]])
     while queue:
         path = queue.popleft()
-        for nb in sorted(_TAPS_GRAPH.get(path[-1], set())):
+        for nb in sorted(graph.get(path[-1], set())):
             if nb in visited:
                 continue
             new_path = [*path, nb]
@@ -709,7 +763,9 @@ def bfs_route(src: str, dst: str) -> list[str] | None:
     return None
 
 
-def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
+def route_taps(
+    src: str, dst: str, *, game: str | None = None
+) -> list[list[Tap]] | None:
     """BFS path resolved to tap sequences using **static edges only**.
 
     Returns ``None`` when the route would require traversing a dynamic edge
@@ -717,26 +773,30 @@ def route_taps(src: str, dst: str) -> list[list[Tap]] | None:
     should use :func:`route_taps_async` instead. Kept synchronous for tests
     and tooling that only inspect static topology.
     """
-    path = bfs_route(src, dst)
+    static, _dynamic, _graph = graph_for_game(game)
+    path = bfs_route(src, dst, game=game)
     if path is None:
         return None
     result: list[list[Tap]] = []
     for a, b in itertools.pairwise(path):
-        taps = EDGE_TAPS.get((a, b))
+        taps = static.get((a, b))
         if taps is None:
             return None
         result.append(list(taps))
     return result
 
 
-def route_hops(src: str, dst: str) -> list[tuple[str, list[Tap]]] | None:
+def route_hops(
+    src: str, dst: str, *, game: str | None = None
+) -> list[tuple[str, list[Tap]]] | None:
     """Static-only variant of :func:`route_hops_async` — see that for full semantics."""
-    path = bfs_route(src, dst)
+    static, _dynamic, _graph = graph_for_game(game)
+    path = bfs_route(src, dst, game=game)
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []
     for a, b in itertools.pairwise(path):
-        taps = EDGE_TAPS.get((a, b))
+        taps = static.get((a, b))
         if taps is None:
             return None
         result.append((b, list(taps)))
@@ -749,6 +809,7 @@ async def route_taps_async(
     *,
     instance_id: str,
     redis_client: Any,
+    game: str | None = None,
 ) -> list[list[Tap]] | None:
     """Like :func:`route_taps` but resolves dynamic edges via :data:`EDGE_RESOLVERS`.
 
@@ -757,15 +818,16 @@ async def route_taps_async(
     treated as unavailable and ``None`` is returned. The caller can then
     fall back / retry after the state refreshes.
     """
-    path = bfs_route(src, dst)
+    static, _dynamic, _graph = graph_for_game(game)
+    path = bfs_route(src, dst, game=game)
     if path is None:
         return None
     result: list[list[Tap]] = []
     for a, b in itertools.pairwise(path):
-        taps = EDGE_TAPS.get((a, b))
+        taps = static.get((a, b))
         if taps is None:
             taps = await _resolve_dynamic_edge(
-                a, b, instance_id=instance_id, redis_client=redis_client
+                a, b, instance_id=instance_id, redis_client=redis_client, game=game
             )
         if taps is None:
             return None
@@ -779,17 +841,19 @@ async def route_hops_async(
     *,
     instance_id: str,
     redis_client: Any,
+    game: str | None = None,
 ) -> list[tuple[str, list[Tap]]] | None:
     """Per-hop variant of :func:`route_taps_async`."""
-    path = bfs_route(src, dst)
+    static, _dynamic, _graph = graph_for_game(game)
+    path = bfs_route(src, dst, game=game)
     if path is None:
         return None
     result: list[tuple[str, list[Tap]]] = []
     for a, b in itertools.pairwise(path):
-        taps = EDGE_TAPS.get((a, b))
+        taps = static.get((a, b))
         if taps is None:
             taps = await _resolve_dynamic_edge(
-                a, b, instance_id=instance_id, redis_client=redis_client
+                a, b, instance_id=instance_id, redis_client=redis_client, game=game
             )
         if taps is None:
             return None
@@ -797,13 +861,14 @@ async def route_hops_async(
     return result
 
 
-def reachable_screens(src: str) -> set[str]:
+def reachable_screens(src: str, *, game: str | None = None) -> set[str]:
     """All screens reachable from *src* via the tap-action graph (excluding *src*)."""
+    _static, _dynamic, graph = graph_for_game(game)
     visited: set[str] = {src}
     queue: deque[str] = deque([src])
     while queue:
         node = queue.popleft()
-        for nb in _TAPS_GRAPH.get(node, set()):
+        for nb in graph.get(node, set()):
             if nb not in visited:
                 visited.add(nb)
                 queue.append(nb)

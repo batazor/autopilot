@@ -93,13 +93,13 @@ def test_redirects_module_local_version_ref() -> None:
     doc = {
         "screens": [
             {
-                "ocr": "modules/vip/references/page.vip.png",
+                "ocr": "games/wos/vip/references/page.vip.png",
                 "regions": [],
                 "versions": [
                     {
                         "id": "v2",
                         "cond": "True",
-                        "ocr": "modules/vip/references/page.vip.v2.png",
+                        "ocr": "games/wos/vip/references/page.vip.v2.png",
                     }
                 ],
             }
@@ -108,5 +108,5 @@ def test_redirects_module_local_version_ref() -> None:
 
     assert resolve_version_ref_redirect(
         doc,
-        "modules/vip/references/page.vip.v2.png",
-    ) == ("modules/vip/references/page.vip.png", "v2")
+        "games/wos/vip/references/page.vip.v2.png",
+    ) == ("games/wos/vip/references/page.vip.png", "v2")

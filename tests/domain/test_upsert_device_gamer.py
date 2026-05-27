@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def sqlite_db(tmp_path: Path) -> Any:
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
     devices_mod._invalidate()
     yield db_path

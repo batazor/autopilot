@@ -19,7 +19,7 @@ def test_reference_basename_stem_multi_dot() -> None:
 
 def test_resolve_module_local_ocr_path(tmp_path: Path) -> None:
     repo = tmp_path
-    prefix = "modules/core/shop/references"
+    prefix = "games/wos/core/shop/references"
     refs = repo / prefix
     refs.mkdir(parents=True)
     png = refs / "page.shop.v1.png"
@@ -33,7 +33,7 @@ def test_resolve_module_local_ocr_path(tmp_path: Path) -> None:
 
 def test_sync_area_yaml_after_rename_preserves_format(tmp_path: Path) -> None:
     repo = tmp_path
-    mod = repo / "modules/core/shop"
+    mod = repo / "games/wos/core/shop"
     refs = mod / "references"
     refs.mkdir(parents=True)
     (refs / "page.shop.v1.png").write_bytes(b"x")
@@ -51,7 +51,7 @@ def test_sync_area_yaml_after_rename_preserves_format(tmp_path: Path) -> None:
         old_rel_under_refs="page.shop.v1.png",
         new_rel_under_refs="page.shop.v2.png",
         area_path=area,
-        references_prefix="modules/core/shop/references",
+        references_prefix="games/wos/core/shop/references",
     )
     assert ok and not err and n == 1
     doc = yaml.safe_load(area.read_text(encoding="utf-8"))

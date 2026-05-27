@@ -10,7 +10,7 @@ from analysis import overlay_engine
 from layout.area_manifest import load_area_doc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-_SKIP_FULL = REPO_ROOT / "modules/core/common/references/skip_button.png"
+_SKIP_FULL = REPO_ROOT / "games/wos/core/common/references/skip_button.png"
 
 
 @pytest.mark.asyncio

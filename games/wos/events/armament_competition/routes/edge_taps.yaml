@@ -1,0 +1,10 @@
+edges:
+  main_city:
+    event.armament_competition:
+      resolver: template_icon
+      region: main_city.icon_search
+      template: games/wos/events/armament_competition/references/main_city.event.armament_competition.png
+      threshold: 0.9
+
+  event.armament_competition:
+    main_city: [icon.page.back]

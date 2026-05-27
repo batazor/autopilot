@@ -3,12 +3,17 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response, StreamingResponse
 
 from api.services import wiki_api as wiki_svc
+from api.services.game_resolver import request_game
 
-router = APIRouter(prefix="/api/wiki", tags=["wiki"])
+router = APIRouter(
+    prefix="/api/wiki",
+    tags=["wiki"],
+    dependencies=[Depends(request_game)],
+)
 
 
 @router.get("/scopes")

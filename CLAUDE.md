@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**Autopilot** is a multi-account, game-agnostic Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). Whiteout Survival is fully covered today; Kingshot and other games are on the roadmap (engine has no game-specific code — only the scenario set under `modules/` is per-game). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts API + Next.js only — the worker is **not** started automatically; press **Start bot** in the dashboard sidebar to spawn it (or run `uv run bot` in a separate terminal for headless mode).
+**Autopilot** is a multi-account, game-agnostic Android bot built on a **scenario-driven DSL** (YAML) and **overlay engine** (template + OCR matching). Whiteout Survival is fully covered today; Kingshot and other games are on the roadmap (engine has no game-specific code — only the scenario set under `games/<game>/` is per-game). The codebase uses **uv** for Python dependencies, **Redis** for multi-instance state/queue, and a **Next.js** dashboard (`web/`) backed by **FastAPI** (`src/api/`). Production Docker (`docker-compose.prod.yml`) runs **Next.js on :3000**, **API on :8765**, and a headless **bot** worker. Local **`uv run play`** starts API + Next.js only — the worker is **not** started automatically; press **Start bot** in the dashboard sidebar to spawn it (or run `uv run bot` in a separate terminal for headless mode).
 
 ## Key Commands
 
@@ -46,12 +46,12 @@ uv run mcp
 uv sync --extra dev               # Add dev tools (ruff + pytest)
 uv run ruff check .               # Lint check
 uv run pytest -q                  # Run all tests
-uv run pytest modules/core/heroes/tests/  # Run single module's tests
+uv run pytest games/wos/core/heroes/tests/  # Run single module's tests
 ```
 
 Tests live **next to the module** they protect:
-- `modules/<id>/tests/test_*.py`
-- `modules/core/<id>/tests/test_*.py`
+- `games/<game>/<id>/tests/test_*.py`
+- `games/<game>/core/<id>/tests/test_*.py`
 - Cross-cutting tests go in root `tests/`
 
 Fixtures are shared in repo-level `conftest.py`.
@@ -77,7 +77,7 @@ docker compose -f docker-compose.prod.yml up -d
 4. **API** (`src/api/`) — FastAPI for Redis state, previews, labeling save, wiki, queue commands (used by Next.js)
 5. **Web UI** (`web/`) — Next.js dashboard (primary local operator UI; proxies `/api` to FastAPI)
 6. **Dashboard helpers** (`src/dashboard/`) — Redis state / labeling / area.json / preview helpers backing the FastAPI server (no UI framework)
-7. **Modules** (`modules/`) — feature domains (e.g., heroes, mail, building); each exports `analyze/analyze.yaml` rules and DSL scenarios
+7. **Modules** (`games/<game>/`) — feature domains (e.g., heroes, mail, building); each exports `analyze/analyze.yaml` rules and DSL scenarios
 
 ### Directory Structure
 
@@ -99,21 +99,21 @@ src/
 
 web/                  # Next.js operator dashboard (see web/README.md)
 
-modules/
-  core/               # Core features (building, heroes, shop, main_city, etc.)
-  backpack/           # Resource/speedup/gear scheduler
-  mail/               # Mail claim + gift handling
-  gift_codes/         # Gift code hub + redemption
-  alliance/           # Alliance operations
-  deals/              # Periodic deals / limited-time offers
-  events/             # Event-specific automations (trials, 7-day, etc.)
-  vip/                # VIP daily login check
+games/                # Per-game module tree (Phase 3: replaces top-level modules/)
+  wos/                # Whiteout Survival
+    core/             # Core features (building, heroes, shop, main_city, etc.)
+    backpack/         # Resource/speedup/gear scheduler
+    mail/             # Mail claim + gift handling
+    gift_codes/       # Gift code hub + redemption
+    alliance/         # Alliance operations
+    deals/            # Periodic deals / limited-time offers
+    events/           # Event-specific automations (trials, 7-day, etc.)
+    vip/              # VIP daily login check
+    db/buildings/     # Static reference data (building specs, etc.)
+  # kingshot/         # (stub planned in Phase 5)
 
 temporal/             # Live ADB rolling/approval previews (gitignored, regenerated per tick)
-db/
-  state/wos.db        # SQLite: devices + accounts + per-player state (canonical)
-  buildings/*.yaml    # Static reference data (building specs, etc.)
-area.json             # Empty placeholder — screens live under modules/<id>/area.yaml
+db/state/state.db     # SQLite: devices + accounts + per-player state (canonical, multi-game)
 ```
 
 ### Key Concepts
@@ -123,7 +123,7 @@ area.json             # Empty placeholder — screens live under modules/<id>/ar
 Each module is a self-contained feature domain:
 
 ```
-modules/heroes/
+games/wos/heroes/
   __init__.py         # Exports config + analyzer + scenarios
   analyze/
     analyze.yaml      # Overlay engine rules (detect hero UI elements)
@@ -148,7 +148,7 @@ The overlay engine runs every tick and detects **UI state** using:
 - **Color checks** (`color_check`) — dominant color in a region
 - **Red-dot detection** (`isRedDot`) — notification badge presence (programmatic, no template needed)
 
-Analyzer rules live in `modules/*/analyze/analyze.yaml`. Example:
+Analyzer rules live in `games/<game>/*/analyze/analyze.yaml`. Example:
 
 ```yaml
 screens: [main_city]           # Only run this rule when on main_city screen
@@ -214,7 +214,7 @@ See `.cursor/rules/wos-overlay-actions.mdc` for red-dot filters, `cond` syntax, 
 Typical workflow:
 1. Capture a reference screenshot (Next `/labeling`)
 2. Label regions (template crop, OCR, click target, `has_red_dot`)
-3. Save → updates `modules/<id>/area.yaml` and `modules/<id>/references/crop/`
+3. Save → updates `games/<game>/<id>/area.yaml` and `games/<game>/<id>/references/crop/`
 4. Commit; use regions in analyzer YAML or DSL scenarios
 
 #### Redis State
@@ -248,7 +248,7 @@ worker:
 - `WOS_TESSERACT_CMD` → `ocr.tesseract_cmd`
 - `TESSDATA_PREFIX` → Tesseract traineddata path
 
-**Devices + accounts in SQLite** (`db/state/wos.db`):
+**Devices + accounts in SQLite** (`db/state/state.db`):
 
 The legacy `db/devices.yaml` is gone. Device and account state lives in SQLite
 so the worker, API, and dashboard share one source of truth. Edit through the
@@ -263,7 +263,7 @@ Tables (see `src/config/devices_db.py` for the canonical schema):
 
 Inspect with:
 ```sh
-sqlite3 db/state/wos.db "SELECT name, adb_serial, screenshot_backend, input_backend FROM devices ORDER BY device_order;"
+sqlite3 db/state/state.db "SELECT name, adb_serial, screenshot_backend, input_backend FROM devices ORDER BY device_order;"
 ```
 
 **Per-device backend selection** (`screenshot_backend` / `input_backend` columns):
@@ -309,7 +309,7 @@ Two Cursor rules are applied to this repo:
 
 ## Testing
 
-- **Pytest discovery:** `tests/` root + `modules/*/tests/` parallel
+- **Pytest discovery:** `tests/` root + `games/<game>/*/tests/` parallel
 - **Shared fixtures:** `conftest.py` (root level)
 - **Run tests locally:** `uv run pytest -q`
 - **Run dev tools:** `uv sync --extra dev` (installs ruff + pytest)
@@ -328,15 +328,15 @@ Module tests should use `device_level: true` fixtures to avoid Redis state pollu
 
 ### Adding a New Feature Module
 
-1. Create `modules/my_feature/` with `__init__.py`, `analyze/`, `scenarios/`, `tests/`
+1. Create `games/<game>/my_feature/` with `__init__.py`, `analyze/`, `scenarios/`, `tests/`
 2. Export `MODULE_ID`, `MODULE_CONFIG`, `area_yml()`, `overlay_analyze_yaml()`, `scenarios()`
 3. Define analyzer rules in `analyze/analyze.yaml`
 4. Write DSL scenarios in `scenarios/*.yaml`
-5. Run `uv run pytest modules/my_feature/tests/` to test
+5. Run `uv run pytest games/<game>/my_feature/tests/` to test
 
 ### Creating a New DSL Scenario
 
-1. Create `modules/<feature>/scenarios/my_scenario.yaml`
+1. Create `games/<game>/<feature>/scenarios/my_scenario.yaml`
 2. Define steps using `match`, `click`, `while_match`, `cond`, `wait`, `push_scenario`, etc.
 3. Use `.cursor/rules/wos-overlay-actions.mdc` for DSL patterns (optional taps, red-dot filters, guards)
 4. Test locally: Next.js **DSL runner** (`/debug-run`), or `uv run play` / Redis CLI
@@ -346,14 +346,14 @@ Module tests should use `device_level: true` fixtures to avoid Redis state pollu
 1. Open Next.js **Labeling** (`http://127.0.0.1:3000/labeling` with `uv run api` + bot running)
 2. Capture a reference screenshot
 3. Draw region bounding boxes and label them (template crop, OCR text, click target, red-dot enabled)
-4. Save → updates `modules/<id>/area.yaml` and `modules/<id>/references/crop/*.png`
+4. Save → updates `games/<game>/<id>/area.yaml` and `games/<game>/<id>/references/crop/*.png`
 5. Commit changes; use regions in analyzer YAML or DSL scenarios
 
 ### Debugging a Failing Scenario
 
 1. Check `docker compose logs bot` (or Next.js **DSL runner** `/debug-run` / Streamlit debug page)
 2. Look for step-level failure reason (`match_region_not_found`, `overlay_rule_timed_out`, etc.)
-3. Verify region exists in `modules/<id>/area.yaml` and has a crop in `modules/<id>/references/crop/`
+3. Verify region exists in `games/<game>/<id>/area.yaml` and has a crop in `games/<game>/<id>/references/crop/`
 4. Re-capture reference if UI styling changed
 5. Adjust threshold in analyzer rule or DSL `cond` logic
 
@@ -364,6 +364,6 @@ Module tests should use `device_level: true` fixtures to avoid Redis state pollu
 - **`README.md`** — user docs (installation, features, emulator config)
 - **`pyproject.toml`** — Python config (scripts, deps, uv sources)
 - **`.cursor/rules/`** — Cursor IDE guidance (Python uv, overlay DSL patterns)
-- **`area.json`** — root placeholder; live screen definitions live in `modules/<id>/area.yaml` and are merged via `layout.area_manifest.load_area_doc`
+- **`area.json`** — root placeholder; live screen definitions live in `games/<game>/<id>/area.yaml` and are merged via `layout.area_manifest.load_area_doc`
 - **`conftest.py`** — pytest fixtures shared across modules
 

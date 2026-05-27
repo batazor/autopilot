@@ -71,8 +71,8 @@ def test_search_region_match_uses_named_tap_region_offset(tmp_path: Path) -> Non
 
 def test_search_region_can_come_from_same_screen_different_reference(tmp_path: Path) -> None:
     repo = tmp_path
-    ref_rel = "modules/events/trials/references/main_city.trials.png"
-    (repo / "modules/events/trials/references/crop").mkdir(parents=True)
+    ref_rel = "games/wos/events/trials/references/main_city.trials.png"
+    (repo / "games/wos/events/trials/references/crop").mkdir(parents=True)
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
     template = np.zeros((10, 10, 3), dtype=np.uint8)
@@ -129,7 +129,7 @@ def test_search_region_can_come_from_same_screen_different_reference(tmp_path: P
 
 def test_findicon_can_use_direct_template_file(tmp_path: Path) -> None:
     repo = tmp_path
-    template_path = repo / "modules/events/trials/references/event.trials.png"
+    template_path = repo / "games/wos/events/trials/references/event.trials.png"
     template_path.parent.mkdir(parents=True)
 
     frame = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -159,7 +159,7 @@ def test_findicon_can_use_direct_template_file(tmp_path: Path) -> None:
         {
             "name": "module.event.icon.visible",
             "region": "main_city.icon_search",
-            "template": "modules/events/trials/references/event.trials.png",
+            "template": "games/wos/events/trials/references/event.trials.png",
             "action": "findIcon",
             "threshold": 0.98,
         }
@@ -170,13 +170,13 @@ def test_findicon_can_use_direct_template_file(tmp_path: Path) -> None:
 
     assert hit["matched"] is True
     assert hit["top_left"] == [30, 40]
-    assert hit["template"] == "modules/events/trials/references/event.trials.png"
+    assert hit["template"] == "games/wos/events/trials/references/event.trials.png"
     assert hit["match_source"] == "direct_template"
 
 
 def test_direct_template_findicon_can_require_red_dot(tmp_path: Path, monkeypatch) -> None:
     repo = tmp_path
-    template_path = repo / "modules/events/trials/references/event.trials.png"
+    template_path = repo / "games/wos/events/trials/references/event.trials.png"
     template_path.parent.mkdir(parents=True)
 
     monkeypatch.setattr(
@@ -209,7 +209,7 @@ def test_direct_template_findicon_can_require_red_dot(tmp_path: Path, monkeypatc
         {
             "name": "trials.main_city.event_icon.visible",
             "region": "main_city.icon_search",
-            "template": "modules/events/trials/references/event.trials.png",
+            "template": "games/wos/events/trials/references/event.trials.png",
             "action": "findIcon",
             "threshold": 0.9,
             "isRedDot": True,

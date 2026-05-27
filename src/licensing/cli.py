@@ -84,7 +84,12 @@ def main(argv: list[str] | None = None) -> int:
         help="emit raw JWT to stdout instead of writing a file (legacy mode)",
     )
     parser.add_argument(
-        "--json", action="store_true", help="dump the JWT payload (claims) as JSON for inspection — not the token itself",
+        "--json",
+        action="store_true",
+        help=(
+            "dump the JWT payload (claims) as JSON for inspection — "
+            "not the token itself"
+        ),
     )
     args = parser.parse_args(argv)
 

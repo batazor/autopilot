@@ -1,0 +1,13 @@
+overlay:
+  - name: fortress_battles.main_city.event_icon.visible
+    region: main_city.icon_search
+    action: findIcon
+    template: games/wos/events/fortress_battles/references/main_city.event.fortress_battles.png
+    threshold: 0.9
+    isRedDot: true
+    screens:
+      - main_city
+    steps:
+      - push_scenario:
+          name: event.fortress_battles
+          ttl: 1m

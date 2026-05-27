@@ -20,6 +20,8 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from tasks.dsl_scenario_helpers import (
     _collect_ocr_store_targets,
     _ocr_store_redis_fields,
@@ -30,7 +32,7 @@ if TYPE_CHECKING:
 
 
 def _write_minimal_scenario(tmp_path: Path, doc: dict[str, Any]) -> None:
-    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenario_root = mod / "scenarios"
     scenario_root.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")

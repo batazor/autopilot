@@ -35,6 +35,7 @@ class Gamer:
 class DeviceProfile:
     email: str
     gamers: tuple[Gamer, ...]
+    game: str = "wos"
 
     def player_ids(self) -> list[str]:
         return [str(g.id) for g in self.gamers]
@@ -51,6 +52,15 @@ class DeviceEntry:
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
     display: DeviceDisplayConfig | None = None
+    game: str = "wos"
+
+    def game_for_profile(self, profile_index: int = 0) -> str:
+        """Resolve the game for ``profile_index``, falling back to the device default."""
+        if 0 <= profile_index < len(self.profiles):
+            prof_game = self.profiles[profile_index].game
+            if prof_game:
+                return prof_game
+        return self.game
 
     @property
     def effective_serial(self) -> str:
@@ -102,7 +112,7 @@ def load_devices(path: Path | None = None) -> DeviceRegistry:
 
     ``path`` is accepted only for backwards compatibility with callers that
     used to pass an explicit YAML file path — it's intentionally ignored.
-    SQLite is the sole source of truth; one ``wos.db`` per repo.
+    SQLite is the sole source of truth; one ``state.db`` per repo.
     """
     from config.devices_db import load_registry
 

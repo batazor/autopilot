@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from api.services import modules_api as svc
+from api.services.game_resolver import require_game_for_request
 
 router = APIRouter(prefix="/api/modules", tags=["modules"])
 
@@ -26,15 +27,26 @@ class CreateModuleBody(BaseModel):
 
 
 @router.get("")
-def list_modules(scope: str = Query(default="all")) -> dict[str, object]:
+def list_modules(
+    scope: str = Query(default="all"),
+    game: str | None = Query(default=None),
+    instance_id: str | None = Query(default=None),
+) -> dict[str, object]:
+    g = require_game_for_request(game=game, instance_id=instance_id, allow_default=True)
     return {
         "scope": scope,
-        "modules": svc.list_modules(module_scope=scope),
+        "game": g,
+        "modules": svc.list_modules(module_scope=scope, game=g),
     }
 
 
 @router.post("", status_code=201)
-def create_module(body: CreateModuleBody) -> dict[str, object]:
+def create_module(
+    body: CreateModuleBody,
+    game: str | None = Query(default=None),
+    instance_id: str | None = Query(default=None),
+) -> dict[str, object]:
+    g = require_game_for_request(game=game, instance_id=instance_id, allow_default=True)
     try:
         row = svc.create_module(
             module_id=body.id,
@@ -42,17 +54,23 @@ def create_module(body: CreateModuleBody) -> dict[str, object]:
             description=body.description,
             parent=body.parent,
             wiki=body.wiki,
+            game=g,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return {"module": row}
+    return {"module": row, "game": g}
 
 
 @router.get("/scenarios")
-def list_scenarios(scope: str = Query(default="all")) -> dict[str, object]:
-    return {"scenarios": svc.list_scenarios(module_scope=scope)}
+def list_scenarios(
+    scope: str = Query(default="all"),
+    game: str | None = Query(default=None),
+    instance_id: str | None = Query(default=None),
+) -> dict[str, object]:
+    g = require_game_for_request(game=game, instance_id=instance_id, allow_default=True)
+    return {"scenarios": svc.list_scenarios(module_scope=scope, game=g), "game": g}
 
 
 @router.post("/scenarios/reload")

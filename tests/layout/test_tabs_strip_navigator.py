@@ -31,7 +31,7 @@ from layout.tabs_strip_navigator import StripAction, pick_next_strip_action
 from layout.tabs_strip_segmenter import TabDetection, detect_tabs_in_strip
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SHOP_REFS = REPO_ROOT / "modules" / "core" / "shop" / "references"
+SHOP_REFS = REPO_ROOT / "games" / "wos" / "core" / "shop" / "references"
 
 
 # ── Decision logic (no frames) ──────────────────────────────────────────────

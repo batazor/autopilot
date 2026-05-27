@@ -56,11 +56,15 @@ def resolve_references_context(repo_root: Path, png_repo_rel: str) -> References
         msg = f"path is not under {references_prefix}/"
         raise ValueError(msg) from exc
 
-    if parts[0] == "modules" and len(parts) > ref_idx + 1:
-        module_root = repo_root.joinpath(*parts[:ref_idx])
-        area_path = _first_existing_area(module_root)
-    else:
-        area_path = repo_root / "area.json"
+    from config.games import is_module_reference, modules_path_prefix
+
+    if not is_module_reference(rel) or len(parts) <= ref_idx + 1:
+        msg = (
+            f"source must live under {modules_path_prefix()}/<id>/.../references/: got {rel!r}"
+        )
+        raise ValueError(msg)
+    module_root = repo_root.joinpath(*parts[:ref_idx])
+    area_path = _first_existing_area(module_root)
 
     return ReferencesContext(
         repo_root=repo_root,
@@ -71,7 +75,7 @@ def resolve_references_context(repo_root: Path, png_repo_rel: str) -> References
 
 
 def _first_existing_area(module_root: Path) -> Path:
-    for name in ("area.yaml", "area.yml", "area.json"):
+    for name in ("area.yaml", "area.yml"):
         candidate = module_root / name
         if candidate.is_file():
             return candidate

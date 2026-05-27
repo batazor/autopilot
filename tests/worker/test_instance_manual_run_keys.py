@@ -35,7 +35,7 @@ def test_manual_run_keys_excludes_templates() -> None:
     assert "{hero}" not in keys
     assert "level_up_{hero}" not in keys
     # Sanity: hero template exists under a module scenarios tree.
-    hero_tpl = REPO_ROOT / "modules/core/heroes/scenarios/{hero}.yaml"
+    hero_tpl = REPO_ROOT / "games/wos/core/heroes/scenarios/{hero}.yaml"
     assert hero_tpl.is_file(), f"missing hero template: {hero_tpl}"
 
 

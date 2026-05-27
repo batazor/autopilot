@@ -18,7 +18,7 @@ PATRICK_HERO_CARD_FIXTURE = (
     REPO_ROOT / "tests" / "fixtures" / "bs1_current_state_tapanywhere.png"
 )
 CHAPTER_REWARDS_REFERENCE = (
-    REPO_ROOT / "modules/core/common/references/tapanywhereyoexit.png"
+    REPO_ROOT / "games/wos/core/common/references/tapanywhereyoexit.png"
 )
 
 

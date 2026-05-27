@@ -501,14 +501,13 @@ def get_approval_view(
     width, height = image_dimensions(png) if png else (0, 0)
     overlays: list[dict[str, Any]] = []
     if payload and png and width > 0 and height > 0:
-        area_path = repo_root() / "area.json"
         overlays = [
             dict(o)
             for o in build_overlays(
                 payload=payload,
                 image_width=width,
                 image_height=height,
-                area_path=area_path,
+                repo_root=repo_root(),
                 client=client,
                 instance_id=instance_id,
             )

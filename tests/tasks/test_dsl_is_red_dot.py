@@ -22,6 +22,8 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -137,7 +139,7 @@ def _write_red_dot_repo(
     optionally flagged with ``has_red_dot``. The scenario taps the region only when
     ``isRedDot`` requirement holds.
     """
-    module = tmp_path / "modules" / "core" / "events"
+    module = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "events"
     (module / "scenarios" / "events").mkdir(parents=True)
     (module / "module.yaml").write_text("id: events\n", encoding="utf-8")
     (tmp_path / "references" / "crop").mkdir(parents=True)

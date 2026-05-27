@@ -1,0 +1,33 @@
+overlay:
+  # Login-time popup rules. Each is ``device_level`` so it can match before
+  # ``active_player`` is known, gated on ``active_player == ""`` so it stops
+  # firing once identity is resolved. The pushed scenarios are also
+  # ``device_level: true`` (see ``games/wos/ads/scenarios/*.yaml``).
+  - name: ads_rookie_value_pack.visible
+    region: ads_rookie_value_pack
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    ttl: 3
+    steps:
+      - push_scenario: ads_rookie_value_pack
+  - name: ads.natalia.visible
+    region: ads.natalia.title
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    ttl: 3
+    screens:
+      - ads.natalia
+    steps:
+      - push_scenario: ads_natalia
+  - name: ads.legend_transcend_pack.visible
+    region: ads.legend_transcend_pack
+    device_level: true
+    action: findIcon
+    cond: active_player == ""
+    threshold: 0.9
+    steps:
+      - push_scenario: tap_ads_legend_transcend_pack

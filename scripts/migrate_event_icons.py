@@ -20,8 +20,14 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
+import sys  # noqa: E402
+
+sys.path.insert(0, str(REPO / "src"))
+
+from config.games import default_game, modules_root_for  # noqa: E402
+
 SRC_DIR = REPO / "references" / "events"
-DST_BASE = REPO / "modules" / "events"
+DST_BASE = modules_root_for(default_game(), repo_root=REPO) / "events"
 ROOT_AREA = REPO / "area.json"
 
 

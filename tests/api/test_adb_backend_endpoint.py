@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 @pytest.fixture
 def devices_db(tmp_path: Path) -> Path:
     """Fresh SQLite per test, seeded with two devices: bs1 (no backends) and phone2 (both set)."""
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
     upsert_device("bs1", adb_serial="RF8RC00M8MF")
     upsert_device(

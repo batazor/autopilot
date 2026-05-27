@@ -6,18 +6,18 @@ The bot emits four metrics over OTLP HTTP. Together they answer
 
 | Metric                           | Type              | Labels                       | What it tells you |
 | -------------------------------- | ----------------- | ---------------------------- | ----------------- |
-| `wos.bot.heartbeat`              | observable gauge  | `sub`                        | Constant 1; `count(count by(sub)([5m]))` = active users |
-| `wos.bot.uptime_seconds`         | observable gauge  | `sub`                        | Seconds since the bot's supervisor started |
-| `wos.workers.active`             | observable gauge  | `sub`                        | Alive worker subprocesses (scheduler excluded) |
-| `wos.bot.restarts`               | counter           | `process_name`               | Aggregate restart rate (no per-user breakdown) |
-| `wos.license.gate_failures`      | counter           | `fingerprint`, `reason`      | Bots that refused to start because of a license problem |
+| `autopilot.heartbeat`            | observable gauge  | `sub`                        | Constant 1; `count(count by(sub)([5m]))` = active users |
+| `autopilot.uptime_seconds`       | observable gauge  | `sub`                        | Seconds since the bot's supervisor started |
+| `autopilot.workers.active`       | observable gauge  | `sub`                        | Alive worker subprocesses (scheduler excluded) |
+| `autopilot.restarts`             | counter           | `process_name`               | Aggregate restart rate (no per-user breakdown) |
+| `autopilot.license.gate_failures`| counter           | `fingerprint`, `reason`      | Bots that refused to start because of a license problem |
 
 Labels were trimmed deliberately to keep cardinality at *one series per
 user per gauge* — three series total per active user. `tier` / `version`
 / `fingerprint` would have inflated each series's bytes without adding
 analytical value (they're constant per user, so they don't help segment
 the heartbeat query). If you need tier/version segmentation later, add a
-lower-frequency `wos.license.session` counter rather than fattening the
+lower-frequency `autopilot.license.session` counter rather than fattening the
 high-frequency gauges.
 
 Resource-level labels on every series: `service.name=wos`,
@@ -39,20 +39,20 @@ Resource-level labels on every series: `service.name=wos`,
    the two strings get absorbed into `config.so` and ship to users.
 4. **Build the production image:**
    ```sh
-   DOCKER_BUILDKIT=1 docker build -f Dockerfile.bot -t wos-bot:latest .
+   DOCKER_BUILDKIT=1 docker build -f Dockerfile.bot -t autopilot:latest .
    ```
 5. **Import the dashboard.** In Grafana: *Dashboards* → *New* → *Import* →
-   upload `grafana/wos_bot_telemetry.json`. Pick your Prometheus datasource
+   upload `grafana/autopilot_telemetry.json`. Pick your Prometheus datasource
    when prompted.
 
 ## How "active users" is computed
 
-The bot emits `wos_bot_heartbeat=1` every export interval (60 s default).
+The bot emits `autopilot_heartbeat=1` every export interval (60 s default).
 Each data point carries the user's `sub` label (their email from the license).
 In Grafana / Mimir / Prometheus:
 
 ```promql
-count(count by(sub) (wos_bot_heartbeat[5m]))
+count(count by(sub) (autopilot_heartbeat[5m]))
 ```
 
 > "Distinct subjects that sent at least one heartbeat in the last 5 minutes."

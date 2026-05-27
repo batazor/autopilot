@@ -18,8 +18,17 @@ _REPO = repo_root()
 EntitySection = Literal["buildings", "heroes", "items", "gear", "faq"]
 
 
+def _request_game() -> str:
+    from api.services.game_resolver import current_request_game
+
+    return current_request_game()
+
+
 def list_scopes() -> list[dict[str, str]]:
-    return [{"key": k, "label": lab} for k, lab in module_scope_options(_REPO)]
+    return [
+        {"key": k, "label": lab}
+        for k, lab in module_scope_options(_REPO, game=_request_game())
+    ]
 
 
 def _entry_summary(e: WikiEntry) -> dict[str, Any]:
@@ -39,7 +48,9 @@ def list_entity_entries(
     scope: str = ALL_MODULES_KEY,
     query: str = "",
 ) -> dict[str, Any]:
-    entries = load_merged_entries(entity, repo_root=_REPO, module_scope=scope)
+    entries = load_merged_entries(
+        entity, repo_root=_REPO, module_scope=scope, game=_request_game()
+    )
     q = query.strip().lower()
     rows = []
     for e in entries:
@@ -52,7 +63,9 @@ def list_entity_entries(
 
 def get_entity_detail(entity: EntityKey, entity_id: str, *, scope: str = ALL_MODULES_KEY) -> dict[str, Any]:
     target = entity_id.strip()
-    for e in load_merged_entries(entity, repo_root=_REPO, module_scope=scope):
+    for e in load_merged_entries(
+        entity, repo_root=_REPO, module_scope=scope, game=_request_game()
+    ):
         if e.id == target:
             body = _load_yaml_dict(e.yaml_path) if e.yaml_path.is_file() else {}
             return {
@@ -65,7 +78,7 @@ def get_entity_detail(entity: EntityKey, entity_id: str, *, scope: str = ALL_MOD
 
 
 def read_icon(entity: EntityKey, entity_id: str) -> tuple[bytes, str]:
-    entry = find_entry(entity, entity_id, repo_root=_REPO)
+    entry = find_entry(entity, entity_id, repo_root=_REPO, game=_request_game())
     if entry is None or entry.icon_path is None or not entry.icon_path.is_file():
         msg = "icon not found"
         raise FileNotFoundError(msg)

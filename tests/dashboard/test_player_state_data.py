@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def player_state_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    db_path = tmp_path / "db" / "state" / "wos.db"
+    db_path = tmp_path / "db" / "state" / "state.db"
     set_state_db_path_for_tests(db_path)
 
     gamer = GamerState(

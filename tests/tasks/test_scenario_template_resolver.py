@@ -172,7 +172,7 @@ def test_trials_event_opener_searches_current_icon_position() -> None:
 
     assert doc["node"] == "main_city"
     assert doc["steps"][0]["while_match"] == "main_city.icon_search"
-    assert doc["steps"][0]["template"] == "modules/events/trials/references/event.trials.png"
+    assert doc["steps"][0]["template"] == "games/wos/events/trials/references/event.trials.png"
     assert doc["steps"][0]["steps"][0]["click"] == "main_city.icon_search"
 
 

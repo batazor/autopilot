@@ -12,6 +12,8 @@ from analysis.overlay_manifest import (
     clear_merged_analyze_yaml_cache,
     load_merged_analyze_yaml,
 )
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from layout.area_manifest import clear_area_doc_cache, load_area_doc
 
 if TYPE_CHECKING:
@@ -20,7 +22,7 @@ if TYPE_CHECKING:
 
 def test_load_merged_analyze_yaml_cache_hits_until_mtime_changes(tmp_path: Path) -> None:
     clear_merged_analyze_yaml_cache()
-    module_dir = tmp_path / "modules" / "cache_test"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "cache_test"
     (module_dir / "analyze").mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: cache_test\n", encoding="utf-8")
     manifest = module_dir / "analyze" / "analyze.yaml"
@@ -54,7 +56,7 @@ def test_load_merged_analyze_yaml_cache_invalidates_when_include_changes(
 ) -> None:
     """Editing ``include:`` targets must bust cache without touching parent analyze.yaml."""
     clear_merged_analyze_yaml_cache()
-    module_dir = tmp_path / "modules" / "include_cache_test"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "include_cache_test"
     analyze_dir = module_dir / "analyze"
     pages_dir = analyze_dir / "pages"
     pages_dir.mkdir(parents=True)
@@ -91,14 +93,21 @@ def test_load_merged_analyze_yaml_cache_invalidates_when_include_changes(
 
 def test_load_area_doc_cache_hits_until_mtime_changes(tmp_path: Path) -> None:
     clear_area_doc_cache()
-    area_json = tmp_path / "area.json"
-    area_json.write_text(
-        '{"screens": [{"screen_id": "s1", "regions": [{"name": "r1"}]}]}',
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "area_cache_test"
+    module_dir.mkdir(parents=True)
+    (module_dir / "module.yaml").write_text("id: area_cache_test\n", encoding="utf-8")
+    area_yaml = module_dir / "area.yaml"
+    area_yaml.write_text(
+        yaml.safe_dump(
+            {"screens": [{"screen_id": "s1", "regions": [{"name": "r1"}]}]}
+        ),
         encoding="utf-8",
     )
 
+    from config.module_discovery import _clear_module_discovery_caches
     from layout.area_manifest import _load_area_doc_cached
 
+    _clear_module_discovery_caches()
     first = load_area_doc(tmp_path)
     assert len(first["screens"]) == 1
     assert _load_area_doc_cached.cache_info().hits == 0
@@ -108,8 +117,10 @@ def test_load_area_doc_cache_hits_until_mtime_changes(tmp_path: Path) -> None:
     assert _load_area_doc_cached.cache_info().hits == 1
 
     time.sleep(0.02)
-    area_json.write_text(
-        '{"screens": [{"screen_id": "s1"}, {"screen_id": "s2"}]}',
+    area_yaml.write_text(
+        yaml.safe_dump(
+            {"screens": [{"screen_id": "s1"}, {"screen_id": "s2"}]}
+        ),
         encoding="utf-8",
     )
     third = load_area_doc(tmp_path)

@@ -42,9 +42,15 @@ if TYPE_CHECKING:
     from adb.scrcpy import ScrcpyClient
     from config.device_display import DeviceDisplayConfig
 
+from config.games import default_game as _default_game
+from config.games import package_for_game as _package_for_game
+
 logger = logging.getLogger(__name__)
 
-_GAME_PACKAGE = "com.gof.global"
+# Phase 2: package for the default game (WOS). Phase 2.5 parameterizes the
+# methods below so per-profile games select their own package at call time —
+# this constant then becomes a fallback for tests / single-game smoke runs.
+_GAME_PACKAGE = _package_for_game(_default_game())
 _SWIPE_MIN_DURATION_MS = 900
 _SWIPE_SETTLE_SECONDS = 0.25
 _SWIPE_DURATION_JITTER_PCT = 0.15
@@ -360,42 +366,61 @@ class AdbController:
     # App lifecycle
     # ------------------------------------------------------------------
 
-    def restart_application(self) -> None:
-        logger.warning("Restarting %s on %s", _GAME_PACKAGE, self._serial)
-        self._shell("am", "force-stop", _GAME_PACKAGE)
+    def restart_application(self, game: str | None = None) -> None:
+        pkg = _package_for_game(game or _default_game())
+        logger.warning("Restarting %s on %s", pkg, self._serial)
+        self._shell("am", "force-stop", pkg)
         time.sleep(2)
-        self._shell("monkey", "-p", _GAME_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
+        self._shell("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
         logger.info("Application restarted on %s", self._serial)
 
-    def is_game_foreground(self) -> bool:
-        """True if the game process is alive and is the resumed foreground activity."""
+    def is_game_foreground(self, game: str | None = None) -> bool:
+        """True if ``game``'s process is alive and is the resumed foreground activity."""
+        pkg = _package_for_game(game or _default_game())
         # Fast check: is the process even alive?
-        pid = self._shell("pidof", _GAME_PACKAGE, timeout=5.0)
+        pid = self._shell("pidof", pkg, timeout=5.0)
         if not pid.strip():
-            logger.debug("is_game_foreground: no PID for %s — process dead", _GAME_PACKAGE)
+            logger.debug("is_game_foreground: no PID for %s — process dead", pkg)
             return False
 
         # Foreground check: dumpsys activity stack
         out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
         markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
         for line in out.splitlines():
-            if _GAME_PACKAGE not in line:
+            if pkg not in line:
                 continue
             s = line.strip()
             if any(m in s for m in markers):
                 return True
         return False
 
-    def ensure_game_foreground(self) -> None:
-        """Start Whiteout if it is not the foreground resumed activity (ADB serial device)."""
-        if self.is_game_foreground():
-            logger.info("Whiteout already foreground (%s on %s)", _GAME_PACKAGE, self._serial)
+    def ensure_game_foreground(self, game: str | None = None) -> None:
+        """Start ``game`` if it isn't the foreground resumed activity."""
+        pkg = _package_for_game(game or _default_game())
+        if self.is_game_foreground(game):
+            logger.info("Game already foreground (%s on %s)", pkg, self._serial)
             return
         logger.warning(
-            "Whiteout not in foreground — launching %s on %s", _GAME_PACKAGE, self._serial
+            "Game not in foreground — launching %s on %s", pkg, self._serial
         )
-        self._shell("monkey", "-p", _GAME_PACKAGE, "-c", "android.intent.category.LAUNCHER", "1")
+        self._shell("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
         time.sleep(2)
+
+    def list_installed_games(self) -> list[str]:
+        """Game ids whose packages are installed on the device.
+
+        Used by the ``/adb`` UI dropdown to filter selectable games to those
+        the user actually has on the emulator. Empty on offline devices.
+        """
+        from config.games import GAMES
+
+        out = self._shell("pm", "list", "packages", timeout=10.0)
+        installed_pkgs = {
+            line.removeprefix("package:").strip()
+            for line in out.splitlines()
+            if line.strip()
+        }
+        return [gid for gid, spec in GAMES.items() if spec.package in installed_pkgs]
 
     # ------------------------------------------------------------------
     # Touch input — all with jitter to simulate natural fingers

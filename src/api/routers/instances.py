@@ -38,6 +38,32 @@ def list_instances() -> dict[str, list[str]]:
     return {"instances": list_instance_ids()}
 
 
+@router.get("/games")
+def list_instance_games() -> dict[str, dict[str, str]]:
+    """``{instance_id: game_id}`` for every registered instance.
+
+    The dashboard reads this once at boot to populate the per-instance game
+    badge and to seed the ``?game=`` URL param when none is provided.
+    """
+    from config import devices_db
+    from config.games import default_game
+
+    out: dict[str, str] = {}
+    try:
+        for entry in devices_db.list_devices():
+            instance_id = entry.name or entry.adb_serial or ""
+            if not instance_id:
+                continue
+            try:
+                game = entry.game_for_profile()
+            except Exception:
+                game = default_game()
+            out[instance_id] = (game or default_game()).strip()
+    except Exception:
+        pass
+    return {"games": out}
+
+
 @router.get("/{instance_id}")
 def get_instance(
     instance_id: str,

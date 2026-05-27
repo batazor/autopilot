@@ -10,6 +10,8 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from dsl import template_resolver
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -24,7 +26,7 @@ def _claim_pattern() -> np.ndarray:
 
 
 def _scenario_root(tmp_path: Path) -> Path:
-    mod = tmp_path / "modules" / "core" / "test_scenarios"
+    mod = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     mod.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")
     scen = mod / "scenarios"
@@ -126,7 +128,7 @@ async def test_nested_while_match_retry_waits_for_late_region(
     gone = np.zeros((100, 100, 3), dtype=np.uint8)
     _write_claim_repo(tmp_path, visible)
     scenario_path = (
-        tmp_path / "modules" / "core" / "test_scenarios" / "scenarios" / "overlay" / "tap_claim_button.yaml"
+        _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios" / "scenarios" / "overlay" / "tap_claim_button.yaml"
     )
     scenario_path.write_text(
         yaml.dump(

@@ -146,6 +146,17 @@ def list_stale_crops(*, scope: str = CORE_MODULE_KEY, limit: int = 100) -> dict[
     return {"count": len(stale), "stale": stale[:limit], "scope": normalize_module_scope(scope)}
 
 
+def _require_writable_area_path(env: ls.LabelingScopeEnv) -> Path:
+    """Return the area file path or raise if the scope has none (e.g., All)."""
+    if env.area_path is None:
+        msg = (
+            f"labeling write requested for scope {env.ctx.storage_key!r} which has no "
+            "writable area file (the All scope is read-only — pick a module scope)"
+        )
+        raise ValueError(msg)
+    return env.area_path
+
+
 def _atomic_write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
@@ -297,7 +308,9 @@ def get_labeling_document(
         "active_version": active_version,
         "is_pending": ls.is_pending_temporal_ref(ref_rel, env),
         "basename": basename_stem,
-        "area_path": str(env.area_path.relative_to(env.repo_root)),
+        "area_path": (
+            str(env.area_path.relative_to(env.repo_root)) if env.area_path is not None else None
+        ),
         "references_prefix": env.references_prefix,
         "scope": normalize_module_scope(scope),
         "module_key": env.ctx.storage_key,
@@ -388,7 +401,7 @@ def save_labeling_regions(
     if screen_id is not None:
         entry["screen_id"] = str(screen_id).strip()
     screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     crop_meta = _export_module_crops(doc, env)
     _publish_area_manifest_changed()
     return {
@@ -584,7 +597,7 @@ def promote_reference(
     if sid:
         entry["screen_id"] = sid
     screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {
         "ok": True,
         "ref": new_ref_rel,
@@ -691,7 +704,7 @@ def add_version(
     screens = doc.setdefault("screens", [])
     if isinstance(screens, list):
         screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {"ok": True, "version_id": vid}
 
 
@@ -731,7 +744,7 @@ def update_version_cond(
     screens = doc.setdefault("screens", [])
     if isinstance(screens, list):
         screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {"ok": True, "version_id": vid}
 
 
@@ -771,7 +784,7 @@ def bind_version_ocr(
     screens = doc.setdefault("screens", [])
     if isinstance(screens, list):
         screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {"ok": True, "version_id": vid, "ocr": ocr_clean or None}
 
 
@@ -797,7 +810,7 @@ def delete_version(
     screens = doc.setdefault("screens", [])
     if isinstance(screens, list):
         screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {"ok": True, "version_id": vid}
 
 
@@ -822,7 +835,7 @@ def sync_version_regions_from_default(
     screens = doc.setdefault("screens", [])
     if isinstance(screens, list):
         screens[idx] = entry
-    _atomic_write_json(env.area_path, doc)
+    _atomic_write_json(_require_writable_area_path(env), doc)
     return {"ok": True, "added": added, "skipped": skipped, "version_id": vid}
 
 

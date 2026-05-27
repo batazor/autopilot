@@ -13,6 +13,8 @@ from typing import Any
 import yaml
 
 from analysis.overlay_manifest import load_merged_analyze_yaml
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -90,7 +92,7 @@ def test_mail_module_overlay_rules_present_in_merged_manifest() -> None:
 
 def test_merged_loader_picks_up_arbitrary_module_overlay(tmp_path: Path) -> None:
     """Synthetic repo: empty core + one module with a single rule → it surfaces."""
-    module_dir = tmp_path / "modules" / "fake"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "fake"
     (module_dir / "analyze").mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: fake\ntitle: Fake\n", encoding="utf-8")
     (module_dir / "analyze" / "analyze.yaml").write_text(
@@ -115,7 +117,7 @@ def test_merged_loader_picks_up_arbitrary_module_overlay(tmp_path: Path) -> None
 
 def test_module_overlay_rules_appended_after_core(tmp_path: Path) -> None:
     """Multiple module manifests merge in discovery order."""
-    module_dir = tmp_path / "modules" / "core" / "mod_a"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "mod_a"
     (module_dir / "analyze").mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: mod_a\n", encoding="utf-8")
     (module_dir / "analyze" / "analyze.yaml").write_text(
@@ -123,7 +125,7 @@ def test_module_overlay_rules_appended_after_core(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    module_dir_b = tmp_path / "modules" / "core" / "mod_b"
+    module_dir_b = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "mod_b"
     (module_dir_b / "analyze").mkdir(parents=True)
     (module_dir_b / "module.yaml").write_text("id: mod_b\n", encoding="utf-8")
     (module_dir_b / "analyze" / "analyze.yaml").write_text(

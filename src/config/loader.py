@@ -22,6 +22,9 @@ class InstanceConfig:
     quartz_window_title: str = ""
     quartz_crop: tuple[int, int, int, int] | None = None
     display: DeviceDisplayConfig | None = None
+    # Game id from ``config.games.GAMES`` — drives package resolution for
+    # foreground checks, launch, screen-graph scope, etc.
+    game: str = "wos"
 
 
 @dataclass(frozen=True)
@@ -152,6 +155,7 @@ def load_settings(path: Path | None = None) -> Settings:
             quartz_window_title=d.quartz_window_title,
             quartz_crop=d.quartz_crop,
             display=d.display,
+            game=d.game,
         )
         for d in devices_registry.devices
         if d.name.strip()

@@ -119,7 +119,7 @@ async def test_module_scoped_ia_analyzer_pushes_trials_overlay_task(
     settings = get_settings()
     queue = RedisQueue(redis, settings)  # type: ignore[arg-type]  # ty: ignore[invalid-argument-type]
     root = repo_root()
-    fixture = root / "modules" / "events" / "trials" / "references" / "page.trials.png"
+    fixture = root / "games" / "wos" / "events" / "trials" / "references" / "page.trials.png"
     assert fixture.is_file()
     mocker.patch.object(
         ia_overlay_executor,

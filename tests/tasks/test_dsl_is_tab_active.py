@@ -20,7 +20,7 @@ import tasks.dsl_scenario as dsl
 from layout.area_manifest import load_area_doc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MAIL_FIXTURE = REPO_ROOT / "modules" / "mail" / "references" / "mail_page.png"
+MAIL_FIXTURE = REPO_ROOT / "games" / "wos" / "mail" / "references" / "mail_page.png"
 
 
 def _load_bbox(name: str) -> dict[str, float]:

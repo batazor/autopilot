@@ -8,6 +8,8 @@ import yaml
 from conftest import make_actions, patch_dsl
 
 import tasks.dsl_scenario as dsl
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -20,7 +22,7 @@ async def test_dsl_long_click_uses_wait_as_duration(
     redis_async: object,
     pin_click_to_center: None,
 ) -> None:
-    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenario_root = module_dir / "scenarios"
     (scenario_root / "building").mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")

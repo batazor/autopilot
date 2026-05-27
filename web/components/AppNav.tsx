@@ -327,6 +327,20 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
           >
             health JSON
           </a>
+          <span className="text-wos-text-muted" aria-hidden>
+            ·
+          </span>
+          <a
+            href="https://discord.gg/62twnzKG9"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 no-underline"
+            style={{ color: "var(--wos-link)" }}
+            title="Join the Autopilot community on Discord"
+          >
+            <Icon name="discord" size="sm" />
+            Discord
+          </a>
         </p>
       </footer>
     </aside>

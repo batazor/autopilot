@@ -29,10 +29,10 @@ from ocr.client import OCRResult
 
 REPO = Path(__file__).resolve().parents[2]
 
-_REF_PNG = REPO / "modules/core/common/references/hand_pointer_small.png"
+_REF_PNG = REPO / "games/wos/core/common/references/hand_pointer_small.png"
 _CROP_PNG = (
     REPO
-    / "modules/core/common/references/crop/hand_pointer_small_hand_pointer_small.png"
+    / "games/wos/core/common/references/crop/hand_pointer_small_hand_pointer_small.png"
 )
 _AREA = REPO / "area.json"
 # Repo-relative path; see module docstring.

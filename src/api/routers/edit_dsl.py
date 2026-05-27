@@ -3,13 +3,18 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from api.services import edit_dsl_api as svc
+from api.services.game_resolver import request_game
 
-router = APIRouter(prefix="/api/edit-dsl", tags=["edit-dsl"])
+router = APIRouter(
+    prefix="/api/edit-dsl",
+    tags=["edit-dsl"],
+    dependencies=[Depends(request_game)],
+)
 
 
 class SaveBody(BaseModel):

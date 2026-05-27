@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from config.paths import repo_root
 from config.startup_validation import assert_startup_configs_valid, validate_startup_configs
 from dsl import template_resolver
@@ -16,7 +18,7 @@ def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
     # Validator now walks per-module ``routes/edge_taps.yaml`` only — no canonical
     # file exists. Stash the fixture under a tiny throwaway module so iter_module_dirs
     # picks it up.
-    mod = root / "modules" / "core" / "_edge_taps_fixture"
+    mod = root / "games" / "wos" / "core" / "_edge_taps_fixture"
     (mod / "routes").mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text(
         "id: _edge_taps_fixture\ntitle: edge taps fixture\nwiki: false\n",
@@ -25,8 +27,32 @@ def _write_edge_taps(root: Path, text: str = "edges: {}\n") -> None:
     (mod / "routes" / "edge_taps.yaml").write_text(text, encoding="utf-8")
 
 
+def _write_area_regions(root: Path, area_json_text: str) -> None:
+    """Stash test-fixture area data as a per-module ``area.yaml`` manifest.
+
+    The validator merges all ``modules/**/area.yaml`` via ``load_area_doc``.
+    Tests that used to write a root ``area.json`` now seed the same data into a
+    throwaway module so the merged view picks it up. Empty docs (no screens) are
+    a no-op.
+    """
+    import json as _json
+
+    import yaml as _yaml
+
+    raw = _json.loads(area_json_text) if area_json_text.strip().startswith("{") else _yaml.safe_load(area_json_text)
+    if not isinstance(raw, dict) or not raw.get("screens"):
+        return  # nothing to register
+    mod = root / "games" / "wos" / "core" / "_area_fixture"
+    mod.mkdir(parents=True, exist_ok=True)
+    (mod / "module.yaml").write_text(
+        "id: _area_fixture\ntitle: area fixture\nwiki: false\n",
+        encoding="utf-8",
+    )
+    (mod / "area.yaml").write_text(_yaml.safe_dump(raw, sort_keys=False), encoding="utf-8")
+
+
 def _write_module_overlay(root: Path, module_id: str, overlay_yaml: str) -> Path:
-    mod = root / "modules" / "core" / module_id
+    mod = root / "games" / "wos" / "core" / module_id
     (mod / "analyze").mkdir(parents=True)
     (mod / "module.yaml").write_text(
         f"id: {module_id}\ntitle: {module_id}\nwiki: false\n",
@@ -42,7 +68,7 @@ def _write_empty_module_overlay(root: Path) -> None:
 
 
 def _scenario_root(root: Path) -> Path:
-    mod = root / "modules" / "core" / "test_scenarios"
+    mod = root / "games" / "wos" / "core" / "test_scenarios"
     mod.mkdir(parents=True, exist_ok=True)
     (mod / "module.yaml").write_text(
         "id: test_scenarios\ntitle: Test scenarios\nwiki: false\n",
@@ -56,9 +82,9 @@ def _scenario_root(root: Path) -> Path:
 def test_startup_validation_reports_missing_analyze_scenario(tmp_path: Path) -> None:
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":[{"name":"claim_all","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
-        encoding="utf-8",
     )
     _write_module_overlay(
         tmp_path,
@@ -83,7 +109,6 @@ overlay:
 def test_startup_validation_fails_fast(tmp_path: Path) -> None:
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
-    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
     _write_module_overlay(
         tmp_path,
         "test",
@@ -113,11 +138,11 @@ def test_startup_validation_reports_missing_red_dot_capability_on_overlay_rule(
 ) -> None:
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"page.shop","bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     _write_module_overlay(
         tmp_path,
@@ -143,12 +168,12 @@ def test_startup_validation_accepts_red_dot_rule_when_capability_enabled(
 ) -> None:
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"page.vip","has_red_dot":true,'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     _write_module_overlay(
         tmp_path,
@@ -175,14 +200,14 @@ def test_startup_validation_reports_missing_expected_on_text_search_region(
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"tapanywhereyoexit","action":"text",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}},'
         '{"name":"tapanywhereyoexit_search",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     (scenario_root / "tap_dismiss.yaml").write_text(
         """
@@ -198,7 +223,7 @@ steps:
     issues = validate_startup_configs(tmp_path)
 
     assert len(issues) == 1
-    assert issues[0].source.startswith("scenario:modules/core/test_scenarios/scenarios/tap_dismiss.yaml")
+    assert issues[0].source.startswith("scenario:games/wos/core/test_scenarios/scenarios/tap_dismiss.yaml")
     assert "tapanywhereyoexit" in issues[0].message
     assert "expected" in issues[0].message
     assert "_search" in issues[0].message
@@ -210,14 +235,14 @@ def test_startup_validation_accepts_text_search_region_with_expected(
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"tapanywhereyoexit","action":"text",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}},'
         '{"name":"tapanywhereyoexit_search",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     (scenario_root / "tap_dismiss.yaml").write_text(
         """
@@ -240,7 +265,6 @@ def test_startup_validation_accepts_regions_from_module_area_yaml(tmp_path: Path
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
     (scenario_root.parent / "area.yaml").write_text(
         """
 screens:
@@ -273,11 +297,11 @@ def test_startup_validation_reports_missing_red_dot_capability_on_dsl_step(
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"page.shop","bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     (scenario_root / "check_shop_dot.yaml").write_text(
         """
@@ -293,7 +317,7 @@ steps:
 
     assert len(issues) == 1
     assert issues[0].source.startswith(
-        "scenario:modules/core/test_scenarios/scenarios/check_shop_dot.yaml"
+        "scenario:games/wos/core/test_scenarios/scenarios/check_shop_dot.yaml"
     )
     assert "has_red_dot" in issues[0].message
     assert "page.shop" in issues[0].message
@@ -306,10 +330,10 @@ def test_startup_validation_reports_invalid_ocr_scope(tmp_path: Path) -> None:
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":[{"name":"some_region",'
         '"bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
-        encoding="utf-8",
     )
     (scenario_root / "bad_scope.yaml").write_text(
         """
@@ -324,7 +348,7 @@ steps:
     issues = validate_startup_configs(tmp_path)
 
     assert len(issues) == 1
-    assert issues[0].source == "scenario:modules/core/test_scenarios/scenarios/bad_scope.yaml"
+    assert issues[0].source == "scenario:games/wos/core/test_scenarios/scenarios/bad_scope.yaml"
     assert "scope" in issues[0].message
     assert "instnace" in issues[0].message
 
@@ -335,13 +359,13 @@ def test_startup_validation_renders_pointer_template_before_region_checks(
     scenario_root = _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":['
         '{"name":"hand_pointer","bbox":{"x":1,"y":1,"width":1,"height":1}},'
         '{"name":"hand_pointer_small","bbox":{"x":1,"y":1,"width":1,"height":1}},'
         '{"name":"hand_pointer_small_reverse","bbox":{"x":1,"y":1,"width":1,"height":1}}'
         "]}]}",
-        encoding="utf-8",
     )
     (scenario_root / "onboarding.click.{pointer}.yaml").write_text(
         """
@@ -368,7 +392,6 @@ def test_startup_validation_reports_cron_task_without_matching_scenario(
     (scenario_root / "by_cron").mkdir(parents=True)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
     (scenario_root / "by_cron" / "check_arena.yaml").write_text(
         """
 name: check arena
@@ -382,7 +405,7 @@ task: arena_check
 
     assert len(issues) == 1
     assert issues[0].source == (
-        "cron:modules/core/test_scenarios/scenarios/by_cron/check_arena.yaml"
+        "cron:games/wos/core/test_scenarios/scenarios/by_cron/check_arena.yaml"
     )
     assert "arena_check" in issues[0].message
 
@@ -394,7 +417,6 @@ def test_startup_validation_accepts_cron_task_matching_existing_scenario(
     (scenario_root / "by_cron").mkdir(parents=True)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text('{"screens":[]}', encoding="utf-8")
     (scenario_root / "redeem_gift_codes.yaml").write_text(
         "name: redeem\nsteps: []\n", encoding="utf-8"
     )
@@ -421,9 +443,9 @@ edges:
 """.lstrip(),
     )
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text(
+    _write_area_regions(
+        tmp_path,
         '{"screens":[{"regions":[{"name":"mail.new","bbox":{"x":1,"y":1,"width":1,"height":1}}]}]}',
-        encoding="utf-8",
     )
 
     issues = validate_startup_configs(tmp_path)
@@ -433,19 +455,21 @@ edges:
     assert "missing_mail_button" in issues[0].message
 
 
-def test_startup_validation_reports_module_overlay_region_when_runtime_area_is_core_only(
+def test_startup_validation_reports_module_overlay_region_missing_from_runtime_area(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression: overlay must use merged area docs, not core area.json only."""
-    import json
+    """Regression: overlay rules must resolve in the merged module area doc.
 
+    The runtime overlay loader (``default_area_doc_for_overlay``) is patched to
+    return an empty doc, simulating a regression where some modules' regions
+    fail to land in the runtime view. Validation must flag the orphan region.
+    """
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_empty_module_overlay(tmp_path)
-    (tmp_path / "area.json").write_text('{"screens": []}', encoding="utf-8")
 
-    ads = tmp_path / "modules" / "ads"
+    ads = _modules_root_for(_default_game(), repo_root=tmp_path) / "ads"
     (ads / "analyze").mkdir(parents=True)
     (ads / "module.yaml").write_text("id: ads\ntitle: ads\nwiki: false\n", encoding="utf-8")
     (ads / "analyze" / "analyze.yaml").write_text(
@@ -468,12 +492,13 @@ screens:
         encoding="utf-8",
     )
 
-    def _core_only_area_doc(root: Path) -> dict:
-        return json.loads((root / "area.json").read_text(encoding="utf-8"))
+    def _empty_runtime_area_doc(root: Path) -> dict:
+        _ = root
+        return {"screens": []}
 
     monkeypatch.setattr(
         "analysis.overlay_area.default_area_doc_for_overlay",
-        _core_only_area_doc,
+        _empty_runtime_area_doc,
     )
 
     issues = validate_startup_configs(tmp_path)
@@ -481,7 +506,7 @@ screens:
     assert any(
         i.source == "analyze:pop.visible"
         and "pop.title" in i.message
-        and "modules/*/area.yaml" in i.message
+        and "games/wos/*/area.yaml" in i.message
         for i in issues
     )
 

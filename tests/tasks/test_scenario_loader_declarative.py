@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from config.games import default_game as _default_game
+from config.games import modules_root_for as _modules_root_for
 from dsl.loader import ScenarioLoader, _is_declarative_scenario_doc
 
 if TYPE_CHECKING:
@@ -36,7 +38,7 @@ def test_imperative_dsl_doc_is_not_declarative_scenario() -> None:
 
 
 def test_scenario_loader_loads_only_declarative_yaml(tmp_path: Path) -> None:
-    module_dir = tmp_path / "modules" / "core" / "test_scenarios"
+    module_dir = _modules_root_for(_default_game(), repo_root=tmp_path) / "core" / "test_scenarios"
     scenarios_dir = module_dir / "scenarios"
     scenarios_dir.mkdir(parents=True)
     (module_dir / "module.yaml").write_text("id: test_scenarios\n", encoding="utf-8")

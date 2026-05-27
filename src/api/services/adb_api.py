@@ -26,7 +26,7 @@ _REPO = repo_root()
 # they're now baked into :mod:`config._settings_data` so the UI just shows where
 # the *historical* file lived (the dashboard's ADB page renders this as info).
 _SETTINGS_DISPLAY = "src/config/_settings_data.py"
-_DEVICES_DB_REL = "db/state/wos.db"
+_DEVICES_DB_REL = "db/state/state.db"
 
 
 def get_adb_status() -> dict[str, Any]:

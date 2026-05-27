@@ -51,6 +51,28 @@ _K_SCHED_ASYNC_REDIS = "scheduler_async_redis"
 _K_SCHED_WAKE_REDIS = "scheduler_wake_redis"
 _K_SCHED_QUEUE = "scheduler_queue"
 _K_SCHED_RUNNER = "scheduler_runner"
+_K_ACTIVE_GAME = "active_game"
+
+
+def bind_active_game(game: str) -> None:
+    """Set the game id this worker process serves.
+
+    Called once per worker child by :func:`worker.supervisor._worker_process`
+    after it resolves ``instance_config.game``. Downstream getters
+    (``get_scenario_loader``, navigator, loaders) read this via
+    :func:`get_active_game` so they walk only the active game's tree.
+    """
+    _state.set_(_K_ACTIVE_GAME, (game or "").strip())
+
+
+def get_active_game() -> str:
+    """Active game id for this process, or the registry default if unbound."""
+    from config.games import default_game
+
+    g = _state.get(_K_ACTIVE_GAME)
+    if isinstance(g, str) and g:
+        return g
+    return default_game()
 
 
 # ---- lifecycle -------------------------------------------------------------
@@ -167,7 +189,9 @@ def get_scenario_loader() -> ScenarioLoader:
     from dsl.cron_specs import scenario_loader_paths
     from dsl.loader import ScenarioLoader
 
-    loader = ScenarioLoader(scenario_loader_paths(get_repo_root()))
+    loader = ScenarioLoader(
+        scenario_loader_paths(get_repo_root(), game=get_active_game())
+    )
     _state.set_(_K_LOADER, loader)
     return loader
 

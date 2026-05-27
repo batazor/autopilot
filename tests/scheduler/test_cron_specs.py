@@ -51,7 +51,7 @@ def test_resolve_cron_priority_fallback_for_missing_or_invalid() -> None:
 def test_resolve_cron_task_type_prefers_explicit_task() -> None:
     """``task:`` is the canonical override knob — scheduler reads it first
     so the UI Cron Push must agree."""
-    p = Path("modules/core/main_city/scenarios/by_cron/check_main_city.yaml")
+    p = Path("games/wos/core/main_city/scenarios/by_cron/check_main_city.yaml")
     assert resolve_cron_task_type({"task": "main_city_check"}, p) == "main_city_check"
     # ``task_type:`` is the legacy alias — still honored second.
     assert resolve_cron_task_type({"task_type": "legacy_name"}, p) == "legacy_name"
@@ -61,7 +61,7 @@ def test_resolve_cron_task_type_falls_back_to_stem() -> None:
     """Most cron YAMLs in the repo declare ``cron:`` + ``steps:`` and rely
     on the stem fallback. The UI Cron Push used to render an empty ``task``
     cell and refuse to push these — must now resolve to the stem."""
-    p = Path("modules/core/main_city/scenarios/by_cron/check_main_city.yaml")
+    p = Path("games/wos/core/main_city/scenarios/by_cron/check_main_city.yaml")
     assert resolve_cron_task_type({}, p) == "check_main_city"
     assert resolve_cron_task_type({"task": ""}, p) == "check_main_city"
     assert resolve_cron_task_type({"task": "   "}, p) == "check_main_city"

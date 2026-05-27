@@ -77,14 +77,14 @@ def build_overlays(
     payload: dict[str, Any],
     image_width: int,
     image_height: int,
-    area_path: Path,
+    repo_root: Path,
     client: Any,
     instance_id: str,
 ) -> list[OverlayShape]:
     w, h = image_width, image_height
     overlays: list[OverlayShape] = []
     state_flat = active_player_state_flat(client=client, instance_id=instance_id)
-    area_doc = load_area_doc(area_path)
+    area_doc = load_area_doc(repo_root)
     stroke_region = "#00dcff"
 
     ptype = _as_text(payload.get("type")).lower()

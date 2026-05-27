@@ -57,17 +57,11 @@ def area_doc_for_module_scope(repo_root_path: Path, module_scope: str) -> dict[s
     """Area manifest used to validate overlay regions for the active scope."""
     scope = normalize_module_scope(module_scope)
     root = repo_root_path.resolve()
-    if scope == ALL_MODULES_KEY:
+    if scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return merge_all_area_docs(root)
-    if scope == CORE_MODULE_KEY:
-        path = root / "area.json"
-        if not path.is_file():
-            return {}
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        return raw if isinstance(raw, dict) else {}
     ctx = get_wiki_module(root, scope)
     path = ctx.area_path
-    if not path.is_file():
+    if path is None or not path.is_file():
         return {}
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     return raw if isinstance(raw, dict) else {}

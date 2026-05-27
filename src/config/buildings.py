@@ -44,11 +44,10 @@ class BuildingRegistry:
 
 
 def load_buildings(path: Path | None = None) -> BuildingRegistry:
-    from config.paths import repo_root
+    from config.games import default_game, modules_root_for
 
-    repo = repo_root()
-    # New format: db/buildings/index.yaml + per-building files
-    buildings_dir = repo / "db" / "buildings"
+    # New format: games/<game>/db/buildings/index.yaml + per-building files
+    buildings_dir = modules_root_for(default_game()) / "db" / "buildings"
     index_path = buildings_dir / "index.yaml"
     if path is None and index_path.exists():
         idx = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}
@@ -70,9 +69,11 @@ def load_buildings(path: Path | None = None) -> BuildingRegistry:
                     raw_items.append(item_raw)
         raw = {"buildings": raw_items}
     else:
-        # Legacy single-file format
+        # Legacy single-file format (used only when path is explicitly supplied)
         if path is None:
-            path = repo / "db" / "buildings.yaml"
+            from config.paths import repo_root
+
+            path = repo_root() / "db" / "buildings.yaml"
         raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
     buildings_raw = raw.get("buildings", [])

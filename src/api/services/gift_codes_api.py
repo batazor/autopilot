@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.gift_codes.models import RedeemStatus
-from modules.gift_codes.redeemer import run_gift_code_redeemer
-from modules.gift_codes.scraper import poll_once
+from games.wos.gift_codes.models import RedeemStatus
+from games.wos.gift_codes.redeemer import run_gift_code_redeemer
+from games.wos.gift_codes.scraper import poll_once
 
 from config.devices import load_devices
 from config.giftcodes_db import list_codes
@@ -119,3 +119,121 @@ async def scrape_gift_codes() -> dict[str, Any]:
 async def redeem_gift_codes() -> dict[str, Any]:
     await run_gift_code_redeemer()
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# External accounts service layer
+#
+# Three layers of feature gating per the multi-game-migration plan §4.8:
+#   1. UI (web/) hides controls when feature absent.
+#   2. API (this layer + router) rejects writes with 402.
+#   3. Redeemer (games/*/gift_codes/redeemer.py) drops external rows from
+#      the redeem pass — defends against stale rows after license downgrade.
+#
+# Reads are NOT gated — a downgraded license still shows the existing rows
+# read-only so the operator sees what they've lost access to.
+# ---------------------------------------------------------------------------
+
+_EXTERNAL_FEATURE = "gift_codes.external_accounts"
+
+
+def _ext_to_dict(ext: Any) -> dict[str, Any]:
+    return {
+        "game": ext.game,
+        "player_id": ext.player_id,
+        "nickname": ext.nickname,
+        "label": ext.label,
+        "enabled": ext.enabled,
+        "added_at": ext.added_at,
+        "last_seen_at": ext.last_seen_at,
+    }
+
+
+def list_external_accounts(*, game: str = "wos") -> dict[str, Any]:
+    """Read all external accounts for ``game``. Always allowed."""
+    from config.giftcodes_db import list_external_gamers
+    from licensing.gate import has_feature
+
+    rows = list_external_gamers(game=game)
+    return {
+        "game": game,
+        "feature_licensed": has_feature(_EXTERNAL_FEATURE),
+        "accounts": [_ext_to_dict(r) for r in rows],
+        "count": len(rows),
+    }
+
+
+async def upsert_external_account(
+    *,
+    game: str,
+    player_id: int,
+    nickname: str | None = None,
+    label: str | None = None,
+    enabled: bool | None = None,
+    validate_fid: bool = True,
+) -> dict[str, Any]:
+    """Insert or update an external account row. Requires Pro feature.
+
+    When ``validate_fid`` is True (default), hits ``/api/player`` to confirm
+    the fid exists in this game and to auto-populate ``nickname`` if the
+    caller didn't supply one. The fid is rejected with ValueError on lookup
+    failure — no row is written.
+    """
+    from century.api import CenturyAPIError, CenturyClient
+    from century.games import get_game
+    from config.giftcodes_db import touch_external_gamer_seen, upsert_external_gamer
+    from licensing.gate import require_feature
+
+    require_feature(_EXTERNAL_FEATURE)  # raises LicenseError → 402
+
+    resolved_nick = nickname or ""
+    if validate_fid:
+        client = CenturyClient(game=get_game(game))
+        try:
+            player = await client.fetch_player(player_id)
+        except CenturyAPIError as exc:
+            msg = f"fid {player_id} not found in {game}: {exc}"
+            raise ValueError(msg) from exc
+        if not resolved_nick:
+            resolved_nick = player.nickname or ""
+
+    row = upsert_external_gamer(
+        player_id,
+        game=game,
+        nickname=resolved_nick or None,
+        label=label,
+        enabled=enabled,
+    )
+    if validate_fid:
+        touch_external_gamer_seen(player_id, game=game)
+        row = upsert_external_gamer(player_id, game=game)  # re-read with seen ts
+
+    return {"ok": True, "account": _ext_to_dict(row)}
+
+
+def toggle_external_account(
+    *, game: str, player_id: int, enabled: bool
+) -> dict[str, Any]:
+    """Enable or disable an external account. Requires Pro feature."""
+    from config.giftcodes_db import set_external_gamer_enabled
+    from licensing.gate import require_feature
+
+    require_feature(_EXTERNAL_FEATURE)
+
+    if not set_external_gamer_enabled(player_id, enabled, game=game):
+        msg = f"external account not found: game={game} player_id={player_id}"
+        raise KeyError(msg)
+    return {"ok": True, "game": game, "player_id": player_id, "enabled": enabled}
+
+
+def delete_external_account(*, game: str, player_id: int) -> dict[str, Any]:
+    """Remove an external account. Requires Pro feature."""
+    from config.giftcodes_db import delete_external_gamer
+    from licensing.gate import require_feature
+
+    require_feature(_EXTERNAL_FEATURE)
+
+    if not delete_external_gamer(player_id, game=game):
+        msg = f"external account not found: game={game} player_id={player_id}"
+        raise KeyError(msg)
+    return {"ok": True, "game": game, "player_id": player_id}

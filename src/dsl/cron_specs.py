@@ -160,6 +160,24 @@ def iter_plain_scenario_yaml_files_for_repo(
     return sorted(out, key=lambda p: p.as_posix())
 
 
-def scenario_loader_paths(repo_root: Path) -> list[Path]:
-    """Directories the scheduler ``ScenarioLoader`` should watch and load."""
-    return [root.path for root in scenario_roots(repo_root, ALL_MODULES_KEY)]
+def scenario_loader_paths(repo_root: Path, *, game: str | None = None) -> list[Path]:
+    """Directories the scheduler ``ScenarioLoader`` should watch and load.
+
+    When ``game`` is ``None`` (the scheduler process — fans tasks across every
+    instance regardless of game) the result spans every known game so cron
+    spec lookups resolve for any instance. Worker processes pass an explicit
+    game so they only load that game's scenarios.
+    """
+    from config.games import iter_games
+
+    games = (game,) if game else iter_games(repo_root)
+    seen: set[str] = set()
+    out: list[Path] = []
+    for g in games:
+        for root in scenario_roots(repo_root, ALL_MODULES_KEY, game=g):
+            key = str(root.path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(root.path)
+    return out

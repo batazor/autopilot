@@ -14,7 +14,7 @@ async def test_big_claim_button_matches_on_mail_fixture() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     fixture = (
         repo_root
-        / "modules/core/common/references/big_claim_button.png"
+        / "games/wos/core/common/references/big_claim_button.png"
     )
     assert fixture.is_file()
 

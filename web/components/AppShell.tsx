@@ -5,9 +5,26 @@ import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
 import { AppNav } from "@/components/AppNav";
 import { FeedbackProvider } from "@/components/feedback";
+import { useFleetOptional } from "@/components/FleetContextProvider";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/ui";
+
+function GameBadge() {
+  // Pages outside the fleet-context layouts (e.g. ``/onboarding``) render
+  // AppShell without FleetContextProvider — fall back silently in that case
+  // so the badge is purely additive and never blocks rendering.
+  const fleet = useFleetOptional();
+  if (!fleet?.game) return null;
+  return (
+    <span
+      className="inline-flex items-center rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-wos-text-soft"
+      title={`Active game: ${fleet.game}`}
+    >
+      {fleet.game}
+    </span>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -47,8 +64,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="menu" size="md" />
           </button>
           <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-wos-text">
-            WOS Autopilot
+            Autopilot
           </span>
+          <GameBadge />
           <ThemeToggle compact />
           <ApiStatusIndicator variant="header" />
         </header>

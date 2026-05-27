@@ -14,10 +14,11 @@ sys.path.insert(0, str(REPO / "src"))
 
 from analysis import overlay_engine  # noqa: E402
 from analysis.overlay_engine import evaluate_overlay_rules_async  # noqa: E402
+from config.games import default_game, modules_root_for  # noqa: E402
 from layout import template_match as tm  # noqa: E402
 from layout.area_manifest import load_area_doc  # noqa: E402
 
-MODULE_DIR = REPO / "modules/core/shop"
+MODULE_DIR = modules_root_for(default_game(), repo_root=REPO) / "core" / "shop"
 REFERENCES_DIR = MODULE_DIR / "references"
 THRESHOLD = 0.9
 

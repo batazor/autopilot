@@ -110,6 +110,10 @@ class BotActions:
     def _get_serial(self, instance_id: str) -> str:
         return self._get_instance(instance_id).bluestacks_window_title  # ADB serial for BlueStacks
 
+    def _get_game(self, instance_id: str) -> str:
+        """Resolve the game id for ``instance_id`` (the configured game on its device)."""
+        return self._get_instance(instance_id).game
+
     def apply_device_display(self, instance_id: str) -> bool:
         """Apply merged worker + per-device display profile (wm, brightness, …).
 
@@ -150,25 +154,25 @@ class BotActions:
         if settle_s > 0 and display_changed:
             time.sleep(settle_s)
         ctrl = self._controller(instance_id)
-        is_fg = ctrl.is_game_foreground()
+        game = self._get_game(instance_id)
+        is_fg = ctrl.is_game_foreground(game)
         if is_fg and not display_changed:
             logger.info(
-                "Whiteout already running with matching display on %s — no restart",
-                instance_id,
+                "Game %s already running with matching display on %s — no restart",
+                game, instance_id,
             )
             return
         if is_fg:
             logger.info(
-                "Restarting Whiteout after display profile change on %s",
-                instance_id,
+                "Restarting game %s after display profile change on %s",
+                game, instance_id,
             )
-            ctrl.restart_application()
+            ctrl.restart_application(game)
         else:
             logger.info(
-                "Launching Whiteout on %s",
-                instance_id,
+                "Launching game %s on %s", game, instance_id,
             )
-            ctrl.ensure_game_foreground()
+            ctrl.ensure_game_foreground(game)
 
     def _adb_bin(self) -> str:
         pref = (self._settings.worker.adb_executable or "").strip()
@@ -549,12 +553,16 @@ class BotActions:
 
     def restart_application(self, instance_id: str) -> None:
         self.invalidate_frame_cache(instance_id)
-        self._controller(instance_id).restart_application()
+        self._controller(instance_id).restart_application(self._get_game(instance_id))
 
     def ensure_game_foreground(self, instance_id: str) -> None:
         self.invalidate_frame_cache(instance_id)
-        self._controller(instance_id).ensure_game_foreground()
+        self._controller(instance_id).ensure_game_foreground(self._get_game(instance_id))
 
     def is_game_foreground(self, instance_id: str) -> bool:
-        """True if ``adb dumpsys activity`` reports Whiteout as resumed top activity."""
-        return self._controller(instance_id).is_game_foreground()
+        """True if the configured game on ``instance_id`` is the resumed top activity."""
+        return self._controller(instance_id).is_game_foreground(self._get_game(instance_id))
+
+    def list_installed_games(self, instance_id: str) -> list[str]:
+        """Game ids whose packages are installed on the device behind ``instance_id``."""
+        return self._controller(instance_id).list_installed_games()

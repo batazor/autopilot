@@ -33,12 +33,19 @@ from tasks.dsl_exec import DSL_EXEC_REGISTRY
 _REPO = repo_root()
 
 
+def _request_game() -> str:
+    from api.services.game_resolver import current_request_game
+
+    return current_request_game()
+
+
 def _module_storage_for_path(path: Path) -> str | None:
     path_resolved = path.resolve()
-    for module_dir in iter_module_dirs(_REPO):
+    g = _request_game()
+    for module_dir in iter_module_dirs(_REPO, game=g):
         module_resolved = module_dir.resolve()
         if module_resolved in path_resolved.parents:
-            return module_storage_key(module_dir, _REPO)
+            return module_storage_key(module_dir, _REPO, game=g)
     return None
 
 
@@ -52,9 +59,10 @@ def _is_readonly_scenario(path: Path) -> bool:
 
 def list_editable_modules(*, module_scope: str = "all") -> list[dict[str, str]]:
     scope = normalize_module_scope(module_scope)
+    g = _request_game()
     out: list[dict[str, str]] = []
-    for module_dir in iter_module_dirs(_REPO):
-        if not module_matches_scope(module_dir, scope, _REPO):
+    for module_dir in iter_module_dirs(_REPO, game=g):
+        if not module_matches_scope(module_dir, scope, _REPO, game=g):
             continue
         meta = load_module_yaml(module_dir)
         scen_decl = str(meta.get("scenarios") or "scenarios").strip()
@@ -65,7 +73,7 @@ def list_editable_modules(*, module_scope: str = "all") -> list[dict[str, str]]:
         title = str(meta.get("title") or module_id).strip() or module_id
         out.append(
             {
-                "key": module_storage_key(module_dir, _REPO),
+                "key": module_storage_key(module_dir, _REPO, game=g),
                 "title": title,
                 "scenarios_dir": scen_dir.relative_to(_REPO).as_posix(),
             }
@@ -75,7 +83,7 @@ def list_editable_modules(*, module_scope: str = "all") -> list[dict[str, str]]:
 
 def list_editable_files(*, module_scope: str = "all") -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
-    for _root, path in iter_scenario_yaml_files(_REPO, module_scope):
+    for _root, path in iter_scenario_yaml_files(_REPO, module_scope, game=_request_game()):
         if _is_readonly_scenario(path):
             continue
         rel = scenario_source_label(path, _REPO)
@@ -192,7 +200,8 @@ def get_file(rel: str) -> dict[str, Any]:
 
 def _scenario_root_for_path(path: Path) -> Path:
     resolved = path.resolve()
-    for root in scenario_roots(_REPO):
+    g = _request_game()
+    for root in scenario_roots(_REPO, game=g):
         root_resolved = root.path.resolve()
         if resolved == root_resolved or root_resolved in resolved.parents:
             return root.path
@@ -204,8 +213,10 @@ def _resolve_module_scenarios_dir(module_key: str) -> Path:
     if not key:
         msg = "module required"
         raise ValueError(msg)
-    for module_dir in iter_module_dirs(_REPO):
-        if module_storage_key(module_dir, _REPO) != key:
+    g = _request_game()
+    for module_dir in iter_module_dirs(_REPO, game=g):
+        sk = module_storage_key(module_dir, _REPO, game=g)
+        if sk != key and (":" not in sk or sk.split(":", 1)[1] != key):
             continue
         meta = load_module_yaml(module_dir)
         scen_decl = str(meta.get("scenarios") or "scenarios").strip()
