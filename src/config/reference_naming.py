@@ -35,11 +35,10 @@ def event_icon_abs_path(repo_root: Path, slug: str) -> Path | None:
       1. ``modules/events/<slug>/references/logo.png`` — current convention.
       2. ``modules/events/<slug>/references/event.<slug>.png`` — legacy
          per-module naming kept by older event modules (bear_hunt, trials…).
-      3. ``references/events/event.<slug>.png`` — pre-migration root cache.
 
-    Returns ``None`` if none of the candidates exist. The slug is matched
-    verbatim (no sanitisation) so a typo just yields a missing icon in the
-    UI rather than a fallback collision.
+    Returns ``None`` if neither file exists. The slug is matched verbatim
+    (no sanitisation) so a typo just yields a missing icon in the UI rather
+    than a fallback collision.
     """
     s = str(slug or "").strip()
     if not s:
@@ -47,7 +46,6 @@ def event_icon_abs_path(repo_root: Path, slug: str) -> Path | None:
     candidates = (
         repo_root / "modules" / "events" / s / "references" / "logo.png",
         repo_root / "modules" / "events" / s / "references" / f"event.{s}.png",
-        repo_root / "references" / EVENTS_SUBDIR / f"event.{s}.png",
     )
     for path in candidates:
         if path.is_file():

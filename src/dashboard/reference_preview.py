@@ -104,15 +104,6 @@ def _is_unanswerable_reference(root: Path, p: Path) -> bool:
     )
 
 
-def _newest_png_for_instance_then_any(root: Path, instance_id: str) -> Path | None:
-    """Prefer newest ``{instance_id}_*.png`` anywhere under ``root``, else newest ``*.png``."""
-    all_png = sorted(root.rglob("*.png"), key=lambda p: p.stat().st_mtime, reverse=True)
-    matches = [p for p in all_png if p.name.startswith(f"{instance_id}_")]
-    if matches:
-        return matches[0]
-    return all_png[0] if all_png else None
-
-
 def rolling_live_preview_path(instance_id: str) -> Path:
     """Worker + Instance rolling frame: ``temporal/{instance_id}_current_state.png``."""
     return instance_preview_root(repo_root()) / f"{rolling_preview_basename(instance_id)}.png"
@@ -227,37 +218,13 @@ def capture_preview_to(
 
 def load_rolling_instance_preview(instance_id: str) -> tuple[bytes | None, str, float | None]:
     """Load the live ADB rolling PNG for this instance (mtime = disk ``st_mtime``)."""
-    root = references_root()
+    root = instance_preview_root(repo_root())
     root.mkdir(parents=True, exist_ok=True)
     path = rolling_live_preview_path(instance_id)
     if path.is_file():
-        rel = path.relative_to(root).as_posix()
+        rel = path.relative_to(repo_root()).as_posix()
         return path.read_bytes(), rel, path.stat().st_mtime
     return None, "", None
-
-
-def resolve_rename_source_path(
-    instance_id: str,
-    name_input: str,
-    picked_filename: str | None,
-) -> Path | None:
-    """
-    Which existing PNG to rename: explicit pick from list, then basename match, else newest ``{instance_id}_*.png``.
-    """
-    root = references_root()
-    if picked_filename and not picked_filename.startswith("("):
-        p = root / picked_filename
-        if p.is_file():
-            return p
-    if name_input.strip():
-        base = reference_file_basename(name_input.strip(), instance_id)
-        if base == rolling_preview_basename(instance_id):
-            p = instance_preview_root(repo_root()) / f"{base}.png"
-        else:
-            p = root / f"{base}.png"
-        if p.is_file():
-            return p
-    return _newest_png_for_instance_then_any(root, instance_id)
 
 
 def rename_reference_to_basename(

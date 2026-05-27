@@ -999,7 +999,7 @@ class AdbController:
                 "Failed to capture approval preview for %s", self._instance_id, exc_info=True
             )
             return
-        rel = approval_path.relative_to(root / "references")
+        rel = approval_path.relative_to(root)
         payload["preview_png_rel"] = rel.as_posix()
         payload["preview_captured_at"] = time.time()
 

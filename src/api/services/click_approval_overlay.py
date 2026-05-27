@@ -4,13 +4,14 @@ from __future__ import annotations
 from pathlib import Path  # noqa: TC003 — used at runtime for area.json
 from typing import Any, Literal, TypedDict
 
+from config.paths import repo_root
 from dashboard.click_approvals import (
     _approval_region_name,
     active_player_state_flat,
     load_area_doc,
     pct_bbox_to_px_rect,
 )
-from dashboard.reference_preview import load_rolling_instance_preview, references_root
+from dashboard.reference_preview import load_rolling_instance_preview
 from layout.area_lookup import screen_region_by_name
 
 
@@ -202,7 +203,7 @@ def load_preview_bytes(
     if src == "capture" and isinstance(payload, dict):
         rel_raw = _as_text(payload.get("preview_png_rel")).replace("\\", "/").lstrip("/")
         if rel_raw:
-            root = references_root()
+            root = repo_root()
             path = (root / rel_raw).resolve()
             try:
                 path.relative_to(root.resolve())
