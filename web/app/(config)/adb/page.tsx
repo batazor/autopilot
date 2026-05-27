@@ -2,20 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { AppListbox } from "@/components/headless/AppListbox";
 import {
   fetchAdbStatus,
   fetchMinicapStatus,
   fetchMinitouchStatus,
+  fetchScrcpyStatus,
   installMinicap,
   installMinitouch,
+  installScrcpy,
   resetAdbDeviceDisplay,
   updateDeviceBackend,
 } from "@/lib/api";
-import type { MinicapStatus, MinitouchStatus } from "@/lib/config-pages";
+import type { MinicapStatus, MinitouchStatus, ScrcpyStatus } from "@/lib/config-pages";
+
+const INPUT_BACKEND_OPTIONS = [
+  { value: "", label: "auto (adb)" },
+  { value: "adb", label: "adb" },
+  { value: "minitouch", label: "minitouch" },
+  { value: "scrcpy", label: "scrcpy" },
+];
 
 type CellEntry<T> = T | { error: string } | undefined;
 
-function renderBinaryCell(entry: CellEntry<MinicapStatus | MinitouchStatus>) {
+function renderBinaryCell(entry: CellEntry<MinicapStatus | MinitouchStatus | ScrcpyStatus>) {
   if (entry === undefined) return <span className="muted">checking…</span>;
   if ("error" in entry) {
     return (
@@ -48,11 +58,13 @@ export default function AdbPage() {
   const [resettingSerial, setResettingSerial] = useState<string | null>(null);
   const [minicap, setMinicap] = useState<Record<string, CellEntry<MinicapStatus>>>({});
   const [minitouch, setMinitouch] = useState<Record<string, CellEntry<MinitouchStatus>>>({});
+  const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
   const [installingMinicap, setInstallingMinicap] = useState<string | null>(null);
   const [installingMinitouch, setInstallingMinitouch] = useState<string | null>(null);
+  const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
 
   const loadProbes = useCallback(async (serials: string[]) => {
-    const [capResults, touchResults] = await Promise.all([
+    const [capResults, touchResults, scrcpyResults] = await Promise.all([
       Promise.all(
         serials.map(async (serial) => {
           try {
@@ -71,9 +83,19 @@ export default function AdbPage() {
           }
         }),
       ),
+      Promise.all(
+        serials.map(async (serial) => {
+          try {
+            return [serial, await fetchScrcpyStatus(serial)] as const;
+          } catch (e) {
+            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
+          }
+        }),
+      ),
     ]);
     setMinicap(Object.fromEntries(capResults));
     setMinitouch(Object.fromEntries(touchResults));
+    setScrcpy(Object.fromEntries(scrcpyResults));
   }, []);
 
   const load = useCallback(async () => {
@@ -149,6 +171,25 @@ export default function AdbPage() {
     }
   };
 
+  const onInstallScrcpy = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setInstallingScrcpy(serial);
+    try {
+      const out = await installScrcpy(serial);
+      if (out.installed) {
+        setSuccess(`Scrcpy server installed on ${serial} (${out.abi})`);
+      } else {
+        setError(`Scrcpy install on ${serial} failed: ${out.last_error ?? "unknown error"}`);
+      }
+      setScrcpy((prev) => ({ ...prev, [serial]: out }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInstallingScrcpy(null);
+    }
+  };
+
   const [savingBackend, setSavingBackend] = useState<string | null>(null);
 
   const onBackendChange = async (
@@ -179,6 +220,7 @@ export default function AdbPage() {
   const busy =
     installingMinicap !== null ||
     installingMinitouch !== null ||
+    installingScrcpy !== null ||
     resettingSerial !== null ||
     savingBackend !== null;
 
@@ -190,8 +232,10 @@ export default function AdbPage() {
           <code>wm size</code> / <code>wm density</code> overrides on the device.
           {" "}<strong>Minicap</strong> = fast screen capture (~15-40 ms/frame; physical → minicap by default, emulator → quartz).
           {" "}<strong>Minitouch</strong> = fast taps/swipes (~5-20 ms each), but needs <code>/dev/input</code> access
-          (rooted devices or accessible emulators only) — input defaults to <code>adb</code> for universal compatibility;
-          set <code>input_backend: minitouch</code> in <code>devices.yaml</code> to opt in.
+          (rooted devices or accessible emulators only) — input defaults to <code>adb</code> for universal compatibility.
+          {" "}<strong>Scrcpy</strong> = one server process per device delivering both H.264 frames and touch events;
+          works on any unrooted device, auto-pushes <code>scrcpy-server.jar</code> on first start.
+          Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
       <div className="toolbar">
@@ -233,31 +277,35 @@ export default function AdbPage() {
                       <td>{d.instance_id || "—"}</td>
                       <td>{d.bluestacks_window_title || "—"}</td>
                       <td>
-                        <select
+                        <AppListbox
+                          aria-label="Screenshot backend"
                           value={d.screenshot_backend}
                           disabled={busy || !d.adb_serial}
-                          onChange={(e) =>
-                            onBackendChange(d.adb_serial, "screenshot_backend", e.target.value)
+                          onChange={(v) =>
+                            onBackendChange(d.adb_serial, "screenshot_backend", v)
                           }
-                        >
-                          <option value="">auto ({d.screenshot_backend_effective || "quartz"})</option>
-                          <option value="quartz">quartz</option>
-                          <option value="adb">adb</option>
-                          <option value="minicap">minicap</option>
-                        </select>
+                          options={[
+                            {
+                              value: "",
+                              label: `auto (${d.screenshot_backend_effective || "quartz"})`,
+                            },
+                            { value: "quartz", label: "quartz" },
+                            { value: "adb", label: "adb" },
+                            { value: "minicap", label: "minicap" },
+                            { value: "scrcpy", label: "scrcpy" },
+                          ]}
+                        />
                       </td>
                       <td>
-                        <select
+                        <AppListbox
+                          aria-label="Input backend"
                           value={d.input_backend}
                           disabled={busy || !d.adb_serial}
-                          onChange={(e) =>
-                            onBackendChange(d.adb_serial, "input_backend", e.target.value)
+                          onChange={(v) =>
+                            onBackendChange(d.adb_serial, "input_backend", v)
                           }
-                        >
-                          <option value="">auto (adb)</option>
-                          <option value="adb">adb</option>
-                          <option value="minitouch">minitouch</option>
-                        </select>
+                          options={INPUT_BACKEND_OPTIONS}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -275,6 +323,7 @@ export default function AdbPage() {
                     <th>Line</th>
                     <th>Minicap</th>
                     <th>Minitouch</th>
+                    <th>Scrcpy</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -282,8 +331,10 @@ export default function AdbPage() {
                   {status.live_devices.map((d) => {
                     const cap = minicap[d.serial];
                     const touch = minitouch[d.serial];
+                    const sc = scrcpy[d.serial];
                     const capInstalled = cap && !("error" in cap) && cap.installed;
                     const touchInstalled = touch && !("error" in touch) && touch.installed;
+                    const scInstalled = sc && !("error" in sc) && sc.installed;
                     return (
                       <tr key={d.serial}>
                         <td>
@@ -292,6 +343,7 @@ export default function AdbPage() {
                         <td className="muted">{d.line}</td>
                         <td>{renderBinaryCell(cap)}</td>
                         <td>{renderBinaryCell(touch)}</td>
+                        <td>{renderBinaryCell(sc)}</td>
                         <td>
                           <button
                             type="button"
@@ -320,6 +372,20 @@ export default function AdbPage() {
                               : touchInstalled
                                 ? "Reinstall minitouch"
                                 : "Install minitouch"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={busy}
+                            title="Download scrcpy-server.jar from Genymobile/scrcpy and push to /data/local/tmp"
+                            onClick={() => onInstallScrcpy(d.serial)}
+                            style={{ marginRight: 6 }}
+                          >
+                            {installingScrcpy === d.serial
+                              ? "Installing…"
+                              : scInstalled
+                                ? "Reinstall scrcpy"
+                                : "Install scrcpy"}
                           </button>
                           <button
                             type="button"

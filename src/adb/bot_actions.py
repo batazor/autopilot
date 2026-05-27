@@ -17,6 +17,8 @@ from adb.frame_normalize import (
 from adb.minicap import DEFAULT_PORT_BASE as _MINICAP_PORT_BASE
 from adb.minicap import MinicapClient
 from adb.quartz_screencap import quartz_screencap_bgr
+from adb.scrcpy import DEFAULT_PORT_BASE as _SCRCPY_PORT_BASE
+from adb.scrcpy import ScrcpyClient, close_scrcpy_client, get_or_create_scrcpy_client
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform
 from adb.serial import is_emulator_adb_serial
 from layout.types import Point
@@ -66,6 +68,13 @@ class BotActions:
         self._minicap_clients: dict[str, MinicapClient] = {}
         self._minicap_fallback: set[str] = set()
         self._minicap_lock = threading.Lock()
+        # scrcpy (Genymobile) clients: one server process per instance, shared
+        # between screenshot (here) and input (AdbController). Registry is
+        # module-level — AdbController fetches the same client by serial.
+        # ``_scrcpy_fallback`` matches the minicap-fallback contract: a failed
+        # start means we use adb screencap for the rest of the session.
+        self._scrcpy_fallback: set[str] = set()
+        self._scrcpy_lock = threading.Lock()
 
     def _controller(self, instance_id: str) -> AdbController:
         if instance_id not in self._controllers:
@@ -85,6 +94,9 @@ class BotActions:
                 adb_bin=self._adb_bin(),
                 input_backend=inst.input_backend,
                 minitouch_port=_MT_PORT + slot,
+                # When input_backend=="scrcpy" the controller pulls the same
+                # client we use for screenshots (one server process per device).
+                scrcpy_client_getter=lambda iid=instance_id: self._get_scrcpy_client(iid),
             )
         return self._controllers[instance_id]
 
@@ -228,6 +240,79 @@ class BotActions:
             self._minicap_clients[instance_id] = client
             return client
 
+    def _get_scrcpy_client(self, instance_id: str) -> ScrcpyClient | None:
+        """Lazy-start the shared scrcpy server for ``instance_id``; ``None`` on fallback.
+
+        Returns ``None`` (and pins the instance in ``_scrcpy_fallback``) when
+        startup raises — both the screenshot path and the input path observe
+        that signal and switch to their respective adb fallbacks for the rest
+        of the session, avoiding repeated start attempts every tick.
+        """
+        with self._scrcpy_lock:
+            if instance_id in self._scrcpy_fallback:
+                return None
+            slot = next(
+                (i for i, inst in enumerate(self._settings.instances)
+                 if inst.instance_id == instance_id),
+                0,
+            )
+            port = _SCRCPY_PORT_BASE + slot
+            client = get_or_create_scrcpy_client(
+                serial=self._get_serial(instance_id),
+                adb_bin=self._adb_bin(),
+                port=port,
+            )
+            if client.is_alive():
+                return client
+            try:
+                client.start()
+            except Exception as exc:
+                logger.warning(
+                    "scrcpy failed for %s (%s) — falling back to adb for this session",
+                    instance_id, exc,
+                )
+                self._scrcpy_fallback.add(instance_id)
+                with contextlib.suppress(Exception):
+                    close_scrcpy_client(self._get_serial(instance_id))
+                return None
+            return client
+
+    def capture_screen_bgr_scrcpy(self, instance_id: str) -> np.ndarray:
+        """Capture via scrcpy H.264 stream. Falls back to ``capture_screen_bgr_adb`` on error."""
+        client = self._get_scrcpy_client(instance_id)
+        if client is None:
+            return self.capture_screen_bgr_adb(instance_id)
+        img: np.ndarray | None = None
+        capture_err: str | None = None
+        try:
+            img, capture_err = client.read_latest_frame_bgr(
+                timeout_s=self._NEXT_FRAME_TIMEOUT_S,
+            )
+        except Exception as exc:
+            capture_err = str(exc)
+        if img is None:
+            logger.warning(
+                "scrcpy failed for %s (%s) — falling back to adb screencap for this session",
+                instance_id, capture_err or "no frame",
+            )
+            with self._scrcpy_lock:
+                self._scrcpy_fallback.add(instance_id)
+            with contextlib.suppress(Exception):
+                close_scrcpy_client(self._get_serial(instance_id))
+            return self.capture_screen_bgr_adb(instance_id)
+        # scrcpy emits frames at the device's physical resolution (we pass
+        # max_size=0 so no host-side resize is applied); compute a normalising
+        # transform exactly like the minicap path does.
+        transform = frame_normalize_transform_for_size(
+            (img.shape[1], img.shape[0]),
+            target_size=GAME_FRAME_SIZE,
+        )
+        frame_bus.publish(instance_id, img, transform=transform)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+            self._await_next_frame.discard(instance_id)
+        return img
+
     def capture_screen_bgr_minicap(self, instance_id: str) -> np.ndarray:
         """Capture via minicap JPEG stream. Falls back to ``capture_screen_bgr_adb`` on error."""
         if instance_id in self._minicap_fallback:
@@ -284,6 +369,8 @@ class BotActions:
             return self.capture_screen_bgr_adb(instance_id)
         if backend == "minicap":
             return self.capture_screen_bgr_minicap(instance_id)
+        if backend == "scrcpy":
+            return self.capture_screen_bgr_scrcpy(instance_id)
         if backend != "quartz":
             logger.warning(
                 "Unknown screenshot backend %r for %s; using quartz",

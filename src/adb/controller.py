@@ -40,6 +40,7 @@ from layout.types import Point
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
+    from adb.scrcpy import ScrcpyClient
     from config.device_display import DeviceDisplayConfig
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class AdbController:
         adb_bin: str = DEFAULT_ADB_BIN,
         input_backend: str = "",
         minitouch_port: int = _MINITOUCH_PORT_BASE,
+        scrcpy_client_getter: Callable[[], ScrcpyClient | None] | None = None,
     ) -> None:
         resolved = resolve_adb_executable(adb_bin)
         if resolved is None:
@@ -88,14 +90,19 @@ class AdbController:
         self._supports_motionevent: bool | None = None
         self._screen_resolution: tuple[int, int] | None = None
         # Input backend. Default is "adb" (`adb shell input tap/swipe`) — universal,
-        # works on every device. Set ``input_backend: minitouch`` in devices.yaml
-        # to opt in on rooted devices / emulators where /dev/input is accessible.
-        # Any minitouch runtime failure flips back to "adb" for the rest of the
-        # session (sticky); minitouch is never used implicitly without opt-in.
+        # works on every device. Set ``input_backend: minitouch`` (rooted only) or
+        # ``input_backend: scrcpy`` (any device — server runs in adb shell) in
+        # devices.yaml to opt in. Any runtime failure flips back to "adb" for the
+        # rest of the session (sticky); alt backends are never used without opt-in.
         explicit = (input_backend or "").strip().lower()
         self._input_backend = explicit or "adb"
         self._minitouch_port = minitouch_port
         self._minitouch: MinitouchClient | None = None
+        # scrcpy client is owned by BotActions (one server per device, shared
+        # with the screenshot path). The getter returns ``None`` if scrcpy
+        # startup has already failed for this device, which is our cue to fall
+        # back to ``adb shell input`` instead of trying to start it ourselves.
+        self._scrcpy_client_getter = scrcpy_client_getter
         self._verify_available()
 
     def apply_display_config(
@@ -424,8 +431,51 @@ class AdbController:
         self._minitouch = client
         return client
 
+    def _get_scrcpy(self) -> ScrcpyClient | None:
+        """Resolve the shared scrcpy client when ``input_backend == 'scrcpy'``.
+
+        The client is owned by :class:`adb.bot_actions.BotActions`; we obtain
+        it through the getter passed at construction. ``None`` means scrcpy
+        startup already failed for this device — flip to adb (sticky) so the
+        caller doesn't keep paying for the lookup on every tap.
+        """
+        if self._input_backend != "scrcpy":
+            return None
+        getter = self._scrcpy_client_getter
+        if getter is None:
+            logger.warning(
+                "scrcpy requested for %s but no client getter wired — falling back to adb",
+                self._serial,
+            )
+            self._input_backend = "adb"
+            return None
+        try:
+            client = getter()
+        except Exception as exc:
+            logger.warning(
+                "scrcpy getter raised for %s (%s) — falling back to adb",
+                self._serial, exc,
+            )
+            self._input_backend = "adb"
+            return None
+        if client is None or not client.is_alive():
+            self._input_backend = "adb"
+            return None
+        return client
+
     def _emit_tap(self, x: int, y: int) -> None:
-        """Send a single tap via minitouch when available, else `adb shell input tap`."""
+        """Send a single tap via minitouch/scrcpy when available, else `adb shell input tap`."""
+        sc = self._get_scrcpy()
+        if sc is not None:
+            try:
+                sc.tap(x, y)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "scrcpy tap failed on %s (%s) — falling back to adb shell input",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
         mt = self._get_minitouch()
         if mt is not None:
             try:
@@ -443,6 +493,17 @@ class AdbController:
         self._shell("input", "tap", str(x), str(y))
 
     def _emit_long_press(self, x: int, y: int, ms: int) -> None:
+        sc = self._get_scrcpy()
+        if sc is not None:
+            try:
+                sc.long_press(x, y, duration_ms=ms)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "scrcpy long_press failed on %s (%s) — falling back",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
         mt = self._get_minitouch()
         if mt is not None:
             try:
@@ -463,7 +524,18 @@ class AdbController:
     def _emit_swipe_straight(
         self, x1: int, y1: int, x2: int, y2: int, ms: int,
     ) -> None:
-        """Straight swipe — minitouch when available, else `input touchscreen swipe`."""
+        """Straight swipe — minitouch/scrcpy when available, else `input touchscreen swipe`."""
+        sc = self._get_scrcpy()
+        if sc is not None:
+            try:
+                sc.swipe(x1, y1, x2, y2, duration_ms=ms)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "scrcpy swipe failed on %s (%s) — falling back",
+                    self._serial, exc,
+                )
+                self._input_backend = "adb"
         mt = self._get_minitouch()
         if mt is not None:
             try:

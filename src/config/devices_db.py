@@ -76,8 +76,8 @@ CREATE INDEX IF NOT EXISTS idx_device_profile_gamers_profile ON device_profile_g
 """
 
 
-VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "minicap"})
-VALID_INPUT_BACKENDS = frozenset({"", "adb", "minitouch"})
+VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "minicap", "scrcpy"})
+VALID_INPUT_BACKENDS = frozenset({"", "adb", "minitouch", "scrcpy"})
 
 
 @contextmanager

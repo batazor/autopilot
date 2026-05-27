@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from adb.controller import AdbController
 from adb.minicap import get_minicap_status, install_minicap
 from adb.minitouch import get_minitouch_status, install_minitouch
+from adb.scrcpy import get_scrcpy_status, install_scrcpy
 from adb.screencap import MSG_ADB_NOT_FOUND, resolve_adb_executable
 from adb.serial import is_emulator_adb_serial
 from config.devices_db import (
@@ -162,6 +163,28 @@ def install_minitouch_for(serial: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="serial is required")
     resolved = _resolve_adb_or_raise()
     status = install_minitouch(target, resolved)
+    payload = status.to_dict()
+    payload["ok"] = status.installed
+    return payload
+
+
+def get_scrcpy_status_for(serial: str) -> dict[str, Any]:
+    """Probe device for installed scrcpy-server jar."""
+    target = (serial or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="serial is required")
+    resolved = _resolve_adb_or_raise()
+    status = get_scrcpy_status(target, resolved)
+    return status.to_dict()
+
+
+def install_scrcpy_for(serial: str) -> dict[str, Any]:
+    """Download scrcpy-server jar from Genymobile/scrcpy GitHub release and push."""
+    target = (serial or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="serial is required")
+    resolved = _resolve_adb_or_raise()
+    status = install_scrcpy(target, resolved)
     payload = status.to_dict()
     payload["ok"] = status.installed
     return payload

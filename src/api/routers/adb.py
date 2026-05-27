@@ -51,6 +51,18 @@ def post_install_minitouch(serial: str) -> dict[str, object]:
     return svc.install_minitouch_for(serial)
 
 
+@router.get("/devices/{serial}/scrcpy")
+def get_scrcpy_status(serial: str) -> dict[str, object]:
+    """Return installed scrcpy-server jar state for ``serial``."""
+    return svc.get_scrcpy_status_for(serial)
+
+
+@router.post("/devices/{serial}/scrcpy/install")
+def post_install_scrcpy(serial: str) -> dict[str, object]:
+    """Download + push scrcpy-server jar from Genymobile/scrcpy GitHub release."""
+    return svc.install_scrcpy_for(serial)
+
+
 @router.post("/devices/{serial}/backend")
 def post_set_device_backend(serial: str, body: BackendUpdateBody) -> dict[str, object]:
     """Rewrite devices.yaml to set/clear per-device screenshot_backend / input_backend.

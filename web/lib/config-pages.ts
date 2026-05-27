@@ -93,6 +93,18 @@ export type MinitouchStatus = {
 
 export type MinitouchInstallResult = MinitouchStatus & { ok: boolean };
 
+export type ScrcpyStatus = {
+  serial: string;
+  abi: string | null;
+  sdk: string | null;
+  jar_installed: boolean;
+  jar_size: number | null;
+  last_error: string | null;
+  installed: boolean;
+};
+
+export type ScrcpyInstallResult = ScrcpyStatus & { ok: boolean };
+
 export type DeviceBackendUpdate = {
   ok: boolean;
   serial: string;

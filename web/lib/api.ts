@@ -5,6 +5,8 @@ import type {
   MinicapInstallResult,
   MinitouchStatus,
   MinitouchInstallResult,
+  ScrcpyStatus,
+  ScrcpyInstallResult,
   DeviceBackendUpdate,
   BalanceFileMeta,
   OptimizerMeta,
@@ -987,6 +989,19 @@ export async function fetchMinitouchStatus(serial: string): Promise<MinitouchSta
 export async function installMinitouch(serial: string): Promise<MinitouchInstallResult> {
   return apiFetch<MinitouchInstallResult>(
     `/api/adb/devices/${encodeURIComponent(serial)}/minitouch/install`,
+    { method: "POST" },
+  );
+}
+
+export async function fetchScrcpyStatus(serial: string): Promise<ScrcpyStatus> {
+  return apiFetch<ScrcpyStatus>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/scrcpy`,
+  );
+}
+
+export async function installScrcpy(serial: string): Promise<ScrcpyInstallResult> {
+  return apiFetch<ScrcpyInstallResult>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/scrcpy/install`,
     { method: "POST" },
   );
 }
