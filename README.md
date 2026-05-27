@@ -1,6 +1,6 @@
-# Whiteout Survival autopilot
+# Autopilot
 
-Multi-account bot: one worker per BlueStacks instance, queue and state in Redis, screen text via local Tesseract OCR.
+Multi-account, game-agnostic Android bot: one worker per emulator instance, queue and state in Redis, screen text via local Tesseract OCR. Whiteout Survival is fully covered today; Kingshot and other games are on the roadmap.
 
 ## Documentation
 
