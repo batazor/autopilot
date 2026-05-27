@@ -655,6 +655,18 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         except Exception:
             logger.debug("Failed to mark decision timestamps", exc_info=True)
 
+        if decision == "approve":
+            try:
+                _redis().hsetnx(
+                    "wos:onboarding:state",
+                    "first_approval_at",
+                    time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to set onboarding first_approval_at", exc_info=True
+                )
+
     # On reject/skip/timeout, clear slot so the bot can proceed.
     if decision != "approve":
         _record_approval_block(

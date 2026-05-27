@@ -21,6 +21,7 @@ class _FakeRedis:
 
     def __init__(self, *, ping_raises: Exception | None = None) -> None:
         self._hashes: dict[str, dict[str, str]] = {}
+        self._lists: dict[str, list[str]] = {}
         self._ping_raises = ping_raises
 
     def ping(self) -> bool:
@@ -40,6 +41,16 @@ class _FakeRedis:
             return 0
         bucket[field] = value
         return 1
+
+    def lrange(self, key: str, start: int, end: int) -> list[str]:
+        items = self._lists.get(key, [])
+        return list(items[start : end + 1])
+
+    def seed_list(self, key: str, items: list[str]) -> None:
+        self._lists[key] = list(items)
+
+    def seed_hash(self, key: str, mapping: dict[str, str]) -> None:
+        self._hashes[key] = dict(mapping)
 
 
 @pytest.fixture
@@ -114,3 +125,70 @@ def test_check_binary_not_found() -> None:
     result = onboarding._check_binary("definitely-not-a-real-tool", "", ["--version"])
     assert result["ok"] is False
     assert "not found" in result["error"]
+
+
+@pytest.fixture
+def instances() -> Any:
+    with patch(
+        "api.services.instances.list_instance_ids",
+        return_value=["bs1", "bs2"],
+    ):
+        yield
+
+
+def test_scenario_milestone_set_when_history_has_success(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_list(
+        "wos:queue:history:bs1",
+        ['{"success": true, "scenario": "claim_mail"}'],
+    )
+    state = onboarding.read_state(client)
+    assert state["first_scenario_at"] is not None
+
+
+def test_scenario_milestone_ignores_failed_entries(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_list(
+        "wos:queue:history:bs1",
+        [
+            '{"success": false, "scenario": "claim_mail", "error": "timeout"}',
+            "not json at all",
+        ],
+    )
+    state = onboarding.read_state(client)
+    assert state["first_scenario_at"] is None
+
+
+def test_ocr_milestone_set_when_state_has_text(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_hash(
+        "wos:instance:bs1:state",
+        {
+            "dsl_last_ocr_at": "1700000000",
+            "dsl_last_ocr_raw_text": "Level 25",
+        },
+    )
+    state = onboarding.read_state(client)
+    assert state["first_ocr_at"] is not None
+
+
+def test_ocr_milestone_skipped_when_text_empty(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_hash(
+        "wos:instance:bs1:state",
+        {
+            "dsl_last_ocr_at": "1700000000",
+            "dsl_last_ocr_raw_text": "",
+            "dsl_last_ocr_value": "",
+        },
+    )
+    state = onboarding.read_state(client)
+    assert state["first_ocr_at"] is None

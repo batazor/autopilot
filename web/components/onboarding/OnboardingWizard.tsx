@@ -163,7 +163,12 @@ export function OnboardingWizard() {
               <EnvironmentStep env={env} busy={envBusy} onRecheck={recheckEnv} />
             ) : null}
             {step === 1 ? (
-              <DeviceStep deviceAddedAt={state?.device_added_at ?? null} />
+              <DeviceStep
+                deviceAddedAt={state?.device_added_at ?? null}
+                onRefresh={() => {
+                  fetchOnboardingState().then(setState).catch(() => {});
+                }}
+              />
             ) : null}
             {step === 2 ? (
               <StartBotStep
@@ -263,7 +268,13 @@ function EnvironmentStep({
   );
 }
 
-function DeviceStep({ deviceAddedAt }: { deviceAddedAt: string | null }) {
+function DeviceStep({
+  deviceAddedAt,
+  onRefresh,
+}: {
+  deviceAddedAt: string | null;
+  onRefresh: () => void;
+}) {
   if (deviceAddedAt) {
     return (
       <div className="onboarding-wizard__panel">
@@ -283,9 +294,14 @@ function DeviceStep({ deviceAddedAt }: { deviceAddedAt: string | null }) {
         Connect an Android emulator (720×1280, 320 DPI) or a physical device
         over ADB, then register it on the ADB page.
       </p>
-      <Link href="/adb" className="btn-primary">
-        Open ADB settings
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Link href="/adb" className="btn-primary">
+          Open ADB settings
+        </Link>
+        <button type="button" className="btn-secondary" onClick={onRefresh}>
+          Refresh
+        </button>
+      </div>
       <p className="onboarding-wizard__hint">
         This page polls every 3 seconds — once you add a device, it will
         light up automatically.

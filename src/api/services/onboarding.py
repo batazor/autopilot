@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import time
@@ -56,10 +57,58 @@ def _refresh_bot_milestone(client: redis.Redis) -> str | None:
     return None
 
 
+def _instance_ids() -> list[str]:
+    try:
+        from api.services.instances import list_instance_ids
+
+        return list_instance_ids()
+    except Exception:
+        return []
+
+
+def _refresh_scenario_milestone(client: redis.Redis) -> str | None:
+    """Set the bit once any instance has a successful task in its history list."""
+    if client.hget(ONBOARDING_KEY, "first_scenario_at"):
+        return None
+    for instance_id in _instance_ids():
+        try:
+            entries = client.lrange(f"wos:queue:history:{instance_id}", 0, 49)
+        except Exception:
+            continue
+        for raw in entries or []:
+            try:
+                doc = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if doc.get("success") and doc.get("scenario"):
+                return _set_if_unset(client, "first_scenario_at")
+    return None
+
+
+def _refresh_ocr_milestone(client: redis.Redis) -> str | None:
+    """Set the bit once any instance has produced non-empty OCR text."""
+    if client.hget(ONBOARDING_KEY, "first_ocr_at"):
+        return None
+    for instance_id in _instance_ids():
+        try:
+            state = client.hgetall(f"wos:instance:{instance_id}:state") or {}
+        except Exception:
+            continue
+        if not (state.get("dsl_last_ocr_at") or "").strip():
+            continue
+        if (state.get("dsl_last_ocr_raw_text") or "").strip() or (
+            state.get("dsl_last_ocr_value") or ""
+        ).strip():
+            return _set_if_unset(client, "first_ocr_at")
+    return None
+
+
 def read_state(client: redis.Redis) -> dict[str, Any]:
     """Return milestone bits, auto-detecting cheap ones on every call."""
     _refresh_device_milestone(client)
     _refresh_bot_milestone(client)
+    _refresh_scenario_milestone(client)
+    _refresh_ocr_milestone(client)
     raw = client.hgetall(ONBOARDING_KEY) or {}
     return {m: (str(raw[m]) if m in raw else None) for m in MILESTONES}
 
