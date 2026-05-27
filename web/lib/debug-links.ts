@@ -24,12 +24,14 @@ export function editDslHref(opts: {
   module?: string;
   scope?: string;
   scenario?: string;
+  newScenario?: boolean;
 }): string {
   const scope = opts.scope ?? opts.module;
   return `/edit-dsl${buildSearch({
     extra: {
       ...(scope ? { scope, module: scope } : {}),
       scenario: opts.scenario,
+      new: opts.newScenario ? "1" : undefined,
     },
   })}`;
 }

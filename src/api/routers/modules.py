@@ -17,12 +17,37 @@ class AssignmentBody(BaseModel):
     scenario_id: str | None = None
 
 
+class CreateModuleBody(BaseModel):
+    id: str
+    title: str
+    description: str = ""
+    parent: str = ""
+    wiki: bool = False
+
+
 @router.get("")
 def list_modules(scope: str = Query(default="all")) -> dict[str, object]:
     return {
         "scope": scope,
         "modules": svc.list_modules(module_scope=scope),
     }
+
+
+@router.post("", status_code=201)
+def create_module(body: CreateModuleBody) -> dict[str, object]:
+    try:
+        row = svc.create_module(
+            module_id=body.id,
+            title=body.title,
+            description=body.description,
+            parent=body.parent,
+            wiki=body.wiki,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {"module": row}
 
 
 @router.get("/scenarios")

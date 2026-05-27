@@ -872,6 +872,25 @@ export async function fetchModules(scope = "all"): Promise<ModuleRow[]> {
   return data.modules;
 }
 
+export type CreateModuleInput = {
+  id: string;
+  title: string;
+  description?: string;
+  parent?: string;
+  wiki?: boolean;
+};
+
+export async function createModule(
+  body: CreateModuleInput,
+): Promise<ModuleRow> {
+  const data = await apiFetch<{ module: ModuleRow }>("/api/modules", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return data.module;
+}
+
 export async function fetchInstanceTestModule(
   instanceId: string,
 ): Promise<string> {

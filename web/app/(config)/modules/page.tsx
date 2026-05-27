@@ -16,6 +16,7 @@ import {
 } from "@/lib/api";
 import type { ModuleRow, PlayerAssignment, ScenarioRow } from "@/lib/config-pages";
 import type { WikiScope } from "@/lib/wiki";
+import { NewModuleDialog } from "@/components/modules/NewModuleDialog";
 
 function enabledLabel(enabled: boolean | null): string {
   if (enabled === true) return "On";
@@ -99,6 +100,7 @@ export default function ModulesPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
 
   const allScenarios = useMemo(
     () => modules.flatMap((m) => m.scenarios),
@@ -236,7 +238,24 @@ export default function ModulesPage() {
         >
           Reload from disk
         </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={() => setNewOpen(true)}
+        >
+          New module
+        </button>
       </div>
+      <NewModuleDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={async (row) => {
+          await reload();
+          await reloadScenarios().catch(() => {});
+          showSuccess(`Created module ${row.storage_key}`);
+        }}
+        onError={(message) => setError(message)}
+      />
       <ErrorBanner message={error} />
       <section className="panel">
         <h2>
@@ -294,6 +313,15 @@ export default function ModulesPage() {
                       <td>
                         <Link href={editDslHref({ module: m.storage_key })}>
                           DSL editor
+                        </Link>
+                        {" · "}
+                        <Link
+                          href={editDslHref({
+                            module: m.storage_key,
+                            newScenario: true,
+                          })}
+                        >
+                          New scenario
                         </Link>
                         {" · "}
                         <Link

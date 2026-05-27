@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppListbox } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import { PageLoading, Spinner } from "@/components/ui/Spinner";
@@ -55,8 +55,21 @@ function EditDslPageInner() {
   const [newModule, setNewModule] = useState("");
   const [newKey, setNewKey] = useState("");
   const [loadKey, setLoadKey] = useState(0);
+  const newKeyInputRef = useRef<HTMLInputElement | null>(null);
 
   const scenarioQuery = searchParams.get("scenario");
+  const focusNew = searchParams.get("new") === "1";
+
+  useEffect(() => {
+    if (!focusNew) return;
+    const id = window.setTimeout(() => {
+      const el = newKeyInputRef.current;
+      if (!el) return;
+      el.focus();
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [focusNew, newModule]);
 
   useEffect(() => {
     if (scopeParam?.trim()) setScope(scopeParam.trim());
@@ -224,6 +237,7 @@ function EditDslPageInner() {
           <label>
             File key
             <input
+              ref={newKeyInputRef}
               value={newKey}
               onChange={(e) => setNewKey(e.target.value)}
               placeholder="dismiss_popup"

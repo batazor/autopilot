@@ -1,6 +1,7 @@
 """Module catalog API (no Streamlit)."""
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -11,6 +12,7 @@ import yaml
 from config.devices import player_ids_for_device_candidates
 from config.loader import load_settings
 from config.module_discovery import (
+    _clear_module_discovery_caches,
     is_core_nested_module,
     iter_module_dirs,
     load_module_yaml,
@@ -25,6 +27,11 @@ from dsl import template_resolver as _tmpl
 from dsl.registry import scenario_source_label
 
 _REPO = repo_root()
+
+_MODULE_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
+ALLOWED_MODULE_PARENTS: frozenset[str] = frozenset(
+    {"", "core", "deals", "alliance", "events"},
+)
 
 
 def _context_cache_key(context: dict[str, str]) -> tuple[tuple[str, str], ...]:
@@ -247,3 +254,78 @@ def set_player_assignment(player_id: str, scenario_id: str | None) -> None:
     from api.deps import get_redis
 
     set_player_scenario(get_redis(), player_id, scenario_id or None)
+
+
+def create_module(
+    *,
+    module_id: str,
+    title: str,
+    description: str = "",
+    parent: str = "",
+    wiki: bool = False,
+) -> dict[str, Any]:
+    """Scaffold a new module under ``modules/[<parent>/]<id>/``.
+
+    Writes ``module.yaml``, an empty ``analyze/analyze.yaml``, and a
+    ``scenarios/.gitkeep`` so the overlay engine and scenario loader pick the
+    module up immediately. Caller is responsible for committing the new files.
+    """
+    mid = (module_id or "").strip()
+    if not _MODULE_ID_RE.match(mid):
+        msg = (
+            "module id must start with a lowercase letter and contain only "
+            "lowercase letters, digits, and underscores"
+        )
+        raise ValueError(msg)
+    parent_norm = (parent or "").strip()
+    if parent_norm not in ALLOWED_MODULE_PARENTS:
+        allowed = ", ".join(sorted(p or "(root)" for p in ALLOWED_MODULE_PARENTS))
+        msg = f"unsupported parent '{parent_norm}' (allowed: {allowed})"
+        raise ValueError(msg)
+    title_norm = (title or "").strip() or mid
+    desc_norm = (description or "").strip()
+
+    modules_root = _REPO / "modules"
+    module_dir = modules_root / parent_norm / mid if parent_norm else modules_root / mid
+
+    if module_dir.exists():
+        rel = module_dir.relative_to(_REPO).as_posix()
+        msg = f"module path already exists: {rel}"
+        raise FileExistsError(msg)
+    existing_ids = {module_meta_id(d) for d in iter_module_dirs(_REPO)}
+    if mid in existing_ids:
+        msg = f"module id already taken: {mid}"
+        raise FileExistsError(msg)
+
+    module_dir.mkdir(parents=True, exist_ok=False)
+    (module_dir / "analyze").mkdir()
+    (module_dir / "scenarios").mkdir()
+
+    manifest: dict[str, Any] = {
+        "id": mid,
+        "title": title_norm,
+        "description": desc_norm,
+        "scenarios": "scenarios",
+        "analyze": "analyze/analyze.yaml",
+        "wiki": bool(wiki),
+    }
+    (module_dir / "module.yaml").write_text(
+        yaml.dump(
+            manifest,
+            allow_unicode=True,
+            sort_keys=False,
+            default_flow_style=False,
+        ),
+        encoding="utf-8",
+    )
+    (module_dir / "analyze" / "analyze.yaml").write_text("overlay: []\n", encoding="utf-8")
+    (module_dir / "scenarios" / ".gitkeep").write_text("", encoding="utf-8")
+
+    _clear_module_discovery_caches()
+
+    rel_target = module_dir.relative_to(_REPO).as_posix()
+    for row in list_modules(module_scope="all"):
+        if row["rel_path"] == rel_target:
+            return row
+    msg = "module created but not visible to list_modules"  # pragma: no cover
+    raise RuntimeError(msg)
