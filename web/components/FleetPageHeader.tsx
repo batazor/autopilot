@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { InstanceSelect } from "@/components/InstanceSelect";
 import { PlayerSelect } from "@/components/PlayerSelect";
 import { useFleet } from "@/components/FleetContextProvider";
+import { AppPopover } from "@/components/headless";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import {
   approvalsHref,
   labelingHref,
@@ -20,6 +23,14 @@ type FleetPageHeaderProps = {
   showPlayer?: boolean;
   /** Hide quick links when the bar would be redundant (e.g. Instance page). */
   hideQuickLinks?: boolean;
+};
+
+type QuickLink = {
+  key: string;
+  label: string;
+  href: string;
+  icon: IconName;
+  match: (pathname: string) => boolean;
 };
 
 export function FleetPageHeader({
@@ -38,6 +49,50 @@ export function FleetPageHeader({
     instancesLoading,
     playersLoading,
   } = useFleet();
+  const pathname = usePathname() ?? "";
+
+  const quickLinks: QuickLink[] = [];
+  if (instanceId) {
+    quickLinks.push({
+      key: "labeling",
+      label: "Labeling",
+      href: labelingHref({ instanceId }),
+      icon: "labeling",
+      match: (p) => p.startsWith("/labeling"),
+    });
+    if (playerId) {
+      quickLinks.push({
+        key: "player",
+        label: "Player",
+        href: playerStateHref(playerId, { instanceId }),
+        icon: "player-state",
+        match: (p) => p.startsWith("/player-state"),
+      });
+    }
+    quickLinks.push(
+      {
+        key: "approvals",
+        label: "Approvals",
+        href: approvalsHref(instanceId),
+        icon: "approvals",
+        match: (p) => p.startsWith("/approvals"),
+      },
+      {
+        key: "overlay",
+        label: "Overlay",
+        href: overlayTestHref(instanceId),
+        icon: "overlay-test",
+        match: (p) => p.startsWith("/overlay-test"),
+      },
+      {
+        key: "queue",
+        label: "Queue",
+        href: queueHref({ instanceId }),
+        icon: "queue",
+        match: (p) => p.startsWith("/queue"),
+      },
+    );
+  }
 
   return (
     <header className="app-header">
@@ -64,29 +119,40 @@ export function FleetPageHeader({
             loading={playersLoading}
           />
         ) : null}
-        {!hideQuickLinks && instanceId ? (
-          <nav className="fleet-header-links" aria-label="Fleet shortcuts">
-            <Link href={labelingHref({ instanceId })} className="fleet-header-link">
-              Labeling
-            </Link>
-            {playerId ? (
-              <Link
-                href={playerStateHref(playerId, { instanceId })}
-                className="fleet-header-link"
-              >
-                Player
-              </Link>
-            ) : null}
-            <Link href={approvalsHref(instanceId)} className="fleet-header-link">
-              Approvals
-            </Link>
-            <Link href={overlayTestHref(instanceId)} className="fleet-header-link">
-              Overlay
-            </Link>
-            <Link href={queueHref({ instanceId })} className="fleet-header-link">
-              Queue
-            </Link>
-          </nav>
+        {!hideQuickLinks && quickLinks.length > 0 ? (
+          <AppPopover
+            ariaLabel="Quick navigation"
+            buttonTitle="Quick navigation"
+            anchor="bottom end"
+            trigger={
+              <>
+                <Icon name="menu" size="sm" />
+                <span>Quick menu</span>
+              </>
+            }
+          >
+            {({ close }) => (
+              <nav aria-label="Fleet shortcuts" className="flex flex-col">
+                {quickLinks.map((link) => {
+                  const active = link.match(pathname);
+                  return (
+                    <Link
+                      key={link.key}
+                      href={link.href}
+                      onClick={() => close()}
+                      className={`headless-popover__item${active ? " headless-popover__item--active" : ""}`}
+                      aria-current={active ? "page" : undefined}
+                    >
+                      <span className="headless-popover__item-icon" aria-hidden>
+                        <Icon name={link.icon} size="sm" />
+                      </span>
+                      <span className="flex-1 truncate">{link.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            )}
+          </AppPopover>
         ) : null}
       </div>
     </header>

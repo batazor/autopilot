@@ -3,9 +3,19 @@
   "cell_h": 32,
   "sources": [
     {
-      "path": "references/crop/chief_profile_player.id.png",
+      "path": "games/wos/core/who_i_am/references/crop/chief_profile_player.id.png",
       "label": "765502864",
       "x0": 4
+    },
+    {
+      "path": "games/wos/core/who_i_am/references/crop/chief_profile_player.power.png",
+      "label": "17492",
+      "x0": 0
+    },
+    {
+      "path": "games/wos/core/who_i_am/references/crop/chief_profile_player.state.png",
+      "label": "4353",
+      "x0": 0
     },
     {
       "path": "tests/fixtures/chief_profile_player_id_live.png",
@@ -16,19 +26,34 @@
       "path": "tests/fixtures/chief_profile_player_id_live_2.png",
       "label": "765502864",
       "x0": 0
+    },
+    {
+      "path": "games/wos/core/who_i_am/references/chief_profile.png",
+      "region": "player.id",
+      "label": "765502864"
+    },
+    {
+      "path": "games/wos/core/who_i_am/references/chief_profile.png",
+      "region": "player.power",
+      "label": "17492"
+    },
+    {
+      "path": "games/wos/core/who_i_am/references/chief_profile.png",
+      "region": "player.state",
+      "label": "4353"
     }
   ],
   "per_class_counts": {
-    "0": 45,
-    "1": 35,
-    "2": 50,
-    "3": 30,
-    "4": 50,
-    "5": 50,
-    "6": 55,
-    "7": 45,
-    "8": 40,
-    "9": 35
+    "0": 50,
+    "1": 45,
+    "2": 65,
+    "3": 50,
+    "4": 75,
+    "5": 70,
+    "6": 65,
+    "7": 60,
+    "8": 45,
+    "9": 45
   },
-  "total_samples": 435
+  "total_samples": 570
 }

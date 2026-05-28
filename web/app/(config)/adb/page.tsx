@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { AppListbox } from "@/components/headless/AppListbox";
+import { AppRadioGroup } from "@/components/headless";
 import {
   fetchAdbStatus,
   fetchMinicapStatus,
@@ -292,7 +292,7 @@ export default function AdbPage() {
                       <td>{d.instance_id || "—"}</td>
                       <td>{d.bluestacks_window_title || "—"}</td>
                       <td>
-                        <AppListbox
+                        <AppRadioGroup
                           aria-label="Screenshot backend"
                           value={d.screenshot_backend}
                           disabled={busy || !d.adb_serial}
@@ -312,7 +312,7 @@ export default function AdbPage() {
                         />
                       </td>
                       <td>
-                        <AppListbox
+                        <AppRadioGroup
                           aria-label="Input backend"
                           value={d.input_backend}
                           disabled={busy || !d.adb_serial}

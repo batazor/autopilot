@@ -8,6 +8,14 @@ cond: active_player == ""
 node: chief_profile
 
 steps:
+  - ocr: player.power
+    type: integer
+    state: power
+
+  - ocr: player.state
+    type: integer
+    state: state
+    
   - ocr: player.id
     store: player_id
     type: integer

@@ -7,7 +7,6 @@ Writes ``data/kNN/digital/dataset/{0-9}/*.png`` (20×32 grayscale glyphs).
 """
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -28,13 +27,31 @@ from kNN.digital import (  # noqa: E402
     save_dataset_meta,
 )
 from layout.area_lookup import screen_region_by_name  # noqa: E402
+from layout.area_manifest import load_area_doc  # noqa: E402
 
-AREA_JSON = REPO / "area.json"
+WHO_I_AM_REFS = REPO / "games" / "wos" / "core" / "who_i_am" / "references" / "crop"
+CHIEF_PROFILE_FULL = REPO / "games" / "wos" / "core" / "who_i_am" / "references" / "chief_profile.png"
 
+# (crop_path, label, x0) — labelled digit strips used to seed the kNN.
+# ``x0`` trims leading non-digit pixels from the crop before segmentation.
+# Live fixtures get cropped at runtime via the area-doc bbox (path stem must
+# start with ``chief_profile_player_id_live`` for that branch to fire).
 LABELED_STRIPS: list[tuple[Path, str, int]] = [
-    (REPO / "references" / "crop" / "chief_profile_player.id.png", "765502864", 4),
+    (WHO_I_AM_REFS / "chief_profile_player.id.png", "765502864", 4),
+    (WHO_I_AM_REFS / "chief_profile_player.power.png", "17492", 0),
+    (WHO_I_AM_REFS / "chief_profile_player.state.png", "4353", 0),
     (REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png", "401227964", 0),
     (REPO / "tests" / "fixtures" / "chief_profile_player_id_live_2.png", "765502864", 0),
+]
+
+# Full-screen references with their per-region labels — cropped at build time
+# through the area.yaml bbox so the training glyphs match production geometry
+# exactly (a 1-px rounding diff vs. the saved crop files otherwise pushes kNN
+# confidence on production inputs from ~1.0 down to ~0.3).
+FULL_SCREEN_LABELS: list[tuple[Path, str, str]] = [
+    (CHIEF_PROFILE_FULL, "player.id", "765502864"),
+    (CHIEF_PROFILE_FULL, "player.power", "17492"),
+    (CHIEF_PROFILE_FULL, "player.state", "4353"),
 ]
 
 
@@ -64,7 +81,7 @@ def _write_samples(
 
 
 def _crop_from_fixture(fixture: Path, region_name: str = "player.id") -> object | None:
-    area = json.loads(AREA_JSON.read_text(encoding="utf-8"))
+    area = load_area_doc(REPO)
     image = cv2.imread(str(fixture))
     if image is None:
         return None
@@ -111,6 +128,23 @@ def main() -> int:
         for ch, patch in glyphs:
             total += _write_samples(ch, patch, tag=tag, counters=counters)
         sources.append({"path": str(path.relative_to(REPO)), "label": label, "x0": x0})
+
+    for full_path, region_name, label in FULL_SCREEN_LABELS:
+        crop = _crop_from_fixture(full_path, region_name=region_name)
+        if crop is None:
+            print(f"skip (unreadable full): {full_path}", file=sys.stderr)
+            continue
+        try:
+            glyphs = extract_labeled_glyphs(crop, label, x0=0)
+        except ValueError as exc:
+            print(f"skip {full_path} ({region_name}): {exc}", file=sys.stderr)
+            continue
+        tag = f"{full_path.stem}_{region_name}"
+        for ch, patch in glyphs:
+            total += _write_samples(ch, patch, tag=tag, counters=counters)
+        sources.append(
+            {"path": str(full_path.relative_to(REPO)), "region": region_name, "label": label}
+        )
 
     for digit in "0123456789":
         for i in range(6):

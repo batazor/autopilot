@@ -28,6 +28,7 @@ src/config/_telemetry_secrets.py
 # (with a .gitkeep) so the Docker bind mount has a target before first boot,
 # but the actual license files are unique per machine and never shared.
 license-data/*.json
+license-data/*.jwt
 !license-data/.gitkeep
 
 # --- Python -------------------------------------------------------------------

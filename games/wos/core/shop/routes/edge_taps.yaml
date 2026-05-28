@@ -26,3 +26,4 @@ edges:
   shop.regular_pack:        { main_city: [icon.page.back] }
   shop.dawn_fund:           { main_city: [icon.page.back] }
   shop.get_gems:            { main_city: [icon.page.back] }
+  shop.artisans_trove:      { main_city: [icon.page.back] }

@@ -11,6 +11,8 @@ screens:
       threshold: 0.9
   exploration.victory:
     priority: 20
+    # Transient result screen; squad_fight scenario taps `next` to dismiss.
+    terminal: true
     rules:
     - match: page.exploration.victory.title
       threshold: 0.9

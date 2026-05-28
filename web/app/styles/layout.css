@@ -15,20 +15,6 @@
     @apply flex w-full shrink-0 flex-wrap items-end justify-end gap-3 sm:w-auto;
   }
 
-  .fleet-header-links {
-    @apply flex flex-wrap items-center gap-1.5 border-l border-wos-border-subtle/80 pl-3;
-  }
-
-  .fleet-header-link {
-    @apply rounded-md px-2 py-1 text-xs font-medium no-underline transition-colors;
-    color: var(--wos-link);
-  }
-
-  .fleet-header-link:hover {
-    color: var(--wos-link-hover);
-    background-color: color-mix(in srgb, var(--wos-accent) 15%, transparent);
-  }
-
   .theme-toggle {
     @apply inline-flex items-center gap-1.5 rounded-lg border border-wos-border-subtle bg-wos-surface px-2.5 py-1.5 text-xs font-medium text-wos-text-secondary transition-colors hover:border-wos-border hover:bg-wos-panel-raised hover:text-wos-text;
   }

@@ -1,0 +1,8 @@
+id: chat
+title: Chat
+description: In-game chat screen (World / Alliance / Personal tabs). Skeleton — regions and scenarios filled in via UI labeling.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

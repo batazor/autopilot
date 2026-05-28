@@ -815,6 +815,136 @@ def _validate_edge_taps(
         _validate_edge_taps_file(path, issues, region_names=region_names)
 
 
+def _screen_verify_yaml_paths(repo_root: Path) -> list[Path]:
+    """Every per-module ``screen_verify.yaml`` / ``routes/screen_verify.yaml``
+    across all registered games.
+
+    Mirrors :func:`_edge_taps_yaml_paths` so the dead-end check stays in lockstep
+    with the navigator's screen registry.
+    """
+    from config.games import iter_games
+    from config.module_discovery import iter_module_dirs
+
+    paths: list[Path] = []
+    for g in iter_games(repo_root):
+        for module_dir in iter_module_dirs(repo_root, game=g):
+            for rel in ("screen_verify.yaml", "routes/screen_verify.yaml"):
+                mod_path = module_dir / rel
+                if mod_path.is_file():
+                    paths.append(mod_path)
+                    break
+    return paths
+
+
+def _collect_screen_verify_entries(
+    repo_root: Path,
+) -> dict[str, tuple[int, bool, str]]:
+    """Map detectable screen name → ``(priority, terminal_opt_out, source_path)``.
+
+    The first occurrence wins on duplicate names (same as the runtime loader's
+    behaviour — later modules don't shadow earlier definitions).
+    """
+    out: dict[str, tuple[int, bool, str]] = {}
+    for path in _screen_verify_yaml_paths(repo_root):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        screens = doc.get("screens")
+        if not isinstance(screens, dict):
+            continue
+        for raw_name, raw_entry in screens.items():
+            name = str(raw_name).strip()
+            if not name or name in out:
+                continue
+            prio = 100
+            terminal = False
+            if isinstance(raw_entry, dict):
+                try:
+                    prio = int(raw_entry.get("priority") or 100)
+                except (TypeError, ValueError):
+                    prio = 100
+                terminal = bool(raw_entry.get("terminal"))
+            try:
+                rel = path.relative_to(repo_root).as_posix()
+            except ValueError:
+                rel = path.as_posix()
+            out[name] = (prio, terminal, rel)
+    return out
+
+
+def _collect_edge_sources(repo_root: Path) -> set[str]:
+    """Every screen that declares at least one outgoing edge in any
+    ``edge_taps.yaml``.
+
+    Both static (``[region]``) and dynamic (``{resolver: ...}``) edges count —
+    each gives the navigator a way to leave the screen.
+    """
+    out: set[str] = set()
+    for path in _edge_taps_yaml_paths(repo_root):
+        doc = _load_yaml_dict(path)
+        if "__load_error__" in doc:
+            continue
+        edges = doc.get("edges")
+        if not isinstance(edges, dict):
+            continue
+        for src, dsts in edges.items():
+            if not isinstance(dsts, dict) or not dsts:
+                continue
+            name = str(src).strip()
+            if name:
+                out.add(name)
+    return out
+
+
+def _validate_dead_end_screens(
+    repo_root: Path,
+    issues: list[StartupValidationIssue],
+) -> None:
+    """Flag detectable screens with no outgoing edges in any ``edge_taps.yaml``.
+
+    A screen registered in ``screen_verify.yaml`` but absent as a source key in
+    every ``edge_taps.yaml`` is a one-way trap: the navigator can identify that
+    the device is parked there but cannot route anywhere from it, so every
+    scenario with a ``node:`` target dies with ``navigation_failed`` until the
+    device drifts off the screen on its own (motivating case: ``shop.artisans_trove``
+    used to lack the ``→ main_city: [icon.page.back]`` edge that all other shop
+    sub-tabs had, and caused a cascade of ``navigation_failed`` until escaped).
+
+    Modal / popup screens (``priority < MAIN_CITY_HUB_PRIORITY``) are exempt —
+    they're dismissed by overlay-driven popup scenarios, not graph routing.
+    Screens that are legitimately transient and handled entirely by their own
+    scenario (e.g. ``exploration.victory`` → tap "next") can opt out by setting
+    ``terminal: true`` on the ``screen_verify.yaml`` entry.
+    """
+    from navigation.screen_graph import MAIN_CITY_HUB_PRIORITY
+
+    screens = _collect_screen_verify_entries(repo_root)
+    if not screens:
+        return
+    sources = _collect_edge_sources(repo_root)
+
+    for name, (prio, terminal, src_path) in sorted(screens.items()):
+        if prio < MAIN_CITY_HUB_PRIORITY:
+            continue
+        if terminal:
+            continue
+        if name in sources:
+            continue
+        issues.append(
+            StartupValidationIssue(
+                "error",
+                f"screen_verify:{name}",
+                f"screen {name!r} is detectable in {src_path} but has no "
+                "outgoing edges in any edge_taps.yaml — navigator cannot route "
+                "away from it; any scenario with `node:` target will dump "
+                "`navigation_failed` until the device leaves the screen. Add an "
+                "edge (e.g. `→ main_city: [icon.page.back]`) or annotate the "
+                "screen_verify entry with `terminal: true` if it is handled "
+                "entirely by its own tap-driven scenario.",
+            )
+        )
+
+
 def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValidationIssue]:
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     issues: list[StartupValidationIssue] = []
@@ -840,6 +970,7 @@ def validate_startup_configs(repo_root: Path | None = None) -> list[StartupValid
     text_search_regions = _area_regions_text_action_with_search_sibling(area_doc)
 
     _validate_edge_taps(root, issues, region_names=region_names)
+    _validate_dead_end_screens(root, issues)
     _validate_cron_specs(root, issues)
     _validate_analyze_manifest(
         root,

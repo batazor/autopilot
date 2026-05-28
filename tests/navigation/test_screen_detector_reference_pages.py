@@ -50,7 +50,7 @@ async def test_screen_detector_identifies_reference_pages(
     if filename == "isNewPeople.png":
         path = _REPO_ROOT / "games/wos/core/survivors/references" / filename
     elif filename == "chief_profile.png":
-        path = _REPO_ROOT / "games/wos/core/chief_profile/references" / filename
+        path = _REPO_ROOT / "games/wos/core/who_i_am/references" / filename
     elif filename == "mail_page.png":
         path = _REPO_ROOT / "games/wos/mail/references" / filename
     else:

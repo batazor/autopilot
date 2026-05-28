@@ -2,5 +2,9 @@ id: who_i_am
 title: Who am I
 description: >-
   Device-level identity probe — OCR player_id on chief_profile, Century fetch,
-  bootstrap active_player before player-bound scenarios run.
+  bootstrap active_player before player-bound scenarios run. Owns the
+  chief_profile screen area definition, references, and navigation edges.
+area: area.yaml
+references: references
+scenarios: scenarios
 default_ref: chief_profile.png

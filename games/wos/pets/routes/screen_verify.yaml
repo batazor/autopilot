@@ -4,6 +4,8 @@ screens:
       - match: pets.title
         threshold: 0.9
   pets.pet_skill:
+    # Reward popup; pets.pet_skill scenario claims + tapanywhereyoexit to dismiss.
+    terminal: true
     rules:
       - match: pets.pet_skill.title
         threshold: 0.9

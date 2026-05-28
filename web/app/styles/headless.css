@@ -101,6 +101,43 @@
     @apply translate-x-4;
   }
 
+  /* —— RadioGroup (single-value pick) —— */
+  .headless-radio-group {
+    @apply inline-flex text-sm text-wos-text data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio-group--segmented {
+    @apply items-stretch gap-0 rounded-lg border border-wos-border-subtle bg-wos-input p-0.5;
+  }
+
+  .headless-radio-group--stack {
+    @apply flex-col gap-1;
+  }
+
+  .headless-radio--pill {
+    @apply cursor-pointer select-none rounded-md px-2.5 py-1 text-sm text-wos-text-secondary transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-checked:bg-sky-500 data-checked:text-white data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio--row {
+    @apply flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 transition hover:bg-wos-panel-raised focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-radio__dot {
+    @apply relative inline-flex size-4 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-input transition;
+  }
+
+  .headless-radio--row[data-checked] .headless-radio__dot {
+    @apply border-sky-500/80 bg-sky-500;
+  }
+
+  .headless-radio--row[data-checked] .headless-radio__dot::after {
+    @apply absolute size-1.5 rounded-full bg-white content-[''];
+  }
+
+  .headless-radio__label {
+    @apply select-none;
+  }
+
   /* —— Menu (action dropdown) —— */
   .headless-menu__button {
     @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-wos-text-muted transition hover:border-wos-border-subtle hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-wos-border-subtle data-open:bg-wos-panel-raised data-open:text-wos-text;
@@ -120,6 +157,31 @@
 
   .headless-menu__separator {
     @apply my-1 h-px bg-wos-border-subtle;
+  }
+
+  /* —— Popover (free-form panel) —— */
+  .headless-popover {
+    @apply relative inline-flex;
+  }
+
+  .headless-popover__button {
+    @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-wos-border-subtle bg-wos-surface px-2.5 text-xs font-medium text-wos-text-secondary transition hover:border-wos-border hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-wos-border data-open:bg-wos-panel-raised data-open:text-wos-text;
+  }
+
+  .headless-popover__panel {
+    @apply z-40 mt-1 min-w-[14rem] origin-top-right overflow-hidden rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/30 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-popover__item {
+    @apply flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text no-underline transition hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:bg-wos-panel-raised;
+  }
+
+  .headless-popover__item--active {
+    @apply bg-wos-panel-raised text-wos-text;
+  }
+
+  .headless-popover__item-icon {
+    @apply inline-flex h-4 w-4 shrink-0 items-center justify-center text-wos-text-muted;
   }
 
   .headless-dialog-root {

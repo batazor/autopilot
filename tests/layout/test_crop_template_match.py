@@ -22,7 +22,7 @@ _SKIP_FULL = REPO_ROOT / "games/wos/core/common/references/skip_button.png"
 _SKIP_CROP = REPO_ROOT / "games/wos/core/common/references/crop/skip_button_skip_button.png"
 _CHIEF_TITLE_CROP = (
     REPO_ROOT
-    / "games/wos/core/chief_profile/references/crop/chief_profile_chief_profile.title.png"
+    / "games/wos/core/who_i_am/references/crop/chief_profile_chief_profile.title.png"
 )
 _CHIEF_LIVE_SCREEN = REPO_ROOT / "temporal" / "bs1_approval_current.png"
 

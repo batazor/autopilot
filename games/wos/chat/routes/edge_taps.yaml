@@ -1,0 +1,24 @@
+edges:
+  main_city:
+    chat: [page.chat]
+
+  chat:
+    chat.world: [chat.tab.world]
+    chat.alliance: [chat.tab.alliance]
+    chat.personal: [chat.tab.personal]
+    main_city: [icon.page.back]
+
+  chat.world:
+    chat.alliance: [chat.tab.alliance]
+    chat.personal: [chat.tab.personal]
+    main_city: [icon.page.back]
+
+  chat.alliance:
+    chat.world: [chat.tab.world]
+    chat.personal: [chat.tab.personal]
+    main_city: [icon.page.back]
+
+  chat.personal:
+    chat.world: [chat.tab.world]
+    chat.alliance: [chat.tab.alliance]
+    main_city: [icon.page.back]

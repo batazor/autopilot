@@ -16,7 +16,10 @@ DIGIT_CELL_H = 32
 DEFAULT_K = 3
 DEFAULT_X0 = 0
 MIN_COUNT_GLYPH_W = 6  # projection peaks counted when inferring digit count
-MIN_GLYPH_W = 8  # min width for a run to become a digit bounding box
+MIN_GLYPH_W = 6  # min width for a run to become a digit bounding box
+# 6, not 8: the slim "1" in chief_profile player.power ("17,492") is ~7 px wide
+# in the labelled reference and was otherwise dropped, forcing the segmenter to
+# fall back to equal-width cells over the whole strip.
 MAX_GLYPH_W = 24
 MIN_DIGITS = 8
 MAX_DIGITS = 11

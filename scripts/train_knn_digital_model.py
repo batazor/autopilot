@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -17,35 +16,35 @@ sys.path.insert(0, str(REPO / "src"))
 
 from kNN.digital import DigitClassifier, build_training_matrices, dataset_dir, model_path  # noqa: E402
 from layout.area_lookup import screen_region_by_name  # noqa: E402
+from layout.area_manifest import load_area_doc  # noqa: E402
 
-AREA_JSON = REPO / "area.json"
+WHO_I_AM_REFS = REPO / "games" / "wos" / "core" / "who_i_am" / "references" / "crop"
 
-EVAL_CASES: list[tuple[str, Path, str, int, bool]] = [
+# (case_name, crop_path, expected_text, x0, area_bbox_region)
+# ``area_bbox_region`` is the region name to bbox-crop the fixture by, or None
+# when the path is already a pre-cropped digit strip.
+EVAL_CASES: list[tuple[str, Path, str, int, str | None]] = [
+    ("reference_id", WHO_I_AM_REFS / "chief_profile_player.id.png", "765502864", 4, None),
+    ("reference_power", WHO_I_AM_REFS / "chief_profile_player.power.png", "17492", 0, None),
+    ("reference_state", WHO_I_AM_REFS / "chief_profile_player.state.png", "4353", 0, None),
     (
-        "reference",
-        REPO / "references" / "crop" / "chief_profile_player.id.png",
-        "765502864",
-        4,
-        False,
-    ),
-    (
-        "live",
+        "live_id",
         REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png",
         "401227964",
         0,
-        True,
+        "player.id",
     ),
 ]
 
 
-def _crop_for_case(path: Path, *, use_area_bbox: bool) -> object:
-    if use_area_bbox:
-        area = json.loads(AREA_JSON.read_text(encoding="utf-8"))
+def _crop_for_case(path: Path, *, area_bbox_region: str | None) -> object:
+    if area_bbox_region is not None:
+        area = load_area_doc(REPO)
         image = cv2.imread(str(path))
         if image is None:
             msg = f"missing fixture {path}"
             raise ValueError(msg)
-        pair = screen_region_by_name(area, "player.id")
+        pair = screen_region_by_name(area, area_bbox_region)
         assert pair is not None
         bbox = pair[1]["bbox"]
         h, w = image.shape[:2]
@@ -74,8 +73,8 @@ def main() -> int:
     print(f"trained: {out}  samples={features.shape[0]}  dim={features.shape[1]}")
 
     all_ok = True
-    for name, path, expected, x0, use_bbox in EVAL_CASES:
-        crop = _crop_for_case(path, use_area_bbox=use_bbox)
+    for name, path, expected, x0, region in EVAL_CASES:
+        crop = _crop_for_case(path, area_bbox_region=region)
         pred = clf.predict_strip(crop, digit_count=len(expected), x0=x0)
         ok = pred.text == expected
         all_ok = all_ok and ok

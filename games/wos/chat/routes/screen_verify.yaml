@@ -1,0 +1,30 @@
+screens:
+  chat:
+    priority: 30
+    rules:
+    - match: chat.title
+      threshold: 0.9
+
+  chat.world:
+    parent: chat
+    priority: 15
+    rules:
+    - match: chat.title
+      threshold: 0.9
+      tab_active: chat.tab.world
+
+  chat.alliance:
+    parent: chat
+    priority: 15
+    rules:
+    - match: chat.title
+      threshold: 0.9
+      tab_active: chat.tab.alliance
+
+  chat.personal:
+    parent: chat
+    priority: 15
+    rules:
+    - match: chat.title
+      threshold: 0.9
+      tab_active: chat.tab.personal
