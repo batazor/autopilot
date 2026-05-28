@@ -45,6 +45,15 @@ def _http_ok(url: str, *, timeout: float = 1.0) -> bool:
         return False
 
 
+def _http_post_ok(url: str, *, timeout: float = 2.0) -> bool:
+    try:
+        req = urllib.request.Request(url, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return 200 <= int(getattr(resp, "status", 0) or 0) < 300
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return False
+
+
 def _api_already_running(port: int, host: str = "127.0.0.1") -> bool:
     return _http_ok(f"http://{host}:{port}/health")
 
@@ -113,6 +122,7 @@ class _PlayStack:
         self._repo = repo_root()
         self._env = _prepare_child_env(self._repo)
         self._services: list[_ManagedService] = []
+        self._api_base_url = ""
         self._stop_requested = False
         self._exit_code = 0
 
@@ -126,6 +136,8 @@ class _PlayStack:
         return proc
 
     def shutdown(self) -> None:
+        if self._api_base_url:
+            _http_post_ok(f"{self._api_base_url}/api/dev/bot/stop")
         for svc in reversed(self._services):
             if svc.reused:
                 continue
@@ -158,6 +170,7 @@ class _PlayStack:
         return predicate()
 
     def start_api(self, *, host: str, port: int, force: bool) -> None:
+        self._api_base_url = f"http://{host}:{port}"
         if not force and _api_already_running(port, host):
             print(
                 f"API already running at http://{host}:{port} "

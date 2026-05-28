@@ -3,7 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { fetchAdbStatus, fetchBotStatus, startLocalBot } from "@/lib/api";
+import {
+  fetchAdbStatus,
+  fetchBotStatus,
+  startLocalBot,
+  stopLocalBot,
+} from "@/lib/api";
 import {
   adbReadinessTitle,
   evaluateAdbReadiness,
@@ -47,6 +52,18 @@ export function BotStartBanner() {
       setLocalError(e instanceof Error ? e.message : "Failed to start bot");
     },
   });
+  const stopMutation = useMutation({
+    mutationFn: stopLocalBot,
+    onSuccess: (view) => {
+      qc.setQueryData<BannerStatus>(["botStartBanner"], (prev) =>
+        prev ? { ...prev, bot: view } : prev,
+      );
+      setLocalError(null);
+    },
+    onError: (e) => {
+      setLocalError(e instanceof Error ? e.message : "Failed to stop bot");
+    },
+  });
 
   const botStatus = query.data?.bot ?? null;
   const adbStatus = query.data?.adb ?? null;
@@ -55,16 +72,7 @@ export function BotStartBanner() {
 
   const adbReadiness: AdbReadiness | null = adbStatus
     ? evaluateAdbReadiness(adbStatus)
-    : query.isError
-      ? {
-          ok: false,
-          kind: "scan_error",
-          message:
-            query.error instanceof Error
-              ? query.error.message
-              : "Failed to reach API",
-        }
-      : null;
+    : null;
 
   const queryError =
     query.isError && query.error instanceof Error ? query.error.message : null;
@@ -74,8 +82,57 @@ export function BotStartBanner() {
     return null;
   }
 
+  if (query.isError && !query.data) {
+    return (
+      <div
+        className="nav-bot-banner nav-bot-banner--offline"
+        role="region"
+        aria-label="Bot worker"
+      >
+        <div className="nav-bot-banner__row">
+          <span className="nav-bot-banner__icon" aria-hidden>
+            <Icon name="warning" size="sm" />
+          </span>
+          <span className="nav-bot-banner__body">
+            <span className="nav-bot-banner__title">API offline</span>
+            <span className="nav-bot-banner__desc">
+              {queryError ?? "Failed to reach API"}
+            </span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   if (botStatus?.running) {
-    return null;
+    return (
+      <div className="nav-bot-banner" role="region" aria-label="Bot worker">
+        <div className="nav-bot-banner__row">
+          <button
+            type="button"
+            className="nav-bot-banner__action"
+            disabled={stopMutation.isPending}
+            onClick={() => stopMutation.mutate()}
+            aria-label={stopMutation.isPending ? "Stopping bot" : "Stop bot"}
+            title={stopMutation.isPending ? "Stopping…" : "Stop bot"}
+          >
+            <Icon name="pause" size="sm" />
+          </button>
+          <span className="nav-bot-banner__body">
+            <span className="nav-bot-banner__title">Bot running</span>
+            <span className="nav-bot-banner__desc">
+              Mode: {botStatus.mode ?? "unknown"}
+              {botStatus.pid ? ` · PID ${botStatus.pid}` : ""}
+            </span>
+          </span>
+        </div>
+        {error ? (
+          <p className="nav-bot-banner__error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
   }
 
   if (!adbReadiness?.ok) {
@@ -90,11 +147,11 @@ export function BotStartBanner() {
         role="region"
         aria-label="ADB devices"
       >
-        <div className="nav-bot-banner__main">
+        <div className="nav-bot-banner__row">
           <span className="nav-bot-banner__icon" aria-hidden>
             <Icon name="adb" size="sm" />
           </span>
-          <span className="min-w-0 flex-1">
+          <span className="nav-bot-banner__body">
             <span className="nav-bot-banner__title">
               {adbReadinessTitle(problem.kind)}
             </span>
@@ -102,9 +159,7 @@ export function BotStartBanner() {
               {problem.message}{" "}
               <Link href="/adb" className="nav-bot-banner__link">
                 Open ADB
-              </Link>{" "}
-              to verify emulators and serials in{" "}
-              <code>devices.yaml</code> before starting the bot.
+              </Link>
             </span>
           </span>
         </div>
@@ -119,29 +174,27 @@ export function BotStartBanner() {
             {error}
           </p>
         ) : null}
-        <button
-          type="button"
-          className="nav-bot-banner__btn nav-bot-banner__btn--devices"
-          disabled={refreshing}
-          onClick={() => void query.refetch()}
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
       </div>
     );
   }
 
   return (
     <div className="nav-bot-banner" role="region" aria-label="Bot worker">
-      <div className="nav-bot-banner__main">
-        <span className="nav-bot-banner__icon" aria-hidden>
-          <Icon name="debug-run" size="sm" />
-        </span>
-        <span className="min-w-0 flex-1">
+      <div className="nav-bot-banner__row">
+        <button
+          type="button"
+          className="nav-bot-banner__action"
+          disabled={startMutation.isPending}
+          onClick={() => startMutation.mutate()}
+          aria-label={startMutation.isPending ? "Starting bot" : "Start bot"}
+          title={startMutation.isPending ? "Starting…" : "Start bot"}
+        >
+          <Icon name="play" size="sm" />
+        </button>
+        <span className="nav-bot-banner__body">
           <span className="nav-bot-banner__title">Bot not running</span>
           <span className="nav-bot-banner__desc">
-            ADB device is online — start workers to drive emulators and run
-            scenarios.
+            ADB online — start workers to run scenarios.
           </span>
         </span>
       </div>
@@ -150,14 +203,6 @@ export function BotStartBanner() {
           {error}
         </p>
       ) : null}
-      <button
-        type="button"
-        className="nav-bot-banner__btn"
-        disabled={startMutation.isPending}
-        onClick={() => startMutation.mutate()}
-      >
-        {startMutation.isPending ? "Starting…" : "Start bot"}
-      </button>
     </div>
   );
 }

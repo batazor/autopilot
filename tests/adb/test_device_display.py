@@ -77,7 +77,13 @@ def test_apply_display_config_skips_wm_on_emulator() -> None:
     ctrl._serial = "127.0.0.1:5555"
     ctrl._shell = MagicMock()
     ctrl._screen_resolution = None
-    cfg = DeviceDisplayConfig(size="720x1280", density=320, brightness_percent=70)
+    cfg = DeviceDisplayConfig(
+        size="720x1280",
+        density=320,
+        brightness_percent=70,
+        keep_screen_on=True,
+        screen_off_timeout_ms=2_147_483_647,
+    )
 
     AdbController.apply_display_config(ctrl, cfg, serial="127.0.0.1:5555")
 

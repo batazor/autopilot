@@ -117,25 +117,35 @@ export default function QueuePage() {
   };
 
   const pendingTotal = sortedPending.length;
+  const pendingNeedsFullRows = pendingView === "timeline" || pendingSort.col !== "schedule";
+  const pendingTotalRows = data?.pending_count ?? pendingTotal;
   const pendingPageCount = Math.max(1, Math.ceil(pendingTotal / PENDING_PAGE_SIZE));
-  const pendingPageSafe = Math.min(pendingPage, pendingPageCount);
+  const pendingServerPageCount = Math.max(1, Math.ceil(pendingTotalRows / PENDING_PAGE_SIZE));
+  const pendingPageSafe = Math.min(
+    pendingPage,
+    pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount,
+  );
   const pagedPending = useMemo(() => {
+    if (!pendingNeedsFullRows && sortedPending.length <= PENDING_PAGE_SIZE) return sortedPending;
     const start = (pendingPageSafe - 1) * PENDING_PAGE_SIZE;
     return sortedPending.slice(start, start + PENDING_PAGE_SIZE);
-  }, [sortedPending, pendingPageSafe]);
+  }, [pendingNeedsFullRows, sortedPending, pendingPageSafe]);
 
   const historyRows = data?.history ?? [];
-  const historyTotal = historyRows.length;
+  const historyNeedsFullRows = pendingView === "timeline";
+  const historyTotal = data?.history_count ?? historyRows.length;
   const historyPageCount = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
   const historyPageSafe = Math.min(historyPage, historyPageCount);
   const pagedHistory = useMemo(() => {
+    if (!historyNeedsFullRows && historyRows.length <= HISTORY_PAGE_SIZE) return historyRows;
     const start = (historyPageSafe - 1) * HISTORY_PAGE_SIZE;
     return historyRows.slice(start, start + HISTORY_PAGE_SIZE);
-  }, [historyRows, historyPageSafe]);
+  }, [historyNeedsFullRows, historyRows, historyPageSafe]);
 
   useEffect(() => {
-    if (pendingPage > pendingPageCount) setPendingPage(pendingPageCount);
-  }, [pendingPage, pendingPageCount]);
+    const maxPage = pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount;
+    if (pendingPage > maxPage) setPendingPage(maxPage);
+  }, [pendingNeedsFullRows, pendingPage, pendingPageCount, pendingServerPageCount]);
   useEffect(() => {
     if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
   }, [historyPage, historyPageCount]);
@@ -145,15 +155,32 @@ export default function QueuePage() {
   const pickRef = useRef(pick);
   pickRef.current = pick;
   const revisionRef = useRef<string | undefined>(undefined);
+  const queryKeyRef = useRef<string | undefined>(undefined);
 
   const refresh = useCallback(async () => {
+    const full = pendingNeedsFullRows;
+    const queryKey = JSON.stringify({
+      pendingPage: full ? 1 : pendingPageSafe,
+      pendingPageSize: PENDING_PAGE_SIZE,
+      historyPage: full ? 1 : historyPageSafe,
+      historyPageSize: HISTORY_PAGE_SIZE,
+      full,
+    });
     try {
-      const result = await fetchQueue({ ifRevision: revisionRef.current });
+      const result = await fetchQueue({
+        ifRevision: queryKeyRef.current === queryKey ? revisionRef.current : undefined,
+        pendingPage: full ? 1 : pendingPageSafe,
+        pendingPageSize: PENDING_PAGE_SIZE,
+        historyPage: full ? 1 : historyPageSafe,
+        historyPageSize: HISTORY_PAGE_SIZE,
+        full,
+      });
       if ("unchanged" in result) {
         setError(null);
         return;
       }
       revisionRef.current = result.revision;
+      queryKeyRef.current = queryKey;
       setData(result);
       setError(null);
       if (!pickRef.current && result.pending.length) {
@@ -164,7 +191,11 @@ export default function QueuePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [historyPageSafe, pendingNeedsFullRows, pendingPageSafe]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   useDashboardEventStream({
     topics: ["queue"],
@@ -287,7 +318,7 @@ export default function QueuePage() {
             </>
           )}
         </p>
-        {data?.pending.length ? (
+        {pendingTotalRows ? (
           <>
             <AppTabs
               selectedKey={pendingView}
@@ -398,11 +429,11 @@ export default function QueuePage() {
                     ))}
                   </tbody>
                 </table>
-                {pendingPageCount > 1 ? (
+                {(pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount) > 1 ? (
                   <Pager
                     page={pendingPageSafe}
-                    pageCount={pendingPageCount}
-                    total={pendingTotal}
+                    pageCount={pendingNeedsFullRows ? pendingPageCount : pendingServerPageCount}
+                    total={pendingNeedsFullRows ? pendingTotal : pendingTotalRows}
                     pageSize={PENDING_PAGE_SIZE}
                     onChange={setPendingPage}
                   />
@@ -410,8 +441,8 @@ export default function QueuePage() {
               </div>
             ) : (
               <QueuePendingCalendar
-                pending={data.pending}
-                history={data.history ?? []}
+                pending={data?.pending ?? []}
+                history={data?.history ?? []}
                 onReschedule={() => {
                   showSuccess("Task rescheduled");
                   void refresh();
@@ -481,7 +512,7 @@ export default function QueuePage() {
 
       <section className="panel queue-panel">
         <h2>History</h2>
-        {data?.history.length ? (
+        {historyTotal ? (
           <div className="data-table-wrap">
             <table className="data-table queue-table">
               <thead>

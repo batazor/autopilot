@@ -113,7 +113,18 @@ from api.routers import license as license_routes  # noqa: E402 — ``license`` 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     _install_asyncio_shutdown_exception_handler()
-    yield
+    try:
+        yield
+    finally:
+        try:
+            from worker import local_bot
+
+            await asyncio.to_thread(local_bot.stop_local_bot, join_timeout_s=2.0)
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "local bot shutdown during API lifespan failed",
+                exc_info=True,
+            )
 
 
 app = FastAPI(title="WOS Autopilot API", version="0.1.0", lifespan=_lifespan)

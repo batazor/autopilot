@@ -96,6 +96,13 @@ async def aclose_app_services() -> None:
     """Tear down APP-scope services that hold OS resources."""
     _state.pop(_K_LOADER)
 
+    try:
+        from adb.scrcpy import close_all_scrcpy_clients
+
+        close_all_scrcpy_clients()
+    except Exception:
+        logger.exception("aclose_app_services: scrcpy close failed")
+
     if (runner_redis := _state.pop(_K_SCHED_ASYNC_REDIS)) is not None:
         try:
             await runner_redis.aclose()

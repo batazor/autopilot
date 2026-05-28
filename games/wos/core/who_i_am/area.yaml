@@ -34,7 +34,7 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "string"
+          "type": "integer"
         },
         {
           "name": "player.power",
@@ -50,6 +50,7 @@
             "original_height": 1280
           },
           "type": "integer",
+          "preprocess": "compact_number",
           "digit_count": 5
         },
         {

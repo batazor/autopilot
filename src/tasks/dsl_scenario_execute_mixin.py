@@ -1453,15 +1453,17 @@ class DslScenarioExecuteMixin(_Base):
                     active_player = await _read_active_player(instance_id, self.redis_client)
                     # Check every region in the bulk batch — not just the first.
                     # ``reg`` here is the OUTER step's region; a bulk batch like
-                    # ``[{ocr: a}, {ocr: player_id}, ...]`` would otherwise skip
+                    # ``[{ocr: a}, {ocr: player.id}, ...]`` would otherwise skip
                     # the identity gate because ``reg == "a"``, even though OCR
-                    # *did* try to populate ``player_id``.
+                    # *did* try to resolve identity. Region names follow the
+                    # ``games/<game>/<id>/area.yaml`` convention (``player.id``
+                    # with a dot — see ``games/wos/core/who_i_am/area.yaml``).
                     identity_regions = {
                         str(s.get("ocr") or "").strip() for s in ocr_steps
                     }
                     if (
                         require_identity_resolution
-                        and "player_id" in identity_regions
+                        and "player.id" in identity_regions
                         and not active_player
                     ):
                         logger.info(

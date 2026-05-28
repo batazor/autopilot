@@ -392,6 +392,7 @@ def _pending_order_runtime(redis_url: str) -> tuple[Any, Any]:
 # the scenario-YAML cache (``_task_types_device_level``) is warm, but the
 # first call after a process restart pays a ~10 s YAML walk for ~400 keys.
 PENDING_ORDER_TIMEOUT_SECONDS = 30.0
+PENDING_ORDER_UI_TIMEOUT_SECONDS = 0.35
 
 
 def fetch_pending_execution_order(
@@ -400,6 +401,7 @@ def fetch_pending_execution_order(
     *,
     current_screen: str = "",
     redis_url: str | None = None,
+    timeout_s: float = PENDING_ORDER_TIMEOUT_SECONDS,
 ) -> list[str]:
     """Pending task_ids for one instance in ``pop_due`` execution order (read-only)."""
     import asyncio
@@ -419,7 +421,7 @@ def fetch_pending_execution_order(
 
     try:
         future = asyncio.run_coroutine_threadsafe(_run(), loop)
-        return future.result(timeout=PENDING_ORDER_TIMEOUT_SECONDS)
+        return future.result(timeout=max(0.01, float(timeout_s)))
     except Exception:
         return []
 
@@ -443,10 +445,25 @@ def sort_queue_rows_by_execution_order(
             continue
         inst_state = get_instance_state(client, iid) or {}
         screen = str(inst_state.get("current_screen") or "").strip()
-        order = fetch_pending_execution_order(client, iid, current_screen=screen)
+        order = fetch_pending_execution_order(
+            client,
+            iid,
+            current_screen=screen,
+            timeout_s=PENDING_ORDER_UI_TIMEOUT_SECONDS,
+        )
+        if not order:
+            bucket.sort(key=lambda r: (r.scheduled_at, r.task_id))
+            sorted_rows.extend(bucket)
+            continue
         rank = {tid: idx for idx, tid in enumerate(order)}
         fallback = len(order)
-        bucket.sort(key=lambda r: (rank.get(r.task_id, fallback), r.task_id))
+        bucket.sort(
+            key=lambda r: (
+                rank.get(r.task_id, fallback),
+                r.scheduled_at,
+                r.task_id,
+            )
+        )
         sorted_rows.extend(bucket)
     return sorted_rows
 
@@ -472,6 +489,29 @@ def fetch_queue_rows(client: redis.Redis) -> list[QueueRow]:
     for key in keys:
         try:
             raw_items = _r_zrangebyscore_with_scores(client, key, "-inf", "+inf")
+        except redis.RedisError:
+            continue
+        for payload, score in raw_items:
+            row = _parse_queue_row(payload, float(score))
+            if row is not None:
+                rows.append(row)
+    return rows
+
+
+def fetch_queue_rows_for_instances(
+    client: redis.Redis,
+    instance_ids: list[str],
+) -> list[QueueRow]:
+    """Fetch pending queue rows for known instances without scanning Redis keys."""
+    rows: list[QueueRow] = []
+    for instance_id in instance_ids:
+        iid = str(instance_id or "").strip()
+        if not iid:
+            continue
+        try:
+            raw_items = _r_zrangebyscore_with_scores(
+                client, _queue_key(iid), "-inf", "+inf"
+            )
         except redis.RedisError:
             continue
         for payload, score in raw_items:
@@ -1072,4 +1112,3 @@ def push_instance_command(client: redis.Redis, instance_id: str, cmd: dict[str, 
 
 def push_scheduler_command(client: redis.Redis, cmd: dict[str, Any]) -> None:
     client.lpush("wos:ui:command:scheduler", json.dumps(cmd))
-

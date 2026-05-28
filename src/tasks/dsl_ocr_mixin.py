@@ -396,6 +396,8 @@ class DslOcrMixin(_Base):
         # ``fast_line`` for timer / integer regions. The whole list is only
         # forwarded when at least one entry is non-empty, so a backend that
         # predates the field doesn't see an unknown key on every batch.
+        from kNN.digital.classifier import parse_digit_count
+
         bulk_preprocess: list[str | None] = [
             resolve_preprocess(
                 explicit=step.get("preprocess") or region_def.get("preprocess"),
@@ -403,12 +405,28 @@ class DslOcrMixin(_Base):
             )
             for step, _region, region_def, _region_px in requests
         ]
+        bulk_digit_count: list[int | None] = [
+            parse_digit_count(step.get("digit_count", region_def.get("digit_count")))
+            for step, _region, region_def, _region_px in requests
+        ]
+        bulk_digit_x0: list[int] = []
+        for step, _region, region_def, _region_px in requests:
+            try:
+                bulk_digit_x0.append(
+                    int(step.get("digit_x0", region_def.get("digit_x0", 0)) or 0)
+                )
+            except (TypeError, ValueError):
+                bulk_digit_x0.append(0)
         try:
             results = await self._get_ocr_client().ocr_regions(
                 image,
                 [region_px for _step, _region, _region_def, region_px in requests],
                 region_ids=[region for _step, region, _region_def, _region_px in requests],
                 region_preprocess=bulk_preprocess if any(bulk_preprocess) else None,
+                region_digit_count=(
+                    bulk_digit_count if any(v is not None for v in bulk_digit_count) else None
+                ),
+                region_digit_x0=bulk_digit_x0 if any(bulk_digit_x0) else None,
             )
         except Exception:
             logger.exception(

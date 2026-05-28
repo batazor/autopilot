@@ -84,6 +84,10 @@ export async function startLocalBot(): Promise<BotStatusView> {
   return apiFetch<BotStatusView>("/api/dev/bot/start", { method: "POST" });
 }
 
+export async function stopLocalBot(): Promise<BotStatusView> {
+  return apiFetch<BotStatusView>("/api/dev/bot/stop", { method: "POST" });
+}
+
 export async function fetchInstances(): Promise<string[]> {
   const data = await apiFetch<{ instances: string[] }>("/api/instances");
   return data.instances;
@@ -170,9 +174,19 @@ export async function postInstanceCommand(
 
 export async function fetchQueue(options?: {
   ifRevision?: string;
+  pendingPage?: number;
+  pendingPageSize?: number;
+  historyPage?: number;
+  historyPageSize?: number;
+  full?: boolean;
 }): Promise<QueueView | QueueUnchangedResponse> {
   const params = new URLSearchParams();
   if (options?.ifRevision) params.set("if_revision", options.ifRevision);
+  if (options?.pendingPage) params.set("pending_page", String(options.pendingPage));
+  if (options?.pendingPageSize) params.set("pending_page_size", String(options.pendingPageSize));
+  if (options?.historyPage) params.set("history_page", String(options.historyPage));
+  if (options?.historyPageSize) params.set("history_page_size", String(options.historyPageSize));
+  if (options?.full) params.set("full", "true");
   const qs = params.toString();
   return apiFetch<QueueView | QueueUnchangedResponse>(
     qs ? `/api/queue?${qs}` : "/api/queue",

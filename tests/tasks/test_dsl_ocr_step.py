@@ -41,7 +41,7 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
                 # is exempt from the implicit player-identity gate.
                 "device_level": True,
                 "steps": [
-                    {"ocr": "player_id"},
+                    {"ocr": "player.id", "store": "player_id", "type": "integer"},
                 ],
             }
         ),
@@ -57,7 +57,7 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
                         "ocr": "references/chief_profile.png",
                         "regions": [
                             {
-                                "name": "player_id",
+                                "name": "player.id",
                                 "action": "text",
                                 "type": "integer",
                                 "threshold": 0.5,
@@ -257,6 +257,8 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
                                 "name": "player_id",
                                 "action": "text",
                                 "type": "integer",
+                                "digit_count": 9,
+                                "digit_x0": 4,
                                 "bbox": {"x": 10, "y": 10, "width": 20, "height": 10},
                             },
                             {
@@ -277,11 +279,14 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
 
     class _BulkOcrClient:
         async def ocr_regions(
-            self, image: np.ndarray, regions: list[LayoutRegion], **_kwargs: Any
+            self, image: np.ndarray, regions: list[LayoutRegion], **kwargs: Any
         ) -> list[OCRResult]:
             captured["calls"] += 1
             captured["image_shape"] = image.shape
             captured["regions"] = regions
+            captured["region_preprocess"] = kwargs.get("region_preprocess")
+            captured["region_digit_count"] = kwargs.get("region_digit_count")
+            captured["region_digit_x0"] = kwargs.get("region_digit_x0")
             return [
                 OCRResult(region_id="r0", text="ID: 765 502 864", confidence=0.99),
                 OCRResult(region_id="r1", text="Upgrade Furnace to Lv. 8", confidence=0.88),
@@ -313,6 +318,9 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         LayoutRegion(72, 128, 144, 128),
         LayoutRegion(288, 640, 216, 256),
     ]
+    assert captured["region_preprocess"] == ["knn", None]
+    assert captured["region_digit_count"] == [9, None]
+    assert captured["region_digit_x0"] == [4, 0]
     pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
     assert pid == "765502864"
     task_txt = await redis_async.hget("wos:instance:bs1:state", "chapter_task")  # type: ignore[attr-defined]

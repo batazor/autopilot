@@ -15,6 +15,7 @@ import pytest
 
 from adb import BotActions
 from config.loader import InstanceConfig, Settings, WorkerConfig
+from layout.types import Point
 from worker import frame_bus
 
 
@@ -142,3 +143,137 @@ def test_direct_capture_respects_adb_backend(_fake_settings: Settings) -> None:
     assert got is want
     adb_cap.assert_called_once_with("bs1")
     quartz_cap.assert_not_called()
+
+
+def test_scrcpy_capture_normalizes_frame_for_analyzers(_fake_settings: Settings) -> None:
+    settings = Settings(
+        redis=_fake_settings.redis,
+        ocr=_fake_settings.ocr,
+        scheduler=_fake_settings.scheduler,
+        worker=_fake_settings.worker,
+        instances=[
+            InstanceConfig(
+                instance_id="bs1",
+                bluestacks_window_title="127.0.0.1:5555",
+                screenshot_backend="scrcpy",
+            ),
+        ],
+    )
+    actions = BotActions(settings)
+    raw = np.zeros((1600, 720, 3), dtype=np.uint8)
+
+    class _Client:
+        def read_latest_frame_bgr(
+            self,
+            *,
+            timeout_s: float,
+            not_before_s: float | None = None,
+        ) -> tuple[np.ndarray, str]:
+            return raw, ""
+
+    with patch.object(actions, "_get_scrcpy_client", return_value=_Client()):
+        got = actions.capture_screen_bgr_scrcpy("bs1")
+
+    assert got.shape == (1280, 720, 3)
+    snap = frame_bus.latest_snapshot("bs1")
+    assert snap is not None
+    assert snap.frame_bgr.shape == (1280, 720, 3)
+    assert snap.transform is not None
+    assert snap.transform.source_size == (720, 1600)
+
+
+def test_scrcpy_cached_capture_uses_scrcpy_direct_timeout_when_cache_empty(
+    _fake_settings: Settings,
+) -> None:
+    settings = Settings(
+        redis=_fake_settings.redis,
+        ocr=_fake_settings.ocr,
+        scheduler=_fake_settings.scheduler,
+        worker=_fake_settings.worker,
+        instances=[
+            InstanceConfig(
+                instance_id="bs1",
+                bluestacks_window_title="127.0.0.1:5555",
+                screenshot_backend="scrcpy",
+            ),
+        ],
+    )
+    actions = BotActions(settings)
+    want = _make_frame(21)
+
+    class _Client:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, float | None]] = []
+
+        def read_latest_frame_bgr(
+            self,
+            *,
+            timeout_s: float,
+            not_before_s: float | None = None,
+        ) -> tuple[np.ndarray, str]:
+            self.calls.append({"timeout_s": timeout_s, "not_before_s": not_before_s})
+            return want, ""
+
+    client = _Client()
+    with (
+        patch.object(actions, "_get_scrcpy_client", return_value=client),
+        patch.object(actions, "_capture_screen_bgr_scrcpy_fast") as fast,
+    ):
+        got = actions.capture_screen_bgr_cached("bs1", max_age_ms=1000.0)
+
+    assert got.shape == (1280, 720, 3)
+    assert int(got[0, 0, 0]) == 21
+    assert client.calls == [
+        {"timeout_s": actions._NEXT_FRAME_TIMEOUT_S, "not_before_s": None}
+    ]
+    fast.assert_not_called()
+
+
+def test_scrcpy_capture_after_tap_waits_for_post_action_boundary(
+    _fake_settings: Settings,
+    mocker,
+) -> None:
+    settings = Settings(
+        redis=_fake_settings.redis,
+        ocr=_fake_settings.ocr,
+        scheduler=_fake_settings.scheduler,
+        worker=_fake_settings.worker,
+        instances=[
+            InstanceConfig(
+                instance_id="bs1",
+                bluestacks_window_title="127.0.0.1:5555",
+                screenshot_backend="scrcpy",
+            ),
+        ],
+    )
+    actions = BotActions(settings)
+    fake_now = [1000.0]
+    mocker.patch("adb.bot_actions.time.monotonic", new=lambda: fake_now[0])
+    controller = mocker.Mock()
+    controller.get_screen_resolution.return_value = (720, 1280)
+    controller.tap.return_value = True
+    mocker.patch.object(actions, "_controller", return_value=controller)
+    raw = _make_frame(31)
+
+    class _Client:
+        def __init__(self) -> None:
+            self.not_before_s: float | None = None
+
+        def read_latest_frame_bgr(
+            self,
+            *,
+            timeout_s: float,
+            not_before_s: float | None = None,
+        ) -> tuple[np.ndarray, str]:
+            self.not_before_s = not_before_s
+            return raw, ""
+
+    client = _Client()
+    mocker.patch.object(actions, "_get_scrcpy_client", return_value=client)
+
+    assert actions.tap("bs1", Point(10, 20))
+    got = actions.capture_screen_bgr_cached("bs1")
+
+    assert got.shape == (1280, 720, 3)
+    assert int(got[0, 0, 0]) == 31
+    assert client.not_before_s == pytest.approx(1000.25)

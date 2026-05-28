@@ -41,19 +41,31 @@
       "path": "games/wos/core/who_i_am/references/chief_profile.png",
       "region": "player.state",
       "label": "4353"
+    },
+    {
+      "path": "tests/fixtures/chief_profile_player_id_live.png",
+      "region": "player.state",
+      "label": "2558",
+      "x0": 0
+    },
+    {
+      "path": "tests/fixtures/chief_profile_player_id_live_2.png",
+      "region": "player.state",
+      "label": "4353",
+      "x0": 0
     }
   ],
   "per_class_counts": {
     "0": 50,
     "1": 45,
-    "2": 65,
-    "3": 50,
-    "4": 75,
-    "5": 70,
+    "2": 70,
+    "3": 60,
+    "4": 80,
+    "5": 85,
     "6": 65,
     "7": 60,
-    "8": 45,
+    "8": 50,
     "9": 45
   },
-  "total_samples": 570
+  "total_samples": 610
 }

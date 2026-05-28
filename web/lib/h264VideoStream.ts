@@ -38,6 +38,43 @@ const FLAG_KEY = 0x02;
 const HEADER_BYTES = 9; // u8 flags + u64 PTS
 const MAX_DECODE_QUEUE_SIZE = 2;
 
+export function describeWsCloseCode(code: number): string {
+  switch (code) {
+    case 1000:
+      return "connection closed";
+    case 1001:
+      return "server went away";
+    case 1002:
+      return "protocol error";
+    case 1003:
+      return "unsupported data";
+    case 1005:
+      return "closed with no status";
+    case 1006:
+      return "connection dropped (network or server crash)";
+    case 1007:
+      return "invalid frame payload";
+    case 1008:
+      return "policy violation";
+    case 1009:
+      return "frame too large";
+    case 1010:
+      return "required extension missing";
+    case 1011:
+      return "server error";
+    case 1012:
+      return "server restarting";
+    case 1013:
+      return "server busy — try again later";
+    case 1014:
+      return "bad gateway";
+    case 1015:
+      return "TLS handshake failed";
+    default:
+      return `closed (code ${code})`;
+  }
+}
+
 type H264VideoDecoderConfig = VideoDecoderConfig & {
   avc?: { format: "annexb" | "avc" };
 };
@@ -89,7 +126,7 @@ export class H264StreamClient {
       // (or the network) closed the socket on its own — that's the only case
       // worth surfacing as an error to the operator.
       if (this.closed) return;
-      const reason = ev.reason || `code ${ev.code}`;
+      const reason = ev.reason || describeWsCloseCode(ev.code);
       this.cleanup();
       this.callbacks.onClose?.(reason);
     };

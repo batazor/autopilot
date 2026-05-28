@@ -37,6 +37,8 @@ export type IconName =
   | "warning"
   | "alert"
   | "arrow-up"
+  | "play"
+  | "pause"
   | "discord";
 
 const SIZE_CLASS: Record<IconSize, string> = {
@@ -250,6 +252,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
     </>,
+  ),
+  play: <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />,
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+      <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
+    </>
   ),
   // Discord glyph — stylized chat-bubble outline with two eye dots. Kept
   // monochrome / stroke-only so it follows the surrounding text color

@@ -1,8 +1,10 @@
 """Queue data for the dashboard API."""
 from __future__ import annotations
 
+import threading
 import time
 import uuid
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -16,7 +18,7 @@ from dashboard.redis_client import (
     QueueRow,
     RunningQueueRow,
     fetch_queue_history_rows,
-    fetch_queue_rows,
+    fetch_queue_rows_for_instances,
     fetch_running_queue_row,
     get_instance_state,
     push_scheduler_command,
@@ -26,8 +28,13 @@ from dashboard.redis_client import (
     sort_queue_rows_by_execution_order,
 )
 from dsl import template_resolver as _tmpl
+from dsl.registry import scenario_yaml_tree_fingerprint
 from optimizer import enqueue_envelope
 from optimizer.dispatcher import TaskEnvelope
+
+_VIEW_CACHE_LOCK = threading.Lock()
+_VIEW_CACHE_REVISION: str = ""
+_VIEW_CACHE: dict[str, Any] | None = None
 
 
 def _rel_time(ts: float, now: float) -> str:
@@ -45,10 +52,49 @@ def _rel_time(ts: float, now: float) -> str:
 
 
 def _scenario_label(scenario_key: str) -> str:
+    key = str(scenario_key or "").strip()
+    if not key:
+        return ""
+    root = repo_root()
+    fp = scenario_yaml_tree_fingerprint(root)
+    return _scenario_label_cached(fp, key)
+
+
+def _scenario_label_from_cache(
+    cache: dict[str, str],
+    fp: tuple[str, tuple[tuple[str, int, int], ...]],
+    scenario_key: str,
+) -> str:
+    key = str(scenario_key or "").strip()
+    if not key:
+        return ""
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    label = _scenario_label_cached(fp, key)
+    cache[key] = label
+    return label
+
+
+def _fast_scenario_label(scenario_key: str) -> str:
+    key = str(scenario_key or "").strip()
+    if not key:
+        return ""
+    return key.replace(".", ": ").replace("_", " ").title()
+
+
+@lru_cache(maxsize=2048)
+def _scenario_label_cached(
+    fp: tuple[str, tuple[tuple[str, int, int], ...]],
+    scenario_key: str,
+) -> str:
     return _tmpl.display_name(repo_root(), scenario_key)
 
 
-def _serialize_pending(row: QueueRow, now: float) -> dict[str, Any]:
+def _serialize_pending(
+    row: QueueRow,
+    now: float,
+) -> dict[str, Any]:
     overdue = row.scheduled_at < now
     rel = _rel_time(row.scheduled_at, now)
     scheduled = f"overdue · {rel}" if overdue else rel
@@ -59,7 +105,7 @@ def _serialize_pending(row: QueueRow, now: float) -> dict[str, Any]:
         "overdue": overdue,
         "player_id": row.player_id or "(device)",
         "instance_id": row.instance_id,
-        "scenario": _scenario_label(row.task_type),
+        "scenario": _fast_scenario_label(row.task_type),
         "scenario_key": row.task_type,
         "region": row.region or "—",
         "priority": row.priority,
@@ -73,19 +119,31 @@ def _serialize_running(
     row: RunningQueueRow,
     inst_state: dict[str, str],
     now: float,
+    label_cache: dict[str, str] | None = None,
+    label_fp: tuple[str, tuple[tuple[str, int, int], ...]] | None = None,
 ) -> dict[str, Any]:
     active_scenario = str(inst_state.get("current_scenario") or "").strip()
     try:
         step_now = int(inst_state.get("last_active_scenario_step") or 0)
     except (TypeError, ValueError):
         step_now = 0
+    scenario = (
+        _scenario_label_from_cache(label_cache, label_fp, row.task_type)
+        if label_cache is not None and label_fp is not None
+        else _scenario_label(row.task_type)
+    )
+    active_scenario_label = (
+        _scenario_label_from_cache(label_cache, label_fp, active_scenario)
+        if active_scenario and label_cache is not None and label_fp is not None
+        else (_scenario_label(active_scenario) if active_scenario else "")
+    )
     return {
         "task_id": row.task_id,
         "instance_id": instance_id,
-        "scenario": _scenario_label(row.task_type),
+        "scenario": scenario,
         "scenario_key": row.task_type,
         "active_scenario": active_scenario,
-        "active_scenario_label": _scenario_label(active_scenario) if active_scenario else "",
+        "active_scenario_label": active_scenario_label,
         "step": step_now,
         "player_id": row.player_id or "(device)",
         "region": row.region or "—",
@@ -132,19 +190,39 @@ def _serialize_history(row: QueueHistoryRow) -> dict[str, Any]:
 
 def build_queue_view(client: redis.Redis) -> dict[str, Any]:
     now = time.time()
-    pending_rows = sort_queue_rows_by_execution_order(client, fetch_queue_rows(client))
-    pending = [_serialize_pending(r, now) for r in pending_rows]
+    instance_ids = list_instance_ids()
+    label_fp: tuple[str, tuple[tuple[str, int, int], ...]] | None = None
+    label_cache: dict[str, str] = {}
+    pending_rows = sort_queue_rows_by_execution_order(
+        client,
+        fetch_queue_rows_for_instances(client, instance_ids),
+    )
+    pending = [
+        _serialize_pending(r, now)
+        for r in pending_rows
+    ]
 
     running: list[dict[str, Any]] = []
-    for iid in list_instance_ids():
+    for iid in instance_ids:
         r = fetch_running_queue_row(client, instance_id=iid)
         if r is None or not r.task_id:
             continue
+        if label_fp is None:
+            label_fp = scenario_yaml_tree_fingerprint(repo_root())
         inst_state = get_instance_state(client, iid)
-        running.append(_serialize_running(iid, r, inst_state, now))
+        running.append(
+            _serialize_running(
+                iid,
+                r,
+                inst_state,
+                now,
+                label_cache=label_cache,
+                label_fp=label_fp,
+            )
+        )
 
     history_rows: list[QueueHistoryRow] = []
-    for iid in list_instance_ids():
+    for iid in instance_ids:
         history_rows.extend(fetch_queue_history_rows(client, instance_id=iid, limit=30))
     history_rows.sort(key=lambda h: h.finished_at, reverse=True)
     history = [_serialize_history(h) for h in history_rows[:80]]
@@ -154,7 +232,31 @@ def build_queue_view(client: redis.Redis) -> dict[str, Any]:
         "running": running,
         "history": history,
         "pending_count": len(pending),
+        "pending_overdue_count": sum(1 for row in pending if row.get("overdue")),
+        "history_count": len(history),
     }
+
+
+def get_cached_queue_view(revision: str) -> dict[str, Any] | None:
+    rev = str(revision or "").strip()
+    if not rev:
+        return None
+    with _VIEW_CACHE_LOCK:
+        if rev != _VIEW_CACHE_REVISION or _VIEW_CACHE is None:
+            return None
+        # Shallow copy is enough: FastAPI only serializes the nested lists/dicts.
+        # Avoid deepcopy here because this path is the hot O(1) page load.
+        return dict(_VIEW_CACHE)
+
+
+def store_cached_queue_view(revision: str, view: dict[str, Any]) -> None:
+    rev = str(revision or "").strip()
+    if not rev:
+        return
+    with _VIEW_CACHE_LOCK:
+        global _VIEW_CACHE_REVISION, _VIEW_CACHE
+        _VIEW_CACHE_REVISION = rev
+        _VIEW_CACHE = dict(view)
 
 
 def run_task_now(client: redis.Redis, task_id: str) -> bool:

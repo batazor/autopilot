@@ -3,10 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from unittest.mock import patch
+
+from fastapi.testclient import TestClient
 
 from api.main import (
     _is_shutdown_exception,
     _SuppressUvicornShutdownNoiseFilter,
+    app,
 )
 
 
@@ -55,3 +59,13 @@ def test_uvicorn_filter_keeps_real_errors() -> None:
         exc_info=(ValueError, ValueError("boom"), None),
     )
     assert filt.filter(record)
+
+
+def test_lifespan_stops_local_bot_on_shutdown() -> None:
+    with (
+        patch("worker.local_bot.stop_local_bot", return_value={"running": False}) as stop,
+        TestClient(app) as client,
+    ):
+        assert client.get("/health").status_code in {200, 503}
+
+    stop.assert_called_once_with(join_timeout_s=2.0)

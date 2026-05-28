@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
+
 from dsl.registry import iter_scenario_yaml_files, scenario_roots
 from dsl.template_resolver import resolve
 
@@ -28,3 +30,19 @@ def test_identity_scenarios_not_under_core_onboarding() -> None:
 def test_scenario_roots_include_identity_modules() -> None:
     labels = {r.label for r in scenario_roots(REPO)}
     assert "games/wos/core/who_i_am/scenarios" in labels
+
+
+def test_who_i_am_resolves_player_id_before_player_state_writes() -> None:
+    who = resolve(REPO, "who_i_am")
+    assert who is not None
+    data = yaml.safe_load(who.path.read_text(encoding="utf-8"))
+    steps = data["steps"]
+    ocr_steps = [s for s in steps if isinstance(s, dict) and "ocr" in s]
+
+    assert ocr_steps[0]["ocr"] == "player.id"
+    assert ocr_steps[0]["store"] == "player_id"
+    assert [s["ocr"] for s in ocr_steps[:3]] == [
+        "player.id",
+        "player.power",
+        "player.state",
+    ]

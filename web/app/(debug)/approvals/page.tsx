@@ -486,7 +486,9 @@ export default function ApprovalsPage() {
   // Stream mode pulls bytes from the WebSocket directly; the URL passed to
   // the canvas is the ws:// endpoint, not the click-approval image URL.
   const streamUrl =
-    imageSource === "stream" && instanceId ? h264StreamUrl(instanceId) : null;
+    imageSource === "stream" && instanceId && view?.stream?.available
+      ? h264StreamUrl(instanceId)
+      : null;
   const imageUrl =
     !streamUrl && view?.preview.available && instanceId
       ? `${clickApprovalImageUrl(instanceId, imageSource === "stream" ? "live" : imageSource)}&tick=${imageTick}`

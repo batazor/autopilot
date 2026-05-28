@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from adb.controller import AdbController
 from adb.frame_normalize import (
     GAME_FRAME_SIZE,
-    frame_normalize_transform_for_size,
+    normalize_adb_frame_bgr_with_transform,
     normalized_point_to_source_point,
 )
 from adb.minicap import DEFAULT_PORT_BASE as _MINICAP_PORT_BASE
@@ -42,6 +42,11 @@ _NEXT_FRAME_TIMEOUT_S = 3.0
 # instead of grabbing the already-cached frame. 200ms gives generous slack
 # for slow encoders without serialising taps behind rolling ticks.
 _SCRCPY_NEXT_FRAME_TIMEOUT_S = 0.2
+# After a touch-producing action, scrcpy can decode one or two old-screen
+# frames before the game processes the input and redraws. The next analyzer
+# capture must cross this boundary or it may match and click the same banner
+# twice.
+_POST_ACTION_FRAME_SETTLE_S = 0.25
 _DISPLAY_SETTLE_AFTER_WM_S = 5.0
 _SWIPE_EDGE_MARGIN_PX = 24
 
@@ -105,7 +110,7 @@ class BotActions:
             tuple[float, np.ndarray, FrameNormalizeTransform | None],
         ] = {}
         self._frame_cache_lock = threading.Lock()
-        self._await_next_frame: set[str] = set()
+        self._await_next_frame: dict[str, float] = {}
         self._FIRST_FRAME_TIMEOUT_S = _FIRST_FRAME_TIMEOUT_S
         self._NEXT_FRAME_TIMEOUT_S = _NEXT_FRAME_TIMEOUT_S
         # Minicap (DeviceFarmer) clients: one persistent socket per instance.
@@ -254,13 +259,27 @@ class BotActions:
 
     def invalidate_frame_cache(self, instance_id: str | None = None) -> None:
         """Drop the cached framebuffer for ``instance_id`` (or all instances)."""
+        now = time.monotonic()
         with self._frame_cache_lock:
             if instance_id is None:
                 self._frame_cache.clear()
                 self._await_next_frame.clear()
             else:
                 self._frame_cache.pop(instance_id, None)
-                self._await_next_frame.add(instance_id)
+                self._await_next_frame[instance_id] = now
+
+    def _mark_post_action_frame_boundary(self, instance_id: str) -> None:
+        not_before = time.monotonic() + _POST_ACTION_FRAME_SETTLE_S
+        with self._frame_cache_lock:
+            self._frame_cache.pop(instance_id, None)
+            self._await_next_frame[instance_id] = max(
+                not_before,
+                self._await_next_frame.get(instance_id, 0.0),
+            )
+
+    def _pop_next_frame_boundary(self, instance_id: str) -> float | None:
+        with self._frame_cache_lock:
+            return self._await_next_frame.pop(instance_id, None)
 
     def capture_screen_bgr_adb(self, instance_id: str) -> np.ndarray:
         """Direct ``adb exec-out screencap`` — rolling loop only; also publishes to ``frame_bus``."""
@@ -273,7 +292,7 @@ class BotActions:
         frame_bus.publish(instance_id, img, transform=transform)
         with self._frame_cache_lock:
             self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-            self._await_next_frame.discard(instance_id)
+            self._await_next_frame.pop(instance_id, None)
         return img
 
     def _get_minicap_client(self, instance_id: str) -> MinicapClient:
@@ -336,11 +355,36 @@ class BotActions:
                 raise RuntimeError(msg) from exc
             return client
 
-    def capture_screen_bgr_scrcpy(self, instance_id: str) -> np.ndarray:
+    def _normalize_and_publish_frame(
+        self,
+        instance_id: str,
+        img: np.ndarray,
+    ) -> np.ndarray:
+        normalized, transform = normalize_adb_frame_bgr_with_transform(
+            img,
+            target_size=GAME_FRAME_SIZE,
+        )
+        frame_bus.publish(instance_id, normalized, transform=transform)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (
+                time.monotonic(),
+                normalized,
+                transform,
+            )
+            self._await_next_frame.pop(instance_id, None)
+        return normalized
+
+    def capture_screen_bgr_scrcpy(
+        self,
+        instance_id: str,
+        *,
+        not_before_s: float | None = None,
+    ) -> np.ndarray:
         """Capture via scrcpy H.264 stream. Raises on failure — no adb fallback."""
         client = self._get_scrcpy_client(instance_id)
         img, capture_err = client.read_latest_frame_bgr(
             timeout_s=self._NEXT_FRAME_TIMEOUT_S,
+            not_before_s=not_before_s,
         )
         if img is None:
             # Tear down the dead client so the next tick can attempt a fresh
@@ -353,18 +397,7 @@ class BotActions:
                 f"{capture_err or 'no frame received'}"
             )
             raise RuntimeError(msg)
-        # scrcpy emits frames at the device's physical resolution (we pass
-        # max_size=0 so no host-side resize is applied); compute a normalising
-        # transform exactly like the minicap path does.
-        transform = frame_normalize_transform_for_size(
-            (img.shape[1], img.shape[0]),
-            target_size=GAME_FRAME_SIZE,
-        )
-        frame_bus.publish(instance_id, img, transform=transform)
-        with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-            self._await_next_frame.discard(instance_id)
-        return img
+        return self._normalize_and_publish_frame(instance_id, img)
 
     def capture_screen_bgr_minicap(self, instance_id: str) -> np.ndarray:
         """Capture via minicap JPEG stream. Falls back to ``capture_screen_bgr_adb`` on error."""
@@ -391,15 +424,7 @@ class BotActions:
             return self.capture_screen_bgr_adb(instance_id)
         # Minicap delivers frames already at GAME_FRAME_SIZE (virtual P arg),
         # so the transform is a 1:1 identity from the device's physical size.
-        transform = frame_normalize_transform_for_size(
-            (img.shape[1], img.shape[0]),
-            target_size=GAME_FRAME_SIZE,
-        )
-        frame_bus.publish(instance_id, img, transform=transform)
-        with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-            self._await_next_frame.discard(instance_id)
-        return img
+        return self._normalize_and_publish_frame(instance_id, img)
 
     def capture_screen_bgr_direct(self, instance_id: str) -> np.ndarray:
         """Direct screenshot using the instance's configured backend.
@@ -442,7 +467,7 @@ class BotActions:
         frame_bus.publish(instance_id, img)
         with self._frame_cache_lock:
             self._frame_cache[instance_id] = (time.monotonic(), img, None)
-            self._await_next_frame.discard(instance_id)
+            self._await_next_frame.pop(instance_id, None)
         return img
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
@@ -464,12 +489,15 @@ class BotActions:
         inst = self._get_instance(instance_id)
         backend = (inst.screenshot_backend or "").strip().lower()
         if backend == "scrcpy":
+            not_before = self._pop_next_frame_boundary(instance_id)
+            if not_before is not None:
+                return self.capture_screen_bgr_scrcpy(
+                    instance_id,
+                    not_before_s=not_before,
+                )
             return self._capture_screen_bgr_scrcpy_fast(instance_id)
 
-        with self._frame_cache_lock:
-            await_next = instance_id in self._await_next_frame
-            if await_next:
-                self._await_next_frame.discard(instance_id)
+        await_next = self._pop_next_frame_boundary(instance_id) is not None
         try:
             if await_next:
                 snap = frame_bus.wait_for_next_snapshot(
@@ -509,15 +537,7 @@ class BotActions:
                 f"{err or 'no frame received within timeout'}"
             )
             raise RuntimeError(msg)
-        transform = frame_normalize_transform_for_size(
-            (img.shape[1], img.shape[0]),
-            target_size=GAME_FRAME_SIZE,
-        )
-        frame_bus.publish(instance_id, img, transform=transform)
-        with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-            self._await_next_frame.discard(instance_id)
-        return img
+        return self._normalize_and_publish_frame(instance_id, img)
 
     def capture_screen_bgr_cached(
         self,
@@ -546,7 +566,15 @@ class BotActions:
                 ts, frame, _transform = cached
                 if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
                     return frame
-                self._await_next_frame.add(instance_id)
+                self._await_next_frame[instance_id] = time.monotonic()
+        inst = self._get_instance(instance_id)
+        backend = (inst.screenshot_backend or "").strip().lower()
+        if backend == "scrcpy":
+            not_before = self._pop_next_frame_boundary(instance_id)
+            return self.capture_screen_bgr_scrcpy(
+                instance_id,
+                not_before_s=not_before,
+            )
         return self.capture_screen_bgr(instance_id)
 
     def tap(
@@ -562,7 +590,7 @@ class BotActions:
     ) -> bool:
         adb_point = self._to_adb_point(instance_id, point)
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).tap(
+        ok = self._controller(instance_id).tap(
             adb_point,
             preview_point=point,
             approval_region=approval_region,
@@ -571,6 +599,9 @@ class BotActions:
             revalidate=revalidate,
             hold_ms=hold_ms,
         )
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
     def attach_approval_preview(self, instance_id: str, payload: dict[str, object]) -> None:
         self._controller(instance_id).attach_approval_preview(payload)
@@ -589,13 +620,16 @@ class BotActions:
         adb_start = self._to_adb_point(instance_id, start)
         adb_end = self._to_adb_point(instance_id, end)
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).swipe(
+        ok = self._controller(instance_id).swipe(
             adb_start,
             adb_end,
             timedelta(milliseconds=duration_ms),
             preview_start=start,
             preview_end=end,
         )
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
     def swipe_direction(
         self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
@@ -607,17 +641,23 @@ class BotActions:
     def long_tap(self, instance_id: str, point: Point, duration_ms: int = 800) -> bool:
         adb_point = self._to_adb_point(instance_id, point)
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).swipe(
+        ok = self._controller(instance_id).swipe(
             adb_point,
             adb_point,
             timedelta(milliseconds=duration_ms),
             preview_start=point,
             preview_end=point,
         )
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
     def system_back(self, instance_id: str) -> bool:
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).system_back()
+        ok = self._controller(instance_id).system_back()
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
     def back(self, instance_id: str) -> None:
         logger.debug("BotActions.back(%s): no-op (phone BACK not allowed)", instance_id)
@@ -627,7 +667,10 @@ class BotActions:
 
     def type_text(self, instance_id: str, text: str) -> bool:
         self.invalidate_frame_cache(instance_id)
-        return self._controller(instance_id).type_text(text)
+        ok = self._controller(instance_id).type_text(text)
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
     def restart_application(self, instance_id: str) -> None:
         self.invalidate_frame_cache(instance_id)

@@ -11,6 +11,7 @@ import struct
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from adb.scrcpy import (
@@ -18,6 +19,7 @@ from adb.scrcpy import (
     SCRCPY_SERVER_VERSION,
     ScrcpyClient,
     ScrcpyStatus,
+    _CachedFrame,
     _human_step_sleeps,
     _human_swipe_points,
     _recv_exact,
@@ -61,6 +63,25 @@ def test_status_jar_present() -> None:
     assert status.abi == "arm64-v8a"
     assert status.sdk == "33"
     assert status.jar_size == 65536
+
+
+def test_status_reads_jar_size_with_wc_when_ls_format_varies() -> None:
+    """Android `ls -l` output is not stable enough to be the only size source."""
+
+    def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if "getprop" in cmd:
+            return _completed(b"arm64-v8a\n" if "ro.product.cpu.abi" in cmd else b"33\n")
+        if "wc" in cmd and cmd[-1].endswith("/scrcpy-server.jar"):
+            return _completed(b"732226 /data/local/tmp/scrcpy-server.jar\n")
+        if "ls" in cmd and cmd[-1].endswith("/scrcpy-server.jar"):
+            return _completed(b"/data/local/tmp/scrcpy-server.jar\n")
+        return _completed()
+
+    with patch("adb.scrcpy.subprocess.run", side_effect=fake_run):
+        status = get_scrcpy_status("RF8RC00M8MF", "/usr/local/bin/adb")
+
+    assert status.installed
+    assert status.jar_size == 732_226
 
 
 def test_status_missing_jar() -> None:
@@ -221,7 +242,8 @@ def _captured_control_writes(client: ScrcpyClient) -> list[bytes]:
 def test_send_touch_encodes_32_byte_message() -> None:
     """Each control touch event must be exactly 32 bytes, big-endian, type=2."""
     client = _make_started_client()
-    client.tap(100, 200)
+    with patch("adb.scrcpy.random.random", return_value=0.99):
+        client.tap(100, 200)
     msgs = _captured_control_writes(client)
     # tap = DOWN + UP.
     assert len(msgs) == 2
@@ -365,6 +387,30 @@ def test_is_alive_false_before_start() -> None:
     assert not client.is_alive()
 
 
+def test_read_latest_frame_bgr_returns_cached_frame_without_boundary() -> None:
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    frame = np.full((2, 2, 3), 7, dtype=np.uint8)
+    client._cache = _CachedFrame(image=frame, captured_at=10.0)
+
+    with patch.object(client, "is_alive", return_value=True):
+        got, err = client.read_latest_frame_bgr(timeout_s=0.0)
+
+    assert got is frame
+    assert err == ""
+
+
+def test_read_latest_frame_bgr_rejects_cached_frame_before_boundary() -> None:
+    client = ScrcpyClient(serial="s", adb_bin="/bin/true")
+    frame = np.full((2, 2, 3), 7, dtype=np.uint8)
+    client._cache = _CachedFrame(image=frame, captured_at=10.0)
+
+    with patch.object(client, "is_alive", return_value=True):
+        got, err = client.read_latest_frame_bgr(timeout_s=0.0, not_before_s=10.1)
+
+    assert got is None
+    assert err == "no frame received after post-action boundary"
+
+
 def test_start_creates_adb_forward_before_launching_server() -> None:
     """scrcpy-server v4 expects the adb forward to exist before app_process starts."""
     events: list[str] = []
@@ -416,6 +462,7 @@ def test_start_passes_keep_active_to_server() -> None:
 
     cmd = popen.call_args.args[0]
     assert "keep_active=true" in cmd
+    assert "cleanup=false" in cmd
 
 
 def test_connect_sockets_connects_control_before_video_metadata() -> None:

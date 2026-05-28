@@ -143,6 +143,13 @@ def _adb_shell_text(args: Iterable[str], *, serial: str, adb_bin: str) -> str:
     return proc.stdout.decode(errors="replace").strip()
 
 
+def _parse_wc_size(out: str) -> int | None:
+    first = out.strip().split(maxsplit=1)[0] if out.strip() else ""
+    with contextlib.suppress(ValueError):
+        return int(first)
+    return None
+
+
 def get_scrcpy_status(serial: str, adb_bin: str) -> ScrcpyStatus:
     """Probe the device for installed scrcpy-server jar."""
     status = ScrcpyStatus(serial=serial)
@@ -159,8 +166,18 @@ def get_scrcpy_status(serial: str, adb_bin: str) -> ScrcpyStatus:
         out = proc.stdout.decode(errors="replace").strip()
         if proc.returncode == 0 and out and "No such" not in out:
             status.jar_installed = True
+            # `ls -l` format varies across Android builds/toybox versions.
+            # `wc -c` gives a stable byte count, which prevents false
+            # "outdated jar" detections and repeated pushes on every start.
+            size_proc = _run_adb(
+                ["shell", "wc", "-c", DEVICE_JAR], serial=serial, adb_bin=adb_bin
+            )
+            if size_proc.returncode == 0:
+                status.jar_size = _parse_wc_size(
+                    size_proc.stdout.decode(errors="replace")
+                )
             parts = out.split()
-            if len(parts) >= 5:
+            if status.jar_size is None and len(parts) >= 5:
                 with contextlib.suppress(ValueError):
                     status.jar_size = int(parts[4])
     except subprocess.TimeoutExpired as exc:
@@ -425,6 +442,7 @@ class ScrcpyClient:
         self._proc: subprocess.Popen[bytes] | None = None
         self._video_sock: socket.socket | None = None
         self._control_sock: socket.socket | None = None
+        self._start_lock = threading.Lock()
         self._control_lock = threading.Lock()
         self._stop = threading.Event()
         self._reader_thread: threading.Thread | None = None
@@ -450,6 +468,10 @@ class ScrcpyClient:
 
     def start(self) -> None:
         """Idempotent. Auto-install jar if missing, launch server, open sockets, start decoder thread."""
+        with self._start_lock:
+            self._start_locked()
+
+    def _start_locked(self) -> None:
         if self.is_alive():
             return
 
@@ -497,6 +519,7 @@ class ScrcpyClient:
             "audio=false",
             "tunnel_forward=true",
             "keep_active=true",
+            "cleanup=false",
             # Do not pass v3 tuning/default options (video_bit_rate, max_fps,
             # max_size, raw_stream, etc.) or even default-valued booleans
             # (video/control/send_*). On at least Samsung SM-G780G/Android 13,
@@ -520,19 +543,27 @@ class ScrcpyClient:
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
         self._proc = proc
-        # Server takes ~400-700ms to bind on cold start (BlueStacks slower).
-        time.sleep(0.8)
-        if proc.poll() is not None:
-            stderr = (proc.stderr.read() if proc.stderr else b"").decode(errors="replace")
-            self._last_error = stderr.strip() or "(no stderr)"
-            msg = f"scrcpy server exited immediately: {self._last_error}"
-            self.close()
-            raise RuntimeError(msg)
 
         try:
             self._connect_sockets()
-        except Exception:
+        except Exception as exc:
+            detail = ""
+            if proc.poll() is not None:
+                stderr = (
+                    proc.stderr.read() if proc.stderr else b""
+                ).decode(errors="replace")
+                self._last_error = stderr.strip() or "(no stderr)"
+                msg = f"scrcpy server exited immediately: {self._last_error}"
+                self.close()
+                raise RuntimeError(msg) from None
+            with contextlib.suppress(Exception):
+                proc.terminate()
+                _stdout, stderr_b = proc.communicate(timeout=1.0)
+                detail = stderr_b.decode(errors="replace").strip()
             self.close()
+            if detail:
+                msg = f"{exc}; server stderr: {detail}"
+                raise RuntimeError(msg) from exc
             raise
 
         self._stop.clear()
@@ -557,27 +588,34 @@ class ScrcpyClient:
         expected sockets are connected, so connect control after the dummy
         byte and before reading the video metadata.
         """
-        # Video socket — accepts the dummy byte, then device meta + codec meta
-        # after the control socket is also connected.
-        video = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        video.settimeout(8.0)
-        # Server bind can race adb forward; retry briefly.
-        for attempt in range(20):
+        # Video socket — first accepted connection. `adb forward` may accept
+        # the host TCP connection before the device-side LocalServerSocket is
+        # actually listening, then immediately close it. Retry until the server
+        # sends the dummy byte, which proves that this connection reached the
+        # real scrcpy server.
+        video: socket.socket | None = None
+        for attempt in range(50):
+            candidate = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            candidate.settimeout(3.0)
             try:
-                video.connect(("127.0.0.1", self.port))
-                break
+                candidate.connect(("127.0.0.1", self.port))
+                dummy = _recv_exact(candidate, 1)
+                if dummy == _DUMMY_BYTE:
+                    video = candidate
+                    break
+                msg = f"scrcpy: unexpected first byte on video socket: {dummy!r}"
+                raise RuntimeError(msg)
             except (ConnectionRefusedError, OSError):
-                if attempt == 19:
+                with contextlib.suppress(Exception):
+                    candidate.close()
+                if attempt == 49:
                     raise
                 time.sleep(0.1)
-        dummy = _recv_exact(video, 1)
-        if dummy != _DUMMY_BYTE:
-            msg = f"scrcpy: unexpected first byte on video socket: {dummy!r}"
+        if video is None:
+            msg = "scrcpy: video socket did not reach server"
             raise RuntimeError(msg)
 
-        # Control socket — same forwarded port, second accept. For scrcpy v4,
-        # connect this before reading video metadata; the server waits for all
-        # expected sockets before it emits the banner.
+        # Control socket — same forwarded port, second accept.
         control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         control.settimeout(5.0)
         control.connect(("127.0.0.1", self.port))
@@ -767,23 +805,45 @@ class ScrcpyClient:
         return self._video_codec_config
 
     def read_latest_frame_bgr(
-        self, timeout_s: float = 0.5
+        self,
+        timeout_s: float = 0.5,
+        *,
+        not_before_s: float | None = None,
     ) -> tuple[np.ndarray | None, str]:
-        """Return (BGR frame, error). Cached frame returned if no new one within timeout."""
+        """Return (BGR frame, error).
+
+        Without ``not_before_s`` this returns the cached frame if no new one
+        arrives before ``timeout_s``. With ``not_before_s`` it waits for a frame
+        decoded at or after that monotonic timestamp; stale cached frames are
+        intentionally rejected so post-tap analyzers do not re-read the screen
+        that existed before the touch was processed.
+        """
         if not self.is_alive():
             return None, self._last_error or "scrcpy not started"
-        self._frame_event.clear()
-        if not self._frame_event.wait(timeout=timeout_s):
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        while True:
             with self._cache_lock:
                 cached = self._cache
-            if cached is not None:
+            if cached is not None and (
+                not_before_s is None or cached.captured_at >= not_before_s
+            ):
                 return cached.image, ""
-            return None, "no frame received yet"
-        with self._cache_lock:
-            cached = self._cache
-        if cached is None:
-            return None, "frame event fired but cache empty"
-        return cached.image, ""
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                if cached is None:
+                    return None, "no frame received yet"
+                if not_before_s is not None:
+                    return None, "no frame received after post-action boundary"
+                return cached.image, ""
+            self._frame_event.clear()
+            with self._cache_lock:
+                cached = self._cache
+            if cached is not None and (
+                not_before_s is None or cached.captured_at >= not_before_s
+            ):
+                return cached.image, ""
+            if not self._frame_event.wait(timeout=remaining):
+                continue
 
     @property
     def codec_size(self) -> tuple[int, int] | None:

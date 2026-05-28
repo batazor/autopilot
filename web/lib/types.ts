@@ -224,6 +224,12 @@ export type QueueView = {
   running: QueueRunningRow[];
   history: QueueHistoryRow[];
   pending_count: number;
+  pending_overdue_count?: number;
+  pending_page?: number;
+  pending_page_size?: number;
+  history_count?: number;
+  history_page?: number;
+  history_page_size?: number;
   revision?: string;
 };
 

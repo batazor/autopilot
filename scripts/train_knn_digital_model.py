@@ -34,6 +34,20 @@ EVAL_CASES: list[tuple[str, Path, str, int, str | None]] = [
         0,
         "player.id",
     ),
+    (
+        "live_state",
+        REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png",
+        "2558",
+        0,
+        "player.state",
+    ),
+    (
+        "live_2_state",
+        REPO / "tests" / "fixtures" / "chief_profile_player_id_live_2.png",
+        "4353",
+        0,
+        "player.state",
+    ),
 ]
 
 

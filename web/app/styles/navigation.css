@@ -41,15 +41,23 @@
   }
 
   .nav-bot-banner {
-    @apply mx-3 mb-3 rounded-xl border border-amber-500/35 bg-amber-950/30 p-3;
+    @apply mx-3 mb-3 rounded-xl border border-amber-500/35 bg-amber-950/30 p-2.5;
   }
 
-  .nav-bot-banner__main {
-    @apply mb-2.5 flex items-start gap-2;
+  .nav-bot-banner__row {
+    @apply flex items-center gap-2.5;
+  }
+
+  .nav-bot-banner__action {
+    @apply flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full border border-amber-400/50 bg-amber-500/25 text-amber-50 transition-colors hover:bg-amber-500/40 disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .nav-bot-banner__icon {
-    @apply mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/20 text-amber-200;
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-200;
+  }
+
+  .nav-bot-banner__body {
+    @apply flex min-w-0 flex-1 flex-col;
   }
 
   .nav-bot-banner__title {
@@ -61,11 +69,7 @@
   }
 
   .nav-bot-banner__error {
-    @apply mb-2 text-[11px] text-red-300;
-  }
-
-  .nav-bot-banner__btn {
-    @apply w-full cursor-pointer rounded-lg border border-amber-400/50 bg-amber-500/25 px-3 py-2 text-xs font-semibold text-amber-50 transition-colors hover:bg-amber-500/40 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply mt-2 text-[11px] text-red-300;
   }
 
   .nav-bot-banner--devices {
@@ -84,16 +88,28 @@
     @apply text-sky-200/75;
   }
 
+  .nav-bot-banner--offline {
+    @apply border-red-500/40 bg-red-950/30;
+  }
+
+  .nav-bot-banner--offline .nav-bot-banner__icon {
+    @apply bg-red-500/20 text-red-200;
+  }
+
+  .nav-bot-banner--offline .nav-bot-banner__title {
+    @apply text-red-100;
+  }
+
+  .nav-bot-banner--offline .nav-bot-banner__desc {
+    @apply break-words text-red-200/80;
+  }
+
   .nav-bot-banner__link {
     @apply font-medium text-sky-300 underline decoration-sky-400/50 underline-offset-2 hover:text-sky-200;
   }
 
   .nav-bot-banner__meta {
-    @apply mb-2 text-[10px] text-sky-200/60;
-  }
-
-  .nav-bot-banner__btn--devices {
-    @apply border-sky-400/50 bg-sky-500/25 text-sky-50 hover:bg-sky-500/40;
+    @apply mt-2 text-[10px] text-sky-200/60;
   }
 
   .nav-pinned {

@@ -12,8 +12,8 @@ class DeviceDisplayConfig:
     size: str | None = "720x1280"
     density: int | None = 320
     brightness_percent: int | None = 70
-    keep_screen_on: bool | None = True
-    screen_off_timeout_ms: int | None = 2_147_483_647
+    keep_screen_on: bool | None = False
+    screen_off_timeout_ms: int | None = None
     wm_size_on_emulator: bool | None = None
 
 

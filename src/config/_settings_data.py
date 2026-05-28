@@ -39,10 +39,10 @@ SETTINGS: dict[str, Any] = {
             "size": "720x1280",
             "density": 320,
             "brightness_percent": 70,
-            "keep_screen_on": True,
-            # Android's normal "screen timeout" can dim the game before sleep;
-            # keep it effectively disabled while the bot controls the device.
-            "screen_off_timeout_ms": 2147483647,
+            # scrcpy v4 --keep-active keeps the game awake without changing
+            # Android global stay-awake / screen-timeout settings.
+            "keep_screen_on": False,
+            "screen_off_timeout_ms": None,
         },
         # ADB foreground check interval for ``worker.game_health_watchdog``
         # (separate subprocess).

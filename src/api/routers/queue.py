@@ -11,11 +11,16 @@ from pydantic import BaseModel, Field
 
 from api.deps import get_redis
 from api.services import click_approval_store, queue_api
-from api.services.dashboard_stream import queue_revision
+from api.services.dashboard_fingerprints import queue_view_digest
+from api.services.dashboard_rev import REV_QUEUE_KEY, get_cached_revision, store_revision
 
 router = APIRouter(prefix="/api", tags=["queue"])
 
 RedisDep = Annotated[redis.Redis, Depends(get_redis)]
+
+DEFAULT_PENDING_PAGE_SIZE = 25
+DEFAULT_HISTORY_PAGE_SIZE = 20
+MAX_QUEUE_PAGE_SIZE = 500
 
 
 class QueueRunBody(BaseModel):
@@ -39,26 +44,110 @@ class QueueEnqueueBody(BaseModel):
     priority: int = 50_000
 
 
+def _page_items(
+    rows: list[dict[str, Any]],
+    *,
+    page: int,
+    page_size: int,
+) -> list[dict[str, Any]]:
+    start = max(0, (page - 1) * page_size)
+    return rows[start : start + page_size]
+
+
+def _paginate_queue_view(
+    view: dict[str, Any],
+    *,
+    pending_page: int,
+    pending_page_size: int,
+    history_page: int,
+    history_page_size: int,
+    full: bool,
+) -> dict[str, Any]:
+    out = dict(view)
+    pending = list(view.get("pending") or [])
+    history = list(view.get("history") or [])
+    out["pending_count"] = int(view.get("pending_count") or len(pending))
+    out["pending_overdue_count"] = int(
+        view.get("pending_overdue_count")
+        or sum(1 for row in pending if row.get("overdue"))
+    )
+    out["history_count"] = int(view.get("history_count") or len(history))
+    if full:
+        out["pending"] = pending
+        out["history"] = history
+        out["pending_page"] = 1
+        out["pending_page_size"] = max(len(pending), 1)
+        out["history_page"] = 1
+        out["history_page_size"] = max(len(history), 1)
+        return out
+    out["pending"] = _page_items(
+        pending,
+        page=pending_page,
+        page_size=pending_page_size,
+    )
+    out["history"] = _page_items(
+        history,
+        page=history_page,
+        page_size=history_page_size,
+    )
+    out["pending_page"] = pending_page
+    out["pending_page_size"] = pending_page_size
+    out["history_page"] = history_page
+    out["history_page_size"] = history_page_size
+    return out
+
+
 @router.get("/queue")
 def get_queue(
     client: RedisDep,
     if_revision: Annotated[str | None, Query()] = None,
+    pending_page: Annotated[int, Query(ge=1)] = 1,
+    pending_page_size: Annotated[
+        int, Query(ge=1, le=MAX_QUEUE_PAGE_SIZE)
+    ] = DEFAULT_PENDING_PAGE_SIZE,
+    history_page: Annotated[int, Query(ge=1)] = 1,
+    history_page_size: Annotated[
+        int, Query(ge=1, le=MAX_QUEUE_PAGE_SIZE)
+    ] = DEFAULT_HISTORY_PAGE_SIZE,
+    full: Annotated[bool, Query()] = False,
 ) -> dict[str, Any]:
     try:
         client.ping()
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
-    # Cache hit is safe: every queue mutation publishes a dashboard event,
-    # whose ``publish_dashboard_event`` hook invalidates the cached digest
-    # via ``invalidate_revision_for_topic("queue")`` (see
-    # ``dashboard/dashboard_events.py``). With ``use_cache=False`` we paid
-    # the full rebuild on every poll (~1s once asyncio overhead was added).
-    revision = queue_revision(client, use_cache=True)
-    if if_revision and if_revision == revision:
-        return {"unchanged": True, "revision": revision}
+    cached_revision = get_cached_revision(client, REV_QUEUE_KEY)
+    if if_revision and cached_revision and if_revision == cached_revision:
+        # Cache hit is safe: every queue mutation publishes a dashboard event,
+        # whose ``publish_dashboard_event`` hook invalidates this digest via
+        # ``invalidate_revision_for_topic("queue")``.
+        return {"unchanged": True, "revision": cached_revision}
+    if cached_revision:
+        cached_view = queue_api.get_cached_queue_view(cached_revision)
+        if cached_view is not None:
+            out = _paginate_queue_view(
+                cached_view,
+                pending_page=pending_page,
+                pending_page_size=pending_page_size,
+                history_page=history_page,
+                history_page_size=history_page_size,
+                full=full,
+            )
+            out["revision"] = cached_revision
+            return out
     view = queue_api.build_queue_view(client)
-    view["revision"] = revision
-    return view
+    revision = queue_view_digest(view)
+    store_revision(client, REV_QUEUE_KEY, revision)
+    queue_api.store_cached_queue_view(revision, view)
+    out = _paginate_queue_view(
+        view,
+        pending_page=pending_page,
+        pending_page_size=pending_page_size,
+        history_page=history_page,
+        history_page_size=history_page_size,
+        full=full,
+    )
+    out["revision"] = revision
+    return out
 
 
 @router.post("/queue/run-now")

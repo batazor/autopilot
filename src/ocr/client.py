@@ -215,8 +215,12 @@ class OcrClient:
         digit_count: int | None = None,
         digit_x0: int = 0,
     ) -> tuple[str, float]:
-        from kNN.digital.loader import is_knn_preprocess
+        from kNN.digital.loader import is_compact_number_preprocess, is_knn_preprocess
 
+        if is_compact_number_preprocess(preprocess):
+            from kNN.digital import recognize_compact_number
+
+            return recognize_compact_number(crop, x0=digit_x0)
         if is_knn_preprocess(preprocess):
             return self._run_knn_digits(
                 crop, digit_count=digit_count, digit_x0=digit_x0
@@ -486,9 +490,15 @@ class OcrClient:
                 cache_tag = f" cached={cached}" if cached else ""
                 dedup_tag = f" dedup={within_batch}" if within_batch else ""
                 pre0 = _pre(rep_indices[0]) if rep_indices else ""
-                from kNN.digital.loader import is_knn_preprocess
+                from kNN.digital.loader import (
+                    is_compact_number_preprocess,
+                    is_knn_preprocess,
+                )
 
                 mode_tag = (
+                    " mode=compact_number"
+                    if is_compact_number_preprocess(pre0)
+                    else
                     " mode=knn:digital"
                     if is_knn_preprocess(pre0)
                     else f" mode=tesseract:{self._lang}"

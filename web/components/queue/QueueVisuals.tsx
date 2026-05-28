@@ -80,7 +80,7 @@ export function QueueCopyCell({
 
 export function queueSummary(data: QueueView | null) {
   const pending = data?.pending_count ?? 0;
-  const overdue = data?.pending.filter((r) => r.overdue).length ?? 0;
+  const overdue = data?.pending_overdue_count ?? data?.pending.filter((r) => r.overdue).length ?? 0;
   const running = data?.running.length ?? 0;
   const history = data?.history ?? [];
   const recent = history.slice(0, 20);

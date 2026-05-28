@@ -8,6 +8,7 @@ Writes ``data/kNN/digital/dataset/{0-9}/*.png`` (20×32 grayscale glyphs).
 from __future__ import annotations
 
 import sys
+import zlib
 from pathlib import Path
 
 import cv2
@@ -34,14 +35,29 @@ CHIEF_PROFILE_FULL = REPO / "games" / "wos" / "core" / "who_i_am" / "references"
 
 # (crop_path, label, x0) — labelled digit strips used to seed the kNN.
 # ``x0`` trims leading non-digit pixels from the crop before segmentation.
-# Live fixtures get cropped at runtime via the area-doc bbox (path stem must
-# start with ``chief_profile_player_id_live`` for that branch to fire).
+# Live fixtures get cropped at build time via the area-doc bbox.  For legacy
+# entries without an explicit region, ``player.id`` is used.
 LABELED_STRIPS: list[tuple[Path, str, int]] = [
     (WHO_I_AM_REFS / "chief_profile_player.id.png", "765502864", 4),
     (WHO_I_AM_REFS / "chief_profile_player.power.png", "17492", 0),
     (WHO_I_AM_REFS / "chief_profile_player.state.png", "4353", 0),
     (REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png", "401227964", 0),
     (REPO / "tests" / "fixtures" / "chief_profile_player_id_live_2.png", "765502864", 0),
+]
+
+LIVE_REGION_STRIPS: list[tuple[Path, str, str, int]] = [
+    (
+        REPO / "tests" / "fixtures" / "chief_profile_player_id_live.png",
+        "player.state",
+        "2558",
+        0,
+    ),
+    (
+        REPO / "tests" / "fixtures" / "chief_profile_player_id_live_2.png",
+        "player.state",
+        "4353",
+        0,
+    ),
 ]
 
 # Full-screen references with their per-region labels — cropped at build time
@@ -71,7 +87,7 @@ def _write_samples(
     n = 0
     folder = dataset_dir() / digit
     folder.mkdir(parents=True, exist_ok=True)
-    seed = hash((tag, digit)) % (2**32)
+    seed = zlib.crc32(f"{tag}:{digit}".encode())
     for aug_i, aug in enumerate(augment_glyph(gray, seed=seed)):
         idx = counters[digit]
         counters[digit] = idx + 1
@@ -151,6 +167,28 @@ def main() -> int:
             scale = 0.45 + i * 0.04
             syn = render_synthetic_digit(digit, font_scale=scale)
             total += _write_samples(digit, syn, tag=f"syn_s{scale:.2f}", counters=counters)
+
+    for path, region_name, label, x0 in LIVE_REGION_STRIPS:
+        crop = _crop_from_fixture(path, region_name=region_name)
+        if crop is None:
+            print(f"skip (unreadable live region): {path} {region_name}", file=sys.stderr)
+            continue
+        try:
+            glyphs = extract_labeled_glyphs(crop, label, x0=x0)
+        except ValueError as exc:
+            print(f"skip {path} ({region_name}): {exc}", file=sys.stderr)
+            continue
+        tag = f"{path.stem}_{region_name}"
+        for ch, patch in glyphs:
+            total += _write_samples(ch, patch, tag=tag, counters=counters)
+        sources.append(
+            {
+                "path": str(path.relative_to(REPO)),
+                "region": region_name,
+                "label": label,
+                "x0": x0,
+            }
+        )
 
     per_class = {d: counters[d] for d in counters}
     save_dataset_meta(
