@@ -13,10 +13,12 @@
 
 # --- Python ------------------------------------------------------------------
 .venv/
+.venv-easyocr-bench/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.cache/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -54,6 +56,10 @@ Thumbs.db
 # Per-host license file lives in the bind-mounted ``license-data`` dir at
 # runtime; never bake one into the image.
 license-data/*.json
+# Trial / personal license JWTs sometimes dropped at repo root for local
+# testing — never leak these into the build context.
+*.licence.jwt
+*.license.jwt
 
 # --- Docker / CI artifacts (image doesn't need its own build inputs) --------
 Dockerfile*
@@ -67,5 +73,22 @@ docker-compose*.yml
 coverage/
 htmlcov/
 
-# --- Local-only directories --------------------------------------------------
+# --- Test code (not needed at runtime) ---------------------------------------
+**/tests/
+**/test_*.py
+**/conftest.py
+
+# --- Local-only / unused-at-runtime directories ------------------------------
+# Not COPY'd by Dockerfile.bot / Dockerfile.web — keeping them out of the
+# build context shaves seconds off ``docker build`` and keeps the daemon's
+# tar upload small.
 stubs/
+data/                  # kNN training images (training pipeline only)
+temporal/              # runtime scratch — regenerated per tick
+docs/                  # docs site sources
+grafana/               # local Grafana provisioning
+modules/               # pre-Phase-3 module tree (replaced by games/)
+draft/                 # WIP / scratch
+page/                  # standalone submodule (not consumed by bot image)
+cmd/                   # standalone helper scripts
+.streamlit/            # legacy Streamlit config
