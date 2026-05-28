@@ -80,6 +80,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Bake build identity into the image so /api/version can compare it
+          # against the GHCR ``:latest`` manifest's ``org.opencontainers.image.revision``
+          # label and surface "update available" in the dashboard.
+          build-args: |
+            BUILD_VERSION=${{ steps.meta.outputs.version }}
+            BUILD_REVISION=${{ github.sha }}
           # Per-service cache scopes so the bot and ocr builds don't evict
           # each other's layers.
           cache-from: type=gha,scope=${{ matrix.service.name }}

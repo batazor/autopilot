@@ -208,10 +208,12 @@ def _captured_writes(client: MinitouchClient) -> str:
 
 def test_tap_emits_down_commit_up_commit() -> None:
     client = _make_started_client()
-    client.tap(540, 1200)
+    with patch("adb.minitouch.random.random", return_value=0.99), patch(
+        "adb.minitouch.random.randint", return_value=55,
+    ):
+        client.tap(540, 1200)
     text = _captured_writes(client)
-    # Body: d 0 <tx> <ty> <pressure>\nc\nu 0\nc\n  with default pressure=50.
-    assert text == "d 0 2048 2048 50\nc\nu 0\nc\n"
+    assert text == "d 0 2048 2048 50\nc\nw 55\nu 0\nc\n"
 
 
 def test_long_press_uses_server_side_wait() -> None:
@@ -225,7 +227,8 @@ def test_long_press_uses_server_side_wait() -> None:
 
 def test_swipe_emits_down_moves_up() -> None:
     client = _make_started_client()
-    client.swipe(0, 0, 1080, 2400, duration_ms=320, steps=8)
+    with patch("adb.minitouch.random.random", return_value=0.99):
+        client.swipe(0, 0, 1080, 2400, duration_ms=320, steps=8)
     text = _captured_writes(client)
     assert text.startswith("d 0 0 0 50\nc\n")
     # 8 m-events between down and up.

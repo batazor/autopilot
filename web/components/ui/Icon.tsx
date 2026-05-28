@@ -36,6 +36,7 @@ export type IconName =
   | "list-empty"
   | "warning"
   | "alert"
+  | "arrow-up"
   | "discord";
 
 const SIZE_CLASS: Record<IconSize, string> = {
@@ -243,6 +244,11 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 8v4M12 16h.01" strokeLinecap="round" />
+    </>,
+  ),
+  "arrow-up": strokeIcon(
+    <>
+      <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
     </>,
   ),
   // Discord glyph — stylized chat-bubble outline with two eye dots. Kept

@@ -49,6 +49,7 @@ import type {
   InstanceUnchangedResponse,
   QueueUnchangedResponse,
   QueueView,
+  VersionView,
 } from "./types";
 import type { GiftCodesView, WikiDetail, WikiEntrySummary, WikiScope } from "./wiki";
 
@@ -69,6 +70,10 @@ export async function fetchHealth(): Promise<HealthView> {
     throw new Error(`health: ${res.status}`);
   }
   return res.json() as Promise<HealthView>;
+}
+
+export async function fetchVersion(): Promise<VersionView> {
+  return apiFetch<VersionView>("/api/version");
 }
 
 export async function fetchBotStatus(): Promise<BotStatusView> {
@@ -318,6 +323,28 @@ export function clickApprovalImageUrl(
   // trigger a refetch storm even when nothing about the image changed.
   const q = new URLSearchParams({ source });
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/click-approval/image?${q}`;
+}
+
+export function h264StreamUrl(instanceId: string): string {
+  // ``new WebSocket(...)`` requires an absolute ws:// or wss:// URL — a
+  // path-relative string raises SyntaxError.
+  //
+  // Default: same-origin via ``window.location``. Works in prod (Next + API
+  // behind one origin) and in dev where Next's ``rewrites`` proxy WebSocket
+  // upgrades. If a deployment can't proxy WS upgrades through Next, set
+  // ``NEXT_PUBLIC_WOS_WS_BASE`` (e.g. ``ws://127.0.0.1:8765``) to hit FastAPI
+  // directly — CORS doesn't gate WebSockets, so this is safe in dev.
+  //
+  // SSR returns an empty string; the caller treats that as "stream not
+  // available yet" and skips opening the socket until hydration runs.
+  if (typeof window === "undefined") return "";
+  const override = (process.env.NEXT_PUBLIC_WOS_WS_BASE || "").trim();
+  if (override) {
+    const trimmed = override.replace(/\/$/, "");
+    return `${trimmed}/api/instances/${encodeURIComponent(instanceId)}/stream.h264.ws`;
+  }
+  const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${scheme}//${window.location.host}/api/instances/${encodeURIComponent(instanceId)}/stream.h264.ws`;
 }
 
 export async function submitDecision(

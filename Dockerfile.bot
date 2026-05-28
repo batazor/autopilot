@@ -148,8 +148,16 @@ COPY --from=compiler /app/db ./db
 # prod compose file binds the host's ``./license-data`` over this.
 RUN mkdir -p /app/license-data
 
+# Build identity for the /api/version endpoint. These are compared against the
+# GHCR registry's :latest manifest labels to detect available updates. Both
+# default to empty so a hand-built image presents as "dev" in the UI.
+ARG BUILD_VERSION=""
+ARG BUILD_REVISION=""
+
 ENV PYTHONUNBUFFERED=1 \
-    PATH="/app/.venv/bin:$PATH"
+    PATH="/app/.venv/bin:$PATH" \
+    WOS_BUILD_VERSION=${BUILD_VERSION} \
+    WOS_BUILD_REVISION=${BUILD_REVISION}
 
 # Bot-mode healthcheck (process check). The ``api`` service overrides this in
 # ``docker-compose.prod.yml`` with a curl probe against ``/health``.

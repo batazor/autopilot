@@ -57,6 +57,17 @@ class InstanceWorkerScreenMixin(_Base):
     def _grab_layout_bgr(self) -> np.ndarray:
         return self._bot_actions.capture_screen_bgr_direct(self._cfg.instance_id)
 
+    def _grab_layout_bgr_cached(self, *, max_age_ms: float = 1000.0) -> np.ndarray:
+        """Reuse the rolling-loop frame when fresh; falls back to direct capture.
+
+        Saves the per-tick ``adb exec-out screencap`` fork when the rolling
+        capture has already produced a frame within ``max_age_ms``.
+        """
+        capture = getattr(self._bot_actions, "capture_screen_bgr_cached", None)
+        if capture is None:
+            return self._grab_layout_bgr()
+        return capture(self._cfg.instance_id, max_age_ms=max_age_ms)
+
     async def _overlay_analyze_bgr(
         self,
         image_bgr: np.ndarray,

@@ -73,9 +73,33 @@ def _module_dirs_cached(game: str, root_s: str) -> tuple[Path, ...]:
             for part in rel_parts
         ):
             continue
+        if not _module_manifest_enabled(manifest):
+            continue
         found.append(module_dir)
 
     return tuple(sorted(found, key=lambda p: _module_sort_key(p, modules_dir)))
+
+
+def _module_manifest_enabled(manifest: Path) -> bool:
+    """`enabled: false` in module.yaml hides a module from every discovery path.
+
+    Skeleton modules (regions not labeled yet) opt out here so the navigator,
+    overlay engine, scenario loader, and startup validator all skip them in
+    lockstep — partial wiring would otherwise leak as runtime errors or
+    validation failures.
+    """
+    try:
+        raw = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    except Exception:
+        return True
+    if not isinstance(raw, dict):
+        return True
+    flag = raw.get("enabled", True)
+    if isinstance(flag, bool):
+        return flag
+    if isinstance(flag, str):
+        return flag.strip().lower() not in {"false", "0", "no", "off"}
+    return True
 
 
 def _clear_module_discovery_caches() -> None:

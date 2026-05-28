@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -1009,32 +1008,15 @@ def _validation_ack_via_env() -> bool:
     return os.environ.get(_ACK_ENV_VAR, "").strip().lower() in {"1", "true", "yes", "y"}
 
 
-def _prompt_validation_ack(issue_count: int) -> bool:
-    """Block on the TTY until the operator acknowledges the issues.
-
-    Returns True iff the user typed an affirmative (y/yes). On non-TTY stdin
-    or any I/O failure (daemon, redirected stdin, broken terminal) we cannot
-    prompt — return False so the caller raises.
-    """
-    try:
-        if not sys.stdin or not sys.stdin.isatty():
-            return False
-    except (OSError, ValueError):
-        return False
-    prompt = (
-        f"\nstartup validation: {issue_count} issue(s) above. "
-        "Continue anyway? [y/N]: "
-    )
-    try:
-        sys.stderr.write(prompt)
-        sys.stderr.flush()
-        answer = sys.stdin.readline()
-    except (EOFError, KeyboardInterrupt, OSError, ValueError):
-        return False
-    return answer.strip().lower() in {"y", "yes"}
-
-
 def assert_startup_configs_valid(repo_root: Path | None = None) -> None:
+    """Raise on startup config issues unless explicitly acknowledged.
+
+    No interactive TTY prompt — that would hang the embedded supervisor
+    forever waiting on a stdin readline from a background thread no operator
+    can see. Acknowledge by setting ``WOS_VALIDATION_ACK=1`` in the env;
+    otherwise the supervisor aborts so the operator notices broken modules
+    immediately instead of running with a half-functional scenario set.
+    """
     issues = log_startup_config_validation(repo_root)
     if not issues:
         return
@@ -1047,12 +1029,8 @@ def assert_startup_configs_valid(repo_root: Path | None = None) -> None:
         )
         return
 
-    if _prompt_validation_ack(len(issues)):
-        logger.warning(
-            "startup config validation: %d issue(s) acknowledged interactively — continuing",
-            len(issues),
-        )
-        return
-
-    msg = f"startup config validation failed: {len(issues)} issue(s)"
+    msg = (
+        f"startup config validation failed: {len(issues)} issue(s). "
+        f"Fix the modules above or set {_ACK_ENV_VAR}=1 to override."
+    )
     raise RuntimeError(msg)

@@ -1,112 +1,81 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { H264StreamClient, isWebCodecsSupported } from "@/lib/h264VideoStream";
 import type { OverlayShape } from "@/lib/types";
 
 type Props = {
-  imageUrl: string | null;
+  /** Still-image source (rolling preview PNG). Mutually exclusive with `streamUrl`. */
+  imageUrl?: string | null;
+  /** Live H.264 WebSocket URL (WebCodecs). Mutually exclusive with `imageUrl`. */
+  streamUrl?: string | null;
   /** Game-space width (720); overlays use this coordinate system. */
   width: number;
   /** Game-space height (1280); overlays use this coordinate system. */
   height: number;
   overlays: OverlayShape[];
+  /** Called when the stream closes (e.g. scrcpy stopped). Lets the page
+   *  fall back to the still-image source. */
+  onStreamClosed?: (reason: string) => void;
 };
 
-export function ApprovalCanvas({ imageUrl, width, height, overlays }: Props) {
+type BitmapSource = HTMLImageElement | VideoFrame;
+
+export function ApprovalCanvas({
+  imageUrl,
+  streamUrl,
+  width,
+  height,
+  overlays,
+  onStreamClosed,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [aspectRatio, setAspectRatio] = useState<string | undefined>();
-  // We hold the decoded HTMLImageElement across redraws so resize-triggered
-  // redraws don't re-fetch the bitmap. Only `imageUrl` swaps invalidate it.
-  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [streamFps, setStreamFps] = useState<number | null>(null);
+  // Holds the current frame (image OR VideoFrame). For VideoFrame we must
+  // close the previous one before replacing or GPU memory leaks accumulate
+  // at 30 FPS very quickly.
+  const sourceRef = useRef<BitmapSource | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const overlaysRef = useRef(overlays);
+  const sizeRef = useRef({ width, height });
+  const fpsRef = useRef({ frames: 0, windowStartMs: 0 });
 
-  // 1) Image loading is decoupled from layout so a window resize doesn't
-  //    re-decode the screenshot, and an in-flight load that's been superseded
-  //    can't race with a newer URL.
-  useEffect(() => {
-    if (!imageUrl) {
-      imgRef.current = null;
-      return;
-    }
-    let cancelled = false;
-    const img = new Image();
-    img.src = imageUrl;
-    const onReady = () => {
-      if (cancelled) return;
-      imgRef.current = img;
-      const nw = img.naturalWidth;
-      const nh = img.naturalHeight;
-      if (nw > 0 && nh > 0) {
-        const next = `${nw} / ${nh}`;
-        // Avoid a no-op setState — most ticks reuse the same 720x1280 frame.
-        setAspectRatio((prev) => (prev === next ? prev : next));
-      }
-      // Trigger a draw via the layout effect by bumping the canvas attr;
-      // easier: just call draw() inline once we have a context handle.
-      draw();
-    };
-    if (img.complete && img.naturalWidth > 0) {
-      onReady();
-    } else {
-      img.onload = onReady;
-    }
-    return () => {
-      cancelled = true;
-      img.onload = null;
-    };
-    // `draw` is stable across renders via the layout effect below; including
-    // overlays/width/height here would re-fetch the image on every overlay
-    // update, which is the perf bug we're fixing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageUrl]);
+  overlaysRef.current = overlays;
+  sizeRef.current = { width, height };
 
-  // 2) Layout/redraw is its own effect so changing overlays redraws onto the
-  //    already-decoded image, and a container resize uses ResizeObserver
-  //    (cheaper + scoped) instead of a global window listener.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    draw();
-    const ro = new ResizeObserver(() => draw());
-    ro.observe(container);
-    return () => ro.disconnect();
-    // `draw` is defined below and reads the latest refs/props; we deliberately
-    // depend only on the inputs that affect rendering to avoid spurious work.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [overlays, width, height, imageUrl]);
-
-  function draw() {
+  const draw = useCallback(() => {
+    rafRef.current = null;
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    const img = imgRef.current;
-    if (!canvas || !container || !img) return;
-    const nw = img.naturalWidth;
-    const nh = img.naturalHeight;
-    if (nw <= 0 || nh <= 0) return;
+    const source = sourceRef.current;
+    if (!canvas || !container || !source) return;
 
-    const gameW = width > 0 ? width : nw;
-    const gameH = height > 0 ? height : nh;
+    const { sw, sh } = sourceDimensions(source);
+    if (sw <= 0 || sh <= 0) return;
 
-    const maxW = container.clientWidth || nw;
-    const scale = Math.min(1, maxW / nw);
-    const dispW = Math.max(1, Math.round(nw * scale));
-    const dispH = Math.max(1, Math.round(nh * scale));
+    const { width: logicalW, height: logicalH } = sizeRef.current;
+    const gameW = logicalW > 0 ? logicalW : sw;
+    const gameH = logicalH > 0 ? logicalH : sh;
 
-    // Avoid clearing+redrawing if the canvas backing-store is already the
-    // right size and nothing meaningful changed. The cheap proof: assigning
-    // canvas.width to its current value still clears the bitmap, so we only
-    // resize when the dims actually changed.
+    const maxW = container.clientWidth || sw;
+    const scale = Math.min(1, maxW / sw);
+    const dispW = Math.max(1, Math.round(sw * scale));
+    const dispH = Math.max(1, Math.round(sh * scale));
+
     if (canvas.width !== dispW) canvas.width = dispW;
     if (canvas.height !== dispH) canvas.height = dispH;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
     ctx.clearRect(0, 0, dispW, dispH);
-    ctx.drawImage(img, 0, 0, dispW, dispH);
+    ctx.drawImage(source as CanvasImageSource, 0, 0, dispW, dispH);
 
     const sx = dispW / gameW;
     const sy = dispH / gameH;
 
-    for (const o of overlays) {
+    for (const o of overlaysRef.current) {
       if (o.type === "rect") {
         const stroke = o.stroke || "#00dcff";
         const x = o.x * sx;
@@ -163,9 +132,117 @@ export function ApprovalCanvas({ imageUrl, width, height, overlays }: Props) {
         drawArrow(ctx, x1, y1, x2, y2);
       }
     }
-  }
+  }, []);
 
-  if (!imageUrl) {
+  const scheduleDraw = useCallback(() => {
+    if (rafRef.current != null) return;
+    rafRef.current = window.requestAnimationFrame(draw);
+  }, [draw]);
+
+  // ---- Source: still image ----
+  //
+  // Decoupled from layout so resizes don't re-fetch the bitmap and an
+  // in-flight load that's been superseded can't race with a newer URL.
+  useEffect(() => {
+    if (streamUrl) return; // stream mode owns the source
+    if (!imageUrl) {
+      releaseSource(sourceRef.current);
+      sourceRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.src = imageUrl;
+    const onReady = () => {
+      if (cancelled) return;
+      releaseSource(sourceRef.current);
+      sourceRef.current = img;
+      const nw = img.naturalWidth;
+      const nh = img.naturalHeight;
+      if (nw > 0 && nh > 0) {
+        const next = `${nw} / ${nh}`;
+        setAspectRatio((prev) => (prev === next ? prev : next));
+      }
+      scheduleDraw();
+    };
+    if (img.complete && img.naturalWidth > 0) {
+      onReady();
+    } else {
+      img.onload = onReady;
+    }
+    return () => {
+      cancelled = true;
+      img.onload = null;
+    };
+  }, [imageUrl, streamUrl, scheduleDraw]);
+
+  // ---- Source: live stream ----
+  useEffect(() => {
+    if (!streamUrl) return;
+    if (!isWebCodecsSupported()) {
+      onStreamClosed?.("WebCodecs not supported — falling back to image");
+      return;
+    }
+    const client = new H264StreamClient(streamUrl, {
+      onHandshake: ({ width: w, height: h }) => {
+        if (w > 0 && h > 0) {
+          const next = `${w} / ${h}`;
+          setAspectRatio((prev) => (prev === next ? prev : next));
+        }
+      },
+      onFrame: (frame) => {
+        // Replace the current frame and schedule one canvas repaint. This
+        // intentionally avoids React state per video frame, so 30+ FPS does
+        // not become 30+ React renders/ResizeObserver rebuilds per second.
+        releaseSource(sourceRef.current);
+        sourceRef.current = frame;
+        recordFrameForFps(fpsRef, setStreamFps);
+        scheduleDraw();
+      },
+      onError: (e) => {
+        // Decoder errors typically mean the stream is unrecoverable for
+        // this connection — surface as "closed" so the page can fall back.
+        onStreamClosed?.(e.message);
+      },
+      onClose: (reason) => onStreamClosed?.(reason),
+    });
+    client.start();
+    return () => {
+      client.stop();
+      releaseSource(sourceRef.current);
+      sourceRef.current = null;
+      fpsRef.current = { frames: 0, windowStartMs: 0 };
+      setStreamFps(null);
+    };
+  }, [streamUrl, onStreamClosed, scheduleDraw]);
+
+  // ---- Layout / redraw ----
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    scheduleDraw();
+    const ro = new ResizeObserver(() => scheduleDraw());
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [scheduleDraw]);
+
+  useEffect(() => {
+    scheduleDraw();
+  }, [overlays, width, height, scheduleDraw]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      releaseSource(sourceRef.current);
+      sourceRef.current = null;
+    };
+  }, []);
+
+  const hasSource = streamUrl || imageUrl;
+  if (!hasSource) {
     return (
       <div className="preview-empty">
         No screenshot yet — start the bot or wait for a rolling preview.
@@ -180,8 +257,52 @@ export function ApprovalCanvas({ imageUrl, width, height, overlays }: Props) {
       style={aspectRatio ? { aspectRatio } : undefined}
     >
       <canvas ref={canvasRef} className="preview-canvas" />
+      {streamUrl && streamFps != null ? (
+        <div className="preview-fps" aria-label="Live video frame rate">
+          {streamFps.toFixed(1)} FPS
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function recordFrameForFps(
+  fpsRef: MutableRefObject<{ frames: number; windowStartMs: number }>,
+  setStreamFps: Dispatch<SetStateAction<number | null>>,
+): void {
+  const now = performance.now();
+  const stats = fpsRef.current;
+  if (stats.windowStartMs <= 0) {
+    stats.windowStartMs = now;
+    stats.frames = 0;
+  }
+  stats.frames += 1;
+  const elapsedMs = now - stats.windowStartMs;
+  if (elapsedMs < 1000) return;
+  const fps = (stats.frames * 1000) / elapsedMs;
+  fpsRef.current = { frames: 0, windowStartMs: now };
+  setStreamFps(Math.round(fps * 10) / 10);
+}
+
+function releaseSource(source: BitmapSource | null): void {
+  if (source && "close" in source && typeof source.close === "function") {
+    // VideoFrame must be closed to free GPU memory; HTMLImageElement has no
+    // close() so the typeof guard skips it.
+    try {
+      source.close();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function sourceDimensions(source: BitmapSource): { sw: number; sh: number } {
+  if ("naturalWidth" in source) {
+    return { sw: source.naturalWidth, sh: source.naturalHeight };
+  }
+  // VideoFrame uses displayWidth/displayHeight which already account for
+  // sample aspect ratio; codedWidth/codedHeight may include padding.
+  return { sw: source.displayWidth, sh: source.displayHeight };
 }
 
 function drawArrow(

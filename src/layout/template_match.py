@@ -98,21 +98,23 @@ def _edge_similarity_score(patch_bgr: np.ndarray, template_bgr: np.ndarray) -> f
     return max(0.0, min(1.0, 1.0 - mae / 255.0))
 
 
-def _phash64(patch_bgr: np.ndarray) -> int:
-    gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+def _phash64_from_gray(patch_gray: np.ndarray) -> int:
     # Light blur before DCT reduces anti-alias / glow drift on text strips (e.g.
     # welcome_back) without moving self-match scores on crisp icon crops (shop).
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
-    small = cv2.resize(gray, (32, 32), interpolation=cv2.INTER_AREA)
+    blurred = cv2.GaussianBlur(patch_gray, (3, 3), 0)
+    small = cv2.resize(blurred, (32, 32), interpolation=cv2.INTER_AREA)
     dct = cv2.dct(np.float32(small))
     block = dct[:8, :8].copy()
     block[0, 0] = 0
     med = float(np.median(block))
     bits = (block >= med).astype(np.uint8).reshape(-1)
-    out = 0
-    for bit in bits:
-        out = (out << 1) | int(bit)
-    return out
+    # np.packbits packs 8 bits/byte big-endian; 64 bits -> 8 bytes -> uint64.
+    return int(np.packbits(bits, bitorder="big").view(np.uint64)[0])
+
+
+def _phash64(patch_bgr: np.ndarray) -> int:
+    gray = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY)
+    return _phash64_from_gray(gray)
 
 
 def _template_cache_key_bytes(template_bgr: np.ndarray) -> bytes:
@@ -164,6 +166,18 @@ def _phash_match_score(
     template_bgr: np.ndarray,
 ) -> tuple[float, int]:
     hamming = _phash_hamming_distance(patch_bgr, template_bgr)
+    return _phash_similarity_score(hamming), hamming
+
+
+def _phash_match_score_from_gray(
+    patch_gray: np.ndarray,
+    template_bgr: np.ndarray,
+) -> tuple[float, int]:
+    """Variant of :func:`_phash_match_score` when the caller already has gray."""
+    hamming = _hamming64(
+        _phash64_from_gray(patch_gray),
+        _phash64_template_cached(template_bgr),
+    )
     return _phash_similarity_score(hamming), hamming
 
 
@@ -278,6 +292,33 @@ def _patch_gray_std(
     return float(np.std(patch_gray))
 
 
+def _build_integral_squares(region_gray: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return ``(sat, sqsat)`` from :func:`cv2.integral2` (one-off per region)."""
+    sat, sqsat = cv2.integral2(region_gray, sdepth=cv2.CV_64F)
+    return sat, sqsat
+
+
+def _patch_std_from_sat(
+    sat: np.ndarray,
+    sqsat: np.ndarray,
+    y_off: int,
+    x_off: int,
+    th: int,
+    tw: int,
+) -> float:
+    """Patch population std via summed-area-table (matches ``np.std`` ddof=0)."""
+    y2 = y_off + th
+    x2 = x_off + tw
+    s = sat[y2, x2] - sat[y_off, x2] - sat[y2, x_off] + sat[y_off, x_off]
+    sq = sqsat[y2, x2] - sqsat[y_off, x2] - sqsat[y2, x_off] + sqsat[y_off, x_off]
+    n = float(th * tw)
+    mean = s / n
+    var = sq / n - mean * mean
+    if var <= 0.0:
+        return 0.0
+    return math.sqrt(var)
+
+
 def _best_phash_among_ncc_peaks(
     region_bgr: np.ndarray,
     template_bgr: np.ndarray,
@@ -303,6 +344,17 @@ def _best_phash_among_ncc_peaks(
 
     template_has_texture = float(np.std(_template_gray_cached(template_bgr))) >= _MIN_PATCH_GRAY_STD
 
+    # Lazy integral image (built only if a textured template hits the peak loop).
+    sat_pair: tuple[np.ndarray, np.ndarray] | None = None
+
+    def _peak_std(y_off_i: int, x_off_i: int) -> float:
+        nonlocal sat_pair
+        if region_gray is None:
+            return _patch_gray_std(None, region_bgr, y_off_i, x_off_i, th, tw)
+        if sat_pair is None:
+            sat_pair = _build_integral_squares(region_gray)
+        return _patch_std_from_sat(sat_pair[0], sat_pair[1], y_off_i, x_off_i, th, tw)
+
     best: TemplateMatchResult | None = None
     best_rank = -1.0
     best_x_off = 0
@@ -316,7 +368,13 @@ def _best_phash_among_ncc_peaks(
         ncc_i: float,
     ) -> TemplateMatchResult | None:
         nonlocal best, best_rank, best_x_off, best_y_off, found
-        phash_i, hamming_i = _phash_match_score(patch_i, template_bgr)
+        if region_gray is not None:
+            patch_gray_i = region_gray[y_off_i : y_off_i + th, x_off_i : x_off_i + tw]
+            phash_i, hamming_i = _phash_match_score_from_gray(
+                patch_gray_i, template_bgr
+            )
+        else:
+            phash_i, hamming_i = _phash_match_score(patch_i, template_bgr)
         found = True
         if threshold is not None and phash_i >= threshold:
             out = _hybrid_result_at_patch(
@@ -361,9 +419,7 @@ def _best_phash_among_ncc_peaks(
         ):
             heat_scan[y_off_i, x_off_i] = -1.0
             continue
-        if template_has_texture and _patch_gray_std(
-            region_gray, region_bgr, y_off_i, x_off_i, th, tw
-        ) < _MIN_PATCH_GRAY_STD:
+        if template_has_texture and _peak_std(y_off_i, x_off_i) < _MIN_PATCH_GRAY_STD:
             heat_scan[y_off_i, x_off_i] = -1.0
             continue
         patch_i = region_bgr[y_off_i : y_off_i + th, x_off_i : x_off_i + tw]

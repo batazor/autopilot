@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import random
 import socket
 import subprocess
 import threading
@@ -57,6 +58,10 @@ DEVICE_BIN = f"{DEVICE_TMP}/minitouch"
 DEFAULT_PORT_BASE = 1111
 _DOWNLOAD_CACHE = Path.home() / ".cache" / "wos-autopilot" / "minitouch"
 _DEFAULT_PRESSURE = 50
+_TAP_HOLD_MS_MIN = 35
+_TAP_HOLD_MS_MAX = 90
+_TAP_MICRO_MOVE_PROBABILITY = 0.28
+_LONG_SWIPE_OVERSHOOT_MIN_PX = 260
 
 
 # ---------------------------------------------------------------------------
@@ -425,7 +430,18 @@ class MinitouchClient:
         """Single-finger tap at device-physical pixel (px, py)."""
         tx, ty = self._scale(px, py)
         p = self._pressure(pressure)
-        self._send(f"d 0 {tx} {ty} {p}\nc\nu 0\nc\n")
+        wait = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX)
+        lines = [f"d 0 {tx} {ty} {p}", "c"]
+        if random.random() < _TAP_MICRO_MOVE_PROBABILITY:
+            first_wait = max(1, int(wait * random.uniform(0.35, 0.7)))
+            max_x = self._banner.max_x if self._banner is not None else tx
+            max_y = self._banner.max_y if self._banner is not None else ty
+            mx = max(0, min(max_x, tx + random.choice((-1, 1)) * random.randint(1, 2)))
+            my = max(0, min(max_y, ty + random.choice((-1, 1)) * random.randint(1, 2)))
+            lines.extend([f"w {first_wait}", f"m 0 {mx} {my} {p}", "c"])
+            wait = max(1, wait - first_wait)
+        lines.extend([f"w {wait}", "u 0", "c"])
+        self._send("\n".join(lines) + "\n")
 
     def long_press(
         self,
@@ -458,15 +474,36 @@ class MinitouchClient:
         tx2, ty2 = self._scale(x2, y2)
         p = self._pressure(pressure)
         n = max(2, int(steps))
-        ms_per_step = max(1, int(duration_ms) // n)
+        dx = tx2 - tx1
+        dy = ty2 - ty1
+        length = (dx * dx + dy * dy) ** 0.5
+        overshoot: tuple[float, float] | None = None
+        if length >= _LONG_SWIPE_OVERSHOOT_MIN_PX and random.random() < 0.35:
+            overshoot_px = min(42.0, max(8.0, length * random.uniform(0.025, 0.07)))
+            ox = tx2 + dx / length * overshoot_px
+            oy = ty2 + dy / length * overshoot_px
+            if self._banner is not None:
+                ox = max(0, min(self._banner.max_x, ox))
+                oy = max(0, min(self._banner.max_y, oy))
+            overshoot = (ox, oy)
+            n += random.randint(1, 2)
+        weights = [random.uniform(0.75, 1.25) for _ in range(n)]
+        total_weight = sum(weights) or 1.0
+        waits = [max(1, int(round(max(1, duration_ms) * w / total_weight))) for w in weights]
         lines = [f"d 0 {tx1} {ty1} {p}", "c"]
         for i in range(1, n + 1):
             t = i / n
-            mx = int(round(tx1 + (tx2 - tx1) * t))
-            my = int(round(ty1 + (ty2 - ty1) * t))
+            target_x = tx2
+            target_y = ty2
+            if overshoot is not None and i >= n - 1:
+                target_x, target_y = overshoot
+            mx = int(round(tx1 + (target_x - tx1) * t))
+            my = int(round(ty1 + (target_y - ty1) * t))
+            if overshoot is not None and i == n:
+                mx, my = tx2, ty2
             lines.append(f"m 0 {mx} {my} {p}")
             lines.append("c")
-            lines.append(f"w {ms_per_step}")
+            lines.append(f"w {waits[i - 1]}")
         lines.append("u 0")
         lines.append("c")
         self._send("\n".join(lines) + "\n")

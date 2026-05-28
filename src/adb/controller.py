@@ -57,6 +57,12 @@ _SWIPE_DURATION_JITTER_PCT = 0.15
 _SWIPE_CURVE_OFFSET_PCT_MIN = 0.03
 _SWIPE_CURVE_OFFSET_PCT_MAX = 0.08
 _SWIPE_CURVE_SEGMENTS = 4
+_TAP_HOLD_MS_MIN = 35
+_TAP_HOLD_MS_MAX = 90
+_TAP_MICRO_MOVE_PROBABILITY = 0.28
+_SWIPE_ENDPOINT_JITTER_PCT = 0.018
+_SWIPE_ENDPOINT_JITTER_MAX_PX = 24
+_LONG_SWIPE_OVERSHOOT_MIN_PX = 260
 
 
 def _clamp(val: int, lo: int, hi: int) -> int:
@@ -69,6 +75,29 @@ def _jitter(value: int, spread: int) -> int:
     if spread <= 0:
         return value
     return value + random.randint(-spread, spread)
+
+
+def _jittered_point(
+    point: Point,
+    *,
+    spread: int,
+    bounds: tuple[int, int] | None = None,
+) -> Point:
+    """Apply independent coordinate jitter and keep the result on-screen."""
+
+    x = _jitter(point.x, spread)
+    y = _jitter(point.y, spread)
+    if bounds is not None:
+        w, h = bounds
+        x = _clamp(x, 0, max(0, w - 1))
+        y = _clamp(y, 0, max(0, h - 1))
+    return Point(x, y)
+
+
+def _tap_offset_spread() -> int:
+    """Small per-tap coordinate spread: one run chooses ±1, ±2, or ±3 px."""
+
+    return random.randint(1, 3)
 
 
 class AdbController:
@@ -458,122 +487,88 @@ class AdbController:
     def _get_scrcpy(self) -> ScrcpyClient | None:
         """Resolve the shared scrcpy client when ``input_backend == 'scrcpy'``.
 
-        The client is owned by :class:`adb.bot_actions.BotActions`; we obtain
-        it through the getter passed at construction. ``None`` means scrcpy
-        startup already failed for this device — flip to adb (sticky) so the
-        caller doesn't keep paying for the lookup on every tap.
+        Returns ``None`` only when this device is NOT configured for scrcpy
+        (``input_backend != "scrcpy"``) — that's the legitimate "use ADB"
+        path because the operator never asked for scrcpy.
+
+        Raises ``RuntimeError`` when scrcpy IS configured but unavailable.
+        Silent degradation to ``adb shell input`` would mask the real fault
+        (client never started, server died, USB unplugged) behind a slower
+        bot, exactly the masking behaviour we removed by design.
         """
         if self._input_backend != "scrcpy":
             return None
         getter = self._scrcpy_client_getter
         if getter is None:
-            logger.warning(
-                "scrcpy requested for %s but no client getter wired — falling back to adb",
-                self._serial,
+            msg = (
+                f"input_backend=scrcpy on {self._serial} but no scrcpy "
+                f"client getter wired — refusing to silently use adb"
             )
-            self._input_backend = "adb"
-            return None
-        try:
-            client = getter()
-        except Exception as exc:
-            logger.warning(
-                "scrcpy getter raised for %s (%s) — falling back to adb",
-                self._serial, exc,
-            )
-            self._input_backend = "adb"
-            return None
+            raise RuntimeError(msg)
+        client = getter()  # propagate getter failures verbatim
         if client is None or not client.is_alive():
-            self._input_backend = "adb"
-            return None
+            msg = (
+                f"scrcpy is the configured input backend for {self._serial} "
+                f"but the client is unavailable — refusing to silently use adb"
+            )
+            raise RuntimeError(msg)
         return client
 
     def _emit_tap(self, x: int, y: int) -> None:
-        """Send a single tap via minitouch/scrcpy when available, else `adb shell input tap`."""
+        """Send a single tap via the configured backend. Raises on failure."""
         sc = self._get_scrcpy()
         if sc is not None:
-            try:
-                sc.tap(x, y)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "scrcpy tap failed on %s (%s) — falling back to adb shell input",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
+            sc.tap(x, y)
+            return
         mt = self._get_minitouch()
         if mt is not None:
-            try:
-                mt.tap(x, y)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "minitouch tap failed on %s (%s) — falling back to adb shell input",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
-                with suppress(Exception):
-                    self._minitouch and self._minitouch.close()
-                self._minitouch = None
-        self._shell("input", "tap", str(x), str(y))
+            mt.tap(x, y)
+            return
+        hold_ms = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX)
+        if self._detect_motionevent_support():
+            self._shell("input", "motionevent", "DOWN", str(x), str(y))
+            if random.random() < _TAP_MICRO_MOVE_PROBABILITY:
+                time.sleep(hold_ms / 1000.0 * random.uniform(0.35, 0.7))
+                mx = x + random.choice((-1, 1)) * random.randint(1, 2)
+                my = y + random.choice((-1, 1)) * random.randint(1, 2)
+                w, h = self.get_screen_resolution()
+                mx = _clamp(mx, 0, max(0, w - 1))
+                my = _clamp(my, 0, max(0, h - 1))
+                self._shell("input", "motionevent", "MOVE", str(mx), str(my))
+                time.sleep(hold_ms / 1000.0 * random.uniform(0.2, 0.45))
+            else:
+                time.sleep(hold_ms / 1000.0)
+            self._shell("input", "motionevent", "UP", str(x), str(y))
+            return
+        self._shell(
+            "input", "touchscreen", "swipe",
+            str(x), str(y), str(x), str(y), str(hold_ms),
+        )
 
     def _emit_long_press(self, x: int, y: int, ms: int) -> None:
         sc = self._get_scrcpy()
         if sc is not None:
-            try:
-                sc.long_press(x, y, duration_ms=ms)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "scrcpy long_press failed on %s (%s) — falling back",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
+            sc.long_press(x, y, duration_ms=ms)
+            return
         mt = self._get_minitouch()
         if mt is not None:
-            try:
-                mt.long_press(x, y, duration_ms=ms)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "minitouch long_press failed on %s (%s) — falling back",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
-                with suppress(Exception):
-                    self._minitouch and self._minitouch.close()
-                self._minitouch = None
-        # adb fallback: zero-distance `input swipe` is the standard long-press idiom.
+            mt.long_press(x, y, duration_ms=ms)
+            return
+        # adb path: zero-distance `input swipe` is the standard long-press idiom.
         self._shell("input", "swipe", str(x), str(y), str(x), str(y), str(ms))
 
     def _emit_swipe_straight(
         self, x1: int, y1: int, x2: int, y2: int, ms: int,
     ) -> None:
-        """Straight swipe — minitouch/scrcpy when available, else `input touchscreen swipe`."""
+        """Straight swipe via the configured backend. Raises on failure."""
         sc = self._get_scrcpy()
         if sc is not None:
-            try:
-                sc.swipe(x1, y1, x2, y2, duration_ms=ms)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "scrcpy swipe failed on %s (%s) — falling back",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
+            sc.swipe(x1, y1, x2, y2, duration_ms=ms)
+            return
         mt = self._get_minitouch()
         if mt is not None:
-            try:
-                mt.swipe(x1, y1, x2, y2, duration_ms=ms)
-                return
-            except Exception as exc:
-                logger.warning(
-                    "minitouch swipe failed on %s (%s) — falling back",
-                    self._serial, exc,
-                )
-                self._input_backend = "adb"
-                with suppress(Exception):
-                    self._minitouch and self._minitouch.close()
-                self._minitouch = None
+            mt.swipe(x1, y1, x2, y2, duration_ms=ms)
+            return
         self._shell(
             "input", "touchscreen", "swipe",
             str(x1), str(y1), str(x2), str(y2), str(ms),
@@ -609,8 +604,12 @@ class AdbController:
         to a touch that lingers; per-region ``tap_hold_ms`` in ``area.json``
         opts those targets into long-press here.
         """
-        x = _jitter(point.x, 2)
-        y = _jitter(point.y, 2)
+        tap_point = _jittered_point(
+            point,
+            spread=_tap_offset_spread(),
+            bounds=self.get_screen_resolution(),
+        )
+        x, y = tap_point.x, tap_point.y
         preview = preview_point or Point(x, y)
         hold = max(0, int(hold_ms))
         ap: dict[str, object] = {
@@ -725,15 +724,29 @@ class AdbController:
         cy = (y1 + y2) / 2.0 + perp_y * offset_amount
         pts: list[tuple[int, int]] = []
         n = _SWIPE_CURVE_SEGMENTS
+        overshoot: tuple[float, float] | None = None
+        if length >= _LONG_SWIPE_OVERSHOOT_MIN_PX and random.random() < 0.35:
+            overshoot_px = min(42.0, max(8.0, length * random.uniform(0.025, 0.07)))
+            overshoot = (
+                x2 + dx / length * overshoot_px,
+                y2 + dy / length * overshoot_px,
+            )
+            n += random.randint(1, 2)
         for i in range(n + 1):
             t = i / n
-            bx = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * x2
-            by = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * y2
+            target_x = x2
+            target_y = y2
+            if overshoot is not None and i >= n - 1:
+                target_x, target_y = overshoot
+            bx = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * target_x
+            by = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * target_y
             # ±1 px per-point jitter so even with the same endpoints the
             # intermediate trail isn't reproducible across runs.
             bx += random.randint(-1, 1)
             by += random.randint(-1, 1)
             pts.append((int(round(bx)), int(round(by))))
+        if pts:
+            pts[-1] = (int(x2), int(y2))
         return pts
 
     def _dispatch_curved_swipe(
@@ -792,16 +805,26 @@ class AdbController:
         # Important: for "long press" we call swipe(start=end). In that case we must
         # keep start/end identical; otherwise independent jitter turns it into a
         # tiny swipe (1–2 px) which many UIs ignore as a press/hold.
+        bounds = self.get_screen_resolution()
         if int(start.x) == int(end.x) and int(start.y) == int(end.y):
-            x = _jitter(start.x, 2)
-            y = _jitter(start.y, 2)
+            p = _jittered_point(start, spread=_tap_offset_spread(), bounds=bounds)
+            x = p.x
+            y = p.y
             x1 = x2 = x
             y1 = y2 = y
         else:
-            x1 = _jitter(start.x, 2)
-            y1 = _jitter(start.y, 2)
-            x2 = _jitter(end.x, 2)
-            y2 = _jitter(end.y, 2)
+            dx = int(end.x) - int(start.x)
+            dy = int(end.y) - int(start.y)
+            length = (dx * dx + dy * dy) ** 0.5
+            spread = _clamp(
+                int(round(length * _SWIPE_ENDPOINT_JITTER_PCT)),
+                2,
+                _SWIPE_ENDPOINT_JITTER_MAX_PX,
+            )
+            start_j = _jittered_point(start, spread=spread, bounds=bounds)
+            end_j = _jittered_point(end, spread=spread, bounds=bounds)
+            x1, y1 = start_j.x, start_j.y
+            x2, y2 = end_j.x, end_j.y
         ms = int(duration.total_seconds() * 1000)
         if x1 != x2 or y1 != y2:
             ms = max(ms, _SWIPE_MIN_DURATION_MS)
@@ -850,7 +873,7 @@ class AdbController:
             # — minitouch's per-step ``m`` events already produce smooth motion.
             if is_long_press:
                 self._emit_long_press(x1, y1, ms)
-            elif self._input_backend == "minitouch":
+            elif self._input_backend == "scrcpy" or self._input_backend == "minitouch":
                 self._emit_swipe_straight(x1, y1, x2, y2, ms)
             elif not self._dispatch_curved_swipe(x1, y1, x2, y2, ms):
                 # motionevent unsupported or shell failed — straight fallback.
@@ -866,18 +889,33 @@ class AdbController:
         delta: int,
         duration: timedelta = timedelta(milliseconds=300),
     ) -> bool:
-        """Swipe left/right/up/down by delta pixels from screen center."""
+        """Swipe left/right/up/down by delta pixels from a screen-aware lane."""
         w, h = self.get_screen_resolution()
-        cx, cy = w // 2, h // 2
+        margin = 24
+
+        def clamp_x(x: int) -> int:
+            return _clamp(x, margin, max(margin, w - margin))
+
+        def clamp_y(y: int) -> int:
+            return _clamp(y, margin, max(margin, h - margin))
+
         match direction.lower():
             case "left":
-                start, end = Point(cx, cy), Point(cx - delta, cy)
+                y = clamp_y(int(round(random.uniform(0.42, 0.62) * h)))
+                x = clamp_x(int(round(random.uniform(0.58, 0.76) * w)))
+                start, end = Point(x, y), Point(clamp_x(x - delta), y)
             case "right":
-                start, end = Point(cx, cy), Point(cx + delta, cy)
+                y = clamp_y(int(round(random.uniform(0.42, 0.62) * h)))
+                x = clamp_x(int(round(random.uniform(0.24, 0.42) * w)))
+                start, end = Point(x, y), Point(clamp_x(x + delta), y)
             case "up":
-                start, end = Point(cx, cy), Point(cx, cy - delta)
+                x = clamp_x(int(round(random.uniform(0.38, 0.62) * w)))
+                y = clamp_y(int(round(random.uniform(0.60, 0.76) * h)))
+                start, end = Point(x, y), Point(x, clamp_y(y - delta))
             case "down":
-                start, end = Point(cx, cy), Point(cx, cy + delta)
+                x = clamp_x(int(round(random.uniform(0.38, 0.62) * w)))
+                y = clamp_y(int(round(random.uniform(0.30, 0.46) * h)))
+                start, end = Point(x, y), Point(x, clamp_y(y + delta))
             case _:
                 msg = f"Unknown swipe direction: {direction!r}"
                 raise ValueError(msg)
@@ -1099,5 +1137,3 @@ class AdbController:
 # ---------------------------------------------------------------------------
 # BotActions — instance-aware facade used by tasks and the use case executor
 # ---------------------------------------------------------------------------
-
-

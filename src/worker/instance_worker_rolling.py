@@ -396,7 +396,7 @@ class InstanceWorkerRollingMixin(_Base):
             return
         logger.info("[overlay] %s: running overlay tick (%s)", self._cfg.instance_id, reason)
         try:
-            image_bgr = await self._run_rolling_blocking(self._grab_layout_bgr)
+            image_bgr = await self._run_rolling_blocking(self._grab_layout_bgr_cached)
         except asyncio.CancelledError:
             raise
         except Exception:

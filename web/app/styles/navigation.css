@@ -5,7 +5,7 @@
   }
 
   .nav-brand__logo {
-    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-indigo-500 text-sm font-bold text-white shadow-md shadow-sky-900/30;
+    @apply flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg;
   }
 
   .nav-icon-btn {
@@ -193,7 +193,39 @@
   }
 
   .nav-footer {
-    @apply shrink-0 border-t border-wos-border-subtle/80 px-4 py-3 text-[11px] text-wos-text-muted;
+    @apply flex shrink-0 flex-col gap-2 border-t border-wos-border-subtle/80 px-3 py-3 text-[11px] text-wos-text-muted;
+  }
+
+  .nav-footer__theme {
+    @apply w-full justify-start;
+  }
+
+  .nav-footer__discord {
+    @apply flex items-center gap-2.5 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1.5 text-wos-text no-underline transition;
+  }
+
+  .nav-footer__discord:hover {
+    @apply border-wos-border bg-wos-panel-raised/80;
+    color: #b9c2ff;
+  }
+
+  .nav-footer__discord-icon {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md;
+    background: linear-gradient(135deg, #5865f2 0%, #4752c4 100%);
+    color: #fff;
+  }
+
+  .nav-footer__status {
+    @apply flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-wos-text-muted;
+  }
+
+  .nav-footer__sep {
+    @apply text-wos-text-muted/60;
+  }
+
+  .nav-footer__link {
+    @apply no-underline;
+    color: var(--wos-link);
   }
 
   .nav-footer__code {

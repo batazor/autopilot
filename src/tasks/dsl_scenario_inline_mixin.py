@@ -28,6 +28,7 @@ from layout.types import Point
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _COLOR_WORD_ALIASES,
+    _action_pause_seconds,
     _BreakRepeat,
     _dsl_cond_allows_step,
     _enqueue_scenario,
@@ -215,7 +216,7 @@ class DslScenarioInlineMixin(_Base):
                 next_run_at=None,
                 metadata={"scenario": scenario_key, "reason": "system_back_not_approved"},
             )
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(_action_pause_seconds(0.4))
         self._append_trace_row(trace_path, step, "ok")
         return None
 
@@ -614,7 +615,7 @@ class DslScenarioInlineMixin(_Base):
                     metadata={"scenario": scenario_key, "reason": "long_click_not_approved"},
                 )
             self._last_tap_region_clicked = region
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(_action_pause_seconds(0.4))
             self._append_trace_row(
                 trace_path, step, "ok", match_row=self._last_match_row
             )
@@ -643,7 +644,7 @@ class DslScenarioInlineMixin(_Base):
                         match_row=self._last_match_row,
                     )
                     return result
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(_action_pause_seconds(0.4))
             self._append_trace_row(
                 trace_path, step, "ok", match_row=self._last_match_row
             )
@@ -1006,7 +1007,7 @@ class DslScenarioInlineMixin(_Base):
                         next_run_at=None,
                         metadata={"scenario": scenario_key, "reason": "swipe_not_approved"},
                     )
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(_action_pause_seconds(0.4))
             self._append_trace_row(trace_path, step, "ok")
             return None
         if "ttl" in step:

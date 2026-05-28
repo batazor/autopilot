@@ -17,6 +17,7 @@ from layout.area_lookup import screen_region_by_name
 from tasks.base import TaskResult
 from tasks.dsl_scenario_helpers import (
     _DSL_STEP_ACTION_KEYS,
+    _action_pause_seconds,
     _BreakRepeat,
     _collect_ocr_store_targets,
     _dsl_cond_allows_step,
@@ -1098,7 +1099,7 @@ class DslScenarioExecuteMixin(_Base):
                                 ),
                             )
                         if pause_s > 0:
-                            await asyncio.sleep(pause_s)
+                            await asyncio.sleep(_action_pause_seconds(pause_s))
 
                     iter_path = f"{_resumable_step}.{i}"
                     for inner_idx, inner in enumerate(inner_steps):
@@ -1401,7 +1402,7 @@ class DslScenarioExecuteMixin(_Base):
                                 completed=False,
                             ),
                         )
-                    await asyncio.sleep(0.4)
+                    await asyncio.sleep(_action_pause_seconds(0.4))
                 await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue
@@ -1564,7 +1565,7 @@ class DslScenarioExecuteMixin(_Base):
                             next_run_at=result.next_run_at,
                             metadata=_fin(md, completed=False),
                         )
-                    await asyncio.sleep(0.4)
+                    await asyncio.sleep(_action_pause_seconds(0.4))
                 await _mark_top_level_step_done()
                 _trace_row(
                     _resumable_step, step, "ok", match_row=self._last_match_row
@@ -1626,7 +1627,7 @@ class DslScenarioExecuteMixin(_Base):
                             completed=False,
                         ),
                     )
-                await asyncio.sleep(0.4)
+                await asyncio.sleep(_action_pause_seconds(0.4))
                 await _mark_top_level_step_done()
                 _trace_row(_resumable_step, step, "ok")
                 continue

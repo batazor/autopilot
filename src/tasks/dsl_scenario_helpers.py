@@ -654,3 +654,23 @@ def _jittered_wait_seconds(seconds: float, pct: float) -> float:
     pct = min(pct, 1.0)
     factor = random.uniform(1.0 - pct, 1.0 + pct)
     return max(0.0, seconds * factor)
+
+
+def _action_pause_seconds(base_seconds: float = 0.4) -> float:
+    """Distribution-based pause between visible actions.
+
+    Most pauses cluster close to ``base_seconds`` with a longer tail, which is
+    less mechanical than fixed sleeps while keeping scenario throughput close
+    to the previous timing.
+    """
+
+    base = max(0.0, float(base_seconds))
+    if base <= 0:
+        return 0.0
+    mode = base
+    low = base * 0.55
+    high = base * 1.9
+    pause = random.triangular(low, high, mode)
+    if random.random() < 0.08:
+        pause += random.uniform(base * 0.35, base * 1.25)
+    return max(0.02, pause)

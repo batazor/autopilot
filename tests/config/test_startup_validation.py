@@ -106,7 +106,16 @@ overlay:
     assert "missing_claim_scenario" in issues[0].message
 
 
-def test_startup_validation_fails_fast(tmp_path: Path) -> None:
+def test_startup_validation_raises_on_issues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default behaviour: issues abort startup so the operator notices.
+
+    No interactive TTY prompt (that would hang the embedded supervisor in a
+    background thread); the only override is the ``WOS_VALIDATION_ACK`` env
+    var, exercised by the next test.
+    """
+    monkeypatch.delenv("WOS_VALIDATION_ACK", raising=False)
     _scenario_root(tmp_path)
     _write_edge_taps(tmp_path)
     _write_module_overlay(
@@ -120,8 +129,42 @@ overlay:
 """.lstrip(),
     )
 
-    with pytest.raises(RuntimeError, match="startup config validation failed: 1 issue"):
+    with pytest.raises(RuntimeError, match="1 issue"):
         assert_startup_configs_valid(tmp_path)
+
+
+def test_startup_validation_env_ack_lets_supervisor_continue(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``WOS_VALIDATION_ACK=1`` is the non-interactive override — it lets the
+    operator boot through known issues without an interactive prompt that
+    would otherwise hang the embedded supervisor's background thread.
+    """
+    import logging as _logging
+
+    monkeypatch.setenv("WOS_VALIDATION_ACK", "1")
+    _scenario_root(tmp_path)
+    _write_edge_taps(tmp_path)
+    _write_module_overlay(
+        tmp_path,
+        "test",
+        """
+overlay:
+  - name: broken.visible
+    region: missing_region
+    action: findIcon
+""".lstrip(),
+    )
+
+    with caplog.at_level(_logging.WARNING, logger="config.startup_validation"):
+        assert_startup_configs_valid(tmp_path)
+
+    assert any(
+        "acknowledged via WOS_VALIDATION_ACK" in rec.getMessage()
+        for rec in caplog.records
+    ), caplog.text
 
 
 def test_unknown_popup_fallback_scenario_is_resolvable() -> None:

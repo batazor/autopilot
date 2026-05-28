@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import threading
 import time
+from dataclasses import replace
 from typing import Any
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -91,7 +93,15 @@ def actions_with_stub(mocker) -> tuple[BotActions, list[int]]:
 
     from config.loader import get_settings
 
-    bot = BotActions(get_settings())
+    settings = get_settings()
+    instances = [
+        replace(inst, screenshot_backend="", input_backend="")
+        for inst in settings.instances
+    ]
+    if not any(inst.instance_id == "bs2" for inst in instances):
+        instances.append(replace(instances[0], instance_id="bs2"))
+    settings = replace(settings, instances=instances)
+    bot = BotActions(settings)
     stub = _StubController()
     mocker.patch.object(bot, "_get_serial", new=lambda _id: "stub-serial")
     mocker.patch.object(bot, "_adb_bin", new=lambda: "adb")
@@ -168,9 +178,10 @@ def test_swipe_direction_maps_delta_through_bot_frame(
     stub = bot._test_stub_controller  # type: ignore[attr-defined]
     stub.resolution = (1080, 1920)
 
-    assert bot.swipe_direction("bs1", "up", 100)
+    with patch("adb.bot_actions.random.uniform", side_effect=[0.5, 0.68]):
+        assert bot.swipe_direction("bs1", "up", 100)
 
-    assert stub.swipe_points == [(Point(540, 960), Point(540, 810))]
+    assert stub.swipe_points == [(Point(540, 1305), Point(540, 1155))]
 
 
 @pytest.mark.parametrize(

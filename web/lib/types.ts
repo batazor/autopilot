@@ -4,6 +4,15 @@ export type HealthView = {
   redis: "ok" | "unreachable";
 };
 
+export type VersionView = {
+  current: { version: string; revision: string };
+  remote: { tag: string; html_url: string } | null;
+  update_available: boolean;
+  repo: string;
+  checked_at: number;
+  reason: "ok" | "dev_build" | "github_unreachable";
+};
+
 export type BotStatusView = {
   running: boolean;
   mode: "supervisor" | "embedded" | null;
@@ -97,6 +106,13 @@ export type ClickApprovalView = {
     width: number;
     height: number;
     mtime?: number | null;
+  };
+  /** Live H.264 WebSocket stream capability for this instance.
+   *  ``available: true`` only when scrcpy is currently running AND has
+   *  received its codec config. The UI uses this to auto-pick WebCodecs
+   *  instead of opening a doomed socket on adb/quartz/minicap devices. */
+  stream: {
+    available: boolean;
   };
   instance_state: Record<string, string>;
   current_screen: string;

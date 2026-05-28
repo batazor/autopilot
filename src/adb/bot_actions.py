@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import random
 import threading
 import time
 from datetime import timedelta
@@ -19,7 +20,7 @@ from adb.minicap import MinicapClient
 from adb.quartz_screencap import quartz_screencap_bgr
 from adb.scrcpy import DEFAULT_PORT_BASE as _SCRCPY_PORT_BASE
 from adb.scrcpy import ScrcpyClient, close_scrcpy_client, get_or_create_scrcpy_client
-from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform
+from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform, resolve_adb_executable
 from adb.serial import is_emulator_adb_serial
 from layout.types import Point
 from worker import frame_bus
@@ -35,7 +36,52 @@ logger = logging.getLogger(__name__)
 
 _FIRST_FRAME_TIMEOUT_S = 30.0
 _NEXT_FRAME_TIMEOUT_S = 3.0
+# scrcpy reader thread caches the latest H264 frame (~30 FPS on physical
+# devices), so a "next frame" event arrives every ~33ms. Using a 3s timeout
+# here would mean post-tap captures wait for the rolling loop's 2s interval
+# instead of grabbing the already-cached frame. 200ms gives generous slack
+# for slow encoders without serialising taps behind rolling ticks.
+_SCRCPY_NEXT_FRAME_TIMEOUT_S = 0.2
 _DISPLAY_SETTLE_AFTER_WM_S = 5.0
+_SWIPE_EDGE_MARGIN_PX = 24
+
+
+def _directional_swipe_points(
+    frame_w: int,
+    frame_h: int,
+    direction: str,
+    delta: int,
+) -> tuple[Point, Point]:
+    """Pick a plausible swipe lane instead of always using the exact center."""
+
+    margin = _SWIPE_EDGE_MARGIN_PX
+    direction = direction.lower()
+    delta = max(0, int(delta))
+
+    def clamp_x(x: int) -> int:
+        return max(margin, min(frame_w - margin, x))
+
+    def clamp_y(y: int) -> int:
+        return max(margin, min(frame_h - margin, y))
+
+    if direction == "up":
+        x = clamp_x(int(round(random.uniform(0.38, 0.62) * frame_w)))
+        y1 = clamp_y(int(round(random.uniform(0.60, 0.76) * frame_h)))
+        return Point(x, y1), Point(x, clamp_y(y1 - delta))
+    if direction == "down":
+        x = clamp_x(int(round(random.uniform(0.38, 0.62) * frame_w)))
+        y1 = clamp_y(int(round(random.uniform(0.30, 0.46) * frame_h)))
+        return Point(x, y1), Point(x, clamp_y(y1 + delta))
+    if direction == "left":
+        y = clamp_y(int(round(random.uniform(0.42, 0.62) * frame_h)))
+        x1 = clamp_x(int(round(random.uniform(0.58, 0.76) * frame_w)))
+        return Point(x1, y), Point(clamp_x(x1 - delta), y)
+    if direction == "right":
+        y = clamp_y(int(round(random.uniform(0.42, 0.62) * frame_h)))
+        x1 = clamp_x(int(round(random.uniform(0.24, 0.42) * frame_w)))
+        return Point(x1, y), Point(clamp_x(x1 + delta), y)
+    msg = f"Unknown swipe direction: {direction!r}"
+    raise ValueError(msg)
 
 
 class BotActions:
@@ -71,9 +117,12 @@ class BotActions:
         # scrcpy (Genymobile) clients: one server process per instance, shared
         # between screenshot (here) and input (AdbController). Registry is
         # module-level — AdbController fetches the same client by serial.
-        # ``_scrcpy_fallback`` matches the minicap-fallback contract: a failed
-        # start means we use adb screencap for the rest of the session.
-        self._scrcpy_fallback: set[str] = set()
+        #
+        # NOTE: there is **no** silent ADB fallback when scrcpy is the
+        # configured backend. If start() or capture fails, the exception
+        # propagates so the operator sees the real reason (device offline,
+        # JAR push denied, server crash, …) instead of a slow-and-mysterious
+        # bot running on ``adb exec-out screencap``. Fix scrcpy → restart.
         self._scrcpy_lock = threading.Lock()
 
     def _controller(self, instance_id: str) -> AdbController:
@@ -175,8 +224,14 @@ class BotActions:
             ctrl.ensure_game_foreground(game)
 
     def _adb_bin(self) -> str:
+        # Resolve the adb path eagerly so downstream consumers (scrcpy,
+        # screencap, controller) all see the same absolute path. Without
+        # the resolve, scrcpy.py runs ``DEFAULT_ADB_BIN`` literally and
+        # fails on machines where adb isn't at the Apple-Silicon default
+        # ``/opt/homebrew/bin/adb`` (e.g. Intel Homebrew at /usr/local).
         pref = (self._settings.worker.adb_executable or "").strip()
-        return pref or DEFAULT_ADB_BIN
+        resolved = resolve_adb_executable(pref or DEFAULT_ADB_BIN)
+        return resolved or (pref or DEFAULT_ADB_BIN)
 
     def _to_adb_point(self, instance_id: str, point: Point) -> Point:
         """Map bot-frame coordinates (720x1280) into the device touch space."""
@@ -244,17 +299,17 @@ class BotActions:
             self._minicap_clients[instance_id] = client
             return client
 
-    def _get_scrcpy_client(self, instance_id: str) -> ScrcpyClient | None:
-        """Lazy-start the shared scrcpy server for ``instance_id``; ``None`` on fallback.
+    def _get_scrcpy_client(self, instance_id: str) -> ScrcpyClient:
+        """Lazy-start the shared scrcpy server for ``instance_id``.
 
-        Returns ``None`` (and pins the instance in ``_scrcpy_fallback``) when
-        startup raises — both the screenshot path and the input path observe
-        that signal and switch to their respective adb fallbacks for the rest
-        of the session, avoiding repeated start attempts every tick.
+        Raises ``RuntimeError`` (or whatever the underlying start path threw)
+        when scrcpy can't be brought up — by design. There is no silent
+        adb fallback: the operator configured ``screenshot_backend=scrcpy``
+        / ``input_backend=scrcpy`` and quietly degrading to ADB would mask
+        the real problem (device offline, JAR push denied, server crash, …)
+        behind a slow-but-functional bot. Fix scrcpy, restart.
         """
         with self._scrcpy_lock:
-            if instance_id in self._scrcpy_fallback:
-                return None
             slot = next(
                 (i for i, inst in enumerate(self._settings.instances)
                  if inst.instance_id == instance_id),
@@ -271,39 +326,33 @@ class BotActions:
             try:
                 client.start()
             except Exception as exc:
-                logger.warning(
-                    "scrcpy failed for %s (%s) — falling back to adb for this session",
-                    instance_id, exc,
-                )
-                self._scrcpy_fallback.add(instance_id)
+                # Drop the dead client so the next call re-creates a fresh
+                # instance with current adb_bin / port — without this a
+                # botched start would freeze the (serial → ScrcpyClient)
+                # registry on a defunct object.
                 with contextlib.suppress(Exception):
                     close_scrcpy_client(self._get_serial(instance_id))
-                return None
+                msg = f"scrcpy unavailable for {instance_id}: {exc}"
+                raise RuntimeError(msg) from exc
             return client
 
     def capture_screen_bgr_scrcpy(self, instance_id: str) -> np.ndarray:
-        """Capture via scrcpy H.264 stream. Falls back to ``capture_screen_bgr_adb`` on error."""
+        """Capture via scrcpy H.264 stream. Raises on failure — no adb fallback."""
         client = self._get_scrcpy_client(instance_id)
-        if client is None:
-            return self.capture_screen_bgr_adb(instance_id)
-        img: np.ndarray | None = None
-        capture_err: str | None = None
-        try:
-            img, capture_err = client.read_latest_frame_bgr(
-                timeout_s=self._NEXT_FRAME_TIMEOUT_S,
-            )
-        except Exception as exc:
-            capture_err = str(exc)
+        img, capture_err = client.read_latest_frame_bgr(
+            timeout_s=self._NEXT_FRAME_TIMEOUT_S,
+        )
         if img is None:
-            logger.warning(
-                "scrcpy failed for %s (%s) — falling back to adb screencap for this session",
-                instance_id, capture_err or "no frame",
-            )
-            with self._scrcpy_lock:
-                self._scrcpy_fallback.add(instance_id)
+            # Tear down the dead client so the next tick can attempt a fresh
+            # start, then raise — slow-and-functional ADB fallback is exactly
+            # the masking behaviour we removed by design.
             with contextlib.suppress(Exception):
                 close_scrcpy_client(self._get_serial(instance_id))
-            return self.capture_screen_bgr_adb(instance_id)
+            msg = (
+                f"scrcpy capture failed for {instance_id}: "
+                f"{capture_err or 'no frame received'}"
+            )
+            raise RuntimeError(msg)
         # scrcpy emits frames at the device's physical resolution (we pass
         # max_size=0 so no host-side resize is applied); compute a normalising
         # transform exactly like the minicap path does.
@@ -397,12 +446,26 @@ class BotActions:
         return img
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
-        """Framebuffer BGR from ``frame_bus``, normally fed by the rolling ADB loop.
+        """Latest BGR frame for ``instance_id``.
 
-        If nothing was published within the timeout (cold race, rolling paused for
-        device-offline, or ADB not returning screenshots), fall back to a direct
-        configured direct backend so matchers / overlay DSL can still run.
+        For scrcpy backend, read directly from the scrcpy reader thread's
+        cache — frames stream at ~30 FPS, so the cached frame is at most
+        ~33ms old. The rolling loop's 2s ``frame_bus`` cadence would otherwise
+        serialise every post-tap capture behind it.
+
+        For other backends, wait on ``frame_bus`` (fed by the rolling loop);
+        fall back to a direct capture if nothing was published within the
+        timeout (cold race, device offline, or capture stalled).
+
+        When ``screenshot_backend=scrcpy`` is configured and scrcpy is
+        unavailable, this raises rather than silently routing through ADB —
+        a slow-but-functional bot would mask the real fault.
         """
+        inst = self._get_instance(instance_id)
+        backend = (inst.screenshot_backend or "").strip().lower()
+        if backend == "scrcpy":
+            return self._capture_screen_bgr_scrcpy_fast(instance_id)
+
         with self._frame_cache_lock:
             await_next = instance_id in self._await_next_frame
             if await_next:
@@ -427,6 +490,33 @@ class BotActions:
             return self.capture_screen_bgr_direct(instance_id)
         with self._frame_cache_lock:
             self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+        return img
+
+    def _capture_screen_bgr_scrcpy_fast(self, instance_id: str) -> np.ndarray:
+        """Read directly from the scrcpy reader cache (sub-200ms typical).
+
+        Raises ``RuntimeError`` when scrcpy is unavailable for this instance —
+        ``screenshot_backend=scrcpy`` means scrcpy is the only acceptable
+        source. Quietly falling through to ADB would mask the real failure.
+        """
+        client = self._get_scrcpy_client(instance_id)
+        img, err = client.read_latest_frame_bgr(
+            timeout_s=_SCRCPY_NEXT_FRAME_TIMEOUT_S,
+        )
+        if img is None:
+            msg = (
+                f"scrcpy capture failed for {instance_id}: "
+                f"{err or 'no frame received within timeout'}"
+            )
+            raise RuntimeError(msg)
+        transform = frame_normalize_transform_for_size(
+            (img.shape[1], img.shape[0]),
+            target_size=GAME_FRAME_SIZE,
+        )
+        frame_bus.publish(instance_id, img, transform=transform)
+        with self._frame_cache_lock:
+            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
+            self._await_next_frame.discard(instance_id)
         return img
 
     def capture_screen_bgr_cached(
@@ -511,19 +601,7 @@ class BotActions:
         self, instance_id: str, direction: str, delta: int, duration_ms: int = 300
     ) -> bool:
         frame_w, frame_h = GAME_FRAME_SIZE
-        cx, cy = frame_w // 2, frame_h // 2
-        match direction.lower():
-            case "left":
-                start, end = Point(cx, cy), Point(cx - delta, cy)
-            case "right":
-                start, end = Point(cx, cy), Point(cx + delta, cy)
-            case "up":
-                start, end = Point(cx, cy), Point(cx, cy - delta)
-            case "down":
-                start, end = Point(cx, cy), Point(cx, cy + delta)
-            case _:
-                msg = f"Unknown swipe direction: {direction!r}"
-                raise ValueError(msg)
+        start, end = _directional_swipe_points(frame_w, frame_h, direction, delta)
         return self.swipe(instance_id, start, end, duration_ms=duration_ms)
 
     def long_tap(self, instance_id: str, point: Point, duration_ms: int = 800) -> bool:

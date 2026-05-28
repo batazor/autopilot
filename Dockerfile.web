@@ -46,10 +46,18 @@ RUN --mount=type=cache,target=/app/.next/cache \
 FROM node:${NODE_VERSION}-bookworm-slim AS runner
 
 WORKDIR /app
+
+# Build identity surfaced by the /api/version endpoint via the API container —
+# kept identical here so a fork pulling just ``web`` can still inspect the tag.
+ARG BUILD_VERSION=""
+ARG BUILD_REVISION=""
+
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    WOS_BUILD_VERSION=${BUILD_VERSION} \
+    WOS_BUILD_REVISION=${BUILD_REVISION}
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

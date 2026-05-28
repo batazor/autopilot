@@ -22,6 +22,35 @@ from dsl import template_resolver as _tmpl
 from tasks.dsl_scenario_helpers import _dsl_step_summary
 
 
+def _scrcpy_stream_available(instance_id: str) -> bool:
+    """True iff the live H.264 WebSocket endpoint can stream this instance.
+
+    Requires:
+      * worker has already mapped this instance to a device serial,
+      * a ``ScrcpyClient`` for that serial is registered AND alive,
+      * the reader thread has buffered at least one config packet (SPS+PPS),
+        without which WebCodecs can't be configured on the browser side.
+
+    Pure lookup — never creates a client. The dashboard polls this on every
+    approval refresh, so making it side-effect-free keeps the registry clean
+    even when the operator is on a device with a non-scrcpy backend.
+    """
+    from adb.scrcpy import lookup_scrcpy_client
+    from config.loader import load_settings
+
+    serial: str | None = None
+    for inst in load_settings().instances:
+        if inst.instance_id == instance_id:
+            serial = inst.bluestacks_window_title
+            break
+    if not serial:
+        return False
+    client = lookup_scrcpy_client(serial)
+    if client is None or not client.is_alive():
+        return False
+    return client.latest_codec_config() is not None
+
+
 def _as_text(value: Any) -> str:
     if value is None:
         return ""
@@ -550,6 +579,15 @@ def get_approval_view(
             "mtime": mtime,
             "width": width,
             "height": height,
+        },
+        "stream": {
+            # True iff the H.264 WebSocket endpoint can serve this instance
+            # right now — i.e. the worker has already started scrcpy AND the
+            # reader received at least one config (SPS+PPS) packet. The UI
+            # uses this to auto-pick WebCodecs over the rolling PNG instead
+            # of opening a doomed socket on adb/quartz/minicap devices or
+            # before the worker has booted scrcpy.
+            "available": _scrcpy_stream_available(instance_id),
         },
         "overlays": overlays,
         "instance_state": instance_state,

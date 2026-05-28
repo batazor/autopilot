@@ -57,7 +57,8 @@ def get_adb_status() -> dict[str, Any]:
 
     configured: list[dict[str, Any]] = []
     for device in load_registry().devices:
-        is_emu = is_emulator_adb_serial(device.adb_serial or device.name)
+        serial = device.effective_serial
+        is_emu = is_emulator_adb_serial(serial)
         # Mirror dispatcher defaults.
         # Screenshot: smart per-serial (physical → minicap, emulator → quartz).
         # Input: always defaults to adb; minitouch is opt-in via the UI editor
@@ -67,7 +68,7 @@ def get_adb_status() -> dict[str, Any]:
         configured.append(
             {
                 "name": device.name,
-                "adb_serial": device.adb_serial,
+                "adb_serial": serial,
                 "instance_id": "",
                 "bluestacks_window_title": "",
                 "screenshot_backend": device.screenshot_backend,

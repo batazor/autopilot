@@ -25,6 +25,7 @@ import {
   fetchInstanceTestModule,
   fetchModules,
   fetchNotifications,
+  h264StreamUrl,
   overlayTestImageUrl,
   resetCurrentScreen,
   setApprovalEnabled,
@@ -39,6 +40,7 @@ import type {
 } from "@/lib/types";
 import type { ModuleRow } from "@/lib/config-pages";
 import { debugRunHref, editDslHref, overlayTestHref } from "@/lib/debug-links";
+import { isWebCodecsSupported } from "@/lib/h264VideoStream";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 const NOTIFICATIONS_MAX_AGE_S = 30;
 const TOAST_VISIBLE_MS = 6000;
@@ -54,9 +56,12 @@ type Decision = "approve" | "reject" | "skip";
 // that impossible).
 type BusyAction = Decision | "toggle" | "clear-pending" | "clear-queue" | "reset-screen" | "test-module" | null;
 
+type ImageSource = "capture" | "live" | "stream";
+
 const SCREENSHOT_SOURCE_OPTIONS = [
   { value: "capture", label: "Captured (request)" },
   { value: "live", label: "Live rolling" },
+  { value: "stream", label: "Live video (WebCodecs)" },
 ];
 
 const TEST_MODULE_ALL = "";
@@ -67,8 +72,19 @@ export default function ApprovalsPage() {
   const [view, setView] = useState<ClickApprovalView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
-  const [imageSource, setImageSource] =
-    useState<"capture" | "live">("live");
+  // Start on the rolling PNG ("live") — always works regardless of backend or
+  // browser. Auto-upgrade to "stream" happens once below when the server
+  // reports stream.available AND WebCodecs is supported, so scrcpy-backed
+  // devices on Chrome/Edge/Safari get the ~50ms path without manual action.
+  // Manual selections (via the dropdown) stick and are not auto-overridden.
+  const [imageSource, setImageSource] = useState<ImageSource>("live");
+  // Tracks whether the user has manually picked a source from the dropdown.
+  // Once they do, the auto-upgrade-to-stream pass below stops kicking in.
+  const userPickedSourceRef = useRef(false);
+  // Have we already auto-upgraded? Guards against the upgrade re-firing on
+  // every refresh — once is enough; subsequent refreshes only check stream
+  // health to surface a downgrade message if needed.
+  const autoUpgradedRef = useRef(false);
   const [imageTick, setImageTick] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showPayload, setShowPayload] = useState(false);
@@ -106,8 +122,27 @@ export default function ApprovalsPage() {
   const refresh = useCallback(async () => {
     if (!instanceId) return;
     try {
-      const data = await fetchClickApproval(instanceId, imageSource);
+      // Stream mode reuses the "live" metadata (region boxes, tap target,
+      // preview dimensions) — the image bytes themselves are pulled via
+      // WebSocket, but the backend overlay data is the same.
+      const metadataSource: "capture" | "live" =
+        imageSource === "stream" ? "live" : imageSource;
+      const data = await fetchClickApproval(instanceId, metadataSource);
       setView(data);
+      // Auto-upgrade to WebCodecs stream once when the backend reports it's
+      // available (scrcpy running + codec config received) AND the browser
+      // supports WebCodecs AND the operator hasn't manually picked a source.
+      // Stays sticky after the first upgrade — we don't ping-pong on transient
+      // server hiccups.
+      if (
+        !autoUpgradedRef.current &&
+        !userPickedSourceRef.current &&
+        data.stream?.available &&
+        isWebCodecsSupported()
+      ) {
+        autoUpgradedRef.current = true;
+        setImageSource("stream");
+      }
       const nextKey = data.has_pending ? data.trace_id || "(pending)" : "(idle)";
       const pendingChanged = nextKey !== lastPendingKeyRef.current;
       if (pendingChanged) {
@@ -115,6 +150,7 @@ export default function ApprovalsPage() {
       }
       // Live rolling: worker overwrites the PNG on disk; bust cache when mtime moves.
       // Capture: only refetch when the pending approval identity changes.
+      // Stream: no <img> cache bust needed (canvas redraws on each VideoFrame).
       let imageStale = pendingChanged;
       if (imageSource === "live") {
         const mtime = data.preview?.mtime ?? null;
@@ -447,9 +483,13 @@ export default function ApprovalsPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [view?.has_pending, busyAction, onDecision]);
 
+  // Stream mode pulls bytes from the WebSocket directly; the URL passed to
+  // the canvas is the ws:// endpoint, not the click-approval image URL.
+  const streamUrl =
+    imageSource === "stream" && instanceId ? h264StreamUrl(instanceId) : null;
   const imageUrl =
-    view?.preview.available && instanceId
-      ? `${clickApprovalImageUrl(instanceId, imageSource)}&tick=${imageTick}`
+    !streamUrl && view?.preview.available && instanceId
+      ? `${clickApprovalImageUrl(instanceId, imageSource === "stream" ? "live" : imageSource)}&tick=${imageTick}`
       : null;
   const probeImageUrl =
     regionProbe?.preview.available && instanceId
@@ -591,7 +631,12 @@ export default function ApprovalsPage() {
           label="Screenshot"
           options={SCREENSHOT_SOURCE_OPTIONS}
           value={imageSource}
-          onChange={(next) => setImageSource(next as "capture" | "live")}
+          onChange={(next) => {
+            // Manual selection — sticks across refreshes; the auto-upgrade
+            // path below won't override the operator's choice.
+            userPickedSourceRef.current = true;
+            setImageSource(next as ImageSource);
+          }}
           minWidth={210}
           isSearchable={false}
         />
@@ -683,9 +728,16 @@ export default function ApprovalsPage() {
           <h2>Screenshot</h2>
           <ApprovalCanvas
             imageUrl={imageUrl}
+            streamUrl={streamUrl}
             width={view?.preview.width ?? 0}
             height={view?.preview.height ?? 0}
             overlays={overlaysStable}
+            onStreamClosed={(reason) => {
+              // No silent fallback — surface the close reason verbatim. The
+              // operator stays in stream mode and decides whether to switch
+              // via the dropdown.
+              setError(`Live video stream closed: ${reason}`);
+            }}
           />
           {view?.tap_x != null && view?.tap_y != null ? (
             <p className="meta">

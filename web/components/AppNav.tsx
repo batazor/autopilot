@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -16,6 +17,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { NavIcon } from "@/components/ui/NavIcon";
+import { VersionFooterRow } from "@/components/VersionBadge";
 import { fetchLicenseStatus } from "@/lib/api";
 import {
   getNavLock,
@@ -159,7 +161,16 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
           onClick={onNavigate}
           className="group flex min-w-0 flex-1 items-center gap-2.5 no-underline"
         >
-          <span className="nav-brand__logo">A</span>
+          <span className="nav-brand__logo">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={36}
+              height={36}
+              priority
+              className="h-full w-full object-contain"
+            />
+          </span>
           <span className="min-w-0">
             <span className="flex items-center gap-1.5">
               <span className="truncate text-sm font-semibold tracking-tight text-wos-text group-hover:text-white">
@@ -348,42 +359,47 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
       </nav>
 
       <footer className="nav-footer">
-        <ThemeToggle compact className="mb-2 w-full justify-start" />
-        <p className="m-0 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-          <span>
-            API <code className="nav-footer__code">:8765</code>
+        <ThemeToggle compact className="nav-footer__theme" />
+
+        <VersionFooterRow />
+
+        <a
+          href="https://discord.gg/62twnzKG9"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="nav-footer__discord"
+          title="Join the Autopilot community on Discord"
+        >
+          <span className="nav-footer__discord-icon" aria-hidden>
+            <Icon name="discord" size="sm" />
           </span>
-          <span className="text-wos-text-muted" aria-hidden>
-            ·
+          <span className="min-w-0 flex-1">
+            <span className="block text-[12px] font-semibold leading-tight">
+              Join Discord
+            </span>
+            <span className="block truncate text-[10px] text-wos-text-muted">
+              Community & support
+            </span>
           </span>
+        </a>
+
+        <div className="nav-footer__status">
+          <span className="inline-flex items-center gap-1">
+            <span>API</span>
+            <code className="nav-footer__code">:8765</code>
+          </span>
+          <span className="nav-footer__sep" aria-hidden>·</span>
           <ApiStatusIndicator variant="footer" />
-          <span className="text-wos-text-muted" aria-hidden>
-            ·
-          </span>
+          <span className="nav-footer__sep" aria-hidden>·</span>
           <a
             href="/health"
             target="_blank"
             rel="noreferrer"
-            className="no-underline"
-            style={{ color: "var(--wos-link)" }}
+            className="nav-footer__link"
           >
             health JSON
           </a>
-          <span className="text-wos-text-muted" aria-hidden>
-            ·
-          </span>
-          <a
-            href="https://discord.gg/62twnzKG9"
-            target="_blank"
-            rel="noreferrer noopener"
-            className="inline-flex items-center gap-1 no-underline"
-            style={{ color: "var(--wos-link)" }}
-            title="Join the Autopilot community on Discord"
-          >
-            <Icon name="discord" size="sm" />
-            Discord
-          </a>
-        </p>
+        </div>
       </footer>
     </aside>
   );

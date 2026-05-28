@@ -15,8 +15,11 @@ import pytest
 
 from adb.scrcpy import (
     DEFAULT_PORT_BASE,
+    SCRCPY_SERVER_VERSION,
     ScrcpyClient,
     ScrcpyStatus,
+    _human_step_sleeps,
+    _human_swipe_points,
     _recv_exact,
     close_all_scrcpy_clients,
     close_scrcpy_client,
@@ -107,7 +110,7 @@ def test_install_downloads_and_pushes(tmp_path) -> None:
 
 def test_install_skips_download_when_cached(tmp_path) -> None:
     """Cached jar in ~/.cache should not re-download on subsequent installs."""
-    cached_jar = tmp_path / "scrcpy-server-v3.1.jar"
+    cached_jar = tmp_path / f"scrcpy-server-v{SCRCPY_SERVER_VERSION}.jar"
     cached_jar.write_bytes(b"prebuilt jar")
     downloads: list[str] = []
 
@@ -131,6 +134,44 @@ def test_install_skips_download_when_cached(tmp_path) -> None:
         install_scrcpy("X", "/usr/local/bin/adb")
 
     assert downloads == []  # no network call
+
+
+def test_start_reinstalls_when_device_server_is_old() -> None:
+    """An old v3.x server jar must not be accepted as current.
+
+    v3.x artifacts are ~90 KiB; v4.0 is ~715 KiB. If we only check that
+    /data/local/tmp/scrcpy-server.jar exists, a device upgraded from an older
+    run launches an incompatible server and fails before the first frame.
+    """
+    client = ScrcpyClient(serial="RF8RC00M8MF", adb_bin="/usr/local/bin/adb")
+
+    with (
+        patch(
+            "adb.scrcpy.get_scrcpy_status",
+            return_value=ScrcpyStatus(
+                serial="RF8RC00M8MF",
+                jar_installed=True,
+                jar_size=90_640,
+            ),
+        ),
+        patch(
+            "adb.scrcpy.install_scrcpy",
+            return_value=ScrcpyStatus(
+                serial="RF8RC00M8MF",
+                jar_installed=True,
+                jar_size=732_226,
+            ),
+        ) as install,
+        patch("adb.scrcpy._run_adb"),
+        patch("adb.scrcpy.subprocess.Popen") as popen,
+        patch.object(ScrcpyClient, "_connect_sockets"),
+        patch("adb.scrcpy.threading.Thread"),
+        patch("adb.scrcpy.time.sleep"),
+    ):
+        popen.return_value.poll.return_value = None
+        client.start()
+
+    install.assert_called_once_with("RF8RC00M8MF", "/usr/local/bin/adb")
 
 
 def test_status_dict_includes_installed() -> None:
@@ -219,7 +260,10 @@ def test_send_touch_clamps_out_of_bounds() -> None:
 
 def test_tap_emits_down_then_up_release() -> None:
     client = _make_started_client()
-    with patch("adb.scrcpy.time.sleep"):
+    with (
+        patch("adb.scrcpy.time.sleep"),
+        patch("adb.scrcpy.random.random", return_value=0.99),
+    ):
         client.tap(50, 50)
     msgs = _captured_control_writes(client)
     down, up = msgs
@@ -243,7 +287,10 @@ def test_long_press_holds_for_duration() -> None:
 
 def test_swipe_emits_down_moves_up() -> None:
     client = _make_started_client()
-    with patch("adb.scrcpy.time.sleep"):
+    with (
+        patch("adb.scrcpy.time.sleep"),
+        patch("adb.scrcpy.random.random", return_value=0.99),
+    ):
         client.swipe(0, 0, 720, 1280, duration_ms=320, steps=8)
     msgs = _captured_control_writes(client)
     actions = [m[1] for m in msgs]
@@ -251,6 +298,21 @@ def test_swipe_emits_down_moves_up() -> None:
     assert actions[0] == 0x00
     assert actions[-1] == 0x01
     assert actions.count(0x02) == 8
+    _, _, _, x, y, *_ = struct.unpack(">BBQiiHHHII", msgs[-2])
+    assert (x, y) == (719, 1279)
+
+
+def test_human_swipe_points_include_exact_endpoint() -> None:
+    pts = _human_swipe_points(10, 20, 110, 220, steps=12)
+    assert len(pts) == 12
+    assert pts[-1] == (110, 220)
+
+
+def test_human_step_sleeps_preserve_duration() -> None:
+    sleeps = _human_step_sleeps(900, steps=18)
+    assert len(sleeps) == 18
+    assert sum(sleeps) == pytest.approx(0.9)
+    assert all(s > 0 for s in sleeps)
 
 
 def test_send_touch_before_start_raises() -> None:
@@ -301,3 +363,244 @@ def test_construction_does_not_open_sockets() -> None:
 def test_is_alive_false_before_start() -> None:
     client = ScrcpyClient(serial="x", adb_bin="/bin/true")
     assert not client.is_alive()
+
+
+def test_start_creates_adb_forward_before_launching_server() -> None:
+    """scrcpy-server v4 expects the adb forward to exist before app_process starts."""
+    events: list[str] = []
+    client = ScrcpyClient(serial="S", adb_bin="/adb", port=1919)
+
+    def fake_run_adb(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if args[:1] == ["forward"] and "--remove" not in args:
+            events.append("forward:add")
+        return _completed()
+
+    def fake_popen(*_args: object, **_kwargs: object) -> MagicMock:
+        events.append("popen")
+        proc = MagicMock()
+        proc.poll.return_value = None
+        return proc
+
+    with (
+        patch(
+            "adb.scrcpy.get_scrcpy_status",
+            return_value=ScrcpyStatus(serial="S", jar_installed=True, jar_size=732_226),
+        ),
+        patch("adb.scrcpy._run_adb", side_effect=fake_run_adb),
+        patch("adb.scrcpy.subprocess.Popen", side_effect=fake_popen),
+        patch.object(ScrcpyClient, "_connect_sockets"),
+        patch("adb.scrcpy.threading.Thread"),
+        patch("adb.scrcpy.time.sleep"),
+    ):
+        client.start()
+
+    assert events == ["forward:add", "popen"]
+
+
+def test_start_passes_keep_active_to_server() -> None:
+    client = ScrcpyClient(serial="S", adb_bin="/adb", port=1919)
+
+    with (
+        patch(
+            "adb.scrcpy.get_scrcpy_status",
+            return_value=ScrcpyStatus(serial="S", jar_installed=True, jar_size=732_226),
+        ),
+        patch("adb.scrcpy._run_adb"),
+        patch("adb.scrcpy.subprocess.Popen") as popen,
+        patch.object(ScrcpyClient, "_connect_sockets"),
+        patch("adb.scrcpy.threading.Thread"),
+        patch("adb.scrcpy.time.sleep"),
+    ):
+        popen.return_value.poll.return_value = None
+        client.start()
+
+    cmd = popen.call_args.args[0]
+    assert "keep_active=true" in cmd
+
+
+def test_connect_sockets_connects_control_before_video_metadata() -> None:
+    """scrcpy-server v4 sends metadata only after all expected sockets connect."""
+    events: list[str] = []
+
+    class FakeSocket:
+        def __init__(self, name: str, chunks: list[bytes] | None = None) -> None:
+            self.name = name
+            self.chunks = list(chunks or [])
+
+        def settimeout(self, _timeout: float | None) -> None:
+            pass
+
+        def connect(self, _addr: tuple[str, int]) -> None:
+            events.append(f"{self.name}:connect")
+
+        def recv(self, n: int) -> bytes:
+            events.append(f"{self.name}:recv:{n}")
+            if not self.chunks:
+                return b""
+            chunk = self.chunks.pop(0)
+            if len(chunk) <= n:
+                return chunk
+            self.chunks.insert(0, chunk[n:])
+            return chunk[:n]
+
+    video = FakeSocket(
+        "video",
+        [
+            b"\x00",
+            b"SM-G780G" + (b"\x00" * 56),
+            b"h264",
+            b"\x80\x00\x00\x00" + struct.pack(">II", 1080, 2400),
+        ],
+    )
+    control = FakeSocket("control")
+    client = ScrcpyClient(serial="S", adb_bin="/adb", port=1919)
+
+    with patch("adb.scrcpy.socket.socket", side_effect=[video, control]):
+        client._connect_sockets()
+
+    assert client.device_name == "SM-G780G"
+    assert client.codec_size == (1080, 2400)
+    assert events.index("control:connect") < events.index("video:recv:64")
+
+
+# ---------------------------------------------------------------------------
+# H.264 NAL fan-out — WebSocket subscribers
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_video_returns_independent_queues() -> None:
+    """Each subscriber owns its own queue; one consumer falling behind must
+    not starve the other (the fanout drops on a full queue per subscriber)."""
+    from adb.scrcpy import VideoPacket
+
+    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
+    s1 = client.subscribe_video()
+    s2 = client.subscribe_video()
+    assert s1.queue is not s2.queue
+    assert s1.desynced is not s2.desynced
+
+    pkt = VideoPacket(pts=1, is_config=False, is_key=True, payload=b"idr")
+    client._fanout_video_packet(pkt)
+    assert s1.queue.get_nowait() is pkt
+    assert s2.queue.get_nowait() is pkt
+
+
+def test_unsubscribe_video_stops_delivery() -> None:
+    from adb.scrcpy import VideoPacket
+
+    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
+    sub = client.subscribe_video()
+    client.unsubscribe_video(sub)
+    client._fanout_video_packet(
+        VideoPacket(pts=0, is_config=False, is_key=False, payload=b"x")
+    )
+    assert sub.queue.empty()
+
+
+def test_fanout_drops_and_flags_desync_when_queue_full() -> None:
+    """A wedged subscriber must not block the reader thread, but silent drops
+    corrupt the H.264 reference chain (a missed IDR makes all following
+    deltas undecodable). So the fanout also sets ``desynced`` so the
+    consumer can drain + wait for the next keyframe instead of feeding
+    out-of-sequence frames to WebCodecs."""
+    from adb.scrcpy import VideoPacket
+
+    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
+    sub = client.subscribe_video()
+    # Fill the queue to maxsize without ever draining.
+    while not sub.queue.full():
+        sub.queue.put_nowait(
+            VideoPacket(pts=0, is_config=False, is_key=False, payload=b"f")
+        )
+    assert not sub.desynced.is_set()  # baseline: no drops yet
+    overflow = VideoPacket(pts=99, is_config=False, is_key=False, payload=b"drop")
+    # Must not raise; the drop is silent on the reader thread.
+    client._fanout_video_packet(overflow)
+    # Drain one to verify the overflow was indeed dropped (queue still full of
+    # the original maxsize items, not of ``overflow``).
+    head = sub.queue.get_nowait()
+    assert head.payload == b"f"
+    # And the consumer is informed via desynced so it can resync.
+    assert sub.desynced.is_set()
+
+
+def test_latest_codec_config_is_none_before_any_packet() -> None:
+    client = ScrcpyClient(serial="x", adb_bin="/bin/true")
+    assert client.latest_codec_config() is None
+
+
+def test_close_signals_subscribers_with_end_sentinel() -> None:
+    """``close()`` must wake blocked subscribers immediately.
+
+    Without this, a WebSocket consumer parked in ``queue.get(timeout=N)``
+    would hang on every scrcpy shutdown until the WS idle timeout fired —
+    visible to operators as a multi-second freeze.
+    """
+    client = ScrcpyClient(serial="close-wake", adb_bin="/bin/true")
+    sub = client.subscribe_video()
+    # Fake the lifecycle bits ``close()`` would otherwise touch so we don't
+    # actually have to run a scrcpy server here.
+    client._proc = None
+    client._video_sock = None
+    client._control_sock = None
+
+    client.close()
+
+    # The sentinel ``None`` is queued so the consumer wakes immediately.
+    assert sub.queue.get_nowait() is None
+    # Belt-and-braces: desynced flag is also set, so consumers that gate on
+    # the event (instead of polling the queue) wake up too.
+    assert sub.desynced.is_set()
+
+
+def test_close_signal_evicts_oldest_when_subscriber_queue_full() -> None:
+    """If a wedged consumer left its queue full at shutdown, ``close()`` must
+    still deliver the sentinel — drop the oldest packet to make room rather
+    than block the teardown.
+    """
+    from adb.scrcpy import VideoPacket
+
+    client = ScrcpyClient(serial="close-full", adb_bin="/bin/true")
+    sub = client.subscribe_video()
+    while not sub.queue.full():
+        sub.queue.put_nowait(
+            VideoPacket(pts=0, is_config=False, is_key=False, payload=b"f")
+        )
+    client._proc = None
+    client._video_sock = None
+    client._control_sock = None
+
+    client.close()
+
+    # The sentinel must be the LAST item we get back — everything older was
+    # already in the queue; the eviction makes one slot for ``None``.
+    last: object = "<unset>"
+    while not sub.queue.empty():
+        last = sub.queue.get_nowait()
+    assert last is None
+
+
+def test_lookup_scrcpy_client_does_not_register_a_new_one() -> None:
+    """``lookup_scrcpy_client`` must never create — only observe.
+
+    The WebSocket video route relies on this: if a UI probe arrived before
+    the worker had a chance to assign its instance-slot port and resolved
+    adb binary, a creating-on-lookup helper would poison the registry with
+    a default-port / default-adb client the worker could never replace,
+    breaking scrcpy start after the first UI probe.
+    """
+    from adb.scrcpy import (
+        close_scrcpy_client,
+        get_or_create_scrcpy_client,
+        lookup_scrcpy_client,
+    )
+
+    serial = "lookup-test"
+    close_scrcpy_client(serial)  # ensure clean slate
+    assert lookup_scrcpy_client(serial) is None
+
+    created = get_or_create_scrcpy_client(serial, "/bin/true")
+    assert lookup_scrcpy_client(serial) is created
+
+    close_scrcpy_client(serial)
+    assert lookup_scrcpy_client(serial) is None

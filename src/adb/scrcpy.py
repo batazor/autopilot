@@ -8,11 +8,12 @@ socket on which the host opens up to three connections, in this fixed order:
     2. audio socket  (when audio=true) — we leave it off
     3. control socket (when control=true)
 
-The video socket streams raw H.264 NAL units with a 12-byte per-packet header
-(PTS uint64 BE + size uint32 BE). The top two PTS bits are flags
-(config / key-frame). The control socket is bidirectional binary; each touch
-event is a 32-byte message in the format Server.java decodes in
-``ControlMessageReader``.
+The video socket starts with codec id + session metadata, then streams raw
+H.264 NAL units with a 12-byte per-packet header. In scrcpy v4 the top bit
+marks session packets (resolution updates, no payload); media packets use the
+next two PTS bits as config / key-frame flags. The control socket is
+bidirectional binary; each touch event is a 32-byte message in the format
+Server.java decodes in ``ControlMessageReader``.
 
 This module covers both ends so a single ``scrcpy-server`` process powers both
 :class:`adb.bot_actions.BotActions` screenshots and :class:`adb.controller.AdbController`
@@ -28,6 +29,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import queue
+import random
 import secrets
 import socket
 import struct
@@ -51,7 +54,7 @@ logger = logging.getLogger(__name__)
 # constants
 # ---------------------------------------------------------------------------
 
-SCRCPY_SERVER_VERSION = "3.1"
+SCRCPY_SERVER_VERSION = "4.0"
 _SERVER_URL = (
     f"https://github.com/Genymobile/scrcpy/releases/download/v{SCRCPY_SERVER_VERSION}"
     f"/scrcpy-server-v{SCRCPY_SERVER_VERSION}"
@@ -60,11 +63,18 @@ DEVICE_TMP = "/data/local/tmp"
 DEVICE_JAR = f"{DEVICE_TMP}/scrcpy-server.jar"
 DEFAULT_PORT_BASE = 1515
 _DOWNLOAD_CACHE = Path.home() / ".cache" / "wos-autopilot" / "scrcpy"
+# v4.0 server artifact is ~715 KiB. Older v3.x server jars were ~90 KiB and
+# can still be left on /data/local/tmp from previous runs; treating those as
+# valid makes the client launch an incompatible server.
+_MIN_SERVER_JAR_SIZE = 700_000
 
-# Frame meta flags (top bits of the 64-bit PTS).
-_PACKET_FLAG_CONFIG = 1 << 63
-_PACKET_FLAG_KEY_FRAME = 1 << 62
-_PTS_MASK = (1 << 62) - 1
+# Frame meta flags (scrcpy v4). The high bit marks a session packet (video
+# size/update, no payload). Media packets use the next two high bits of PTS
+# for config/keyframe.
+_PACKET_FLAG_SESSION = 1 << 63
+_PACKET_FLAG_CONFIG = 1 << 62
+_PACKET_FLAG_KEY_FRAME = 1 << 61
+_PTS_MASK = (1 << 61) - 1
 
 # Control message types.
 _CTRL_INJECT_TOUCH_EVENT = 2
@@ -80,6 +90,11 @@ _BUTTON_PRIMARY = 1
 # Touch pressure (uint16, 0xFFFF = max press, 0 = released).
 _PRESSURE_DOWN = 0xFFFF
 _PRESSURE_UP = 0
+_PRESSURE_MOVE_MIN = 0xE000
+_TAP_HOLD_MS_MIN = 35
+_TAP_HOLD_MS_MAX = 90
+_TAP_MICRO_MOVE_PROBABILITY = 0.28
+_LONG_SWIPE_OVERSHOOT_MIN_PX = 260
 
 # Server send_dummy_byte=true sends one 0x00 byte on the first connection
 # (the video socket) so the host knows ``adb forward`` actually reached the
@@ -182,13 +197,24 @@ def install_scrcpy(serial: str, adb_bin: str) -> ScrcpyStatus:
             serial=serial, adb_bin=adb_bin, check=True, timeout=30,
         )
     except subprocess.CalledProcessError as exc:
+        stdout = (exc.stdout or b"").decode(errors="replace").strip()
         stderr = (exc.stderr or b"").decode(errors="replace").strip()
-        status.last_error = f"{exc.cmd}: {stderr or exc}"
+        detail = stderr or stdout or str(exc)
+        status.last_error = f"{exc.cmd} failed with exit {exc.returncode}: {detail}"
         return status
     except Exception as exc:
         status.last_error = str(exc)
         return status
     return get_scrcpy_status(serial, adb_bin)
+
+
+def _server_status_current(status: ScrcpyStatus) -> bool:
+    """Return True iff the installed server is plausible for this client."""
+    return bool(
+        status.installed
+        and status.jar_size is not None
+        and status.jar_size >= _MIN_SERVER_JAR_SIZE
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +231,71 @@ def _recv_exact(sock: socket.socket, n: int) -> bytes:
             raise ConnectionError(msg)
         buf.extend(chunk)
     return bytes(buf)
+
+
+def _human_swipe_points(
+    x1: int,
+    y1: int,
+    x2: int,
+    y2: int,
+    *,
+    steps: int,
+) -> list[tuple[int, int]]:
+    """Return MOVE points for a slightly curved, eased finger trail.
+
+    The returned list excludes the DOWN point and includes the final endpoint,
+    so callers can emit DOWN once, MOVE for every returned point, then UP.
+    """
+    n = max(2, int(steps))
+    dx = float(x2 - x1)
+    dy = float(y2 - y1)
+    length = (dx * dx + dy * dy) ** 0.5
+    if length <= 0.0:
+        return [(int(x2), int(y2)) for _ in range(n)]
+
+    perp_x = -dy / length
+    perp_y = dx / length
+    offset = random.uniform(0.015, 0.055) * length * random.choice((-1.0, 1.0))
+    cx = (x1 + x2) / 2.0 + perp_x * offset
+    cy = (y1 + y2) / 2.0 + perp_y * offset
+    out: list[tuple[int, int]] = []
+    overshoot: tuple[float, float] | None = None
+    if length >= _LONG_SWIPE_OVERSHOOT_MIN_PX and random.random() < 0.35:
+        overshoot_px = min(42.0, max(8.0, length * random.uniform(0.025, 0.07)))
+        overshoot = (x2 + dx / length * overshoot_px, y2 + dy / length * overshoot_px)
+    for i in range(1, n + 1):
+        linear_t = i / n
+        # Smoothstep: slower at the start/end, faster in the middle.
+        t = linear_t * linear_t * (3.0 - 2.0 * linear_t)
+        target_x = x2
+        target_y = y2
+        if overshoot is not None and i >= n - 1:
+            target_x, target_y = overshoot
+        bx = (1 - t) ** 2 * x1 + 2 * (1 - t) * t * cx + t * t * target_x
+        by = (1 - t) ** 2 * y1 + 2 * (1 - t) * t * cy + t * t * target_y
+        if i < n:
+            bx += random.uniform(-1.5, 1.5)
+            by += random.uniform(-1.5, 1.5)
+        out.append((int(round(bx)), int(round(by))))
+    if overshoot is not None:
+        settle_steps = random.randint(1, 2)
+        for i in range(settle_steps):
+            t = (i + 1) / settle_steps
+            sx = overshoot[0] + (x2 - overshoot[0]) * t
+            sy = overshoot[1] + (y2 - overshoot[1]) * t
+            out.append((int(round(sx)), int(round(sy))))
+    if out:
+        out[-1] = (int(x2), int(y2))
+    return out
+
+
+def _human_step_sleeps(duration_ms: int, *, steps: int) -> list[float]:
+    """Distribute ``duration_ms`` over ``steps`` uneven intervals."""
+    n = max(1, int(steps))
+    total_s = max(0.001, duration_ms / 1000.0)
+    weights = [random.uniform(0.75, 1.25) for _ in range(n)]
+    total_weight = sum(weights) or 1.0
+    return [max(0.001, total_s * weight / total_weight) for weight in weights]
 
 
 # ---------------------------------------------------------------------------
@@ -266,6 +357,44 @@ class _CachedFrame:
     captured_at: float
 
 
+@dataclass(slots=True, frozen=True)
+class VideoPacket:
+    """One H.264 packet from scrcpy's video socket.
+
+    ``payload`` is raw Annex-B (with ``00 00 00 01`` start codes). ``is_config``
+    means SPS+PPS — the consumer must keep this for decoder init.  ``is_key``
+    marks a random-access point; consumers that join mid-stream should drop
+    delta frames until the next key arrives.
+    """
+
+    pts: int
+    is_config: bool
+    is_key: bool
+    payload: bytes
+
+
+@dataclass(slots=True)
+class VideoSubscription:
+    """Per-subscriber state for the H.264 NAL fan-out.
+
+    ``queue`` carries packets from the reader thread, or ``None`` as the
+    end-of-stream sentinel pushed by :meth:`ScrcpyClient.close`. ``desynced``
+    is set by the reader whenever a ``put_nowait`` fails (slow consumer);
+    the consumer must then drain the queue and wait for the next keyframe
+    before resuming decode, otherwise WebCodecs will error on a delta that
+    references a dropped IDR.
+    """
+
+    queue: queue.Queue[VideoPacket | None]
+    desynced: threading.Event
+
+
+# Subscriber queue depth — at ~30 FPS this absorbs ~4s of buffering, plenty
+# for transient stalls (decoder thread parked on a long socket read) without
+# letting a hung consumer balloon memory.
+_VIDEO_SUBSCRIBER_QUEUE_SIZE = 120
+
+
 class ScrcpyClient:
     """Single ``scrcpy-server`` process per ADB serial; one video socket + one control socket.
 
@@ -305,6 +434,17 @@ class ScrcpyClient:
         self._device_name: str = ""
         self._codec_size: tuple[int, int] | None = None
         self._last_error: str | None = None
+        # Raw H.264 NAL fan-out for in-process consumers (browser MSE / WebCodecs
+        # via WebSocket). Each subscriber owns a bounded queue; the reader drops
+        # frames silently when a slow consumer can't keep up — but sets the
+        # subscriber's ``desynced`` flag so the consumer can resync from the
+        # next keyframe instead of feeding a corrupted stream to its decoder.
+        self._video_subscribers: list[VideoSubscription] = []
+        self._subscribers_lock = threading.Lock()
+        # Last config packet (concatenated SPS+PPS in Annex-B). Cached so a
+        # subscriber that joins mid-stream can initialise its decoder before
+        # the next keyframe arrives.
+        self._video_codec_config: bytes | None = None
 
     # -- lifecycle ----------------------------------------------------------
 
@@ -314,10 +454,15 @@ class ScrcpyClient:
             return
 
         status = get_scrcpy_status(self.serial, self.adb_bin)
-        if not status.installed:
-            logger.info("scrcpy: jar not installed on %s — installing", self.serial)
+        if not _server_status_current(status):
+            logger.info(
+                "scrcpy: server jar missing/outdated on %s (size=%s) — installing v%s",
+                self.serial,
+                status.jar_size,
+                SCRCPY_SERVER_VERSION,
+            )
             status = install_scrcpy(self.serial, self.adb_bin)
-            if not status.installed:
+            if not _server_status_current(status):
                 err = status.last_error or "install failed"
                 msg = f"scrcpy install failed for {self.serial}: {err}"
                 raise RuntimeError(msg)
@@ -330,29 +475,35 @@ class ScrcpyClient:
             )
 
         # Tunnel forward: host connects to forwarded TCP port; server binds the
-        # device-side abstract socket and accepts. Order on the device side
-        # determines socket roles (video → control here, audio off).
+        # device-side abstract socket and accepts. The adb forward must exist
+        # before the server starts; otherwise recent scrcpy-server builds can
+        # terminate while waiting for their socket.
+        with contextlib.suppress(Exception):
+            _run_adb(
+                ["forward", "--remove", f"tcp:{self.port}"],
+                serial=self.serial,
+                adb_bin=self.adb_bin,
+            )
+        _run_adb(
+            ["forward", f"tcp:{self.port}", f"localabstract:{self._abstract_name}"],
+            serial=self.serial, adb_bin=self.adb_bin, check=True,
+        )
+
+        # Order on the device side determines socket roles (video → control
+        # here, audio off).
         server_args = [
             f"scid={self._scid}",
             "log_level=warn",
             "audio=false",
-            "video=true",
-            "control=true",
-            "video_codec=h264",
-            f"video_bit_rate={self.video_bit_rate}",
-            f"max_size={self.max_size}",
-            f"max_fps={self.max_fps}",
             "tunnel_forward=true",
-            "show_touches=false",
-            "stay_awake=false",
-            "power_off_on_close=false",
-            "clipboard_autosync=false",
-            "cleanup=true",
-            "send_device_meta=true",
-            "send_frame_meta=true",
-            "send_dummy_byte=true",
-            "send_codec_meta=true",
-            "raw_stream=false",
+            "keep_active=true",
+            # Do not pass v3 tuning/default options (video_bit_rate, max_fps,
+            # max_size, raw_stream, etc.) or even default-valued booleans
+            # (video/control/send_*). On at least Samsung SM-G780G/Android 13,
+            # explicitly passing several otherwise-valid options makes the
+            # server abort or close the socket before the initial session
+            # packet. The official v4 client also relies on defaults and only
+            # passes only a small option set for this no-audio forward tunnel.
         ]
         cmd = [
             self.adb_bin, "-s", self.serial, "shell",
@@ -368,19 +519,15 @@ class ScrcpyClient:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         )
+        self._proc = proc
         # Server takes ~400-700ms to bind on cold start (BlueStacks slower).
         time.sleep(0.8)
         if proc.poll() is not None:
             stderr = (proc.stderr.read() if proc.stderr else b"").decode(errors="replace")
             self._last_error = stderr.strip() or "(no stderr)"
             msg = f"scrcpy server exited immediately: {self._last_error}"
+            self.close()
             raise RuntimeError(msg)
-        self._proc = proc
-
-        _run_adb(
-            ["forward", f"tcp:{self.port}", f"localabstract:{self._abstract_name}"],
-            serial=self.serial, adb_bin=self.adb_bin, check=True,
-        )
 
         try:
             self._connect_sockets()
@@ -404,10 +551,14 @@ class ScrcpyClient:
 
         ``tunnel_forward=true`` makes the server accept connections in the
         order video → audio → control (we skip audio). The first byte on the
-        first socket is the ``send_dummy_byte`` synchronisation marker; the
-        device meta + codec meta follow on the video socket only.
+        first socket is the ``send_dummy_byte`` synchronisation marker.
+
+        scrcpy-server v4 sends device/codec/session meta only after all
+        expected sockets are connected, so connect control after the dummy
+        byte and before reading the video metadata.
         """
-        # Video socket — accepts the dummy byte + device meta + codec meta.
+        # Video socket — accepts the dummy byte, then device meta + codec meta
+        # after the control socket is also connected.
         video = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         video.settimeout(8.0)
         # Server bind can race adb forward; retry briefly.
@@ -423,29 +574,46 @@ class ScrcpyClient:
         if dummy != _DUMMY_BYTE:
             msg = f"scrcpy: unexpected first byte on video socket: {dummy!r}"
             raise RuntimeError(msg)
-        device_name_raw = _recv_exact(video, 64)
-        self._device_name = device_name_raw.split(b"\x00", 1)[0].decode(
-            "utf-8", errors="replace"
-        )
-        codec_meta = _recv_exact(video, 12)
-        codec_id = codec_meta[0:4]
-        width, height = struct.unpack(">II", codec_meta[4:12])
-        if codec_id != b"h264":
-            msg = f"scrcpy: unexpected video codec id: {codec_id!r}"
-            raise RuntimeError(msg)
-        self._codec_size = (int(width), int(height))
-        video.settimeout(None)
-        self._video_sock = video
 
-        # Control socket — same forwarded port, second accept.
+        # Control socket — same forwarded port, second accept. For scrcpy v4,
+        # connect this before reading video metadata; the server waits for all
+        # expected sockets before it emits the banner.
         control = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         control.settimeout(5.0)
         control.connect(("127.0.0.1", self.port))
         control.settimeout(None)
         self._control_sock = control
 
+        device_name_raw = _recv_exact(video, 64)
+        self._device_name = device_name_raw.split(b"\x00", 1)[0].decode(
+            "utf-8", errors="replace"
+        )
+        # v4 stream prelude:
+        #   codec id: 4 bytes ("h264")
+        #   initial session packet: 12 bytes, high bit set, width/height in
+        #   bytes 4..12. Older v2/v3 sent codec+size as one 12-byte block.
+        codec_id = _recv_exact(video, 4)
+        if codec_id != b"h264":
+            msg = f"scrcpy: unexpected video codec id: {codec_id!r}"
+            raise RuntimeError(msg)
+        session = _recv_exact(video, 12)
+        session_flags = struct.unpack(">Q", session[0:8])[0]
+        if not (session_flags & _PACKET_FLAG_SESSION):
+            msg = f"scrcpy: expected initial session packet, got {session.hex()}"
+            raise RuntimeError(msg)
+        width, height = struct.unpack(">II", session[4:12])
+        self._codec_size = (int(width), int(height))
+        video.settimeout(None)
+        self._video_sock = video
+
     def close(self) -> None:
         self._stop.set()
+        # Wake any blocked subscribers immediately. Without this, a WebSocket
+        # consumer parked in ``queue.get(timeout=N)`` would have to wait the
+        # full ``_NAL_IDLE_TIMEOUT_S`` on the WS side before noticing scrcpy
+        # ended — visible to operators as a multi-second freeze on every
+        # bot restart or scrcpy death.
+        self._signal_subscribers_closed()
         for sock in (self._video_sock, self._control_sock):
             with contextlib.suppress(Exception):
                 if sock is not None:
@@ -485,11 +653,15 @@ class ScrcpyClient:
         sock = self._video_sock
         if sock is None:
             return
-        decoder = _H264Decoder()
+        decoder: _H264Decoder | None = None
         while not self._stop.is_set():
             try:
                 header = _recv_exact(sock, 12)
-                _pts_flags = struct.unpack(">Q", header[0:8])[0]
+                pts_flags = struct.unpack(">Q", header[0:8])[0]
+                if pts_flags & _PACKET_FLAG_SESSION:
+                    width, height = struct.unpack(">II", header[4:12])
+                    self._codec_size = (int(width), int(height))
+                    continue
                 size = struct.unpack(">I", header[8:12])[0]
                 if size == 0:
                     continue
@@ -499,6 +671,18 @@ class ScrcpyClient:
                     self._last_error = f"video socket read failed: {exc}"
                     logger.warning("scrcpy %s: %s", self.serial, self._last_error)
                 return
+            is_config = bool(pts_flags & _PACKET_FLAG_CONFIG)
+            is_key = bool(pts_flags & _PACKET_FLAG_KEY_FRAME)
+            pts = pts_flags & _PTS_MASK
+            if is_config:
+                # Cache so a subscriber joining mid-stream can initialise its
+                # decoder before the next keyframe arrives.
+                self._video_codec_config = payload
+            self._fanout_video_packet(
+                VideoPacket(pts=pts, is_config=is_config, is_key=is_key, payload=payload)
+            )
+            if decoder is None:
+                decoder = _H264Decoder()
             frames = decoder.decode(payload)
             if not frames:
                 continue
@@ -507,6 +691,80 @@ class ScrcpyClient:
             with self._cache_lock:
                 self._cache = _CachedFrame(image=img, captured_at=time.monotonic())
             self._frame_event.set()
+
+    def _fanout_video_packet(self, pkt: VideoPacket) -> None:
+        """Push ``pkt`` to every active subscriber; flag desync on a full queue.
+
+        Dropping rather than blocking is deliberate — the decoder thread feeds
+        the in-process BGR cache (the bot's hot path) and must not stall on a
+        slow WebSocket consumer. But silent drops corrupt the H.264 reference
+        chain: a missed IDR makes every following delta undecodable, and
+        WebCodecs will error rather than skip. So when the queue is full we
+        also set the subscriber's ``desynced`` flag — the consumer drains
+        whatever is left and resumes from the next keyframe.
+        """
+        with self._subscribers_lock:
+            if not self._video_subscribers:
+                return
+            subs = list(self._video_subscribers)
+        for sub in subs:
+            try:
+                sub.queue.put_nowait(pkt)
+            except queue.Full:
+                sub.desynced.set()
+
+    def subscribe_video(self) -> VideoSubscription:
+        """Register a new subscriber to the raw H.264 NAL fan-out.
+
+        Returns a :class:`VideoSubscription` whose ``queue`` carries packets
+        and whose ``desynced`` event is set by the reader on a queue overflow.
+        Consumers must check ``desynced`` between packets and resync (drain +
+        wait-for-next-key) when it fires. The caller should also fetch
+        :meth:`latest_codec_config` before draining the queue if it joined
+        mid-stream and needs to initialise its decoder. Always pair with
+        :meth:`unsubscribe_video` to release the slot.
+        """
+        sub = VideoSubscription(
+            queue=queue.Queue(maxsize=_VIDEO_SUBSCRIBER_QUEUE_SIZE),
+            desynced=threading.Event(),
+        )
+        with self._subscribers_lock:
+            self._video_subscribers.append(sub)
+        return sub
+
+    def unsubscribe_video(self, sub: VideoSubscription) -> None:
+        """Drop a subscriber registered via :meth:`subscribe_video`."""
+        with self._subscribers_lock, contextlib.suppress(ValueError):
+            self._video_subscribers.remove(sub)
+
+    def _signal_subscribers_closed(self) -> None:
+        """Push the end-of-stream sentinel (``None``) into every subscriber.
+
+        Makes :meth:`close` wake up consumers blocked on ``queue.get`` right
+        away. If a subscriber's queue is full we evict the oldest packet to
+        make room — we're tearing down so the stream is doomed anyway, and
+        a stale frame is worse than a clean close.
+        """
+        with self._subscribers_lock:
+            subs = list(self._video_subscribers)
+        for sub in subs:
+            sub.desynced.set()  # belt-and-braces: also signal via flag
+            try:
+                sub.queue.put_nowait(None)
+            except queue.Full:
+                with contextlib.suppress(queue.Empty):
+                    sub.queue.get_nowait()
+                with contextlib.suppress(queue.Full):
+                    sub.queue.put_nowait(None)
+
+    def latest_codec_config(self) -> bytes | None:
+        """Return the most recently observed config (SPS+PPS) packet, or None.
+
+        Returned bytes are Annex-B (``00 00 00 01`` start codes between NALs).
+        ``None`` means the reader hasn't received a config packet yet — which
+        only happens at the very first moments after ``start()``.
+        """
+        return self._video_codec_config
 
     def read_latest_frame_bgr(
         self, timeout_s: float = 0.5
@@ -579,10 +837,21 @@ class ScrcpyClient:
     def tap(self, x: int, y: int) -> None:
         """Single-finger tap at device-physical pixel (x, y)."""
         self._send_touch(_ACTION_DOWN, x, y, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY)
-        # 30 ms hold is enough to register as a tap on every Android version we
-        # care about and short enough to feel instant. Sleep on the host since
-        # the control protocol has no server-side "wait" command.
-        time.sleep(0.03)
+        hold_s = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX) / 1000.0
+        if random.random() < _TAP_MICRO_MOVE_PROBABILITY:
+            time.sleep(hold_s * random.uniform(0.35, 0.7))
+            mx = x + random.choice((-1, 1)) * random.randint(1, 2)
+            my = y + random.choice((-1, 1)) * random.randint(1, 2)
+            self._send_touch(
+                _ACTION_MOVE,
+                mx,
+                my,
+                pressure=random.randint(_PRESSURE_MOVE_MIN, _PRESSURE_DOWN),
+                buttons=_BUTTON_PRIMARY,
+            )
+            time.sleep(hold_s * random.uniform(0.2, 0.45))
+        else:
+            time.sleep(hold_s)
         self._send_touch(_ACTION_UP, x, y, pressure=_PRESSURE_UP, buttons=0)
 
     def long_press(self, x: int, y: int, *, duration_ms: int = 800) -> None:
@@ -600,16 +869,32 @@ class ScrcpyClient:
         duration_ms: int = 300,
         steps: int = 16,
     ) -> None:
-        """Straight swipe from (x1,y1) to (x2,y2). Coords are device-physical px."""
+        """Human-shaped swipe from (x1,y1) to (x2,y2). Coords are device px.
+
+        scrcpy control messages are low-latency enough that we can send a
+        realistic finger trail instead of one perfectly linear, evenly-spaced
+        ``adb shell input swipe``. The path uses a small perpendicular curve,
+        smoothstep acceleration/deceleration, per-point subpixel jitter, and
+        slightly uneven host sleeps. Long-presses (same start/end) are handled
+        by :meth:`long_press` at the controller layer and should not call this.
+        """
         n = max(2, int(steps))
-        step_sleep = max(0.001, (duration_ms / 1000.0) / n)
-        self._send_touch(_ACTION_DOWN, x1, y1, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY)
-        for i in range(1, n + 1):
-            t = i / n
-            mx = int(round(x1 + (x2 - x1) * t))
-            my = int(round(y1 + (y2 - y1) * t))
+        points = _human_swipe_points(x1, y1, x2, y2, steps=n)
+        sleeps = _human_step_sleeps(duration_ms, steps=len(points))
+        down_pressure = random.randint(_PRESSURE_MOVE_MIN, _PRESSURE_DOWN)
+        self._send_touch(
+            _ACTION_DOWN, x1, y1, pressure=down_pressure, buttons=_BUTTON_PRIMARY
+        )
+        for (mx, my), step_sleep in zip(points, sleeps, strict=False):
             time.sleep(step_sleep)
-            self._send_touch(_ACTION_MOVE, mx, my, pressure=_PRESSURE_DOWN, buttons=_BUTTON_PRIMARY)
+            pressure = random.randint(_PRESSURE_MOVE_MIN, _PRESSURE_DOWN)
+            self._send_touch(
+                _ACTION_MOVE,
+                mx,
+                my,
+                pressure=pressure,
+                buttons=_BUTTON_PRIMARY,
+            )
         self._send_touch(_ACTION_UP, x2, y2, pressure=_PRESSURE_UP, buttons=0)
 
     # -- context manager sugar ---------------------------------------------
@@ -642,6 +927,12 @@ def get_or_create_scrcpy_client(
     :class:`adb.controller.AdbController` (input path) call this so they share
     one server process / video socket / control socket per device. Caller is
     responsible for ``start()``; this only returns the registered instance.
+
+    The registry is keyed by ``serial`` alone — the first caller wins on
+    ``adb_bin`` / ``port``. Read-only consumers (e.g. WebSocket video stream)
+    must use :func:`lookup_scrcpy_client` instead so an early UI probe can't
+    register a half-configured client before the worker assigns its own
+    instance-slot port + resolved adb binary.
     """
     with _REGISTRY_LOCK:
         client = _REGISTRY.get(serial)
@@ -649,6 +940,19 @@ def get_or_create_scrcpy_client(
             client = ScrcpyClient(serial=serial, adb_bin=adb_bin, port=port)
             _REGISTRY[serial] = client
         return client
+
+
+def lookup_scrcpy_client(serial: str) -> ScrcpyClient | None:
+    """Return the registered client for ``serial`` or ``None`` — never creates.
+
+    Use this from consumers that only *observe* an existing client (e.g. the
+    WebSocket H.264 stream route, which subscribes to NAL fan-out from a
+    server already started by the worker). Creating a new client here would
+    poison the registry with a default-port / default-adb instance that the
+    worker can never replace, breaking scrcpy start after the first UI probe.
+    """
+    with _REGISTRY_LOCK:
+        return _REGISTRY.get(serial)
 
 
 def close_scrcpy_client(serial: str) -> None:

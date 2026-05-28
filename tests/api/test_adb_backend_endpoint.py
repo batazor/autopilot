@@ -95,3 +95,23 @@ def test_empty_serial_400(devices_db: Path) -> None:
     with pytest.raises(HTTPException) as exc:
         adb_api.set_device_backend("  ", input_backend="adb")
     assert exc.value.status_code == 400
+
+
+def test_get_adb_status_uses_effective_serial_for_name_only_devices(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upsert_device("127.0.0.1:5555")
+
+    class Completed:
+        returncode = 0
+        stdout = "List of devices attached\n"
+        stderr = ""
+
+    monkeypatch.setattr(adb_api.subprocess, "run", lambda *args, **kwargs: Completed())
+
+    status = adb_api.get_adb_status()
+
+    row = next(d for d in status["configured"] if d["name"] == "127.0.0.1:5555")
+    assert row["adb_serial"] == "127.0.0.1:5555"
+    assert row["screenshot_backend_effective"] == "quartz"

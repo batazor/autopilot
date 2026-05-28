@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
@@ -9,6 +10,7 @@ import { useFleetOptional } from "@/components/FleetContextProvider";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Icon } from "@/components/ui";
+import { VersionBadge } from "@/components/VersionBadge";
 
 function GameBadge() {
   // Pages outside the fleet-context layouts (e.g. ``/onboarding``) render
@@ -63,9 +65,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Icon name="menu" size="md" />
           </button>
-          <span className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-wos-text">
-            Autopilot
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            <Image
+              src="/logo.png"
+              alt=""
+              width={28}
+              height={28}
+              priority
+              className="h-7 w-7 shrink-0 rounded-md object-contain"
+            />
+            <span className="truncate text-sm font-semibold tracking-tight text-wos-text">
+              Autopilot
+            </span>
           </span>
+          <VersionBadge />
           <GameBadge />
           <ThemeToggle compact />
           <ApiStatusIndicator variant="header" />

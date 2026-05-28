@@ -6,11 +6,16 @@ from typing import Any
 
 import yaml
 
+try:
+    from yaml import CSafeLoader as _YamlSafeLoader
+except ImportError:
+    from yaml import SafeLoader as _YamlSafeLoader  # type: ignore[assignment]
+
 from analysis.overlay_compile import CompiledOverlayPlan, compile_overlay_plan
 
 
 def _load_yaml_dict(path: Path) -> dict[str, Any]:
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw = yaml.load(path.read_text(encoding="utf-8"), Loader=_YamlSafeLoader)
     return raw if isinstance(raw, dict) else {}
 
 
@@ -97,15 +102,43 @@ def _collect_analyze_files(manifest_path: Path, seen: set[Path] | None = None) -
     return out
 
 
+# Cache of (manifest_resolved_str, mtime_ns, size) -> tuple of resolved include path strings.
+# Keyed on the manifest's own stat so a file change invalidates only its entry; the YAML
+# parse needed to discover include: targets is skipped while the manifest is untouched.
+_INCLUDE_WALK_CACHE: dict[tuple[str, int, int], tuple[str, ...]] = {}
+
+
+def _walk_include_paths(manifest_path: Path) -> tuple[str, ...]:
+    """Resolved manifest + include: tree as strings; cached by (mtime, size)."""
+    try:
+        if not manifest_path.is_file():
+            return ()
+        st = manifest_path.stat()
+    except OSError:
+        return ()
+    key = (str(manifest_path.resolve()), st.st_mtime_ns, st.st_size)
+    cached = _INCLUDE_WALK_CACHE.get(key)
+    if cached is not None:
+        return cached
+    files = _collect_analyze_files(manifest_path)
+    resolved = tuple(str(p.resolve()) for p in files)
+    _INCLUDE_WALK_CACHE[key] = resolved
+    return resolved
+
+
 def analyze_manifests_fingerprint(
     repo_root: Path,
     module_scope: str | None = None,
 ) -> tuple[tuple[str, int, int], ...]:
     """Sorted ``(path, size, mtime_ns)`` for every manifest and ``include:`` file."""
     entries: list[tuple[str, int, int]] = []
+    seen_paths: set[str] = set()
     for manifest in iter_analyze_manifest_paths(repo_root, module_scope):
-        for path in _collect_analyze_files(manifest):
-            fp = _stat_fingerprint(path)
+        for resolved_str in _walk_include_paths(manifest):
+            if resolved_str in seen_paths:
+                continue
+            seen_paths.add(resolved_str)
+            fp = _stat_fingerprint(Path(resolved_str))
             if fp is not None:
                 entries.append(fp)
     entries.sort(key=lambda row: row[0])
@@ -128,6 +161,7 @@ def clear_merged_analyze_yaml_cache() -> None:
     """Drop cached merged manifests (tests, hot reload)."""
     _load_merged_analyze_yaml_cached.cache_clear()
     _compiled_overlay_plan_cached.cache_clear()
+    _INCLUDE_WALK_CACHE.clear()
 
 
 def compiled_overlay_plan(
