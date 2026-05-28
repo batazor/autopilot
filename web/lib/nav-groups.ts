@@ -49,7 +49,6 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Queue",
         description: "Fleet task queue",
       },
-      { href: "/debug-run", label: "DSL runner" },
       { href: "/routes", label: "Routes" },
       { href: "/optimizer", label: "Optimizer" },
     ],
@@ -70,11 +69,11 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: "config",
     label: "Config",
-    description: "Modules, ADB & balance",
-    defaultHref: "/modules",
+    description: "ADB, modules & balance",
+    defaultHref: "/adb",
     tabs: [
-      { href: "/modules", label: "Modules" },
       { href: "/adb", label: "ADB" },
+      { href: "/modules", label: "Modules" },
       { href: "/balance", label: "Balance" },
       { href: "/license", label: "License" },
     ],

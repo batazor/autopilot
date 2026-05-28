@@ -41,8 +41,9 @@ def test_who_i_am_resolves_player_id_before_player_state_writes() -> None:
 
     assert ocr_steps[0]["ocr"] == "player.id"
     assert ocr_steps[0]["store"] == "player_id"
-    assert [s["ocr"] for s in ocr_steps[:3]] == [
+    assert [s["ocr"] for s in ocr_steps[:2]] == [
         "player.id",
-        "player.power",
         "player.state",
     ]
+    assert all(s["preprocess"] == "fast_line" for s in ocr_steps[:2])
+    assert "player.power" not in {s["ocr"] for s in ocr_steps}

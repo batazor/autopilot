@@ -1,11 +1,9 @@
-"""End-to-end OCR check for the three fields ``who_i_am`` reads off chief_profile.
+"""End-to-end OCR check for the identity fields ``who_i_am`` reads off chief_profile.
 
-The ``who_i_am`` scenario OCRs ``player.power`` / ``player.state`` / ``player.id``
-on the chief_profile screen, parses each as an integer, and writes them to
-SQLite (consumed by ``/player-stats`` and downstream player-bound flows). If any
-of those three pipelines drift — wrong bbox, wrong preprocess backend, parser
-choking on punctuation — the bootstrap silently fails and no player-scoped
-scenario runs.
+The ``who_i_am`` scenario OCRs ``player.state`` / ``player.id`` on the
+chief_profile screen. If either pipeline drifts — wrong bbox, wrong preprocess
+backend, parser choking on punctuation — the bootstrap silently fails and no
+player-scoped scenario runs.
 
 This test pins the contract on the labelled ``chief_profile.png`` reference
 shipped with the module. It is intentionally NOT auto-skipped: a missing
@@ -35,7 +33,6 @@ REFERENCE_IMAGE = MODULE_DIR / "references" / "chief_profile.png"
 # Ground truth read straight off the labelled crop files under references/crop/
 # (``chief_profile_player.{power,state,id}.png``).
 EXPECTED: dict[str, int] = {
-    "player.power": 17_492,
     "player.state": 4_353,
     "player.id": 765_502_864,
 }
@@ -70,11 +67,8 @@ async def _ocr_field(region_name: str) -> tuple[int | None, str, float]:
     ph = int(round(float(bbox["height"]) / 100.0 * h))
     assert pw > 0 and ph > 0, f"degenerate pixel bbox for {region_name}: {(px, py, pw, ph)}"
 
-    # Mirror production resolution: ``type: integer`` regions go through the
-    # kNN digit classifier, ``string`` falls back to raw Tesseract. ``digit_count``
-    # on the area.yaml region pins the strip width so kNN's auto-segmenter does
-    # not clamp to its player_id-style 8..11 floor for the shorter power/state
-    # crops.
+    # Mirror production resolution: ``type: integer`` regions use Tesseract
+    # ``fast_line`` unless the area/step overrides it.
     preprocess = resolve_preprocess(
         explicit=region_def.get("preprocess"),
         type_hint=region_def.get("type"),

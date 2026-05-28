@@ -12,9 +12,9 @@ def normalize_overlay_action(rule: dict[str, Any]) -> str:
     action = str(rule.get("action") or "").strip()
     if action == "exist":
         action = "findIcon"
-    if rule.get("isRedDot") is True and action not in ("findIcon", "feature_match"):
+    if rule.get("isRedDot") is True and action != "findIcon":
         action = "red_dot"
-    elif rule.get("isRedDot") is False and action not in ("findIcon", "feature_match"):
+    elif rule.get("isRedDot") is False and action != "findIcon":
         action = "red_dot_absent"
     if rule.get("isTabActive") is True:
         action = "tab_active"
@@ -286,4 +286,3 @@ def centers_delta_pct_between_regions(
     ax, ay = bbox_percent_center_xy_pct(ba)
     bx, by = bbox_percent_center_xy_pct(bb)
     return bx - ax, by - ay
-

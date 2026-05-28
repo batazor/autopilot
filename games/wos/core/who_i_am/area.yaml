@@ -34,7 +34,8 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer"
+          "type": "integer",
+          "preprocess": "fast_line"
         },
         {
           "name": "player.power",
@@ -49,9 +50,7 @@
             "original_width": 720,
             "original_height": 1280
           },
-          "type": "integer",
-          "preprocess": "compact_number",
-          "digit_count": 5
+          "type": "integer"
         },
         {
           "name": "text.kills_0_q",
@@ -82,7 +81,7 @@
             "original_height": 1280
           },
           "type": "integer",
-          "digit_count": 4
+          "preprocess": "fast_line"
         },
         {
           "name": "icon.settingse",

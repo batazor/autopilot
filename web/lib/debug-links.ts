@@ -36,22 +36,6 @@ export function editDslHref(opts: {
   })}`;
 }
 
-export function debugRunHref(opts?: {
-  instanceId?: string;
-  playerId?: string;
-  scenario?: string;
-  scope?: string;
-}): string {
-  return `/debug-run${buildSearch({
-    instanceId: opts?.instanceId,
-    playerId: opts?.playerId,
-    extra: {
-      scenario: opts?.scenario,
-      scope: opts?.scope,
-    },
-  })}`;
-}
-
 export function overlayTestHref(
   instanceId: string,
   opts?: { region?: string; highlight?: string; ref?: string },

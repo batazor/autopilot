@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   fetchAdbStatus,
   fetchBotStatus,
@@ -30,9 +30,22 @@ async function fetchBannerStatus(): Promise<BannerStatus> {
   return { bot, adb };
 }
 
+function formatProcessAge(startedAt: number | null): string {
+  if (!startedAt) return "—";
+  const ageSec = Math.max(0, Math.floor(Date.now() / 1000 - startedAt));
+  if (ageSec < 60) return `${ageSec}s`;
+  const m = Math.floor(ageSec / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h${m % 60 ? `${m % 60}m` : ""}`;
+}
+
 export function BotStartBanner() {
   const qc = useQueryClient();
   const [localError, setLocalError] = useState<string | null>(null);
+  // Which supervisor process the operator is currently looking at when
+  // more than one is alive (dev rotation, stuck terminate, etc.).
+  const [carouselIdx, setCarouselIdx] = useState(0);
 
   const query = useQuery<BannerStatus>({
     queryKey: ["botStartBanner"],
@@ -104,7 +117,27 @@ export function BotStartBanner() {
     );
   }
 
+  // Carousel of running supervisor processes (>1 is rare but happens — dev
+  // restart left a zombie, accidental double-start, etc.). When only one is
+  // running we render exactly the old banner; the extra controls appear from
+  // the second process onward.
+  const processes = botStatus?.processes ?? [];
+  const safeIdx = processes.length > 0
+    ? ((carouselIdx % processes.length) + processes.length) % processes.length
+    : 0;
+  // Clamp the index back into range whenever a process disappears (Stop was
+  // pressed, dev tool killed it, etc.) — otherwise we'd index past the array
+  // and show empty PID / mode.
+  useEffect(() => {
+    if (processes.length > 0 && carouselIdx >= processes.length) {
+      setCarouselIdx(0);
+    }
+  }, [processes.length, carouselIdx]);
+  const currentProc = processes[safeIdx] ?? null;
+  const currentPid = currentProc?.pid ?? botStatus?.pid ?? null;
+
   if (botStatus?.running) {
+    const multi = processes.length > 1;
     return (
       <div className="nav-bot-banner" role="region" aria-label="Bot worker">
         <div className="nav-bot-banner__row">
@@ -114,17 +147,44 @@ export function BotStartBanner() {
             disabled={stopMutation.isPending}
             onClick={() => stopMutation.mutate()}
             aria-label={stopMutation.isPending ? "Stopping bot" : "Stop bot"}
-            title={stopMutation.isPending ? "Stopping…" : "Stop bot"}
+            title={
+              stopMutation.isPending
+                ? "Stopping…"
+                : multi
+                  ? `Stop bot (terminates all ${processes.length} supervisors)`
+                  : "Stop bot"
+            }
           >
             <Icon name="pause" size="sm" />
           </button>
           <span className="nav-bot-banner__body">
-            <span className="nav-bot-banner__title">Bot running</span>
+            <span className="nav-bot-banner__title">
+              Bot running
+              {multi ? (
+                <span className="nav-bot-banner__badge" aria-label={`${safeIdx + 1} of ${processes.length} supervisors`}>
+                  {safeIdx + 1}/{processes.length}
+                </span>
+              ) : null}
+            </span>
             <span className="nav-bot-banner__desc">
               Mode: {botStatus.mode ?? "unknown"}
-              {botStatus.pid ? ` · PID ${botStatus.pid}` : ""}
+              {currentPid ? ` · PID ${currentPid}` : ""}
+              {currentProc?.started_at
+                ? ` · up ${formatProcessAge(currentProc.started_at)}`
+                : ""}
             </span>
           </span>
+          {multi ? (
+            <button
+              type="button"
+              className="nav-bot-banner__action"
+              onClick={() => setCarouselIdx((i) => (i + 1) % processes.length)}
+              aria-label="Show next supervisor"
+              title={`Next supervisor (${safeIdx + 1}/${processes.length})`}
+            >
+              <Icon name="chevron-right" size="sm" />
+            </button>
+          ) : null}
         </div>
         {error ? (
           <p className="nav-bot-banner__error" role="alert">

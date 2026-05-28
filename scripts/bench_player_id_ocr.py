@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Benchmark Tesseract vs EasyOCR on ``player.id`` (chief_profile live fixture).
+"""Benchmark Tesseract on ``player.id`` (chief_profile live fixture).
 
-Usage (EasyOCR pulls torch on first install):
+Usage:
 
-    uv run --with easyocr python scripts/bench_player_id_ocr.py
+    uv run python scripts/bench_player_id_ocr.py
 
 Optional:
 
-    uv run --with easyocr python scripts/bench_player_id_ocr.py \\
+    uv run python scripts/bench_player_id_ocr.py \\
         --fixture tests/fixtures/chief_profile_player_id_live.png
 """
 from __future__ import annotations
@@ -29,11 +29,9 @@ sys.path.insert(0, str(REPO / "src"))
 from typing import TYPE_CHECKING  # noqa: E402
 
 from config.loader import load_settings, set_settings  # noqa: E402
-from kNN.digital.paths import model_path as knn_model_path  # noqa: E402
 from layout.area_lookup import screen_region_by_name  # noqa: E402
 from layout.types import Region  # noqa: E402
 from ocr.client import OcrClient  # noqa: E402
-from ocr.preprocess import binary_tile_for_ocr, enhance_for_ocr  # noqa: E402
 
 if TYPE_CHECKING:
     import numpy as np
@@ -108,50 +106,6 @@ async def _bench_tesseract(
     )
 
 
-def _easyocr_read(crop_bgr: np.ndarray, reader: object) -> tuple[str, float]:
-    """Return combined text and mean box confidence from EasyOCR."""
-    # EasyOCR expects RGB
-    rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
-    t0 = time.perf_counter()
-    raw = reader.readtext(rgb, detail=1, paragraph=False)  # type: ignore[attr-defined]
-    _ = 1000.0 * (time.perf_counter() - t0)
-    if not raw:
-        return "", 0.0
-    texts: list[str] = []
-    confs: list[float] = []
-    for _bbox, txt, conf in raw:
-        t = str(txt or "").strip()
-        if not t:
-            continue
-        texts.append(t)
-        confs.append(float(conf))
-    combined = "".join(texts).strip()
-    mean_conf = sum(confs) / len(confs) if confs else 0.0
-    return combined, mean_conf
-
-
-def _bench_easyocr(
-    crop_bgr: np.ndarray,
-    reader: object,
-    *,
-    preprocess: str,
-    work: np.ndarray,
-) -> BenchRow:
-    t0 = time.perf_counter()
-    text, conf = _easyocr_read(work, reader)
-    ms = 1000.0 * (time.perf_counter() - t0)
-    digits = _digits(text)
-    return BenchRow(
-        backend="easyocr",
-        preprocess=preprocess,
-        text=text,
-        digits=digits,
-        confidence=conf,
-        ms=ms,
-        passes_threshold=conf >= AREA_THRESHOLD and digits == EXPECTED_DIGITS,
-    )
-
-
 def _print_table(rows: list[BenchRow]) -> None:
     print(f"\nExpected digits: {EXPECTED_DIGITS}  |  area.json threshold: {AREA_THRESHOLD}")
     print(f"{'backend':<10} {'preprocess':<14} {'conf':>7} {'ms':>8} {'ok':>4}  text")
@@ -198,73 +152,6 @@ async def _async_main(fixture: Path) -> int:
         rows.append(
             await _bench_tesseract(image, region, client=client, preprocess=pre, label=label)
         )
-
-    if knn_model_path().is_file():
-        from kNN.digital import get_classifier
-
-        t0 = time.perf_counter()
-        pred = get_classifier().predict_strip(crop, digit_count=9, x0=0)
-        ms = 1000.0 * (time.perf_counter() - t0)
-        rows.append(
-            BenchRow(
-                backend="knn",
-                preprocess="cv2.ml",
-                text=pred.text,
-                digits=re.sub(r"\D+", "", pred.text),
-                confidence=pred.confidence,
-                ms=ms,
-                passes_threshold=pred.confidence >= AREA_THRESHOLD
-                and _digits(pred.text) == EXPECTED_DIGITS,
-            )
-        )
-
-    sidecar_venv = REPO / ".venv-easyocr-bench" / "bin" / "python"
-    sidecar_script = REPO / "scripts" / "bench_player_id_easyocr_sidecar.py"
-    if sidecar_venv.is_file() and sidecar_script.is_file():
-        import subprocess
-
-        print("\n--- EasyOCR (sidecar venv py3.12; torch has no cp313 x86 wheels) ---")
-        proc = await asyncio.to_thread(
-            subprocess.run,
-            [str(sidecar_venv), str(sidecar_script)],
-            cwd=str(REPO),
-            check=False,
-            text=True,
-        )
-        if proc.returncode != 0:
-            print(f"EasyOCR sidecar exited {proc.returncode}", file=sys.stderr)
-        _print_table(rows)
-        return 0
-
-    try:
-        import easyocr
-    except ImportError:
-        print(
-            "\nEasyOCR: not in project venv (Python 3.13 + torch wheels). "
-            "For EasyOCR rows run once:\n"
-            "  uv venv .venv-easyocr-bench --python 3.12\n"
-            "  uv pip install --python .venv-easyocr-bench/bin/python "
-            'easyocr opencv-python-headless "numpy<2"\n'
-            "  uv run python scripts/bench_player_id_ocr.py"
-        )
-        _print_table(rows)
-        return 0
-
-    print("\nLoading EasyOCR reader (first run may download models)…")
-    t_load = time.perf_counter()
-    reader = easyocr.Reader(["en"], gpu=False, verbose=False)
-    load_ms = 1000.0 * (time.perf_counter() - t_load)
-    print(f"EasyOCR reader ready in {load_ms:.0f} ms")
-
-    rows.append(_bench_easyocr(crop, reader, preprocess="raw", work=crop))
-    enh_bgr = cv2.cvtColor(enhance_for_ocr(crop), cv2.COLOR_GRAY2BGR)
-    rows.append(_bench_easyocr(crop, reader, preprocess="enhance_bgr", work=enh_bgr))
-    bin_bgr = cv2.cvtColor(binary_tile_for_ocr(crop), cv2.COLOR_GRAY2BGR)
-    rows.append(_bench_easyocr(crop, reader, preprocess="binary_x3", work=bin_bgr))
-
-    # warmup excluded from row ms; second read for steady-state latency
-    _ = _easyocr_read(crop, reader)
-    rows.append(_bench_easyocr(crop, reader, preprocess="raw_2nd", work=crop))
 
     _print_table(rows)
     return 0

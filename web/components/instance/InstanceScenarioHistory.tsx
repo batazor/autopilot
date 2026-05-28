@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { HistoryOutcomePill, TraceIdCell } from "@/components/queue/QueueVisuals";
-import { debugRunHref } from "@/lib/debug-links";
 import { playerStateHref } from "@/lib/fleet-links";
 import type { InstanceHistoryRow } from "@/lib/types";
 
@@ -77,17 +76,9 @@ export function InstanceScenarioHistory({ rows, instanceId }: Props) {
               <div className="instance-history__card">
                 <div className="instance-history__card-head">
                   <HistoryOutcomePill success={h.success} />
-                  <Link
-                    href={debugRunHref({
-                      instanceId,
-                      playerId: h.player_id,
-                      scenario: h.scenario,
-                    })}
-                    className="instance-history__scenario"
-                    title="Open in DSL runner"
-                  >
+                  <span className="instance-history__scenario">
                     {h.scenario}
-                  </Link>
+                  </span>
                   <span className="instance-history__duration" title="Duration">
                     {formatDuration(h.duration_s)}
                   </span>

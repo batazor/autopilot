@@ -99,6 +99,10 @@ export default function GiftCodesPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [view, setView] = useState<"active" | "expired">("active");
+  // Lifted out of <ExternalAccountsPanel> so the selector lives at the top
+  // of the page where operators expect a global "what game am I working in"
+  // switch.
+  const [game, setGame] = useState<string>(KNOWN_GAMES[0]?.id ?? "wos");
 
   const load = useCallback(async () => {
     try {
@@ -146,6 +150,20 @@ export default function GiftCodesPage() {
           <code>{data?.codes_path ?? "db/giftCodes.yaml"}</code>
         </p>
       </PageHeader>
+
+      {KNOWN_GAMES.length > 1 ? (
+        <AppTabs
+          variant="section"
+          renderPanels={false}
+          selectedKey={game}
+          onChange={setGame}
+          tabs={KNOWN_GAMES.map((g) => ({
+            key: g.id,
+            label: g.label,
+            title: g.id,
+          }))}
+        />
+      ) : null}
 
       <AppTabs
         variant="section"
@@ -242,7 +260,11 @@ export default function GiftCodesPage() {
         />
       ) : null}
 
-      <ExternalAccountsPanel games={KNOWN_GAMES} />
+      <ExternalAccountsPanel
+        games={KNOWN_GAMES}
+        game={game}
+        onGameChange={setGame}
+      />
     </>
   );
 }

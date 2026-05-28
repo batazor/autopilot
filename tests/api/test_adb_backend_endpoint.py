@@ -23,7 +23,7 @@ def devices_db(tmp_path: Path) -> Path:
     upsert_device(
         "phone2",
         adb_serial="AAA111",
-        screenshot_backend="minicap",
+        screenshot_backend="scrcpy",
         input_backend="minitouch",
     )
     yield db_path
@@ -35,11 +35,11 @@ def _device(serial: str):
 
 
 def test_set_screenshot_backend_adds_field(devices_db: Path) -> None:
-    result = adb_api.set_device_backend("RF8RC00M8MF", screenshot_backend="minicap")
+    result = adb_api.set_device_backend("RF8RC00M8MF", screenshot_backend="scrcpy")
     assert result["ok"] is True
-    assert result["screenshot_backend"] == "minicap"
+    assert result["screenshot_backend"] == "scrcpy"
     assert result["restart_required"] is True
-    assert _device("RF8RC00M8MF").screenshot_backend == "minicap"
+    assert _device("RF8RC00M8MF").screenshot_backend == "scrcpy"
 
 
 def test_set_input_backend_minitouch(devices_db: Path) -> None:
@@ -108,7 +108,10 @@ def test_get_adb_status_uses_effective_serial_for_name_only_devices(
         stdout = "List of devices attached\n"
         stderr = ""
 
-    monkeypatch.setattr(adb_api.subprocess, "run", lambda *args, **kwargs: Completed())
+    def fake_run(*_args, **_kwargs):
+        return Completed()
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
 
     status = adb_api.get_adb_status()
 

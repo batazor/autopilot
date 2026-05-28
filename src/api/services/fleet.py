@@ -35,6 +35,35 @@ def _elapsed_since(ts_str: str) -> str | None:
         return None
 
 
+def _fleet_uptime(row: dict[str, str], status: str) -> str:
+    """Status-aware uptime: ticks for live/paused, freezes at last heartbeat
+    for stale/crashed, blanks for offline/starting/restarting.
+
+    The naive ``now - worker_started_at`` formula shows a forever-growing
+    uptime for a worker that died hours ago, which misled operators into
+    thinking the instance was still healthy.
+    """
+    started = (row.get("worker_started_at") or "").strip()
+    if not started:
+        return "—"
+    try:
+        started_f = float(started)
+    except ValueError:
+        return "—"
+    if status in {"live", "paused"}:
+        return _format_elapsed(time.time() - started_f)
+    if status in {"stale", "crashed"}:
+        last_seen = (row.get("last_seen_at") or "").strip()
+        try:
+            last_seen_f = float(last_seen)
+        except ValueError:
+            return "—"
+        if last_seen_f <= started_f:
+            return "—"
+        return _format_elapsed(last_seen_f - started_f)
+    return "—"
+
+
 def _is_recent(ts_str: str, *, max_age_s: float) -> bool:
     ts_str = ts_str.strip()
     if not ts_str:
@@ -185,14 +214,15 @@ def build_fleet_rows(
                             game=profile_game,
                         )
                     )
+        status = fleet_status(row)
         rows.append(
             {
                 "instance_id": iid,
-                "status": fleet_status(row),
+                "status": status,
                 "active_player": (row.get("active_player") or "").strip() or "—",
                 "node": (row.get("current_screen") or "").strip() or "—",
                 "task": fleet_task_label(row),
-                "uptime": _elapsed_since(row.get("worker_started_at") or "") or "—",
+                "uptime": _fleet_uptime(row, status),
                 "alert": fleet_alert(row),
                 "paused": row.get("paused") == "1",
                 "players": sub_rows,

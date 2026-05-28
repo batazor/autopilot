@@ -24,11 +24,6 @@ export type ModuleRow = {
   scenarios: ScenarioRow[];
 };
 
-export type PlayerAssignment = {
-  player_id: string;
-  assigned_scenario: string | null;
-};
-
 export type GalleryItem = {
   rel: string;
   name: string;
@@ -66,20 +61,6 @@ export type AdbResetDisplayResult = {
   wm_size: string;
   wm_density: string;
 };
-
-export type MinicapStatus = {
-  serial: string;
-  abi: string | null;
-  sdk: string | null;
-  binary_installed: boolean;
-  library_installed: boolean;
-  binary_size: number | null;
-  library_size: number | null;
-  last_error: string | null;
-  installed: boolean;
-};
-
-export type MinicapInstallResult = MinicapStatus & { ok: boolean };
 
 export type MinitouchStatus = {
   serial: string;

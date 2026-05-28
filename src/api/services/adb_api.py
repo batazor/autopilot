@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import HTTPException
 
 from adb.controller import AdbController
-from adb.minicap import get_minicap_status, install_minicap
 from adb.minitouch import get_minitouch_status, install_minitouch
 from adb.scrcpy import get_scrcpy_status, install_scrcpy
 from adb.screencap import MSG_ADB_NOT_FOUND, resolve_adb_executable
@@ -60,10 +59,10 @@ def get_adb_status() -> dict[str, Any]:
         serial = device.effective_serial
         is_emu = is_emulator_adb_serial(serial)
         # Mirror dispatcher defaults.
-        # Screenshot: smart per-serial (physical → minicap, emulator → quartz).
+        # Screenshot: smart per-serial (physical → scrcpy, emulator → quartz).
         # Input: always defaults to adb; minitouch is opt-in via the UI editor
         # because it needs /dev/input access (root or accessible emulator).
-        effective = device.screenshot_backend or ("quartz" if is_emu else "minicap")
+        effective = device.screenshot_backend or ("quartz" if is_emu else "scrcpy")
         effective_input = device.input_backend or "adb"
         configured.append(
             {
@@ -123,28 +122,6 @@ def _resolve_adb_or_raise() -> str:
     if resolved is None:
         raise HTTPException(status_code=503, detail=MSG_ADB_NOT_FOUND)
     return resolved
-
-
-def get_minicap_status_for(serial: str) -> dict[str, Any]:
-    """Probe device for installed minicap binary + library."""
-    target = (serial or "").strip()
-    if not target:
-        raise HTTPException(status_code=400, detail="serial is required")
-    resolved = _resolve_adb_or_raise()
-    status = get_minicap_status(target, resolved)
-    return status.to_dict()
-
-
-def install_minicap_for(serial: str) -> dict[str, Any]:
-    """Download matching prebuilts (DeviceFarmer/minicap) and push to /data/local/tmp."""
-    target = (serial or "").strip()
-    if not target:
-        raise HTTPException(status_code=400, detail="serial is required")
-    resolved = _resolve_adb_or_raise()
-    status = install_minicap(target, resolved)
-    payload = status.to_dict()
-    payload["ok"] = status.installed
-    return payload
 
 
 def get_minitouch_status_for(serial: str) -> dict[str, Any]:
@@ -241,9 +218,7 @@ __all__ = [
     "VALID_INPUT_BACKENDS",
     "VALID_SCREENSHOT_BACKENDS",
     "get_adb_status",
-    "get_minicap_status_for",
     "get_minitouch_status_for",
-    "install_minicap_for",
     "install_minitouch_for",
     "reset_device_display",
     "set_device_backend",

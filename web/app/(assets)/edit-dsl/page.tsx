@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppListbox } from "@/components/headless";
@@ -152,7 +151,6 @@ function EditDslPageInner() {
     }
   }
 
-  const stem = files.find((f) => f.rel === selectedRel)?.stem ?? "";
   const editorKey = `${selectedRel}::${loadKey}`;
 
   return (
@@ -163,14 +161,6 @@ function EditDslPageInner() {
           <code>drafts/</code> and <code>by_cron/</code> are read-only. Saves validate against
           the DSL schema and back up the previous file under{" "}
           <code>.backups/&lt;timestamp&gt;/</code>.
-          {stem && (
-            <>
-              {" "}
-              <Link href={`/debug-run?scenario=${encodeURIComponent(stem)}`}>
-                Open in runner
-              </Link>
-            </>
-          )}
         </p>
       </PageHeader>
 

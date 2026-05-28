@@ -27,18 +27,6 @@ def post_reset_device_display(serial: str) -> dict[str, object]:
     return svc.reset_device_display(serial)
 
 
-@router.get("/devices/{serial}/minicap")
-def get_minicap_status(serial: str) -> dict[str, object]:
-    """Return installed minicap binary/library state for ``serial``."""
-    return svc.get_minicap_status_for(serial)
-
-
-@router.post("/devices/{serial}/minicap/install")
-def post_install_minicap(serial: str) -> dict[str, object]:
-    """Download + push minicap prebuilts matching the device's ABI/SDK."""
-    return svc.install_minicap_for(serial)
-
-
 @router.get("/devices/{serial}/minitouch")
 def get_minitouch_status(serial: str) -> dict[str, object]:
     """Return installed minitouch binary state for ``serial``."""

@@ -6,6 +6,7 @@ By default the worker is **not** started — use the dashboard **Start bot** con
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import shutil
 import signal
@@ -19,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path  # noqa: TC003 — used at runtime, not annotations-only
 from typing import TYPE_CHECKING
 
+import psutil
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -28,6 +31,7 @@ _DEFAULT_API_PORT = 8765
 _DEFAULT_WEB_PORT = 3000
 _STARTUP_TIMEOUT_S = 120.0
 _POLL_INTERVAL_S = 0.5
+logger = logging.getLogger(__name__)
 
 
 def _env_flag(name: str, *, default: bool = False) -> bool:
@@ -60,6 +64,96 @@ def _api_already_running(port: int, host: str = "127.0.0.1") -> bool:
 
 def _web_already_running(port: int, host: str = "127.0.0.1") -> bool:
     return _http_ok(f"http://{host}:{port}/overview")
+
+
+def _port_listener_processes(port: int) -> list[psutil.Process]:
+    out: list[psutil.Process] = []
+    seen: set[int] = set()
+    try:
+        connections = psutil.net_connections(kind="tcp")
+    except psutil.Error:
+        connections = []
+        for proc in psutil.process_iter():
+            if proc.pid == os.getpid() or proc.pid in seen:
+                continue
+            try:
+                proc_connections = proc.net_connections(kind="tcp")
+            except psutil.Error:
+                continue
+            for conn in proc_connections:
+                if conn.status != psutil.CONN_LISTEN:
+                    continue
+                if int(getattr(conn.laddr, "port", 0) or 0) != int(port):
+                    continue
+                out.append(proc)
+                seen.add(proc.pid)
+                break
+        return out
+
+    for conn in connections:
+        if conn.status != psutil.CONN_LISTEN or conn.pid is None:
+            continue
+        if int(getattr(conn.laddr, "port", 0) or 0) != int(port):
+            continue
+        if conn.pid == os.getpid() or conn.pid in seen:
+            continue
+        with contextlib.suppress(psutil.Error):
+            out.append(psutil.Process(conn.pid))
+            seen.add(conn.pid)
+    return out
+
+
+def _terminate_process(proc: psutil.Process) -> None:
+    try:
+        cmd = " ".join(proc.cmdline())
+    except psutil.Error:
+        cmd = proc.name()
+    msg = f"Play stack: killing old process pid={proc.pid} cmd={cmd!r}"
+    print(msg, flush=True)
+    logger.warning(msg)
+    if sys.platform != "win32":
+        with contextlib.suppress(ProcessLookupError, psutil.Error):
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        try:
+            proc.wait(timeout=8.0)
+            return
+        except psutil.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError, psutil.Error):
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            proc.wait(timeout=3.0)
+            return
+        except psutil.Error:
+            return
+
+    children = proc.children(recursive=True)
+    proc.terminate()
+    gone, alive = psutil.wait_procs([proc, *children], timeout=8.0)
+    del gone
+    for p in alive:
+        with contextlib.suppress(psutil.Error):
+            p.kill()
+
+
+def _clear_port_or_fail(*, host: str, port: int, label: str) -> None:
+    listeners = _port_listener_processes(port)
+    if not listeners:
+        return
+    pids = ", ".join(str(p.pid) for p in listeners)
+    msg = f"{label} port {host}:{port} is busy; killing old PID(s): {pids}"
+    print(msg, flush=True)
+    logger.warning(msg)
+    if label == "API":
+        _http_post_ok(f"http://{host}:{port}/api/dev/bot/stop", timeout=5.0)
+    for proc in listeners:
+        _terminate_process(proc)
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if not _port_listener_processes(port):
+            return
+        time.sleep(0.2)
+    remaining = ", ".join(str(p.pid) for p in _port_listener_processes(port))
+    msg = f"{label} port {host}:{port} is still in use after restart cleanup: {remaining}"
+    raise SystemExit(msg)
 
 
 def _prepare_child_env(repo: Path) -> dict[str, str]:
@@ -169,25 +263,13 @@ class _PlayStack:
             time.sleep(_POLL_INTERVAL_S)
         return predicate()
 
-    def start_api(self, *, host: str, port: int, force: bool) -> None:
+    def start_api(self, *, host: str, port: int) -> None:
         self._api_base_url = f"http://{host}:{port}"
-        if not force and _api_already_running(port, host):
-            print(
-                f"API already running at http://{host}:{port} "
-                "(reuse; set WOS_FORCE_RESTART=1 to start another).",
-                flush=True,
-            )
-            return
+        _clear_port_or_fail(host=host, port=port, label="API")
         self._spawn_module("api.main", label="api.main")
 
-    def start_web(self, web_dir: Path, *, host: str, port: int, force: bool) -> None:
-        if not force and _web_already_running(port, host):
-            print(
-                f"Next.js already running at http://{host}:{port} "
-                "(reuse; set WOS_FORCE_RESTART=1 to start another).",
-                flush=True,
-            )
-            return
+    def start_web(self, web_dir: Path, *, host: str, port: int) -> None:
+        _clear_port_or_fail(host=host, port=port, label="Next.js")
         npm = shutil.which("npm")
         if npm is None:
             msg = "npm not found on PATH — install Node.js 20+ to run the Next.js dashboard."
@@ -256,7 +338,6 @@ def _run_modern_play() -> None:
     host = os.environ.get("WOS_PLAY_HOST", "127.0.0.1")
     api_port = int(os.environ.get("WOS_API_PORT", str(_DEFAULT_API_PORT)))
     web_port = int(os.environ.get("PORT", str(_DEFAULT_WEB_PORT)))
-    force = _env_flag("WOS_FORCE_RESTART")
     skip_web = _env_flag("WOS_PLAY_NO_WEB")
     skip_api = _env_flag("WOS_PLAY_NO_API")
     open_browser = _env_flag("WOS_PLAY_OPEN_BROWSER", default=True)
@@ -282,7 +363,7 @@ def _run_modern_play() -> None:
 
         if not skip_api:
             print(f"Starting API on http://{host}:{api_port} …", flush=True)
-            stack.start_api(host=host, port=api_port, force=force)
+            stack.start_api(host=host, port=api_port)
             if not stack._wait_until(
                 lambda: _api_already_running(api_port, host),
                 timeout_s=_STARTUP_TIMEOUT_S,
@@ -293,7 +374,7 @@ def _run_modern_play() -> None:
 
         if not skip_web:
             print(f"Starting Next.js on http://{host}:{web_port} …", flush=True)
-            stack.start_web(web_dir, host=host, port=web_port, force=force)
+            stack.start_web(web_dir, host=host, port=web_port)
             if not stack._wait_until(
                 lambda: _web_already_running(web_port, host),
                 timeout_s=_STARTUP_TIMEOUT_S,

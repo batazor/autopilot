@@ -53,11 +53,11 @@ def test_upsert_then_load(sqlite_db: Path) -> None:
 
 def test_upsert_replaces_existing(sqlite_db: Path) -> None:
     upsert_device("bs1", adb_serial="OLD")
-    upsert_device("bs1", adb_serial="NEW", screenshot_backend="minicap")
+    upsert_device("bs1", adb_serial="NEW", screenshot_backend="scrcpy")
     assert count_devices() == 1
     device = load_registry().devices[0]
     assert device.adb_serial == "NEW"
-    assert device.screenshot_backend == "minicap"
+    assert device.screenshot_backend == "scrcpy"
 
 
 def test_upsert_persists_display_and_quartz(sqlite_db: Path) -> None:
@@ -148,13 +148,13 @@ def test_set_backend_partial_update(sqlite_db: Path) -> None:
         screenshot_backend="quartz",
         input_backend="adb",
     )
-    new_screenshot, new_input = set_device_backend("bs1", screenshot_backend="minicap")
-    assert new_screenshot == "minicap"
+    new_screenshot, new_input = set_device_backend("bs1", screenshot_backend="scrcpy")
+    assert new_screenshot == "scrcpy"
     assert new_input == "adb"  # left intact
 
 
 def test_set_backend_clears_with_empty_string(sqlite_db: Path) -> None:
-    upsert_device("bs1", adb_serial="X", screenshot_backend="minicap")
+    upsert_device("bs1", adb_serial="X", screenshot_backend="scrcpy")
     new_screenshot, _ = set_device_backend("bs1", screenshot_backend="")
     assert new_screenshot == ""
 
@@ -163,6 +163,8 @@ def test_set_backend_rejects_unknown_value(sqlite_db: Path) -> None:
     upsert_device("bs1", adb_serial="X")
     with pytest.raises(ValueError, match="screenshot_backend"):
         set_device_backend("bs1", screenshot_backend="nonsense")
+    with pytest.raises(ValueError, match="screenshot_backend"):
+        set_device_backend("bs1", screenshot_backend="minicap")
     with pytest.raises(ValueError, match="input_backend"):
         set_device_backend("bs1", input_backend="hyperdrive")
 

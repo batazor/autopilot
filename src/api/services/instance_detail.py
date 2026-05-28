@@ -8,6 +8,7 @@ if TYPE_CHECKING:
 
 from api.services.fleet import fleet_alert, fleet_status, fleet_task_label
 from api.services.instances import list_instance_ids
+from api.services.scrcpy_status import scrcpy_stream_available
 from config.devices import player_ids_for_device
 from config.loader import InstanceConfig, load_settings
 from config.paths import repo_root
@@ -83,6 +84,13 @@ def build_instance_detail(client: redis.Redis, instance_id: str) -> dict[str, An
         "runnable_scenarios": list(runnable_scenario_keys(str(repo_root()))),
         "preview_available": preview_path.is_file(),
         "preview_mtime": preview_mtime,
+        "stream": {
+            # True iff the worker is running scrcpy for this instance and the
+            # H.264 WebSocket reader has buffered a config packet — the UI
+            # uses this to auto-pick WebCodecs live video over the rolling
+            # PNG on backends that actually produce a stream.
+            "available": scrcpy_stream_available(instance_id),
+        },
         "history": hist_out,
         "test_module": (row.get("test_module") or "").strip(),
         "state": row,

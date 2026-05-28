@@ -33,16 +33,6 @@ version = "1.6.1"
 requires-dist = ["numpy", "onnxruntime", "pillow"]
 
 [[manifest.dependency-metadata]]
-name = "easyocr"
-version = "1.7.2"
-requires-dist = ["ninja", "numpy", "pillow", "pyclipper", "python-bidi", "pyyaml", "scikit-image", "scipy", "shapely", "torch", "torchvision"]
-
-[[manifest.dependency-metadata]]
-name = "paddleocr"
-version = "2.10.0"
-requires-dist = ["albucore", "albumentations", "beautifulsoup4", "cython", "fire", "fonttools", "lmdb", "numpy", "pillow", "pyclipper", "python-docx", "pyyaml", "rapidfuzz", "requests", "scikit-image", "shapely", "tqdm"]
-
-[[manifest.dependency-metadata]]
 name = "roboflow"
 version = "1.3.8"
 requires-dist = ["certifi", "cycler", "filetype", "idna", "kiwisolver", "matplotlib", "numpy", "pi-heif", "pillow", "pillow-avif-plugin", "python-dateutil", "python-dotenv", "pyyaml", "requests", "requests-toolbelt", "six", "tqdm", "typer", "urllib3"]

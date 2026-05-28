@@ -318,7 +318,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         LayoutRegion(72, 128, 144, 128),
         LayoutRegion(288, 640, 216, 256),
     ]
-    assert captured["region_preprocess"] == ["knn", None]
+    assert captured["region_preprocess"] == ["fast_line", None]
     assert captured["region_digit_count"] == [9, None]
     assert captured["region_digit_x0"] == [4, 0]
     pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
@@ -787,25 +787,19 @@ async def test_ocr_chief_profile_player_id_against_real_tesseract() -> None:
     )
 
 
-# Live chief_profile frame (bs1, May 2026) where legacy ``fast_line`` OCR returned
-# ``-401227964`` at conf≈0.17 and ``who_i_am`` skipped store (threshold 0.9).
 _CHIEF_PROFILE_LIVE_FIXTURE = _REPO_ROOT / "tests" / "fixtures" / "chief_profile_player_id_live.png"
 _LIVE_PLAYER_ID = "401227964"
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ocr_chief_profile_player_id_live_knn_pipeline(
+async def test_ocr_chief_profile_player_id_live_tesseract_fast_line_pipeline(
     ocr_client: OcrClient,
 ) -> None:
-    """Regression: ``who_i_am`` uses ``kNN/digital`` on narrowed ``player.id``.
+    """Regression: ``who_i_am`` reads live ``player.id`` via Tesseract fast_line.
 
     Fixture copied from ``temporal/bs1_approval_current.png``.
     """
-    from kNN.digital.paths import model_path
-
-    if not model_path().is_file():
-        pytest.skip("kNN model missing — run scripts/train_knn_digital_model.py")
     import cv2
 
     from layout.area_lookup import screen_region_by_name
@@ -833,7 +827,7 @@ async def test_ocr_chief_profile_player_id_live_knn_pipeline(
 
     area_threshold = float(pair[1].get("threshold") or 0.9)
     result = await ocr_client.ocr_region(
-        image, region_px, preprocess="knn", digit_x0=0
+        image, region_px, preprocess="fast_line", digit_x0=0
     )
 
     ocr_digits = re.sub(r"\D+", "", result.text or "")

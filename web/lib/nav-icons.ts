@@ -29,7 +29,6 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/approvals": "approvals",
   "/overlay-test": "overlay-test",
   "/queue": "queue",
-  "/debug-run": "debug-run",
   "/routes": "routes",
   "/optimizer": "optimizer",
   "/gift-codes": "gift-codes",

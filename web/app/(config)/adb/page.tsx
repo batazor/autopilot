@@ -5,16 +5,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { AppRadioGroup } from "@/components/headless";
 import {
   fetchAdbStatus,
-  fetchMinicapStatus,
   fetchMinitouchStatus,
   fetchScrcpyStatus,
-  installMinicap,
   installMinitouch,
   installScrcpy,
   resetAdbDeviceDisplay,
   updateDeviceBackend,
 } from "@/lib/api";
-import type { MinicapStatus, MinitouchStatus, ScrcpyStatus } from "@/lib/config-pages";
+import type { MinitouchStatus, ScrcpyStatus } from "@/lib/config-pages";
 
 const INPUT_BACKEND_OPTIONS = [
   { value: "", label: "auto (adb)" },
@@ -25,7 +23,7 @@ const INPUT_BACKEND_OPTIONS = [
 
 type CellEntry<T> = T | { error: string } | undefined;
 
-function renderBinaryCell(entry: CellEntry<MinicapStatus | MinitouchStatus | ScrcpyStatus>) {
+function renderBinaryCell(entry: CellEntry<MinitouchStatus | ScrcpyStatus>) {
   if (entry === undefined) return <span className="muted">checking…</span>;
   if ("error" in entry) {
     return (
@@ -56,24 +54,13 @@ export default function AdbPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [resettingSerial, setResettingSerial] = useState<string | null>(null);
-  const [minicap, setMinicap] = useState<Record<string, CellEntry<MinicapStatus>>>({});
   const [minitouch, setMinitouch] = useState<Record<string, CellEntry<MinitouchStatus>>>({});
   const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
-  const [installingMinicap, setInstallingMinicap] = useState<string | null>(null);
   const [installingMinitouch, setInstallingMinitouch] = useState<string | null>(null);
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
 
   const loadProbes = useCallback(async (serials: string[]) => {
-    const [capResults, touchResults, scrcpyResults] = await Promise.all([
-      Promise.all(
-        serials.map(async (serial) => {
-          try {
-            return [serial, await fetchMinicapStatus(serial)] as const;
-          } catch (e) {
-            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
-          }
-        }),
-      ),
+    const [touchResults, scrcpyResults] = await Promise.all([
       Promise.all(
         serials.map(async (serial) => {
           try {
@@ -93,7 +80,6 @@ export default function AdbPage() {
         }),
       ),
     ]);
-    setMinicap(Object.fromEntries(capResults));
     setMinitouch(Object.fromEntries(touchResults));
     setScrcpy(Object.fromEntries(scrcpyResults));
   }, []);
@@ -130,25 +116,6 @@ export default function AdbPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setResettingSerial(null);
-    }
-  };
-
-  const onInstallMinicap = async (serial: string) => {
-    setError(null);
-    setSuccess(null);
-    setInstallingMinicap(serial);
-    try {
-      const out = await installMinicap(serial);
-      if (out.installed) {
-        setSuccess(`Minicap installed on ${serial} (${out.abi} / android-${out.sdk})`);
-      } else {
-        setError(`Minicap install on ${serial} failed: ${out.last_error ?? "unknown error"}`);
-      }
-      setMinicap((prev) => ({ ...prev, [serial]: out }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setInstallingMinicap(null);
     }
   };
 
@@ -218,7 +185,6 @@ export default function AdbPage() {
   };
 
   const busy =
-    installingMinicap !== null ||
     installingMinitouch !== null ||
     installingScrcpy !== null ||
     resettingSerial !== null ||
@@ -230,11 +196,11 @@ export default function AdbPage() {
         <p className="muted">
           Configured devices vs live adb scan. Reset display clears{" "}
           <code>wm size</code> / <code>wm density</code> overrides on the device.
-          {" "}<strong>Minicap</strong> = fast screen capture (~15-40 ms/frame; physical → minicap by default, emulator → quartz).
+          {" "}<strong>Scrcpy</strong> = one server process per device delivering H.264 frames;
+          physical devices use it by default, while emulators default to <code>quartz</code>.
           {" "}<strong>Minitouch</strong> = fast taps/swipes (~5-20 ms each), but needs <code>/dev/input</code> access
           (rooted devices or accessible emulators only) — input defaults to <code>adb</code> for universal compatibility.
-          {" "}<strong>Scrcpy</strong> = one server process per device delivering both H.264 frames and touch events;
-          works on any unrooted device, auto-pushes <code>scrcpy-server.jar</code> on first start.
+          Scrcpy input works on any unrooted device and auto-pushes <code>scrcpy-server.jar</code> on first start.
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
@@ -306,7 +272,6 @@ export default function AdbPage() {
                             },
                             { value: "quartz", label: "quartz" },
                             { value: "adb", label: "adb" },
-                            { value: "minicap", label: "minicap" },
                             { value: "scrcpy", label: "scrcpy" },
                           ]}
                         />
@@ -336,7 +301,6 @@ export default function AdbPage() {
                   <tr>
                     <th>Serial</th>
                     <th>Line</th>
-                    <th>Minicap</th>
                     <th>Minitouch</th>
                     <th>Scrcpy</th>
                     <th>Actions</th>
@@ -344,10 +308,8 @@ export default function AdbPage() {
                 </thead>
                 <tbody>
                   {status.live_devices.map((d) => {
-                    const cap = minicap[d.serial];
                     const touch = minitouch[d.serial];
                     const sc = scrcpy[d.serial];
-                    const capInstalled = cap && !("error" in cap) && cap.installed;
                     const touchInstalled = touch && !("error" in touch) && touch.installed;
                     const scInstalled = sc && !("error" in sc) && sc.installed;
                     return (
@@ -356,24 +318,9 @@ export default function AdbPage() {
                           <code>{d.serial}</code>
                         </td>
                         <td className="muted">{d.line}</td>
-                        <td>{renderBinaryCell(cap)}</td>
                         <td>{renderBinaryCell(touch)}</td>
                         <td>{renderBinaryCell(sc)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={busy}
-                            title="Download minicap prebuilt and push to /data/local/tmp"
-                            onClick={() => onInstallMinicap(d.serial)}
-                            style={{ marginRight: 6 }}
-                          >
-                            {installingMinicap === d.serial
-                              ? "Installing…"
-                              : capInstalled
-                                ? "Reinstall minicap"
-                                : "Install minicap"}
-                          </button>
                           <button
                             type="button"
                             className="btn-secondary"

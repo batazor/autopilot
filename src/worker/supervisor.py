@@ -180,6 +180,12 @@ class Supervisor:
         signal.signal(signal.SIGTERM, _handle_shutdown_signal)
         signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
+        # Stamp a fresh ``worker_started_at`` per instance before any worker
+        # boots. This is the only place the field is written on the happy
+        # path — workers reconnect via ``hsetnx`` so a crash-restart wave
+        # preserves this session's start time instead of jumping to "now".
+        self._stamp_worker_started_at()
+
         for instance in self._settings.instances:
             self._processes[instance.instance_id] = self._spawn_worker(instance)
 
@@ -246,6 +252,42 @@ class Supervisor:
             if inst.instance_id == instance_id:
                 return inst
         return None
+
+    def _stamp_worker_started_at(self) -> None:
+        """One-shot Redis write at supervisor boot: anchors uptime to the
+        supervisor lifecycle, not the worker subprocess lifecycle.
+
+        Failures are non-fatal — the worker's ``hsetnx`` fallback covers
+        a transient Redis outage here, and the only consequence of a miss
+        is one freshly-restarted instance briefly showing 0s uptime.
+        """
+        if not self._settings.instances:
+            return
+        try:
+            import redis
+
+            client = redis.Redis.from_url(
+                self._settings.redis.url, socket_connect_timeout=5.0
+            )
+        except Exception:
+            logger.warning(
+                "Could not connect to Redis to stamp worker_started_at — "
+                "uptime will fall back to per-subprocess time",
+                exc_info=True,
+            )
+            return
+        now = str(time.time())
+        try:
+            pipe = client.pipeline(transaction=False)
+            for instance in self._settings.instances:
+                key = f"wos:instance:{instance.instance_id}:state"
+                pipe.hset(key, "worker_started_at", now)
+            pipe.execute()
+        except Exception:
+            logger.warning("Failed to stamp worker_started_at", exc_info=True)
+        finally:
+            with _suppress(Exception):
+                client.close()
 
 
 def _enforce_license_gate() -> None:

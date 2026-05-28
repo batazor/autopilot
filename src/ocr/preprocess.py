@@ -51,11 +51,8 @@ def digits_for_ocr(image: np.ndarray) -> np.ndarray:
     return binary_tile_for_ocr(image)
 
 
-# Timers: Tesseract single-line (PSM 7).
-_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time"})
-
-# Player ids / integer stat cells: ``kNN/digital`` (``cv2.ml.KNearest``).
-_KNN_TYPE_HINTS: frozenset[str] = frozenset({"int", "integer"})
+# Timers and integer stat cells: Tesseract single-line (PSM 7).
+_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time", "int", "integer"})
 
 
 def resolve_preprocess(
@@ -68,12 +65,11 @@ def resolve_preprocess(
 
     1. ``explicit`` — the value set on the rule/step or area.json region by
        the operator (caller picks which one wins, usually rule > region).
-    2. Auto-derivation — ``time`` → ``fast_line``; ``int`` / ``integer`` → ``knn``
-       (``src/kNN/digital``). Other types → ``None``.
+    2. Auto-derivation — ``time`` / ``int`` / ``integer`` → ``fast_line``.
+       Other types → ``None``.
     3. ``None`` — raw crop, Tesseract block mode (PSM 6).
 
-    ``preprocess: knn`` / ``digital`` force the kNN path; ``digits`` / ``enhance`` keep
-    Tesseract pipelines.
+    ``digits`` / ``enhance`` keep Tesseract pipelines with binarization.
     """
     if explicit:
         v = str(explicit).strip().lower()
@@ -83,6 +79,24 @@ def resolve_preprocess(
         v = str(type_hint).strip().lower()
         if v in _FAST_LINE_TYPE_HINTS:
             return "fast_line"
-        if v in _KNN_TYPE_HINTS:
-            return "knn"
     return None
+
+
+def parse_digit_count(raw: object) -> int | None:
+    """``None`` / ``auto`` -> auto width; positive int -> fixed width."""
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        tag = raw.strip().lower()
+        if tag in ("", "auto", "none"):
+            return None
+        try:
+            n = int(tag)
+        except ValueError:
+            return None
+        return n if n > 0 else None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None

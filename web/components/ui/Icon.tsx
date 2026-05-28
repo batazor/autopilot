@@ -18,7 +18,6 @@ export type IconName =
   | "approvals"
   | "overlay-test"
   | "queue"
-  | "debug-run"
   | "routes"
   | "optimizer"
   | "gift-codes"
@@ -37,6 +36,7 @@ export type IconName =
   | "warning"
   | "alert"
   | "arrow-up"
+  | "chevron-right"
   | "play"
   | "pause"
   | "discord";
@@ -141,9 +141,6 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M7 7h14M7 12h14M7 17h14" strokeLinecap="round" />
       <path d="M4 7h.01M4 12h.01M4 17h.01" strokeLinecap="round" />
     </>,
-  ),
-  "debug-run": strokeIcon(
-    <path d="M9 7l8 5-8 5V7z" strokeLinejoin="round" />,
   ),
   routes: strokeIcon(
     <>
@@ -252,6 +249,9 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
     </>,
+  ),
+  "chevron-right": strokeIcon(
+    <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />,
   ),
   play: <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />,
   pause: (

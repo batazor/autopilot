@@ -9,17 +9,15 @@ const GAME_TABS: { id: string; label: string }[] = [
   { id: "wos", label: "Whiteout Survival" },
   { id: "kingshot", label: "Kingshot" },
 ];
-import { debugRunHref, editDslHref } from "@/lib/debug-links";
+import { editDslHref } from "@/lib/debug-links";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchModules,
-  fetchPlayerAssignments,
   fetchWikiScopes,
   reloadScenarios,
-  setPlayerAssignment,
   setScenarioEnabled,
 } from "@/lib/api";
-import type { ModuleRow, PlayerAssignment, ScenarioRow } from "@/lib/config-pages";
+import type { ModuleRow, ScenarioRow } from "@/lib/config-pages";
 import type { WikiScope } from "@/lib/wiki";
 import { NewModuleDialog } from "@/components/modules/NewModuleDialog";
 
@@ -80,12 +78,6 @@ function ModuleScenarios({
               >
                 Edit
               </Link>
-              <Link
-                href={debugRunHref({ scope: moduleKey, scenario: s.key })}
-                className="queue-task-actions__link"
-              >
-                Run
-              </Link>
             </td>
           </tr>
         ))}
@@ -100,33 +92,19 @@ export default function ModulesPage() {
   const [scopes, setScopes] = useState<WikiScope[]>([]);
   const [scope, setScope] = useState("all");
   const [modules, setModules] = useState<ModuleRow[]>([]);
-  const [players, setPlayers] = useState<PlayerAssignment[]>([]);
-  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
 
-  const allScenarios = useMemo(
-    () => modules.flatMap((m) => m.scenarios),
-    [modules],
-  );
-
   const reload = useCallback(async () => {
     setError(null);
-    setAssignmentsLoading(true);
     try {
-      const [mods, p] = await Promise.all([
-        fetchModules(scope, game),
-        fetchPlayerAssignments(),
-      ]);
+      const mods = await fetchModules(scope, game);
       setModules(mods);
-      setPlayers(p);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setAssignmentsLoading(false);
     }
   }, [scope, game]);
 
@@ -181,29 +159,12 @@ export default function ModulesPage() {
     }
   }
 
-  async function onAssign(playerId: string, scenarioId: string) {
-    setBusy(playerId);
-    try {
-      await setPlayerAssignment(playerId, scenarioId || null);
-      await reload();
-      showSuccess(
-        scenarioId
-          ? `Assigned ${scenarioId} to ${playerId}`
-          : `Cleared scenario override for ${playerId}`,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(null);
-    }
-  }
-
   return (
     <>
       <PageHeader title="Modules">
         <p className="muted">
-          Module manifests under <code>modules/</code> — enable scenarios, assign
-          per-player overrides, open editor or runner.
+          Module manifests under <code>modules/</code> — enable scenarios and
+          open the DSL editor.
         </p>
       </PageHeader>
       <AppTabs
@@ -366,12 +327,6 @@ export default function ModulesPage() {
                           New scenario
                         </Link>
                         {" · "}
-                        <Link
-                          href={`/debug-run?scope=${encodeURIComponent(m.storage_key)}`}
-                        >
-                          Runner
-                        </Link>
-                        {" · "}
                         <Link href={`/analyze?scope=${encodeURIComponent(m.storage_key)}`}>
                           Analyze
                         </Link>
@@ -392,54 +347,6 @@ export default function ModulesPage() {
                   </Fragment>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section className="panel panel--spaced">
-        <h2>Player assignment</h2>
-        <p className="muted">
-          Redis override for account-level scenario routing (device-level scenarios
-          ignore player).
-        </p>
-        <div className="data-table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Assigned scenario</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assignmentsLoading && players.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="meta">
-                    Loading players…
-                  </td>
-                </tr>
-              ) : null}
-              {players.map((p) => (
-                <tr key={p.player_id}>
-                  <td>
-                    <code>{p.player_id}</code>
-                  </td>
-                  <td>
-                    <AppListbox
-                      value={p.assigned_scenario ?? ""}
-                      disabled={busy === p.player_id}
-                      onChange={(v) => onAssign(p.player_id, v)}
-                      options={[
-                        { value: "", label: "(none)" },
-                        ...allScenarios.map((s) => ({
-                          value: s.key,
-                          label: s.key,
-                        })),
-                      ]}
-                      minWidth={220}
-                    />
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         </div>

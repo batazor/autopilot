@@ -39,7 +39,7 @@ import type {
   ScenarioProgress,
 } from "@/lib/types";
 import type { ModuleRow } from "@/lib/config-pages";
-import { debugRunHref, editDslHref, overlayTestHref } from "@/lib/debug-links";
+import { editDslHref, overlayTestHref } from "@/lib/debug-links";
 import { isWebCodecsSupported } from "@/lib/h264VideoStream";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 const NOTIFICATIONS_MAX_AGE_S = 30;
@@ -1375,7 +1375,6 @@ function PendingApprovalCard({
   busyAction: BusyAction;
   onDecision: (d: Decision) => void;
 }) {
-  const playerId = view.active_player_in_game_id || view.active_player || "";
   const actionLabel = view.action_label || actionType || "action";
   const isBusy = (d: Decision) => busyAction === d;
   // Disable a button only when *another* decision is in flight. Operators
@@ -1431,16 +1430,6 @@ function PendingApprovalCard({
           ) : null}
           {view.scenario_key ? (
             <nav className="queue-task-actions approvals-scenario-links" aria-label="Scenario">
-              <Link
-                href={debugRunHref({
-                  instanceId,
-                  playerId: playerId || undefined,
-                  scenario: view.scenario_key,
-                })}
-                className="queue-task-actions__link"
-              >
-                DSL runner
-              </Link>
               <Link href={editDslHref({ scenario: view.scenario_key })} className="queue-task-actions__link">
                 Edit scenario
               </Link>

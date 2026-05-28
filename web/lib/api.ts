@@ -1,8 +1,6 @@
 import type {
   AdbResetDisplayResult,
   AdbStatus,
-  MinicapStatus,
-  MinicapInstallResult,
   MinitouchStatus,
   MinitouchInstallResult,
   ScrcpyStatus,
@@ -21,7 +19,6 @@ import type {
   LicenseIssueResult,
   LicenseStatus,
   ModuleRow,
-  PlayerAssignment,
   ScenarioRow,
 } from "./config-pages";
 import type {
@@ -1137,27 +1134,6 @@ export async function reloadScenarios(): Promise<number> {
   return data.loaded;
 }
 
-export async function fetchPlayerAssignments(): Promise<PlayerAssignment[]> {
-  const data = await apiFetch<{ players: PlayerAssignment[] }>(
-    "/api/modules/players",
-  );
-  return data.players;
-}
-
-export async function setPlayerAssignment(
-  playerId: string,
-  scenarioId: string | null,
-): Promise<void> {
-  await apiFetch(
-    `/api/modules/players/${encodeURIComponent(playerId)}/assignment`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scenario_id: scenarioId }),
-    },
-  );
-}
-
 export async function fetchGallery(
   scope = "all",
   q = "",
@@ -1178,19 +1154,6 @@ export async function fetchAdbStatus(): Promise<AdbStatus> {
 export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDisplayResult> {
   return apiFetch<AdbResetDisplayResult>(
     `/api/adb/devices/${encodeURIComponent(serial)}/reset-display`,
-    { method: "POST" },
-  );
-}
-
-export async function fetchMinicapStatus(serial: string): Promise<MinicapStatus> {
-  return apiFetch<MinicapStatus>(
-    `/api/adb/devices/${encodeURIComponent(serial)}/minicap`,
-  );
-}
-
-export async function installMinicap(serial: string): Promise<MinicapInstallResult> {
-  return apiFetch<MinicapInstallResult>(
-    `/api/adb/devices/${encodeURIComponent(serial)}/minicap/install`,
     { method: "POST" },
   );
 }
@@ -1233,19 +1196,6 @@ export async function updateDeviceBackend(
       body: JSON.stringify(body),
     },
   );
-}
-
-export async function runDebugScenario(body: {
-  instance_id: string;
-  scenario_key: string;
-  player_id?: string;
-  priority?: number;
-}): Promise<{ ok: boolean; task_id: string }> {
-  return apiFetch("/api/debug/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
 }
 
 export async function fetchBalanceFiles(): Promise<BalanceFileMeta[]> {

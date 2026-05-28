@@ -11,13 +11,11 @@ steps:
   - ocr: player.id
     store: player_id
     type: integer
-
-  - ocr: player.power
-    type: integer
-    state: power
+    preprocess: fast_line
 
   - ocr: player.state
     type: integer
+    preprocess: fast_line
     state: state
 
   - exec: fetch_player

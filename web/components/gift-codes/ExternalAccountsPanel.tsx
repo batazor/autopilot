@@ -62,13 +62,29 @@ function fmtDate(ts: number | null): string {
 export function ExternalAccountsPanel({
   games,
   initialGame,
+  game: controlledGame,
+  onGameChange,
 }: {
   games: ExternalAccountsGame[];
   initialGame?: string;
+  /** When set, the parent owns the tab state and the panel won't render its
+   *  own tab strip. Use this when the game selector lives outside the panel
+   *  (e.g. lifted to the page header). */
+  game?: string;
+  onGameChange?: (next: string) => void;
 }) {
-  const [game, setGame] = useState<string>(
+  const [uncontrolledGame, setUncontrolledGame] = useState<string>(
     () => initialGame ?? games[0]?.id ?? "wos",
   );
+  const isControlled = controlledGame !== undefined;
+  const game = isControlled ? controlledGame : uncontrolledGame;
+  const setGame = (next: string) => {
+    if (isControlled) {
+      onGameChange?.(next);
+    } else {
+      setUncontrolledGame(next);
+    }
+  };
   const [view, setView] = useState<{
     licensed: boolean;
     accounts: ExternalAccount[];
@@ -173,7 +189,8 @@ export function ExternalAccountsPanel({
     }
   };
 
-  const showTabs = games.length > 1;
+  // Hide the in-panel tab strip when the parent renders its own selector.
+  const showTabs = games.length > 1 && !isControlled;
   const tabs = games.map((g) => ({ key: g.id, label: g.label, title: g.id }));
 
   if (view === null && !error) {

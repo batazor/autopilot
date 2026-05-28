@@ -14,12 +14,14 @@ def test_bot_status_not_running() -> None:
             "running": False,
             "mode": None,
             "pid": None,
+            "processes": [],
         }
 
 
 def test_bot_status_supervisor() -> None:
     proc = MagicMock()
     proc.pid = 4242
+    proc.create_time.return_value = 1700000000.0
     with (
         patch.object(local_bot, "_supervisor_processes", return_value=[proc]),
         patch.object(local_bot, "_embedded_thread_alive", return_value=False),
@@ -28,7 +30,25 @@ def test_bot_status_supervisor() -> None:
             "running": True,
             "mode": "supervisor",
             "pid": 4242,
+            "processes": [{"pid": 4242, "started_at": 1700000000.0}],
         }
+
+
+def test_bot_status_supervisor_multiple_sorted_by_start() -> None:
+    older = MagicMock()
+    older.pid = 100
+    older.create_time.return_value = 1700000000.0
+    newer = MagicMock()
+    newer.pid = 200
+    newer.create_time.return_value = 1700001000.0
+    with (
+        # Intentionally pass them out of order — bot_status() should re-sort.
+        patch.object(local_bot, "_supervisor_processes", return_value=[newer, older]),
+        patch.object(local_bot, "_embedded_thread_alive", return_value=False),
+    ):
+        out = local_bot.bot_status()
+        assert out["pid"] == 100  # oldest first
+        assert [p["pid"] for p in out["processes"]] == [100, 200]
 
 
 def test_bot_status_embedded() -> None:
@@ -40,6 +60,7 @@ def test_bot_status_embedded() -> None:
             "running": True,
             "mode": "embedded",
             "pid": None,
+            "processes": [{"pid": None, "started_at": None}],
         }
 
 

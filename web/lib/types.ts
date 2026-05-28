@@ -13,10 +13,16 @@ export type VersionView = {
   reason: "ok" | "dev_build" | "github_unreachable";
 };
 
+export type BotProcessView = {
+  pid: number | null;
+  started_at: number | null;
+};
+
 export type BotStatusView = {
   running: boolean;
   mode: "supervisor" | "embedded" | null;
   pid: number | null;
+  processes: BotProcessView[];
 };
 
 export type OverlayRect = {
@@ -110,7 +116,7 @@ export type ClickApprovalView = {
   /** Live H.264 WebSocket stream capability for this instance.
    *  ``available: true`` only when scrcpy is currently running AND has
    *  received its codec config. The UI uses this to auto-pick WebCodecs
-   *  instead of opening a doomed socket on adb/quartz/minicap devices. */
+   *  instead of opening a doomed socket on adb/quartz devices. */
   stream: {
     available: boolean;
   };
@@ -268,6 +274,9 @@ export type InstanceDetail = {
   runnable_scenarios: string[];
   preview_available: boolean;
   preview_mtime: number | null;
+  stream: {
+    available: boolean;
+  };
   history: InstanceHistoryRow[];
   state: Record<string, string>;
   revision?: string;

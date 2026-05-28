@@ -58,13 +58,17 @@ class InstanceWorkerRedisMixin(_Base):
         # ``_fail_stuck_running_on_boot`` reads them to write a history entry
         # when ``wos:queue:running:<iid>`` has already TTL'd away (restart
         # more than 180s after the crash). The boot cleanup wipes them after.
+        # ``worker_started_at`` is intentionally NOT written here. The
+        # supervisor stamps it once when it boots a fresh wave of workers
+        # (see ``Supervisor.run``); leaving it alone here means a crash +
+        # auto-restart of this subprocess preserves the original session's
+        # uptime instead of resetting to "0s" every time we reconnect.
         await self._redis.hset(
             inst_key,
             mapping={
                 "state": InstanceState.READY,
                 "active_player": "",
                 "paused": "0",
-                "worker_started_at": str(time.time()),
                 "last_seen_at": str(time.time()),
                 "last_error": "",
                 "nav_error": "",
@@ -72,6 +76,11 @@ class InstanceWorkerRedisMixin(_Base):
                 "current_screen": "",
             },
         )
+        # Fallback for hosts that came up without supervisor seeding (legacy
+        # path, embedded mode racing with worker boot, or a manual Redis
+        # flushdb between stop/start) — set the field only if absent so we
+        # never clobber the supervisor's value.
+        await self._redis.hsetnx(inst_key, "worker_started_at", str(time.time()))
 
     async def _disconnect_redis(self) -> None:
         """Drain async Redis connections before the supervisor event loop stops."""

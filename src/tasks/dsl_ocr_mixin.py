@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
-from ocr.preprocess import resolve_preprocess
+from ocr.preprocess import parse_digit_count, resolve_preprocess
 from tasks.dsl_scenario_helpers import _parse_hms_to_seconds, _read_current_screen
 
 logger = logging.getLogger(__name__)
@@ -38,9 +38,7 @@ def parse_ocr_integer(text: str) -> int | None:
     """Strip non-digits from ``text`` and return the int — None if no digits.
 
     Game UI labels OCR as ``"1,234,567"`` / ``"1 234 567"`` / ``"12345"``;
-    the digit-only pass handles thousands separators uniformly. Magnitude
-    suffixes (``"12.3M"``) collapse to ``123`` — callers that need lossless
-    suffix expansion must preprocess before calling.
+    the digit-only pass handles thousands separators uniformly.
     """
     digits = re.sub(r"\D+", "", str(text or ""))
     if not digits:
@@ -264,14 +262,12 @@ class DslOcrMixin(_Base):
 
         # ``preprocess:`` selects the backend pipeline. Step wins, then
         # area.json region, then a ``type:``-derived default
-        # ``time`` → ``fast_line``; ``int`` / ``integer`` → ``knn`` (``kNN/digital``).
+        # ``time`` / ``int`` / ``integer`` → Tesseract ``fast_line``.
         preprocess = resolve_preprocess(
             explicit=step.get("preprocess") or region_def.get("preprocess"),
             type_hint=step.get("type") or region_def.get("type"),
         )
         raw_digit_count = step.get("digit_count", region_def.get("digit_count"))
-        from kNN.digital.classifier import parse_digit_count
-
         digit_count = parse_digit_count(raw_digit_count)
         try:
             digit_x0 = int(step.get("digit_x0", region_def.get("digit_x0", 0)) or 0)
@@ -396,8 +392,6 @@ class DslOcrMixin(_Base):
         # ``fast_line`` for timer / integer regions. The whole list is only
         # forwarded when at least one entry is non-empty, so a backend that
         # predates the field doesn't see an unknown key on every batch.
-        from kNN.digital.classifier import parse_digit_count
-
         bulk_preprocess: list[str | None] = [
             resolve_preprocess(
                 explicit=step.get("preprocess") or region_def.get("preprocess"),

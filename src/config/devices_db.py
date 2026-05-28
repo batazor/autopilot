@@ -78,7 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_device_profile_gamers_profile ON device_profile_g
 """
 
 
-VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "minicap", "scrcpy"})
+VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "scrcpy"})
 VALID_INPUT_BACKENDS = frozenset({"", "adb", "minitouch", "scrcpy"})
 
 
@@ -106,6 +106,10 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(_SCHEMA_SQL)
         _ensure_game_columns(conn)
+        # Minicap was removed in favor of scrcpy; keep old DB rows bootable.
+        conn.execute(
+            "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
+        )
         conn.commit()
         yield conn
     finally:
@@ -167,6 +171,14 @@ def upsert_device(
     if game is not None and not is_known_game(game):
         msg = f"unknown game id: {game!r}"
         raise ValueError(msg)
+    screenshot_backend_clean = screenshot_backend.strip().lower()
+    if screenshot_backend_clean not in VALID_SCREENSHOT_BACKENDS:
+        msg = f"screenshot_backend must be one of {sorted(VALID_SCREENSHOT_BACKENDS - {''})} or empty"
+        raise ValueError(msg)
+    input_backend_clean = input_backend.strip().lower()
+    if input_backend_clean not in VALID_INPUT_BACKENDS:
+        msg = f"input_backend must be one of {sorted(VALID_INPUT_BACKENDS - {''})} or empty"
+        raise ValueError(msg)
     now = time.time()
     crop = quartz_crop or (None, None, None, None)
     game_value = (game or default_game()).strip()
@@ -202,8 +214,8 @@ def upsert_device(
             "updated_at = excluded.updated_at",
             (
                 name, adb_serial.strip(),
-                screenshot_backend.strip().lower(),
-                input_backend.strip().lower(),
+                screenshot_backend_clean,
+                input_backend_clean,
                 quartz_window_id, quartz_window_title.strip(),
                 crop[0], crop[1], crop[2], crop[3],
                 _serialize_display(display), device_order, game_value, now,

@@ -86,11 +86,7 @@ class OcrClient:
         if pre_tag:
             h.update(b"|preprocess=")
             h.update(pre_tag.encode("utf-8"))
-        from kNN.digital.loader import is_knn_preprocess
-
-        if is_knn_preprocess(pre_tag):
-            dc_tag = "auto" if digit_count is None else str(int(digit_count))
-            h.update(f"|digits={dc_tag}|x0={digit_x0}".encode())
+        del digit_count, digit_x0
         return h.digest()
 
     @classmethod
@@ -196,17 +192,6 @@ class OcrClient:
         confidence = sum(confidences) / len(confidences) if confidences else 0.0
         return text, confidence
 
-    def _run_knn_digits(
-        self,
-        crop: np.ndarray,
-        *,
-        digit_count: int | None = None,
-        digit_x0: int = 0,
-    ) -> tuple[str, float]:
-        from kNN.digital import recognize_digits
-
-        return recognize_digits(crop, digit_count=digit_count, x0=digit_x0)
-
     def _run_ocr_backend(
         self,
         crop: np.ndarray,
@@ -215,16 +200,7 @@ class OcrClient:
         digit_count: int | None = None,
         digit_x0: int = 0,
     ) -> tuple[str, float]:
-        from kNN.digital.loader import is_compact_number_preprocess, is_knn_preprocess
-
-        if is_compact_number_preprocess(preprocess):
-            from kNN.digital import recognize_compact_number
-
-            return recognize_compact_number(crop, x0=digit_x0)
-        if is_knn_preprocess(preprocess):
-            return self._run_knn_digits(
-                crop, digit_count=digit_count, digit_x0=digit_x0
-            )
+        del digit_count, digit_x0
         return self._run_tesseract(crop, preprocess=preprocess)
 
     def _run_tesseract(self, crop: np.ndarray, *, preprocess: str | None = None) -> tuple[str, float]:
@@ -489,20 +465,7 @@ class OcrClient:
                 within_batch = len(miss_indices) - len(rep_indices)
                 cache_tag = f" cached={cached}" if cached else ""
                 dedup_tag = f" dedup={within_batch}" if within_batch else ""
-                pre0 = _pre(rep_indices[0]) if rep_indices else ""
-                from kNN.digital.loader import (
-                    is_compact_number_preprocess,
-                    is_knn_preprocess,
-                )
-
-                mode_tag = (
-                    " mode=compact_number"
-                    if is_compact_number_preprocess(pre0)
-                    else
-                    " mode=knn:digital"
-                    if is_knn_preprocess(pre0)
-                    else f" mode=tesseract:{self._lang}"
-                )
+                mode_tag = f" mode=tesseract:{self._lang}"
                 omitted = len(raw_results) - len(parts)
                 tail = f" | +{omitted} more" if omitted > 0 else ""
                 logger.info(

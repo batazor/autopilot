@@ -270,10 +270,9 @@ sqlite3 db/state/state.db "SELECT name, adb_serial, screenshot_backend, input_ba
 
 | backend     | screenshot | input | notes                                                       |
 | ----------- | ---------- | ----- | ----------------------------------------------------------- |
-| *(empty)*   | ✓          | ✓     | Smart default: emulator → quartz/adb, physical → minicap/adb |
+| *(empty)*   | ✓          | ✓     | Smart default: emulator → quartz/adb, physical → scrcpy/adb |
 | `adb`       | ✓          | ✓     | Universal fallback (`exec-out screencap` / `input tap`)     |
 | `quartz`    | ✓          |       | macOS WindowServer capture (BlueStacks et al.)              |
-| `minicap`   | ✓          |       | DeviceFarmer JPEG stream (~15-40 ms/frame; physical preferred) |
 | `minitouch` |            | ✓     | DeviceFarmer native input (~5-20 ms/tap; rooted only)        |
 | `scrcpy`    | ✓          | ✓     | Genymobile scrcpy server: H.264 video + touch events through one device-side process. Auto-pushes `scrcpy-server.jar`. Any unrooted device. |
 
@@ -366,4 +365,3 @@ Module tests should use `device_level: true` fixtures to avoid Redis state pollu
 - **`.cursor/rules/`** — Cursor IDE guidance (Python uv, overlay DSL patterns)
 - **`area.json`** — root placeholder; live screen definitions live in `games/<game>/<id>/area.yaml` and are merged via `layout.area_manifest.load_area_doc`
 - **`conftest.py`** — pytest fixtures shared across modules
-

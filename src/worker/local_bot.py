@@ -77,15 +77,42 @@ def _embedded_thread_alive() -> bool:
     )
 
 
+def _supervisor_process_summary(proc: psutil.Process) -> dict[str, Any]:
+    """Lightweight {pid, started_at} snapshot for the UI carousel."""
+    try:
+        started_at: float | None = float(proc.create_time())
+    except (psutil.Error, OSError):
+        started_at = None
+    return {"pid": proc.pid, "started_at": started_at}
+
+
 def bot_status() -> dict[str, Any]:
-    """Return ``{running, mode, pid}`` for the local worker stack."""
+    """Return ``{running, mode, pid, processes}`` for the local worker stack.
+
+    ``processes`` is the full list of detected supervisors (typically 1, but
+    dev cycles or accidental double-starts can leave several behind). The
+    legacy ``pid`` field stays for back-compat and points at the first one.
+    """
     sup = _supervisor_processes()
     if sup:
-        proc = sup[0]
-        return {"running": True, "mode": "supervisor", "pid": proc.pid}
+        processes = [_supervisor_process_summary(p) for p in sup]
+        # Stable order: oldest first. ``started_at == None`` sorts last so a
+        # process whose create_time was unreadable doesn't shuffle the rest.
+        processes.sort(key=lambda p: (p["started_at"] is None, p["started_at"] or 0.0))
+        return {
+            "running": True,
+            "mode": "supervisor",
+            "pid": processes[0]["pid"],
+            "processes": processes,
+        }
     if _embedded_thread_alive():
-        return {"running": True, "mode": "embedded", "pid": None}
-    return {"running": False, "mode": None, "pid": None}
+        return {
+            "running": True,
+            "mode": "embedded",
+            "pid": None,
+            "processes": [{"pid": None, "started_at": None}],
+        }
+    return {"running": False, "mode": None, "pid": None, "processes": []}
 
 
 def start_supervisor_subprocess() -> dict[str, Any]:

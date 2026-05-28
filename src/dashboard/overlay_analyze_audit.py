@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 # and the rule silently never matches at runtime.
 _SUPPORTED_OVERLAY_ACTIONS: frozenset[str] = frozenset({
     "findIcon",
-    "feature_match",
     "text",
     "color_check",
     "detectTabs",

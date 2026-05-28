@@ -4,7 +4,6 @@ import { CopyButton } from "@/components/CopyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
   approvalsProbeHref,
-  debugRunHref,
   overlayTestHref,
   regionFromQueueHistory,
   regionFromQueuePending,
@@ -180,8 +179,6 @@ export function RunningCards({ rows }: { rows: QueueRunningRow[] }) {
           <div className="queue-running-card__actions">
             <QueueTaskActions
               instanceId={r.instance_id}
-              playerId={r.player_id}
-              scenarioKey={r.scenario_key}
               region={regionFromQueueRunning(r)}
             />
             <CopyButton
@@ -305,43 +302,30 @@ export function HistoryStepsCell({
 
 export function QueueTaskActions({
   instanceId,
-  playerId,
-  scenarioKey,
   region,
   showOverlay = true,
 }: {
   instanceId: string;
-  playerId?: string;
-  scenarioKey: string;
   region?: string;
   showOverlay?: boolean;
 }) {
   const probeRegion = region?.trim();
+  if (!probeRegion) return null;
   return (
     <nav className="queue-task-actions" aria-label="Debug actions">
       <Link
-        href={debugRunHref({ instanceId, playerId, scenario: scenarioKey })}
+        href={approvalsProbeHref(instanceId, probeRegion)}
         className="queue-task-actions__link"
       >
-        DSL runner
+        Probe
       </Link>
-      {probeRegion ? (
-        <>
-          <Link
-            href={approvalsProbeHref(instanceId, probeRegion)}
-            className="queue-task-actions__link"
-          >
-            Probe
-          </Link>
-          {showOverlay ? (
-            <Link
-              href={overlayTestHref(instanceId, { region: probeRegion })}
-              className="queue-task-actions__link"
-            >
-              Overlay
-            </Link>
-          ) : null}
-        </>
+      {showOverlay ? (
+        <Link
+          href={overlayTestHref(instanceId, { region: probeRegion })}
+          className="queue-task-actions__link"
+        >
+          Overlay
+        </Link>
       ) : null}
     </nav>
   );
@@ -352,16 +336,6 @@ export function QueueHistoryActions({ row }: { row: QueueHistoryRow }) {
   const traceId = row.trace_id?.trim();
   const tempoUrl = row.tempo_trace_url?.trim();
   const items: AppMenuItem[] = [];
-
-  items.push({
-    kind: "link",
-    label: "Open in DSL runner",
-    href: debugRunHref({
-      instanceId: row.instance_id,
-      playerId: row.player_id,
-      scenario: row.scenario_key,
-    }),
-  });
 
   if (region) {
     items.push({
@@ -438,16 +412,6 @@ export function QueuePendingActions({
       title: "Move task to the front of the queue",
     });
   }
-
-  items.push({
-    kind: "link",
-    label: "Open in DSL runner",
-    href: debugRunHref({
-      instanceId: row.instance_id,
-      playerId: row.player_id,
-      scenario: row.scenario_key,
-    }),
-  });
 
   if (region) {
     items.push({

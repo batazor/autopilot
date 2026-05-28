@@ -13,7 +13,7 @@ from config.device_display import DeviceDisplayConfig, parse_device_display
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
-    # Empty string = smart default (physical → minicap, emulator → quartz);
+    # Empty string = smart default (physical → scrcpy, emulator → quartz);
     # set explicitly via devices.yaml to override.
     screenshot_backend: str = ""
     # Empty = smart default (physical → minitouch, emulator → adb).

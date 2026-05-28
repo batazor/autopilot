@@ -57,7 +57,6 @@ export function labelingHref(opts?: { instanceId?: string }) {
 
 export {
   approvalsProbeHref,
-  debugRunHref,
   editDslHref,
   overlayTestHref,
   regionFromQueueHistory,

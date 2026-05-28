@@ -23,7 +23,7 @@ def sqlite_db(tmp_path: Path) -> Path:
 
 
 def test_devices_default_to_empty_screenshot_backend(sqlite_db: Path) -> None:
-    """Empty marker = smart default (physical → minicap, emulator → quartz)
+    """Empty marker = smart default (physical → scrcpy, emulator → quartz)
     is chosen later by the dispatcher in bot_actions."""
     upsert_device("bs1", adb_serial="127.0.0.1:5555")
 
@@ -34,11 +34,11 @@ def test_devices_default_to_empty_screenshot_backend(sqlite_db: Path) -> None:
     assert device.quartz_crop is None
 
 
-def test_devices_parse_minicap_screenshot_backend(sqlite_db: Path) -> None:
-    upsert_device("phone", adb_serial="RF8RC00M8MF", screenshot_backend="minicap")
+def test_devices_parse_scrcpy_screenshot_backend(sqlite_db: Path) -> None:
+    upsert_device("phone", adb_serial="RF8RC00M8MF", screenshot_backend="scrcpy")
 
     registry = load_devices()
-    assert registry.devices[0].screenshot_backend == "minicap"
+    assert registry.devices[0].screenshot_backend == "scrcpy"
 
 
 def test_devices_persist_explicit_screenshot_backend_and_quartz_hints(sqlite_db: Path) -> None:

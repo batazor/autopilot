@@ -852,8 +852,6 @@ function QueueCalendarPendingCard({
       <div className="queue-cal__detail-links">
         <QueueTaskActions
           instanceId={row.instance_id}
-          playerId={row.player_id}
-          scenarioKey={row.scenario_key}
           region={region}
           showOverlay={false}
         />

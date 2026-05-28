@@ -87,7 +87,6 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     balance,
     click_approvals,
     config_reload,
-    debug_scenarios,
     dev_bot,
     edit_dsl,
     events,
@@ -157,7 +156,6 @@ app.include_router(overlay_test.router)
 app.include_router(modules.router)
 app.include_router(gallery.router)
 app.include_router(adb.router)
-app.include_router(debug_scenarios.router)
 app.include_router(dev_bot.router)
 app.include_router(balance.router)
 app.include_router(optimizer.router)
