@@ -175,78 +175,126 @@ function EditDslPageInner() {
       </PageHeader>
 
       <div className="edit-dsl-layout">
-        <aside className="panel edit-dsl-sidebar">
-          <div className="toolbar" style={{ flexDirection: "column", alignItems: "stretch" }}>
-            <AppListbox
-              fullWidth
-              label="Module scope"
-              value={scope}
-              onChange={setScope}
-              options={[
-                ...(scopes.length
-                  ? scopes.map((s) => ({ value: s.key, label: s.label }))
-                  : [{ value: "all", label: "All" }]),
-              ]}
-            />
-            <label>
-              Filter
-              <input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="path, module…"
+        <div className="flex flex-col gap-4 min-w-0">
+          <aside className="panel edit-dsl-sidebar">
+            <div className="flex flex-col gap-2">
+              <AppListbox
+                fullWidth
+                label="Module scope"
+                value={scope}
+                onChange={setScope}
+                options={[
+                  ...(scopes.length
+                    ? scopes.map((s) => ({ value: s.key, label: s.label }))
+                    : [{ value: "all", label: "All" }]),
+                ]}
               />
-            </label>
-          </div>
-          {files.length === 0 ? (
-            <p className="muted">No editable DSL files for this scope.</p>
-          ) : filter ? (
-            <ul className="scenario-tree">
-              {filteredFiles.map((f) => (
-                <li key={f.rel}>
-                  <button
-                    type="button"
-                    className={selectedRel === f.rel ? "tree-link active" : "tree-link"}
-                    onClick={() => setSelectedRel(f.rel)}
-                  >
-                    {f.stem}
-                  </button>
-                  <span className="muted"> {f.module}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <ScenarioTree
-              nodes={tree}
-              selected={selectedRel}
-              onSelect={setSelectedRel}
-            />
-          )}
+              <label className="flex flex-col gap-1">
+                <span className="text-xs uppercase tracking-wide text-wos-text-muted">
+                  Filter
+                </span>
+                <input
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="path, module…"
+                  type="search"
+                  className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+                />
+              </label>
+            </div>
+            <div className="mt-3">
+              {files.length === 0 ? (
+                <p className="muted">No editable DSL files for this scope.</p>
+              ) : filter ? (
+                <ul className="scenario-tree">
+                  {filteredFiles.map((f) => (
+                    <li key={f.rel}>
+                      <button
+                        type="button"
+                        className={
+                          selectedRel === f.rel
+                            ? "tree-link active"
+                            : "tree-link"
+                        }
+                        onClick={() => setSelectedRel(f.rel)}
+                      >
+                        {f.stem}
+                      </button>
+                      <span className="muted"> {f.module}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ScenarioTree
+                  nodes={tree}
+                  selected={selectedRel}
+                  onSelect={setSelectedRel}
+                />
+              )}
+            </div>
+          </aside>
 
-          <hr />
-          <h3>New scenario</h3>
-          <AppListbox
-            fullWidth
-            label="Module"
-            value={newModule}
-            onChange={setNewModule}
-            options={modules.map((m) => ({
-              value: m.key,
-              label: `${m.title} (${m.key})`,
-            }))}
-          />
-          <label>
-            File key
-            <input
-              ref={newKeyInputRef}
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="dismiss_popup"
-            />
-          </label>
-          <button type="button" className="btn-secondary" disabled={busy} onClick={handleCreate}>
-            Create
-          </button>
-        </aside>
+          <aside className="panel">
+            <div className="mb-2 flex items-center gap-2">
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"
+                aria-hidden
+              >
+                <svg
+                  className="ui-icon ui-icon--sm"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+              </span>
+              <h3 className="m-0 text-base font-semibold text-wos-text">
+                New scenario
+              </h3>
+            </div>
+            <p className="muted mt-0 mb-3 text-xs">
+              Pick a module and a short file key. A blank DSL skeleton will be
+              created at <code>scenarios/&lt;key&gt;.yaml</code>.
+            </p>
+            <div className="flex flex-col gap-2">
+              <AppListbox
+                fullWidth
+                label="Module"
+                value={newModule}
+                onChange={setNewModule}
+                options={modules.map((m) => ({
+                  value: m.key,
+                  label: `${m.title} (${m.key})`,
+                }))}
+              />
+              <label className="flex flex-col gap-1">
+                <span className="text-xs uppercase tracking-wide text-wos-text-muted">
+                  File key
+                </span>
+                <input
+                  ref={newKeyInputRef}
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                  placeholder="dismiss_popup"
+                  className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/25"
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-success mt-1 w-full"
+                disabled={busy || !newKey.trim() || !newModule}
+                onClick={handleCreate}
+              >
+                Create
+              </button>
+            </div>
+          </aside>
+        </div>
 
         <main className="panel edit-dsl-main">
           {selectedRel && (

@@ -222,8 +222,11 @@ export async function createQueueTask(body: {
   return { task_id: data.task_id };
 }
 
-export async function fetchPlayers(): Promise<string[]> {
-  const data = await apiFetch<{ players: string[] }>("/api/players");
+export async function fetchPlayers(instanceId?: string): Promise<string[]> {
+  const qs = instanceId
+    ? `?${new URLSearchParams({ instance_id: instanceId }).toString()}`
+    : "";
+  const data = await apiFetch<{ players: string[] }>(`/api/players${qs}`);
   return data.players;
 }
 
@@ -881,8 +884,11 @@ export async function deleteExternalAccount(
   );
 }
 
-export async function fetchWikiScopes(): Promise<WikiScope[]> {
-  const q = new URLSearchParams(gameQueryEntries()).toString();
+export async function fetchWikiScopes(game?: string): Promise<WikiScope[]> {
+  const params = new URLSearchParams(
+    game ? { game } : gameQueryEntries(),
+  );
+  const q = params.toString();
   const data = await apiFetch<{ scopes: WikiScope[] }>(
     `/api/wiki/scopes${q ? `?${q}` : ""}`,
   );
@@ -999,14 +1005,20 @@ export async function runWikiSync(
   }
 }
 
-function modulesScopeQuery(scope: string): string {
-  const q = new URLSearchParams({ scope, ...gameQueryEntries() });
+function modulesScopeQuery(scope: string, game?: string): string {
+  const q = new URLSearchParams({
+    scope,
+    ...(game ? { game } : gameQueryEntries()),
+  });
   return `?${q}`;
 }
 
-export async function fetchModules(scope = "all"): Promise<ModuleRow[]> {
+export async function fetchModules(
+  scope = "all",
+  game?: string,
+): Promise<ModuleRow[]> {
   const data = await apiFetch<{ modules: ModuleRow[] }>(
-    `/api/modules${modulesScopeQuery(scope)}`,
+    `/api/modules${modulesScopeQuery(scope, game)}`,
   );
   return data.modules;
 }

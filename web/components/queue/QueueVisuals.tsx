@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppMenu, type AppMenuItem } from "@/components/headless";
 import { CopyButton } from "@/components/CopyButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -348,36 +349,141 @@ export function QueueTaskActions({
 
 export function QueueHistoryActions({ row }: { row: QueueHistoryRow }) {
   const region = regionFromQueueHistory(row);
+  const traceId = row.trace_id?.trim();
+  const tempoUrl = row.tempo_trace_url?.trim();
+  const items: AppMenuItem[] = [];
+
+  items.push({
+    kind: "link",
+    label: "Open in DSL runner",
+    href: debugRunHref({
+      instanceId: row.instance_id,
+      playerId: row.player_id,
+      scenario: row.scenario_key,
+    }),
+  });
+
+  if (region) {
+    items.push({
+      kind: "link",
+      label: "Probe region",
+      href: approvalsProbeHref(row.instance_id, region),
+      title: `Probe approvals for ${region}`,
+    });
+    items.push({
+      kind: "link",
+      label: "Open in overlay test",
+      href: overlayTestHref(row.instance_id, { region }),
+      title: `Inspect ${region} in overlay test`,
+    });
+  }
+
+  if (tempoUrl) {
+    items.push({
+      kind: "link",
+      label: "Open trace in Tempo",
+      href: tempoUrl,
+      title: traceId || "Open distributed trace",
+    });
+  }
+
+  if (traceId) {
+    items.push({
+      label: "Copy trace ID",
+      onClick: () => {
+        void navigator.clipboard?.writeText(traceId);
+      },
+      title: "Copy trace ID (Grafana / Tempo)",
+    });
+  }
+
+  items.push({
+    label: "Copy debug JSON",
+    onClick: () => {
+      void navigator.clipboard?.writeText(historyDebugPayload(row));
+    },
+    title: "Copy task id, trace id, steps_trace (for debugging)",
+  });
+
   return (
     <div className="queue-row-actions">
-      <QueueTaskActions
-        instanceId={row.instance_id}
-        playerId={row.player_id}
-        scenarioKey={row.scenario_key}
-        region={region}
-      />
-      <QueueCopyCell
-        text={historyDebugPayload(row)}
-        title="Copy task id, trace id, steps_trace (for debugging)"
+      <AppMenu
+        items={items}
+        anchor="bottom end"
+        buttonTitle="History actions"
+        ariaLabel={`Actions for ${row.scenario}`}
       />
     </div>
   );
 }
 
-export function QueuePendingActions({ row }: { row: QueuePendingRow }) {
+export function QueuePendingActions({
+  row,
+  onRunNow,
+  onDelete,
+  disabled = false,
+}: {
+  row: QueuePendingRow;
+  onRunNow?: (taskId: string) => void;
+  onDelete?: (taskId: string) => void;
+  disabled?: boolean;
+}) {
   const region = regionFromQueuePending(row);
+  const items: AppMenuItem[] = [];
+
+  if (onRunNow) {
+    items.push({
+      label: "Run now",
+      onClick: () => onRunNow(row.task_id),
+      title: "Move task to the front of the queue",
+    });
+  }
+
+  items.push({
+    kind: "link",
+    label: "Open in DSL runner",
+    href: debugRunHref({
+      instanceId: row.instance_id,
+      playerId: row.player_id,
+      scenario: row.scenario_key,
+    }),
+  });
+
+  if (region) {
+    items.push({
+      kind: "link",
+      label: "Probe region",
+      href: approvalsProbeHref(row.instance_id, region),
+      title: `Probe approvals for ${region}`,
+    });
+  }
+
+  items.push({
+    label: "Copy debug JSON",
+    onClick: () => {
+      void navigator.clipboard?.writeText(pendingDebugPayload(row));
+    },
+    title: "Copy task id, scenario key, instance",
+  });
+
+  if (onDelete) {
+    items.push({ kind: "separator" });
+    items.push({
+      label: "Delete task",
+      onClick: () => onDelete(row.task_id),
+      danger: true,
+      title: "Remove this task from the queue",
+    });
+  }
+
   return (
     <div className="queue-row-actions">
-      <QueueTaskActions
-        instanceId={row.instance_id}
-        playerId={row.player_id}
-        scenarioKey={row.scenario_key}
-        region={region}
-        showOverlay={false}
-      />
-      <QueueCopyCell
-        text={pendingDebugPayload(row)}
-        title="Copy task id, scenario key, instance"
+      <AppMenu
+        items={items}
+        anchor="bottom end"
+        buttonTitle="Task actions"
+        ariaLabel={`Actions for ${row.scenario}`}
+        disabled={disabled}
       />
     </div>
   );

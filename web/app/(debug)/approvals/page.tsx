@@ -43,7 +43,7 @@ import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 const NOTIFICATIONS_MAX_AGE_S = 30;
 const TOAST_VISIBLE_MS = 6000;
 const TICK_MS = 100;
-const DOCUMENT_TITLE_BASE = "Click approvals · WOS Autopilot";
+const DOCUMENT_TITLE_BASE = "Click approvals · Autopilot";
 
 type Toast = NotificationEvent & { createdAt: number; expiresAt: number };
 

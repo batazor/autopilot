@@ -1,7 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const PENDING_PAGE_SIZE = 25;
+const HISTORY_PAGE_SIZE = 20;
+
+function Pager({
+  page,
+  pageCount,
+  total,
+  pageSize,
+  onChange,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  pageSize: number;
+  onChange: (next: number) => void;
+}) {
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(page * pageSize, total);
+  return (
+    <div className="toolbar toolbar--spaced queue-pager">
+      <span className="meta">
+        {start}–{end} of {total}
+      </span>
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={page <= 1}
+        onClick={() => onChange(Math.max(1, page - 1))}
+      >
+        ← Prev
+      </button>
+      <span className="meta">
+        Page {page} / {pageCount}
+      </span>
+      <button
+        type="button"
+        className="btn-secondary"
+        disabled={page >= pageCount}
+        onClick={() => onChange(Math.min(pageCount, page + 1))}
+      >
+        Next →
+      </button>
+    </div>
+  );
+}
 import { AppCheckbox, AppListbox, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -39,6 +85,8 @@ export default function QueuePage() {
     col: "schedule" | "instance" | "player";
     dir: "asc" | "desc";
   }>({ col: "schedule", dir: "asc" });
+  const [pendingPage, setPendingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
 
   const cycleSort = (col: "instance" | "player") => {
     setPendingSort((prev) => {
@@ -67,6 +115,33 @@ export default function QueuePage() {
     if (pendingSort.col !== col) return "";
     return pendingSort.dir === "asc" ? " ↑" : " ↓";
   };
+
+  const pendingTotal = sortedPending.length;
+  const pendingPageCount = Math.max(1, Math.ceil(pendingTotal / PENDING_PAGE_SIZE));
+  const pendingPageSafe = Math.min(pendingPage, pendingPageCount);
+  const pagedPending = useMemo(() => {
+    const start = (pendingPageSafe - 1) * PENDING_PAGE_SIZE;
+    return sortedPending.slice(start, start + PENDING_PAGE_SIZE);
+  }, [sortedPending, pendingPageSafe]);
+
+  const historyRows = data?.history ?? [];
+  const historyTotal = historyRows.length;
+  const historyPageCount = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
+  const historyPageSafe = Math.min(historyPage, historyPageCount);
+  const pagedHistory = useMemo(() => {
+    const start = (historyPageSafe - 1) * HISTORY_PAGE_SIZE;
+    return historyRows.slice(start, start + HISTORY_PAGE_SIZE);
+  }, [historyRows, historyPageSafe]);
+
+  useEffect(() => {
+    if (pendingPage > pendingPageCount) setPendingPage(pendingPageCount);
+  }, [pendingPage, pendingPageCount]);
+  useEffect(() => {
+    if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
+  }, [historyPage, historyPageCount]);
+  useEffect(() => {
+    setPendingPage(1);
+  }, [pendingSort.col, pendingSort.dir]);
   const pickRef = useRef(pick);
   pickRef.current = pick;
   const revisionRef = useRef<string | undefined>(undefined);
@@ -138,6 +213,46 @@ export default function QueuePage() {
       setBusy(false);
     }
   };
+
+  const onRunRow = useCallback(
+    async (taskId: string) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        await runQueueTaskNow(taskId);
+        await refresh();
+        showSuccess("Task moved to front of queue");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refresh, showSuccess],
+  );
+
+  const onDeleteRow = useCallback(
+    async (taskId: string) => {
+      if (busy) return;
+      setBusy(true);
+      try {
+        await removeQueueTasks([taskId]);
+        setSelected((prev) => {
+          if (!prev.has(taskId)) return prev;
+          const next = new Set(prev);
+          next.delete(taskId);
+          return next;
+        });
+        await refresh();
+        showSuccess("Removed 1 task");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, refresh, showSuccess],
+  );
 
   return (
     <>
@@ -235,7 +350,7 @@ export default function QueuePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedPending.map((r) => (
+                    {pagedPending.map((r) => (
                       <tr key={r.task_id} className={r.overdue ? "queue-row-overdue" : undefined}>
                         <td>
                           <AppCheckbox
@@ -272,12 +387,26 @@ export default function QueuePage() {
                           <PriorityBadge priority={r.priority} />
                         </td>
                         <td>
-                          <QueuePendingActions row={r} />
+                          <QueuePendingActions
+                            row={r}
+                            onRunNow={onRunRow}
+                            onDelete={onDeleteRow}
+                            disabled={busy}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                {pendingPageCount > 1 ? (
+                  <Pager
+                    page={pendingPageSafe}
+                    pageCount={pendingPageCount}
+                    total={pendingTotal}
+                    pageSize={PENDING_PAGE_SIZE}
+                    onChange={setPendingPage}
+                  />
+                ) : null}
               </div>
             ) : (
               <QueuePendingCalendar
@@ -369,7 +498,7 @@ export default function QueuePage() {
                 </tr>
               </thead>
               <tbody>
-                {data.history.map((h) => (
+                {pagedHistory.map((h) => (
                   <tr
                     key={`${h.task_id}-${h.finished_at}`}
                     className={h.success ? "queue-row-ok" : "queue-row-fail"}
@@ -427,6 +556,15 @@ export default function QueuePage() {
                 ))}
               </tbody>
             </table>
+            {historyPageCount > 1 ? (
+              <Pager
+                page={historyPageSafe}
+                pageCount={historyPageCount}
+                total={historyTotal}
+                pageSize={HISTORY_PAGE_SIZE}
+                onChange={setHistoryPage}
+              />
+            ) : null}
           </div>
         ) : (
           <EmptyState

@@ -6,7 +6,13 @@ import { useCallback, useState, type MouseEvent } from "react";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { useFleet } from "@/components/FleetContextProvider";
-import { instanceHref, playerStateHref } from "@/lib/fleet-links";
+import {
+  approvalsHref,
+  instanceHref,
+  playerStateHref,
+  playerStatsHref,
+  queueHref,
+} from "@/lib/fleet-links";
 import { DataTableSkeleton } from "@/components/skeleton/DataTableSkeleton";
 import { MetricsRowSkeleton } from "@/components/skeleton/MetricsRowSkeleton";
 import { StatusPill } from "@/components/StatusPill";
@@ -78,8 +84,8 @@ export default function OverviewPage() {
         <div className="metrics-row">
           <Metric label="Instances" value={String(m.instances)} />
           <Metric label="Live workers" value={`${m.live_workers}/${m.instances}`} />
-          <Metric label="Queue" value={String(m.queue)} />
-          <Metric label="Busy" value={String(m.busy)} />
+          <Metric label="Queue" value={String(m.queue)} href={queueHref()} />
+          <Metric label="Busy" value={String(m.busy)} href={queueHref()} />
           <Metric label="Locks" value={String(m.locks)} />
         </div>
       ) : null}
@@ -163,12 +169,47 @@ export default function OverviewPage() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="metric-card">
+function Metric({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: string;
+  href?: string;
+}) {
+  const inner = (
+    <>
       <div className="label">{label}</div>
       <div className="value">{value}</div>
-    </div>
+    </>
+  );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="metric-card no-underline transition hover:border-wos-border hover:bg-wos-panel-raised/80"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return <div className="metric-card">{inner}</div>;
+}
+
+function GameIcon({ game }: { game: string }) {
+  const slug = (game || "").toLowerCase();
+  if (slug !== "wos" && slug !== "kingshot") return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/games/${slug}.webp`}
+      alt={slug}
+      width={16}
+      height={16}
+      className="inline-block h-4 w-4 shrink-0 rounded"
+      title={slug}
+    />
   );
 }
 
@@ -214,12 +255,56 @@ function fleetRows(
       <td>
         <StatusPill status={row.status} />
       </td>
-      <td>{row.active_player || "—"}</td>
-      <td>{row.node || "—"}</td>
-      <td>{row.task || "—"}</td>
+      <td>
+        {row.active_player && row.active_player !== "—" ? (
+          <Link
+            href={playerStateHref(row.active_player, {
+              instanceId: row.instance_id,
+            })}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.active_player}
+          </Link>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td>
+        {row.node && row.node !== "—" ? (
+          <Link
+            href={`/routes?focus=${encodeURIComponent(row.node)}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.node}
+          </Link>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td>
+        {row.task && row.task !== "—" ? (
+          <Link
+            href={queueHref({ instanceId: row.instance_id })}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.task}
+          </Link>
+        ) : (
+          "—"
+        )}
+      </td>
       <td>{row.uptime || "—"}</td>
       <td className="fleet-row__alert" title={row.alert || undefined}>
-        {row.alert || "—"}
+        {row.alert ? (
+          <Link
+            href={approvalsHref(row.instance_id)}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {row.alert}
+          </Link>
+        ) : (
+          "—"
+        )}
       </td>
       <td onClick={(e) => e.stopPropagation()}>
         <div className="fleet-row-actions">
@@ -239,10 +324,38 @@ function fleetRows(
 
   const subs = row.players.map((p) => (
     <tr key={`${row.instance_id}-${p.id}`} className="sub-row">
-      <td>{p.who}</td>
+      <td>
+        <span className="inline-flex items-center gap-1.5">
+          <GameIcon game={p.game} />
+          <Link
+            href={playerStateHref(p.who, { instanceId: row.instance_id })}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.who}
+          </Link>
+        </span>
+      </td>
       <td>{p.on_device ? "● on device" : ""}</td>
-      <td colSpan={2}>{p.nickname}</td>
-      <td>{p.in_game_id}</td>
+      <td colSpan={2}>
+        <Link
+          href={playerStateHref(p.who, { instanceId: row.instance_id })}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {p.nickname}
+        </Link>
+      </td>
+      <td>
+        {p.in_game_id && p.in_game_id !== "—" ? (
+          <Link
+            href={playerStatsHref(p.who, { instanceId: row.instance_id })}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {p.in_game_id}
+          </Link>
+        ) : (
+          "—"
+        )}
+      </td>
       <td colSpan={2}>
         stove {p.stove} · kid {p.kid}
       </td>

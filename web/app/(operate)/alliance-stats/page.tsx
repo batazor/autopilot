@@ -1,15 +1,73 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppListbox } from "@/components/headless";
 import { ErrorBanner } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { MetricLineChart } from "@/components/player-stats/MetricLineChart";
-import { fetchAlliances, fetchAllianceStats } from "@/lib/api";
+import { fetchAlliances, fetchAllianceStats, fetchLicenseStatus } from "@/lib/api";
 import { PageLoading } from "@/components/ui/Spinner";
 import type { AllianceStatsView } from "@/lib/types";
 
+function ProGate() {
+  return (
+    <div className="page-stack">
+      <FleetPageHeader title="Alliance statistics" />
+      <section className="panel">
+        <div className="flex items-start gap-4">
+          <span
+            className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+            aria-hidden
+          >
+            PRO
+          </span>
+          <div className="min-w-0">
+            <h2 className="m-0 text-base font-semibold text-wos-text">
+              Alliance statistics is a PRO feature
+            </h2>
+            <p className="muted mt-1">
+              Daily alliance power and member-count charts are part of the PRO
+              tier. Activate a PRO license to view this page.
+            </p>
+            <div className="mt-3">
+              <Link href="/license" className="btn-primary">
+                Open License
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export default function AllianceStatsPage() {
+  const [tier, setTier] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    const pull = () => {
+      fetchLicenseStatus()
+        .then((st) => {
+          if (!cancelled) setTier(st.active && st.tier ? st.tier : null);
+        })
+        .catch(() => {
+          if (!cancelled) setTier(null);
+        });
+    };
+    pull();
+    window.addEventListener("wos:license:updated", pull);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("wos:license:updated", pull);
+    };
+  }, []);
+  if (tier === undefined) return <PageLoading />;
+  if (tier !== "pro") return <ProGate />;
+  return <AllianceStatsInner />;
+}
+
+function AllianceStatsInner() {
   const [alliances, setAlliances] = useState<string[]>([]);
   const [selected, setSelected] = useState("");
   const [stats, setStats] = useState<AllianceStatsView | null>(null);

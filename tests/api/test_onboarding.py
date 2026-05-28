@@ -22,12 +22,16 @@ class _FakeRedis:
     def __init__(self, *, ping_raises: Exception | None = None) -> None:
         self._hashes: dict[str, dict[str, str]] = {}
         self._lists: dict[str, list[str]] = {}
+        self._kv: dict[str, str] = {}
         self._ping_raises = ping_raises
 
     def ping(self) -> bool:
         if self._ping_raises:
             raise self._ping_raises
         return True
+
+    def get(self, key: str) -> str | None:
+        return self._kv.get(key)
 
     def hget(self, key: str, field: str) -> str | None:
         return self._hashes.get(key, {}).get(field)
@@ -51,6 +55,9 @@ class _FakeRedis:
 
     def seed_hash(self, key: str, mapping: dict[str, str]) -> None:
         self._hashes[key] = dict(mapping)
+
+    def seed_kv(self, key: str, value: str) -> None:
+        self._kv[key] = value
 
 
 @pytest.fixture
@@ -192,3 +199,31 @@ def test_ocr_milestone_skipped_when_text_empty(
     )
     state = onboarding.read_state(client)
     assert state["first_ocr_at"] is None
+
+
+def test_approvals_disabled_milestone_set_when_all_instances_off(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_kv("wos:ui:click_approval:enabled:bs1", "0")
+    client.seed_kv("wos:ui:click_approval:enabled:bs2", "off")
+    state = onboarding.read_state(client)
+    assert state["approvals_disabled_at"] is not None
+
+
+def test_approvals_disabled_milestone_skipped_when_one_still_on(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    client = _FakeRedis()
+    client.seed_kv("wos:ui:click_approval:enabled:bs1", "0")
+    # bs2 left unset → defaults to enabled
+    state = onboarding.read_state(client)
+    assert state["approvals_disabled_at"] is None
+
+
+def test_approvals_disabled_milestone_skipped_without_instances(
+    devices_db: Path, bot_not_running: Any
+) -> None:
+    client = _FakeRedis()
+    state = onboarding.read_state(client)
+    assert state["approvals_disabled_at"] is None

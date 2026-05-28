@@ -74,6 +74,7 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
   } = usePlayers({
     preferPlayerId: urlPlayerId,
     getPersistedPlayerId: loadFleetPlayerId,
+    instanceId: instanceId || undefined,
   });
 
   // ``instanceGames`` is the device→game registry fetched from

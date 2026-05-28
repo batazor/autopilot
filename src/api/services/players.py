@@ -20,8 +20,26 @@ from dashboard.player_state_data import (
 from dashboard.redis_client import delete_player_redis, get_player_state_hash
 
 
-def list_player_ids() -> list[str]:
-    return list_known_player_ids()
+def list_player_ids(*, instance_id: str | None = None) -> list[str]:
+    """All known player ids, or just those registered on ``instance_id``.
+
+    When ``instance_id`` matches a device in the registry, only that device's
+    profile-bound players are returned; if it doesn't match (or is empty),
+    the global list is returned unchanged.
+    """
+    if not instance_id:
+        return list_known_player_ids()
+    try:
+        from config.devices_db import load_registry
+    except ImportError:
+        return list_known_player_ids()
+    registry = load_registry()
+    bound = registry.player_ids_for_device(instance_id)
+    if not bound:
+        # Unknown device or no registered profiles — fall back to the global
+        # list rather than returning nothing, so the UI keeps a working set.
+        return list_known_player_ids()
+    return bound
 
 
 def build_player_state(client: redis.Redis, player_id: str) -> dict[str, Any]:

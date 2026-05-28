@@ -16,8 +16,11 @@ RedisDep = Annotated[redis.Redis, Depends(get_redis)]
 
 
 @router.get("/players")
-def list_players() -> dict[str, list[str]]:
-    return {"players": players_svc.list_player_ids()}
+def list_players(
+    instance_id: str = Query(default="", min_length=0),
+) -> dict[str, list[str]]:
+    """List known player ids, optionally narrowed to the players bound to ``instance_id``."""
+    return {"players": players_svc.list_player_ids(instance_id=instance_id or None)}
 
 
 @router.get("/players/state-db")

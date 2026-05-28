@@ -101,6 +101,27 @@
     @apply translate-x-4;
   }
 
+  /* —— Menu (action dropdown) —— */
+  .headless-menu__button {
+    @apply inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-wos-text-muted transition hover:border-wos-border-subtle hover:bg-wos-panel-raised hover:text-wos-text focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/25 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-open:border-wos-border-subtle data-open:bg-wos-panel-raised data-open:text-wos-text;
+  }
+
+  .headless-menu__items {
+    @apply z-40 mt-1 min-w-[10rem] origin-top-right overflow-hidden rounded-lg border border-wos-border-subtle bg-wos-panel p-1 shadow-lg shadow-black/30 outline-none transition duration-100 ease-out data-closed:scale-95 data-closed:opacity-0;
+  }
+
+  .headless-menu__item {
+    @apply flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left text-sm text-wos-text no-underline transition data-focus:bg-wos-panel-raised data-focus:text-wos-text data-disabled:cursor-not-allowed data-disabled:opacity-50;
+  }
+
+  .headless-menu__item--danger {
+    @apply text-red-300 data-focus:bg-red-500/10 data-focus:text-red-200;
+  }
+
+  .headless-menu__separator {
+    @apply my-1 h-px bg-wos-border-subtle;
+  }
+
   .headless-dialog-root {
     @apply relative z-50;
   }

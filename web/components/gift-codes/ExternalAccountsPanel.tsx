@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { AppTabs } from "@/components/headless";
 import {
   type ExternalAccount,
   FeatureLockedError,
@@ -10,6 +11,8 @@ import {
   toggleExternalAccount,
   upsertExternalAccount,
 } from "@/lib/api";
+
+export type ExternalAccountsGame = { id: string; label: string };
 
 type AddRow = { player_id: number; label: string };
 
@@ -32,12 +35,40 @@ function parseBulk(text: string): { rows: AddRow[]; errors: string[] } {
   return { rows, errors };
 }
 
+function PanelTitle({ accountsCount }: { accountsCount: number }) {
+  return (
+    <h2 className="m-0 mb-3 flex flex-wrap items-center gap-2 text-base font-semibold text-wos-text">
+      <span>External accounts</span>
+      <span
+        className="rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+        title="Requires PRO license"
+      >
+        PRO
+      </span>
+      {accountsCount ? (
+        <span className="text-sm font-normal text-wos-text-muted">
+          · {accountsCount}
+        </span>
+      ) : null}
+    </h2>
+  );
+}
+
 function fmtDate(ts: number | null): string {
   if (!ts) return "—";
   return new Date(ts * 1000).toLocaleString();
 }
 
-export function ExternalAccountsPanel({ game }: { game: string }) {
+export function ExternalAccountsPanel({
+  games,
+  initialGame,
+}: {
+  games: ExternalAccountsGame[];
+  initialGame?: string;
+}) {
+  const [game, setGame] = useState<string>(
+    () => initialGame ?? games[0]?.id ?? "wos",
+  );
   const [view, setView] = useState<{
     licensed: boolean;
     accounts: ExternalAccount[];
@@ -142,11 +173,22 @@ export function ExternalAccountsPanel({ game }: { game: string }) {
     }
   };
 
+  const showTabs = games.length > 1;
+  const tabs = games.map((g) => ({ key: g.id, label: g.label, title: g.id }));
+
   if (view === null && !error) {
     return (
       <section className="panel panel--spaced">
-        <h2>External accounts</h2>
-        <p className="meta">Loading…</p>
+        <PanelTitle accountsCount={0} />
+        {showTabs ? (
+          <AppTabs
+            tabs={tabs}
+            selectedKey={game}
+            onChange={setGame}
+            renderPanels={false}
+          />
+        ) : null}
+        <p className="muted">Loading…</p>
       </section>
     );
   }
@@ -156,30 +198,46 @@ export function ExternalAccountsPanel({ game }: { game: string }) {
 
   return (
     <section className="panel panel--spaced">
-      <h2>External accounts (Pro){accounts.length ? ` · ${accounts.length}` : ""}</h2>
-      <p className="meta">
+      <PanelTitle accountsCount={accounts.length} />
+      {showTabs ? (
+        <AppTabs
+          tabs={tabs}
+          selectedKey={game}
+          onChange={setGame}
+          renderPanels={false}
+        />
+      ) : null}
+      <p className="muted">
         Redeem this game&apos;s gift codes for accounts the bot does not own —
         alliance members, partner farms, secondary accounts on other hardware.
         Scope: <code>{game}</code>.
       </p>
 
       {!licensed ? (
-        <div className="panel" style={{ background: "var(--bg-secondary)", marginBottom: "1rem" }}>
-          <strong>Pro feature required.</strong>{" "}
-          {accounts.length > 0
-            ? `Your license used to include this feature — the ${accounts.length} existing row(s) below are read-only and won't be processed until you upgrade.`
-            : "Upgrade to Pro to add external accounts. License key feature flag: "}
-          {accounts.length === 0 ? <code>gift_codes.external_accounts</code> : null}
+        <div className="mb-4 rounded-lg border border-amber-400/30 bg-amber-500/10 p-3 text-sm">
+          <strong className="text-amber-300">PRO feature required.</strong>{" "}
+          <span className="text-wos-text-secondary">
+            {accounts.length > 0
+              ? `Your license used to include this feature — the ${accounts.length} existing row(s) below are read-only and won't be processed until you upgrade.`
+              : "Upgrade to PRO to add external accounts. License feature flag: "}
+            {accounts.length === 0 ? (
+              <code>gift_codes.external_accounts</code>
+            ) : null}
+          </span>
         </div>
       ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
-      {status ? <p className="meta">{status}</p> : null}
+      {status ? <p className="muted">{status}</p> : null}
 
       {licensed ? (
-        <div style={{ marginBottom: "1rem" }}>
-          <label htmlFor="bulk-add" className="meta" style={{ display: "block" }}>
-            Add accounts (one per line: <code>fid</code> or <code>fid label</code>)
+        <div className="mb-4">
+          <label
+            htmlFor="bulk-add"
+            className="muted block text-xs uppercase tracking-wide"
+          >
+            Add accounts (one per line: <code>fid</code> or{" "}
+            <code>fid label</code>)
           </label>
           <textarea
             id="bulk-add"
@@ -188,9 +246,9 @@ export function ExternalAccountsPanel({ game }: { game: string }) {
             onChange={(e) => setBulk(e.target.value)}
             disabled={busy}
             placeholder="401227964 Alliance: PHX/r24&#10;555000111 Farm-3"
-            style={{ width: "100%", fontFamily: "monospace", marginTop: "0.25rem" }}
+            className="mt-1 w-full rounded-lg border border-wos-border-subtle bg-wos-input p-2 font-mono text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
           />
-          <div className="toolbar" style={{ marginTop: "0.5rem" }}>
+          <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
               className="btn-primary"
@@ -199,7 +257,12 @@ export function ExternalAccountsPanel({ game }: { game: string }) {
             >
               {busy ? "Adding…" : "Add accounts"}
             </button>
-            <button type="button" className="btn-secondary" onClick={load} disabled={busy}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={load}
+              disabled={busy}
+            >
               Reload
             </button>
           </div>
@@ -237,7 +300,7 @@ export function ExternalAccountsPanel({ game }: { game: string }) {
                   <td>{fmtDate(a.last_seen_at)}</td>
                   <td>
                     {licensed ? (
-                      <div className="toolbar" style={{ gap: "0.25rem", margin: 0 }}>
+                      <div className="flex gap-1">
                         <button
                           type="button"
                           className="btn-secondary"

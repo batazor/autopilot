@@ -21,7 +21,12 @@ MILESTONES = (
     "first_scenario_at",
     "first_approval_at",
     "first_ocr_at",
+    "approvals_disabled_at",
 )
+
+# Matches src/adb/approvals.py — values that mean "approvals disabled" for an
+# instance. Anything else (including missing key) means approvals are on.
+_APPROVAL_DISABLED_VALUES = {"0", "false", "no", "off"}
 
 
 def _now_iso() -> str:
@@ -103,12 +108,31 @@ def _refresh_ocr_milestone(client: redis.Redis) -> str | None:
     return None
 
 
+def _refresh_approvals_disabled_milestone(client: redis.Redis) -> str | None:
+    """Set when every known instance has UI click-approval gating turned off."""
+    if client.hget(ONBOARDING_KEY, "approvals_disabled_at"):
+        return None
+    instances = _instance_ids()
+    if not instances:
+        return None
+    for instance_id in instances:
+        try:
+            raw = client.get(f"wos:ui:click_approval:enabled:{instance_id}")
+        except Exception:
+            return None
+        value = str(raw or "").strip().lower()
+        if value not in _APPROVAL_DISABLED_VALUES:
+            return None
+    return _set_if_unset(client, "approvals_disabled_at")
+
+
 def read_state(client: redis.Redis) -> dict[str, Any]:
     """Return milestone bits, auto-detecting cheap ones on every call."""
     _refresh_device_milestone(client)
     _refresh_bot_milestone(client)
     _refresh_scenario_milestone(client)
     _refresh_ocr_milestone(client)
+    _refresh_approvals_disabled_milestone(client)
     raw = client.hgetall(ONBOARDING_KEY) or {}
     return {m: (str(raw[m]) if m in raw else None) for m in MILESTONES}
 

@@ -3,7 +3,10 @@
 import { Tab, TabGroup, TabList } from "@headlessui/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { fetchLicenseStatus } from "@/lib/api";
 import { NAV_GROUPS, type NavGroupId } from "@/lib/nav-groups";
+import { getNavLock, NAV_LOCK_BADGE } from "@/lib/nav-locks";
 
 function isActivePath(pathname: string, href: string): boolean {
   return (
@@ -15,6 +18,28 @@ function isActivePath(pathname: string, href: string): boolean {
 export function SectionTabs({ groupId }: { groupId: NavGroupId }) {
   const pathname = usePathname();
   const group = NAV_GROUPS.find((g) => g.id === groupId);
+  const [tier, setTier] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pull = () => {
+      fetchLicenseStatus()
+        .then((st) => {
+          if (cancelled) return;
+          setTier(st.active && st.tier ? st.tier : null);
+        })
+        .catch(() => {
+          if (!cancelled) setTier(null);
+        });
+    };
+    pull();
+    window.addEventListener("wos:license:updated", pull);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("wos:license:updated", pull);
+    };
+  }, []);
+
   if (!group) return null;
 
   const selectedIndex = Math.max(
@@ -34,16 +59,30 @@ export function SectionTabs({ groupId }: { groupId: NavGroupId }) {
         >
           {group.tabs.map((tab) => {
             const active = isActivePath(pathname, tab.href);
+            const lock = getNavLock(tab.href, tier);
+            const linkHref = lock?.kind === "pro" ? "/license" : tab.href;
             return (
               <Tab
                 key={tab.href}
                 as={Link}
-                href={tab.href}
-                className="section-tab headless-tab"
-                aria-current={active ? "page" : undefined}
-                title={tab.description}
+                href={linkHref}
+                className={[
+                  "section-tab headless-tab",
+                  lock ? "opacity-60" : "",
+                  lock?.kind === "soon" ? "pointer-events-none" : "",
+                ].join(" ")}
+                aria-current={active && !lock ? "page" : undefined}
+                aria-disabled={lock?.kind === "soon" ? true : undefined}
+                title={lock?.tooltip ?? tab.description}
               >
-                {tab.label}
+                <span className="inline-flex items-center gap-1.5">
+                  {tab.label}
+                  {lock ? (
+                    <span className="rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-amber-300">
+                      {NAV_LOCK_BADGE[lock.kind]}
+                    </span>
+                  ) : null}
+                </span>
               </Tab>
             );
           })}

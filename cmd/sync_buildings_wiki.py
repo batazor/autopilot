@@ -271,12 +271,15 @@ def _parse_building_page(html: str) -> dict[int, dict[str, object]]:
 def main(argv: list[str]) -> int:
     repo = _repo_root()
     index_html = _http_get(_INDEX)
-    buildings_dir = repo / "db" / "buildings"
+    # Phase 3 moved per-game reference data to games/<game>/db/.
+    from config.buildings import buildings_db_dir
+
+    buildings_dir = buildings_db_dir(repo)
     index_path, index = _ensure_registry_from_index(buildings_dir=buildings_dir, index_html=index_html)
 
     index_buildings = index.get("buildings")
     if not isinstance(index_buildings, list):
-        print("db/buildings/index.yaml missing buildings list", file=sys.stderr)
+        print(f"{index_path} missing buildings list", file=sys.stderr)
         return 2
 
     updated = 0

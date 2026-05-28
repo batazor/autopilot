@@ -6,15 +6,90 @@ import { AppListbox, AppTabs } from "@/components/headless";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { SearchField } from "@/components/player-state/SearchField";
 import {
+  fetchLabelingReferences,
   fetchRoutesEdges,
   fetchRoutesGraph,
   fetchRoutesNode,
+  labelingImageUrl,
 } from "@/lib/api";
 import type {
+  LabelingReferenceMeta,
   RoutesGraphResponse,
   RoutesGraphView,
   RoutesNodeDetails,
 } from "@/lib/types";
+
+function RoutesReferencePanel({
+  path,
+  selectedScreen,
+  refByScreen,
+}: {
+  path: string[] | null;
+  selectedScreen: string | null;
+  refByScreen: Map<string, LabelingReferenceMeta>;
+}) {
+  const screens = path && path.length > 0 ? path : selectedScreen ? [selectedScreen] : [];
+  if (!screens.length) {
+    return (
+      <aside className="panel">
+        <h2 className="m-0 mb-2 text-base font-semibold">References</h2>
+        <p className="muted m-0">
+          Plan a route or pick a screen to preview its reference screenshots.
+        </p>
+      </aside>
+    );
+  }
+  return (
+    <aside className="panel">
+      <h2 className="m-0 mb-3 text-base font-semibold">
+        References{" "}
+        {path && path.length > 0 ? (
+          <span className="muted text-sm font-normal">
+            · {screens.length} step{screens.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </h2>
+      <ol className="m-0 flex max-h-[36rem] flex-col gap-3 overflow-y-auto p-0 list-none">
+        {screens.map((s, i) => {
+          const ref = refByScreen.get(s);
+          return (
+            <li
+              key={`${s}-${i}`}
+              className="rounded-lg border border-wos-border-subtle bg-wos-panel-raised/50 p-2"
+            >
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-sm">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-wos-panel-raised text-xs font-semibold text-wos-text-muted">
+                    {i + 1}
+                  </span>
+                  <code className="text-xs">{s}</code>
+                </span>
+                {ref ? (
+                  <span className="text-[10px] text-wos-text-muted">
+                    {ref.region_count} region{ref.region_count === 1 ? "" : "s"}
+                  </span>
+                ) : null}
+              </div>
+              {ref ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={labelingImageUrl(ref.rel)}
+                  alt={`Reference for ${s}`}
+                  className="block w-full rounded border border-wos-border-subtle/50 bg-black/30"
+                  loading="lazy"
+                />
+              ) : (
+                <p className="muted m-0 text-xs">
+                  No labeled reference for this screen.
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </aside>
+  );
+}
 
 function graphViewOptions(total: number): { value: RoutesGraphView; label: string }[] {
   return [
@@ -95,6 +170,21 @@ export default function RoutesPage() {
     if (tab === "edges") loadEdges();
   }, [tab, loadEdges]);
 
+  const [refs, setRefs] = useState<LabelingReferenceMeta[]>([]);
+  useEffect(() => {
+    fetchLabelingReferences("all")
+      .then(setRefs)
+      .catch(() => setRefs([]));
+  }, []);
+
+  const refByScreen = useMemo(() => {
+    const m = new Map<string, LabelingReferenceMeta>();
+    for (const r of refs) {
+      if (r.screen_id && !m.has(r.screen_id)) m.set(r.screen_id, r);
+    }
+    return m;
+  }, [refs]);
+
   const m = graph?.metrics;
   const visibleCount = graph?.visible_count ?? graph?.screens.length ?? 0;
   const totalScreens = graph?.total_screens ?? graph?.screens.length ?? 0;
@@ -159,6 +249,7 @@ export default function RoutesPage() {
       />
 
       {tab === "planner" ? (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
         <section className="panel routes-planner-panel">
           <h2>Route planner</h2>
           <AppListbox
@@ -304,6 +395,12 @@ export default function RoutesPage() {
             <p className="meta">Pick a screen to see incoming/outgoing edges.</p>
           )}
         </section>
+        <RoutesReferencePanel
+          path={graph?.path ?? null}
+          selectedScreen={selectedNode}
+          refByScreen={refByScreen}
+        />
+        </div>
       ) : (
         <section className="panel">
           <div className="toolbar">

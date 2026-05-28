@@ -43,11 +43,21 @@ class BuildingRegistry:
         return [b.id for b in self.buildings]
 
 
-def load_buildings(path: Path | None = None) -> BuildingRegistry:
+def buildings_db_dir(repo_root: Path | None = None) -> Path:
+    """Canonical location for the per-game buildings reference DB.
+
+    Post-Phase-3 layout: ``games/<game>/db/buildings/`` (Phase-3 moved
+    per-game reference data out of the root ``db/`` tree). Sync scripts and
+    the wiki loader resolve through this helper to stay consistent.
+    """
     from config.games import default_game, modules_root_for
 
+    return modules_root_for(default_game(), repo_root=repo_root) / "db" / "buildings"
+
+
+def load_buildings(path: Path | None = None) -> BuildingRegistry:
     # New format: games/<game>/db/buildings/index.yaml + per-building files
-    buildings_dir = modules_root_for(default_game()) / "db" / "buildings"
+    buildings_dir = buildings_db_dir()
     index_path = buildings_dir / "index.yaml"
     if path is None and index_path.exists():
         idx = yaml.safe_load(index_path.read_text(encoding="utf-8")) or {}

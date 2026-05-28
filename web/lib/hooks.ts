@@ -88,6 +88,8 @@ type UsePlayersOptions = {
   preferPlayerId?: string | null;
   /** Client-only persisted id (e.g. localStorage); read inside effects, not during render. */
   getPersistedPlayerId?: () => string;
+  /** When set, list is narrowed to players bound to this instance. */
+  instanceId?: string;
 };
 
 export function usePlayers(options: UsePlayersOptions = {}) {
@@ -95,6 +97,7 @@ export function usePlayers(options: UsePlayersOptions = {}) {
     initialPlayerId = "",
     preferPlayerId = null,
     getPersistedPlayerId,
+    instanceId,
   } = options;
   const [players, setPlayers] = useState<string[]>([]);
   const [playerId, setPlayerId] = useState(initialPlayerId);
@@ -104,7 +107,7 @@ export function usePlayers(options: UsePlayersOptions = {}) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const ids = await fetchPlayers();
+      const ids = await fetchPlayers(instanceId || undefined);
       setPlayers(ids);
       setPlayerId((current) => {
         if (preferPlayerId && ids.includes(preferPlayerId)) {
@@ -123,13 +126,13 @@ export function usePlayers(options: UsePlayersOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [preferPlayerId, getPersistedPlayerId]);
+  }, [preferPlayerId, getPersistedPlayerId, instanceId]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const ids = await fetchPlayers();
+        const ids = await fetchPlayers(instanceId || undefined);
         if (cancelled) return;
         setPlayers(ids);
         setPlayerId((current) => {
@@ -153,8 +156,10 @@ export function usePlayers(options: UsePlayersOptions = {}) {
     return () => {
       cancelled = true;
     };
+    // re-run when the device filter changes so the player dropdown
+    // reflects the newly selected instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [instanceId]);
 
   useEffect(() => {
     if (preferPlayerId && players.includes(preferPlayerId)) {

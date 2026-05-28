@@ -134,6 +134,7 @@ export type FleetPlayerRow = {
   stove: string;
   kid: string;
   century: string;
+  game: string;
 };
 
 export type FleetInstanceRow = {

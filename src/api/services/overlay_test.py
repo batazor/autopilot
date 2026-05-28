@@ -685,21 +685,26 @@ def _collect_push_candidates(
             push_payloads.append((priority, order, str(rule_name), payload))
 
     selected_rule: str | None = None
+    rule_blocked_sibling: dict[str, str] = {}
     for _priority, _order, rule_name, payload in sorted(
         push_payloads, key=lambda it: (-it[0], it[1])
     ):
         targets = _push_targets(payload)
         if not targets:
             continue
-        if any(
-            _push_skip_reason(
+        sibling_skip = ""
+        for target in targets:
+            reason = _push_skip_reason(
                 target,
                 repo=repo,
                 active_player=active_player,
                 current_screen=current_screen,
             )
-            for target in targets
-        ):
+            if reason:
+                sibling_skip = f"sibling_blocked:{target}={reason}"
+                break
+        if sibling_skip:
+            rule_blocked_sibling[rule_name] = sibling_skip
             continue
         selected_rule = rule_name
         break
@@ -717,13 +722,19 @@ def _collect_push_candidates(
                 active_player=active_player,
                 current_screen=current_screen,
             )
+            is_selected = rule_name == selected_rule and not skip_reason
+            if not skip_reason and not is_selected:
+                if selected_rule is not None:
+                    skip_reason = f"lost_to={selected_rule}"
+                elif rule_name in rule_blocked_sibling:
+                    skip_reason = rule_blocked_sibling[rule_name]
             out.append(
                 PushScenarioCandidate(
                     scenario=target,
                     rule=rule_name,
                     region=region,
                     priority=priority,
-                    selected=rule_name == selected_rule and not skip_reason,
+                    selected=is_selected,
                     skip_reason=skip_reason,
                 )
             )
@@ -762,7 +773,32 @@ async def _run_module_analyzer_breakdown_async(
     from config.module_discovery import load_module_yaml, module_meta_id, module_storage_key
     from dsl.registry import iter_module_analyze_manifests
 
+    async def _run_one(module_id: str, label: str, scope: str) -> ModuleAnalyzerRun:
+        t0 = time.perf_counter()
+        results = await run_overlay_analysis(
+            image_bgr,
+            repo_root=repo,
+            area_doc=area_doc,
+            current_screen=current_screen,
+            state_flat=state_flat,
+            module_scope=scope,
+            instance_id=instance_id,
+            device_level_only=device_level_only,
+        )
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+        matched_count = sum(
+            1 for p in results.values() if isinstance(p, dict) and p.get("matched")
+        )
+        return ModuleAnalyzerRun(
+            module_id=module_id,
+            label=label,
+            duration_ms=duration_ms,
+            rule_count=len(results),
+            matched_count=matched_count,
+        )
+
     runs: list[ModuleAnalyzerRun] = []
+    pending: list[tuple[int, asyncio.Task[ModuleAnalyzerRun]]] = []
     for manifest in iter_module_analyze_manifests(repo):
         module_dir = manifest.parent.parent
         module_id = module_meta_id(module_dir)
@@ -780,30 +816,15 @@ async def _run_module_analyzer_breakdown_async(
                 )
             )
             continue
-        t0 = time.perf_counter()
-        results = await run_overlay_analysis(
-            image_bgr,
-            repo_root=repo,
-            area_doc=area_doc,
-            current_screen=current_screen,
-            state_flat=state_flat,
-            module_scope=scope,
-            instance_id=instance_id,
-            device_level_only=device_level_only,
-        )
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        matched_count = sum(
-            1 for p in results.values() if isinstance(p, dict) and p.get("matched")
-        )
         runs.append(
             ModuleAnalyzerRun(
-                module_id=module_id,
-                label=label,
-                duration_ms=duration_ms,
-                rule_count=len(results),
-                matched_count=matched_count,
+                module_id=module_id, label=label, duration_ms=0, rule_count=0, matched_count=0
             )
         )
+        pending.append((len(runs) - 1, asyncio.create_task(_run_one(module_id, label, scope))))
+
+    for slot, task in pending:
+        runs[slot] = await task
     return runs
 
 

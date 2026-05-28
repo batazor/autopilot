@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalAccountsPanel } from "@/components/gift-codes/ExternalAccountsPanel";
+import {
+  ExternalAccountsPanel,
+  type ExternalAccountsGame,
+} from "@/components/gift-codes/ExternalAccountsPanel";
+import { AppTabs } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
 import {
   fetchGiftCodes,
@@ -10,7 +14,7 @@ import {
 } from "@/lib/api";
 import type { GiftCodeRow } from "@/lib/wiki";
 
-const KNOWN_GAMES: { id: string; label: string }[] = [
+const KNOWN_GAMES: ExternalAccountsGame[] = [
   { id: "wos", label: "Whiteout Survival" },
   { id: "kingshot", label: "Kingshot" },
 ];
@@ -94,9 +98,7 @@ export default function GiftCodesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  // External accounts are game-scoped (one row per ``(game, player_id)``);
-  // default to WOS to match the legacy default in giftcodes_db.
-  const [externalGame, setExternalGame] = useState<string>(KNOWN_GAMES[0]?.id ?? "wos");
+  const [view, setView] = useState<"active" | "expired">("active");
 
   const load = useCallback(async () => {
     try {
@@ -138,21 +140,44 @@ export default function GiftCodesPage() {
 
   return (
     <>
-      <PageHeader title="Gift codes" />
-      <p className="meta">
-        Century Game promo codes · file <code>{data?.codes_path ?? "db/giftCodes.yaml"}</code>
-      </p>
+      <PageHeader title="Gift codes">
+        <p className="muted m-0">
+          Century Game promo codes · file{" "}
+          <code>{data?.codes_path ?? "db/giftCodes.yaml"}</code>
+        </p>
+      </PageHeader>
+
+      <AppTabs
+        variant="section"
+        renderPanels={false}
+        selectedKey={view}
+        onChange={(k) => setView(k as "active" | "expired")}
+        tabs={[
+          {
+            key: "active",
+            label: `Active codes (${data?.active.length ?? 0})`,
+          },
+          {
+            key: "expired",
+            label: `Expired (${data?.expired.length ?? 0})`,
+            disabled: (data?.expired.length ?? 0) === 0,
+          },
+        ]}
+      />
+
       {error ? <div className="error-banner">{error}</div> : null}
-      {message ? <div className="panel" style={{ marginBottom: "1rem" }}>{message}</div> : null}
+      {message ? (
+        <div className="success-banner">{message}</div>
+      ) : null}
 
       {data?.parse_error ? (
         <div className="error-banner">YAML error: {data.parse_error}</div>
       ) : null}
       {data?.missing_codes_file ? (
-        <p className="meta">Codes file missing — run Scrape.</p>
+        <p className="muted">Codes file missing — run Scrape.</p>
       ) : null}
 
-      <div className="toolbar">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           type="button"
           className="btn-secondary"
@@ -174,70 +199,50 @@ export default function GiftCodesPage() {
           placeholder="Filter…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
+          className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
         />
-        <button type="button" className="btn-secondary" onClick={load}>
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={load}
+        >
           Reload
         </button>
       </div>
 
       {m ? (
-        <div className="metrics-row">
-          <div className="metric-card">
-            <div className="label">Active</div>
-            <div className="value">{m.active}</div>
-          </div>
-          <div className="metric-card">
-            <div className="label">Needs run</div>
-            <div className="value">{m.needs_run}</div>
-          </div>
-          <div className="metric-card">
-            <div className="label">Pending slots</div>
-            <div className="value">{m.pending_slots}</div>
-          </div>
-          <div className="metric-card">
-            <div className="label">Expired</div>
-            <div className="value">{m.expired}</div>
-          </div>
+        <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
+          {[
+            { label: "Active", value: m.active },
+            { label: "Needs run", value: m.needs_run },
+            { label: "Pending slots", value: m.pending_slots },
+            { label: "Expired", value: m.expired },
+          ].map((item) => (
+            <div key={item.label} className="panel !p-3">
+              <div className="text-xs uppercase tracking-wide text-wos-text-muted">
+                {item.label}
+              </div>
+              <div className="mt-1 text-xl font-semibold text-wos-text">
+                {item.value}
+              </div>
+            </div>
+          ))}
         </div>
       ) : null}
 
       {data ? (
-        <>
-          <GiftCodesTable
-            rows={data.active}
-            playerIds={data.player_ids}
-            title={`Active codes (${data.active.length})`}
-          />
-          {data.expired.length > 0 ? (
-            <GiftCodesTable
-              rows={data.expired}
-              playerIds={data.player_ids}
-              title={`Expired (${data.expired.length})`}
-            />
-          ) : null}
-        </>
+        <GiftCodesTable
+          rows={view === "active" ? data.active : data.expired}
+          playerIds={data.player_ids}
+          title={
+            view === "active"
+              ? `Active codes (${data.active.length})`
+              : `Expired (${data.expired.length})`
+          }
+        />
       ) : null}
 
-      <section className="panel panel--spaced" style={{ marginBottom: "0.5rem" }}>
-        <div className="toolbar" style={{ margin: 0 }}>
-          <label htmlFor="external-game" className="meta">
-            External accounts game
-          </label>
-          <select
-            id="external-game"
-            value={externalGame}
-            onChange={(e) => setExternalGame(e.target.value)}
-          >
-            {KNOWN_GAMES.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.label} ({g.id})
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
-
-      <ExternalAccountsPanel game={externalGame} />
+      <ExternalAccountsPanel games={KNOWN_GAMES} />
     </>
   );
 }

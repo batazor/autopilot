@@ -7,7 +7,7 @@ import { THEME_BOOT_SCRIPT } from "@/lib/theme-prefs";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WOS Autopilot",
+  title: "Autopilot",
   description: "Whiteout Survival bot dashboard",
 };
 

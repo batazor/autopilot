@@ -4,6 +4,7 @@ export type OnboardingState = {
   first_scenario_at: string | null;
   first_approval_at: string | null;
   first_ocr_at: string | null;
+  approvals_disabled_at: string | null;
 };
 
 export type EnvHealthEntry = {

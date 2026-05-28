@@ -113,17 +113,77 @@ function HeroTable({ rows, locked }: { rows: HeroStateRow[]; locked: boolean }) 
 
 function MetricsRow({ items }: { items: { label: string; value: string | number }[] }) {
   return (
-    <div
-      className="toolbar"
-      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(8rem, 1fr))" }}
-    >
+    <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(8rem,1fr))]">
       {items.map((m) => (
-        <div key={m.label} className="panel" style={{ padding: "0.75rem 1rem" }}>
-          <div className="meta">{m.label}</div>
-          <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{m.value}</div>
+        <div key={m.label} className="panel !p-3">
+          <div className="text-xs uppercase tracking-wide text-wos-text-muted">
+            {m.label}
+          </div>
+          <div className="mt-1 text-xl font-semibold text-wos-text">
+            {m.value}
+          </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function PlayerHeaderCard({
+  avatar,
+  nickname,
+  kid,
+  stoveLevel,
+  fieldCount,
+}: {
+  avatar: string;
+  nickname: string;
+  kid: string;
+  stoveLevel: string;
+  fieldCount: number;
+}) {
+  const displayName = nickname || "—";
+  return (
+    <section className="panel mb-4">
+      <div className="flex items-center gap-4">
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatar}
+            alt=""
+            width={72}
+            height={72}
+            className="h-[72px] w-[72px] rounded-xl border border-wos-border-subtle bg-wos-panel-raised object-cover"
+          />
+        ) : (
+          <div
+            className="flex h-[72px] w-[72px] items-center justify-center rounded-xl border border-wos-border-subtle bg-wos-panel-raised text-2xl font-semibold text-wos-text-muted"
+            aria-hidden
+          >
+            {displayName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-semibold text-wos-text">
+            {displayName}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+            {kid ? (
+              <span className="rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 font-medium text-wos-text-secondary">
+                KID {kid}
+              </span>
+            ) : null}
+            {stoveLevel ? (
+              <span className="rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 font-medium text-wos-text-secondary">
+                Stove {stoveLevel}
+              </span>
+            ) : null}
+            <span className="text-wos-text-muted">
+              {fieldCount} hash field{fieldCount === 1 ? "" : "s"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -144,7 +204,9 @@ function PersistedPanel({
       <section className="panel">
         <div className="error-banner">Cannot parse state DB: {persisted.parse_error}</div>
         {persisted.raw_yaml ? (
-          <pre style={{ overflow: "auto", fontSize: "0.8rem" }}>{persisted.raw_yaml}</pre>
+          <pre className="max-h-96 overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel-raised p-3 text-xs">
+            {persisted.raw_yaml}
+          </pre>
         ) : null}
       </section>
     );
@@ -242,7 +304,7 @@ function PersistedPanel({
         />
       </CollapsiblePanel>
       <CollapsiblePanel title="Full JSON record" defaultOpen={false}>
-        <pre style={{ overflow: "auto", fontSize: "0.75rem" }}>
+        <pre className="max-h-96 overflow-auto rounded-lg border border-wos-border-subtle bg-wos-panel-raised p-3 text-xs">
           {JSON.stringify(p.gamer, null, 2)}
         </pre>
       </CollapsiblePanel>
@@ -421,25 +483,29 @@ function PlayerStatePageInner() {
   return (
     <>
       <FleetPageHeader title="Player state" showPlayer />
-      <p className="meta">
+      <p className="muted">
         <strong>Redis</strong> — live <code>wos:player:&lt;id&gt;:state</code> from
         the worker. <strong>Persisted</strong> — <code>db/state/wos.db</code>. Pick an
         instance to pre-select the active player from Redis.
       </p>
       <ErrorBanner message={bannerError} />
 
-      <div className="toolbar" style={{ flexWrap: "wrap" }}>
-        {suggestedPlayer ? (
-          <span className="meta">
-            Active player on instance:{" "}
-            <code>{suggestedPlayer || "—"}</code>
-            {!playerTouched && playerId === suggestedPlayer ? (
-              <span> (auto-selected)</span>
-            ) : null}
-          </span>
-        ) : instanceId ? (
-          <span className="meta">No active player on this instance yet.</span>
-        ) : null}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1 text-sm text-wos-text-secondary">
+          {suggestedPlayer ? (
+            <>
+              Active player on instance:{" "}
+              <code>{suggestedPlayer || "—"}</code>
+              {!playerTouched && playerId === suggestedPlayer ? (
+                <span className="text-wos-text-muted"> (auto-selected)</span>
+              ) : null}
+            </>
+          ) : instanceId ? (
+            <span className="text-wos-text-muted">
+              No active player on this instance yet.
+            </span>
+          ) : null}
+        </div>
         {suggestedPlayer &&
         playerId !== suggestedPlayer &&
         players.includes(suggestedPlayer) ? (
@@ -462,7 +528,10 @@ function PlayerStatePageInner() {
           Refresh now
         </button>
         {playerId ? (
-          <Link href={playerStatsHref(playerId, { instanceId })} className="btn btn--ghost">
+          <Link
+            href={playerStatsHref(playerId, { instanceId })}
+            className="btn-secondary"
+          >
             Statistics
           </Link>
         ) : null}
@@ -526,24 +595,13 @@ function PlayerStatePageInner() {
       {tab === "redis" ? (
         live && live.field_count > 0 ? (
           <>
-            <MetricsRow
-              items={[
-                { label: "Nickname", value: live.nickname || "—" },
-                { label: "Stove (Century)", value: live.stove_level || "—" },
-                { label: "KID", value: live.kid || "—" },
-                { label: "Hash fields", value: live.field_count },
-              ]}
+            <PlayerHeaderCard
+              avatar={live.avatar_image}
+              nickname={live.nickname}
+              kid={live.kid}
+              stoveLevel={live.stove_level}
+              fieldCount={live.field_count}
             />
-            {live.avatar_image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={live.avatar_image}
-                alt=""
-                width={80}
-                height={80}
-                style={{ borderRadius: 8, marginBottom: "0.75rem" }}
-              />
-            ) : null}
             <CollapsiblePanel
               title="Building levels"
               meta={countLabel(
@@ -708,12 +766,12 @@ function PlayerStatePageInner() {
 
       {tab === "heroes" && persisted && !persisted.player ? (
         <section className="panel">
-          <p className="meta">
+          <p className="meta m-0">
             No persisted record — open the{" "}
             <button
               type="button"
-              className="btn-secondary"
-              style={{ display: "inline", padding: "0 0.35rem" }}
+              className="underline underline-offset-2 hover:text-wos-link-hover"
+              style={{ color: "var(--wos-link)" }}
               onClick={() => setTab("persisted")}
             >
               Persisted
@@ -735,7 +793,7 @@ function PlayerStatePageInner() {
         busy={deleting}
       >
         <p>This will wipe all data for this player. This is irreversible.</p>
-        <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem" }}>
+        <ul className="mt-2 list-disc pl-5">
           <li>
             Redis: <code>wos:player:&lt;id&gt;:*</code> (state, scenario, TTL)
           </li>

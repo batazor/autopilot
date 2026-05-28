@@ -16,6 +16,12 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { NavIcon } from "@/components/ui/NavIcon";
+import { fetchLicenseStatus } from "@/lib/api";
+import {
+  getNavLock,
+  NAV_LOCK_BADGE,
+  type NavLock,
+} from "@/lib/nav-locks";
 import {
   loadRecent,
   pushRecent,
@@ -62,12 +68,36 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
 
+  const [tier, setTier] = useState<string | null>(null);
+
   const q = query.trim().toLowerCase();
   const filtering = q.length > 0;
   const activeGroup = groupForPath(pathname);
 
   useEffect(() => {
     setRecent(loadRecent());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pull = () => {
+      fetchLicenseStatus()
+        .then((st) => {
+          if (cancelled) return;
+          setTier(st.active && st.tier ? st.tier : null);
+        })
+        .catch(() => {
+          if (!cancelled) setTier(null);
+        });
+    };
+    pull();
+    const id = window.setInterval(pull, 30_000);
+    window.addEventListener("wos:license:updated", pull);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener("wos:license:updated", pull);
+    };
   }, []);
 
   useEffect(() => {
@@ -129,10 +159,20 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
           onClick={onNavigate}
           className="group flex min-w-0 flex-1 items-center gap-2.5 no-underline"
         >
-          <span className="nav-brand__logo">W</span>
+          <span className="nav-brand__logo">A</span>
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold tracking-tight text-wos-text group-hover:text-white">
-              WOS Autopilot
+            <span className="flex items-center gap-1.5">
+              <span className="truncate text-sm font-semibold tracking-tight text-wos-text group-hover:text-white">
+                Autopilot
+              </span>
+              {tier ? (
+                <span
+                  className="rounded-full border border-wos-border-subtle bg-wos-panel-raised px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-wos-text-secondary"
+                  title={`License tier: ${tier}`}
+                >
+                  {tier}
+                </span>
+              ) : null}
             </span>
             <span className="block text-[11px] text-wos-text-muted">
               Operations dashboard
@@ -198,6 +238,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                   active={isActivePath(pathname, item.href)}
                   query={q}
                   variant="pinned"
+                  lock={getNavLock(item.href, tier) ?? undefined}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -259,6 +300,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
                   description={tab.description}
                   active={isActivePath(pathname, tab.href)}
                   query={q}
+                  lock={getNavLock(tab.href, tier) ?? undefined}
                   onNavigate={onNavigate}
                 />
               ))}
@@ -347,6 +389,7 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
   );
 }
 
+
 function NavRow({
   href,
   label,
@@ -354,6 +397,7 @@ function NavRow({
   active,
   query,
   variant = "default",
+  lock,
   onNavigate,
 }: {
   href: string;
@@ -362,29 +406,52 @@ function NavRow({
   active: boolean;
   query: string;
   variant?: "default" | "pinned";
+  lock?: NavLock;
   onNavigate?: () => void;
 }) {
+  const locked = Boolean(lock);
   const showDesc = active && description;
+  const linkHref = lock?.kind === "pro" ? "/license" : href;
+  const title = lock ? lock.tooltip : description;
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (lock?.kind === "soon") {
+      e.preventDefault();
+      return;
+    }
+    onNavigate?.();
+  };
 
   return (
     <li>
       <Link
-        href={href}
-        onClick={onNavigate}
+        href={linkHref}
+        onClick={handleClick}
         className={[
           "nav-link",
-          active ? "nav-link--active" : "",
+          active && !locked ? "nav-link--active" : "",
           variant === "pinned" ? "nav-link--pinned" : "",
+          locked ? "opacity-60" : "",
+          lock?.kind === "soon" ? "cursor-not-allowed" : "",
         ].join(" ")}
-        aria-current={active ? "page" : undefined}
-        title={description}
+        aria-current={active && !locked ? "page" : undefined}
+        aria-disabled={lock?.kind === "soon" ? true : undefined}
+        title={title}
       >
         <span className="nav-link__icon" aria-hidden>
           <NavIcon href={href} size="sm" />
         </span>
         <span className="nav-link__body">
-          <span className="nav-link__label">
-            {highlightMatch(label, query)}
+          <span className="nav-link__label flex items-center gap-1.5">
+            <span>{highlightMatch(label, query)}</span>
+            {lock ? (
+              <span
+                className="rounded-full border border-amber-400/40 bg-amber-500/15 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-amber-300"
+                aria-label={lock.tooltip}
+              >
+                {NAV_LOCK_BADGE[lock.kind]}
+              </span>
+            ) : null}
           </span>
           {showDesc ? (
             <span className="nav-link__desc">{description}</span>

@@ -170,7 +170,11 @@ def _download_hero_icons(client: httpx.Client, repo: Path) -> int:
 def main(argv: list[str]) -> int:
     repo = _repo_root()
     assets_dir = repo / "db" / "assets" / "wiki"
-    buildings_dir = repo / "db" / "buildings"
+    # Phase 3 moved per-game reference data; buildings now live under
+    # games/<game>/db/. Items haven't been migrated and stay at db/items/.
+    from config.buildings import buildings_db_dir
+
+    buildings_dir = buildings_db_dir(repo)
     items_dir = repo / "db" / "items"
 
     mode = (argv[0] if argv else "buildings").strip().lower()

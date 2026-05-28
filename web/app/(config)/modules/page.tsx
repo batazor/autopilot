@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { AppListbox, AppSwitch } from "@/components/headless";
+import { AppListbox, AppSwitch, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
+
+const GAME_TABS: { id: string; label: string }[] = [
+  { id: "wos", label: "Whiteout Survival" },
+  { id: "kingshot", label: "Kingshot" },
+];
 import { debugRunHref, editDslHref } from "@/lib/debug-links";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -91,6 +96,7 @@ function ModuleScenarios({
 
 export default function ModulesPage() {
   const { showSuccess } = useFeedback();
+  const [game, setGame] = useState<string>(GAME_TABS[0]?.id ?? "wos");
   const [scopes, setScopes] = useState<WikiScope[]>([]);
   const [scope, setScope] = useState("all");
   const [modules, setModules] = useState<ModuleRow[]>([]);
@@ -112,7 +118,7 @@ export default function ModulesPage() {
     setAssignmentsLoading(true);
     try {
       const [mods, p] = await Promise.all([
-        fetchModules(scope),
+        fetchModules(scope, game),
         fetchPlayerAssignments(),
       ]);
       setModules(mods);
@@ -122,11 +128,16 @@ export default function ModulesPage() {
     } finally {
       setAssignmentsLoading(false);
     }
-  }, [scope]);
+  }, [scope, game]);
 
   useEffect(() => {
-    fetchWikiScopes().then(setScopes).catch(() => {});
-  }, []);
+    fetchWikiScopes(game).then(setScopes).catch(() => {});
+  }, [game]);
+
+  // Reset module scope when switching games — scopes are game-specific.
+  useEffect(() => {
+    setScope("all");
+  }, [game]);
 
   useEffect(() => {
     reload();
@@ -195,7 +206,13 @@ export default function ModulesPage() {
           per-player overrides, open editor or runner.
         </p>
       </PageHeader>
-      <div className="toolbar">
+      <AppTabs
+        tabs={GAME_TABS.map((g) => ({ key: g.id, label: g.label, title: g.id }))}
+        selectedKey={game}
+        onChange={setGame}
+        renderPanels={false}
+      />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <AppListbox
           inline
           label="Scope"
@@ -208,14 +225,13 @@ export default function ModulesPage() {
           }
           minWidth={160}
         />
-        <label>
-          Filter
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="id, title, path…"
-          />
-        </label>
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter: id, title, path…"
+          className="min-w-[12rem] flex-1 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+          type="search"
+        />
         <button type="button" className="btn-secondary" onClick={() => reload()}>
           Refresh
         </button>
@@ -293,13 +309,19 @@ export default function ModulesPage() {
                         )}
                       </td>
                       <td>
-                        <strong>{m.title}</strong>
-                        <div className="muted">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <strong>{m.title}</strong>
+                          {m.core ? (
+                            <span className="rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-sky-300">
+                              core
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="muted text-xs">
                           <code>{m.storage_key}</code>
-                          {m.core && " · core"}
                         </div>
                         {m.description && (
-                          <div className="muted">{m.description}</div>
+                          <div className="muted text-xs">{m.description}</div>
                         )}
                       </td>
                       <td className="muted">
@@ -307,9 +329,29 @@ export default function ModulesPage() {
                       </td>
                       <td>{m.scenario_count}</td>
                       <td>
-                        {m.enabled_on} on / {m.enabled_off} off
+                        <div className="flex flex-wrap items-center gap-1">
+                          {m.enabled_on ? (
+                            <span className="rounded-full bg-emerald-500/15 px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                              {m.enabled_on} on
+                            </span>
+                          ) : null}
+                          {m.enabled_off ? (
+                            <span className="rounded-full bg-wos-panel-raised px-1.5 py-0 text-[10px] font-semibold uppercase tracking-wide text-wos-text-muted">
+                              {m.enabled_off} off
+                            </span>
+                          ) : null}
+                          {!m.enabled_on && !m.enabled_off ? (
+                            <span className="text-xs text-wos-text-muted">—</span>
+                          ) : null}
+                        </div>
                       </td>
-                      <td>{m.wiki ? "yes" : "no"}</td>
+                      <td>
+                        {m.wiki ? (
+                          <span className="status-pill status-idle">yes</span>
+                        ) : (
+                          <span className="text-xs text-wos-text-muted">—</span>
+                        )}
+                      </td>
                       <td>
                         <Link href={editDslHref({ module: m.storage_key })}>
                           DSL editor

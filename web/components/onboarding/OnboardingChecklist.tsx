@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { fetchLicenseStatus } from "@/lib/api";
 import {
   checklistDismissed,
   fetchOnboardingState,
@@ -19,18 +20,41 @@ const ITEMS: readonly Item[] = [
   { key: "first_scenario_at", label: "Wait for first scenario" },
   { key: "first_approval_at", label: "Approve first click" },
   { key: "first_ocr_at", label: "View first OCR result" },
+  { key: "approvals_disabled_at", label: "Disable approvals" },
 ];
 
 export function OnboardingChecklist() {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(true);
+  const [licensed, setLicensed] = useState<boolean | null>(null);
 
   useEffect(() => {
     setDismissed(checklistDismissed());
   }, []);
 
   useEffect(() => {
-    if (dismissed) return;
+    let cancelled = false;
+    const pull = () => {
+      fetchLicenseStatus()
+        .then((st) => {
+          if (!cancelled) setLicensed(Boolean(st.active));
+        })
+        .catch(() => {
+          if (!cancelled) setLicensed(false);
+        });
+    };
+    pull();
+    const id = window.setInterval(pull, 15_000);
+    window.addEventListener("wos:license:updated", pull);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener("wos:license:updated", pull);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (dismissed || !licensed) return;
     let cancelled = false;
     const pull = () => {
       fetchOnboardingState()
@@ -45,9 +69,9 @@ export function OnboardingChecklist() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [dismissed]);
+  }, [dismissed, licensed]);
 
-  if (dismissed || !state) return null;
+  if (dismissed || !licensed || !state) return null;
 
   const done = ITEMS.filter((it) => state[it.key]).length;
   if (done === ITEMS.length) return null;

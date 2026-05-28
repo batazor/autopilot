@@ -4,3 +4,9 @@ export { AppCheckbox, type AppCheckboxProps } from "./AppCheckbox";
 export { AppSwitch, type AppSwitchProps } from "./AppSwitch";
 export { AppTabs, type AppTabItem, type AppTabsProps } from "./AppTabs";
 export { AppConfirmDialog, type AppConfirmDialogProps } from "./AppConfirmDialog";
+export {
+  AppMenu,
+  type AppMenuItem,
+  type AppMenuProps,
+  type AppMenuAnchor,
+} from "./AppMenu";

@@ -173,7 +173,12 @@ def load_merged_entries(
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     scope = normalize_module_scope(module_scope)
     list_key = _INDEX_LIST_KEY[entity]
-    core_dir = root / "db" / entity
+    # Phase 3 moved per-game reference data under games/<game>/db/<entity>/.
+    # Prefer that location when available; fall back to the legacy root db/
+    # for entities (items, gear) whose migration hasn't shipped yet.
+    per_game_dir = root / "games" / (game or "wos") / "db" / entity
+    legacy_dir = root / "db" / entity
+    core_dir = per_game_dir if per_game_dir.is_dir() else legacy_dir
 
     by_id: dict[str, WikiEntry] = {}
     order: list[str] = []

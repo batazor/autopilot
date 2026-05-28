@@ -238,22 +238,37 @@ export default function AdbPage() {
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
-      <div className="toolbar">
+      <div className="toolbar mb-4">
         <button type="button" className="btn-secondary" onClick={load}>
           Refresh scan
         </button>
       </div>
-      {error && <p className="error-banner">{error}</p>}
-      {success && <p className="success-banner">{success}</p>}
+      {error && <p className="error-banner mb-4">{error}</p>}
+      {success && <p className="success-banner mb-4">{success}</p>}
       {status && (
         <>
-          <p className="muted">
-            <code>{status.adb_executable}</code> · {status.devices_yaml}
-          </p>
+          <dl className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/40 px-3 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <dt className="font-semibold uppercase tracking-wide text-wos-text-muted">
+                adb
+              </dt>
+              <dd className="m-0">
+                <code className="text-wos-text">{status.adb_executable}</code>
+              </dd>
+            </div>
+            <div className="flex items-center gap-2">
+              <dt className="font-semibold uppercase tracking-wide text-wos-text-muted">
+                State DB
+              </dt>
+              <dd className="m-0">
+                <code className="text-wos-text">{status.devices_yaml}</code>
+              </dd>
+            </div>
+          </dl>
           {status.scan_error && (
-            <p className="error-banner">Scan: {status.scan_error}</p>
+            <p className="error-banner mb-4">Scan: {status.scan_error}</p>
           )}
-          <section className="panel">
+          <section className="panel panel--spaced">
             <h2>Configured ({status.configured.length})</h2>
             <div className="data-table-wrap">
               <table className="data-table">

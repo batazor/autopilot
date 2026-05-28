@@ -121,6 +121,7 @@ def _player_sub_row(
     player_id: str,
     *,
     active_players: set[str],
+    game: str,
 ) -> dict[str, Any]:
     state = read_player_state(client, player_id)
     ig_id = (state.get("player_id") or "").strip()
@@ -140,6 +141,9 @@ def _player_sub_row(
         "stove": (state.get("stove_level") or "").strip() or "—",
         "kid": (state.get("kid") or "").strip() or "—",
         "century": _format_age(state.get("century_player_sync_at") or 0.0),
+        # Per-profile game (`wos` / `kingshot` / …) — UI uses it to render the
+        # right game icon next to the player chip.
+        "game": (game or "wos"),
     }
 
 
@@ -166,11 +170,21 @@ def build_fleet_rows(
         sub_rows: list[dict[str, Any]] = []
         dev = by_name.get(iid)
         if dev is not None:
-            for gamer in dev.all_gamers():
-                pid = str(gamer.id)
-                sub_rows.append(
-                    _player_sub_row(client, iid, pid, active_players=active_players)
-                )
+            # Iterate profiles directly so we can carry profile.game through
+            # to the UI (all_gamers() flattens profiles and drops the field).
+            for profile in dev.profiles:
+                profile_game = profile.game or dev.game or "wos"
+                for gamer in profile.gamers:
+                    pid = str(gamer.id)
+                    sub_rows.append(
+                        _player_sub_row(
+                            client,
+                            iid,
+                            pid,
+                            active_players=active_players,
+                            game=profile_game,
+                        )
+                    )
         rows.append(
             {
                 "instance_id": iid,
