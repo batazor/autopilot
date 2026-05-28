@@ -62,6 +62,7 @@ class Navigator:
         capture_fn: Callable[[str], np.ndarray],
         tap_fn: Callable[..., bool | None],
         *,
+        system_back_fn: Callable[[str], bool | None] | None = None,
         settings: Settings,
         ocr_client: OcrClient,
         redis_client: Any | None = None,
@@ -73,6 +74,7 @@ class Navigator:
         # via ``inspect.signature`` to pick the right calling shape.
         self._capture = capture_fn
         self._tap = tap_fn
+        self._system_back = system_back_fn
         self._detector = ScreenDetector(ocr_client)
         self._ocr = ocr_client
         self._settings = settings
@@ -378,6 +380,12 @@ class Navigator:
                 hop_index=hop_index,
             )
         )
+
+    async def _system_back_async(self, instance_id: str) -> bool:
+        if self._system_back is None:
+            logger.warning("Navigator: system_back action has no handler configured")
+            return False
+        return bool(await asyncio.to_thread(self._system_back, instance_id))
 
     def _tap_supports_approval_source(self) -> bool:
         if self._tap_accepts_approval_source is not None:
@@ -1027,7 +1035,9 @@ class Navigator:
             for point in taps:
                 # Static taps are region names; dynamic resolvers may return
                 # structured specs that resolve against the current frame.
-                if isinstance(point, dict) and point.get("type") == "template_icon":
+                if isinstance(point, dict) and point.get("type") == "system_back":
+                    tapped = await self._system_back_async(instance_id)
+                elif isinstance(point, dict) and point.get("type") == "template_icon":
                     tapped = await self._tap_template_icon_async(
                         instance_id,
                         point,

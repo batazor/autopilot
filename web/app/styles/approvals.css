@@ -1,6 +1,6 @@
 @layer components {
   .approvals-grid {
-    @apply grid items-start gap-5 lg:grid-cols-2;
+    @apply grid items-start gap-5 lg:grid-cols-[minmax(0,480px)_minmax(0,1fr)];
   }
 
   .preview-wrap {

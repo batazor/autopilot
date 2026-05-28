@@ -16,7 +16,7 @@ class InstanceConfig:
     # Empty string = smart default (physical → scrcpy, emulator → quartz);
     # set explicitly via devices.yaml to override.
     screenshot_backend: str = ""
-    # Empty = smart default (physical → minitouch, emulator → adb).
+    # Empty = smart default (scrcpy).
     input_backend: str = ""
     quartz_window_id: int | None = None
     quartz_window_title: str = ""

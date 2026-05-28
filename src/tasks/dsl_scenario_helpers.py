@@ -122,6 +122,7 @@ _DSL_STEP_ACTION_KEYS = frozenset({
     "ocr",
     "exec",
     "click",
+    "wait_screen",
     "wait",
     "system_back",
 })
@@ -141,6 +142,7 @@ def _dsl_step_summary(step: Any) -> str:
         "swipe_direction",
         "push_scenario",
         "exec",
+        "wait_screen",
         "wait",
         "repeat",
         "loop",
@@ -162,6 +164,8 @@ def _dsl_step_summary(step: Any) -> str:
             base = f"push:{str(val)[:40]}"
         elif key == "exec":
             base = f"exec:{str(val)[:40]}"
+        elif key == "wait_screen":
+            base = f"wait_screen:{str(val)[:40]}"
         elif key == "wait":
             base = f"wait:{str(val)[:24]}"
         break

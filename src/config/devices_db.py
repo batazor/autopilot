@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_device_profile_gamers_profile ON device_profile_g
 
 
 VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "scrcpy"})
-VALID_INPUT_BACKENDS = frozenset({"", "adb", "minitouch", "scrcpy"})
+VALID_INPUT_BACKENDS = frozenset({"", "adb", "scrcpy"})
 
 
 def _ensure_game_columns(conn: sqlite3.Connection) -> None:
@@ -109,6 +109,10 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
         # Minicap was removed in favor of scrcpy; keep old DB rows bootable.
         conn.execute(
             "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
+        )
+        # Minitouch was removed; scrcpy is the replacement fast input backend.
+        conn.execute(
+            "UPDATE devices SET input_backend = 'scrcpy' WHERE input_backend = 'minitouch'"
         )
         conn.commit()
         yield conn

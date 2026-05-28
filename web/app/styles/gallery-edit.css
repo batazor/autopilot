@@ -31,7 +31,7 @@
   }
 
   .edit-scenario-editor h3 {
-    @apply mt-6 mb-3 text-base font-semibold;
+    @apply mt-6 mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-wos-text-muted;
   }
 
   .edit-scenario-header {
@@ -39,7 +39,7 @@
   }
 
   .edit-scenario-step-card {
-    @apply mb-3 rounded border border-wos-border p-3 transition-colors duration-100;
+    @apply mb-3 rounded-xl border border-wos-border-subtle p-3 transition-colors duration-100;
   }
 
   .edit-scenario-step-card:hover {
@@ -54,12 +54,23 @@
     @apply mb-3 flex flex-wrap items-center gap-2 text-sm;
   }
 
-  .edit-scenario-step-head code {
-    @apply rounded bg-wos-input px-1.5 py-0.5;
+  /* Numbered chip in the step header — small circular badge with tabular nums
+     so two- and three-digit indices line up. */
+  .edit-scenario-step-num {
+    @apply inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised px-1.5 text-[11px] font-semibold tabular-nums text-wos-text;
+  }
+
+  /* Step type pill (click/wait/match/...). More prominent than a plain <code>. */
+  .edit-scenario-step-kind {
+    @apply rounded-md border border-sky-400/30 bg-sky-500/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wide text-sky-200;
+  }
+
+  .edit-scenario-step-summary {
+    @apply min-w-0 flex-1 truncate font-mono text-xs;
   }
 
   .edit-scenario-step-actions {
-    @apply ml-auto flex gap-1 opacity-60 transition-opacity duration-100;
+    @apply ml-auto flex gap-1 opacity-80 transition-opacity duration-100;
   }
 
   .edit-scenario-step-card:hover .edit-scenario-step-actions,

@@ -1654,6 +1654,33 @@ class DslScenarioExecuteMixin(_Base):
                         completed=False,
                     ),
                 )
+            if "wait_screen" in step:
+                await self._write_step_context(instance_id, scenario=key)
+                matched = await self._run_wait_screen_step(
+                    actions=actions,
+                    instance_id=instance_id,
+                    scenario_key=key,
+                    step=step,
+                )
+                if not matched:
+                    await self._clear_step_context(instance_id)
+                    _trace_row(
+                        _resumable_step,
+                        step,
+                        "stopped",
+                        reason="wait_screen_timeout",
+                    )
+                    return TaskResult(
+                        success=False,
+                        next_run_at=None,
+                        metadata=_fin(
+                            {"scenario": key, "reason": "wait_screen_timeout"},
+                            completed=False,
+                        ),
+                    )
+                await _mark_top_level_step_done()
+                _trace_row(_resumable_step, step, "ok", matched=matched)
+                continue
             if "wait" in step:
                 # Supports "1200ms" (string) or seconds (number).
                 w = step.get("wait")

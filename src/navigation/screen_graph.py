@@ -83,7 +83,7 @@ def _load_edge_taps(
 
     Edge value forms:
     * ``str`` — single static tap region (legacy shorthand).
-    * ``list[str]`` — static tap sequence.
+    * ``list[str | dict]`` — static action sequence.
     * ``dict`` — dynamic edge resolved at runtime via an :data:`EDGE_RESOLVERS`
       entry; the dict is opaque to the loader and passed through to the
       resolver as-is.
@@ -107,7 +107,9 @@ def _load_edge_taps(
             for dst, taps in dsts.items():
                 key = (str(src), str(dst))
                 if isinstance(taps, list):
-                    static[key] = [str(t) for t in taps]
+                    static[key] = [
+                        dict(t) if isinstance(t, dict) else str(t) for t in taps
+                    ]
                     dynamic.pop(key, None)
                 elif isinstance(taps, str):
                     static[key] = [taps]

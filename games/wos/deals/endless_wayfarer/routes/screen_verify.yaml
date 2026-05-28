@@ -1,5 +1,6 @@
 screens:
   deals.endless_wayfarer:
+    priority: 52
     rules:
       - match: endless_wayfarer.title
         threshold: 0.9

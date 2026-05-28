@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
 import { ApiStatusProvider } from "@/components/ApiStatusProvider";
 import { AppNav } from "@/components/AppNav";
+import { AppTooltipHost } from "@/components/AppTooltip";
 import { FeedbackProvider } from "@/components/feedback";
 import { useFleetOptional } from "@/components/FleetContextProvider";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
@@ -87,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</main>
       </div>
       <OnboardingWizard />
+      <AppTooltipHost />
     </div>
     </FeedbackProvider>
     </ApiStatusProvider>

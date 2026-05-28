@@ -37,6 +37,7 @@ def navigator(actions: BotActions, *, redis_client: Any | None = None) -> Naviga
     return Navigator(
         actions.capture_screen_bgr,
         actions.tap,
+        system_back_fn=actions.system_back,
         settings=get_settings(),
         ocr_client=ocr_client(),
         redis_client=redis_client,

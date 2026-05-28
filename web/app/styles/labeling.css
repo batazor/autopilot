@@ -152,6 +152,10 @@
     @apply flex flex-wrap items-center gap-2;
   }
 
+  .labeling-ref-danger {
+    @apply mt-2 flex justify-end border-t border-wos-border-subtle/60 pt-3;
+  }
+
   .labeling-region-form label.meta {
     @apply block;
   }

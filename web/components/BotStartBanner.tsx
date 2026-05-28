@@ -195,69 +195,62 @@ export function BotStartBanner() {
     );
   }
 
-  if (!adbReadiness?.ok) {
-    const problem = adbReadiness ?? {
-      ok: false as const,
-      kind: "no_devices" as const,
-      message: "Checking ADB…",
-    };
-    return (
-      <div
-        className="nav-bot-banner nav-bot-banner--devices"
-        role="region"
-        aria-label="ADB devices"
-      >
-        <div className="nav-bot-banner__row">
-          <span className="nav-bot-banner__icon" aria-hidden>
-            <Icon name="adb" size="sm" />
-          </span>
-          <span className="nav-bot-banner__body">
-            <span className="nav-bot-banner__title">
-              {adbReadinessTitle(problem.kind)}
-            </span>
-            <span className="nav-bot-banner__desc">
-              {problem.message}{" "}
-              <Link href="/adb" className="nav-bot-banner__link">
-                Open ADB
-              </Link>
-            </span>
-          </span>
-        </div>
-        {adbStatus?.configured.length ? (
-          <p className="nav-bot-banner__meta">
-            Configured: {adbStatus.configured.length} · Live:{" "}
-            {adbStatus.live_devices.length}
-          </p>
-        ) : null}
-        {error ? (
-          <p className="nav-bot-banner__error" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    );
-  }
-
+  // Bot is stopped (or never started). Always render the Start button so the
+  // operator has an obvious action right after pressing Stop — previously an
+  // ADB hiccup at this exact moment swallowed the Play affordance and there
+  // was no way back to a running bot from this banner.
+  const adbProblem = adbReadiness && !adbReadiness.ok ? adbReadiness : null;
+  const startDisabled = startMutation.isPending || Boolean(adbProblem);
+  const startTitle = startMutation.isPending
+    ? "Starting…"
+    : adbProblem
+      ? `${adbReadinessTitle(adbProblem.kind)} — ${adbProblem.message}`
+      : "Start bot";
   return (
-    <div className="nav-bot-banner" role="region" aria-label="Bot worker">
+    <div
+      className={
+        adbProblem
+          ? "nav-bot-banner nav-bot-banner--devices"
+          : "nav-bot-banner"
+      }
+      role="region"
+      aria-label="Bot worker"
+    >
       <div className="nav-bot-banner__row">
         <button
           type="button"
           className="nav-bot-banner__action"
-          disabled={startMutation.isPending}
+          disabled={startDisabled}
           onClick={() => startMutation.mutate()}
           aria-label={startMutation.isPending ? "Starting bot" : "Start bot"}
-          title={startMutation.isPending ? "Starting…" : "Start bot"}
+          title={startTitle}
         >
           <Icon name="play" size="sm" />
         </button>
         <span className="nav-bot-banner__body">
-          <span className="nav-bot-banner__title">Bot not running</span>
+          <span className="nav-bot-banner__title">
+            {adbProblem ? adbReadinessTitle(adbProblem.kind) : "Bot not running"}
+          </span>
           <span className="nav-bot-banner__desc">
-            ADB online — start workers to run scenarios.
+            {adbProblem ? (
+              <>
+                {adbProblem.message}{" "}
+                <Link href="/adb" className="nav-bot-banner__link">
+                  Open ADB
+                </Link>
+              </>
+            ) : (
+              "ADB online — start workers to run scenarios."
+            )}
           </span>
         </span>
       </div>
+      {adbProblem && adbStatus?.configured.length ? (
+        <p className="nav-bot-banner__meta">
+          Configured: {adbStatus.configured.length} · Live:{" "}
+          {adbStatus.live_devices.length}
+        </p>
+      ) : null}
       {error ? (
         <p className="nav-bot-banner__error" role="alert">
           {error}

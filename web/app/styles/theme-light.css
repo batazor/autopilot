@@ -97,7 +97,65 @@
   }
 
   html[data-theme="light"] .routes-path-miss {
-    @apply text-red-700;
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
+  /* Path summary card sits inside .panel; in light theme the surface tokens
+     collapse to white, so the inner card and inline blocks lose contrast.
+     Give them a slate tint so the structure is still readable. */
+  html[data-theme="light"] .routes-path-summary {
+    @apply border-slate-200 bg-slate-50;
+  }
+
+  html[data-theme="light"] .routes-path-code {
+    @apply border-slate-200 bg-slate-100 text-slate-700;
+  }
+
+  html[data-theme="light"] .routes-hop-list li {
+    @apply bg-white text-slate-600;
+    border: 1px solid var(--wos-border-subtle);
+  }
+
+  html[data-theme="light"] .routes-hop-list li::before {
+    @apply text-slate-400;
+  }
+
+  html[data-theme="light"] .routes-ref-list__item {
+    @apply border-slate-200 bg-slate-50;
+  }
+
+  html[data-theme="light"] .routes-ref-list__step {
+    @apply border-slate-200 bg-white text-slate-700;
+  }
+
+  html[data-theme="light"] .routes-ref-list__count {
+    @apply bg-white text-slate-500;
+  }
+
+  html[data-theme="light"] .routes-ref-list__image {
+    @apply border-slate-200 bg-slate-100;
+  }
+
+  /* edit-dsl step cards: tokens collapse to white in light, so without an
+     explicit border tint the cards float on the panel without separation. */
+  html[data-theme="light"] .edit-scenario-step-card {
+    @apply border-slate-200 bg-slate-50;
+  }
+
+  html[data-theme="light"] .edit-scenario-step-card:hover {
+    @apply border-sky-300 bg-sky-50;
+  }
+
+  html[data-theme="light"] .edit-scenario-step-card:focus-within {
+    @apply border-sky-400 bg-sky-50;
+  }
+
+  html[data-theme="light"] .edit-scenario-step-num {
+    @apply border-slate-200 bg-white text-slate-700;
+  }
+
+  html[data-theme="light"] .edit-scenario-step-kind {
+    @apply border-sky-200 bg-sky-50 text-sky-700;
   }
 
   html[data-theme="light"] .approvals-callout--info {

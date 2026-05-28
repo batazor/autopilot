@@ -142,6 +142,51 @@ async def test_static_navigation_hop_uses_region_original_size_without_adb_wait(
 
 
 @pytest.mark.asyncio
+async def test_navigation_hop_can_execute_system_back_action(
+    mocker,
+    redis_async: object,
+    settings: Settings,
+    ocr_client: OcrClient,
+) -> None:
+    redis = redis_async
+    back_calls: list[str] = []
+
+    def capture(_instance_id: str) -> np.ndarray:
+        return np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def tap(_instance_id: str, _point: Any, **_kwargs: Any) -> bool:
+        msg = "system_back route action must not use region tap"
+        raise AssertionError(msg)
+
+    def system_back(instance_id: str) -> bool:
+        back_calls.append(instance_id)
+        return True
+
+    nav = make_navigator(
+        capture,
+        tap,
+        system_back_fn=system_back,
+        settings=settings,
+        ocr_client=ocr_client,
+        redis_client=redis,
+    )
+
+    async def wait_for_screen_verified(*_args: Any) -> bool:
+        return True
+
+    mocker.patch.object(nav, "_wait_for_screen_verified", new=wait_for_screen_verified)
+
+    result = await nav._execute_hops(
+        "bs1",
+        [("main_city", [{"type": "system_back"}])],
+        from_screen="rewards",
+    )
+
+    assert result == "ok"
+    assert back_calls == ["bs1"]
+
+
+@pytest.mark.asyncio
 async def test_navigation_accepts_final_tab_when_parent_hop_opens_it(
     mocker,
     redis_async: object,

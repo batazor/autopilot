@@ -1,8 +1,6 @@
 import type {
   AdbResetDisplayResult,
   AdbStatus,
-  MinitouchStatus,
-  MinitouchInstallResult,
   ScrcpyStatus,
   ScrcpyInstallResult,
   DeviceBackendUpdate,
@@ -361,13 +359,14 @@ export function h264StreamUrl(instanceId: string): string {
 export async function submitDecision(
   instanceId: string,
   decision: "approve" | "reject" | "skip",
+  requestId = "",
 ): Promise<boolean> {
   const data = await apiFetch<{ ok: boolean }>(
     `/api/instances/${encodeURIComponent(instanceId)}/click-approval/decision`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ decision }),
+      body: JSON.stringify({ decision, request_id: requestId }),
     },
   );
   return data.ok;
@@ -675,6 +674,22 @@ export async function discardLabelingCapture(
 ): Promise<void> {
   const q = new URLSearchParams({ ref: refRel, scope });
   await apiFetch(`/api/labeling/capture?${q}`, { method: "DELETE" });
+}
+
+export async function deleteLabelingReference(
+  refRel: string,
+  scope: string,
+): Promise<{
+  ok: boolean;
+  ref: string;
+  screens_removed: number;
+  crops_removed: string[];
+}> {
+  const cleanRel = refRel.replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
+  return apiFetch(
+    `/api/labeling/references/${cleanRel}${labelingScopeQuery(scope)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function exportLabelingCrops(
@@ -1154,19 +1169,6 @@ export async function fetchAdbStatus(): Promise<AdbStatus> {
 export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDisplayResult> {
   return apiFetch<AdbResetDisplayResult>(
     `/api/adb/devices/${encodeURIComponent(serial)}/reset-display`,
-    { method: "POST" },
-  );
-}
-
-export async function fetchMinitouchStatus(serial: string): Promise<MinitouchStatus> {
-  return apiFetch<MinitouchStatus>(
-    `/api/adb/devices/${encodeURIComponent(serial)}/minitouch`,
-  );
-}
-
-export async function installMinitouch(serial: string): Promise<MinitouchInstallResult> {
-  return apiFetch<MinitouchInstallResult>(
-    `/api/adb/devices/${encodeURIComponent(serial)}/minitouch/install`,
     { method: "POST" },
   );
 }

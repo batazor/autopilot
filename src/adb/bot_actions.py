@@ -126,20 +126,11 @@ class BotActions:
         if instance_id not in self._controllers:
             inst = self._get_instance(instance_id)
             serial = inst.bluestacks_window_title
-            # Stable port per instance to avoid forward collisions across devices.
-            slot = next(
-                (i for i, x in enumerate(self._settings.instances)
-                 if x.instance_id == instance_id),
-                len(self._controllers),
-            )
-            from adb.minitouch import DEFAULT_PORT_BASE as _MT_PORT
-
             self._controllers[instance_id] = AdbController(
                 instance_id,
                 serial,
                 adb_bin=self._adb_bin(),
                 input_backend=inst.input_backend,
-                minitouch_port=_MT_PORT + slot,
                 # When input_backend=="scrcpy" the controller pulls the same
                 # client we use for screenshots (one server process per device).
                 scrcpy_client_getter=lambda iid=instance_id: self._get_scrcpy_client(iid),

@@ -5,6 +5,7 @@ import { useState } from "react";
 import CreatableSelect from "react-select/creatable";
 import type { SingleValue, StylesConfig } from "react-select";
 import type { SelectOption } from "@/components/AppSelect";
+import { tip } from "@/components/AppTooltip";
 import { selectThemeStyles } from "@/lib/select-theme-styles";
 
 type Props = {
@@ -73,7 +74,7 @@ export function SelectWithFreetext({
           </>
         )}
         {unknown && (
-          <span className="region-unknown-warning" title="Region not found in area.yaml / area.json">
+          <span className="region-unknown-warning" {...tip("Region not found in area.yaml / area.json")}>
             {" "}⚠ unknown region
           </span>
         )}
@@ -131,12 +132,12 @@ function RegionPreviewThumb({
       target="_blank"
       rel="noreferrer"
       className="region-preview-thumb-link"
-      title={`${alt} — click to open in labeling`}
+      {...tip(`${alt} — click to open in labeling`)}
     >
       {thumb}
     </Link>
   ) : (
-    <span className="region-preview-thumb-link" title={alt}>
+    <span className="region-preview-thumb-link" {...tip(alt)}>
       {thumb}
     </span>
   );

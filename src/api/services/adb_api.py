@@ -7,7 +7,6 @@ from typing import Any
 from fastapi import HTTPException
 
 from adb.controller import AdbController
-from adb.minitouch import get_minitouch_status, install_minitouch
 from adb.scrcpy import get_scrcpy_status, install_scrcpy
 from adb.screencap import MSG_ADB_NOT_FOUND, resolve_adb_executable
 from adb.serial import is_emulator_adb_serial
@@ -60,10 +59,9 @@ def get_adb_status() -> dict[str, Any]:
         is_emu = is_emulator_adb_serial(serial)
         # Mirror dispatcher defaults.
         # Screenshot: smart per-serial (physical → scrcpy, emulator → quartz).
-        # Input: always defaults to adb; minitouch is opt-in via the UI editor
-        # because it needs /dev/input access (root or accessible emulator).
+        # Input: defaults to scrcpy; adb is an explicit compatibility override.
         effective = device.screenshot_backend or ("quartz" if is_emu else "scrcpy")
-        effective_input = device.input_backend or "adb"
+        effective_input = device.input_backend or "scrcpy"
         configured.append(
             {
                 "name": device.name,
@@ -122,28 +120,6 @@ def _resolve_adb_or_raise() -> str:
     if resolved is None:
         raise HTTPException(status_code=503, detail=MSG_ADB_NOT_FOUND)
     return resolved
-
-
-def get_minitouch_status_for(serial: str) -> dict[str, Any]:
-    """Probe device for installed minitouch binary."""
-    target = (serial or "").strip()
-    if not target:
-        raise HTTPException(status_code=400, detail="serial is required")
-    resolved = _resolve_adb_or_raise()
-    status = get_minitouch_status(target, resolved)
-    return status.to_dict()
-
-
-def install_minitouch_for(serial: str) -> dict[str, Any]:
-    """Download matching minitouch prebuilt (openatx/stf-binaries) and push."""
-    target = (serial or "").strip()
-    if not target:
-        raise HTTPException(status_code=400, detail="serial is required")
-    resolved = _resolve_adb_or_raise()
-    status = install_minitouch(target, resolved)
-    payload = status.to_dict()
-    payload["ok"] = status.installed
-    return payload
 
 
 def get_scrcpy_status_for(serial: str) -> dict[str, Any]:
@@ -218,8 +194,6 @@ __all__ = [
     "VALID_INPUT_BACKENDS",
     "VALID_SCREENSHOT_BACKENDS",
     "get_adb_status",
-    "get_minitouch_status_for",
-    "install_minitouch_for",
     "reset_device_display",
     "set_device_backend",
 ]

@@ -142,8 +142,6 @@ def _clear_port_or_fail(*, host: str, port: int, label: str) -> None:
     msg = f"{label} port {host}:{port} is busy; killing old PID(s): {pids}"
     print(msg, flush=True)
     logger.warning(msg)
-    if label == "API":
-        _http_post_ok(f"http://{host}:{port}/api/dev/bot/stop", timeout=5.0)
     for proc in listeners:
         _terminate_process(proc)
     deadline = time.monotonic() + 10.0

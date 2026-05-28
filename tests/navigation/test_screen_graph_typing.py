@@ -125,7 +125,7 @@ def test_frostdragon_tyrant_routes_to_main_city() -> None:
 
 def test_rewards_routes_to_main_city() -> None:
     assert route_taps("rewards", "main_city") == [
-        ["button.tap_anywhere_to_exit", "button.click_to_continue"]
+        [{"type": "system_back"}]
     ]
 
 

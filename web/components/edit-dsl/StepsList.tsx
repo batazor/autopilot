@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppListbox } from "@/components/headless";
+import { tip } from "@/components/AppTooltip";
 import {
   LOOP_PARENT_KINDS,
   STEP_TYPES_FOR_NEW,
@@ -64,16 +65,23 @@ export function StepsList({
         return (
           <div key={path.join("/")} className="edit-scenario-step-card panel">
             <div className="edit-scenario-step-head">
-              <strong>{i + 1}.</strong>
-              <code>{stype}</code>
-              {subt && <span className="muted">{subt.slice(0, 120)}</span>}
+              <span className="edit-scenario-step-num" aria-label={`step ${i + 1}`}>
+                {i + 1}
+              </span>
+              <code className="edit-scenario-step-kind">{stype}</code>
+              {subt && (
+                <span className="muted edit-scenario-step-summary">
+                  {subt.slice(0, 120)}
+                </span>
+              )}
               <span className="edit-scenario-step-actions">
                 <button
                   type="button"
                   className="btn-icon"
                   disabled={i === 0}
                   onClick={() => onStepsChange(moveStep(steps, i, -1))}
-                  title="Move up"
+                  aria-label="Move up"
+                  {...tip("Move up")}
                 >
                   ↑
                 </button>
@@ -82,7 +90,8 @@ export function StepsList({
                   className="btn-icon"
                   disabled={i === steps.length - 1}
                   onClick={() => onStepsChange(moveStep(steps, i, 1))}
-                  title="Move down"
+                  aria-label="Move down"
+                  {...tip("Move down")}
                 >
                   ↓
                 </button>
@@ -90,7 +99,8 @@ export function StepsList({
                   type="button"
                   className="btn-icon"
                   onClick={() => removeStep(i)}
-                  title="Remove"
+                  aria-label="Remove step"
+                  {...tip("Remove")}
                 >
                   ✕
                 </button>

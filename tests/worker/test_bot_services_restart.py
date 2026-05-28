@@ -14,6 +14,7 @@ def _reset_module_state(mocker) -> Any:
     """Avoid bleeding state between tests — the bot_services module is global."""
     mocker.patch.object(bot_services, "_started", new=False)
     mocker.patch.object(bot_services, "_stop_event", new=None)
+    mocker.patch.object(bot_services, "_stop_in_progress", new=False)
     mocker.patch.object(bot_services, "_thread", new=None)
     mocker.patch.object(bot_services, "_stop_health_watchdog", new=lambda: None)
     return
@@ -52,6 +53,30 @@ def test_stop_embedded_bot_returns_false_when_thread_will_not_stop(
     # State preserved so restart can detect the failure.
     assert bot_services._started is True
     assert bot_services._thread is thread
+
+
+def test_repeated_stop_does_not_wait_again_for_stuck_thread(
+    mocker,
+) -> None:
+    stop_event = threading.Event()
+    started = threading.Event()
+
+    def _hung_loop() -> None:
+        started.set()
+        time.sleep(5)
+
+    thread = threading.Thread(target=_hung_loop, daemon=True, name="wos-async-services")
+    thread.start()
+    started.wait(timeout=1.0)
+
+    mocker.patch.object(bot_services, "_started", new=True)
+    mocker.patch.object(bot_services, "_stop_event", new=stop_event)
+    mocker.patch.object(bot_services, "_thread", new=thread)
+
+    assert bot_services.stop_embedded_bot(join_timeout_s=0.1) is False
+    t0 = time.monotonic()
+    assert bot_services.stop_embedded_bot(join_timeout_s=5.0) is False
+    assert time.monotonic() - t0 < 0.5
 
 
 def test_restart_embedded_bot_raises_when_thread_does_not_stop(

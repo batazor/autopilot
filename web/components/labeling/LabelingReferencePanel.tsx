@@ -25,6 +25,7 @@ type Props = {
   isPending: boolean;
   busy: boolean;
   onPromoteOrRename: () => void;
+  onDeleteReference?: () => void;
 };
 
 export function LabelingReferencePanel({
@@ -41,6 +42,7 @@ export function LabelingReferencePanel({
   isPending,
   busy,
   onPromoteOrRename,
+  onDeleteReference,
 }: Props) {
   const filteredRefs = useMemo(() => {
     const list = filterReferences(refs, filter);
@@ -135,6 +137,24 @@ export function LabelingReferencePanel({
             </button>
           </div>
         </div>
+
+        {onDeleteReference ? (
+          <div className="labeling-ref-danger">
+            <button
+              type="button"
+              className="btn-danger"
+              disabled={!refRel || busy}
+              onClick={onDeleteReference}
+              title={
+                isPending
+                  ? "Discard unsaved capture"
+                  : "Delete reference PNG, area.json entry and its crops"
+              }
+            >
+              {isPending ? "Discard capture" : "Delete reference"}
+            </button>
+          </div>
+        ) : null}
       </div>
     </details>
   );

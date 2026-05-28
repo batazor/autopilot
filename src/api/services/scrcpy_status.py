@@ -1,11 +1,10 @@
 """Shared helpers for reporting live scrcpy stream availability to the UI.
 
 The dashboard surfaces a ``stream.available`` flag on multiple endpoints
-(click-approval view, per-instance detail) so the browser can auto-pick
-WebCodecs over the rolling PNG only when the H.264 socket would actually
-serve data. Centralising the check here prevents the two routes from
-drifting and keeps the lookup side-effect free (no implicit client
-construction from a UI probe).
+(click-approval view, per-instance detail) so the browser can report whether
+the H.264 socket would actually serve data. Centralising the check here
+prevents the two routes from drifting and keeps the lookup side-effect free
+(no implicit client construction from a UI probe).
 """
 from __future__ import annotations
 

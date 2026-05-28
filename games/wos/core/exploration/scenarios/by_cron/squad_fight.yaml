@@ -32,11 +32,10 @@ steps:
     steps:
       - click: page.squad_fight.speed
 
-  - loop:
-      cond: 'current_screen ~= "exploration.victory|exploration.defeat"'
+  - wait_screen:
+      any: [exploration.victory, exploration.defeat]
       max: 90
-      steps:
-        - wait: 2s
+      interval: 2s
 
   - cond: currentNode == exploration.victory
     steps:

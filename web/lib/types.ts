@@ -86,6 +86,8 @@ export type ScenarioProgress = {
 
 export type ClickApprovalView = {
   instance_id: string;
+  screenshot_backend: string;
+  screenshot_backend_effective: string;
   has_pending: boolean;
   approval_enabled: boolean;
   heartbeat_active: boolean;
@@ -115,8 +117,7 @@ export type ClickApprovalView = {
   };
   /** Live H.264 WebSocket stream capability for this instance.
    *  ``available: true`` only when scrcpy is currently running AND has
-   *  received its codec config. The UI uses this to auto-pick WebCodecs
-   *  instead of opening a doomed socket on adb/quartz devices. */
+   *  received its codec config. */
   stream: {
     available: boolean;
   };

@@ -66,25 +66,31 @@ const SCREENSHOT_SOURCE_OPTIONS = [
 
 const TEST_MODULE_ALL = "";
 
+function defaultImageSourceForView(view: ClickApprovalView): ImageSource {
+  const backend = (
+    view.screenshot_backend_effective ||
+    view.screenshot_backend ||
+    ""
+  ).toLowerCase();
+  if (backend === "scrcpy" && isWebCodecsSupported()) {
+    return "stream";
+  }
+  return "live";
+}
+
 export default function ApprovalsPage() {
   const searchParams = useSearchParams();
   const { instanceId, instancesError } = useFleet();
   const [view, setView] = useState<ClickApprovalView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<BusyAction>(null);
-  // Start on the rolling PNG ("live") — always works regardless of backend or
-  // browser. Auto-upgrade to "stream" happens once below when the server
-  // reports stream.available AND WebCodecs is supported, so scrcpy-backed
-  // devices on Chrome/Edge/Safari get the ~50ms path without manual action.
-  // Manual selections (via the dropdown) stick and are not auto-overridden.
+  // Start on the rolling PNG until the first view payload tells us the
+  // effective screenshot backend; then choose the matching default source.
+  // Manual selections (via the dropdown) stick until the instance changes.
   const [imageSource, setImageSource] = useState<ImageSource>("live");
   // Tracks whether the user has manually picked a source from the dropdown.
-  // Once they do, the auto-upgrade-to-stream pass below stops kicking in.
+  // Once they do, backend-driven defaults stop overriding the select.
   const userPickedSourceRef = useRef(false);
-  // Have we already auto-upgraded? Guards against the upgrade re-firing on
-  // every refresh — once is enough; subsequent refreshes only check stream
-  // health to surface a downgrade message if needed.
-  const autoUpgradedRef = useRef(false);
   const [imageTick, setImageTick] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [showPayload, setShowPayload] = useState(false);
@@ -129,19 +135,11 @@ export default function ApprovalsPage() {
         imageSource === "stream" ? "live" : imageSource;
       const data = await fetchClickApproval(instanceId, metadataSource);
       setView(data);
-      // Auto-upgrade to WebCodecs stream once when the backend reports it's
-      // available (scrcpy running + codec config received) AND the browser
-      // supports WebCodecs AND the operator hasn't manually picked a source.
-      // Stays sticky after the first upgrade — we don't ping-pong on transient
-      // server hiccups.
-      if (
-        !autoUpgradedRef.current &&
-        !userPickedSourceRef.current &&
-        data.stream?.available &&
-        isWebCodecsSupported()
-      ) {
-        autoUpgradedRef.current = true;
-        setImageSource("stream");
+      if (!userPickedSourceRef.current) {
+        const nextSource = defaultImageSourceForView(data);
+        if (nextSource !== imageSource) {
+          setImageSource(nextSource);
+        }
       }
       const nextKey = data.has_pending ? data.trace_id || "(pending)" : "(idle)";
       const pendingChanged = nextKey !== lastPendingKeyRef.current;
@@ -257,6 +255,8 @@ export default function ApprovalsPage() {
   useEffect(() => {
     seenNotificationsRef.current = new Set();
     notificationsInFlightRef.current = false;
+    userPickedSourceRef.current = false;
+    setImageSource("live");
     setToasts([]);
     lastPendingKeyRef.current = "";
     lastPreviewMtimeRef.current = null;
@@ -358,7 +358,9 @@ export default function ApprovalsPage() {
       if (!instanceId || busyAction !== null) return;
       setBusyAction(decision);
       try {
-        await submitDecision(instanceId, decision);
+        const requestId =
+          typeof view?.pending?.request_id === "string" ? view.pending.request_id : "";
+        await submitDecision(instanceId, decision, requestId);
         await refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
@@ -366,7 +368,7 @@ export default function ApprovalsPage() {
         setBusyAction(null);
       }
     },
-    [instanceId, busyAction, refresh],
+    [instanceId, busyAction, refresh, view?.pending],
   );
 
   const onToggleEnabled = async (enabled: boolean) => {
@@ -486,12 +488,12 @@ export default function ApprovalsPage() {
   // Stream mode pulls bytes from the WebSocket directly; the URL passed to
   // the canvas is the ws:// endpoint, not the click-approval image URL.
   const streamUrl =
-    imageSource === "stream" && instanceId && view?.stream?.available
+    imageSource === "stream" && instanceId
       ? h264StreamUrl(instanceId)
       : null;
   const imageUrl =
-    !streamUrl && view?.preview.available && instanceId
-      ? `${clickApprovalImageUrl(instanceId, imageSource === "stream" ? "live" : imageSource)}&tick=${imageTick}`
+    imageSource !== "stream" && view?.preview.available && instanceId
+      ? `${clickApprovalImageUrl(instanceId, imageSource)}&tick=${imageTick}`
       : null;
   const probeImageUrl =
     regionProbe?.preview.available && instanceId

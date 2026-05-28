@@ -207,6 +207,19 @@ def delete_capture(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.delete("/references/{ref_path:path}")
+def delete_reference(
+    ref_path: str,
+    scope: str = Query(default="core"),
+) -> dict[str, Any]:
+    try:
+        return labeling_svc.delete_reference(ref_path, scope=scope)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.post("/crops")
 def post_export_crops(scope: str = Query(default="core")) -> dict[str, Any]:
     try:

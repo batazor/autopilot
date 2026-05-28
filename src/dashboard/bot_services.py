@@ -37,6 +37,7 @@ _started = False
 _lock = threading.RLock()
 _stop_event: threading.Event | None = None
 _thread: threading.Thread | None = None
+_stop_in_progress = False
 _health_proc: subprocess.Popen[bytes] | None = None
 _known_health_watchdog_pid: int | None = None
 _hooks_installed = False
@@ -239,41 +240,52 @@ def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> bool:
     module-level state is *not* cleared, so a subsequent ``ensure_embedded_bot``
     will not silently no-op into a half-stopped state.
     """
-    global _started, _stop_event, _thread
+    global _started, _stop_event, _stop_in_progress, _thread
     _stop_health_watchdog()
-    stop_event, thread = request_embedded_bot_stop()
+    stop_event, thread, newly_requested = request_embedded_bot_stop()
     if stop_event is None or thread is None:
         return True
 
-    thread.join(timeout=join_timeout_s)
+    if newly_requested:
+        thread.join(timeout=join_timeout_s)
 
     with _lock:
         if thread.is_alive():
-            logging.getLogger(__name__).warning(
-                "Embedded bot thread did not stop within %.1fs", join_timeout_s
-            )
+            if newly_requested:
+                logging.getLogger(__name__).warning(
+                    "Embedded bot thread did not stop within %.1fs", join_timeout_s
+                )
             return False
         _started = False
         _stop_event = None
+        _stop_in_progress = False
         _thread = None
         return True
 
 
-def request_embedded_bot_stop() -> tuple[threading.Event | None, threading.Thread | None]:
+def request_embedded_bot_stop() -> tuple[
+    threading.Event | None,
+    threading.Thread | None,
+    bool,
+]:
     """Signal the embedded supervisor to stop without blocking the caller."""
-    global _started, _stop_event, _thread
+    global _started, _stop_event, _stop_in_progress, _thread
     with _lock:
         stop_event = _stop_event
         thread = _thread
         if not _started or stop_event is None or thread is None:
             _started = False
             _stop_event = None
+            _stop_in_progress = False
             _thread = None
-            return None, None
+            return None, None, False
 
-        logging.getLogger(__name__).warning("Stopping embedded bot thread")
-        stop_event.set()
-        return stop_event, thread
+        newly_requested = not _stop_in_progress and not stop_event.is_set()
+        if newly_requested:
+            logging.getLogger(__name__).warning("Stopping embedded bot thread")
+            stop_event.set()
+            _stop_in_progress = True
+        return stop_event, thread, newly_requested
 
 
 def restart_embedded_bot(*, join_timeout_s: float = 5.0) -> None:

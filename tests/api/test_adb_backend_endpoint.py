@@ -24,7 +24,7 @@ def devices_db(tmp_path: Path) -> Path:
         "phone2",
         adb_serial="AAA111",
         screenshot_backend="scrcpy",
-        input_backend="minitouch",
+        input_backend="scrcpy",
     )
     yield db_path
     set_state_db_path_for_tests(None)
@@ -42,9 +42,9 @@ def test_set_screenshot_backend_adds_field(devices_db: Path) -> None:
     assert _device("RF8RC00M8MF").screenshot_backend == "scrcpy"
 
 
-def test_set_input_backend_minitouch(devices_db: Path) -> None:
-    adb_api.set_device_backend("RF8RC00M8MF", input_backend="minitouch")
-    assert _device("RF8RC00M8MF").input_backend == "minitouch"
+def test_set_input_backend_scrcpy(devices_db: Path) -> None:
+    adb_api.set_device_backend("RF8RC00M8MF", input_backend="scrcpy")
+    assert _device("RF8RC00M8MF").input_backend == "scrcpy"
 
 
 def test_empty_string_removes_existing_field(devices_db: Path) -> None:
@@ -58,7 +58,7 @@ def test_empty_string_removes_existing_field(devices_db: Path) -> None:
 def test_other_fields_preserved(devices_db: Path) -> None:
     """The update must leave the unrelated device untouched."""
     phone_before = _device("AAA111")
-    adb_api.set_device_backend("RF8RC00M8MF", input_backend="minitouch")
+    adb_api.set_device_backend("RF8RC00M8MF", input_backend="scrcpy")
     phone_after = _device("AAA111")
     assert phone_after.screenshot_backend == phone_before.screenshot_backend
     assert phone_after.input_backend == phone_before.input_backend
@@ -75,6 +75,9 @@ def test_invalid_input_backend_rejected(devices_db: Path) -> None:
     with pytest.raises(HTTPException) as exc:
         adb_api.set_device_backend("RF8RC00M8MF", input_backend="hyperdrive")
     assert exc.value.status_code == 400
+    with pytest.raises(HTTPException) as exc:
+        adb_api.set_device_backend("RF8RC00M8MF", input_backend="minitouch")
+    assert exc.value.status_code == 400
 
 
 def test_unknown_serial_404(devices_db: Path) -> None:
@@ -88,7 +91,7 @@ def test_none_field_leaves_value_alone(devices_db: Path) -> None:
     adb_api.set_device_backend("AAA111", screenshot_backend="adb")
     phone = _device("AAA111")
     assert phone.screenshot_backend == "adb"
-    assert phone.input_backend == "minitouch"  # left intact
+    assert phone.input_backend == "scrcpy"  # left intact
 
 
 def test_empty_serial_400(devices_db: Path) -> None:
@@ -118,3 +121,4 @@ def test_get_adb_status_uses_effective_serial_for_name_only_devices(
     row = next(d for d in status["configured"] if d["name"] == "127.0.0.1:5555")
     assert row["adb_serial"] == "127.0.0.1:5555"
     assert row["screenshot_backend_effective"] == "quartz"
+    assert row["input_backend_effective"] == "scrcpy"

@@ -21,8 +21,6 @@ from adb.approvals import (
     _require_approval,
     click_approval_enabled,
 )
-from adb.minitouch import DEFAULT_PORT_BASE as _MINITOUCH_PORT_BASE
-from adb.minitouch import MinitouchClient
 from adb.screencap import (
     DEFAULT_ADB_BIN,
     MSG_ADB_NOT_FOUND,
@@ -110,7 +108,6 @@ class AdbController:
         *,
         adb_bin: str = DEFAULT_ADB_BIN,
         input_backend: str = "",
-        minitouch_port: int = _MINITOUCH_PORT_BASE,
         scrcpy_client_getter: Callable[[], ScrcpyClient | None] | None = None,
     ) -> None:
         resolved = resolve_adb_executable(adb_bin)
@@ -123,15 +120,11 @@ class AdbController:
         # ``True``/``False`` cached after the first ``input`` help dump.
         self._supports_motionevent: bool | None = None
         self._screen_resolution: tuple[int, int] | None = None
-        # Input backend. Default is "adb" (`adb shell input tap/swipe`) — universal,
-        # works on every device. Set ``input_backend: minitouch`` (rooted only) or
-        # ``input_backend: scrcpy`` (any device — server runs in adb shell) in
-        # devices.yaml to opt in. Any runtime failure flips back to "adb" for the
-        # rest of the session (sticky); alt backends are never used without opt-in.
+        # Input backend. Default is "scrcpy" so taps/swipes share the same
+        # persistent server as screenshots. Set ``input_backend: adb`` to force
+        # Android's shell input path.
         explicit = (input_backend or "").strip().lower()
-        self._input_backend = explicit or "adb"
-        self._minitouch_port = minitouch_port
-        self._minitouch: MinitouchClient | None = None
+        self._input_backend = explicit or "scrcpy"
         # scrcpy client is owned by BotActions (one server per device, shared
         # with the screenshot path). The getter returns ``None`` if scrcpy
         # startup has already failed for this device, which is our cue to fall
@@ -455,35 +448,6 @@ class AdbController:
     # Touch input — all with jitter to simulate natural fingers
     # ------------------------------------------------------------------
 
-    def _get_minitouch(self) -> MinitouchClient | None:
-        """Lazy-start a MinitouchClient when ``input_backend == 'minitouch'``.
-
-        Returns ``None`` and switches the backend to ``adb`` (sticky for the
-        session) on any failure — the caller should fall through to the
-        ``adb shell input`` path instead of raising.
-        """
-        if self._input_backend != "minitouch":
-            return None
-        if self._minitouch is not None and self._minitouch.is_alive():
-            return self._minitouch
-        try:
-            client = MinitouchClient(
-                serial=self._serial,
-                adb_bin=self._adb_exe,
-                port=self._minitouch_port,
-            )
-            client.start()
-        except Exception as exc:
-            logger.warning(
-                "minitouch failed for %s (%s) — falling back to `adb shell input` for this session",
-                self._serial, exc,
-            )
-            self._input_backend = "adb"
-            self._minitouch = None
-            return None
-        self._minitouch = client
-        return client
-
     def _get_scrcpy(self) -> ScrcpyClient | None:
         """Resolve the shared scrcpy client when ``input_backend == 'scrcpy'``.
 
@@ -520,10 +484,6 @@ class AdbController:
         if sc is not None:
             sc.tap(x, y)
             return
-        mt = self._get_minitouch()
-        if mt is not None:
-            mt.tap(x, y)
-            return
         hold_ms = random.randint(_TAP_HOLD_MS_MIN, _TAP_HOLD_MS_MAX)
         if self._detect_motionevent_support():
             self._shell("input", "motionevent", "DOWN", str(x), str(y))
@@ -550,10 +510,6 @@ class AdbController:
         if sc is not None:
             sc.long_press(x, y, duration_ms=ms)
             return
-        mt = self._get_minitouch()
-        if mt is not None:
-            mt.long_press(x, y, duration_ms=ms)
-            return
         # adb path: zero-distance `input swipe` is the standard long-press idiom.
         self._shell("input", "swipe", str(x), str(y), str(x), str(y), str(ms))
 
@@ -564,10 +520,6 @@ class AdbController:
         sc = self._get_scrcpy()
         if sc is not None:
             sc.swipe(x1, y1, x2, y2, duration_ms=ms)
-            return
-        mt = self._get_minitouch()
-        if mt is not None:
-            mt.swipe(x1, y1, x2, y2, duration_ms=ms)
             return
         self._shell(
             "input", "touchscreen", "swipe",
@@ -867,13 +819,9 @@ class AdbController:
             self._refresh_rolling_preview()
             return True
         with self._approval_execution(req_id):
-            # When minitouch is active it handles both long-press (via the
-            # server-side ``w`` wait) and straight swipes directly. The curved
-            # ``motionevent`` chain only matters for the ADB path on emulators
-            # — minitouch's per-step ``m`` events already produce smooth motion.
             if is_long_press:
                 self._emit_long_press(x1, y1, ms)
-            elif self._input_backend == "scrcpy" or self._input_backend == "minitouch":
+            elif self._input_backend == "scrcpy":
                 self._emit_swipe_straight(x1, y1, x2, y2, ms)
             elif not self._dispatch_curved_swipe(x1, y1, x2, y2, ms):
                 # motionevent unsupported or shell failed — straight fallback.

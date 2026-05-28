@@ -49,23 +49,16 @@ function RoutesReferencePanel({
           </span>
         ) : null}
       </h2>
-      <ol className="m-0 flex max-h-[36rem] flex-col gap-3 overflow-y-auto p-0 list-none">
+      <ol className="routes-ref-list">
         {screens.map((s, i) => {
           const ref = refByScreen.get(s);
           return (
-            <li
-              key={`${s}-${i}`}
-              className="rounded-lg border border-wos-border-subtle bg-wos-panel-raised/50 p-2"
-            >
-              <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-2 text-sm">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-wos-panel-raised text-xs font-semibold text-wos-text-muted">
-                    {i + 1}
-                  </span>
-                  <code className="text-xs">{s}</code>
-                </span>
+            <li key={`${s}-${i}`} className="routes-ref-list__item">
+              <div className="routes-ref-list__head">
+                <span className="routes-ref-list__step">{i + 1}</span>
+                <code className="routes-ref-list__screen">{s}</code>
                 {ref ? (
-                  <span className="text-[10px] text-wos-text-muted">
+                  <span className="routes-ref-list__count">
                     {ref.region_count} region{ref.region_count === 1 ? "" : "s"}
                   </span>
                 ) : null}
@@ -75,11 +68,11 @@ function RoutesReferencePanel({
                 <img
                   src={labelingImageUrl(ref.rel)}
                   alt={`Reference for ${s}`}
-                  className="block w-full rounded border border-wos-border-subtle/50 bg-black/30"
+                  className="routes-ref-list__image"
                   loading="lazy"
                 />
               ) : (
-                <p className="muted m-0 text-xs">
+                <p className="routes-ref-list__empty">
                   No labeled reference for this screen.
                 </p>
               )}

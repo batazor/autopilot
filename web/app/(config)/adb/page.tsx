@@ -5,25 +5,22 @@ import { PageHeader } from "@/components/PageHeader";
 import { AppRadioGroup } from "@/components/headless";
 import {
   fetchAdbStatus,
-  fetchMinitouchStatus,
   fetchScrcpyStatus,
-  installMinitouch,
   installScrcpy,
   resetAdbDeviceDisplay,
   updateDeviceBackend,
 } from "@/lib/api";
-import type { MinitouchStatus, ScrcpyStatus } from "@/lib/config-pages";
+import type { ScrcpyStatus } from "@/lib/config-pages";
 
 const INPUT_BACKEND_OPTIONS = [
-  { value: "", label: "auto (adb)" },
+  { value: "", label: "auto (scrcpy)" },
   { value: "adb", label: "adb" },
-  { value: "minitouch", label: "minitouch" },
   { value: "scrcpy", label: "scrcpy" },
 ];
 
 type CellEntry<T> = T | { error: string } | undefined;
 
-function renderBinaryCell(entry: CellEntry<MinitouchStatus | ScrcpyStatus>) {
+function renderBinaryCell(entry: CellEntry<ScrcpyStatus>) {
   if (entry === undefined) return <span className="muted">checking…</span>;
   if ("error" in entry) {
     return (
@@ -54,33 +51,19 @@ export default function AdbPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [resettingSerial, setResettingSerial] = useState<string | null>(null);
-  const [minitouch, setMinitouch] = useState<Record<string, CellEntry<MinitouchStatus>>>({});
   const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
-  const [installingMinitouch, setInstallingMinitouch] = useState<string | null>(null);
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
 
   const loadProbes = useCallback(async (serials: string[]) => {
-    const [touchResults, scrcpyResults] = await Promise.all([
-      Promise.all(
-        serials.map(async (serial) => {
-          try {
-            return [serial, await fetchMinitouchStatus(serial)] as const;
-          } catch (e) {
-            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
-          }
-        }),
-      ),
-      Promise.all(
-        serials.map(async (serial) => {
-          try {
-            return [serial, await fetchScrcpyStatus(serial)] as const;
-          } catch (e) {
-            return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
-          }
-        }),
-      ),
-    ]);
-    setMinitouch(Object.fromEntries(touchResults));
+    const scrcpyResults = await Promise.all(
+      serials.map(async (serial) => {
+        try {
+          return [serial, await fetchScrcpyStatus(serial)] as const;
+        } catch (e) {
+          return [serial, { error: e instanceof Error ? e.message : String(e) }] as const;
+        }
+      }),
+    );
     setScrcpy(Object.fromEntries(scrcpyResults));
   }, []);
 
@@ -116,25 +99,6 @@ export default function AdbPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setResettingSerial(null);
-    }
-  };
-
-  const onInstallMinitouch = async (serial: string) => {
-    setError(null);
-    setSuccess(null);
-    setInstallingMinitouch(serial);
-    try {
-      const out = await installMinitouch(serial);
-      if (out.installed) {
-        setSuccess(`Minitouch installed on ${serial} (${out.abi})`);
-      } else {
-        setError(`Minitouch install on ${serial} failed: ${out.last_error ?? "unknown error"}`);
-      }
-      setMinitouch((prev) => ({ ...prev, [serial]: out }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setInstallingMinitouch(null);
     }
   };
 
@@ -185,7 +149,6 @@ export default function AdbPage() {
   };
 
   const busy =
-    installingMinitouch !== null ||
     installingScrcpy !== null ||
     resettingSerial !== null ||
     savingBackend !== null;
@@ -198,9 +161,8 @@ export default function AdbPage() {
           <code>wm size</code> / <code>wm density</code> overrides on the device.
           {" "}<strong>Scrcpy</strong> = one server process per device delivering H.264 frames;
           physical devices use it by default, while emulators default to <code>quartz</code>.
-          {" "}<strong>Minitouch</strong> = fast taps/swipes (~5-20 ms each), but needs <code>/dev/input</code> access
-          (rooted devices or accessible emulators only) — input defaults to <code>adb</code> for universal compatibility.
-          Scrcpy input works on any unrooted device and auto-pushes <code>scrcpy-server.jar</code> on first start.
+          Input defaults to <code>scrcpy</code>.
+          Scrcpy input works on unrooted devices and auto-pushes <code>scrcpy-server.jar</code> on first start.
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
@@ -301,16 +263,13 @@ export default function AdbPage() {
                   <tr>
                     <th>Serial</th>
                     <th>Line</th>
-                    <th>Minitouch</th>
                     <th>Scrcpy</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {status.live_devices.map((d) => {
-                    const touch = minitouch[d.serial];
                     const sc = scrcpy[d.serial];
-                    const touchInstalled = touch && !("error" in touch) && touch.installed;
                     const scInstalled = sc && !("error" in sc) && sc.installed;
                     return (
                       <tr key={d.serial}>
@@ -318,23 +277,8 @@ export default function AdbPage() {
                           <code>{d.serial}</code>
                         </td>
                         <td className="muted">{d.line}</td>
-                        <td>{renderBinaryCell(touch)}</td>
                         <td>{renderBinaryCell(sc)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={busy}
-                            title="Download minitouch prebuilt and push to /data/local/tmp"
-                            onClick={() => onInstallMinitouch(d.serial)}
-                            style={{ marginRight: 6 }}
-                          >
-                            {installingMinitouch === d.serial
-                              ? "Installing…"
-                              : touchInstalled
-                                ? "Reinstall minitouch"
-                                : "Install minitouch"}
-                          </button>
                           <button
                             type="button"
                             className="btn-secondary"

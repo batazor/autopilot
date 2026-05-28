@@ -167,6 +167,8 @@ def test_set_backend_rejects_unknown_value(sqlite_db: Path) -> None:
         set_device_backend("bs1", screenshot_backend="minicap")
     with pytest.raises(ValueError, match="input_backend"):
         set_device_backend("bs1", input_backend="hyperdrive")
+    with pytest.raises(ValueError, match="input_backend"):
+        set_device_backend("bs1", input_backend="minitouch")
 
 
 def test_set_backend_unknown_device_raises(sqlite_db: Path) -> None:

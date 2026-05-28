@@ -549,6 +549,66 @@ def discard_pending_capture(
     return {"ok": True, "ref": ref_rel}
 
 
+def delete_reference(
+    ref_rel: str,
+    *,
+    scope: str = CORE_MODULE_KEY,
+) -> dict[str, Any]:
+    """Delete a published reference PNG, its area.json entry, and matching crops.
+
+    Pending temporal captures should use :func:`discard_pending_capture` instead;
+    rolling preview frames (``*_current_state.png``) are refused outright.
+    """
+    env = ls.scope_env(scope)
+    ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
+    if not ref_rel or ".." in Path(ref_rel).parts:
+        msg = "invalid path"
+        raise ValueError(msg)
+    path = (env.repo_root / ref_rel).resolve()
+    if _is_rolling_preview_png(path, env.ref_root):
+        msg = "cannot delete rolling preview files"
+        raise ValueError(msg)
+    if ls.is_pending_temporal_ref(ref_rel, env):
+        return discard_pending_capture(ref_rel, scope=scope)
+    if not path.is_file():
+        msg = f"reference not found: {ref_rel}"
+        raise FileNotFoundError(msg)
+
+    # Remove the PNG.
+    path.unlink()
+
+    # Strip the matching area.json screen entry, if any.
+    doc = ls.load_area_doc(env)
+    found = ls.entry_for_ref(doc, ref_rel, env)
+    screens_removed = 0
+    if found is not None:
+        idx, _entry = found
+        screens = doc.setdefault("screens", [])
+        if isinstance(screens, list) and 0 <= idx < len(screens):
+            screens.pop(idx)
+            screens_removed = 1
+            _atomic_write_json(_require_writable_area_path(env), doc)
+
+    # Best-effort cleanup of region crops named ``<ref-stem>_<region>.png``.
+    crops_removed: list[str] = []
+    crop_dir = env.ref_root / "crop"
+    if crop_dir.is_dir():
+        stem = path.stem
+        for crop in crop_dir.glob(f"{stem}_*.png"):
+            try:
+                crop.unlink()
+                crops_removed.append(crop.name)
+            except OSError as exc:
+                logger.warning("delete_reference: failed to remove crop %s: %s", crop, exc)
+
+    return {
+        "ok": True,
+        "ref": ref_rel,
+        "screens_removed": screens_removed,
+        "crops_removed": crops_removed,
+    }
+
+
 def promote_reference(
     ref_rel: str,
     basename: str,

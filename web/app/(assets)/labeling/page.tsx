@@ -19,6 +19,7 @@ import {
   addLabelingVersion,
   bindLabelingVersionOcr,
   captureLabelingScreenshot,
+  deleteLabelingReference,
   deleteLabelingVersion,
   discardLabelingCapture,
   exportLabelingCrops,
@@ -92,7 +93,7 @@ function LabelingPageInner() {
   }>({ count: 0, stale: [] });
   const [refreshPending, setRefreshPending] = useState(false);
   const [confirmAction, setConfirmAction] = useState<
-    "discard" | "delete-version" | null
+    "discard" | "delete-version" | "delete-reference" | null
   >(null);
   const [screenIdOptions, setScreenIdOptions] = useState<string[]>([]);
 
@@ -399,6 +400,35 @@ function LabelingPageInner() {
     });
   };
 
+  const onDeleteReference = () => {
+    if (!refRel || busy) return;
+    // Pending captures already have a dedicated "Discard" flow with a more
+    // accurate copy ("delete unsaved capture"); steer the operator there.
+    if (isPendingCapture(refRel)) {
+      setConfirmAction("discard");
+      return;
+    }
+    setConfirmAction("delete-reference");
+  };
+
+  const runDeleteReference = async () => {
+    if (!refRel) return;
+    setConfirmAction(null);
+    const target = refRel;
+    await runBusy(async () => {
+      const out = await deleteLabelingReference(target, moduleScope);
+      const list = await reloadRefs(moduleScope);
+      const next =
+        list.find((r) => !isPendingCapture(r.rel))?.rel ?? list[0]?.rel ?? "";
+      if (next) selectRef(next, null);
+      else setRefRel("");
+      const cropPart = out.crops_removed.length
+        ? ` · ${out.crops_removed.length} crop(s) removed`
+        : "";
+      showSuccess(`Deleted ${target}${cropPart}`);
+    });
+  };
+
   const onWriteCrops = async () => {
     if (busy) return;
     await runBusy(async () => {
@@ -699,6 +729,7 @@ function LabelingPageInner() {
               isPending={isPending}
               busy={busy}
               onPromoteOrRename={onPromoteOrRename}
+              onDeleteReference={onDeleteReference}
             />
           </LabelingCard>
 
@@ -805,6 +836,19 @@ function LabelingPageInner() {
         busy={busy}
       >
         Delete version <code>{activeVersion}</code> and its region overrides?
+      </AppConfirmDialog>
+
+      <AppConfirmDialog
+        open={confirmAction === "delete-reference"}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={runDeleteReference}
+        title="Delete reference?"
+        confirmLabel="Delete reference"
+        variant="danger"
+        busy={busy}
+      >
+        Delete <code>{refRel}</code>, its <code>area.json</code> entry and
+        matching region crops? This cannot be undone.
       </AppConfirmDialog>
     </>
   );

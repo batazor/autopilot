@@ -3,16 +3,22 @@
     @apply max-w-2xl;
   }
 
+  /* Section subhead inside the planner panel ("Screen detail"). Sits between
+     stacked field groups so it needs more vertical separation than a plain h3. */
   .routes-panel-subhead {
-    @apply mt-5 mb-2 text-sm font-semibold uppercase tracking-wide text-wos-text-muted;
+    @apply mt-6 mb-3 border-t border-wos-border-subtle pt-4 text-xs font-semibold uppercase tracking-[0.08em] text-wos-text-muted;
   }
 
   .routes-depth-field {
-    @apply mt-2 flex flex-col gap-1;
+    @apply mt-3 flex flex-col gap-1.5;
+  }
+
+  .routes-depth-field > span {
+    @apply text-xs font-medium text-wos-text-secondary;
   }
 
   .routes-depth-field input {
-    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text;
+    @apply w-full rounded-lg border border-wos-border-subtle bg-wos-input px-3 py-2 text-sm text-wos-text tabular-nums focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25;
   }
 
   .routes-node-search {
@@ -20,39 +26,89 @@
   }
 
   .routes-plan-btn {
-    @apply mt-3 w-full;
+    @apply mt-4 w-full;
   }
 
   .routes-path-summary {
-    @apply mt-4 rounded-lg border border-wos-border-subtle bg-wos-surface/50 p-3;
+    @apply mt-5 rounded-xl border border-wos-border-subtle bg-wos-panel-raised/60 p-4 shadow-sm;
   }
 
   .routes-path-summary__head {
-    @apply mb-1.5 flex flex-wrap items-center justify-between gap-2;
+    @apply mb-2 flex flex-wrap items-center justify-between gap-2;
+  }
+
+  .routes-path-summary__head .meta {
+    @apply m-0;
+  }
+
+  .routes-path-summary__head strong {
+    @apply text-sm font-semibold text-wos-text;
   }
 
   .routes-path-code {
-    @apply block text-xs break-all text-wos-text-secondary;
+    @apply block rounded-md border border-wos-border-subtle/70 bg-wos-bg/50 px-2.5 py-2 font-mono text-[11px] leading-relaxed break-all text-wos-text-secondary;
   }
 
   .routes-hop-list {
-    @apply mt-2 max-h-40 list-disc overflow-y-auto pl-4;
+    @apply mt-3 m-0 max-h-44 list-none space-y-1 overflow-y-auto p-0 text-xs leading-snug;
+  }
+
+  .routes-hop-list li {
+    @apply relative rounded-md bg-wos-surface/40 px-2 py-1 pl-5 font-mono text-wos-text-secondary;
+  }
+
+  .routes-hop-list li::before {
+    content: "›";
+    @apply absolute left-1.5 top-1 text-wos-text-muted;
   }
 
   .routes-path-miss {
-    @apply mt-3 text-red-300;
+    @apply mt-3 rounded-md border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm text-red-300;
   }
 
   .routes-node-edges-table {
-    @apply max-h-48;
+    @apply mt-3 max-h-56;
   }
 
   .routes-edge-code {
-    @apply text-[10px] break-all;
+    @apply text-[11px] break-all;
   }
 
   .routes-edge-action {
-    @apply text-xs;
+    @apply font-mono text-xs text-wos-text-secondary;
+  }
+
+  /* References list — numbered preview cards (right column of the planner). */
+  .routes-ref-list {
+    @apply m-0 flex max-h-[36rem] flex-col gap-3 overflow-y-auto p-0 list-none;
+  }
+
+  .routes-ref-list__item {
+    @apply rounded-xl border border-wos-border-subtle bg-wos-panel-raised/50 p-2.5 transition-colors hover:border-wos-border hover:bg-wos-panel-raised/80;
+  }
+
+  .routes-ref-list__head {
+    @apply mb-2 flex items-center justify-between gap-2;
+  }
+
+  .routes-ref-list__step {
+    @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-bg/60 text-[11px] font-semibold tabular-nums text-wos-text;
+  }
+
+  .routes-ref-list__screen {
+    @apply min-w-0 flex-1 truncate font-mono text-xs text-wos-text;
+  }
+
+  .routes-ref-list__count {
+    @apply shrink-0 rounded-md bg-wos-bg/60 px-1.5 py-0.5 text-[10px] tabular-nums text-wos-text-muted;
+  }
+
+  .routes-ref-list__image {
+    @apply block w-full rounded-md border border-wos-border-subtle/60 bg-black/30;
+  }
+
+  .routes-ref-list__empty {
+    @apply m-0 text-xs text-wos-text-muted;
   }
 
   .instance-grid {

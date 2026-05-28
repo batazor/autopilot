@@ -41,7 +41,7 @@ export type AdbDeviceRow = {
   screenshot_backend: string;
   /** What the dispatcher will actually use after the smart default kicks in. */
   screenshot_backend_effective: string;
-  /** Same shape as screenshot_backend but for tap/swipe events (minitouch vs adb). */
+  /** Same shape as screenshot_backend but for tap/swipe events (adb vs scrcpy). */
   input_backend: string;
   input_backend_effective: string;
 };
@@ -61,18 +61,6 @@ export type AdbResetDisplayResult = {
   wm_size: string;
   wm_density: string;
 };
-
-export type MinitouchStatus = {
-  serial: string;
-  abi: string | null;
-  sdk: string | null;
-  binary_installed: boolean;
-  binary_size: number | null;
-  last_error: string | null;
-  installed: boolean;
-};
-
-export type MinitouchInstallResult = MinitouchStatus & { ok: boolean };
 
 export type ScrcpyStatus = {
   serial: string;

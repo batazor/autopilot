@@ -65,6 +65,93 @@ class DslScenarioInlineMixin(_Base):
     _implicit_match_for_region: str
     _exclude_match_top_lefts: dict[str, list[tuple[int, int]]]
 
+    def _parse_wait_screen_spec(
+        self, step: dict[str, Any]
+    ) -> tuple[list[str], int, float]:
+        spec = step.get("wait_screen")
+        if isinstance(spec, dict):
+            raw_targets = (
+                spec.get("screens")
+                or spec.get("nodes")
+                or spec.get("any")
+                or spec.get("of")
+                or spec.get("screen")
+                or spec.get("node")
+            )
+            raw_max = spec.get("max", step.get("max", 60))
+            raw_interval = spec.get("interval", step.get("interval", "1s"))
+            raw_timeout = spec.get("timeout", step.get("timeout"))
+        else:
+            raw_targets = spec
+            raw_max = step.get("max", 60)
+            raw_interval = step.get("interval", "1s")
+            raw_timeout = step.get("timeout")
+
+        if isinstance(raw_targets, str):
+            targets = [p.strip() for p in raw_targets.split("|") if p.strip()]
+        elif isinstance(raw_targets, list | tuple | set):
+            targets = [str(p).strip() for p in raw_targets if str(p).strip()]
+        else:
+            targets = []
+
+        try:
+            max_attempts = int(raw_max)
+        except (TypeError, ValueError):
+            max_attempts = 60
+        max_attempts = max(0, max_attempts)
+
+        interval_s = max(0.0, _parse_wait_seconds(raw_interval))
+        if raw_timeout is not None:
+            timeout_s = max(0.0, _parse_wait_seconds(raw_timeout))
+            if timeout_s > 0:
+                max_attempts = max(1, int(timeout_s / max(interval_s, 0.001)))
+        return targets, max_attempts, interval_s
+
+    async def _run_wait_screen_step(
+        self,
+        *,
+        actions: BotActions,
+        instance_id: str,
+        scenario_key: str,
+        step: dict[str, Any],
+    ) -> str | None:
+        targets, max_attempts, interval_s = self._parse_wait_screen_spec(step)
+        target_set = {t.lower() for t in targets}
+        if not target_set or max_attempts <= 0:
+            return None
+
+        from navigation.detector import ScreenDetector
+        from services import get_ocr_client
+
+        detector = ScreenDetector(get_ocr_client())
+        for attempt in range(max_attempts):
+            _invalidate = getattr(actions, "invalidate_frame_cache", None)
+            if _invalidate is not None:
+                _invalidate(instance_id)
+            try:
+                image = await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+                detected = str(await detector.detect_screen(image)).strip()
+            except Exception:
+                logger.debug(
+                    "dsl_scenario: wait_screen probe failed scenario=%s instance=%s",
+                    _scen(scenario_key),
+                    instance_id,
+                    exc_info=True,
+                )
+                detected = ""
+            if detected.lower() in target_set:
+                if self.redis_client is not None:
+                    with suppress(Exception):
+                        await self.redis_client.hset(
+                            f"wos:instance:{instance_id}:state",
+                            "current_screen",
+                            detected,
+                        )
+                return detected
+            if attempt + 1 < max_attempts and interval_s > 0:
+                await asyncio.sleep(interval_s)
+        return None
+
     async def _navigate_to_node(
         self,
         instance_id: str,
@@ -1028,6 +1115,28 @@ class DslScenarioInlineMixin(_Base):
                     "ttl_s": ttl_s,
                 },
             )
+        if "wait_screen" in step:
+            matched = await self._run_wait_screen_step(
+                actions=actions,
+                instance_id=instance_id,
+                scenario_key=scenario_key,
+                step=step,
+            )
+            if not matched:
+                await self._clear_step_context(instance_id)
+                self._append_trace_row(
+                    trace_path, step, "stopped", reason="wait_screen_timeout"
+                )
+                return TaskResult(
+                    success=False,
+                    next_run_at=None,
+                    metadata={
+                        "scenario": scenario_key,
+                        "reason": "wait_screen_timeout",
+                    },
+                )
+            self._append_trace_row(trace_path, step, "ok", matched=matched)
+            return None
         if "wait" in step:
             from config.loader import get_settings as _get_settings
 

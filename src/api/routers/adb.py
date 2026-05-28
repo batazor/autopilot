@@ -27,18 +27,6 @@ def post_reset_device_display(serial: str) -> dict[str, object]:
     return svc.reset_device_display(serial)
 
 
-@router.get("/devices/{serial}/minitouch")
-def get_minitouch_status(serial: str) -> dict[str, object]:
-    """Return installed minitouch binary state for ``serial``."""
-    return svc.get_minitouch_status_for(serial)
-
-
-@router.post("/devices/{serial}/minitouch/install")
-def post_install_minitouch(serial: str) -> dict[str, object]:
-    """Download + push minitouch prebuilt matching the device's ABI."""
-    return svc.install_minitouch_for(serial)
-
-
 @router.get("/devices/{serial}/scrcpy")
 def get_scrcpy_status(serial: str) -> dict[str, object]:
     """Return installed scrcpy-server jar state for ``serial``."""

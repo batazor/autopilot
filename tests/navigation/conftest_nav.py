@@ -19,6 +19,7 @@ def make_navigator(
     capture_fn: Callable[[str], np.ndarray],
     tap_fn: Callable[..., bool | None],
     *,
+    system_back_fn: Callable[[str], bool | None] | None = None,
     settings: Settings,
     ocr_client: OcrClient,
     redis_client: Any | None = None,
@@ -26,6 +27,7 @@ def make_navigator(
     return Navigator(
         capture_fn,
         tap_fn,
+        system_back_fn=system_back_fn,
         settings=settings,
         ocr_client=ocr_client,
         redis_client=redis_client,

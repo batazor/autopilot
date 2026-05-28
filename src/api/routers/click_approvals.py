@@ -23,6 +23,10 @@ class DecisionBody(BaseModel):
     decision: Literal["approve", "reject", "skip"] = Field(
         description="Operator decision written to the approval response key."
     )
+    request_id: str = Field(
+        default="",
+        description="Current approval request id; prevents stale UI decisions.",
+    )
 
 
 class EnabledBody(BaseModel):
@@ -72,9 +76,19 @@ def post_click_approval_decision(
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
     try:
-        ok = store.submit_decision(client, instance_id, body.decision)
+        ok = store.submit_decision(
+            client,
+            instance_id,
+            body.decision,
+            request_id=body.request_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not ok:
+        raise HTTPException(
+            status_code=409,
+            detail="approval request changed or disappeared; refresh and try again",
+        )
     return {"ok": ok}
 
 

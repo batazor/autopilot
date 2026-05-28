@@ -9,12 +9,14 @@ from urllib.parse import urlencode
 import redis
 
 from adb.approvals import click_approval_enabled
+from adb.serial import is_emulator_adb_serial
 from api.services.click_approval_overlay import (
     build_overlays,
     image_dimensions,
     load_preview_bytes,
 )
 from api.services.scrcpy_status import scrcpy_stream_available
+from config.loader import load_settings
 from config.paths import repo_root
 from config.trace_links import tempo_trace_url
 from config.w3c_traceparent import w3c_trace_id_hex
@@ -210,6 +212,19 @@ def reset_current_screen(client: Any, instance_id: str) -> None:
     (matches the "Reset node to none (unknown)" button on the Streamlit page).
     """
     client.hset(f"wos:instance:{instance_id}:state", "current_screen", "")
+
+
+def _screenshot_backend_for_instance(instance_id: str) -> tuple[str, str]:
+    for inst in load_settings().instances:
+        if inst.instance_id != instance_id:
+            continue
+        configured = (inst.screenshot_backend or "").strip().lower()
+        if configured:
+            return configured, configured
+        serial = (inst.bluestacks_window_title or "").strip()
+        effective = "quartz" if is_emulator_adb_serial(serial) else "scrcpy"
+        return "", effective
+    return "", ""
 
 
 def clear_queue_all(client: Any) -> int:
@@ -519,9 +534,14 @@ def get_approval_view(
         from api.services.click_approval_overlay import _tap_coords as tap_coords
 
         x, y = tap_coords(payload)
+    screenshot_backend, screenshot_backend_effective = _screenshot_backend_for_instance(
+        instance_id
+    )
 
     return {
         "instance_id": instance_id,
+        "screenshot_backend": screenshot_backend,
+        "screenshot_backend_effective": screenshot_backend_effective,
         "approval_enabled": enabled,
         # Heartbeat is written by ``touch_heartbeat`` above whenever approval mode
         # is ON; expose it as a derived flag so the UI can render an explicit
@@ -555,10 +575,7 @@ def get_approval_view(
         "stream": {
             # True iff the H.264 WebSocket endpoint can serve this instance
             # right now — i.e. the worker has already started scrcpy AND the
-            # reader received at least one config (SPS+PPS) packet. The UI
-            # uses this to auto-pick WebCodecs over the rolling PNG instead
-            # of opening a doomed socket on adb/quartz devices or
-            # before the worker has booted scrcpy.
+            # reader received at least one config (SPS+PPS) packet.
             "available": scrcpy_stream_available(instance_id),
         },
         "overlays": overlays,
@@ -570,7 +587,13 @@ def get_approval_view(
     }
 
 
-def submit_decision(client: Any, instance_id: str, decision: str) -> bool:
+def submit_decision(
+    client: Any,
+    instance_id: str,
+    decision: str,
+    *,
+    request_id: str = "",
+) -> bool:
     decision = decision.strip().lower()
     if decision not in {"approve", "reject", "skip"}:
         msg = f"invalid decision: {decision}"
@@ -586,6 +609,9 @@ def submit_decision(client: Any, instance_id: str, decision: str) -> bool:
         return False
     if not isinstance(payload, dict):
         client.delete(curr_key)
+        return False
+    expected_request_id = request_id.strip()
+    if expected_request_id and _as_text(payload.get("request_id")) != expected_request_id:
         return False
     response_key = _as_text(payload.get("response_key"))
     if response_key:
