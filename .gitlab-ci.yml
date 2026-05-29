@@ -1,0 +1,50 @@
+# GitLab CI — build the bot image for linux/amd64 on native x86_64 runners.
+#
+# Why this exists: amd64 can't be built on an Apple Silicon dev machine —
+# QEMU segfaults inside `uv sync` during the Docker build. GitLab's shared
+# runners are native x86_64, so the build runs with no emulation. The image is
+# pushed to this project's GitLab Container Registry; the intended workflow is
+# to pull it afterwards and re-push to GHCR (ghcr.io/batazor/autopilot/bot)
+# for deployment.
+#
+# The companion GitHub Actions workflow (.github/workflows/docker.yml) still
+# builds the multi-arch :latest on tags. This pipeline is the amd64 escape
+# hatch for local/dev iteration.
+
+stages:
+  - build
+
+build-bot-amd64:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  variables:
+    # Talk to the dind service over TLS (GitLab's recommended setup).
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: "/certs"
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: "/certs/client"
+    IMAGE: "$CI_REGISTRY_IMAGE/bot"
+  rules:
+    # Build on the default branch, on semver tags, and on manual ("Run pipeline") runs.
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "web"
+  before_script:
+    # Built-in, job-scoped credentials — no manually managed secret needed.
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    # docker-container driver gives full BuildKit (the Dockerfile uses
+    # `# syntax=docker/dockerfile:1.24` + `RUN --mount=type=cache`).
+    - docker buildx create --use --name builder --driver docker-container --bootstrap
+    - docker buildx build
+        --platform linux/amd64
+        -f Dockerfile.bot
+        --build-arg BUILD_VERSION=latest
+        --build-arg BUILD_REVISION="$CI_COMMIT_SHA"
+        -t "$IMAGE:latest"
+        --cache-from "type=registry,ref=$IMAGE:buildcache"
+        --cache-to "type=registry,ref=$IMAGE:buildcache,mode=max"
+        --provenance false
+        --push .
