@@ -21,7 +21,6 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "openai>=2.36.0",
     "diskcache>=5.6.3",
-    "mcp>=1.27.1",
     "opentelemetry-api>=1.27",
     "opentelemetry-sdk>=1.27",
     "opentelemetry-exporter-otlp-proto-http>=1.27",
@@ -57,7 +56,6 @@ compile = [
 [project.scripts]
 play = "worker.launch:main"
 bot = "worker.supervisor:main"
-mcp = "wos_mcp.server:main"
 api = "api.main:main"
 issue-license = "licensing.cli:main"
 gen-license-keypair = "licensing.keypair_cli:main"
@@ -101,7 +99,6 @@ packages = [
     "src/tasks",
     "src/dashboard",
     "src/worker",
-    "src/wos_mcp",
     "src/api",
     "src/licensing",
     "src/wiki",

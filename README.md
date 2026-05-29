@@ -17,7 +17,6 @@ For development setup (uv, Docker build, lint, tests) see [`CONTRIBUTOR.md`](CON
 | `uv run play` | Worker + API + Next.js production build (local all-in-one) |
 | `uv run bot` | Headless worker + scheduler |
 | `uv run api` | FastAPI for Next.js Web UI |
-| `uv run mcp` | MCP server (experimental) |
 
 Local dashboard: [`web/README.md`](web/README.md) — `uv run api` + `cd web && npm run dev` → http://127.0.0.1:3000
 

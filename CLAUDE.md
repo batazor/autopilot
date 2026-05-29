@@ -34,12 +34,6 @@ uv run bot
 uv run python -m worker.supervisor
 ```
 
-**MCP server** (Cursor / external tooling, experimental):
-
-```sh
-uv run mcp
-```
-
 ### Testing & Linting
 
 ```sh
@@ -295,7 +289,6 @@ Two Cursor rules are applied to this repo:
   - `play` — API + Next.js production build (`next build` then `next start`); worker is opt-in via dashboard **Start bot**
   - `bot` — Headless worker + scheduler
   - `api` — FastAPI for Next.js (`web/`)
-  - `mcp` — MCP server (experimental)
 
 **Key dependencies:**
 - `redis` — state + queue
