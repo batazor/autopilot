@@ -54,8 +54,12 @@ def redis_container() -> Iterator[RedisContainer]:
     if os.environ.get("WOS_TESTCONTAINERS", "").strip() in {"0", "false", "no"}:
         pytest.skip("Testcontainers disabled via WOS_TESTCONTAINERS=0")
 
-    c = RedisContainer("redis:7-alpine")
+    # Construct *inside* the guard: a broken daemon (e.g. Docker returning a 500
+    # on the version handshake) raises during client init here, not just on
+    # ``start()``. Keeping construction outside would let that escape the skip
+    # and error every dependent test instead of skipping it.
     try:
+        c = RedisContainer("redis:7-alpine")
         c.start()
     except Exception as e:
         pytest.skip(f"Testcontainers Redis unavailable (Docker?): {e!s}")

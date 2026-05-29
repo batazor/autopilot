@@ -69,8 +69,10 @@ def test_fast_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyPatc
 
         class _Proc:
             returncode = 0
-            stdout = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
-            stderr = ""
+            # bytes, not str: production runs ``subprocess.run`` without
+            # ``text=True`` and decodes with errors="replace" (see _run_tesseract).
+            stdout = b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = b""
 
         return _Proc()
 
@@ -94,8 +96,10 @@ def test_enhance_uses_single_word_tesseract_psm(monkeypatch: pytest.MonkeyPatch)
 
         class _Proc:
             returncode = 0
-            stdout = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
-            stderr = ""
+            # bytes, not str: production runs ``subprocess.run`` without
+            # ``text=True`` and decodes with errors="replace" (see _run_tesseract).
+            stdout = b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = b""
 
         return _Proc()
 
@@ -118,8 +122,10 @@ def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -
 
         class _Proc:
             returncode = 0
-            stdout = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
-            stderr = ""
+            # bytes, not str: production runs ``subprocess.run`` without
+            # ``text=True`` and decodes with errors="replace" (see _run_tesseract).
+            stdout = b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = b""
 
         return _Proc()
 

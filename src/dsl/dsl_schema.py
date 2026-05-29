@@ -41,11 +41,15 @@ DSL_ACTION_KEYS: tuple[str, ...] = (
     "long_click",
     "match",
     "while_match",
+    "while_scroll",
     "ocr",
     "swipe_direction",
+    "swipe",
+    "tap",
     "push_scenario",
     "exec",
     "wait",
+    "wait_screen",
     "ttl",
     "repeat",
     "loop",
@@ -80,9 +84,21 @@ class DslStep(BaseModel):
     long_click: str | None = None
     match: str | None = None
     while_match: str | None = None
+    # ``while_scroll`` loops like ``while_match`` but scrolls between probes;
+    # the value names the region/anchor and inner work lives under ``steps``.
+    while_scroll: str | None = None
     ocr: str | None = None
     exec: str | None = None
     wait: str | int | float | None = None
+    # ``wait_screen`` blocks until one of several screens appears (or times out).
+    # Spec shape: ``{any: [...], attempts: N, interval: "2s"}`` — kept permissive
+    # so the runtime ``_parse_wait_screen_spec`` stays the single source of truth.
+    wait_screen: dict[str, Any] | str | None = None
+    # Low-level coordinate/region taps and swipes the runtime understands
+    # directly. Permissive shapes (region string or coordinate mapping) so the
+    # schema never rejects a form the executor accepts.
+    tap: str | dict[str, Any] | None = None
+    swipe: str | dict[str, Any] | None = None
     # ``ttl:`` exits the scenario early and reschedules it for ``now + ttl``.
     # Accepts the same duration grammar as ``wait:`` plus ``m`` / ``h``
     # (e.g. ``"30m"``, ``"2h"``). Used inside ``while_match.else`` to back off

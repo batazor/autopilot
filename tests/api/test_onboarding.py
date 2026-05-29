@@ -60,6 +60,27 @@ class _FakeRedis:
         self._kv[key] = value
 
 
+class _UnavailableRedis:
+    """Redis stand-in that raises for every command used by onboarding."""
+
+    _ERROR = "redis unavailable"
+
+    def get(self, key: str) -> str | None:
+        raise ConnectionError(self._ERROR)
+
+    def hget(self, key: str, field: str) -> str | None:
+        raise ConnectionError(self._ERROR)
+
+    def hgetall(self, key: str) -> dict[str, str]:
+        raise ConnectionError(self._ERROR)
+
+    def hsetnx(self, key: str, field: str, value: str) -> int:
+        raise ConnectionError(self._ERROR)
+
+    def lrange(self, key: str, start: int, end: int) -> list[str]:
+        raise ConnectionError(self._ERROR)
+
+
 @pytest.fixture
 def devices_db(tmp_path: Path) -> Path:
     db_path = tmp_path / "db" / "state" / "state.db"
@@ -84,6 +105,22 @@ def test_read_state_empty(devices_db: Path, bot_not_running: Any) -> None:
     client = _FakeRedis()
     state = onboarding.read_state(client)
     assert state == dict.fromkeys(onboarding.MILESTONES)
+
+
+def test_read_state_degrades_when_redis_unavailable(
+    devices_db: Path, bot_not_running: Any, instances: Any
+) -> None:
+    state = onboarding.read_state(_UnavailableRedis())
+    assert state == dict.fromkeys(onboarding.MILESTONES)
+
+
+def test_read_state_decodes_byte_hashes(devices_db: Path, bot_not_running: Any) -> None:
+    client = _FakeRedis()
+    client._hashes[onboarding.ONBOARDING_KEY] = {
+        b"first_scenario_at": b"2026-01-01T00:00:00Z",
+    }
+    state = onboarding.read_state(client)
+    assert state["first_scenario_at"] == "2026-01-01T00:00:00Z"
 
 
 def test_read_state_detects_device_added(devices_db: Path, bot_not_running: Any) -> None:

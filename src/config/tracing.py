@@ -669,6 +669,35 @@ def dismiss_unknown_popup_counter() -> Counter:
     return c
 
 
+def popup_detected_counter() -> Counter:
+    """Counter of pop-up detector dispatch events.
+
+    Partitioned by ``instance_id``, ``kind`` (the ``PopupKind`` value), and
+    ``outcome``:
+
+    - ``tapped`` — a single safe tap was issued (X / claim / geometric fallback)
+    - ``cooldown`` — a pop-up was present but the re-tap cooldown lock was held
+    - ``captcha`` — captcha detected; never dismissed (no worker-side solver)
+    - ``escalated`` — overlay present but no safe action (purchase w/o X,
+      ad/webview w/o model); left to the legacy shotgun fallback
+
+    Use cases:
+
+    - High ``tapped`` with the ``dismiss_unknown_popup`` ``enqueued`` rate
+      dropping → detector is absorbing pop-ups the shotgun used to handle.
+    - ``escalated`` spikes for ``purchase``/``ad_webview`` → real modals the
+      heuristic can't safely act on; candidates for the learned close model.
+    """
+    c = _METRICS_CACHE.get("popup_detected_count")
+    if c is None:
+        c = get_meter().create_counter(
+            name="wos.popup_detected.count",
+            description="pop-up detector dispatch events by instance/kind/outcome.",
+        )
+        _METRICS_CACHE["popup_detected_count"] = c
+    return c
+
+
 def trace_id_hex_for_history(
     *,
     span_ctx: trace.SpanContext | None = None,

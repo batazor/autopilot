@@ -2,10 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const API_URL = process.env.WOS_API_URL || "http://127.0.0.1:8765";
 
-const PUBLIC_PREFIXES = ["/license", "/api", "/health", "/_next", "/favicon"];
+const PUBLIC_PREFIXES = ["/license", "/api", "/health", "/_next"];
+const PUBLIC_ASSET_RE = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i;
 
-function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some(
+export function isPublic(pathname: string): boolean {
+  return PUBLIC_ASSET_RE.test(pathname) || PUBLIC_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
 }

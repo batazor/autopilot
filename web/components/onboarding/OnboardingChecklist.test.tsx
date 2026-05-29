@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OnboardingChecklist } from "./OnboardingChecklist";
+import * as api from "@/lib/api";
 import * as onboarding from "@/lib/onboarding";
 
 const emptyState: onboarding.OnboardingState = {
@@ -12,9 +13,13 @@ const emptyState: onboarding.OnboardingState = {
   first_scenario_at: null,
   first_approval_at: null,
   first_ocr_at: null,
+  approvals_disabled_at: null,
 };
 
 function stub(state: Partial<onboarding.OnboardingState>) {
+  vi.spyOn(api, "fetchLicenseStatus").mockResolvedValue(
+    { active: true } as Awaited<ReturnType<typeof api.fetchLicenseStatus>>,
+  );
   vi.spyOn(onboarding, "fetchOnboardingState").mockResolvedValue({
     ...emptyState,
     ...state,
@@ -44,16 +49,17 @@ describe("OnboardingChecklist", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("shows all five items with bullets when state is empty", async () => {
+  it("shows all six items with bullets when state is empty", async () => {
     stub({});
     render(<OnboardingChecklist />);
     await flush();
-    expect(screen.getByText(/First steps \(0\/5\)/)).toBeInTheDocument();
+    expect(screen.getByText(/First steps \(0\/6\)/)).toBeInTheDocument();
     expect(screen.getByText("Add device")).toBeInTheDocument();
     expect(screen.getByText("Start bot")).toBeInTheDocument();
     expect(screen.getByText("Wait for first scenario")).toBeInTheDocument();
     expect(screen.getByText("Approve first click")).toBeInTheDocument();
     expect(screen.getByText("View first OCR result")).toBeInTheDocument();
+    expect(screen.getByText("Disable approvals")).toBeInTheDocument();
   });
 
   it("marks completed items with strike-through styling", async () => {
@@ -63,7 +69,7 @@ describe("OnboardingChecklist", () => {
     });
     render(<OnboardingChecklist />);
     await flush();
-    expect(screen.getByText(/First steps \(2\/5\)/)).toBeInTheDocument();
+    expect(screen.getByText(/First steps \(2\/6\)/)).toBeInTheDocument();
     const deviceItem = screen.getByText("Add device").closest("li");
     expect(deviceItem).toHaveClass("is-done");
     const scenarioItem = screen
@@ -72,13 +78,14 @@ describe("OnboardingChecklist", () => {
     expect(scenarioItem).not.toHaveClass("is-done");
   });
 
-  it("hides entirely when all five milestones are complete", async () => {
+  it("hides entirely when all six milestones are complete", async () => {
     stub({
       device_added_at: "t",
       bot_started_at: "t",
       first_scenario_at: "t",
       first_approval_at: "t",
       first_ocr_at: "t",
+      approvals_disabled_at: "t",
     });
     const { container } = render(<OnboardingChecklist />);
     await flush();

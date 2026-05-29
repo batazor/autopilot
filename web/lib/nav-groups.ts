@@ -63,6 +63,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/gallery", label: "Gallery" },
       { href: "/edit-dsl", label: "DSL editor" },
       { href: "/wiki", label: "Wiki reference" },
+      {
+        href: "/games/kingshot",
+        label: "Kingshot",
+        description: "Game page and authoring status",
+      },
       { href: "/gift-codes", label: "Gift codes" },
     ],
   },

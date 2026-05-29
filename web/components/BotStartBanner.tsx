@@ -40,6 +40,21 @@ function formatProcessAge(startedAt: number | null): string {
   return `${h}h${m % 60 ? `${m % 60}m` : ""}`;
 }
 
+function formatMode(mode: BotStatusView["mode"]): string {
+  if (!mode) return "unknown";
+  return mode === "embedded" ? "embedded" : "supervisor";
+}
+
+function deviceChipLabel(adb: AdbStatus | null): string {
+  if (!adb) return "ADB checking";
+  const configured = adb.configured.length;
+  const live = adb.live_devices.length;
+  if (adb.scan_error?.trim()) return "ADB scan error";
+  if (configured === 0 && live === 0) return "No devices";
+  if (configured === 0) return `${live} live`;
+  return `${live}/${configured} live`;
+}
+
 export function BotStartBanner() {
   const qc = useQueryClient();
   const [localError, setLocalError] = useState<string | null>(null);
@@ -102,17 +117,23 @@ export function BotStartBanner() {
         role="region"
         aria-label="Bot worker"
       >
-        <div className="nav-bot-banner__row">
-          <span className="nav-bot-banner__icon" aria-hidden>
-            <Icon name="warning" size="sm" />
-          </span>
-          <span className="nav-bot-banner__body">
-            <span className="nav-bot-banner__title">API offline</span>
-            <span className="nav-bot-banner__desc">
-              {queryError ?? "Failed to reach API"}
+        <div className="nav-bot-banner__top">
+          <div className="nav-bot-banner__identity">
+            <span className="nav-bot-banner__icon" aria-hidden>
+              <Icon name="warning" size="sm" />
             </span>
+            <span className="nav-bot-banner__body">
+              <span className="nav-bot-banner__eyebrow">Bot control</span>
+              <span className="nav-bot-banner__title">API offline</span>
+            </span>
+          </div>
+          <span className="nav-bot-banner__chip nav-bot-banner__chip--danger">
+            Offline
           </span>
         </div>
+        <p className="nav-bot-banner__desc">
+          {queryError ?? "Failed to reach API"}
+        </p>
       </div>
     );
   }
@@ -138,53 +159,79 @@ export function BotStartBanner() {
 
   if (botStatus?.running) {
     const multi = processes.length > 1;
+    const devicesLabel = deviceChipLabel(adbStatus);
     return (
-      <div className="nav-bot-banner" role="region" aria-label="Bot worker">
-        <div className="nav-bot-banner__row">
-          <button
-            type="button"
-            className="nav-bot-banner__action"
-            disabled={stopMutation.isPending}
-            onClick={() => stopMutation.mutate()}
-            aria-label={stopMutation.isPending ? "Stopping bot" : "Stop bot"}
-            title={
-              stopMutation.isPending
-                ? "Stopping…"
-                : multi
-                  ? `Stop bot (terminates all ${processes.length} supervisors)`
-                  : "Stop bot"
-            }
-          >
-            <Icon name="pause" size="sm" />
-          </button>
-          <span className="nav-bot-banner__body">
-            <span className="nav-bot-banner__title">
-              Bot running
-              {multi ? (
-                <span className="nav-bot-banner__badge" aria-label={`${safeIdx + 1} of ${processes.length} supervisors`}>
-                  {safeIdx + 1}/{processes.length}
-                </span>
-              ) : null}
+      <div
+        className="nav-bot-banner nav-bot-banner--running"
+        role="region"
+        aria-label="Bot worker"
+      >
+        <div className="nav-bot-banner__top">
+          <div className="nav-bot-banner__identity">
+            <span className="nav-bot-banner__icon" aria-hidden>
+              <Icon name="play" size="sm" />
             </span>
-            <span className="nav-bot-banner__desc">
-              Mode: {botStatus.mode ?? "unknown"}
-              {currentPid ? ` · PID ${currentPid}` : ""}
-              {currentProc?.started_at
-                ? ` · up ${formatProcessAge(currentProc.started_at)}`
-                : ""}
+            <span className="nav-bot-banner__body">
+              <span className="nav-bot-banner__eyebrow">Bot control</span>
+              <span className="nav-bot-banner__title">
+                <span className="nav-bot-banner__live" aria-hidden />
+                Running
+                {multi ? (
+                  <span
+                    className="nav-bot-banner__badge"
+                    aria-label={`${safeIdx + 1} of ${processes.length} supervisors`}
+                  >
+                    {safeIdx + 1}/{processes.length}
+                  </span>
+                ) : null}
+              </span>
             </span>
-          </span>
-          {multi ? (
+          </div>
+          <div className="nav-bot-banner__actions">
+            {multi ? (
+              <button
+                type="button"
+                className="nav-bot-banner__action"
+                onClick={() => setCarouselIdx((i) => (i + 1) % processes.length)}
+                aria-label="Show next supervisor"
+                title={`Next supervisor (${safeIdx + 1}/${processes.length})`}
+              >
+                <Icon name="chevron-right" size="sm" />
+              </button>
+            ) : null}
             <button
               type="button"
               className="nav-bot-banner__action"
-              onClick={() => setCarouselIdx((i) => (i + 1) % processes.length)}
-              aria-label="Show next supervisor"
-              title={`Next supervisor (${safeIdx + 1}/${processes.length})`}
+              disabled={stopMutation.isPending}
+              onClick={() => stopMutation.mutate()}
+              aria-label={stopMutation.isPending ? "Stopping bot" : "Stop bot"}
+              title={
+                stopMutation.isPending
+                  ? "Stopping..."
+                  : multi
+                    ? `Stop bot (terminates all ${processes.length} supervisors)`
+                    : "Stop bot"
+              }
             >
-              <Icon name="chevron-right" size="sm" />
+              <Icon name="pause" size="sm" />
             </button>
+          </div>
+        </div>
+        <div className="nav-bot-banner__chips" aria-label="Bot details">
+          <span className="nav-bot-banner__chip">
+            Mode {formatMode(botStatus.mode)}
+          </span>
+          {currentPid ? (
+            <span className="nav-bot-banner__chip">PID {currentPid}</span>
           ) : null}
+          {currentProc?.started_at ? (
+            <span className="nav-bot-banner__chip">
+              Up {formatProcessAge(currentProc.started_at)}
+            </span>
+          ) : null}
+          <span className="nav-bot-banner__chip nav-bot-banner__chip--device">
+            {devicesLabel}
+          </span>
         </div>
         {error ? (
           <p className="nav-bot-banner__error" role="alert">
@@ -202,10 +249,11 @@ export function BotStartBanner() {
   const adbProblem = adbReadiness && !adbReadiness.ok ? adbReadiness : null;
   const startDisabled = startMutation.isPending || Boolean(adbProblem);
   const startTitle = startMutation.isPending
-    ? "Starting…"
+    ? "Starting..."
     : adbProblem
-      ? `${adbReadinessTitle(adbProblem.kind)} — ${adbProblem.message}`
+      ? `${adbReadinessTitle(adbProblem.kind)} - ${adbProblem.message}`
       : "Start bot";
+  const ready = !adbProblem;
   return (
     <div
       className={
@@ -216,7 +264,18 @@ export function BotStartBanner() {
       role="region"
       aria-label="Bot worker"
     >
-      <div className="nav-bot-banner__row">
+      <div className="nav-bot-banner__top">
+        <div className="nav-bot-banner__identity">
+          <span className="nav-bot-banner__icon" aria-hidden>
+            <Icon name={ready ? "play" : "warning"} size="sm" />
+          </span>
+          <span className="nav-bot-banner__body">
+            <span className="nav-bot-banner__eyebrow">Bot control</span>
+            <span className="nav-bot-banner__title">
+              {adbProblem ? adbReadinessTitle(adbProblem.kind) : "Stopped"}
+            </span>
+          </span>
+        </div>
         <button
           type="button"
           className="nav-bot-banner__action"
@@ -227,30 +286,32 @@ export function BotStartBanner() {
         >
           <Icon name="play" size="sm" />
         </button>
-        <span className="nav-bot-banner__body">
-          <span className="nav-bot-banner__title">
-            {adbProblem ? adbReadinessTitle(adbProblem.kind) : "Bot not running"}
-          </span>
-          <span className="nav-bot-banner__desc">
-            {adbProblem ? (
-              <>
-                {adbProblem.message}{" "}
-                <Link href="/adb" className="nav-bot-banner__link">
-                  Open ADB
-                </Link>
-              </>
-            ) : (
-              "ADB online — start workers to run scenarios."
-            )}
-          </span>
-        </span>
       </div>
-      {adbProblem && adbStatus?.configured.length ? (
-        <p className="nav-bot-banner__meta">
-          Configured: {adbStatus.configured.length} · Live:{" "}
-          {adbStatus.live_devices.length}
-        </p>
-      ) : null}
+      <p className="nav-bot-banner__desc">
+        {adbProblem ? (
+          <>
+            {adbProblem.message}{" "}
+            <Link href="/adb" className="nav-bot-banner__link">
+              Open ADB
+            </Link>
+          </>
+        ) : (
+          "ADB online. Start workers when you are ready."
+        )}
+      </p>
+      <div className="nav-bot-banner__chips" aria-label="Bot readiness">
+        <span
+          className={[
+            "nav-bot-banner__chip",
+            adbProblem ? "nav-bot-banner__chip--warn" : "nav-bot-banner__chip--ok",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {deviceChipLabel(adbStatus)}
+        </span>
+        <span className="nav-bot-banner__chip">Mode local</span>
+      </div>
       {error ? (
         <p className="nav-bot-banner__error" role="alert">
           {error}

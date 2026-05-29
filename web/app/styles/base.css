@@ -30,5 +30,39 @@
     @apply rounded bg-wos-panel-raised px-1 py-0.5 text-[0.85em];
     color: var(--wos-code-fg);
   }
+
+  ::selection {
+    background-color: var(--wos-selection-bg);
+    color: var(--wos-selection-fg);
+  }
+
+  /* Themed, unobtrusive scrollbars (Firefox + WebKit/Blink). */
+  * {
+    scrollbar-color: var(--wos-scrollbar-thumb) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--wos-scrollbar-thumb);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--wos-scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 

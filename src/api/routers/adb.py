@@ -21,6 +21,12 @@ def get_status() -> dict[str, object]:
     return svc.get_adb_status()
 
 
+@router.post("/devices/{serial}/register")
+def post_register_device(serial: str) -> dict[str, object]:
+    """Persist a live ADB serial into the device registry."""
+    return svc.register_device(serial)
+
+
 @router.post("/devices/{serial}/reset-display")
 def post_reset_device_display(serial: str) -> dict[str, object]:
     """Clear wm size/density overrides on the device (restore physical resolution)."""

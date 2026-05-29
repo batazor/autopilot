@@ -24,10 +24,38 @@ export type EnvHealth = {
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { cache: "no-store" });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`${path}: ${res.status}${text ? ` — ${text}` : ""}`);
+    throw new Error(`${path}: ${res.status}${await errorSuffix(res)}`);
   }
   return res.json() as Promise<T>;
+}
+
+async function errorSuffix(res: Response): Promise<string> {
+  const text = (await res.text().catch(() => "")).trim();
+  const detail = parseErrorDetail(text);
+  if (detail) return ` — ${detail}`;
+  if (res.status >= 500) {
+    return " — Onboarding API failed unexpectedly. Check the API logs and retry.";
+  }
+  return text ? ` — ${text}` : "";
+}
+
+function parseErrorDetail(text: string): string {
+  if (!text || text === "Internal Server Error") return "";
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "detail" in parsed
+    ) {
+      const detail = (parsed as { detail?: unknown }).detail;
+      if (typeof detail === "string") return detail;
+      if (detail != null) return JSON.stringify(detail);
+    }
+  } catch {
+    return text;
+  }
+  return text;
 }
 
 export function fetchOnboardingState(): Promise<OnboardingState> {

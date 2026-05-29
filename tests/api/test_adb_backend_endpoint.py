@@ -30,6 +30,15 @@ def devices_db(tmp_path: Path) -> Path:
     set_state_db_path_for_tests(None)
 
 
+@pytest.fixture(autouse=True)
+def no_auto_scrcpy_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        adb_api,
+        "_auto_install_scrcpy_if_required",
+        lambda *_args, **_kwargs: None,
+    )
+
+
 def _device(serial: str):
     return next(d for d in load_registry().devices if d.adb_serial == serial)
 
@@ -100,6 +109,98 @@ def test_empty_serial_400(devices_db: Path) -> None:
     assert exc.value.status_code == 400
 
 
+def test_register_device_creates_fleet_device_from_emulator_serial(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_calls: list[tuple[str, str, str]] = []
+
+    def fake_auto_install(
+        serial: str,
+        *,
+        screenshot_backend: str,
+        input_backend: str,
+    ) -> dict[str, object]:
+        install_calls.append((serial, screenshot_backend, input_backend))
+        return {"ok": True, "serial": serial, "installed": True}
+
+    monkeypatch.setattr(adb_api, "_auto_install_scrcpy_if_required", fake_auto_install)
+
+    result = adb_api.register_device("127.0.0.1:5555")
+
+    assert result == {
+        "ok": True,
+        "created": True,
+        "name": "bs2",
+        "adb_serial": "127.0.0.1:5555",
+        "restart_required": True,
+        "scrcpy_install": {
+            "ok": True,
+            "serial": "127.0.0.1:5555",
+            "installed": True,
+        },
+    }
+    assert install_calls == [("127.0.0.1:5555", "", "")]
+    row = _device("127.0.0.1:5555")
+    assert row.name == "bs2"
+
+
+def test_register_device_reuses_existing_canonical_emulator_serial(
+    devices_db: Path,
+) -> None:
+    upsert_device("bs3", adb_serial="127.0.0.1:5555")
+
+    result = adb_api.register_device("emulator-5554")
+
+    assert result["created"] is False
+    assert result["name"] == "bs3"
+    assert result["adb_serial"] == "127.0.0.1:5555"
+    rows = [
+        d
+        for d in load_registry().devices
+        if d.effective_serial == "127.0.0.1:5555"
+    ]
+    assert len(rows) == 1
+
+
+def test_register_device_rejects_empty_serial(devices_db: Path) -> None:
+    with pytest.raises(HTTPException) as exc:
+        adb_api.register_device("  ")
+
+    assert exc.value.status_code == 400
+
+
+def test_set_device_backend_auto_installs_when_scrcpy_is_effective(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_calls: list[tuple[str, str, str]] = []
+
+    def fake_auto_install(
+        serial: str,
+        *,
+        screenshot_backend: str,
+        input_backend: str,
+    ) -> dict[str, object]:
+        install_calls.append((serial, screenshot_backend, input_backend))
+        return {"ok": True, "serial": serial, "installed": True}
+
+    monkeypatch.setattr(adb_api, "_auto_install_scrcpy_if_required", fake_auto_install)
+
+    result = adb_api.set_device_backend(
+        "RF8RC00M8MF",
+        screenshot_backend="scrcpy",
+        input_backend="scrcpy",
+    )
+
+    assert result["scrcpy_install"] == {
+        "ok": True,
+        "serial": "RF8RC00M8MF",
+        "installed": True,
+    }
+    assert install_calls == [("RF8RC00M8MF", "scrcpy", "scrcpy")]
+
+
 def test_get_adb_status_uses_effective_serial_for_name_only_devices(
     devices_db: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -122,3 +223,60 @@ def test_get_adb_status_uses_effective_serial_for_name_only_devices(
     assert row["adb_serial"] == "127.0.0.1:5555"
     assert row["screenshot_backend_effective"] == "quartz"
     assert row["input_backend_effective"] == "scrcpy"
+
+
+def test_get_adb_status_probes_default_emulator_tcp_port(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, stdout: str = "List of devices attached\n") -> None:
+            self.returncode = 0
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(args, **_kwargs):
+        calls.append(list(args))
+        if args[1:3] == ["devices", "-l"]:
+            connected = any(call[1:3] == ["connect", "127.0.0.1:5555"] for call in calls)
+            if connected:
+                return Completed(
+                    "List of devices attached\n"
+                    "127.0.0.1:5555 device product:bluestacks\n"
+                )
+        return Completed()
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+
+    status = adb_api.get_adb_status()
+
+    assert any(call[1:3] == ["connect", "127.0.0.1:5555"] for call in calls)
+    assert status["live_devices"] == [
+        {
+            "serial": "127.0.0.1:5555",
+            "canonical_serial": "127.0.0.1:5555",
+            "line": "127.0.0.1:5555 device product:bluestacks",
+        }
+    ]
+
+
+def test_get_adb_status_reports_canonical_serial_for_emulator_alias(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Completed:
+        returncode = 0
+        stdout = "List of devices attached\nemulator-5554 device product:sdk\n"
+        stderr = ""
+
+    def fake_run(*_args, **_kwargs):
+        return Completed()
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+
+    status = adb_api.get_adb_status()
+
+    assert status["live_devices"][0]["serial"] == "emulator-5554"
+    assert status["live_devices"][0]["canonical_serial"] == "127.0.0.1:5555"

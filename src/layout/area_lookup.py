@@ -6,7 +6,6 @@ from typing import Any
 
 from layout.area_versions import pick_active_version, resolve_region_with_version
 
-
 # id(area_doc) -> {region_name | alias -> screen_entry}. Region names are
 # globally unique across screens, so a single dict gives us O(1) routing from
 # region name to its owning screen entry. The cache is keyed by ``id`` (small
@@ -28,10 +27,8 @@ def _region_to_screen_index(area_doc: dict[str, Any]) -> dict[str, dict[str, Any
         if nm and nm not in idx:
             idx[nm] = entry
 
-    for entry in area_doc.get("screens") or []:
-        if not isinstance(entry, dict):
-            continue
-        for reg in entry.get("regions") or []:
+    def _register_regions(entry: dict[str, Any], regions: Any) -> None:
+        for reg in regions or []:
             if not isinstance(reg, dict):
                 continue
             _register(str(reg.get("name", "") or ""), entry)
@@ -40,18 +37,23 @@ def _region_to_screen_index(area_doc: dict[str, Any]) -> dict[str, dict[str, Any
                 for alias in aliases:
                     if isinstance(alias, str):
                         _register(alias, entry)
+
+    screens = [e for e in (area_doc.get("screens") or []) if isinstance(e, dict)]
+
+    # Two passes so a base region always out-ranks a version-gated one for the
+    # same name. A region that is a base region in one screen but lives only in
+    # ``versions[].regions`` of an earlier screen must resolve to the base
+    # entry: state-less lookups (no active player, or a player whose state fails
+    # the version ``cond``) can only see base regions, so binding the name to a
+    # version-only entry would report it "unknown" even though a screen elsewhere
+    # exposes it unconditionally (e.g. ``main_city.to.exploration``).
+    for entry in screens:
+        _register_regions(entry, entry.get("regions"))
+    for entry in screens:
         for ver in entry.get("versions") or []:
             if not isinstance(ver, dict):
                 continue
-            for reg in ver.get("regions") or []:
-                if not isinstance(reg, dict):
-                    continue
-                _register(str(reg.get("name", "") or ""), entry)
-                aliases = reg.get("aliases")
-                if isinstance(aliases, list):
-                    for alias in aliases:
-                        if isinstance(alias, str):
-                            _register(alias, entry)
+            _register_regions(entry, ver.get("regions"))
 
     _REGION_TO_SCREEN_CACHE[key] = idx
     _REGION_TO_SCREEN_CACHE.move_to_end(key)

@@ -57,7 +57,7 @@
   }
 
   .panel {
-    @apply rounded-xl border border-wos-border-subtle bg-wos-panel/95 p-4 shadow-md shadow-black/15 backdrop-blur-sm sm:p-5;
+    @apply rounded-xl border border-wos-border-subtle bg-wos-panel/95 p-4 shadow-[0_1px_2px_rgba(0,0,0,0.12),0_6px_20px_-8px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-5;
   }
 
   .panel h2 {
@@ -80,19 +80,19 @@
   }
 
   .btn-primary {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-500 bg-sky-500 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-sky-500 bg-gradient-to-b from-sky-400 to-sky-500 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:from-sky-300 hover:to-sky-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/55 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
   }
 
   .btn-secondary {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-wos-border bg-wos-panel-raised px-3 py-2 text-sm font-medium text-wos-text transition hover:border-wos-border-subtle hover:bg-wos-surface disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-wos-border bg-wos-panel-raised px-3 py-2 text-sm font-medium text-wos-text transition hover:border-wos-border-subtle hover:bg-wos-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
   }
 
   .btn-danger {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-700 bg-gradient-to-b from-red-500 to-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-red-400 hover:to-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/55 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0;
   }
 
   .btn-success {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-600 bg-gradient-to-b from-emerald-500 to-emerald-600 px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-400 hover:to-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/55 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
   }
 
   .error-banner {

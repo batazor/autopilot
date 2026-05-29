@@ -1,4 +1,5 @@
 import type { AdbStatus } from "@/lib/config-pages";
+import { adbSerialAliases } from "@/lib/adb-serial";
 
 export type AdbReadinessProblem = "scan_error" | "no_devices" | "not_configured";
 
@@ -19,12 +20,16 @@ export function evaluateAdbReadiness(adb: AdbStatus): AdbReadiness {
       message: "No emulator or device is connected via ADB.",
     };
   }
-  const liveSerials = new Set(live.map((d) => d.serial));
+  const liveSerials = new Set(
+    live.flatMap((d) => adbSerialAliases(d.serial, d.canonical_serial)),
+  );
   const configured = (adb.configured ?? []).filter((c) => c.adb_serial?.trim());
   if (configured.length === 0) {
     return { ok: true };
   }
-  const anyMatch = configured.some((c) => liveSerials.has(c.adb_serial.trim()));
+  const anyMatch = configured.some((c) =>
+    adbSerialAliases(c.adb_serial).some((alias) => liveSerials.has(alias)),
+  );
   if (!anyMatch) {
     return {
       ok: false,

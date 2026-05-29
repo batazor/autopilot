@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
-    "start": "next start --port 3000",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "dev": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next dev --port 3000",
+    "build": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next build",
+    "start": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" next start --port 3000",
+    "test": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" vitest run",
+    "test:watch": "NODE_OPTIONS=\"${NODE_OPTIONS:-} --disable-warning=DEP0205\" vitest",
     "postinstall": "node scripts/fix-svar-exports.mjs"
   },
   "dependencies": {

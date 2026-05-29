@@ -498,6 +498,22 @@ edges:
     assert "missing_mail_button" in issues[0].message
 
 
+def test_startup_validation_accepts_system_back_edge_tap_action(tmp_path: Path) -> None:
+    _scenario_root(tmp_path)
+    _write_edge_taps(
+        tmp_path,
+        """
+edges:
+  rewards:
+    main_city:
+      - type: system_back
+""".lstrip(),
+    )
+    _write_empty_module_overlay(tmp_path)
+
+    assert validate_startup_configs(tmp_path) == []
+
+
 def test_startup_validation_reports_module_overlay_region_missing_from_runtime_area(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

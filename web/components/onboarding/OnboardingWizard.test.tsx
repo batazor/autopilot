@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,7 @@ const noDeviceState: onboarding.OnboardingState = {
   first_scenario_at: null,
   first_approval_at: null,
   first_ocr_at: null,
+  approvals_disabled_at: null,
 };
 
 const deviceState: onboarding.OnboardingState = {
@@ -25,17 +26,48 @@ const deviceState: onboarding.OnboardingState = {
   device_added_at: "2026-01-01T00:00:00Z",
 };
 
+const activeLicense: Awaited<ReturnType<typeof api.fetchLicenseStatus>> = {
+  active: true,
+  state: "active",
+  reason: null,
+  sub: "operator",
+  tier: "pro",
+  features: ["core"],
+  expires_at: null,
+  days_left: null,
+  machine_id: "machine-1",
+  max_devices: 2,
+  max_players_per_device: 3,
+  admin_enabled: false,
+  license_file: ".secrets/license.jwt",
+};
+
+const adbStatus: Awaited<ReturnType<typeof api.fetchAdbStatus>> = {
+  adb_executable: "adb",
+  devices_yaml: "db/state/state.db",
+  settings_yaml: "src/config/_settings_data.py",
+  configured: [],
+  live_devices: [],
+  scan_error: null,
+};
+
 function arrange({
   env = okEnv,
   state = noDeviceState,
   bot = { running: false },
+  adb = adbStatus,
+  license = activeLicense,
 }: {
   env?: onboarding.EnvHealth;
   state?: onboarding.OnboardingState;
   bot?: { running: boolean; pid?: number };
+  adb?: Awaited<ReturnType<typeof api.fetchAdbStatus>>;
+  license?: Awaited<ReturnType<typeof api.fetchLicenseStatus>>;
 } = {}) {
+  vi.spyOn(api, "fetchLicenseStatus").mockResolvedValue(license);
   vi.spyOn(onboarding, "fetchEnvHealth").mockResolvedValue(env);
   vi.spyOn(onboarding, "fetchOnboardingState").mockResolvedValue(state);
+  const fetchAdbSpy = vi.spyOn(api, "fetchAdbStatus").mockResolvedValue(adb);
   vi.spyOn(api, "fetchBotStatus").mockResolvedValue(
     bot as Awaited<ReturnType<typeof api.fetchBotStatus>>,
   );
@@ -44,6 +76,12 @@ function arrange({
       ReturnType<typeof api.startLocalBot>
     >,
   );
+  vi.spyOn(api, "importLicenseFile").mockResolvedValue({
+    ok: true,
+    license_file: ".secrets/license.jwt",
+    status: activeLicense,
+  });
+  return { fetchAdbSpy };
 }
 
 beforeEach(() => {
@@ -70,6 +108,52 @@ describe("OnboardingWizard", () => {
     ).toBeInTheDocument();
   });
 
+  it("starts on License step when the license is missing", async () => {
+    arrange({
+      license: {
+        ...activeLicense,
+        active: false,
+        state: "missing",
+        tier: null,
+        reason: "license file not found",
+      },
+    });
+    render(<OnboardingWizard />);
+    expect(await screen.findByText("Open license")).toBeInTheDocument();
+    expect(screen.getByText("license file not found")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Get a trial license file on Discord",
+      }),
+    ).toHaveAttribute("href", "https://discord.gg/62twnzKG9");
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  it("imports a license file from the License step", async () => {
+    arrange({
+      license: {
+        ...activeLicense,
+        active: false,
+        state: "missing",
+        tier: null,
+        reason: "license file not found",
+      },
+    });
+    render(<OnboardingWizard />);
+    const input = await screen.findByLabelText("Import license file");
+    const file = new File(["token"], "license.jwt", {
+      type: "application/jwt",
+    });
+
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(api.importLicenseFile).toHaveBeenCalledWith(file);
+    });
+    expect(await screen.findByText("✓ License active · pro")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Import license file")).not.toBeInTheDocument();
+  });
+
   it("starts on Environment step when Redis is down", async () => {
     arrange({
       env: {
@@ -93,6 +177,116 @@ describe("OnboardingWizard", () => {
     expect(
       await screen.findByText("Open ADB settings"),
     ).toBeInTheDocument();
+  });
+
+  it("shows current configured and live devices in the Add-device step", async () => {
+    arrange({
+      state: noDeviceState,
+      adb: {
+        ...adbStatus,
+        configured: [
+          {
+            name: "bs1",
+            adb_serial: "emulator-5554",
+            instance_id: "",
+            bluestacks_window_title: "",
+            screenshot_backend: "",
+            screenshot_backend_effective: "quartz",
+            input_backend: "",
+            input_backend_effective: "scrcpy",
+          },
+        ],
+        live_devices: [
+          {
+            serial: "emulator-5554",
+            line: "emulator-5554 device product:bluestacks",
+          },
+        ],
+      },
+    });
+    render(<OnboardingWizard />);
+    expect(await screen.findByText("Current devices")).toBeInTheDocument();
+    expect(screen.getByText("Configured 1")).toBeInTheDocument();
+    expect(screen.getByText("Live 1")).toBeInTheDocument();
+    expect(screen.getByText("bs1")).toBeInTheDocument();
+    expect(screen.getByText("emulator-5554")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeDisabled();
+  });
+
+  it("matches configured 127.0.0.1:5555 to live emulator-5554", async () => {
+    arrange({
+      state: noDeviceState,
+      adb: {
+        ...adbStatus,
+        configured: [
+          {
+            name: "bs1",
+            adb_serial: "127.0.0.1:5555",
+            instance_id: "",
+            bluestacks_window_title: "",
+            screenshot_backend: "",
+            screenshot_backend_effective: "quartz",
+            input_backend: "",
+            input_backend_effective: "scrcpy",
+          },
+        ],
+        live_devices: [
+          {
+            serial: "emulator-5554",
+            canonical_serial: "127.0.0.1:5555",
+            line: "emulator-5554 device product:bluestacks",
+          },
+        ],
+      },
+    });
+    render(<OnboardingWizard />);
+    expect(await screen.findByText("127.0.0.1:5555")).toBeInTheDocument();
+    expect(screen.getByText("live")).toBeInTheDocument();
+    expect(screen.queryByText("Detected by ADB")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeDisabled();
+  });
+
+  it("enables Next when ADB finds a live device that is not configured yet", async () => {
+    arrange({
+      state: noDeviceState,
+      adb: {
+        ...adbStatus,
+        live_devices: [
+          {
+            serial: "RF8RC00M8MF",
+            line: "RF8RC00M8MF device product:phone",
+          },
+        ],
+      },
+    });
+    render(<OnboardingWizard />);
+    expect(
+      await screen.findByText("✓ At least one device is detected."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Detected by ADB")).toBeInTheDocument();
+    expect(screen.getByText("RF8RC00M8MF")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeDisabled();
+  });
+
+  it("Refresh rescans ADB and unlocks Next when a device appears", async () => {
+    const { fetchAdbSpy } = arrange({ state: noDeviceState });
+    render(<OnboardingWizard />);
+    expect(await screen.findByText("No current devices found.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
+
+    fetchAdbSpy.mockResolvedValue({
+      ...adbStatus,
+      live_devices: [
+        {
+          serial: "RF8RC00M8MF",
+          line: "RF8RC00M8MF device product:phone",
+        },
+      ],
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByText("RF8RC00M8MF")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeDisabled();
   });
 
   it("auto-jumps to Start-bot when env ok + device added", async () => {

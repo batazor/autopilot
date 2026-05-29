@@ -420,8 +420,7 @@ def _load_screen_verify_config_cached(
     if (
         fp
         and isinstance(fp[0], tuple)
-        and fp[0]
-        and isinstance(fp[0][0], tuple)
+        and (not fp[0] or isinstance(fp[0][0], tuple))
         and isinstance(fp[1], tuple)
     ):
         yaml_fps_, _ = cast(
@@ -429,7 +428,11 @@ def _load_screen_verify_config_cached(
             fp,
         )
         paths = [Path(yaml_fp[0]) for yaml_fp in yaml_fps_]
-    elif fp and isinstance(fp[0], tuple) and fp[0] and isinstance(fp[0][0], tuple):
+    elif (
+        fp
+        and isinstance(fp[0], tuple)
+        and isinstance(fp[0][0], tuple)
+    ):
         yaml_fps_, _ = cast(
             "tuple[tuple[tuple[str, int, int], ...], tuple[str, int, int]]", fp
         )

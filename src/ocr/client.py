@@ -6,7 +6,6 @@ import logging
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -222,38 +221,44 @@ class OcrClient:
             raise RuntimeError(msg)
 
         psm, use_digit_whitelist = self._tesseract_psm_and_whitelist(preprocess)
-        with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
-            tmp.write(buf.tobytes())
-            tmp.flush()
-            cmd = [
-                self._tesseract_cmd,
-                tmp.name,
-                "stdout",
-                "-l",
-                self._lang,
-                "--oem",
-                "1",
-                "--psm",
-                psm,
-            ]
-            if use_digit_whitelist:
-                cmd.extend(
-                    ["-c", f"tessedit_char_whitelist={DIGITS_CHAR_WHITELIST}"]
-                )
-            if self._tessdata_dir:
-                cmd.extend(["--tessdata-dir", self._tessdata_dir])
-            cmd.append("tsv")
-            proc = subprocess.run(
-                cmd,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=self._timeout,
-            )
+        # Pipe the PNG to tesseract via stdin (``tesseract stdin stdout``) rather
+        # than writing a temp file: no per-OCR disk I/O, and no dependency on the
+        # system temp dir being readable by the spawned process (sandboxed runs
+        # give the parent a private TMPDIR the tesseract child can't open).
+        cmd = [
+            self._tesseract_cmd,
+            "stdin",
+            "stdout",
+            "-l",
+            self._lang,
+            "--oem",
+            "1",
+            "--psm",
+            psm,
+        ]
+        if use_digit_whitelist:
+            cmd.extend(["-c", f"tessedit_char_whitelist={DIGITS_CHAR_WHITELIST}"])
+        if self._tessdata_dir:
+            cmd.extend(["--tessdata-dir", self._tessdata_dir])
+        cmd.append("tsv")
+        proc = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            input=buf.tobytes(),
+            timeout=self._timeout,
+        )
+        # Decode as bytes + errors="replace" rather than ``text=True``: tesseract
+        # can emit non-UTF8 bytes on either stream (a binary blob in a leptonica
+        # error dump, or an OCR'd glyph that isn't valid UTF-8), and ``text=True``
+        # would raise an opaque UnicodeDecodeError that masks the real failure
+        # (e.g. the underlying "image file not found" stderr).
+        stdout = proc.stdout.decode("utf-8", errors="replace")
+        stderr = proc.stderr.decode("utf-8", errors="replace")
         if proc.returncode != 0:
-            detail = (proc.stderr or proc.stdout or "").strip()
+            detail = (stderr or stdout or "").strip()
             raise RuntimeError(detail or f"tesseract exited with status {proc.returncode}")
-        return self._parse_tesseract_tsv(proc.stdout)
+        return self._parse_tesseract_tsv(stdout)
 
     async def _ocr_crop(
         self,

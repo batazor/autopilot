@@ -236,6 +236,8 @@ class InstanceWorkerRollingMixin(_Base):
         outcome = "ok"
         analysis_started = time.monotonic()
         try:
+            if await self._maybe_handle_popup(image_bgr):
+                return
             if _rolling_should_skip_screen_detect(
                 cfg, task_busy=task_busy, navigating=navigating
             ):
@@ -428,6 +430,8 @@ class InstanceWorkerRollingMixin(_Base):
         )
         outcome = "ok"
         try:
+            if await self._maybe_handle_popup(image_bgr):
+                return
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
             await self._overlay_analyze_bgr(
                 image_bgr,

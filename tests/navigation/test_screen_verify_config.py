@@ -130,6 +130,20 @@ screens:
         screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
 
 
+def test_screen_verify_config_handles_no_enabled_modules(mocker, tmp_path: Path) -> None:
+    _isolate_from_real_repo(mocker, tmp_path)
+    mocker.patch.object(screen_graph, "_screen_verify_yaml_paths", new=list)
+    mocker.patch.object(screen_graph, "_area_yaml_paths", new=list)
+    mocker.patch.object(screen_graph, "_hero_ids", new=list)
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    try:
+        assert screen_graph.load_screen_verify_config() == {"retry": {}, "screens": {}}
+        assert screen_graph.screen_verify_screen_names() == []
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+
 def test_production_screen_verify_yaml_contains_chief_profile_rule() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

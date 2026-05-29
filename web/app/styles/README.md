@@ -5,7 +5,7 @@ Entry point: [`../globals.css`](../globals.css) — Tailwind v4 import, `@source
 | File | Contents |
 |------|----------|
 | `tokens.css` | `@theme` Tailwind colors, `--wos-*` CSS variables (dark + light) |
-| `base.css` | `body`, links, `code` |
+| `base.css` | `body`, links, `code`, `::selection`, themed scrollbars |
 | `layout.css` | App shell layout, theme toggle, spacing utilities |
 | `ui-core.css` | Icons, spinner, empty state, panels, toolbars, buttons, toasts |
 | `tables-status.css` | Data tables, status pills, fleet row states |

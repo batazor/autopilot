@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import subprocess
 import time
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
     import redis
 
 ONBOARDING_KEY = "wos:onboarding:state"
+logger = logging.getLogger(__name__)
 
 # Sticky milestones we expose to the checklist. Once a timestamp is written,
 # it never gets cleared — these are "have you ever done X" bits.
@@ -33,13 +35,44 @@ def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _empty_state() -> dict[str, str | None]:
+    return dict.fromkeys(MILESTONES)
+
+
+def _to_text(value: Any) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def _hash_text(raw: dict[Any, Any], field: str) -> str | None:
+    value = raw.get(field)
+    if value is None:
+        value = raw.get(field.encode("utf-8"))
+    return _to_text(value) if value is not None else None
+
+
 def _set_if_unset(client: redis.Redis, field: str) -> str | None:
     existing = client.hget(ONBOARDING_KEY, field)
     if existing:
-        return str(existing)
+        return _to_text(existing)
     stamp = _now_iso()
     client.hsetnx(ONBOARDING_KEY, field, stamp)
-    return str(client.hget(ONBOARDING_KEY, field) or stamp)
+    return _to_text(client.hget(ONBOARDING_KEY, field) or stamp)
+
+
+def _refresh_milestones(client: redis.Redis) -> None:
+    for refresh in (
+        _refresh_device_milestone,
+        _refresh_bot_milestone,
+        _refresh_scenario_milestone,
+        _refresh_ocr_milestone,
+        _refresh_approvals_disabled_milestone,
+    ):
+        try:
+            refresh(client)
+        except Exception:
+            logger.debug("onboarding milestone refresh failed", exc_info=True)
 
 
 def _refresh_device_milestone(client: redis.Redis) -> str | None:
@@ -99,10 +132,10 @@ def _refresh_ocr_milestone(client: redis.Redis) -> str | None:
             state = client.hgetall(f"wos:instance:{instance_id}:state") or {}
         except Exception:
             continue
-        if not (state.get("dsl_last_ocr_at") or "").strip():
+        if not (_hash_text(state, "dsl_last_ocr_at") or "").strip():
             continue
-        if (state.get("dsl_last_ocr_raw_text") or "").strip() or (
-            state.get("dsl_last_ocr_value") or ""
+        if (_hash_text(state, "dsl_last_ocr_raw_text") or "").strip() or (
+            _hash_text(state, "dsl_last_ocr_value") or ""
         ).strip():
             return _set_if_unset(client, "first_ocr_at")
     return None
@@ -120,7 +153,7 @@ def _refresh_approvals_disabled_milestone(client: redis.Redis) -> str | None:
             raw = client.get(f"wos:ui:click_approval:enabled:{instance_id}")
         except Exception:
             return None
-        value = str(raw or "").strip().lower()
+        value = _to_text(raw or "").strip().lower()
         if value not in _APPROVAL_DISABLED_VALUES:
             return None
     return _set_if_unset(client, "approvals_disabled_at")
@@ -128,13 +161,13 @@ def _refresh_approvals_disabled_milestone(client: redis.Redis) -> str | None:
 
 def read_state(client: redis.Redis) -> dict[str, Any]:
     """Return milestone bits, auto-detecting cheap ones on every call."""
-    _refresh_device_milestone(client)
-    _refresh_bot_milestone(client)
-    _refresh_scenario_milestone(client)
-    _refresh_ocr_milestone(client)
-    _refresh_approvals_disabled_milestone(client)
-    raw = client.hgetall(ONBOARDING_KEY) or {}
-    return {m: (str(raw[m]) if m in raw else None) for m in MILESTONES}
+    _refresh_milestones(client)
+    try:
+        raw = client.hgetall(ONBOARDING_KEY) or {}
+    except Exception:
+        logger.debug("onboarding state read failed", exc_info=True)
+        return _empty_state()
+    return {m: _hash_text(raw, m) for m in MILESTONES}
 
 
 def _check_redis(client: redis.Redis) -> dict[str, Any]:

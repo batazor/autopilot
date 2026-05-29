@@ -12,8 +12,9 @@ from analysis.overlay_ttl_state import (
 )
 from config.log_context import set_log_context
 from config.paths import repo_root
-from config.tracing import dismiss_unknown_popup_counter
+from config.tracing import dismiss_unknown_popup_counter, popup_detected_counter
 from navigation.detector import ScreenName
+from popup.models import PopupKind
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     import numpy as np
 
+    from layout.types import Point
     from worker._instance_worker_host import _InstanceWorkerHost as _Base
 else:
     _Base = object
@@ -42,6 +44,10 @@ class InstanceWorkerScreenMixin(_Base):
     _last_detected_screen_at: float
     _unknown_since: float
     _screen_unknown_streak: int
+    _popup_detector: Any
+    _last_popup_tap_mono: float
+    _settings: Any
+    _task_busy: Any
 
     async def _schedule_overlay_matches(
         self,
@@ -173,6 +179,107 @@ class InstanceWorkerScreenMixin(_Base):
         await self._schedule_overlay_matches(results, active_player=active_player)
         await self._maybe_dismiss_unknown_popup(
             results, current_screen=current_screen
+        )
+
+    async def _run_rolling_blocking(self, fn: Any, /, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
+
+    # Cooldown between detector-issued pop-up taps. One frame's tap needs time to
+    # animate the modal out before we re-evaluate; without this we'd re-tap the
+    # same X every ~500ms rolling frame.
+    _POPUP_TAP_COOLDOWN_S = 1.5
+
+    async def _maybe_handle_popup(self, image_bgr: np.ndarray) -> bool:
+        """Detect and dismiss a blurred-scrim modal with one safe geometric tap.
+
+        Returns ``True`` when a pop-up was *handled this tick* — either tapped,
+        suppressed during cooldown, or deliberately not-acted-on (captcha,
+        unsafe purchase) — so the caller short-circuits screen-detect + overlay
+        for the frame (a modal occludes the landmarks they rely on anyway).
+
+        Returns ``False`` when there is no actionable pop-up, or when the
+        detector declines to act (ad/webview with no learned close model): the
+        normal pipeline — and ultimately the legacy ``dismiss_unknown_popup``
+        shotgun fallback — then runs as before.
+
+        Gated off by default via ``worker.popup_detector_enabled``. While a queue
+        task is executing we defer to that scenario's own flow and skip.
+        """
+        if not getattr(self._settings.worker, "popup_detector_enabled", False):
+            return False
+        if self._task_busy.is_set():
+            return False
+
+        try:
+            state = await self._popup_detector.detect(image_bgr)
+        except Exception:
+            logger.debug("popup: detect failed on %s", self._cfg.instance_id, exc_info=True)
+            return False
+
+        if state.kind == PopupKind.NONE:
+            return False
+
+        # Captcha is never dismissed (no worker-side solver). Short-circuit so
+        # the shotgun fallback cannot blindly tap into it this tick.
+        if state.kind == PopupKind.CAPTCHA:
+            self._record_popup(state.kind, "captcha")
+            logger.info("popup: captcha detected on %s — not dismissing", self._cfg.instance_id)
+            return True
+
+        # Ad/webview without a learned close model: defer to the shotgun, which
+        # carries tap-anywhere candidates the geometric heuristic lacks.
+        if state.close_point is None and state.primary_point is None:
+            self._record_popup(state.kind, "escalated")
+            return False
+
+        if not await self._acquire_popup_tap_cooldown():
+            self._record_popup(state.kind, "cooldown")
+            return True  # modal still present; skip screen-detect this tick
+
+        if state.kind == PopupKind.REWARD_CLAIM and state.primary_point is not None:
+            target: Point = state.primary_point
+        else:
+            # SAFE_DISMISS / UNKNOWN_MODAL / PURCHASE → the X only. For PURCHASE
+            # this is the *only* permitted tap; a CTA is never tapped.
+            assert state.close_point is not None  # guaranteed by the guard above
+            target = state.close_point
+
+        await self._run_rolling_blocking(
+            self._bot_actions.tap,
+            self._cfg.instance_id,
+            target,
+            approval_region="popup_close",
+            approval_source="popup",
+        )
+        self._last_popup_tap_mono = time.monotonic()
+        self._record_popup(state.kind, "tapped")
+        logger.info(
+            "popup: %s on %s — tapped (%d,%d)",
+            state.kind.value,
+            self._cfg.instance_id,
+            target.x,
+            target.y,
+        )
+        return True
+
+    async def _acquire_popup_tap_cooldown(self) -> bool:
+        """True if a fresh tap is allowed; False while the cooldown is active.
+
+        Cross-process safe via a Redis NX-EX lock; falls back to the in-process
+        monotonic guard when Redis is unavailable (tests / degraded mode).
+        """
+        if self._redis is not None:
+            key = f"wos:instance:{self._cfg.instance_id}:popup_tap_lock"
+            try:
+                return bool(await self._redis.set(key, "1", nx=True, ex=int(self._POPUP_TAP_COOLDOWN_S) or 1))
+            except Exception:
+                logger.debug("popup: cooldown lock failed; using monotonic guard", exc_info=True)
+        return (time.monotonic() - self._last_popup_tap_mono) >= self._POPUP_TAP_COOLDOWN_S
+
+    def _record_popup(self, kind: PopupKind, outcome: str) -> None:
+        popup_detected_counter().add(
+            1,
+            attributes={"instance_id": self._cfg.instance_id, "kind": kind.value, "outcome": outcome},
         )
 
     async def _maybe_dismiss_unknown_popup(

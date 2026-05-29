@@ -91,15 +91,31 @@ def actions_with_stub(mocker) -> tuple[BotActions, list[int]]:
     """Real BotActions wired to a stub controller; ``counter`` tracks frame_bus publishes."""
     counter = [0]
 
-    from config.loader import get_settings
+    from config.loader import InstanceConfig, get_settings
 
     settings = get_settings()
     instances = [
         replace(inst, screenshot_backend="", input_backend="")
         for inst in settings.instances
     ]
-    if not any(inst.instance_id == "bs2" for inst in instances):
-        instances.append(replace(instances[0], instance_id="bs2"))
+    # The tests address instances "bs1" and "bs2" directly; synthesize any the
+    # local device DB doesn't provide so the suite runs without a configured
+    # emulator (a fresh checkout / CI box has zero rows in state.db).
+    template = (
+        instances[0]
+        if instances
+        else InstanceConfig(instance_id="bs1", bluestacks_window_title="stub-serial")
+    )
+    for required in ("bs1", "bs2"):
+        if not any(inst.instance_id == required for inst in instances):
+            instances.append(
+                replace(
+                    template,
+                    instance_id=required,
+                    screenshot_backend="",
+                    input_backend="",
+                )
+            )
     settings = replace(settings, instances=instances)
     bot = BotActions(settings)
     stub = _StubController()

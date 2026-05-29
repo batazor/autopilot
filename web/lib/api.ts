@@ -4,6 +4,7 @@ import type {
   ScrcpyStatus,
   ScrcpyInstallResult,
   DeviceBackendUpdate,
+  DeviceRegisterResult,
   BalanceFileMeta,
   OptimizerMeta,
   OptimizerSolveResult,
@@ -1164,6 +1165,13 @@ export function galleryImageUrl(rel: string): string {
 
 export async function fetchAdbStatus(): Promise<AdbStatus> {
   return apiFetch<AdbStatus>("/api/adb");
+}
+
+export async function registerAdbDevice(serial: string): Promise<DeviceRegisterResult> {
+  return apiFetch<DeviceRegisterResult>(
+    `/api/adb/devices/${encodeURIComponent(serial)}/register`,
+    { method: "POST" },
+  );
 }
 
 export async function resetAdbDeviceDisplay(serial: string): Promise<AdbResetDisplayResult> {

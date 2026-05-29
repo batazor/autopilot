@@ -793,6 +793,19 @@ def _validate_edge_taps_file(
                 )
                 continue
             for tap in tap_names:
+                if isinstance(tap, dict):
+                    action_type = str(tap.get("type") or "").strip()
+                    if action_type == "system_back":
+                        continue
+                    issues.append(
+                        StartupValidationIssue(
+                            "error",
+                            source,
+                            "tap action dict must use a supported `type` "
+                            f"(got {action_type!r})",
+                        )
+                    )
+                    continue
                 _check_region(
                     issues,
                     region_names=region_names,

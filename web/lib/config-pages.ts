@@ -51,7 +51,7 @@ export type AdbStatus = {
   devices_yaml: string;
   settings_yaml: string;
   configured: AdbDeviceRow[];
-  live_devices: Array<{ serial: string; line: string }>;
+  live_devices: Array<{ serial: string; canonical_serial?: string; line: string }>;
   scan_error: string | null;
 };
 
@@ -80,6 +80,16 @@ export type DeviceBackendUpdate = {
   screenshot_backend: string;
   input_backend: string;
   restart_required: boolean;
+  scrcpy_install?: ScrcpyInstallResult | null;
+};
+
+export type DeviceRegisterResult = {
+  ok: boolean;
+  created: boolean;
+  name: string;
+  adb_serial: string;
+  restart_required: boolean;
+  scrcpy_install?: ScrcpyInstallResult | null;
 };
 
 export type BalanceFileMeta = { id: string; filename: string };

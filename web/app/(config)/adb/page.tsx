@@ -7,10 +7,12 @@ import {
   fetchAdbStatus,
   fetchScrcpyStatus,
   installScrcpy,
+  registerAdbDevice,
   resetAdbDeviceDisplay,
   updateDeviceBackend,
 } from "@/lib/api";
-import type { ScrcpyStatus } from "@/lib/config-pages";
+import { adbSerialMatches } from "@/lib/adb-serial";
+import type { ScrcpyInstallResult, ScrcpyStatus } from "@/lib/config-pages";
 
 const INPUT_BACKEND_OPTIONS = [
   { value: "", label: "auto (scrcpy)" },
@@ -46,6 +48,12 @@ function renderBinaryCell(entry: CellEntry<ScrcpyStatus>) {
   );
 }
 
+function scrcpyInstallNote(result?: ScrcpyInstallResult | null): string {
+  if (!result) return "";
+  if (result.ok || result.installed) return " Scrcpy server installed.";
+  return ` Scrcpy auto-install failed: ${result.last_error ?? "unknown error"}.`;
+}
+
 export default function AdbPage() {
   const [status, setStatus] = useState<Awaited<ReturnType<typeof fetchAdbStatus>> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +61,7 @@ export default function AdbPage() {
   const [resettingSerial, setResettingSerial] = useState<string | null>(null);
   const [scrcpy, setScrcpy] = useState<Record<string, CellEntry<ScrcpyStatus>>>({});
   const [installingScrcpy, setInstallingScrcpy] = useState<string | null>(null);
+  const [registeringSerial, setRegisteringSerial] = useState<string | null>(null);
 
   const loadProbes = useCallback(async (serials: string[]) => {
     const scrcpyResults = await Promise.all(
@@ -102,6 +111,26 @@ export default function AdbPage() {
     }
   };
 
+  const onRegisterDevice = async (serial: string) => {
+    setError(null);
+    setSuccess(null);
+    setRegisteringSerial(serial);
+    try {
+      const out = await registerAdbDevice(serial);
+      const installNote = scrcpyInstallNote(out.scrcpy_install);
+      setSuccess(
+        out.created
+          ? `Registered ${out.adb_serial} as ${out.name}.${installNote} Restart the bot to launch its worker.`
+          : `${out.adb_serial} is already registered as ${out.name}.${installNote}`,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRegisteringSerial(null);
+    }
+  };
+
   const onInstallScrcpy = async (serial: string) => {
     setError(null);
     setSuccess(null);
@@ -135,10 +164,11 @@ export default function AdbPage() {
       const out = await updateDeviceBackend(serial, { [field]: value });
       const label = field === "screenshot_backend" ? "screen capture" : "input";
       const shown = value || "auto";
+      const installNote = scrcpyInstallNote(out.scrcpy_install);
       setSuccess(
         out.restart_required
-          ? `${label} backend on ${serial} → ${shown}. Restart the bot to apply.`
-          : `${label} backend on ${serial} → ${shown}`,
+          ? `${label} backend on ${serial} → ${shown}.${installNote} Restart the bot to apply.`
+          : `${label} backend on ${serial} → ${shown}.${installNote}`,
       );
       await load();
     } catch (e) {
@@ -150,6 +180,7 @@ export default function AdbPage() {
 
   const busy =
     installingScrcpy !== null ||
+    registeringSerial !== null ||
     resettingSerial !== null ||
     savingBackend !== null;
 
@@ -162,7 +193,7 @@ export default function AdbPage() {
           {" "}<strong>Scrcpy</strong> = one server process per device delivering H.264 frames;
           physical devices use it by default, while emulators default to <code>quartz</code>.
           Input defaults to <code>scrcpy</code>.
-          Scrcpy input works on unrooted devices and auto-pushes <code>scrcpy-server.jar</code> on first start.
+          Scrcpy input works on unrooted devices and auto-pushes <code>scrcpy-server.jar</code> when enabled.
           Select the backend in the dropdowns below to opt in per device.
         </p>
       </PageHeader>
@@ -271,6 +302,9 @@ export default function AdbPage() {
                   {status.live_devices.map((d) => {
                     const sc = scrcpy[d.serial];
                     const scInstalled = sc && !("error" in sc) && sc.installed;
+                    const isConfigured = status.configured.some((c) =>
+                      adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
+                    );
                     return (
                       <tr key={d.serial}>
                         <td>
@@ -279,6 +313,24 @@ export default function AdbPage() {
                         <td className="muted">{d.line}</td>
                         <td>{renderBinaryCell(sc)}</td>
                         <td>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            disabled={busy || isConfigured}
+                            title={
+                              isConfigured
+                                ? "Already registered in the fleet"
+                                : "Add this live ADB device to the fleet registry"
+                            }
+                            onClick={() => onRegisterDevice(d.serial)}
+                            style={{ marginRight: 6 }}
+                          >
+                            {isConfigured
+                              ? "Registered"
+                              : registeringSerial === d.serial
+                                ? "Registering…"
+                                : "Register"}
+                          </button>
                           <button
                             type="button"
                             className="btn-secondary"
