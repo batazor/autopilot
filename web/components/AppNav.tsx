@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import { ApiStatusIndicator } from "@/components/ApiStatusIndicator";
@@ -66,9 +67,11 @@ function highlightMatch(text: string, query: string): ReactNode {
 
 export function AppNav({ open = false, onNavigate }: AppNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [recent, setRecent] = useState<RecentNavItem[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const [tier, setTier] = useState<string | null>(null);
 
@@ -142,6 +145,39 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
       return hay.includes(q);
     });
   }, [q]);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [q]);
+
+  const goToTab = (tab: NavTab) => {
+    const lock = getNavLock(tab.href, tier);
+    if (lock?.kind === "soon") return;
+    const href = lock?.kind === "pro" ? "/license" : tab.href;
+    setQuery("");
+    onNavigate?.();
+    router.push(href);
+  };
+
+  const onSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (!filtering || searchHits.length === 0) {
+      if (e.key === "Escape") setQuery("");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % searchHits.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + searchHits.length) % searchHits.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const tab = searchHits[Math.min(activeIndex, searchHits.length - 1)];
+      if (tab) goToTab(tab);
+    } else if (e.key === "Escape") {
+      setQuery("");
+    }
+  };
 
   const recentVisible =
     !filtering && recent.filter((r) => r.href !== pathname).length > 0;
@@ -217,6 +253,15 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
           placeholder="Filter pages…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onSearchKeyDown}
+          role="combobox"
+          aria-expanded={filtering && searchHits.length > 0}
+          aria-controls="nav-search-results"
+          aria-activedescendant={
+            filtering && searchHits.length > 0
+              ? `nav-hit-${Math.min(activeIndex, searchHits.length - 1)}`
+              : undefined
+          }
           className="nav-search-input"
         />
         {!filtering ? (
@@ -302,14 +347,16 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
               description="Try another filter or clear the search."
             />
           ) : (
-            <ul className="nav-list">
-              {searchHits.map((tab) => (
+            <ul className="nav-list" id="nav-search-results" role="listbox">
+              {searchHits.map((tab, i) => (
                 <NavRow
                   key={tab.href}
+                  id={`nav-hit-${i}`}
                   href={tab.href}
                   label={tab.label}
                   description={tab.description}
                   active={isActivePath(pathname, tab.href)}
+                  highlighted={i === Math.min(activeIndex, searchHits.length - 1)}
                   query={q}
                   lock={getNavLock(tab.href, tier) ?? undefined}
                   onNavigate={onNavigate}
@@ -407,19 +454,23 @@ export function AppNav({ open = false, onNavigate }: AppNavProps) {
 
 
 function NavRow({
+  id,
   href,
   label,
   description,
   active,
+  highlighted = false,
   query,
   variant = "default",
   lock,
   onNavigate,
 }: {
+  id?: string;
   href: string;
   label: string;
   description?: string;
   active: boolean;
+  highlighted?: boolean;
   query: string;
   variant?: "default" | "pinned";
   lock?: NavLock;
@@ -439,13 +490,15 @@ function NavRow({
   };
 
   return (
-    <li>
+    <li role={id ? "option" : undefined} aria-selected={id ? highlighted : undefined}>
       <Link
+        id={id}
         href={linkHref}
         onClick={handleClick}
         className={[
           "nav-link",
           active && !locked ? "nav-link--active" : "",
+          highlighted ? "nav-link--highlighted" : "",
           variant === "pinned" ? "nav-link--pinned" : "",
           locked ? "opacity-60" : "",
           lock?.kind === "soon" ? "cursor-not-allowed" : "",

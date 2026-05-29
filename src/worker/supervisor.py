@@ -24,9 +24,12 @@ logger = logging.getLogger(__name__)
 # ``compute_restart_delay``. Matches the embedded supervisor's behavior so
 # operators see consistent restart timings between deployments.
 _BASE_RESTART_DELAY_SECONDS = 10.0
-# A child process that ran for longer than ``base * _STABILITY_FACTOR`` is
-# treated as stabilized — the next failure resets its backoff counter.
-_STABILITY_FACTOR = 4
+# A child process that ran continuously for at least this long is treated as
+# stabilized — the next failure resets its backoff counter. This must stay well
+# above realistic crash-loop periods: if it's only a few multiples of the base
+# delay, a worker that reliably dies just after the window (e.g. a periodic OOM
+# every ~45s) resets to attempt=1 every cycle and never escalates its backoff.
+_STABILITY_WINDOW_SECONDS = 300.0
 _shutdown = False
 _CHILD_SHUTDOWN_GRACE_S = 0.2
 _CHILD_KILL_JOIN_S = 0.5
@@ -170,7 +173,7 @@ class Supervisor:
     def _restart_delay_for(self, name: str) -> float:
         tracker = self._restart.setdefault(name, _RestartTracker())
         ran_for = time.monotonic() - tracker.started_at if tracker.started_at else 0.0
-        if ran_for > _BASE_RESTART_DELAY_SECONDS * _STABILITY_FACTOR:
+        if ran_for > _STABILITY_WINDOW_SECONDS:
             tracker.attempt = 1  # stabilized — reset backoff
         else:
             tracker.attempt += 1

@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, type MouseEvent } from "react";
+import { useCallback, type MouseEvent } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
+import { FleetStatusGrid } from "@/components/FleetStatusGrid";
+import { LiveIndicator } from "@/components/LiveIndicator";
 import { useFleet } from "@/components/FleetContextProvider";
 import {
   approvalsHref,
@@ -18,66 +25,81 @@ import { MetricsRowSkeleton } from "@/components/skeleton/MetricsRowSkeleton";
 import { StatusPill } from "@/components/StatusPill";
 import { fetchOverview, toggleInstancePause } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
-import type { FleetInstanceRow, OverviewView } from "@/lib/types";
+import type { FleetInstanceRow } from "@/lib/types";
+
+const OVERVIEW_KEY = ["overview"] as const;
 
 export default function OverviewPage() {
   const router = useRouter();
   const { setInstanceId } = useFleet();
   const { showSuccess } = useFeedback();
-  const [data, setData] = useState<OverviewView | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pauseBusyId, setPauseBusyId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const refresh = useCallback(async () => {
-    try {
-      const view = await fetchOverview();
-      setData(view);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const overview = useQuery({
+    queryKey: OVERVIEW_KEY,
+    queryFn: fetchOverview,
+  });
+  const data = overview.data;
 
-  useDashboardEventStream({
+  const invalidate = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: OVERVIEW_KEY });
+  }, [queryClient]);
+
+  const streamStatus = useDashboardEventStream({
     topics: ["fleet", "queue"],
     enabled: true,
-    onEvent: () => {
-      void refresh();
-    },
-    onFallbackPoll: refresh,
+    onEvent: invalidate,
+    onFallbackPoll: invalidate,
   });
+
+  const pauseMutation = useMutation({
+    mutationFn: toggleInstancePause,
+    onSuccess: async (_res, instanceId) => {
+      const willResume =
+        data?.fleet.find((r) => r.instance_id === instanceId)?.paused ?? false;
+      await queryClient.invalidateQueries({ queryKey: OVERVIEW_KEY });
+      showSuccess(willResume ? `${instanceId} resumed` : `${instanceId} paused`);
+    },
+  });
+  const pauseBusyId = pauseMutation.isPending
+    ? (pauseMutation.variables ?? null)
+    : null;
 
   const openInstance = (instanceId: string) => {
     setInstanceId(instanceId);
     router.push(instanceHref(instanceId));
   };
 
-  const onTogglePause = async (instanceId: string, e: MouseEvent) => {
+  const onTogglePause = (instanceId: string, e: MouseEvent) => {
     e.stopPropagation();
-    if (pauseBusyId) return;
-    setPauseBusyId(instanceId);
-    try {
-      const row = data?.fleet.find((r) => r.instance_id === instanceId);
-      const willResume = row?.paused ?? false;
-      await toggleInstancePause(instanceId);
-      await refresh();
-      showSuccess(willResume ? `${instanceId} resumed` : `${instanceId} paused`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPauseBusyId(null);
-    }
+    if (pauseMutation.isPending) return;
+    pauseMutation.mutate(instanceId);
   };
 
+  const errorMessage = overview.isError
+    ? overview.error instanceof Error
+      ? overview.error.message
+      : String(overview.error)
+    : pauseMutation.isError
+      ? pauseMutation.error instanceof Error
+        ? pauseMutation.error.message
+        : String(pauseMutation.error)
+      : null;
+
+  const loading = overview.isLoading;
   const m = data?.metrics;
 
   return (
     <>
       <FleetPageHeader title="Overview" />
-      <ErrorBanner message={error} />
+      <div className="mb-3 flex items-center justify-end">
+        <LiveIndicator status={streamStatus} />
+      </div>
+      <ErrorBanner
+        message={errorMessage}
+        onRetry={() => void overview.refetch()}
+        retrying={overview.isFetching}
+      />
 
       {loading && !m ? <MetricsRowSkeleton count={5} /> : null}
       {m ? (
@@ -92,6 +114,10 @@ export default function OverviewPage() {
 
       {m && m.paused > 0 ? (
         <p className="meta">{m.paused} instance(s) paused.</p>
+      ) : null}
+
+      {data?.has_devices && data.fleet.length ? (
+        <FleetStatusGrid fleet={data.fleet} onOpen={openInstance} />
       ) : null}
 
       <section className="panel">

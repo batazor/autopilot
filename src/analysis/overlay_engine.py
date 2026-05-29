@@ -149,6 +149,46 @@ def _load_template_with_mask_cached(path: Path) -> tuple[np.ndarray, np.ndarray 
     return out
 
 
+def _masked_zero_mean_ncc(
+    template_bgr: np.ndarray,
+    patch_bgr: np.ndarray,
+    mask: np.ndarray | None,
+) -> float:
+    """Mean-centered normalized cross-correlation over the masked template pixels.
+
+    ``TM_CCORR_NORMED`` (used to *locate* the peak) is not mean-centered, so a
+    uniformly bright window scores near 1.0 against almost any template. This
+    subtracts each image's mean before correlating, so only structurally similar
+    content scores high. Returns ``[0, 1]`` (negative correlation clamps to 0).
+
+    A flat template (no structure to verify) returns 1.0 — there is nothing to
+    confirm, so we defer to the locating score and avoid regressing thresholds
+    tuned for solid-color icons. A flat candidate under a structured template
+    returns 0.0 (cannot be a real match).
+    """
+    if template_bgr.shape[:2] != patch_bgr.shape[:2]:
+        return 0.0
+    t = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
+    p = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
+    mask_2d = None
+    if mask is not None:
+        mask_2d = mask if mask.ndim == 2 else mask[:, :, 0]
+    m = np.ones(t.shape, dtype=bool) if mask_2d is None else (mask_2d > 0)
+    if int(np.count_nonzero(m)) < 2:
+        return 1.0
+    tv = t[m]
+    pv = p[m]
+    tv = tv - tv.mean()
+    pv = pv - pv.mean()
+    t_norm = float(np.sqrt(np.dot(tv, tv)))
+    p_norm = float(np.sqrt(np.dot(pv, pv)))
+    if t_norm < 1e-6:
+        return 1.0
+    if p_norm < 1e-6:
+        return 0.0
+    return max(0.0, float(np.dot(tv, pv) / (t_norm * p_norm)))
+
+
 def _match_direct_template_in_bbox(
     image_bgr: np.ndarray,
     template_bgr: np.ndarray,
@@ -163,10 +203,13 @@ def _match_direct_template_in_bbox(
         _min_val, max_val, _min_loc, max_loc = cv2.minMaxLoc(heat)
         if not np.isfinite(max_val):
             max_val = 0.0
+        x0, y0 = int(max_loc[0]), int(max_loc[1])
+        patch = search[y0 : y0 + th, x0 : x0 + tw]
+        zero_mean_ncc = _masked_zero_mean_ncc(template_bgr, patch, template_mask)
         return TemplateMatchResult(
             score=float(max_val),
-            top_left=(int(left + max_loc[0]), int(top + max_loc[1])),
-            score_ncc=float(max_val),
+            top_left=(int(left + x0), int(top + y0)),
+            score_ncc=zero_mean_ncc,
             score_ncc_second=None,
             match_source="direct_template",
             hash_distance=None,
@@ -387,6 +430,122 @@ def _tap_region_delta_pct(
     if delta is None:
         return None
     return tap_region, delta[0], delta[1]
+
+
+def _finalize_findicon_hit(
+    *,
+    image_bgr: np.ndarray,
+    template_bgr: np.ndarray,
+    res: dict[str, Any],
+    matched: bool,
+    score: Any,
+    threshold: float,
+    template_w: int,
+    template_h: int,
+    rule: dict[str, Any],
+    min_sat: float | None,
+    region_name: str,
+    resolved_region_name: str,
+    resolved_version: Any,
+    match_x_pct: float,
+    match_y_pct: float,
+    tap_delta: tuple[str, float, float] | None,
+    push_tasks: Any,
+    set_node_s: Any,
+    priority: Any,
+    extra_fields: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Apply the shared ``findIcon`` gates and build the result hit dict.
+
+    Every ``findIcon`` path (direct-template, full-frame cache, search-ROI,
+    primary-bbox) funnels through here so the bright-detail / saturation /
+    red-dot gates and the emitted fields stay identical. Path-specific score
+    fields (``score_ncc_second``, ``score_edge``, ``hash_distance``,
+    ``match_source``, ``template``, ``search_region``) are passed via
+    ``extra_fields``; the matcher itself stays per-path.
+    """
+    tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
+    sat_fail: str | None = None
+    mean_sat: float | None = None
+    bright_fail: str | None = None
+    tpl_bright: float | None = None
+    patch_bright: float | None = None
+    if matched:
+        ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
+            image_bgr, template_bgr, tl_tuple
+        )
+        matched = ok
+    if matched and min_sat is not None:
+        ok, mean_sat, sat_fail = _apply_min_saturation_gate(
+            image_bgr, tl_tuple, template_w, template_h, min_sat
+        )
+        matched = ok
+    matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
+        matched=matched,
+        rule=rule,
+        image_bgr=image_bgr,
+        top_left=tl_tuple,
+        template_w=template_w,
+        template_h=template_h,
+    )
+
+    tap_x_pct = match_x_pct
+    tap_y_pct = match_y_pct
+    if tap_delta is not None:
+        _tap_region, dx_pct, dy_pct = tap_delta
+        tap_x_pct = match_x_pct + dx_pct
+        tap_y_pct = match_y_pct + dy_pct
+
+    hit: dict[str, Any] = {
+        "matched": matched,
+        "score": score,
+        "score_ncc": res.get("score_ncc"),
+    }
+    if extra_fields:
+        hit.update(extra_fields)
+    hit.update(
+        {
+            "threshold": threshold,
+            "top_left": list(res["top_left"]),
+            "template_w": template_w,
+            "template_h": template_h,
+            "action": "findIcon",
+            "region": region_name,
+            "resolved_region": resolved_region_name,
+            "resolved_version": resolved_version,
+            "tap_x_pct": tap_x_pct,
+            "tap_y_pct": tap_y_pct,
+            "tap_match_x_pct": match_x_pct,
+            "tap_match_y_pct": match_y_pct,
+        }
+    )
+    if tap_delta is not None:
+        tap_region, dx_pct, dy_pct = tap_delta
+        hit["tap_region"] = tap_region
+        hit["tap_delta_x_pct"] = dx_pct
+        hit["tap_delta_y_pct"] = dy_pct
+    if push_tasks:
+        hit["pushScenario"] = push_tasks
+    if set_node_s:
+        hit["set_node"] = set_node_s
+    if priority is not None:
+        hit["priority"] = priority
+    if min_sat is not None:
+        hit["min_match_saturation"] = min_sat
+    if tpl_bright is not None:
+        hit["template_bright_ratio"] = tpl_bright
+        hit["patch_bright_ratio"] = patch_bright
+    if mean_sat is not None:
+        hit["mean_saturation"] = mean_sat
+    if bright_fail or sat_fail:
+        hit["reason"] = bright_fail or sat_fail
+    if isinstance(rule.get("isRedDot"), bool):
+        hit["red_dot_required"] = rule["isRedDot"]
+        hit["red_dot_present"] = bool(red_dot_present)
+        hit["red_dot_search_mode"] = "dynamic"
+        if red_dot_bbox is not None:
+            hit["red_dot_bbox"] = red_dot_bbox
+    return hit
 
 
 async def evaluate_overlay_rules_async(
@@ -954,50 +1113,38 @@ async def evaluate_overlay_rules_async(
                 mx_pct = 100.0 * cx_px / int(image_bgr.shape[1])
                 my_pct = 100.0 * cy_px / int(image_bgr.shape[0])
                 score = float(res["score"])
-                matched = score >= threshold
-                tl_direct = (int(res["top_left"][0]), int(res["top_left"][1]))
-                matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
-                    matched=matched,
-                    rule=rule,
+                # Direct templates locate the peak with TM_CCORR_NORMED (required
+                # for masks), which is not mean-centered and scores high on bright
+                # panels. ``_hybrid_sliding_matched`` requires both that score and
+                # the mean-centered masked NCC (``score_ncc``) to clear threshold,
+                # and ``_finalize_findicon_hit`` applies the structural gates.
+                out[logical_name] = _finalize_findicon_hit(
                     image_bgr=image_bgr,
-                    top_left=tl_direct,
+                    template_bgr=tpl_bgr,
+                    res=res,
+                    matched=_hybrid_sliding_matched(score, threshold, res),
+                    score=score,
+                    threshold=threshold,
                     template_w=tw_tpl,
                     template_h=th_tpl,
+                    rule=rule,
+                    min_sat=min_sat,
+                    region_name=region_name,
+                    resolved_region_name=resolved_region_name,
+                    resolved_version=region_version_of(entry, reg),
+                    match_x_pct=mx_pct,
+                    match_y_pct=my_pct,
+                    tap_delta=None,
+                    push_tasks=push_tasks,
+                    set_node_s=set_node_s,
+                    priority=priority,
+                    extra_fields={
+                        "score_ncc_second": res.get("score_ncc_second"),
+                        "search_region": search_region_name,
+                        "match_source": res.get("match_source"),
+                        "template": direct_template,
+                    },
                 )
-                hit: dict[str, Any] = {
-                    "matched": matched,
-                    "score": score,
-                    "score_ncc": res.get("score_ncc"),
-                    "score_ncc_second": res.get("score_ncc_second"),
-                    "threshold": threshold,
-                    "top_left": list(res["top_left"]),
-                    "template_w": tw_tpl,
-                    "template_h": th_tpl,
-                    "action": "findIcon",
-                    "region": region_name,
-                    "resolved_region": resolved_region_name,
-                    "resolved_version": region_version_of(entry, reg),
-                    "search_region": search_region_name,
-                    "match_source": res.get("match_source"),
-                    "tap_x_pct": mx_pct,
-                    "tap_y_pct": my_pct,
-                    "tap_match_x_pct": mx_pct,
-                    "tap_match_y_pct": my_pct,
-                    "template": direct_template,
-                }
-                if isinstance(rule.get("isRedDot"), bool):
-                    hit["red_dot_required"] = rule["isRedDot"]
-                    hit["red_dot_present"] = bool(red_dot_present)
-                    hit["red_dot_search_mode"] = "dynamic"
-                    if red_dot_bbox is not None:
-                        hit["red_dot_bbox"] = red_dot_bbox
-                if push_tasks:
-                    hit["pushScenario"] = push_tasks
-                if set_node_s:
-                    hit["set_node"] = set_node_s
-                if priority is not None:
-                    hit["priority"] = priority
-                out[logical_name] = hit
                 continue
 
             crop_path = exported_crop_png(repo_root, ref_rel, resolved_region_name)
@@ -1086,8 +1233,6 @@ async def evaluate_overlay_rules_async(
                     cy_px = res["top_left"][1] + th_tpl / 2.0
                     mx_pct = 100.0 * cx_px / wi
                     my_pct = 100.0 * cy_px / hi
-                    tap_x_pct = mx_pct
-                    tap_y_pct = my_pct
                     tap_delta = _tap_region_delta_pct(
                         area_doc,
                         region_name,
@@ -1095,86 +1240,36 @@ async def evaluate_overlay_rules_async(
                         state_flat=state_flat,
                         screen_id=cur_screen_norm or None,
                     )
-                    if tap_delta is not None:
-                        _tap_region, dx_pct, dy_pct = tap_delta
-                        tap_x_pct = mx_pct + dx_pct
-                        tap_y_pct = my_pct + dy_pct
                     score = res["score"]
-                    matched = _hybrid_sliding_matched(score, threshold, res)
-                    tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
-                    sat_fail: str | None = None
-                    mean_sat: float | None = None
-                    bright_fail: str | None = None
-                    tpl_bright: float | None = None
-                    patch_bright: float | None = None
-                    if matched:
-                        ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
-                            image_bgr, tpl, tl_tuple
-                        )
-                        matched = ok
-                    if matched and min_sat is not None:
-                        ok, mean_sat, sat_fail = _apply_min_saturation_gate(
-                            image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
-                        )
-                        matched = ok
-                    matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
-                        matched=matched,
-                        rule=rule,
+                    out[logical_name] = _finalize_findicon_hit(
                         image_bgr=image_bgr,
-                        top_left=tl_tuple,
+                        template_bgr=tpl,
+                        res=res,
+                        matched=_hybrid_sliding_matched(score, threshold, res),
+                        score=score,
+                        threshold=threshold,
                         template_w=tw_tpl,
                         template_h=th_tpl,
+                        rule=rule,
+                        min_sat=min_sat,
+                        region_name=region_name,
+                        resolved_region_name=resolved_region_name,
+                        resolved_version=region_version_of(entry, reg),
+                        match_x_pct=mx_pct,
+                        match_y_pct=my_pct,
+                        tap_delta=tap_delta,
+                        push_tasks=push_tasks,
+                        set_node_s=set_node_s,
+                        priority=priority,
+                        extra_fields={
+                            "score_ncc_second": res.get("score_ncc_second"),
+                            "score_color": res.get("score_color"),
+                            "score_edge": res.get("score_edge"),
+                            "search_region": "full_frame_cache",
+                            "match_source": res.get("match_source"),
+                            "hash_distance": res.get("hash_distance"),
+                        },
                     )
-                    hit: dict[str, Any] = {
-                        "matched": matched,
-                        "score": score,
-                        "score_ncc": res.get("score_ncc"),
-                        "score_ncc_second": res.get("score_ncc_second"),
-                        "score_color": res.get("score_color"),
-                        "score_edge": res.get("score_edge"),
-                        "threshold": threshold,
-                        "top_left": list(res["top_left"]),
-                        "template_w": tw_tpl,
-                        "template_h": th_tpl,
-                        "action": "findIcon",
-                        "region": region_name,
-                        "resolved_region": resolved_region_name,
-                        "resolved_version": region_version_of(entry, reg),
-                        "search_region": "full_frame_cache",
-                        "match_source": res.get("match_source"),
-                        "hash_distance": res.get("hash_distance"),
-                        "tap_x_pct": tap_x_pct,
-                        "tap_y_pct": tap_y_pct,
-                    }
-                    hit["tap_match_x_pct"] = mx_pct
-                    hit["tap_match_y_pct"] = my_pct
-                    if tap_delta is not None:
-                        tap_region, dx_pct, dy_pct = tap_delta
-                        hit["tap_region"] = tap_region
-                        hit["tap_delta_x_pct"] = dx_pct
-                        hit["tap_delta_y_pct"] = dy_pct
-                    if push_tasks:
-                        hit["pushScenario"] = push_tasks
-                    if set_node_s:
-                        hit["set_node"] = set_node_s
-                    if priority is not None:
-                        hit["priority"] = priority
-                    if min_sat is not None:
-                        hit["min_match_saturation"] = min_sat
-                    if tpl_bright is not None:
-                        hit["template_bright_ratio"] = tpl_bright
-                        hit["patch_bright_ratio"] = patch_bright
-                    if mean_sat is not None:
-                        hit["mean_saturation"] = mean_sat
-                    if bright_fail or sat_fail:
-                        hit["reason"] = bright_fail or sat_fail
-                    if isinstance(rule.get("isRedDot"), bool):
-                        hit["red_dot_required"] = rule["isRedDot"]
-                        hit["red_dot_present"] = bool(red_dot_present)
-                        hit["red_dot_search_mode"] = "dynamic"
-                        if red_dot_bbox is not None:
-                            hit["red_dot_bbox"] = red_dot_bbox
-                    out[logical_name] = hit
                     continue
 
                 if search_region_name:
@@ -1259,8 +1354,6 @@ async def evaluate_overlay_rules_async(
                     cy_px = res["top_left"][1] + th_tpl / 2.0
                     mx_pct = 100.0 * cx_px / wi
                     my_pct = 100.0 * cy_px / hi
-                    tap_x_pct = mx_pct
-                    tap_y_pct = my_pct
                     tap_delta = _tap_region_delta_pct(
                         area_doc,
                         region_name,
@@ -1268,84 +1361,33 @@ async def evaluate_overlay_rules_async(
                         state_flat=state_flat,
                         screen_id=cur_screen_norm or None,
                     )
-                    if tap_delta is not None:
-                        _tap_region, dx_pct, dy_pct = tap_delta
-                        tap_x_pct = mx_pct + dx_pct
-                        tap_y_pct = my_pct + dy_pct
                     score = res["score"]
-                    matched = _hybrid_sliding_matched(score, threshold, res)
-                    tl_tuple = (int(res["top_left"][0]), int(res["top_left"][1]))
-                    sat_fail: str | None = None
-                    mean_sat: float | None = None
-                    bright_fail: str | None = None
-                    tpl_bright: float | None = None
-                    patch_bright: float | None = None
-                    if matched:
-                        ok, tpl_bright, patch_bright, bright_fail = _apply_bright_detail_gate(
-                            image_bgr, tpl, tl_tuple
-                        )
-                        matched = ok
-                    if matched and min_sat is not None:
-                        ok, mean_sat, sat_fail = _apply_min_saturation_gate(
-                            image_bgr, tl_tuple, tw_tpl, th_tpl, min_sat
-                        )
-                        matched = ok
-                    matched, red_dot_present, red_dot_bbox = _apply_findicon_red_dot_gate(
-                        matched=matched,
-                        rule=rule,
+                    out[logical_name] = _finalize_findicon_hit(
                         image_bgr=image_bgr,
-                        top_left=tl_tuple,
+                        template_bgr=tpl,
+                        res=res,
+                        matched=_hybrid_sliding_matched(score, threshold, res),
+                        score=score,
+                        threshold=threshold,
                         template_w=tw_tpl,
                         template_h=th_tpl,
+                        rule=rule,
+                        min_sat=min_sat,
+                        region_name=region_name,
+                        resolved_region_name=resolved_region_name,
+                        resolved_version=region_version_of(entry, reg),
+                        match_x_pct=mx_pct,
+                        match_y_pct=my_pct,
+                        tap_delta=tap_delta,
+                        push_tasks=push_tasks,
+                        set_node_s=set_node_s,
+                        priority=priority,
+                        extra_fields={
+                            "score_ncc_second": res.get("score_ncc_second"),
+                            "score_color": res.get("score_color"),
+                            "search_region": search_region_name,
+                        },
                     )
-                    hit: dict[str, Any] = {
-                        "matched": matched,
-                        "score": score,
-                        "score_ncc": res.get("score_ncc"),
-                        "score_ncc_second": res.get("score_ncc_second"),
-                        "score_color": res.get("score_color"),
-                        "threshold": threshold,
-                        "top_left": list(res["top_left"]),
-                        "template_w": tw_tpl,
-                        "template_h": th_tpl,
-                        "action": "findIcon",
-                        "region": region_name,
-                        "resolved_region": resolved_region_name,
-                        "resolved_version": region_version_of(entry, reg),
-                        "search_region": search_region_name,
-                        "tap_x_pct": tap_x_pct,
-                        "tap_y_pct": tap_y_pct,
-                    }
-                    # Always expose match center (before tap offset) for UI/debug.
-                    hit["tap_match_x_pct"] = mx_pct
-                    hit["tap_match_y_pct"] = my_pct
-                    if tap_delta is not None:
-                        tap_region, dx_pct, dy_pct = tap_delta
-                        hit["tap_region"] = tap_region
-                        hit["tap_delta_x_pct"] = dx_pct
-                        hit["tap_delta_y_pct"] = dy_pct
-                    if push_tasks:
-                        hit["pushScenario"] = push_tasks
-                    if set_node_s:
-                        hit["set_node"] = set_node_s
-                    if priority is not None:
-                        hit["priority"] = priority
-                    if min_sat is not None:
-                        hit["min_match_saturation"] = min_sat
-                    if tpl_bright is not None:
-                        hit["template_bright_ratio"] = tpl_bright
-                        hit["patch_bright_ratio"] = patch_bright
-                    if mean_sat is not None:
-                        hit["mean_saturation"] = mean_sat
-                    if bright_fail or sat_fail:
-                        hit["reason"] = bright_fail or sat_fail
-                    if isinstance(rule.get("isRedDot"), bool):
-                        hit["red_dot_required"] = rule["isRedDot"]
-                        hit["red_dot_present"] = bool(red_dot_present)
-                        hit["red_dot_search_mode"] = "dynamic"
-                        if red_dot_bbox is not None:
-                            hit["red_dot_bbox"] = red_dot_bbox
-                    out[logical_name] = hit
                     continue
 
                 res = match_crop_1to1_at_bbox_percent(image_bgr, tpl, bbox)
@@ -1362,9 +1404,6 @@ async def evaluate_overlay_rules_async(
             tl_y = float(res["top_left"][1])
             mx_pct = 100.0 * (tl_x + tw_tpl / 2.0) / wi
             my_pct = 100.0 * (tl_y + th_tpl / 2.0) / hi
-
-            tap_x_pct_1 = mx_pct
-            tap_y_pct_1 = my_pct
             tap_delta_1 = _tap_region_delta_pct(
                 area_doc,
                 region_name,
@@ -1372,86 +1411,28 @@ async def evaluate_overlay_rules_async(
                 state_flat=state_flat,
                 screen_id=cur_screen_norm or None,
             )
-            if tap_delta_1 is not None:
-                _tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
-                tap_x_pct_1 = mx_pct + dx_pct_1
-                tap_y_pct_1 = my_pct + dy_pct_1
-
-            matched_1 = score >= threshold
-            sat_fail_1: str | None = None
-            mean_sat_1: float | None = None
-            bright_fail_1: str | None = None
-            tpl_bright_1: float | None = None
-            patch_bright_1: float | None = None
-            tl_tuple_1 = (int(res["top_left"][0]), int(res["top_left"][1]))
-            if matched_1:
-                ok, tpl_bright_1, patch_bright_1, bright_fail_1 = _apply_bright_detail_gate(
-                    image_bgr, tpl, tl_tuple_1
-                )
-                matched_1 = ok
-            if matched_1 and min_sat is not None:
-                ok, mean_sat_1, sat_fail_1 = _apply_min_saturation_gate(
-                    image_bgr,
-                    tl_tuple_1,
-                    tw_tpl,
-                    th_tpl,
-                    min_sat,
-                )
-                matched_1 = ok
-            matched_1, red_dot_present_1, red_dot_bbox_1 = _apply_findicon_red_dot_gate(
-                matched=matched_1,
-                rule=rule,
+            out[logical_name] = _finalize_findicon_hit(
                 image_bgr=image_bgr,
-                top_left=tl_tuple_1,
+                template_bgr=tpl,
+                res=res,
+                matched=score >= threshold,
+                score=score,
+                threshold=threshold,
                 template_w=tw_tpl,
                 template_h=th_tpl,
+                rule=rule,
+                min_sat=min_sat,
+                region_name=region_name,
+                resolved_region_name=resolved_region_name,
+                resolved_version=region_version_of(entry, reg),
+                match_x_pct=mx_pct,
+                match_y_pct=my_pct,
+                tap_delta=tap_delta_1,
+                push_tasks=push_tasks,
+                set_node_s=set_node_s,
+                priority=priority,
+                extra_fields={"score_color": res.get("score_color")},
             )
-
-            hit1: dict[str, Any] = {
-                "matched": matched_1,
-                "score": score,
-                "score_ncc": res.get("score_ncc"),
-                "score_color": res.get("score_color"),
-                "threshold": threshold,
-                "top_left": list(res["top_left"]),
-                "template_w": tw_tpl,
-                "template_h": th_tpl,
-                "action": "findIcon",
-                "region": region_name,
-                "resolved_region": resolved_region_name,
-                "resolved_version": region_version_of(entry, reg),
-                "tap_x_pct": tap_x_pct_1,
-                "tap_y_pct": tap_y_pct_1,
-            }
-            hit1["tap_match_x_pct"] = mx_pct
-            hit1["tap_match_y_pct"] = my_pct
-            if tap_delta_1 is not None:
-                tap_region_1, dx_pct_1, dy_pct_1 = tap_delta_1
-                hit1["tap_region"] = tap_region_1
-                hit1["tap_delta_x_pct"] = dx_pct_1
-                hit1["tap_delta_y_pct"] = dy_pct_1
-            if push_tasks:
-                hit1["pushScenario"] = push_tasks
-            if set_node_s:
-                hit1["set_node"] = set_node_s
-            if priority is not None:
-                hit1["priority"] = priority
-            if min_sat is not None:
-                hit1["min_match_saturation"] = min_sat
-            if tpl_bright_1 is not None:
-                hit1["template_bright_ratio"] = tpl_bright_1
-                hit1["patch_bright_ratio"] = patch_bright_1
-            if mean_sat_1 is not None:
-                hit1["mean_saturation"] = mean_sat_1
-            if bright_fail_1 or sat_fail_1:
-                hit1["reason"] = bright_fail_1 or sat_fail_1
-            if isinstance(rule.get("isRedDot"), bool):
-                hit1["red_dot_required"] = rule["isRedDot"]
-                hit1["red_dot_present"] = bool(red_dot_present_1)
-                hit1["red_dot_search_mode"] = "dynamic"
-                if red_dot_bbox_1 is not None:
-                    hit1["red_dot_bbox"] = red_dot_bbox_1
-            out[logical_name] = hit1
             continue
 
         if action == "color_check":

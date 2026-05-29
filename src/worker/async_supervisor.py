@@ -28,10 +28,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# A child that ran longer than ``base * _STABILITY_FACTOR`` before crashing is
+# A child that ran continuously for at least this long before crashing is
 # treated as stable; the next failure resets the backoff counter. Keeps a slow
-# backoff from sticking around after one unrelated transient crash.
-_STABILITY_FACTOR = 4
+# backoff from sticking around after one unrelated transient crash. Kept well
+# above realistic crash-loop periods so a worker that reliably dies shortly
+# after the window can't reset to attempt=1 every cycle and dodge escalation.
+_STABILITY_WINDOW_SECONDS = 300.0
 
 
 async def _guard_loop(
@@ -50,7 +52,7 @@ async def _guard_loop(
             raise
         except Exception:
             ran_for = time.monotonic() - started
-            if ran_for > base * _STABILITY_FACTOR:
+            if ran_for > _STABILITY_WINDOW_SECONDS:
                 attempt = 1  # stabilized run — treat as a fresh failure
             else:
                 attempt += 1

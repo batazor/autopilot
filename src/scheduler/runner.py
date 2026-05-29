@@ -46,6 +46,16 @@ _GIFT_CODE_POLL_INTERVAL_S = 6 * 60 * 60
 _GIFT_CODE_LOCK_TTL_S = 2 * 60 * 60
 _BACKGROUND_GIFT_CODE_TASKS: set[asyncio.Task[None]] = set()
 
+# Atomic compare-and-delete: only drop the lock if we still own the token.
+# A non-atomic GET-then-DELETE races with a manual trigger that re-acquires
+# the key after our TTL expires, which would let two redeemers run at once.
+_RELEASE_LOCK_LUA = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
 
 class SchedulerRunner:
     def __init__(
@@ -115,6 +125,22 @@ class SchedulerRunner:
             await client.aclose()
         except Exception:
             logger.debug("Scheduler Redis aclose failed", exc_info=True)
+
+    async def _drain_background_tasks(self, timeout_s: float = 30.0) -> None:
+        """Let in-flight gift-code tasks finish before Redis closes.
+
+        Each task releases its 2h redeem lock in a ``finally`` that talks to
+        Redis. If we disconnect first, that release fails and the lock leaks
+        for its full TTL. Wait (bounded) for them, then cancel stragglers.
+        """
+        pending = [t for t in _BACKGROUND_GIFT_CODE_TASKS if not t.done()]
+        if not pending:
+            return
+        _done, still_pending = await asyncio.wait(pending, timeout=timeout_s)
+        for task in still_pending:
+            task.cancel()
+        if still_pending:
+            await asyncio.gather(*still_pending, return_exceptions=True)
 
     async def _instance_current_screen(self, instance_id: str) -> str:
         assert self._redis is not None
@@ -605,12 +631,12 @@ class SchedulerRunner:
                 logger.exception("gift_codes_poll[%s]: redeem failed", game_id)
         finally:
             # Only release if we still own the token — a parallel manual
-            # trigger may have replaced it (e.g. after our TTL).
+            # trigger may have replaced it (e.g. after our TTL). Compare and
+            # delete atomically so we never delete someone else's lock.
             try:
-                raw = await self._redis.get(redeem_lock_key)
-                current = raw.decode() if isinstance(raw, bytes) else (raw or "")
-                if current == token:
-                    await self._redis.delete(redeem_lock_key)
+                await self._redis.eval(
+                    _RELEASE_LOCK_LUA, 1, redeem_lock_key, token,
+                )
             except Exception:
                 logger.debug(
                     "gift_codes_poll[%s]: lock release failed",
@@ -735,6 +761,7 @@ class SchedulerRunner:
                     logger.exception("Scheduler loop error")
         finally:
             shutdown_ortools_executor(wait=False, cancel_futures=True)
+            await self._drain_background_tasks()
             await self._disconnect_redis()
 
 

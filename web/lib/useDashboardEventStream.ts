@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDocumentVisible } from "@/lib/hooks";
 
 const DEFAULT_FALLBACK_MS = 15_000;
@@ -10,6 +10,15 @@ export type DashboardEventHandler = (
   topic: string,
   data: Record<string, unknown>,
 ) => void;
+
+/**
+ * Connection health of the SSE stream:
+ * - `live`: EventSource open, real-time events flowing.
+ * - `connecting`: initial connect or first reconnect attempt.
+ * - `degraded`: stream errored and we are leaning on the fallback poll.
+ * - `paused`: tab hidden / stream disabled, so we are not streaming.
+ */
+export type StreamStatus = "live" | "connecting" | "degraded" | "paused";
 
 type UseDashboardEventStreamOptions = {
   topics: string[];
@@ -38,8 +47,9 @@ export function useDashboardEventStream({
   debounceMs = DEFAULT_DEBOUNCE_MS,
   fallbackPollMs = DEFAULT_FALLBACK_MS,
   onFallbackPoll,
-}: UseDashboardEventStreamOptions): void {
+}: UseDashboardEventStreamOptions): StreamStatus {
   const visible = useDocumentVisible();
+  const [status, setStatus] = useState<StreamStatus>("connecting");
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
   const onFallbackRef = useRef(onFallbackPoll);
@@ -63,7 +73,11 @@ export function useDashboardEventStream({
   }, [enabled, visible, hasFallbackPoll]);
 
   useEffect(() => {
-    if (!enabled || !visible || topics.length === 0) return;
+    if (!enabled || !visible || topics.length === 0) {
+      setStatus("paused");
+      return;
+    }
+    setStatus("connecting");
 
     const params = new URLSearchParams();
     for (const t of topics) params.append("topics", t);
@@ -107,8 +121,12 @@ export function useDashboardEventStream({
     const connect = () => {
       if (closed) return;
       es = new EventSource(url);
+      es.onopen = () => {
+        if (!closed) setStatus("live");
+      };
       for (const topic of topics) {
         es.addEventListener(topic, (ev: MessageEvent) => {
+          if (!closed) setStatus("live");
           dispatch(topic, String(ev.data ?? "{}"));
         });
       }
@@ -116,6 +134,7 @@ export function useDashboardEventStream({
         es?.close();
         es = null;
         if (!closed) {
+          setStatus("degraded");
           reconnectTimer = setTimeout(connect, 2000);
         }
       };
@@ -138,6 +157,7 @@ export function useDashboardEventStream({
       if (debounceTimer) clearTimeout(debounceTimer);
       pendingEvents.clear();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     enabled,
     visible,
@@ -148,4 +168,6 @@ export function useDashboardEventStream({
     debounceMs,
     hasFallbackPoll,
   ]);
+
+  return status;
 }

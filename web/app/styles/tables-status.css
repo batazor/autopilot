@@ -155,4 +155,107 @@
     }
   }
 
+  .fleet-grid {
+    @apply mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+  }
+
+  .fleet-tile {
+    @apply flex cursor-pointer flex-col gap-1.5 rounded-xl border border-wos-border-subtle bg-wos-panel/90 p-3 transition-colors;
+    border-left-width: 3px;
+  }
+
+  .fleet-tile:hover {
+    @apply border-wos-border bg-wos-panel-raised/80;
+  }
+
+  .fleet-tile:focus-visible {
+    @apply outline-none ring-2 ring-sky-400/50;
+  }
+
+  .fleet-tile__head {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  .fleet-tile__name {
+    @apply min-w-0 truncate text-sm font-semibold text-wos-text;
+  }
+
+  .fleet-tile__meta {
+    @apply truncate text-xs text-wos-text-muted;
+  }
+
+  .fleet-tile__alert {
+    @apply truncate text-xs font-medium text-amber-200/90;
+  }
+
+  .fleet-tile--live {
+    border-left-color: var(--wos-status-ok-fg);
+  }
+
+  .fleet-tile--paused {
+    border-left-color: var(--wos-status-warn-fg);
+  }
+
+  .fleet-tile--alert {
+    border-left-color: var(--wos-status-warn-fg);
+    @apply bg-amber-950/15;
+  }
+
+  .fleet-tile--danger {
+    border-left-color: var(--wos-status-danger-fg);
+    @apply bg-red-950/20;
+  }
+
+  .fleet-tile--offline {
+    border-left-color: var(--wos-border);
+    @apply opacity-75;
+  }
+
+  .live-indicator {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-wos-border-subtle bg-wos-surface/80 px-2 py-0.5 text-xs font-medium text-wos-text-secondary;
+  }
+
+  .live-indicator__dot {
+    @apply inline-block h-2 w-2 shrink-0 rounded-full bg-current;
+  }
+
+  .live-indicator--live {
+    color: var(--wos-status-ok-fg);
+  }
+
+  .live-indicator--live .live-indicator__dot {
+    animation: live-pulse 2s ease-in-out infinite;
+  }
+
+  .live-indicator--connecting {
+    color: var(--wos-status-info-fg);
+  }
+
+  .live-indicator--degraded {
+    color: var(--wos-status-warn-fg);
+  }
+
+  .live-indicator--degraded .live-indicator__dot {
+    animation: live-pulse 1s ease-in-out infinite;
+  }
+
+  .live-indicator--paused {
+    @apply text-wos-text-muted;
+  }
+
+  @keyframes live-pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-indicator__dot {
+      animation: none !important;
+    }
+  }
+
 }

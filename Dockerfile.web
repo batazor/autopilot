@@ -17,6 +17,7 @@ FROM node:${NODE_VERSION}-bookworm-slim AS deps
 
 WORKDIR /app
 COPY web/package.json web/package-lock.json ./
+COPY web/scripts/ ./scripts/
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund
 
