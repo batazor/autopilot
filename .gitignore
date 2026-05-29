@@ -66,6 +66,7 @@ db/state/
 
 # --- Runtime / bot process ----------------------------------------------------
 temporal/
+.tmp_ocr/
 # Live MCP/AI-Editor captures (per-step dumps); commit only rehearsal/fixtures/ for pytest.
 **/rehearsal/*
 !**/rehearsal/fixtures/
