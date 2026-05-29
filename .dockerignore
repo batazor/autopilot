@@ -50,9 +50,19 @@ Thumbs.db
 
 # --- Secrets / per-host data -------------------------------------------------
 .env
+.env.*
 .env.local
 .env.*.local
+!.env.example
+.npmrc
+npmrc
+pip.conf
+auth.json
 .secrets/
+*.key
+*.p12
+*.pfx
+*.crt
 # Per-host license file lives in the bind-mounted ``license-data`` dir at
 # runtime; never bake one into the image.
 license-data/*.json
@@ -77,6 +87,7 @@ htmlcov/
 **/tests/
 **/test_*.py
 **/conftest.py
+!src/config/test_module.py
 
 # --- Local-only / unused-at-runtime directories ------------------------------
 # Not COPY'd by Dockerfile.bot / Dockerfile.web — keeping them out of the

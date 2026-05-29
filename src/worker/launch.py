@@ -17,7 +17,7 @@ import urllib.error
 import urllib.request
 import webbrowser
 from dataclasses import dataclass
-from pathlib import Path  # noqa: TC003 — used at runtime, not annotations-only
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import psutil
@@ -32,6 +32,13 @@ _DEFAULT_WEB_PORT = 3000
 _STARTUP_TIMEOUT_S = 120.0
 _POLL_INTERVAL_S = 0.5
 logger = logging.getLogger(__name__)
+_REPO_CHILD_MODULES = frozenset(
+    {
+        "api.main",
+        "worker.supervisor",
+        "worker.game_health_watchdog",
+    }
+)
 
 
 def _env_flag(name: str, *, default: bool = False) -> bool:
@@ -202,6 +209,55 @@ def _terminate_proc(proc: subprocess.Popen[bytes]) -> None:
         proc.wait(timeout=3.0)
 
 
+def _kill_pid_now(pid: int) -> None:
+    if sys.platform == "win32":
+        with contextlib.suppress(psutil.Error):
+            root = psutil.Process(pid)
+            for child in root.children(recursive=True):
+                with contextlib.suppress(psutil.Error):
+                    child.kill()
+            root.kill()
+        return
+    with contextlib.suppress(ProcessLookupError, OSError):
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
+        return
+    with contextlib.suppress(ProcessLookupError, OSError):
+        os.kill(pid, signal.SIGKILL)
+
+
+def _kill_proc_now(proc: subprocess.Popen[bytes]) -> None:
+    if proc.poll() is not None:
+        return
+    _kill_pid_now(proc.pid)
+
+
+def _is_repo_module_process(proc: psutil.Process, repo: Path) -> bool:
+    try:
+        if proc.pid == os.getpid():
+            return False
+        cmdline = proc.cmdline()
+        module = ""
+        for idx, arg in enumerate(cmdline):
+            if arg == "-m" and idx + 1 < len(cmdline):
+                module = cmdline[idx + 1]
+                break
+        if module not in _REPO_CHILD_MODULES:
+            return False
+        return Path(proc.cwd()).resolve() == repo
+    except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess, OSError):
+        return False
+
+
+def _kill_repo_child_modules_now(repo: Path) -> None:
+    for proc in psutil.process_iter():
+        if not _is_repo_module_process(proc, repo):
+            continue
+        msg = f"Play stack: force-killing child pid={proc.pid}"
+        print(msg, flush=True)
+        logger.warning(msg)
+        _kill_pid_now(proc.pid)
+
+
 @dataclass
 class _ManagedService:
     label: str
@@ -234,6 +290,13 @@ class _PlayStack:
             if svc.reused:
                 continue
             _terminate_proc(svc.proc)
+
+    def emergency_shutdown(self) -> None:
+        for svc in reversed(self._services):
+            if svc.reused:
+                continue
+            _kill_proc_now(svc.proc)
+        _kill_repo_child_modules_now(self._repo)
 
     def _wait_until(
         self,
@@ -311,16 +374,11 @@ class _PlayStack:
     def install_signal_handlers(self) -> None:
         def _handler(signum: int, _frame: object) -> None:
             del _frame
-            if self._stop_requested:
-                signal.signal(signal.SIGINT, signal.SIG_DFL)
-                signal.signal(signal.SIGTERM, signal.SIG_DFL)
-                raise KeyboardInterrupt
             self._stop_requested = True
             self._exit_code = 128 + signum if signum != signal.SIGINT else 0
-            self.shutdown()
-            # Restore defaults so OTel atexit / thread joins don't re-enter this handler.
-            signal.signal(signal.SIGINT, signal.SIG_DFL)
-            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            print("Play stack: Ctrl+C received — force-killing children now.", flush=True)
+            self.emergency_shutdown()
+            os._exit(self._exit_code)
 
         signal.signal(signal.SIGTERM, _handler)
         signal.signal(signal.SIGINT, _handler)

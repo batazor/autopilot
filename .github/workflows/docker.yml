@@ -5,8 +5,8 @@ name: docker
 #   * bot — worker + scheduler + FastAPI entrypoint + local Tesseract OCR (multi-arch)
 #   * web — Next.js operator dashboard (multi-arch)
 #
-# Tagged on every semver git tag (`:vX.Y.Z`, `:X.Y`, `:latest`) and on
-# demand via the workflow_dispatch button. Commits to main don't trigger.
+# Built on every semver git tag and on demand via the workflow_dispatch button.
+# Published as `:latest` only. Commits to main don't trigger.
 
 on:
   push:
@@ -63,9 +63,7 @@ jobs:
           # services tidy under one repo's package namespace.
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service.name }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest
           labels: |
             org.opencontainers.image.title=autopilot/${{ matrix.service.name }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

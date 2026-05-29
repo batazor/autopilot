@@ -28,6 +28,8 @@ _BASE_RESTART_DELAY_SECONDS = 10.0
 # treated as stabilized — the next failure resets its backoff counter.
 _STABILITY_FACTOR = 4
 _shutdown = False
+_CHILD_SHUTDOWN_GRACE_S = 0.2
+_CHILD_KILL_JOIN_S = 0.5
 
 
 @dataclass
@@ -233,7 +235,7 @@ class Supervisor:
             except (InterruptedError, KeyboardInterrupt):
                 break
 
-        logger.info("Supervisor shutting down — waiting for workers to finish")
+        logger.info("Supervisor shutting down — killing workers")
         # Children ignore SIGINT; signal them explicitly so they begin
         # tearing down in parallel rather than waiting for the 30s join.
         for proc in self._processes.values():
@@ -241,11 +243,11 @@ class Supervisor:
                 with _suppress(ProcessLookupError, OSError):
                     proc.terminate()
         for name, proc in self._processes.items():
-            proc.join(timeout=30)
+            proc.join(timeout=_CHILD_SHUTDOWN_GRACE_S)
             if proc.is_alive():
                 logger.warning("Process %s did not exit cleanly, killing", name)
                 proc.kill()
-                proc.join(timeout=5)
+                proc.join(timeout=_CHILD_KILL_JOIN_S)
 
     def _find_instance(self, instance_id: str) -> InstanceConfig | None:
         for inst in self._settings.instances:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import signal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,20 +51,15 @@ def test_port_listener_processes_falls_back_when_global_scan_denied() -> None:
         assert launch._port_listener_processes(8765) == [proc]
 
 
-def test_clear_api_port_stops_bot_and_kills_old_process(capsys) -> None:
+def test_clear_api_port_kills_old_process(capsys) -> None:
     proc = MagicMock()
     proc.pid = 12345
     with (
         patch("worker.launch._port_listener_processes", side_effect=[[proc], []]),
-        patch("worker.launch._http_post_ok", return_value=True) as post,
         patch("worker.launch._terminate_process") as terminate,
     ):
         launch._clear_port_or_fail(host="127.0.0.1", port=8765, label="API")
 
-    post.assert_called_once_with(
-        "http://127.0.0.1:8765/api/dev/bot/stop",
-        timeout=5.0,
-    )
     terminate.assert_called_once_with(proc)
     assert "killing old PID(s): 12345" in capsys.readouterr().out
 
@@ -79,3 +75,25 @@ def test_clear_port_fails_when_old_process_survives() -> None:
         pytest.raises(SystemExit, match="still in use"),
     ):
         launch._clear_port_or_fail(host="127.0.0.1", port=8765, label="API")
+
+
+def test_play_signal_handler_force_kills_and_exits() -> None:
+    stack = launch._PlayStack()
+    handlers: dict[int, object] = {}
+
+    def install(sig: int, handler: object) -> None:
+        handlers[int(sig)] = handler
+
+    with (
+        patch("worker.launch.signal.signal", side_effect=install),
+        patch.object(stack, "emergency_shutdown") as emergency,
+        patch("worker.launch.os._exit", side_effect=SystemExit) as exit_now,
+    ):
+        stack.install_signal_handlers()
+        handler = handlers[int(signal.SIGINT)]
+        assert callable(handler)
+        with pytest.raises(SystemExit):
+            handler(signal.SIGINT, None)
+
+    emergency.assert_called_once_with()
+    exit_now.assert_called_once_with(0)
