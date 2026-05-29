@@ -35,9 +35,14 @@ build-bot-amd64:
     # Built-in, job-scoped credentials — no manually managed secret needed.
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
+    # buildx can't create a docker-container builder straight from the TLS env
+    # vars dind exports — wrap them in an explicit docker context first.
+    - |
+      docker context create buildx-ctx \
+        --docker "host=${DOCKER_HOST},ca=${DOCKER_CERT_PATH}/ca.pem,cert=${DOCKER_CERT_PATH}/cert.pem,key=${DOCKER_CERT_PATH}/key.pem"
     # docker-container driver gives full BuildKit (the Dockerfile uses
     # `# syntax=docker/dockerfile:1.24` + `RUN --mount=type=cache`).
-    - docker buildx create --use --name builder --driver docker-container --bootstrap
+    - docker buildx create --use --name builder --driver docker-container --bootstrap buildx-ctx
     - docker buildx build
         --platform linux/amd64
         -f Dockerfile.bot
