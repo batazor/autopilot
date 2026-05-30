@@ -17,12 +17,125 @@
 
   .edit-dsl-layout,
   .edit-scenarios-layout {
-    @apply grid items-start gap-4 lg:grid-cols-[minmax(220px,280px)_1fr];
+    @apply grid items-start gap-4 lg:grid-cols-[minmax(240px,300px)_1fr];
+  }
+
+  .edit-dsl-header-metrics {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .edit-dsl-metric {
+    @apply inline-flex max-w-full items-center gap-2 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1 text-xs;
+  }
+
+  .edit-dsl-metric--wide {
+    @apply min-w-0;
+  }
+
+  .edit-dsl-metric__label {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-dsl-metric strong {
+    @apply min-w-0 truncate font-semibold text-wos-text;
+  }
+
+  .edit-dsl-sidebar-stack {
+    @apply flex min-w-0 flex-col gap-4;
   }
 
   .edit-dsl-sidebar,
   .edit-scenarios-sidebar {
     @apply max-h-[calc(100vh-10rem)] overflow-y-auto;
+  }
+
+  .edit-dsl-panel-head {
+    @apply mb-3 flex min-w-0 items-center justify-between gap-2;
+  }
+
+  .edit-dsl-panel-head h2 {
+    @apply m-0 text-sm font-semibold text-wos-text;
+  }
+
+  .edit-dsl-panel-head .meta {
+    @apply m-0 text-xs;
+  }
+
+  .edit-dsl-panel-icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-emerald-400/20 bg-emerald-500/10 text-emerald-200;
+  }
+
+  .edit-dsl-sidebar-controls,
+  .edit-dsl-create-fields {
+    @apply flex flex-col gap-3;
+  }
+
+  .edit-dsl-search {
+    @apply flex items-center gap-2 rounded-md border border-wos-border-subtle bg-wos-input px-2 text-wos-text-muted focus-within:border-sky-400/70 focus-within:ring-2 focus-within:ring-sky-400/25;
+  }
+
+  .edit-dsl-search input {
+    @apply min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-wos-text placeholder:text-wos-text-muted focus:outline-none;
+  }
+
+  .edit-dsl-tree-panel {
+    @apply mt-3;
+  }
+
+  .edit-dsl-empty {
+    @apply flex min-h-28 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-wos-border-subtle bg-wos-input/25 px-3 py-4 text-center text-sm text-wos-text-muted;
+  }
+
+  .edit-dsl-filter-results {
+    @apply m-0 p-0 pl-0;
+  }
+
+  .edit-dsl-filter-results li {
+    @apply flex min-w-0 items-center justify-between gap-2 rounded-md px-1 py-0.5 hover:bg-wos-input/50;
+  }
+
+  .edit-dsl-filter-results .tree-link {
+    @apply min-w-0 flex-1 truncate;
+  }
+
+  .edit-dsl-field {
+    @apply flex flex-col gap-1 text-sm;
+  }
+
+  .edit-dsl-field > span:first-child {
+    @apply text-xs font-semibold uppercase tracking-wide text-wos-text-muted;
+  }
+
+  .edit-dsl-field input {
+    @apply rounded-md border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/25;
+  }
+
+  .edit-dsl-active-file {
+    @apply sticky top-3 z-10 mb-4 flex min-w-0 items-center gap-3 rounded-md border border-wos-border-subtle bg-wos-panel/95 px-3 py-2 shadow-sm backdrop-blur;
+  }
+
+  .edit-dsl-active-file__icon {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-400/20 bg-sky-500/10 text-sky-200;
+  }
+
+  .edit-dsl-active-file__body {
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
+  }
+
+  .edit-dsl-active-file__eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-dsl-active-file__body strong {
+    @apply truncate text-sm text-wos-text;
+  }
+
+  .edit-dsl-active-file__body code {
+    @apply truncate text-xs text-wos-text-muted;
+  }
+
+  .edit-dsl-active-file__module {
+    @apply max-w-[10rem] truncate rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1 text-xs font-medium text-wos-text-secondary;
   }
 
   .edit-dsl-main .yaml-editor,
@@ -32,6 +145,58 @@
 
   .edit-scenario-editor h3 {
     @apply mt-6 mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-wos-text-muted;
+  }
+
+  .edit-scenario-summary-bar {
+    @apply mb-3 grid gap-2 rounded-md border border-wos-border-subtle bg-wos-input/25 p-2 sm:grid-cols-[auto_repeat(4,minmax(0,1fr))];
+  }
+
+  .edit-scenario-summary-bar__icon {
+    @apply flex h-9 w-9 items-center justify-center rounded-md border border-sky-400/20 bg-sky-500/10 text-sky-200;
+  }
+
+  .edit-scenario-summary-bar__item {
+    @apply min-w-0 rounded-md border border-wos-border-subtle bg-wos-panel-raised px-2 py-1.5;
+  }
+
+  .edit-scenario-summary-bar__item span {
+    @apply block text-[10px] font-semibold uppercase tracking-[0.12em] text-wos-text-muted;
+  }
+
+  .edit-scenario-summary-bar__item strong {
+    @apply block truncate text-sm font-semibold text-wos-text;
+  }
+
+  .edit-scenario-tabs {
+    @apply flex-1;
+  }
+
+  .edit-scenario-editor-toolbar {
+    @apply ml-auto flex flex-wrap items-center gap-2;
+  }
+
+  .edit-scenario-status {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold;
+  }
+
+  .edit-scenario-status__dot {
+    @apply h-2 w-2 rounded-full bg-current;
+  }
+
+  .edit-scenario-status--ok {
+    @apply border-emerald-400/25 bg-emerald-500/10 text-emerald-200;
+  }
+
+  .edit-scenario-status--warn {
+    @apply border-amber-400/30 bg-amber-500/10 text-amber-200;
+  }
+
+  .edit-scenario-status--danger {
+    @apply border-red-400/30 bg-red-500/10 text-red-200;
+  }
+
+  .edit-scenario-status--busy {
+    @apply border-sky-400/30 bg-sky-500/10 text-sky-200;
   }
 
   .edit-scenario-header {
@@ -82,8 +247,28 @@
     @apply flex flex-col gap-3;
   }
 
+  .edit-scenario-section-head {
+    @apply mt-6 mb-3 flex items-center gap-2;
+  }
+
+  .edit-scenario-section-head h3 {
+    @apply m-0;
+  }
+
+  .edit-scenario-count {
+    @apply rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold text-wos-text-muted;
+  }
+
+  .edit-scenario-steps-empty {
+    @apply mb-3 flex items-center justify-center gap-2 rounded-md border border-dashed border-wos-border-subtle bg-wos-input/25 px-3 py-6 text-sm text-wos-text-muted;
+  }
+
   .edit-scenario-add-row {
-    @apply mt-3 gap-2;
+    @apply mt-3 gap-2 rounded-md border border-wos-border-subtle bg-wos-input/25 p-2;
+  }
+
+  .edit-scenario-validation-row {
+    @apply mt-4 flex flex-wrap items-center gap-2;
   }
 
   .edit-scenario-icon-row {

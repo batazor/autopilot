@@ -120,7 +120,7 @@ export function ScenarioHeaderForm({
             />
           )}
           {iconSlug && iconOk === false && (
-            <span className="muted">⚠️ no file at references/events/</span>
+            <span className="muted">No event icon found</span>
           )}
         </div>
       </div>

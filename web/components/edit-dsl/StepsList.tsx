@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AppListbox } from "@/components/headless";
 import { tip } from "@/components/AppTooltip";
+import { Icon } from "@/components/ui/Icon";
 import {
   LOOP_PARENT_KINDS,
   STEP_TYPES_FOR_NEW,
@@ -28,6 +29,13 @@ function moveStep(steps: ScenarioStep[], idx: number, delta: number): ScenarioSt
   if (j < 0 || j >= steps.length) return steps;
   const next = [...steps];
   [next[idx], next[j]] = [next[j], next[idx]];
+  return next;
+}
+
+function duplicateStep(steps: ScenarioStep[], idx: number): ScenarioStep[] {
+  const next = [...steps];
+  const copy = JSON.parse(JSON.stringify(steps[idx])) as ScenarioStep;
+  next.splice(idx + 1, 0, copy);
   return next;
 }
 
@@ -58,6 +66,12 @@ export function StepsList({
 
   return (
     <div className="edit-scenario-steps-list">
+      {steps.length === 0 ? (
+        <div className="edit-scenario-steps-empty">
+          <Icon name="list-empty" size="md" />
+          <span>No steps yet</span>
+        </div>
+      ) : null}
       {steps.map((step, i) => {
         const path = [...parentPath, i];
         const stype = detectStepType(step);
@@ -83,7 +97,7 @@ export function StepsList({
                   aria-label="Move up"
                   {...tip("Move up")}
                 >
-                  ↑
+                  <Icon name="arrow-up" size="sm" />
                 </button>
                 <button
                   type="button"
@@ -93,7 +107,16 @@ export function StepsList({
                   aria-label="Move down"
                   {...tip("Move down")}
                 >
-                  ↓
+                  <Icon name="arrow-down" size="sm" />
+                </button>
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => onStepsChange(duplicateStep(steps, i))}
+                  aria-label="Duplicate step"
+                  {...tip("Duplicate")}
+                >
+                  <Icon name="copy" size="sm" />
                 </button>
                 <button
                   type="button"
@@ -102,7 +125,7 @@ export function StepsList({
                   aria-label="Remove step"
                   {...tip("Remove")}
                 >
-                  ✕
+                  <Icon name="trash" size="sm" />
                 </button>
               </span>
             </div>
@@ -119,6 +142,8 @@ export function StepsList({
 
       <div className="toolbar edit-scenario-add-row">
         <AppListbox
+          inline
+          label="Step type"
           value={addType}
           onChange={setAddType}
           options={availableTypes.map((t) => ({ value: t, label: t }))}

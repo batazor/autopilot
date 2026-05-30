@@ -131,6 +131,23 @@ export type ClickApprovalView = {
   scenario_progress: ScenarioProgress;
 };
 
+export type ClickApprovalStatus = {
+  instance_id: string;
+  approval_enabled: boolean;
+  heartbeat_active: boolean;
+  worker_alive: boolean;
+  has_pending: boolean;
+  scenario_key: string;
+  scenario_label: string;
+  region_label: string;
+  action_type: string;
+  action_label: string;
+  trace_id: string;
+  current_screen: string;
+  active_player: string;
+  active_player_in_game_id: string;
+};
+
 export type NotificationEvent = {
   id: string;
   ts: number;

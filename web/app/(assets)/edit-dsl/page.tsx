@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppListbox } from "@/components/headless";
 import { PageHeader } from "@/components/PageHeader";
+import { Icon } from "@/components/ui/Icon";
 import { PageLoading, Spinner } from "@/components/ui/Spinner";
 import { ScenarioEditor } from "@/components/edit-dsl/ScenarioEditor";
 import { ScenarioTree } from "@/components/edit-dsl/ScenarioTree";
@@ -131,6 +132,28 @@ function EditDslPageInner() {
     );
   }, [files, filter]);
 
+  const selectedFile = useMemo(
+    () => files.find((f) => f.rel === selectedRel) ?? null,
+    [files, selectedRel],
+  );
+  const scopeOptions = useMemo(
+    () =>
+      scopes.length
+        ? scopes.map((s) => ({ value: s.key, label: s.label }))
+        : [{ value: "all", label: "All" }],
+    [scopes],
+  );
+  const selectedScopeLabel =
+    scopeOptions.find((s) => s.value === scope)?.label ?? scope;
+  const moduleOptions = useMemo(
+    () =>
+      modules.map((m) => ({
+        value: m.key,
+        label: `${m.title} (${m.key})`,
+      })),
+    [modules],
+  );
+
   async function handleCreate() {
     if (!newKey.trim() || !newModule) return;
     setBusy(true);
@@ -156,47 +179,75 @@ function EditDslPageInner() {
   return (
     <>
       <PageHeader title="DSL editor">
-        <p className="muted">
-          Edit module scenario YAML under <code>modules/*/scenarios/</code>.{" "}
-          <code>drafts/</code> and <code>by_cron/</code> are read-only. Saves validate against
-          the DSL schema and back up the previous file under{" "}
-          <code>.backups/&lt;timestamp&gt;/</code>.
-        </p>
+        <div className="edit-dsl-header-metrics">
+          <span className="edit-dsl-metric">
+            <span className="edit-dsl-metric__label">Scope</span>
+            <strong>{selectedScopeLabel}</strong>
+          </span>
+          <span className="edit-dsl-metric">
+            <span className="edit-dsl-metric__label">Scenarios</span>
+            <strong>{files.length}</strong>
+          </span>
+          <span className="edit-dsl-metric">
+            <span className="edit-dsl-metric__label">Modules</span>
+            <strong>{modules.length}</strong>
+          </span>
+          {selectedFile ? (
+            <span className="edit-dsl-metric edit-dsl-metric--wide">
+              <span className="edit-dsl-metric__label">Editing</span>
+              <strong>{selectedFile.stem}</strong>
+            </span>
+          ) : null}
+        </div>
       </PageHeader>
 
       <div className="edit-dsl-layout">
-        <div className="flex flex-col gap-4 min-w-0">
+        <div className="edit-dsl-sidebar-stack">
           <aside className="panel edit-dsl-sidebar">
-            <div className="flex flex-col gap-2">
+            <div className="edit-dsl-panel-head">
+              <div>
+                <h2>Scenarios</h2>
+                <p className="meta">{filteredFiles.length} shown</p>
+              </div>
+              {filter ? (
+                <button
+                  type="button"
+                  className="btn-icon"
+                  onClick={() => setFilter("")}
+                  aria-label="Clear scenario filter"
+                  title="Clear filter"
+                >
+                  <Icon name="clear" size="sm" />
+                </button>
+              ) : null}
+            </div>
+            <div className="edit-dsl-sidebar-controls">
               <AppListbox
                 fullWidth
                 label="Module scope"
                 value={scope}
                 onChange={setScope}
-                options={[
-                  ...(scopes.length
-                    ? scopes.map((s) => ({ value: s.key, label: s.label }))
-                    : [{ value: "all", label: "All" }]),
-                ]}
+                options={scopeOptions}
               />
-              <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-wide text-wos-text-muted">
-                  Filter
-                </span>
+              <div className="edit-dsl-search">
+                <Icon name="search" size="sm" />
                 <input
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  placeholder="path, module…"
+                  placeholder="Filter scenarios"
                   type="search"
-                  className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
                 />
-              </label>
+              </div>
             </div>
-            <div className="mt-3">
+            <div className="edit-dsl-tree-panel">
               {files.length === 0 ? (
-                <p className="muted">No editable DSL files for this scope.</p>
+                <div className="edit-dsl-empty">
+                  <Icon name="list-empty" size="md" />
+                  <p>No editable DSL files for this scope.</p>
+                </div>
               ) : filter ? (
-                <ul className="scenario-tree">
+                filteredFiles.length ? (
+                <ul className="scenario-tree edit-dsl-filter-results">
                   {filteredFiles.map((f) => (
                     <li key={f.rel}>
                       <button
@@ -214,6 +265,12 @@ function EditDslPageInner() {
                     </li>
                   ))}
                 </ul>
+                ) : (
+                  <div className="edit-dsl-empty">
+                    <Icon name="search" size="md" />
+                    <p>No scenarios match this filter.</p>
+                  </div>
+                )
               ) : (
                 <ScenarioTree
                   nodes={tree}
@@ -224,54 +281,28 @@ function EditDslPageInner() {
             </div>
           </aside>
 
-          <aside className="panel">
-            <div className="mb-2 flex items-center gap-2">
-              <span
-                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300"
-                aria-hidden
-              >
-                <svg
-                  className="ui-icon ui-icon--sm"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 5v14" />
-                  <path d="M5 12h14" />
-                </svg>
+          <aside className="panel edit-dsl-create-panel">
+            <div className="edit-dsl-panel-head">
+              <span className="edit-dsl-panel-icon" aria-hidden>
+                <Icon name="edit-dsl" size="sm" />
               </span>
-              <h3 className="m-0 text-base font-semibold text-wos-text">
-                New scenario
-              </h3>
+              <h2>New scenario</h2>
             </div>
-            <p className="muted mt-0 mb-3 text-xs">
-              Pick a module and a short file key. A blank DSL skeleton will be
-              created at <code>scenarios/&lt;key&gt;.yaml</code>.
-            </p>
-            <div className="flex flex-col gap-2">
+            <div className="edit-dsl-create-fields">
               <AppListbox
                 fullWidth
                 label="Module"
                 value={newModule}
                 onChange={setNewModule}
-                options={modules.map((m) => ({
-                  value: m.key,
-                  label: `${m.title} (${m.key})`,
-                }))}
+                options={moduleOptions}
               />
-              <label className="flex flex-col gap-1">
-                <span className="text-xs uppercase tracking-wide text-wos-text-muted">
-                  File key
-                </span>
+              <label className="edit-dsl-field">
+                <span>File key</span>
                 <input
                   ref={newKeyInputRef}
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
                   placeholder="dismiss_popup"
-                  className="rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-emerald-400/70 focus:outline-none focus:ring-2 focus:ring-emerald-400/25"
                 />
               </label>
               <button
@@ -287,11 +318,21 @@ function EditDslPageInner() {
         </div>
 
         <main className="panel edit-dsl-main">
-          {selectedRel && (
-            <p className="muted">
-              <code>{selectedRel}</code>
-            </p>
-          )}
+          <div className="edit-dsl-active-file">
+            <span className="edit-dsl-active-file__icon" aria-hidden>
+              <Icon name="edit-dsl" size="sm" />
+            </span>
+            <div className="edit-dsl-active-file__body">
+              <span className="edit-dsl-active-file__eyebrow">Active scenario</span>
+              <strong>{selectedFile?.stem || "No file selected"}</strong>
+              {selectedRel ? <code>{selectedRel}</code> : null}
+            </div>
+            {selectedFile ? (
+              <span className="edit-dsl-active-file__module">
+                {selectedFile.module}
+              </span>
+            ) : null}
+          </div>
           {busy && !document ? (
             <div className="ui-page-loading">
               <Spinner />

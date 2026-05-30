@@ -13,6 +13,7 @@ from adb.approvals import click_approval_enabled
 from api.services import fleet, notifications_api, queue_api
 from api.services.click_approval_store import (
     _trace_id_from_payload,
+    approval_heartbeat_active,
     get_pending,
 )
 from api.services.dashboard_fingerprints import (
@@ -70,6 +71,7 @@ def approval_revision(client: Any, instance_id: str) -> str:
         "has_pending": payload is not None,
         "trace_id": _trace_id_from_payload(payload) if payload else "",
         "enabled": click_approval_enabled(instance_id),
+        "heartbeat": approval_heartbeat_active(client, instance_id),
         "screen": (state.get("current_screen") or "").strip(),
         "task": (state.get("current_task_type") or state.get("current_scenario") or "").strip(),
     }

@@ -10,7 +10,6 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import re
 import select
 import subprocess
 import tempfile
@@ -398,12 +397,31 @@ def _pick_window(
         msg = f"Quartz window title {quartz_window_title!r} not found"
         raise RuntimeError(msg)
 
-    air_title = _default_bluestacks_air_title(instance_id)
-    if air_title:
-        matches = [w for w in visible if w.owner == "BlueStacks" and w.title == air_title]
-        if matches:
-            return _largest_layer0(matches)
+    # Real BlueStacks instance windows carry a non-empty title ("BlueStacks
+    # Air N"); the empty-title layer-0 rows are toolbar/chrome strips. Prefer
+    # the titled instance windows so we never guess a chrome strip.
+    instance_windows = [
+        w
+        for w in visible
+        if "bluestacks" in w.owner.lower()
+        and w.title.strip()
+        and "keymap" not in w.title.lower()
+    ]
+    if len(instance_windows) > 1:
+        # Multiple instances are open and no explicit title/id was given.
+        # Guessing the largest would silently make multiple devices share one
+        # window — fail loudly instead.
+        titles = ", ".join(sorted({w.title for w in instance_windows}))
+        msg = (
+            f"Cannot resolve Quartz window for instance {instance_id!r}: "
+            f"{len(instance_windows)} BlueStacks windows are open ({titles}). "
+            f"Set quartz_window_title or quartz_window_id for this device."
+        )
+        raise RuntimeError(msg)
+    if instance_windows:
+        return instance_windows[0]
 
+    # No titled instance window — fall back to any BlueStacks surface.
     matches = [
         w
         for w in visible
@@ -420,13 +438,6 @@ def _pick_window(
 def _largest_layer0(windows: list[QuartzWindow]) -> QuartzWindow:
     layer0 = [w for w in windows if w.layer == 0] or windows
     return max(layer0, key=lambda w: w.width * w.height)
-
-
-def _default_bluestacks_air_title(instance_id: str) -> str:
-    match = re.fullmatch(r"bs(\d+)", str(instance_id or "").strip().lower())
-    if not match:
-        return ""
-    return f"BlueStacks Air {int(match.group(1)) - 1}"
 
 
 def _auto_blustacks_content_crop(

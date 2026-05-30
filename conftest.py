@@ -34,6 +34,28 @@ def _session_settings(settings: Settings) -> Iterator[None]:
     reset_settings()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_state_db(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Point the SQLite state DB at a throwaway file for every test.
+
+    Without this, any test that exercises a code path which writes the device /
+    player registry (e.g. ``who_i_am`` OCR → ``set_last_active_player``,
+    ``fetch_player`` → ``upsert_device_gamer``) persists its fixture data into
+    the real ``db/state/state.db`` — which is how a test player id like
+    ``player_42`` leaked into the live registry. Tests that manage the path
+    themselves (the ``sqlite_db`` fixtures in config tests) set their own
+    override *after* this one and reset it on teardown, so they're unaffected.
+    """
+    from config.state_sqlite import set_state_db_path_for_tests
+
+    db_path = tmp_path_factory.mktemp("state-db") / "state.db"
+    set_state_db_path_for_tests(db_path)
+    try:
+        yield
+    finally:
+        set_state_db_path_for_tests(None)
+
+
 @pytest.fixture(scope="session")
 def ocr_client(settings: Settings) -> OcrClient:
     return OcrClient(settings)

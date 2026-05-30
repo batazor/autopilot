@@ -22,6 +22,7 @@ import type {
 } from "./config-pages";
 import type {
   AreaRegionProbeResult,
+  ClickApprovalStatus,
   ClickApprovalView,
   InstanceDetail,
   LabelingDocument,
@@ -321,6 +322,14 @@ export async function fetchClickApproval(
   const q = new URLSearchParams({ source });
   return apiFetch<ClickApprovalView>(
     `/api/instances/${encodeURIComponent(instanceId)}/click-approval?${q}`,
+  );
+}
+
+export async function fetchClickApprovalStatus(
+  instanceId: string,
+): Promise<ClickApprovalStatus> {
+  return apiFetch<ClickApprovalStatus>(
+    `/api/instances/${encodeURIComponent(instanceId)}/click-approval/status`,
   );
 }
 

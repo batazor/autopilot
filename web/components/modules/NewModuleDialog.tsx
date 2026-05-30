@@ -7,7 +7,8 @@ import {
   DialogTitle,
 } from "@headlessui/react";
 import { useEffect, useState } from "react";
-import { AppListbox } from "@/components/headless";
+import { AppListbox, AppSwitch } from "@/components/headless";
+import { Icon } from "@/components/ui/Icon";
 import { createModule } from "@/lib/api";
 import type { ModuleRow } from "@/lib/config-pages";
 
@@ -49,6 +50,10 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
   const idValid = ID_PATTERN.test(moduleId.trim());
   const titleValid = title.trim().length > 0;
   const canSubmit = !busy && idValid && titleValid;
+  const cleanId = moduleId.trim();
+  const locationPreview = `modules/${parent ? `${parent}/` : ""}${
+    cleanId || "<id>"
+  }/`;
 
   const handleSubmit = async () => {
     setBusy(true);
@@ -73,11 +78,27 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
     <Dialog open={open} onClose={onClose} className="headless-dialog-root">
       <DialogBackdrop transition className="headless-dialog__backdrop" />
       <div className="headless-dialog__container">
-        <DialogPanel transition className="headless-dialog__panel queue-create-dialog">
-          <DialogTitle className="headless-dialog__title">New module</DialogTitle>
+        <DialogPanel transition className="headless-dialog__panel module-create-dialog">
+          <div className="module-create-dialog__header">
+            <span className="module-create-dialog__icon">
+              <Icon name="modules" size="md" />
+            </span>
+            <div>
+              <DialogTitle className="headless-dialog__title">
+                New module
+              </DialogTitle>
+              <p className="meta">
+                Create a manifest, scenario directory, and optional wiki entry.
+              </p>
+            </div>
+          </div>
           <div className="headless-dialog__body">
-            <div className="queue-create-dialog__fields">
-              <label className="queue-create-dialog__field">
+            <div className="module-create-dialog__preview">
+              <span>Target</span>
+              <code>{locationPreview}</code>
+            </div>
+            <div className="module-create-dialog__fields">
+              <label className="module-create-dialog__field">
                 <span>
                   ID <em className="muted">(lowercase, digits, underscores)</em>
                 </span>
@@ -86,34 +107,34 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
                   value={moduleId}
                   onChange={(e) => setModuleId(e.target.value)}
                   placeholder="e.g. my_feature"
-                  className="queue-create-dialog__input"
+                  className="module-create-dialog__input"
                   autoFocus
                 />
                 {moduleId && !idValid ? (
-                  <em className="muted">
+                  <em className="module-create-dialog__hint">
                     Must start with a lowercase letter; only a-z, 0-9, _ allowed.
                   </em>
                 ) : null}
               </label>
 
-              <label className="queue-create-dialog__field">
+              <label className="module-create-dialog__field">
                 <span>Title</span>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. My Feature"
-                  className="queue-create-dialog__input"
+                  className="module-create-dialog__input"
                 />
               </label>
 
-              <label className="queue-create-dialog__field">
+              <label className="module-create-dialog__field">
                 <span>Description</span>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What this module automates…"
-                  className="queue-create-dialog__input"
+                  className="module-create-dialog__input"
                   rows={2}
                 />
               </label>
@@ -125,16 +146,15 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
                 options={PARENT_OPTIONS}
               />
 
-              <label className="queue-create-dialog__field">
-                <span>
-                  <input
-                    type="checkbox"
-                    checked={wiki}
-                    onChange={(e) => setWiki(e.target.checked)}
-                  />
-                  {" "}Include in wiki
-                </span>
-              </label>
+              <div className="module-create-dialog__switch-row">
+                <AppSwitch
+                  checked={wiki}
+                  onChange={setWiki}
+                  label="Include in wiki"
+                  inline
+                />
+                <span>Expose this module in generated documentation.</span>
+              </div>
             </div>
           </div>
           <div className="headless-dialog__actions">

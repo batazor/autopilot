@@ -8,6 +8,7 @@ export type IconName =
   | "search"
   | "clear"
   | "recent"
+  | "refresh"
   | "check"
   | "info"
   | "dot"
@@ -36,10 +37,15 @@ export type IconName =
   | "warning"
   | "alert"
   | "arrow-up"
+  | "arrow-down"
+  | "plus"
   | "chevron-right"
   | "chevron-left"
+  | "copy"
+  | "trash"
   | "play"
   | "pause"
+  | "stop"
   | "discord";
 
 const SIZE_CLASS: Record<IconSize, string> = {
@@ -88,6 +94,13 @@ const PATHS: Record<IconName, ReactNode> = {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </>,
+  ),
+  refresh: strokeIcon(
+    <>
+      <path d="M20 12a8 8 0 0 1-13.5 5.8" strokeLinecap="round" />
+      <path d="M4 12A8 8 0 0 1 17.5 6.2" strokeLinecap="round" />
+      <path d="M17 3v4h4M7 21v-4H3" strokeLinecap="round" strokeLinejoin="round" />
     </>,
   ),
   check: strokeIcon(
@@ -251,11 +264,31 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
     </>,
   ),
+  "arrow-down": strokeIcon(
+    <>
+      <path d="M12 5v14M5 12l7 7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </>,
+  ),
+  plus: strokeIcon(
+    <path d="M12 5v14M5 12h14" strokeLinecap="round" />,
+  ),
   "chevron-right": strokeIcon(
     <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />,
   ),
   "chevron-left": strokeIcon(
     <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />,
+  ),
+  copy: strokeIcon(
+    <>
+      <rect x="8" y="8" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1" />
+    </>,
+  ),
+  trash: strokeIcon(
+    <>
+      <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13" strokeLinecap="round" />
+      <path d="M9 7V4h6v3" strokeLinecap="round" strokeLinejoin="round" />
+    </>,
   ),
   play: <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />,
   pause: (
@@ -264,6 +297,7 @@ const PATHS: Record<IconName, ReactNode> = {
       <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none" />
     </>
   ),
+  stop: <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" />,
   // Discord glyph — stylized chat-bubble outline with two eye dots. Kept
   // monochrome / stroke-only so it follows the surrounding text color
   // instead of forcing the Discord brand purple.

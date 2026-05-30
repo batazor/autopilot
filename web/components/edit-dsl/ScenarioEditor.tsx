@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppTabs } from "@/components/headless";
+import { Icon } from "@/components/ui/Icon";
 import {
   saveEditScenarioDocument,
   saveEditScenarioFile,
@@ -30,6 +31,7 @@ type Props = {
 };
 
 type EditorTab = "form" | "yaml";
+type StatusTone = "ok" | "warn" | "danger" | "busy";
 
 /**
  * Module-level ref so the active editor tab survives `key={editorKey}`
@@ -104,6 +106,33 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   const nameValue = String(doc.name ?? "").trim();
   const saveDisabled =
     busy || !valid || !nameValue || collisions.length > 0 || !dirty;
+  const formStatus = busy
+    ? { label: "Saving", tone: "busy" as StatusTone }
+    : !valid
+      ? { label: "Schema errors", tone: "danger" as StatusTone }
+      : collisions.length > 0
+        ? { label: "Name conflict", tone: "danger" as StatusTone }
+        : dirty
+          ? { label: "Unsaved", tone: "warn" as StatusTone }
+          : { label: "Saved", tone: "ok" as StatusTone };
+  const yamlStatus = busy
+    ? { label: "Saving", tone: "busy" as StatusTone }
+    : !yamlValid
+      ? { label: "YAML errors", tone: "danger" as StatusTone }
+      : yamlDirty
+        ? { label: "Unsaved YAML", tone: "warn" as StatusTone }
+        : { label: "Synced", tone: "ok" as StatusTone };
+  const activeStatus = tab === "yaml" ? yamlStatus : formStatus;
+  const activeSaveDisabled =
+    tab === "yaml" ? busy || !yamlDirty || !yamlValid : saveDisabled;
+  const activeSaveLabel =
+    tab === "yaml"
+      ? busy
+        ? "Saving YAML..."
+        : "Save YAML"
+      : busy
+        ? "Saving..."
+        : "Save";
 
   async function handleSaveForm() {
     setBusy(true);
@@ -182,6 +211,36 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
   }
 
   const steps = ensureStepsList(doc);
+  const stepCount = steps.length;
+  const enabled = Boolean(doc.enabled);
+  const node = String(doc.node ?? "").trim();
+
+  const handleActiveSave = () => {
+    if (tab === "yaml") {
+      void handleSaveYaml();
+    } else {
+      void handleSaveForm();
+    }
+  };
+
+  const editorToolbar = (
+    <div className="edit-scenario-editor-toolbar">
+      <span
+        className={`edit-scenario-status edit-scenario-status--${activeStatus.tone}`}
+      >
+        <span className="edit-scenario-status__dot" aria-hidden />
+        {activeStatus.label}
+      </span>
+      <button
+        type="button"
+        className="btn-success"
+        disabled={activeSaveDisabled}
+        onClick={handleActiveSave}
+      >
+        {activeSaveLabel}
+      </button>
+    </div>
+  );
 
   const formPanel = (
     <>
@@ -194,7 +253,10 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         onChange={updateDoc}
       />
 
-      <h3>Steps</h3>
+      <div className="edit-scenario-section-head">
+        <h3>Steps</h3>
+        <span className="edit-scenario-count">{stepCount}</span>
+      </div>
       <StepsList
         steps={steps}
         parentPath={[]}
@@ -203,19 +265,13 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         onStepsChange={(s) => updateDoc({ ...doc, steps: s })}
       />
 
-      <hr />
-      <div className="toolbar">
-        <button
-          type="button"
-          className="btn-success"
-          disabled={saveDisabled}
-          onClick={handleSaveForm}
-        >
-          Save
-        </button>
+      <div className="edit-scenario-validation-row">
         {!valid && <span className="error-banner">Schema errors — fix before saving.</span>}
         {valid && nameValue && !collisions.length && (
-          <span className="muted">Schema OK</span>
+          <span className="edit-scenario-status edit-scenario-status--ok">
+            <span className="edit-scenario-status__dot" aria-hidden />
+            Schema OK
+          </span>
         )}
       </div>
       {!valid && validationError && (
@@ -229,10 +285,6 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
 
   const yamlPanel = (
     <div className="edit-scenario-yaml-tab">
-      <p className="muted">
-        Edit raw YAML. Saving from this tab writes the raw text — switch back to
-        the form to keep editing structurally.
-      </p>
       <YamlMonacoEditor
         value={yamlDraft}
         onChange={(v) => {
@@ -244,14 +296,6 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         regionMeta={regionMeta}
       />
       <div className="toolbar">
-        <button
-          type="button"
-          className="btn-success"
-          disabled={busy || !yamlDirty || !yamlValid}
-          onClick={handleSaveYaml}
-        >
-          Save YAML
-        </button>
         <button
           type="button"
           className="btn-secondary"
@@ -277,7 +321,12 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
         {!yamlValid && (
           <span className="error-banner">YAML invalid — fix before saving.</span>
         )}
-        {yamlValid && yamlDirty && <span className="muted">Unsaved changes</span>}
+        {yamlValid && yamlDirty && (
+          <span className="edit-scenario-status edit-scenario-status--warn">
+            <span className="edit-scenario-status__dot" aria-hidden />
+            Unsaved changes
+          </span>
+        )}
       </div>
       {!yamlValid && yamlError && (
         <details className="edit-scenario-validation">
@@ -290,13 +339,36 @@ export function ScenarioEditor({ rel, initialDoc, meta, onSaved }: Props) {
 
   return (
     <div className="edit-scenario-editor">
+      <div className="edit-scenario-summary-bar">
+        <span className="edit-scenario-summary-bar__icon" aria-hidden>
+          <Icon name={enabled ? "check" : "warning"} size="sm" />
+        </span>
+        <span className="edit-scenario-summary-bar__item">
+          <span>Name</span>
+          <strong>{nameValue || "Untitled scenario"}</strong>
+        </span>
+        <span className="edit-scenario-summary-bar__item">
+          <span>Node</span>
+          <strong>{node || "anywhere"}</strong>
+        </span>
+        <span className="edit-scenario-summary-bar__item">
+          <span>Steps</span>
+          <strong>{stepCount}</strong>
+        </span>
+        <span className="edit-scenario-summary-bar__item">
+          <span>State</span>
+          <strong>{enabled ? "enabled" : "disabled"}</strong>
+        </span>
+      </div>
       <AppTabs
         selectedKey={tab}
         onChange={(k) => setTab(k as EditorTab)}
         tabs={[
-          { key: "form", label: "Form", panel: formPanel },
-          { key: "yaml", label: "YAML", panel: yamlPanel },
+          { key: "form", label: dirty ? "Form *" : "Form", panel: formPanel },
+          { key: "yaml", label: yamlDirty ? "YAML *" : "YAML", panel: yamlPanel },
         ]}
+        afterTabs={editorToolbar}
+        listClassName="edit-scenario-tabs"
       />
 
       {message && <p className="muted">{message}</p>}

@@ -48,6 +48,25 @@ def get_click_approval(
     return store.get_approval_view(client, instance_id, image_source=source)
 
 
+@router.get("/instances/{instance_id}/click-approval/status")
+def get_click_approval_status(
+    instance_id: str,
+    client: RedisDep,
+) -> dict[str, object]:
+    """Read-only approval status for dashboard chrome.
+
+    Unlike the full approval view, this endpoint does not refresh the
+    approval-page heartbeat.
+    """
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    try:
+        client.ping()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    return store.get_approval_status(client, instance_id)
+
+
 @router.get("/instances/{instance_id}/click-approval/image")
 def get_click_approval_image(
     instance_id: str,

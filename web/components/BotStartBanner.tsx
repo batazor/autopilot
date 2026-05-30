@@ -5,11 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
+  fetchClickApprovalStatus,
   fetchAdbStatus,
   fetchBotStatus,
   fetchInstances,
+  fetchOverview,
   startLocalBot,
   stopLocalBot,
+  toggleInstancePause,
 } from "@/lib/api";
 import {
   loadFleetInstanceId,
@@ -23,10 +26,24 @@ import {
 } from "@/lib/adb-device-ready";
 import { adbSerialMatches } from "@/lib/adb-serial";
 import type { AdbStatus } from "@/lib/config-pages";
-import type { BotStatusView } from "@/lib/types";
+import { approvalsHref, instanceHref } from "@/lib/fleet-links";
+import type {
+  BotStatusView,
+  ClickApprovalStatus,
+  FleetInstanceRow,
+  OverviewView,
+} from "@/lib/types";
+import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import { Icon } from "@/components/ui/Icon";
 
 const BOT_POLL_MS = 4000;
+const BOT_STATUS_QUERY_KEY = ["botStartBanner"] as const;
+const BOT_FLEET_QUERY_KEY = ["botStartBannerFleet"] as const;
+const FLEET_INSTANCES_QUERY_KEY = ["fleetInstances"] as const;
+
+function approvalStatusQueryKey(instanceId: string) {
+  return ["botStartBannerApproval", instanceId] as const;
+}
 
 type BannerStatus = {
   bot: BotStatusView;
@@ -74,7 +91,7 @@ function useDeviceSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
   const instancesQuery = useQuery<string[]>({
-    queryKey: ["fleetInstances"],
+    queryKey: FLEET_INSTANCES_QUERY_KEY,
     queryFn: fetchInstances,
     refetchInterval: BOT_POLL_MS,
   });
@@ -123,8 +140,10 @@ function useDeviceSwitcher() {
   return { instances, current, index, step };
 }
 
-function DeviceCarousel() {
-  const { instances, current, index, step } = useDeviceSwitcher();
+type DeviceSwitcherState = ReturnType<typeof useDeviceSwitcher>;
+
+function DeviceCarousel({ switcher }: { switcher: DeviceSwitcherState }) {
+  const { instances, current, index, step } = switcher;
   if (instances.length === 0) return null;
   const multi = instances.length > 1;
   return (
@@ -165,25 +184,153 @@ function DeviceCarousel() {
   );
 }
 
+function shortStatus(status: string): string {
+  const s = (status || "").trim();
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : "Unknown";
+}
+
+function rowStatusChipClass(row: FleetInstanceRow | null): string {
+  if (!row) return "nav-bot-banner__chip--device";
+  const status = row.status.toLowerCase();
+  if (row.paused || status === "paused") return "nav-bot-banner__chip--warn";
+  if (status === "live") return "nav-bot-banner__chip--ok";
+  if (status === "crashed" || status === "offline") {
+    return "nav-bot-banner__chip--danger";
+  }
+  return "nav-bot-banner__chip--device";
+}
+
+function ApprovalStatusChip({
+  instanceId,
+  status,
+}: {
+  instanceId: string;
+  status: ClickApprovalStatus | null;
+}) {
+  if (!instanceId) return null;
+  if (!status) {
+    return (
+      <Link
+        href={approvalsHref(instanceId)}
+        className="nav-bot-banner__chip nav-bot-banner__chip--device"
+        title="Checking approval status"
+      >
+        Approvals…
+      </Link>
+    );
+  }
+  const pending = !!status?.has_pending;
+  const enabled = status.approval_enabled;
+  const label = pending
+    ? "Approval pending"
+    : enabled
+      ? "Approvals on"
+      : "Approvals off";
+  const chipClass = [
+    "nav-bot-banner__chip",
+    pending
+      ? "nav-bot-banner__chip--pending"
+      : enabled
+        ? "nav-bot-banner__chip--ok"
+        : "nav-bot-banner__chip--warn",
+  ].join(" ");
+  const title = pending
+    ? [
+        status?.scenario_label || status?.scenario_key || "Pending approval",
+        status?.region_label ? `region ${status.region_label}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : enabled
+      ? "Approval mode is enabled for this instance"
+      : "Approval mode is disabled for this instance";
+  return (
+    <Link href={approvalsHref(instanceId)} className={chipClass} title={title}>
+      {label}
+    </Link>
+  );
+}
+
+function InstanceStatusChip({
+  instanceId,
+  row,
+}: {
+  instanceId: string;
+  row: FleetInstanceRow | null;
+}) {
+  if (!instanceId) return null;
+  const status = row ? shortStatus(row.status) : "Status";
+  return (
+    <Link
+      href={instanceHref(instanceId)}
+      className={[
+        "nav-bot-banner__chip",
+        rowStatusChipClass(row),
+      ].join(" ")}
+      title={row?.alert || `Open ${instanceId}`}
+    >
+      {instanceId}: {status}
+    </Link>
+  );
+}
+
+function InstanceStatusLine({
+  row,
+  approval,
+}: {
+  row: FleetInstanceRow | null;
+  approval: ClickApprovalStatus | null;
+}) {
+  if (!row && !approval) return null;
+  const node = row?.node && row.node !== "—" ? row.node : approval?.current_screen;
+  const player =
+    row?.active_player && row.active_player !== "—"
+      ? row.active_player
+      : approval?.active_player_in_game_id || approval?.active_player || "";
+  const task = row?.task && row.task !== "—" ? row.task : "";
+  const parts = [
+    node ? `Node ${node}` : "",
+    player ? `Player ${player}` : "",
+    task ? `Task ${task}` : "",
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return <p className="nav-bot-banner__desc">{parts.join(" · ")}</p>;
+}
+
 export function BotStartBanner() {
   const qc = useQueryClient();
+  const deviceSwitcher = useDeviceSwitcher();
+  const currentInstance = deviceSwitcher.current;
   const [localError, setLocalError] = useState<string | null>(null);
   // Which supervisor process the operator is currently looking at when
   // more than one is alive (dev rotation, stuck terminate, etc.).
   const [carouselIdx, setCarouselIdx] = useState(0);
 
   const query = useQuery<BannerStatus>({
-    queryKey: ["botStartBanner"],
+    queryKey: BOT_STATUS_QUERY_KEY,
     queryFn: fetchBannerStatus,
     refetchInterval: BOT_POLL_MS,
+  });
+
+  const fleetQuery = useQuery<OverviewView>({
+    queryKey: BOT_FLEET_QUERY_KEY,
+    queryFn: fetchOverview,
+    refetchInterval: BOT_POLL_MS,
+  });
+
+  const approvalQuery = useQuery<ClickApprovalStatus>({
+    queryKey: approvalStatusQueryKey(currentInstance),
+    queryFn: () => fetchClickApprovalStatus(currentInstance),
+    enabled: Boolean(currentInstance),
   });
 
   const startMutation = useMutation({
     mutationFn: startLocalBot,
     onSuccess: (view) => {
-      qc.setQueryData<BannerStatus>(["botStartBanner"], (prev) =>
+      qc.setQueryData<BannerStatus>(BOT_STATUS_QUERY_KEY, (prev) =>
         prev ? { ...prev, bot: view } : prev,
       );
+      void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
       setLocalError(null);
     },
     onError: (e) => {
@@ -193,9 +340,15 @@ export function BotStartBanner() {
   const stopMutation = useMutation({
     mutationFn: stopLocalBot,
     onSuccess: (view) => {
-      qc.setQueryData<BannerStatus>(["botStartBanner"], (prev) =>
+      qc.setQueryData<BannerStatus>(BOT_STATUS_QUERY_KEY, (prev) =>
         prev ? { ...prev, bot: view } : prev,
       );
+      void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
+      if (currentInstance) {
+        void qc.invalidateQueries({
+          queryKey: approvalStatusQueryKey(currentInstance),
+        });
+      }
       setLocalError(null);
     },
     onError: (e) => {
@@ -203,10 +356,100 @@ export function BotStartBanner() {
     },
   });
 
+  const pauseMutation = useMutation({
+    mutationFn: toggleInstancePause,
+    onMutate: async (instanceId) => {
+      setLocalError(null);
+      await qc.cancelQueries({ queryKey: BOT_FLEET_QUERY_KEY });
+      const previous = qc.getQueryData<OverviewView>(BOT_FLEET_QUERY_KEY);
+      qc.setQueryData<OverviewView>(BOT_FLEET_QUERY_KEY, (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          fleet: prev.fleet.map((row) => {
+            if (row.instance_id !== instanceId) return row;
+            const paused = !row.paused;
+            return {
+              ...row,
+              paused,
+              status: paused
+                ? "paused"
+                : row.status.toLowerCase() === "paused"
+                  ? "live"
+                  : row.status,
+            };
+          }),
+        };
+      });
+      return { previous };
+    },
+    onError: (e, _instanceId, ctx) => {
+      if (ctx?.previous) qc.setQueryData(BOT_FLEET_QUERY_KEY, ctx.previous);
+      setLocalError(e instanceof Error ? e.message : "Failed to toggle pause");
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
+      if (currentInstance) {
+        void qc.invalidateQueries({
+          queryKey: approvalStatusQueryKey(currentInstance),
+        });
+      }
+    },
+  });
+
   const botStatus = query.data?.bot ?? null;
   const adbStatus = query.data?.adb ?? null;
   const refreshing = query.isFetching;
   const loaded = query.isFetched;
+  const processes = botStatus?.processes ?? [];
+  const safeIdx = processes.length > 0
+    ? ((carouselIdx % processes.length) + processes.length) % processes.length
+    : 0;
+  const currentProc = processes[safeIdx] ?? null;
+  const currentPid = currentProc?.pid ?? botStatus?.pid ?? null;
+  const currentRow =
+    fleetQuery.data?.fleet.find((r) => r.instance_id === currentInstance) ?? null;
+  const approvalStatus = approvalQuery.data ?? null;
+
+  const bannerTopics = currentInstance
+    ? ["fleet", "queue", "instance", "approval"]
+    : ["fleet", "queue"];
+  useDashboardEventStream({
+    topics: bannerTopics,
+    instanceId: currentInstance || undefined,
+    enabled: true,
+    onEvent: (topic) => {
+      if (topic === "fleet" || topic === "queue" || topic === "instance") {
+        void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
+      }
+      if ((topic === "approval" || topic === "instance") && currentInstance) {
+        void qc.invalidateQueries({
+          queryKey: approvalStatusQueryKey(currentInstance),
+        });
+      }
+      if (topic === "fleet") {
+        void qc.invalidateQueries({ queryKey: FLEET_INSTANCES_QUERY_KEY });
+      }
+    },
+    onFallbackPoll: () => {
+      void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: FLEET_INSTANCES_QUERY_KEY });
+      if (currentInstance) {
+        void qc.invalidateQueries({
+          queryKey: approvalStatusQueryKey(currentInstance),
+        });
+      }
+    },
+  });
+
+  // Clamp the index back into range whenever a process disappears (Stop was
+  // pressed, dev tool killed it, etc.) — otherwise we'd index past the array
+  // and show empty PID / mode.
+  useEffect(() => {
+    if (processes.length > 0 && carouselIdx >= processes.length) {
+      setCarouselIdx(0);
+    }
+  }, [processes.length, carouselIdx]);
 
   const adbReadiness: AdbReadiness | null = adbStatus
     ? evaluateAdbReadiness(adbStatus)
@@ -235,9 +478,17 @@ export function BotStartBanner() {
 
   const queryError =
     query.isError && query.error instanceof Error ? query.error.message : null;
-  const error = localError ?? queryError;
+  const fleetError =
+    fleetQuery.isError && fleetQuery.error instanceof Error
+      ? fleetQuery.error.message
+      : null;
+  const approvalError =
+    approvalQuery.isError && approvalQuery.error instanceof Error
+      ? approvalQuery.error.message
+      : null;
+  const error = localError ?? queryError ?? fleetError ?? approvalError;
 
-  if (!loaded && !refreshing) {
+  if (!loaded && refreshing && !query.data) {
     return null;
   }
 
@@ -269,28 +520,30 @@ export function BotStartBanner() {
     );
   }
 
-  // Carousel of running supervisor processes (>1 is rare but happens — dev
-  // restart left a zombie, accidental double-start, etc.). When only one is
-  // running we render exactly the old banner; the extra controls appear from
-  // the second process onward.
-  const processes = botStatus?.processes ?? [];
-  const safeIdx = processes.length > 0
-    ? ((carouselIdx % processes.length) + processes.length) % processes.length
-    : 0;
-  // Clamp the index back into range whenever a process disappears (Stop was
-  // pressed, dev tool killed it, etc.) — otherwise we'd index past the array
-  // and show empty PID / mode.
-  useEffect(() => {
-    if (processes.length > 0 && carouselIdx >= processes.length) {
-      setCarouselIdx(0);
-    }
-  }, [processes.length, carouselIdx]);
-  const currentProc = processes[safeIdx] ?? null;
-  const currentPid = currentProc?.pid ?? botStatus?.pid ?? null;
-
   if (botStatus?.running) {
     const multi = processes.length > 1;
     const devicesLabel = deviceChipLabel(adbStatus);
+    const selectedPaused = !!currentRow?.paused;
+    const pauseBusy = pauseMutation.isPending;
+    const pauseDisabled =
+      !currentInstance ||
+      !currentRow ||
+      pauseBusy ||
+      stopMutation.isPending;
+    const pauseLabel = pauseBusy
+      ? "Updating selected instance"
+      : selectedPaused
+        ? "Resume selected instance"
+        : "Pause selected instance";
+    const pauseTitle = pauseBusy
+      ? "Updating..."
+      : !currentInstance
+        ? "No active device selected"
+        : !currentRow
+          ? "Waiting for selected device status"
+          : selectedPaused
+            ? `Resume ${currentInstance}`
+            : `Pause ${currentInstance}`;
     return (
       <div
         className="nav-bot-banner nav-bot-banner--running"
@@ -299,14 +552,30 @@ export function BotStartBanner() {
       >
         <div className="nav-bot-banner__top">
           <div className="nav-bot-banner__identity">
-            <span className="nav-bot-banner__icon" aria-hidden>
-              <Icon name="play" size="sm" />
-            </span>
+            <button
+              type="button"
+              className={[
+                "nav-bot-banner__icon",
+                "nav-bot-banner__control",
+                selectedPaused ? "" : "nav-bot-banner__control--warn",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              disabled={pauseDisabled}
+              onClick={() => {
+                if (!currentInstance || !currentRow) return;
+                pauseMutation.mutate(currentInstance);
+              }}
+              aria-label={pauseLabel}
+              title={pauseTitle}
+            >
+              <Icon name={selectedPaused ? "play" : "pause"} size="sm" />
+            </button>
             <span className="nav-bot-banner__body">
               <span className="nav-bot-banner__eyebrow">Bot control</span>
               <span className="nav-bot-banner__title">
                 <span className="nav-bot-banner__live" aria-hidden />
-                Running
+                {selectedPaused ? "Running · paused" : "Running"}
                 {multi ? (
                   <span
                     className="nav-bot-banner__badge"
@@ -333,7 +602,7 @@ export function BotStartBanner() {
             <button
               type="button"
               className="nav-bot-banner__action"
-              disabled={stopMutation.isPending}
+              disabled={stopMutation.isPending || pauseBusy}
               onClick={() => stopMutation.mutate()}
               aria-label={stopMutation.isPending ? "Stopping bot" : "Stop bot"}
               title={
@@ -344,11 +613,12 @@ export function BotStartBanner() {
                     : "Stop bot"
               }
             >
-              <Icon name="pause" size="sm" />
+              <Icon name="stop" size="sm" />
             </button>
           </div>
         </div>
-        <DeviceCarousel />
+        <DeviceCarousel switcher={deviceSwitcher} />
+        <InstanceStatusLine row={currentRow} approval={approvalStatus} />
         <div className="nav-bot-banner__chips" aria-label="Bot details">
           <span className="nav-bot-banner__chip">
             Mode {formatMode(botStatus.mode)}
@@ -364,6 +634,20 @@ export function BotStartBanner() {
           <span className="nav-bot-banner__chip nav-bot-banner__chip--device">
             {devicesLabel}
           </span>
+          {currentInstance ? (
+            <InstanceStatusChip instanceId={currentInstance} row={currentRow} />
+          ) : null}
+          {currentInstance ? (
+            <ApprovalStatusChip
+              instanceId={currentInstance}
+              status={approvalStatus}
+            />
+          ) : null}
+          {approvalStatus?.heartbeat_active ? (
+            <span className="nav-bot-banner__chip nav-bot-banner__chip--ok">
+              Approval page open
+            </span>
+          ) : null}
           {unregisteredChip}
         </div>
         {error ? (
@@ -399,9 +683,16 @@ export function BotStartBanner() {
     >
       <div className="nav-bot-banner__top">
         <div className="nav-bot-banner__identity">
-          <span className="nav-bot-banner__icon" aria-hidden>
+          <button
+            type="button"
+            className="nav-bot-banner__icon nav-bot-banner__control"
+            disabled={startDisabled}
+            onClick={() => startMutation.mutate()}
+            aria-label={startMutation.isPending ? "Starting bot" : "Start bot"}
+            title={startTitle}
+          >
             <Icon name={ready ? "play" : "warning"} size="sm" />
-          </span>
+          </button>
           <span className="nav-bot-banner__body">
             <span className="nav-bot-banner__eyebrow">Bot control</span>
             <span className="nav-bot-banner__title">
@@ -409,18 +700,8 @@ export function BotStartBanner() {
             </span>
           </span>
         </div>
-        <button
-          type="button"
-          className="nav-bot-banner__action"
-          disabled={startDisabled}
-          onClick={() => startMutation.mutate()}
-          aria-label={startMutation.isPending ? "Starting bot" : "Start bot"}
-          title={startTitle}
-        >
-          <Icon name="play" size="sm" />
-        </button>
       </div>
-      <DeviceCarousel />
+      <DeviceCarousel switcher={deviceSwitcher} />
       <p className="nav-bot-banner__desc">
         {adbProblem ? (
           <>
@@ -445,6 +726,15 @@ export function BotStartBanner() {
           {deviceChipLabel(adbStatus)}
         </span>
         <span className="nav-bot-banner__chip">Mode local</span>
+        {currentInstance ? (
+          <InstanceStatusChip instanceId={currentInstance} row={currentRow} />
+        ) : null}
+        {currentInstance ? (
+          <ApprovalStatusChip
+            instanceId={currentInstance}
+            status={approvalStatus}
+          />
+        ) : null}
         {unregisteredChip}
       </div>
       {error ? (

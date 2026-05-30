@@ -124,15 +124,29 @@ struct Main {
             throw RuntimeError("ScreenCaptureKit window_title '\(titleHint)' not found")
         }
 
-        let airTitle = defaultBlueStacksAirTitle(for: request.instance_id)
-        if !airTitle.isEmpty {
-            let matches = visible.filter { window in
-                (window.owningApplication?.applicationName ?? "") == "BlueStacks"
-                    && (window.title ?? "") == airTitle
-            }
-            if let match = largest(matches) {
-                return match
-            }
+        // Real BlueStacks instance windows carry a non-empty title ("BlueStacks
+        // Air N"); the empty-title rows are toolbar/chrome strips. Prefer titled
+        // instance windows so we never guess a chrome strip.
+        let instanceWindows = visible.filter { window in
+            let app = window.owningApplication?.applicationName.lowercased() ?? ""
+            let title = window.title ?? ""
+            return app.contains("bluestacks")
+                && !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !title.lowercased().contains("keymap")
+        }
+        if instanceWindows.count > 1 {
+            // Multiple instances are open and no explicit title/id was given.
+            // Guessing the largest would silently make multiple devices share
+            // one window — fail loudly instead.
+            let titles = instanceWindows.compactMap { $0.title }.sorted().joined(separator: ", ")
+            throw RuntimeError(
+                "cannot resolve ScreenCaptureKit window for instance '\(request.instance_id)': "
+                    + "\(instanceWindows.count) BlueStacks windows are open (\(titles)). "
+                    + "Set quartz_window_title or quartz_window_id for this device."
+            )
+        }
+        if let match = instanceWindows.first {
+            return match
         }
 
         let matches = visible.filter { window in
@@ -150,14 +164,6 @@ struct Main {
         windows.max { lhs, rhs in
             (lhs.frame.width * lhs.frame.height) < (rhs.frame.width * rhs.frame.height)
         }
-    }
-
-    static func defaultBlueStacksAirTitle(for instanceID: String) -> String {
-        let lower = instanceID.lowercased()
-        guard lower.hasPrefix("bs"), let n = Int(lower.dropFirst(2)), n > 0 else {
-            return ""
-        }
-        return "BlueStacks Air \(n - 1)"
     }
 
     static func sourceRect(for window: SCWindow, request: CaptureRequest) -> CGRect {

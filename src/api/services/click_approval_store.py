@@ -152,6 +152,33 @@ def _enabled_key(instance_id: str) -> str:
     return f"wos:ui:click_approval:enabled:{instance_id}"
 
 
+_APPROVAL_DISABLED_VALUES = frozenset({"0", "false", "no", "off"})
+
+
+def approval_enabled_from_client(client: Any, instance_id: str) -> bool:
+    """Read approval mode without creating/touching the approvals Redis client."""
+    try:
+        raw = _as_text(client.get(_enabled_key(instance_id))).lower()
+    except redis.RedisError:
+        raw = ""
+    if not raw:
+        return True
+    return raw not in _APPROVAL_DISABLED_VALUES
+
+
+def approval_heartbeat_active(client: Any, instance_id: str) -> bool:
+    """Whether an approvals page heartbeat is currently alive.
+
+    Unlike :func:`get_approval_view`, this is read-only: it never extends the
+    heartbeat TTL, so sidebar/status widgets can observe approval-page presence
+    without changing worker gating behavior.
+    """
+    try:
+        return bool(client.exists(_heartbeat_key(instance_id)))
+    except redis.RedisError:
+        return False
+
+
 def touch_heartbeat(client: Any, instance_id: str) -> None:
     if click_approval_enabled(instance_id):
         client.set(_heartbeat_key(instance_id), str(time.time()), ex=5)
@@ -607,6 +634,58 @@ def get_approval_view(
         "active_player": _as_text(instance_state.get("active_player")),
         "active_player_in_game_id": get_active_player_in_game_id(client, instance_id),
         "scenario_progress": build_scenario_progress(client, instance_id, instance_state),
+    }
+
+
+def get_approval_status(client: Any, instance_id: str) -> dict[str, Any]:
+    """Read-only approval summary for always-mounted dashboard chrome.
+
+    The full approval page intentionally calls :func:`get_approval_view`, which
+    refreshes the UI heartbeat and tells the worker an operator is present.
+    Sidebar chrome must not do that, so this status payload mirrors the small
+    pieces the widget needs while leaving the heartbeat untouched.
+    """
+    enabled = approval_enabled_from_client(client, instance_id)
+    heartbeat_active = approval_heartbeat_active(client, instance_id)
+    instance_state = get_instance_state(client, instance_id)
+    payload = get_pending(client, instance_id)
+
+    scenario_key = ""
+    scenario_label = ""
+    region_label = ""
+    action_type = ""
+    action_label = ""
+    trace_id = ""
+    if payload:
+        action_type = _as_text(payload.get("type")).lower()
+        action_label = _payload_action_label(payload)
+        trace_id = _trace_id_from_payload(payload)
+        ctx0 = payload.get("context")
+        if isinstance(ctx0, dict):
+            scenario_key = _as_text(ctx0.get("scenario"))
+            if scenario_key:
+                scenario_label = scenario_display_name(scenario_key)
+            region_label = _as_text(payload.get("region")) or _as_text(
+                ctx0.get("approval_region")
+            )
+        else:
+            region_label = _as_text(payload.get("region"))
+
+    return {
+        "instance_id": instance_id,
+        "approval_enabled": enabled,
+        "heartbeat_active": heartbeat_active,
+        "worker_alive": _worker_recently_seen(instance_state),
+        "has_pending": payload is not None,
+        "scenario_key": scenario_key,
+        "scenario_label": scenario_label,
+        "region_label": region_label,
+        "action_type": action_type,
+        "action_label": action_label,
+        "trace_id": trace_id,
+        "current_screen": _as_text(instance_state.get("current_screen")),
+        "active_player": _as_text(instance_state.get("active_player")),
+        "active_player_in_game_id": get_active_player_in_game_id(client, instance_id),
     }
 
 
