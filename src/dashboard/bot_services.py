@@ -162,9 +162,9 @@ def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> bool:
     will not silently no-op into a half-stopped state.
     """
     global _started, _stop_event, _stop_in_progress, _thread
-    _stop_health_watchdog()
     stop_event, thread, newly_requested = request_embedded_bot_stop()
     if stop_event is None or thread is None:
+        _stop_health_watchdog()
         return True
 
     if newly_requested:
@@ -176,11 +176,13 @@ def stop_embedded_bot(*, join_timeout_s: float = 5.0) -> bool:
                 logging.getLogger(__name__).warning(
                     "Embedded bot thread did not stop within %.1fs", join_timeout_s
                 )
+            ensure_health_watchdog()
             return False
         _started = False
         _stop_event = None
         _stop_in_progress = False
         _thread = None
+        _stop_health_watchdog()
         return True
 
 

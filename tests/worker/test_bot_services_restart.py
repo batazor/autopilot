@@ -17,6 +17,7 @@ def _reset_module_state(mocker) -> Any:
     mocker.patch.object(bot_services, "_stop_in_progress", new=False)
     mocker.patch.object(bot_services, "_thread", new=None)
     mocker.patch.object(bot_services, "_stop_health_watchdog", new=lambda: None)
+    mocker.patch.object(bot_services, "ensure_health_watchdog", new=lambda: None)
     return
 
 
@@ -47,9 +48,19 @@ def test_stop_embedded_bot_returns_false_when_thread_will_not_stop(
     mocker.patch.object(bot_services, "_started", new=True)
     mocker.patch.object(bot_services, "_stop_event", new=stop_event)
     mocker.patch.object(bot_services, "_thread", new=thread)
+    stops: list[bool] = []
+    ensures: list[bool] = []
+    mocker.patch.object(
+        bot_services, "_stop_health_watchdog", new=lambda: stops.append(True)
+    )
+    mocker.patch.object(
+        bot_services, "ensure_health_watchdog", new=lambda: ensures.append(True)
+    )
 
     ok = bot_services.stop_embedded_bot(join_timeout_s=0.1)
     assert ok is False
+    assert stops == []
+    assert ensures == [True]
     # State preserved so restart can detect the failure.
     assert bot_services._started is True
     assert bot_services._thread is thread
