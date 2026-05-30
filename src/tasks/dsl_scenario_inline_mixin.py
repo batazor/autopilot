@@ -778,6 +778,13 @@ class DslScenarioInlineMixin(_Base):
             iter_total = 0
             for iter_idx in range(max_iters):
                 self._last_tap_region_clicked = ""
+                # After the first iteration the inner steps may have tapped, so
+                # the ``until_*`` probes below must read a fresh post-action
+                # frame — otherwise they re-check the pre-tap screen and the
+                # loop keeps clicking (double click).
+                if iter_idx > 0 and hasattr(actions, "invalidate_frame_cache"):
+                    with suppress(Exception):
+                        actions.invalidate_frame_cache(instance_id)
                 if until_match:
                     row = await self._match_region(
                         actions=actions,
@@ -961,7 +968,16 @@ class DslScenarioInlineMixin(_Base):
                 probe_attempts = initial_attempts if iterations == 0 else 1
                 row = None
                 for attempt in range(probe_attempts):
-                    if attempt > 0 and hasattr(actions, "invalidate_frame_cache"):
+                    # Force a fresh frame before re-probing when either:
+                    #  - ``attempt > 0``: retrying within this iteration, or
+                    #  - ``iterations > 0``: a previous iteration ran inner
+                    #    steps that may have tapped (e.g. closed the popup we
+                    #    just matched). Without dropping the cache here the probe
+                    #    can re-read the pre-tap screen and click again — the
+                    #    double-click / popup-close loop.
+                    if (attempt > 0 or iterations > 0) and hasattr(
+                        actions, "invalidate_frame_cache"
+                    ):
                         with suppress(Exception):
                             actions.invalidate_frame_cache(instance_id)
                     row = await self._match_region(
@@ -1193,6 +1209,7 @@ class DslScenarioInlineMixin(_Base):
                     spec.get("delay"),
                     instance_id=instance_id,
                     redis_async=self.redis_client,
+                    player_id=self.player_id,
                 )
                 skip_dup = bool(spec.get("skip_if_duplicate", True))
             else:

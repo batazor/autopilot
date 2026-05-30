@@ -220,6 +220,8 @@ function PersistedPanel({
   }
 
   const s = p.summary;
+  const timers = p.event_timers ?? [];
+  const timerTotal = timers.length;
   const bldgTotal = p.building_levels.length;
   const bldgNeedle = bldgFilter.trim().toLowerCase();
   const bldgShown = bldgNeedle
@@ -254,6 +256,24 @@ function PersistedPanel({
           { label: "Furnace pwr", value: String(s.furnace_power ?? "—") },
         ]}
       />
+      <CollapsiblePanel
+        title="Event timers"
+        meta={String(timerTotal)}
+        defaultOpen={timerTotal > 0 && timerTotal <= 8}
+      >
+        <DataTable
+          columns={[
+            { key: "event", label: "Event" },
+            { key: "status", label: "Status" },
+            { key: "remaining", label: "Remaining", align: "right" },
+            { key: "reset_at", label: "Reset at" },
+            { key: "raw_text", label: "OCR" },
+            { key: "confidence", label: "Conf", align: "right" },
+            { key: "source_region", label: "Source" },
+          ]}
+          rows={timers}
+        />
+      </CollapsiblePanel>
       <CollapsiblePanel title="Buildings HUD" defaultOpen>
         <DataTable
           columns={[

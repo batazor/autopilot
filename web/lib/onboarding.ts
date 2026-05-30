@@ -68,6 +68,7 @@ export function fetchEnvHealth(): Promise<EnvHealth> {
 
 const WIZARD_SEEN_KEY = "wos:onboarding:wizardSeen";
 const CHECKLIST_DISMISSED_KEY = "wos:onboarding:checklistDismissed";
+const CHECKLIST_CELEBRATED_KEY = "wos:onboarding:checklistCelebrated";
 
 export function wizardSeen(): boolean {
   if (typeof window === "undefined") return true;
@@ -87,4 +88,14 @@ export function checklistDismissed(): boolean {
 export function markChecklistDismissed(): void {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(CHECKLIST_DISMISSED_KEY, "1");
+}
+
+export function checklistCelebrated(): boolean {
+  if (typeof window === "undefined") return true;
+  return window.localStorage.getItem(CHECKLIST_CELEBRATED_KEY) === "1";
+}
+
+export function markChecklistCelebrated(): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(CHECKLIST_CELEBRATED_KEY, "1");
 }

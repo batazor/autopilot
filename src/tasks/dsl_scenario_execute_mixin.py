@@ -1320,6 +1320,7 @@ class DslScenarioExecuteMixin(_Base):
                         spec.get("delay"),
                         instance_id=instance_id,
                         redis_async=self.redis_client,
+                        player_id=self.player_id,
                     )
                     skip_dup = bool(spec.get("skip_if_duplicate", True))
                 else:

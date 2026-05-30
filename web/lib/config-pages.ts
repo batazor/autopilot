@@ -46,12 +46,27 @@ export type AdbDeviceRow = {
   input_backend_effective: string;
 };
 
+export type AdbDetectedGame = {
+  id: string;
+  label: string;
+  package: string;
+  beta: boolean;
+  running: boolean;
+};
+
+export type AdbLiveDevice = {
+  serial: string;
+  canonical_serial?: string;
+  line: string;
+  detected_games?: AdbDetectedGame[];
+};
+
 export type AdbStatus = {
   adb_executable: string;
   devices_yaml: string;
   settings_yaml: string;
   configured: AdbDeviceRow[];
-  live_devices: Array<{ serial: string; canonical_serial?: string; line: string }>;
+  live_devices: AdbLiveDevice[];
   scan_error: string | null;
 };
 

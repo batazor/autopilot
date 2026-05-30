@@ -57,7 +57,7 @@ _FOREGROUND_FAILURE_RETRIES = 3
 _FOREGROUND_FAILURE_RETRY_INTERVAL_S = 2.0
 
 
-def _is_game_foreground_after_retries(
+def _is_game_running_after_retries(
     ba: BotActions,
     instance_id: str,
     *,
@@ -65,14 +65,21 @@ def _is_game_foreground_after_retries(
     retries: int = _FOREGROUND_FAILURE_RETRIES,
     retry_interval: float = _FOREGROUND_FAILURE_RETRY_INTERVAL_S,
 ) -> bool:
-    """Return true if any foreground probe succeeds before restart escalation."""
+    """Return true if the game *process* is alive before restart escalation.
+
+    Aliveness — not the resumed-activity ("foreground") check — is the restart
+    criterion. On BlueStacks the foreground parse false-negatives while the game
+    runs fine (the host launcher is reported as the top activity), which used to
+    force-restart a healthy game. We only restart when the process is genuinely
+    dead; a momentary ``pidof`` miss during a relaunch is absorbed by the retries.
+    """
     attempts = max(1, int(retries) + 1)
     for attempt in range(1, attempts + 1):
         try:
-            if ba.is_game_foreground(instance_id):
+            if ba.is_game_running(instance_id):
                 if attempt > 1:
                     logger.info(
-                        "Watchdog: %s foreground check recovered on attempt %s/%s",
+                        "Watchdog: %s game process found on attempt %s/%s",
                         instance_id,
                         attempt,
                         attempts,
@@ -80,7 +87,7 @@ def _is_game_foreground_after_retries(
                 return True
         except Exception:
             logger.debug(
-                "Watchdog: foreground check attempt %s/%s failed on %s",
+                "Watchdog: process check attempt %s/%s failed on %s",
                 attempt,
                 attempts,
                 instance_id,
@@ -91,7 +98,7 @@ def _is_game_foreground_after_retries(
             break
 
         logger.warning(
-            "Watchdog: Whiteout not foreground on %s — retrying check %s/%s in %.1fs",
+            "Watchdog: Whiteout process not found on %s — retrying check %s/%s in %.1fs",
             instance_id,
             attempt,
             attempts - 1,
@@ -159,22 +166,24 @@ def restart_application_after_health_failure(
                 )
             return
 
-        # 2. Poll until the game is foreground or we hit the budget.
+        # 2. Poll until the game process is back or we hit the budget. Aliveness,
+        # not foreground — the BlueStacks resumed-activity parse would otherwise
+        # never confirm and we'd always burn the full timeout.
         deadline = time.monotonic() + _FOREGROUND_VERIFY_TIMEOUT_S
         while time.monotonic() < deadline:
             try:
-                if ba.is_game_foreground(instance_id):
+                if ba.is_game_running(instance_id):
                     break
             except Exception:
                 logger.debug(
-                    "Watchdog: is_game_foreground probe failed on %s",
+                    "Watchdog: is_game_running probe failed on %s",
                     instance_id,
                     exc_info=True,
                 )
             time.sleep(_FOREGROUND_VERIFY_INTERVAL_S)
         else:
             logger.warning(
-                "Watchdog: %s did not return to foreground within %.1fs — resuming anyway",
+                "Watchdog: %s process did not come back within %.1fs — resuming anyway",
                 instance_id,
                 _FOREGROUND_VERIFY_TIMEOUT_S,
             )
@@ -315,7 +324,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
                 last_err = str(state_row.get("last_error") or "")
                 if "game not foreground" in last_err:
                     try:
-                        if ba.is_game_foreground(iid):
+                        if ba.is_game_running(iid):
                             _push_instance_command(r, iid, {"cmd": "resume"})
                             with contextlib.suppress(redis.RedisError):
                                 r.hset(
@@ -323,7 +332,7 @@ def run_forever(stop: threading.Event | None = None) -> None:
                                     mapping={"paused": "0", "last_error": ""},
                                 )
                             logger.info(
-                                "Watchdog: %s game foreground after startup pause — resumed",
+                                "Watchdog: %s game process alive after startup pause — resumed",
                                 iid,
                             )
                         else:
@@ -339,10 +348,10 @@ def run_forever(stop: threading.Event | None = None) -> None:
                 continue
 
             try:
-                if _is_game_foreground_after_retries(ba, iid, stop=ev):
+                if _is_game_running_after_retries(ba, iid, stop=ev):
                     continue
                 logger.warning(
-                    "Watchdog: Whiteout not foreground on %s after retries — restarting application",
+                    "Watchdog: Whiteout process dead on %s after retries — restarting application",
                     iid,
                 )
                 restart_application_after_health_failure(iid, r, settings)

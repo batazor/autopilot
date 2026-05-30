@@ -5,6 +5,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from adb import click_approval_enabled
 from analysis.overlay import run_overlay_analysis
 from analysis.overlay_ttl_state import (
     maybe_persist_overlay_ttl_state_to_redis,
@@ -181,33 +182,42 @@ class InstanceWorkerScreenMixin(_Base):
             results, current_screen=current_screen
         )
 
-    async def _run_rolling_blocking(self, fn: Any, /, *args: Any, **kwargs: Any) -> Any:
-        raise NotImplementedError
-
     # Cooldown between detector-issued pop-up taps. One frame's tap needs time to
     # animate the modal out before we re-evaluate; without this we'd re-tap the
     # same X every ~500ms rolling frame.
     _POPUP_TAP_COOLDOWN_S = 1.5
 
-    async def _maybe_handle_popup(self, image_bgr: np.ndarray) -> bool:
+    async def _maybe_handle_popup(self, image_bgr: np.ndarray, *, current_screen: str | None) -> bool:
         """Detect and dismiss a blurred-scrim modal with one safe geometric tap.
 
-        Returns ``True`` when a pop-up was *handled this tick* — either tapped,
-        suppressed during cooldown, or deliberately not-acted-on (captcha,
-        unsafe purchase) — so the caller short-circuits screen-detect + overlay
-        for the frame (a modal occludes the landmarks they rely on anyway).
+        Returns ``True`` when a pop-up was *handled this tick* — tapped, or
+        suppressed during cooldown — so the caller short-circuits the rest of
+        the tick (a modal occludes the landmarks overlay rules rely on anyway).
 
-        Returns ``False`` when there is no actionable pop-up, or when the
-        detector declines to act (ad/webview with no learned close model): the
-        normal pipeline — and ultimately the legacy ``dismiss_unknown_popup``
-        shotgun fallback — then runs as before.
+        Returns ``False`` when nothing actionable was done: feature disabled,
+        a *known* screen is showing, no modal, captcha, approval-deferred, or
+        the detector declined (ad/webview with no learned close model). The
+        normal pipeline — and the legacy ``dismiss_unknown_popup`` shotgun —
+        then runs as before.
 
-        Gated off by default via ``worker.popup_detector_enabled``. While a queue
-        task is executing we defer to that scenario's own flow and skip.
+        Two guards make this safe enough to run on a live worker:
+
+        - **UNKNOWN-gate**: only act when ``current_screen`` is hard-cleared to
+          ``None``. A real modal occludes the screen's landmarks, so the screen
+          detector reports UNKNOWN; a normal page (Mail, heroes, a cutscene's
+          parent screen) resolves to a known node and is left alone. This is
+          what kills the false positives that mis-tapped working screens.
+        - **Approval-aware**: when click-approval is on, a direct tap would
+          block on the rolling thread pool waiting for an operator decision and
+          can stall capture. So we defer to the legacy unknown-popup scenario,
+          whose taps run on the task executor and are approval-gated there.
         """
         if not getattr(self._settings.worker, "popup_detector_enabled", False):
             return False
         if self._task_busy.is_set():
+            return False
+        # UNKNOWN-gate: a known screen is never a modal we should dismiss.
+        if current_screen:
             return False
 
         try:
@@ -232,23 +242,36 @@ class InstanceWorkerScreenMixin(_Base):
             self._record_popup(state.kind, "escalated")
             return False
 
+        # Approval-aware: never issue a blocking tap on the rolling pool when an
+        # operator decision is required — hand off to the scenario fallback.
+        if click_approval_enabled(self._cfg.instance_id):
+            self._record_popup(state.kind, "approval_deferred")
+            return False
+
         if not await self._acquire_popup_tap_cooldown():
             self._record_popup(state.kind, "cooldown")
             return True  # modal still present; skip screen-detect this tick
 
-        if state.kind == PopupKind.REWARD_CLAIM and state.primary_point is not None:
+        if state.kind == PopupKind.TAP_TO_CONTINUE and state.primary_point is not None:
+            # "Tap anywhere / tap to continue" page — tap the center, not the
+            # (non-existent) top-right X.
             target: Point = state.primary_point
+            approval_region = "popup_tap_anywhere"
+        elif state.kind == PopupKind.REWARD_CLAIM and state.primary_point is not None:
+            target = state.primary_point
+            approval_region = "popup_close"
         else:
             # SAFE_DISMISS / UNKNOWN_MODAL / PURCHASE → the X only. For PURCHASE
             # this is the *only* permitted tap; a CTA is never tapped.
             assert state.close_point is not None  # guaranteed by the guard above
             target = state.close_point
+            approval_region = "popup_close"
 
         await self._run_rolling_blocking(
             self._bot_actions.tap,
             self._cfg.instance_id,
             target,
-            approval_region="popup_close",
+            approval_region=approval_region,
             approval_source="popup",
         )
         self._last_popup_tap_mono = time.monotonic()
@@ -534,4 +557,3 @@ class InstanceWorkerScreenDetectMixin(_Base):
                     "",
                 )
         return None
-

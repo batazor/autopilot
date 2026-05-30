@@ -20,11 +20,17 @@ import time
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+from config.event_timers import store_event_timer
 from config.log_ansi import scenario_log_label as _scen
 from layout.area_lookup import screen_region_by_name
 from layout.types import Region
 from ocr.preprocess import parse_digit_count, resolve_preprocess
-from tasks.dsl_scenario_helpers import _parse_hms_to_seconds, _read_current_screen
+from tasks.dsl_scenario_helpers import (
+    _event_timer_name_from_spec,
+    _parse_hms_to_seconds,
+    _read_active_player,
+    _read_current_screen,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -489,7 +495,8 @@ class DslOcrMixin(_Base):
         else:
             store_redis_field = str(raw_store or "").strip()
             state_yaml_path = str(raw_state or "").strip()
-        planned_target = store_redis_field or state_yaml_path
+        event_timer_name = _event_timer_name_from_spec(step.get("event_timer"))
+        planned_target = store_redis_field or state_yaml_path or event_timer_name
         # Single name used in early-skip logs (low_confidence, integer_cast_failed, etc).
         planned_store_field = planned_target
 
@@ -617,10 +624,61 @@ class DslOcrMixin(_Base):
                         region, scen_label,
                     )
 
+        # Optional ``event_timer: <event_name>`` stores a durable reset timer
+        # snapshot in SQLite player state. Unlike the Redis ``store:`` value,
+        # this survives worker restarts and keeps dotted event names intact as
+        # dict keys (``event_timers["shop.artisans_trove"]``).
+        event_timer_written = False
+        if event_timer_name:
+            timer_seconds = _parse_hms_to_seconds(text)
+            if timer_seconds is None:
+                logger.warning(
+                    "dsl_scenario: event_timer skipped event=%s reason=time_parse_failed "
+                    "value=%r region=%s scenario=%s",
+                    event_timer_name,
+                    text,
+                    region,
+                    scen_label,
+                )
+            else:
+                scope_pid = str(self.player_id or "").strip()
+                if not scope_pid:
+                    scope_pid = await _read_active_player(instance_id, self.redis_client)
+                if not scope_pid:
+                    logger.warning(
+                        "dsl_scenario: event_timer skipped event=%s reason=no_active_player "
+                        "value=%r region=%s scenario=%s",
+                        event_timer_name,
+                        text,
+                        region,
+                        scen_label,
+                    )
+                else:
+                    event_timer_written = store_event_timer(
+                        player_id=scope_pid,
+                        event_name=event_timer_name,
+                        raw_text=text,
+                        remaining_s=timer_seconds,
+                        recorded_at=time.time(),
+                        source_region=region,
+                        confidence=confidence,
+                    )
+                    if event_timer_written:
+                        logger.info(
+                            "dsl_scenario: event_timer ok event=%s remaining=%ds "
+                            "player=%s region=%s scenario=%s",
+                            event_timer_name,
+                            timer_seconds,
+                            scope_pid,
+                            region,
+                            scen_label,
+                        )
+
         if (
             not store_redis_field
             and not state_yaml_path
             and not throttle_written
+            and not event_timer_name
         ):
             logger.warning(
                 "dsl_scenario: persist skipped reason=no_target "
@@ -769,7 +827,11 @@ class DslOcrMixin(_Base):
             instance_id,
             region=region,
             step=step,
-            status="stored" if (redis_written or state_written) else "no_redis_client",
+            status=(
+                "stored"
+                if (redis_written or state_written or event_timer_written)
+                else "no_redis_client"
+            ),
             threshold_s=thr_s,
             confidence_s=conf_s,
             raw_text=text,

@@ -49,6 +49,18 @@ _APPROVAL_PUBLISH_WAIT_SECONDS = 60.0
 # Waiting requests in approval mode are stored without expiry: approval mode is
 # operator-paced and must not age out while the bot is waiting for a decision.
 APPROVAL_CURRENT_TTL_SECONDS = 300
+# Abort signal: when the worker cancels the in-flight task (game restart,
+# preemption) the scenario coroutine gets a ``CancelledError`` and is reported
+# as failed — but a tap/swipe blocked inside ``_require_approval`` runs in an
+# ``asyncio.to_thread`` worker thread that asyncio cannot interrupt. Without a
+# shared abort signal that thread keeps polling Redis forever, the approvals
+# page keeps showing the orphaned click, and an operator approve would tap the
+# freshly-restarted game. The worker stamps this key (a wall-clock timestamp);
+# the busy-wait gives up as soon as it sees an abort stamped at/after the
+# request started. TTL-bounded so a brand-new request started after the restart
+# window is never falsely aborted.
+_APPROVAL_ABORT_KEY_FMT = "wos:ui:click_approval:abort:{instance_id}"
+_APPROVAL_ABORT_TTL_SECONDS = 120
 _CLICK_APPROVAL_DISABLED = frozenset({"0", "false", "no", "off"})
 _TIMELINE_MAX_ROWS = 5000
 _TIMELINE_TTL_SECONDS = 3600
@@ -96,6 +108,48 @@ def click_approval_enabled(instance_id: str) -> bool:
     if not raw:
         return True
     return raw not in _CLICK_APPROVAL_DISABLED
+
+
+def abort_pending_approval(instance_id: str, reason: str = "aborted_for_restart") -> None:
+    """Signal any in-flight ``_require_approval`` busy-wait for ``instance_id`` to give up.
+
+    The worker calls this right before it cancels the current task (game
+    restart / preemption). asyncio cannot interrupt the ``asyncio.to_thread``
+    worker thread that ``_require_approval`` runs on, so the thread is told to
+    stop via this shared Redis key instead: the busy-wait polls it each
+    iteration and returns ``(False, req_id)`` — clearing the approvals slot and
+    failing the click/swipe — when it sees an abort stamped at/after the
+    request started. Stored with a TTL so a fresh request opened after the
+    restart window is never mistaken for the aborted one.
+    """
+    try:
+        _redis().set(
+            _APPROVAL_ABORT_KEY_FMT.format(instance_id=instance_id),
+            json.dumps({"at": time.time(), "reason": reason}),
+            ex=_APPROVAL_ABORT_TTL_SECONDS,
+        )
+    except Exception:
+        logger.debug("Failed to set approval abort signal for %s", instance_id, exc_info=True)
+
+
+def _approval_abort_reason(instance_id: str, since: float) -> str | None:
+    """Return the abort reason if an abort was stamped at/after ``since``, else None.
+
+    ``since`` is the moment the current ``_require_approval`` call started; an
+    abort timestamped before that belongs to an earlier (already finished)
+    request and must be ignored.
+    """
+    raw = _r_get(_APPROVAL_ABORT_KEY_FMT.format(instance_id=instance_id))
+    if not raw:
+        return None
+    try:
+        doc = json.loads(raw)
+        at = float(doc.get("at", 0.0))
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+    if at < since:
+        return None
+    return str(doc.get("reason") or "aborted_for_restart")
 
 
 def _redis() -> redis.Redis:
@@ -269,6 +323,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     if not click_approval_enabled(instance_id):
         return True, None
 
+    # Captured before any blocking wait so an abort signal stamped at any point
+    # after we entered (page-open wait, publish, or operator wait) aborts this
+    # request rather than only the operator-decision phase.
+    entered_at = time.time()
+
     preview_capturer = payload.get("_preview_capturer")
     last_preview_refresh_at = 0.0
 
@@ -297,6 +356,14 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             "Click approval: page not open, waiting for operator to open it (%s)", instance_id
         )
         while not _r_get(hb_key):
+            abort_reason = _approval_abort_reason(instance_id, entered_at)
+            if abort_reason is not None:
+                logger.info(
+                    "Click approval: aborted while waiting for page to open (%s): %s",
+                    instance_id,
+                    abort_reason,
+                )
+                return False, None
             _refresh_preview_if_due(payload)
             time.sleep(_APPROVAL_POLL_SECONDS)
         logger.info("Click approval: page opened — proceeding (%s)", instance_id)
@@ -540,6 +607,17 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         else None
     )
     while True:
+        abort_reason = _approval_abort_reason(instance_id, entered_at)
+        if abort_reason is not None:
+            decision = "abort"
+            decision_reason = abort_reason
+            logger.warning(
+                "Click approval: aborted for %s (req=%s): %s",
+                instance_id,
+                req_id,
+                abort_reason,
+            )
+            break
         if wait_deadline is not None and time.monotonic() >= wait_deadline:
             decision = "reject"
             decision_reason = "wall_clock_timeout"

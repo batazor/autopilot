@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 from config.paths import repo_root as default_repo_root
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
     from pathlib import Path
 
 GAMES_DIR_NAME = "games"
@@ -32,16 +33,22 @@ DEFAULT_GAME = "wos"
 class GameSpec:
     """Static metadata for one supported game.
 
-    ``package`` is the Android application id used by ``adb pidof`` /
-    ``monkey -p`` / ``dumpsys activity activities`` to detect or launch the
-    foreground app. ``launcher_activity`` is reserved for games where the
-    default LAUNCHER intent doesn't open the right activity.
+    ``package`` is the canonical Android application id. ``package_aliases``
+    are additional ids accepted as the same game, for example beta builds.
+    ``launcher_activity`` is reserved for games where the default LAUNCHER
+    intent doesn't open the right activity.
     """
 
     id: str
     label: str
     package: str
+    package_aliases: tuple[str, ...] = ()
     launcher_activity: str | None = None
+
+    @property
+    def packages(self) -> tuple[str, ...]:
+        """Canonical Android package followed by accepted aliases."""
+        return (self.package, *self.package_aliases)
 
 
 GAMES: dict[str, GameSpec] = {
@@ -49,6 +56,7 @@ GAMES: dict[str, GameSpec] = {
         id="wos",
         label="Whiteout Survival",
         package="com.gof.global",
+        package_aliases=("com.xyz.gof",),
     ),
     "kingshot": GameSpec(
         id="kingshot",
@@ -72,13 +80,38 @@ def package_for_game(game: str) -> str:
     return spec_for_game(game).package
 
 
+def packages_for_game(game: str) -> tuple[str, ...]:
+    """Android package ids that should be treated as ``game``.
+
+    The first entry is the canonical package used as the default launch target;
+    later entries are accepted aliases such as beta builds.
+    """
+    return spec_for_game(game).packages
+
+
+def game_ids_for_packages(packages: Collection[str]) -> list[str]:
+    """Known game ids represented by ``packages``, in registry order."""
+    installed = {pkg.strip() for pkg in packages if pkg.strip()}
+    return [
+        gid
+        for gid, spec in GAMES.items()
+        if any(pkg in installed for pkg in spec.packages)
+    ]
+
+
+def matching_packages_for_game(game: str, packages: Collection[str]) -> tuple[str, ...]:
+    """Installed package ids for ``game``, preserving registry package order."""
+    installed = {pkg.strip() for pkg in packages if pkg.strip()}
+    return tuple(pkg for pkg in packages_for_game(game) if pkg in installed)
+
+
 def game_for_package(pkg: str) -> str | None:
     """Reverse lookup: game id whose package matches, or ``None``."""
     needle = (pkg or "").strip()
     if not needle:
         return None
     for spec in GAMES.values():
-        if spec.package == needle:
+        if needle in spec.packages:
             return spec.id
     return None
 

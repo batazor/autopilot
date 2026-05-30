@@ -25,6 +25,7 @@ class PopupKind(StrEnum):
     NONE = "none"  # no modal detected
     SAFE_DISMISS = "safe_dismiss"  # close via X / "Got it" / "Later"
     REWARD_CLAIM = "reward_claim"  # has Claim/Confirm, no X — tap the claim button
+    TAP_TO_CONTINUE = "tap_to_continue"  # "Tap anywhere"/"Tap to continue" page — tap the center, no X
     PURCHASE = "purchase"  # price/Buy/Spend present — NEVER tap CTA, only X
     CAPTCHA = "captcha"  # route to 2captcha handler, do NOT dismiss
     AD_WEBVIEW = "ad_webview"  # full-bleed, no blurred scrim — model fallback

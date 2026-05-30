@@ -81,10 +81,19 @@ class WorkerConfig:
 
     When True, each analyzed frame is first checked for a blurred-scrim modal; a
     confirmed pop-up is dismissed with a single geometric tap (safety-classified)
-    and the rest of the tick short-circuits. Defaults off so rollout is a
-    deliberate per-deployment flip; the legacy ``dismiss_unknown_popup`` shotgun
-    scenario remains the deeper fallback either way. Override with
-    ``WOS_POPUP_DETECTOR``.
+    and the rest of the tick short-circuits. The legacy ``dismiss_unknown_popup``
+    shotgun scenario remains the deeper fallback either way. Enable per-process
+    with ``WOS_POPUP_DETECTOR=1``.
+
+    Default OFF until two known issues are fixed:
+    1. False positives — a full-screen page with a large flat background (e.g.
+       the Mail page, story cutscenes) reads like a blurred scrim, so the worker
+       short-circuits screen detection and may issue a stray dismiss tap. Fix:
+       gate action on ``ScreenDetector`` returning UNKNOWN
+       (see ``PopupDetector.corroborates_unknown_screen``).
+    2. Approval-blocked taps — when click-approval is on, the dismiss tap blocks
+       on the rolling thread pool waiting for operator approval, which can stall
+       the rolling capture loop. Fix: make the popup tap approval-aware / async.
     """
     device_display: DeviceDisplayConfig | None = None
     """Default ADB display profile applied at worker boot (per-device overrides in devices.yaml)."""

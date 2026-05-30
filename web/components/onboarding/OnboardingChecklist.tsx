@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { fetchLicenseStatus } from "@/lib/api";
+import { OnboardingConfetti } from "@/components/onboarding/OnboardingConfetti";
 import {
+  checklistCelebrated,
   checklistDismissed,
   fetchOnboardingState,
+  markChecklistCelebrated,
   markChecklistDismissed,
   type OnboardingState,
 } from "@/lib/onboarding";
@@ -27,6 +30,7 @@ export function OnboardingChecklist() {
   const [state, setState] = useState<OnboardingState | null>(null);
   const [dismissed, setDismissed] = useState(true);
   const [licensed, setLicensed] = useState<boolean | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
 
   useEffect(() => {
     setDismissed(checklistDismissed());
@@ -71,15 +75,55 @@ export function OnboardingChecklist() {
     };
   }, [dismissed, licensed]);
 
+  useEffect(() => {
+    if (dismissed || !licensed || !state) return;
+    const complete = ITEMS.every((it) => state[it.key]);
+    if (!complete) {
+      setCelebrate(false);
+      return;
+    }
+    if (checklistCelebrated()) return;
+    markChecklistCelebrated();
+    setCelebrate(true);
+  }, [dismissed, licensed, state]);
+
   if (dismissed || !licensed || !state) return null;
 
   const done = ITEMS.filter((it) => state[it.key]).length;
-  if (done === ITEMS.length) return null;
+  const complete = done === ITEMS.length;
 
   const dismiss = () => {
     markChecklistDismissed();
     setDismissed(true);
   };
+
+  if (complete) {
+    return (
+      <div className="onboarding-checklist onboarding-checklist--complete">
+        <OnboardingConfetti active={celebrate} />
+        <div className="onboarding-checklist__header">
+          <span className="onboarding-checklist__title">
+            First steps complete
+          </span>
+          <button
+            type="button"
+            className="onboarding-checklist__dismiss"
+            onClick={dismiss}
+            aria-label="Dismiss checklist"
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+        <div className="onboarding-checklist__complete">
+          <span className="onboarding-checklist__complete-icon" aria-hidden>
+            ✓
+          </span>
+          <span>Ready for regular runs</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="onboarding-checklist">

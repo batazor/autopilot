@@ -153,6 +153,13 @@ class _Harness(InstanceWorkerRollingMixin):
         # Synchronous shortcut — the actual worker uses a thread pool.
         return fn(*args, **kwargs)
 
+    async def _maybe_handle_popup(self, image_bgr: np.ndarray, *, current_screen: str | None = None) -> bool:
+        # Popup handling lives on the full worker, not the rolling mixin under
+        # test. Return False (no popup) so the snapshot pipeline proceeds to
+        # detect/overlay/who_i_am; deliberately not recorded in ``calls`` so the
+        # existing stage-order assertions stay unchanged.
+        return False
+
     def _grab_layout_bgr(self) -> np.ndarray:
         self.calls.append("grab")
         return np.zeros((100, 100, 3), dtype=np.uint8)

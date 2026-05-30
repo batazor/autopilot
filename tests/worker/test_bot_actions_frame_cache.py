@@ -275,6 +275,48 @@ def test_max_age_ms_recaptures_when_cache_too_old(
     assert counter[0] == 2
 
 
+def test_rolling_capture_keeps_pending_settle_boundary(
+    actions_with_stub: tuple[BotActions, list[int]],
+) -> None:
+    """A frame captured mid-animation must not clear a tap's settle boundary."""
+    bot, _counter = actions_with_stub
+    with bot._frame_cache_lock:
+        # Tap set a settle deadline at t=20; a rolling frame grabbed at t=10
+        # (before the deadline) must leave the boundary intact.
+        bot._await_next_frame["bs1"] = 20.0
+        bot._clear_settle_boundary_locked("bs1", 10.0)
+        assert bot._await_next_frame.get("bs1") == 20.0
+        # A frame captured at/after the deadline clears it.
+        bot._clear_settle_boundary_locked("bs1", 25.0)
+        assert "bs1" not in bot._await_next_frame
+
+
+def test_cached_capture_rejects_frame_older_than_settle_boundary(
+    actions_with_stub: tuple[BotActions, list[int]],
+    mocker,
+) -> None:
+    """Cached read must not return a frame captured before a pending boundary.
+
+    Reproduces the double-click race: a rolling tick repopulates the cache with
+    a pre-tap frame; without honoring the settle boundary the next DSL match
+    would re-read that stale frame and click the same button again.
+    """
+    bot, counter = actions_with_stub
+    fake_now = [1000.0]
+    mocker.patch.object(tap_module.time, "monotonic", new=lambda: fake_now[0])
+
+    stale = np.full((10, 10, 3), 7, dtype=np.uint8)
+    with bot._frame_cache_lock:
+        # Cache holds a frame captured at t=1000; a tap then set a settle
+        # boundary slightly in the future.
+        bot._frame_cache["bs1"] = (1000.0, stale, None)
+        bot._await_next_frame["bs1"] = 1000.2
+
+    out = _capture_after_next_publish(bot, counter, "bs1")
+    assert int(out[0, 0, 0]) != 7, "stale pre-boundary frame must be rejected"
+    assert counter[0] == 1
+
+
 def test_max_age_ms_does_not_affect_cache_for_no_age_callers(
     actions_with_stub: tuple[BotActions, list[int]],
     mocker,

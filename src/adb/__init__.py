@@ -7,10 +7,11 @@ from adb.approvals import (
     _consume_skip,
     _redis,
     _require_approval,
+    abort_pending_approval,
     click_approval_enabled,
 )
 from adb.bot_actions import BotActions
-from adb.controller import AdbController
+from adb.controller import AdbController, ProcessDetection
 from adb.quartz_screencap import DEFAULT_QUARTZ_TARGET_SIZE, quartz_screencap_bgr
 from adb.screencap import (
     DEFAULT_ADB_BIN,
@@ -31,9 +32,11 @@ __all__ = [
     "MSG_ADB_NOT_FOUND",
     "AdbController",
     "BotActions",
+    "ProcessDetection",
     "_consume_skip",
     "_redis",
     "_require_approval",
+    "abort_pending_approval",
     "adb_screencap_bgr",
     "adb_screencap_png",
     "adb_screencap_to_file",

@@ -81,6 +81,20 @@ async def test_reward_claim_taps_primary_not_close() -> None:
     assert actions.taps == [("bs1", _CLAIM)]
 
 
+async def test_tap_to_continue_taps_center_not_close() -> None:
+    # "Tap anywhere" page carries a geometric close_point too, but the handler
+    # must tap the center primary_point, not the (non-existent) top-right X.
+    center = Point(330, 540)
+    detector = _FakeDetector([_state(PopupKind.TAP_TO_CONTINUE, close=_CLOSE, primary=center), _state(PopupKind.NONE)])
+    handler = PopupBlockingHandler(detector, _capture, config=_FAST)
+    actions = _FakeActions()
+
+    result = await handler.handle("bs1", actions)
+
+    assert result == PopupHandleResult.HANDLED
+    assert actions.taps == [("bs1", center)]
+
+
 async def test_purchase_taps_only_close() -> None:
     detector = _FakeDetector([_state(PopupKind.PURCHASE), _state(PopupKind.NONE)])
     handler = PopupBlockingHandler(detector, _capture, config=_FAST)

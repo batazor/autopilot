@@ -17,9 +17,13 @@ import pytest
 import yaml
 from conftest import make_actions, patch_dsl
 
+import config.state_store as state_store_module
+import tasks.dsl_ocr_mixin as dsl_ocr_mixin
 import tasks.dsl_scenario as dsl
 from config.games import default_game as _default_game
 from config.games import modules_root_for as _modules_root_for
+from config.state_sqlite import set_state_db_path_for_tests
+from config.state_store import get_state_store
 from layout.types import Region as LayoutRegion
 from ocr.client import OCRResult
 from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
@@ -36,6 +40,8 @@ from tasks.dsl_scenario_helpers import _parse_hms_to_seconds
         ("  00:01:23  ", 83),  # whitespace tolerant
         ("Time: 00:01:23 left", 83),  # surrounding noise
         ("120:00:00", 432000),  # multi-day timer (5 days), no cap
+        ("1d 09:11:19", 119479),
+        ("Reset in 1 day 09:11:19", 119479),
         # Exact OCR output recorded against ``references/building.upgrading.png``
         # bbox ``building.upgrading.time`` (x=72.16% y=55.43% w=15.4% h=2.7%).
         # Locks in the round-trip the production overlay rule relies on for
@@ -160,6 +166,107 @@ async def test_ocr_step_time_type_stores_seconds_as_int(
     assert final["exploration_timer_s"] == "3723"
     # Raw OCR text is preserved alongside the coerced value.
     assert final["exploration_timer_s_text"] == "01:02:03"
+
+
+@pytest.mark.asyncio
+async def test_ocr_event_timer_stores_structured_sqlite_snapshot(
+    tmp_path: Path,
+    mocker,
+    monkeypatch: pytest.MonkeyPatch,
+    redis_async: object,
+) -> None:
+    db_path = tmp_path / "state.db"
+    set_state_db_path_for_tests(db_path)
+    monkeypatch.setattr(state_store_module, "_global_store", None)
+    fixed_now = 1_700_000_000.0
+    monkeypatch.setattr(dsl_ocr_mixin.time, "time", lambda: fixed_now)
+    try:
+        scenario_root = _scenario_root(tmp_path)
+        (scenario_root / "shop").mkdir(parents=True)
+        (scenario_root / "shop" / "event_timer.yaml").write_text(
+            yaml.dump(
+                {
+                    "enabled": True,
+                    "name": "Read event timer",
+                    "device_level": True,
+                    "steps": [
+                        {
+                            "ocr": "artisans_trove.delay",
+                            "event_timer": "shop.artisans_trove",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        (tmp_path / "area.json").write_text(
+            yaml.dump(
+                {
+                    "screens": [
+                        {
+                            "id": 1,
+                            "screen_id": "shop",
+                            "ocr": "references/shop.png",
+                            "regions": [
+                                {
+                                    "name": "artisans_trove.delay",
+                                    "action": "text",
+                                    "threshold": 0.5,
+                                    "bbox": {
+                                        "x": 25.0,
+                                        "y": 50.0,
+                                        "width": 50.0,
+                                        "height": 10.0,
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
+
+        class _StubOcrClient:
+            async def ocr_region(
+                self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any
+            ) -> OCRResult:
+                return OCRResult(
+                    region_id="artisans_trove.delay",
+                    text="1d 09:11:19",
+                    confidence=0.97,
+                )
+
+        import ocr.client as ocr_client_module
+
+        mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+        patch_dsl(mocker, actions, repo_root=tmp_path)
+
+        task = dsl.DslScenarioTask(
+            task_id="t-event-timer",
+            player_id="42",
+            scenario_key="event_timer",
+            redis_client=redis_async,  # type: ignore[arg-type]
+        )
+        result = await task.execute("bs1")
+
+        assert result.success is True
+        redis_state = await redis_async.hgetall("wos:player:42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        assert redis_state["artisans_trove.delay"] == "1d 09:11:19"
+
+        store = get_state_store().get("42")
+        assert store is not None
+        timer = store.snapshot().event_timers["shop.artisans_trove"]
+        assert timer.remaining_s == 119479
+        assert timer.recorded_at == fixed_now
+        assert timer.reset_at == fixed_now + 119479
+        assert timer.raw_text == "1d 09:11:19"
+        assert timer.source_region == "artisans_trove.delay"
+        assert timer.confidence == 0.97
+    finally:
+        set_state_db_path_for_tests(None)
+        state_store_module._global_store = None
 
 
 @pytest.mark.asyncio

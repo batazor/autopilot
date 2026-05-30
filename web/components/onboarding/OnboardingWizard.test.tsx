@@ -2,6 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("react-confetti", () => ({
+  default: (props: { className?: string }) => (
+    <canvas data-testid="onboarding-confetti" className={props.className} />
+  ),
+}));
+
 import { OnboardingWizard } from "./OnboardingWizard";
 import * as api from "@/lib/api";
 import * as onboarding from "@/lib/onboarding";
@@ -303,6 +309,7 @@ describe("OnboardingWizard", () => {
     expect(
       await screen.findByText("✓ The bot is running."),
     ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-confetti")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Finish" }),
     ).toBeInTheDocument();

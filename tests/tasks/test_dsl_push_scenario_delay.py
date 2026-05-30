@@ -5,6 +5,11 @@ from typing import Any
 
 import pytest
 
+import config.event_timers as event_timers_module
+import config.state_store as state_store_module
+from config.event_timers import store_event_timer
+from config.state_sqlite import set_state_db_path_for_tests
+from config.state_store import get_state_store
 from tasks.dsl_scenario_helpers import _resolve_push_delay_seconds
 
 
@@ -23,11 +28,13 @@ async def _resolve(
     *,
     store: dict[str, dict[str, Any]] | None = None,
     instance_id: str = "inst-1",
+    player_id: str | None = None,
 ) -> float | None:
     return await _resolve_push_delay_seconds(
         delay,
         instance_id=instance_id,
         redis_async=_FakeRedis(store),
+        player_id=player_id,
     )
 
 
@@ -57,6 +64,44 @@ async def test_state_field_artisans_trove_delay() -> None:
         "wos:player:p42:state": {"artisans_trove.delay": "02:18:11"},
     }
     assert await _resolve("artisans_trove.delay", store=store) == 8291.0
+
+
+@pytest.mark.asyncio
+async def test_sqlite_event_timer_artisans_trove_delay(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db_path = tmp_path / "state.db"
+    set_state_db_path_for_tests(db_path)
+    monkeypatch.setattr(state_store_module, "_global_store", None)
+    fixed_now = 1_700_000_000.0
+    monkeypatch.setattr(event_timers_module.time, "time", lambda: fixed_now)
+    try:
+        assert store_event_timer(
+            player_id="42",
+            event_name="shop.artisans_trove",
+            raw_text="1d 09:11:19",
+            remaining_s=119479,
+            recorded_at=fixed_now,
+            source_region="artisans_trove.delay",
+            confidence=0.93,
+        )
+        store = {
+            "wos:instance:inst-1:state": {"active_player": "42"},
+        }
+        assert await _resolve("shop.artisans_trove", store=store) == 119479.0
+
+        player = get_state_store().get("42")
+        assert player is not None
+        timer = player.snapshot().event_timers["shop.artisans_trove"]
+        assert timer.remaining_s == 119479
+        assert timer.recorded_at == fixed_now
+        assert timer.reset_at == fixed_now + 119479
+        assert timer.raw_text == "1d 09:11:19"
+        assert timer.confidence == 0.93
+    finally:
+        set_state_db_path_for_tests(None)
+        state_store_module._global_store = None
 
 
 @pytest.mark.asyncio

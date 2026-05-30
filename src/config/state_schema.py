@@ -304,6 +304,17 @@ def _gamer_shop_default() -> dict[str, object]:
     return {"isnotify": False}
 
 
+class EventTimerState(BaseModel):
+    """Durable reset timer snapshot keyed by event/scenario name."""
+
+    remaining_s: int = 0
+    recorded_at: float = 0.0
+    reset_at: float = 0.0
+    raw_text: str = ""
+    source_region: str = ""
+    confidence: float = 0.0
+
+
 class GamerState(BaseModel):
     id: int
     # Game the player belongs to (registry id from ``config.games.GAMES``).
@@ -338,6 +349,7 @@ class GamerState(BaseModel):
     chief: Chief = Field(default_factory=Chief)
     arena: Arena = Field(default_factory=Arena)
     healInjured: HealInjured = Field(default_factory=HealInjured)
+    event_timers: dict[str, EventTimerState] = Field(default_factory=dict)
 
     model_config = {"extra": "allow"}
 

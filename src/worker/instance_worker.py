@@ -9,7 +9,7 @@ from contextlib import suppress
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from adb import BotActions, click_approval_enabled
+from adb import BotActions, abort_pending_approval, click_approval_enabled
 from adb.screencap import DEFAULT_ADB_BIN
 
 # Both functions are imported solely so they live as attributes on the
@@ -369,6 +369,16 @@ class InstanceWorker(
             self._cfg.instance_id,
             reason,
         )
+        # If the task is blocked inside ``_require_approval`` (tap/swipe awaiting
+        # operator approval), it runs on an ``asyncio.to_thread`` worker thread
+        # that ``handle.cancel()`` cannot interrupt — the coroutine raises
+        # ``CancelledError`` but the thread keeps polling Redis and would tap the
+        # restarted game if the operator later approves. Stamp the abort signal
+        # first so that busy-wait gives up and clears the approvals slot too.
+        with suppress(Exception):
+            await self._run_blocking(
+                abort_pending_approval, self._cfg.instance_id, result_reason
+            )
         self._task_aborted_for_restart = True
         self._task_abort_result_reason = result_reason
         self._task_abort_reschedule = bool(reschedule)

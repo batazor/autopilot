@@ -736,6 +736,7 @@ export default function ApprovalsPage() {
             width={view?.preview.width ?? 0}
             height={view?.preview.height ?? 0}
             overlays={overlaysStable}
+            workerActive={!!view?.worker_alive}
             onStreamClosed={(reason) => {
               // No silent fallback — surface the close reason verbatim. The
               // operator stays in stream mode and decides whether to switch
@@ -1054,6 +1055,9 @@ function RegionProbePanel({
 }) {
   const result = probe?.result ?? null;
   const matched = !!result?.matched;
+  const action = String(result?.action || "findIcon");
+  const isRedDotProbe = action === "red_dot";
+  const redDotPresent = result?.red_dot_present === true;
   const score = asNumber(result?.score);
   const thresholdSeen = asNumber(result?.threshold) ?? threshold;
   const searchRegion = String(result?.search_region || selectedRegion || "—");
@@ -1072,8 +1076,8 @@ function RegionProbePanel({
     <div className="approvals-probe-body">
       <p className="meta">
         Live check for a merged area region (core `area.json` + module `area.yaml`).
-        Orange shows where the matcher searched,
-        green/gray shows the best template match and its confidence.
+        Orange shows where the probe searched,
+        green/gray shows the detected region or best template match.
       </p>
 
       <div className="toolbar">
@@ -1144,9 +1148,24 @@ function RegionProbePanel({
                   value={matched ? "yes" : "no"}
                   tone={matched ? "ok" : "danger"}
                 />
-                <MetricCard label="Score" value={score != null ? score.toFixed(4) : "—"} />
-                <MetricCard label="Threshold" value={thresholdSeen.toFixed(3)} />
-                <MetricCard label="Action" value={String(result.action || "findIcon")} />
+                <MetricCard
+                  label={isRedDotProbe ? "Red dot" : "Score"}
+                  value={
+                    isRedDotProbe
+                      ? redDotPresent
+                        ? "present"
+                        : "absent"
+                      : score != null
+                        ? score.toFixed(4)
+                        : "—"
+                  }
+                  tone={isRedDotProbe ? (redDotPresent ? "ok" : "danger") : undefined}
+                />
+                <MetricCard
+                  label="Threshold"
+                  value={isRedDotProbe ? "—" : thresholdSeen.toFixed(3)}
+                />
+                <MetricCard label="Action" value={action} />
               </div>
               <p className="meta">
                 Region: <code>{resolvedRegion}</code>
@@ -1159,24 +1178,31 @@ function RegionProbePanel({
                 {" "}
                 · search: <code>{searchRegion}</code>
               </p>
-              <p className="meta">
-                Template:{" "}
-                <code>
-                  {asNumber(result.template_w) ?? "—"}×{asNumber(result.template_h) ?? "—"}
-                </code>
-                {Array.isArray(result.top_left) ? (
-                  <>
-                    {" "}
-                    · top-left: <code>{result.top_left.join(", ")}</code>
-                  </>
-                ) : null}
-                {result.match_source ? (
-                  <>
-                    {" "}
-                    · source: <code>{String(result.match_source)}</code>
-                  </>
-                ) : null}
-              </p>
+              {isRedDotProbe ? (
+                <p className="meta">
+                  Red-dot search:{" "}
+                  <code>{String(result.red_dot_search_mode || "within_zone")}</code>
+                </p>
+              ) : (
+                <p className="meta">
+                  Template:{" "}
+                  <code>
+                    {asNumber(result.template_w) ?? "—"}×{asNumber(result.template_h) ?? "—"}
+                  </code>
+                  {Array.isArray(result.top_left) ? (
+                    <>
+                      {" "}
+                      · top-left: <code>{result.top_left.join(", ")}</code>
+                    </>
+                  ) : null}
+                  {result.match_source ? (
+                    <>
+                      {" "}
+                      · source: <code>{String(result.match_source)}</code>
+                    </>
+                  ) : null}
+                </p>
+              )}
               {result.template_bright_ratio != null || result.patch_bright_ratio != null ? (
                 <p className="meta">
                   Bright detail ratio · template{" "}

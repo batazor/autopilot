@@ -12,12 +12,15 @@ from config.games import (
     GameSpec,
     default_game,
     game_for_package,
+    game_ids_for_packages,
     games_root,
     is_known_game,
     is_module_reference,
     iter_games,
+    matching_packages_for_game,
     modules_root_for,
     package_for_game,
+    packages_for_game,
     spec_for_game,
     split_repo_relative,
 )
@@ -136,12 +139,14 @@ def test_registry_includes_wos_and_kingshot() -> None:
     assert set(GAMES) == {"wos", "kingshot"}
     assert isinstance(GAMES["wos"], GameSpec)
     assert GAMES["wos"].package == "com.gof.global"
+    assert GAMES["wos"].package_aliases == ("com.xyz.gof",)
     assert GAMES["kingshot"].package == "com.run.tower.defense"
 
 
 def test_spec_for_game_and_package_lookups() -> None:
     assert spec_for_game("wos").id == "wos"
     assert package_for_game("wos") == "com.gof.global"
+    assert packages_for_game("wos") == ("com.gof.global", "com.xyz.gof")
     assert package_for_game("kingshot") == "com.run.tower.defense"
 
 
@@ -154,6 +159,16 @@ def test_game_for_package_round_trip() -> None:
     for game in iter_games():
         pkg = package_for_game(game)
         assert game_for_package(pkg) == game
+
+
+def test_game_for_package_accepts_wos_beta_package() -> None:
+    assert game_for_package("com.xyz.gof") == "wos"
+
+
+def test_package_set_helpers_accept_wos_beta_package() -> None:
+    installed = {"com.android.systemui", "com.xyz.gof"}
+    assert game_ids_for_packages(installed) == ["wos"]
+    assert matching_packages_for_game("wos", installed) == ("com.xyz.gof",)
 
 
 def test_game_for_package_returns_none_for_unknown_package() -> None:

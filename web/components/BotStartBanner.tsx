@@ -2,18 +2,26 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import {
   fetchAdbStatus,
   fetchBotStatus,
+  fetchInstances,
   startLocalBot,
   stopLocalBot,
 } from "@/lib/api";
+import {
+  loadFleetInstanceId,
+  saveFleetInstanceId,
+  subscribeFleetInstanceId,
+} from "@/lib/fleet-prefs";
 import {
   adbReadinessTitle,
   evaluateAdbReadiness,
   type AdbReadiness,
 } from "@/lib/adb-device-ready";
+import { adbSerialMatches } from "@/lib/adb-serial";
 import type { AdbStatus } from "@/lib/config-pages";
 import type { BotStatusView } from "@/lib/types";
 import { Icon } from "@/components/ui/Icon";
@@ -53,6 +61,108 @@ function deviceChipLabel(adb: AdbStatus | null): string {
   if (configured === 0 && live === 0) return "No devices";
   if (configured === 0) return `${live} live`;
   return `${live}/${configured} live`;
+}
+
+// Switch the dashboard's active device from Bot control. The banner lives in
+// the sidebar, *outside* FleetContextProvider, so it can't read that context —
+// instead it shares the same source of truth the provider uses: the persisted
+// ``wos.fleet.instanceId`` (localStorage) plus the ``?instance_id=`` URL param.
+// Writing both keeps page selectors and this carousel in lockstep, and the
+// same-tab event from ``saveFleetInstanceId`` lets the banner reflect changes
+// made from a page dropdown.
+function useDeviceSwitcher() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const instancesQuery = useQuery<string[]>({
+    queryKey: ["fleetInstances"],
+    queryFn: fetchInstances,
+    refetchInterval: BOT_POLL_MS,
+  });
+  const instances = instancesQuery.data ?? [];
+  const [selected, setSelected] = useState("");
+
+  useEffect(() => {
+    setSelected(loadFleetInstanceId());
+    return subscribeFleetInstanceId(setSelected);
+  }, []);
+
+  // Fall back to the first device until a valid selection is persisted, so the
+  // carousel always shows *something* coherent with the list.
+  const current =
+    selected && instances.includes(selected) ? selected : (instances[0] ?? "");
+  const index = current ? instances.indexOf(current) : -1;
+
+  const select = useCallback(
+    (id: string) => {
+      if (!id) return;
+      saveFleetInstanceId(id); // persists + fires the same-tab sync event
+      setSelected(id);
+      // Push ``?instance_id=`` so a mounted FleetContextProvider (operate /
+      // debug pages) reacts live. Read the existing query off the URL rather
+      // than useSearchParams to avoid forcing a Suspense boundary in the
+      // always-mounted sidebar.
+      const params = new URLSearchParams(
+        typeof window !== "undefined" ? window.location.search : "",
+      );
+      params.set("instance_id", id);
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [router, pathname],
+  );
+
+  const step = useCallback(
+    (delta: number) => {
+      if (instances.length < 2 || index < 0) return;
+      const next = (index + delta + instances.length) % instances.length;
+      select(instances[next]);
+    },
+    [instances, index, select],
+  );
+
+  return { instances, current, index, step };
+}
+
+function DeviceCarousel() {
+  const { instances, current, index, step } = useDeviceSwitcher();
+  if (instances.length === 0) return null;
+  const multi = instances.length > 1;
+  return (
+    <div
+      className="nav-bot-banner__devnav"
+      role="group"
+      aria-label="Active device"
+    >
+      <button
+        type="button"
+        className="nav-bot-banner__action"
+        onClick={() => step(-1)}
+        disabled={!multi}
+        aria-label="Previous device"
+        title="Previous device"
+      >
+        <Icon name="chevron-left" size="sm" />
+      </button>
+      <span className="nav-bot-banner__devnav-label" title={current}>
+        <span className="nav-bot-banner__devnav-name">{current || "—"}</span>
+        {multi ? (
+          <span className="nav-bot-banner__badge">
+            {index + 1}/{instances.length}
+          </span>
+        ) : null}
+      </span>
+      <button
+        type="button"
+        className="nav-bot-banner__action"
+        onClick={() => step(1)}
+        disabled={!multi}
+        aria-label="Next device"
+        title="Next device"
+      >
+        <Icon name="chevron-right" size="sm" />
+      </button>
+    </div>
+  );
 }
 
 export function BotStartBanner() {
@@ -101,6 +211,27 @@ export function BotStartBanner() {
   const adbReadiness: AdbReadiness | null = adbStatus
     ? evaluateAdbReadiness(adbStatus)
     : null;
+
+  // Live ADB devices that aren't in the fleet registry get no worker and never
+  // show on Overview — surface a one-tap path to /adb to register them.
+  const unregisteredCount = adbStatus
+    ? adbStatus.live_devices.filter(
+        (d) =>
+          !adbStatus.configured.some((c) =>
+            adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
+          ),
+      ).length
+    : 0;
+  const unregisteredChip =
+    unregisteredCount > 0 ? (
+      <Link
+        href="/adb"
+        className="nav-bot-banner__chip nav-bot-banner__chip--warn"
+        title="Live ADB devices not in the fleet registry — register them to run the bot, then restart"
+      >
+        {unregisteredCount} unregistered →
+      </Link>
+    ) : null;
 
   const queryError =
     query.isError && query.error instanceof Error ? query.error.message : null;
@@ -217,6 +348,7 @@ export function BotStartBanner() {
             </button>
           </div>
         </div>
+        <DeviceCarousel />
         <div className="nav-bot-banner__chips" aria-label="Bot details">
           <span className="nav-bot-banner__chip">
             Mode {formatMode(botStatus.mode)}
@@ -232,6 +364,7 @@ export function BotStartBanner() {
           <span className="nav-bot-banner__chip nav-bot-banner__chip--device">
             {devicesLabel}
           </span>
+          {unregisteredChip}
         </div>
         {error ? (
           <p className="nav-bot-banner__error" role="alert">
@@ -287,6 +420,7 @@ export function BotStartBanner() {
           <Icon name="play" size="sm" />
         </button>
       </div>
+      <DeviceCarousel />
       <p className="nav-bot-banner__desc">
         {adbProblem ? (
           <>
@@ -311,6 +445,7 @@ export function BotStartBanner() {
           {deviceChipLabel(adbStatus)}
         </span>
         <span className="nav-bot-banner__chip">Mode local</span>
+        {unregisteredChip}
       </div>
       {error ? (
         <p className="nav-bot-banner__error" role="alert">

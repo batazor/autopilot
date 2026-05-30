@@ -57,10 +57,10 @@ def test_startup_pauses_when_device_offline() -> None:
     worker._bot_actions.ensure_game_foreground.assert_not_called()
 
 
-def test_startup_restarts_when_game_already_foreground() -> None:
+def test_startup_returns_when_game_already_running() -> None:
     worker = _Worker()
     worker._bot_actions = MagicMock()
-    worker._bot_actions.is_game_foreground.side_effect = [True, False, True]
+    worker._bot_actions.is_game_running.side_effect = [True, False, True]
 
     with patch(
         "adb.AdbController.list_devices",
@@ -73,10 +73,10 @@ def test_startup_restarts_when_game_already_foreground() -> None:
     worker._bot_actions.ensure_game_foreground.assert_not_called()
 
 
-def test_startup_launches_until_foreground() -> None:
+def test_startup_launches_until_running() -> None:
     worker = _Worker(_default_settings(game_foreground_timeout_seconds=60))
     worker._bot_actions = MagicMock()
-    worker._bot_actions.is_game_foreground.side_effect = [False, False, True]
+    worker._bot_actions.is_game_running.side_effect = [False, False, True]
 
     with patch(
         "adb.AdbController.list_devices",
@@ -94,7 +94,7 @@ def test_startup_launches_until_foreground() -> None:
 def test_startup_pauses_when_game_never_ready() -> None:
     worker = _Worker(_default_settings(game_foreground_timeout_seconds=1))
     worker._bot_actions = MagicMock()
-    worker._bot_actions.is_game_foreground.return_value = False
+    worker._bot_actions.is_game_running.return_value = False
     t0 = 1000.0
     mono = [t0]
 

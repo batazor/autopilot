@@ -19,6 +19,7 @@ from typing import Any
 import yaml
 
 from adb import _redis
+from config.event_timers import event_timer_remaining_seconds, read_event_timer
 from config.paths import repo_root as _repo_root  # noqa: F401
 
 # Re-exported so ``tasks.dsl_scenario`` can pull it through to the test surface,
@@ -371,14 +372,20 @@ async def _dsl_cond_allows_step(
 
 
 
-_HMS_RE = re.compile(r"(?:(\d{1,3}):)?(\d{1,2}):(\d{2})")
+_HMS_RE = re.compile(
+    r"(?:(?P<days>\d{1,4})\s*(?:days?|d)\s*)?"
+    r"(?:(?P<hours>\d{1,3}):)?"
+    r"(?P<minutes>\d{1,2}):(?P<seconds>\d{2})",
+    re.IGNORECASE,
+)
 _DURATION_SUFFIX_RE = re.compile(r"^\d+(?:\.\d+)?\s*(?:ms|s|m|h)$", re.IGNORECASE)
 
 
 def _parse_hms_to_seconds(text: str) -> int | None:
     """Parse OCR'd time strings like ``"00:01:23"`` / ``"1:23:45"`` /
-    ``"05:30"`` into total seconds. Returns ``None`` when no recognizable
-    H:M:S or M:SS group is found.
+    ``"05:30"`` / ``"1d 09:11:19"`` into total seconds.
+
+    Returns ``None`` when no recognizable H:M:S or M:SS group is found.
 
     Robust to surrounding noise (whitespace, leading labels, units): scans
     for the first colon-separated digit group in the string. The seconds
@@ -391,16 +398,55 @@ def _parse_hms_to_seconds(text: str) -> int | None:
     m = _HMS_RE.search(s)
     if m is None:
         return None
-    h_s, m_s, sec_s = m.groups()
     try:
-        h = int(h_s) if h_s else 0
-        mn = int(m_s)
-        sec = int(sec_s)
+        days = int(m.group("days") or 0)
+        h = int(m.group("hours") or 0)
+        mn = int(m.group("minutes"))
+        sec = int(m.group("seconds"))
     except (TypeError, ValueError):
         return None
     if mn >= 60 or sec >= 60:
         return None
-    return h * 3600 + mn * 60 + sec
+    return days * 86400 + h * 3600 + mn * 60 + sec
+
+
+def _event_timer_name_from_spec(spec: object) -> str:
+    """Extract an event timer key from an OCR ``event_timer:`` step field."""
+    if isinstance(spec, str):
+        return spec.strip()
+    if isinstance(spec, dict):
+        for key in ("name", "event", "key"):
+            raw = spec.get(key)
+            if raw is not None:
+                value = str(raw).strip()
+                if value:
+                    return value
+    return ""
+
+
+async def _resolve_event_timer_delay_seconds(
+    event_name: str,
+    *,
+    instance_id: str,
+    redis_async: Any | None,
+    player_id: str | None = None,
+) -> float | None:
+    pid = str(player_id or "").strip()
+    if not pid:
+        pid = await _read_active_player(instance_id, redis_async)
+    if not pid:
+        return None
+    timer = read_event_timer(pid, event_name)
+    if timer is None:
+        return None
+    delay_s = event_timer_remaining_seconds(timer)
+    if delay_s is None:
+        logger.warning(
+            "push_scenario: event timer %r for player=%s is invalid — skipping push",
+            event_name,
+            pid,
+        )
+    return delay_s
 
 
 async def _resolve_push_delay_seconds(
@@ -408,6 +454,7 @@ async def _resolve_push_delay_seconds(
     *,
     instance_id: str,
     redis_async: Any | None,
+    player_id: str | None = None,
 ) -> float | None:
     """Resolve a ``push_scenario.delay`` spec into seconds.
 
@@ -422,7 +469,9 @@ async def _resolve_push_delay_seconds(
     Three forms when ``delay`` is truthy:
       1. Suffix literal — ``"500ms"`` / ``"30s"`` / ``"15m"`` / ``"6h"``.
       2. ``hh:mm:ss`` / ``mm:ss`` literal — any string containing ``:``.
-      3. State field reference — any other non-empty string (e.g.
+      3. SQLite event timer key — ``event_timers[<delay>]`` for the active
+         player, where the OCR step stored a durable reset snapshot.
+      4. State field reference — any other non-empty string (e.g.
          ``"artisans_trove.delay"``). Resolved against player-scoped state
          first (where ``ocr: store:`` lands by default), then instance-scoped.
          The fetched value must itself be ``hh:mm:ss``.
@@ -448,7 +497,18 @@ async def _resolve_push_delay_seconds(
     if _DURATION_SUFFIX_RE.match(s):
         return _parse_wait_seconds(s)
 
-    pid = await _read_active_player(instance_id, redis_async)
+    event_delay = await _resolve_event_timer_delay_seconds(
+        s,
+        instance_id=instance_id,
+        redis_async=redis_async,
+        player_id=player_id,
+    )
+    if event_delay is not None:
+        return event_delay
+
+    pid = str(player_id or "").strip()
+    if not pid:
+        pid = await _read_active_player(instance_id, redis_async)
     cur = ""
     if pid:
         cur = await _read_player_state_field(pid, s, redis_async)

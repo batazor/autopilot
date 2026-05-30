@@ -9,7 +9,7 @@ import time
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from adb.controller import AdbController
+from adb.controller import AdbController, ProcessDetection
 from adb.frame_normalize import (
     GAME_FRAME_SIZE,
     normalize_adb_frame_bgr_with_transform,
@@ -264,6 +264,21 @@ class BotActions:
         with self._frame_cache_lock:
             return self._await_next_frame.pop(instance_id, None)
 
+    def _clear_settle_boundary_locked(
+        self, instance_id: str, frame_ts: float
+    ) -> None:
+        """Drop the post-action settle boundary only if ``frame_ts`` reached it.
+
+        Caller must hold ``_frame_cache_lock``. A frame captured *before* the
+        boundary — e.g. a rolling-loop tick that fired mid-animation right after
+        a tap — must leave the boundary intact, otherwise the next DSL match
+        consumes that pre-tap frame from the cache and clicks the same button
+        again (the double-click / popup-close loop).
+        """
+        boundary = self._await_next_frame.get(instance_id)
+        if boundary is not None and frame_ts >= boundary:
+            self._await_next_frame.pop(instance_id, None)
+
     def capture_screen_bgr_adb(self, instance_id: str) -> np.ndarray:
         """Direct ``adb exec-out screencap`` — rolling loop only; also publishes to ``frame_bus``."""
         img, transform, err = adb_screencap_bgr_with_transform(
@@ -274,8 +289,9 @@ class BotActions:
             raise RuntimeError(err)
         frame_bus.publish(instance_id, img, transform=transform)
         with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (time.monotonic(), img, transform)
-            self._await_next_frame.pop(instance_id, None)
+            now = time.monotonic()
+            self._frame_cache[instance_id] = (now, img, transform)
+            self._clear_settle_boundary_locked(instance_id, now)
         return img
 
     def _get_scrcpy_client(self, instance_id: str) -> ScrcpyClient:
@@ -326,12 +342,9 @@ class BotActions:
         )
         frame_bus.publish(instance_id, normalized, transform=transform)
         with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (
-                time.monotonic(),
-                normalized,
-                transform,
-            )
-            self._await_next_frame.pop(instance_id, None)
+            now = time.monotonic()
+            self._frame_cache[instance_id] = (now, normalized, transform)
+            self._clear_settle_boundary_locked(instance_id, now)
         return normalized
 
     def capture_screen_bgr_scrcpy(
@@ -397,8 +410,9 @@ class BotActions:
             return self.capture_screen_bgr_adb(instance_id)
         frame_bus.publish(instance_id, img)
         with self._frame_cache_lock:
-            self._frame_cache[instance_id] = (time.monotonic(), img, None)
-            self._await_next_frame.pop(instance_id, None)
+            now = time.monotonic()
+            self._frame_cache[instance_id] = (now, img, None)
+            self._clear_settle_boundary_locked(instance_id, now)
         return img
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
@@ -491,13 +505,28 @@ class BotActions:
         preserves the tap-invalidation-only behavior; pass a positive number
         to require a frame no older than that many milliseconds.
         """
+        now = time.monotonic()
         with self._frame_cache_lock:
             cached = self._frame_cache.get(instance_id)
+            boundary = self._await_next_frame.get(instance_id)
             if cached is not None:
                 ts, frame, _transform = cached
-                if max_age_ms is None or (time.monotonic() - ts) * 1000.0 <= max_age_ms:
+                # A pending settle boundary means a state-changing action (tap/
+                # swipe/…) fired after this frame was captured. Returning it now
+                # would analyze — and re-click — the pre-action screen, so treat
+                # any frame captured before the boundary as unusable and fall
+                # through to a fresh, settled capture.
+                settled = boundary is None or ts >= boundary
+                fresh_enough = (
+                    max_age_ms is None or (now - ts) * 1000.0 <= max_age_ms
+                )
+                if settled and fresh_enough:
                     return frame
-                self._await_next_frame[instance_id] = time.monotonic()
+                # Force the fall-through capture to wait for a genuinely new
+                # frame. Don't clobber an existing (future) boundary with an
+                # earlier timestamp — that would shorten the settle window.
+                if boundary is None:
+                    self._await_next_frame[instance_id] = now
         inst = self._get_instance(instance_id)
         backend = (inst.screenshot_backend or "").strip().lower()
         if backend == "scrcpy":
@@ -614,6 +643,23 @@ class BotActions:
     def is_game_foreground(self, instance_id: str) -> bool:
         """True if the configured game on ``instance_id`` is the resumed top activity."""
         return self._controller(instance_id).is_game_foreground(self._get_game(instance_id))
+
+    def is_game_running(self, instance_id: str) -> bool:
+        """True if the configured game's process is alive on ``instance_id``.
+
+        Aliveness, not foreground — the reliable health signal on BlueStacks
+        where the resumed-activity parse false-negatives. See
+        ``AdbController.is_game_running``.
+        """
+        return self._controller(instance_id).is_game_running(self._get_game(instance_id))
+
+    def detect_game_process(self, instance_id: str) -> ProcessDetection:
+        """Structured game-process probe for ``instance_id`` (found/pids/method/error).
+
+        Use over :meth:`is_game_running` when the caller needs the PIDs or wants
+        to distinguish "process dead" from "detection failed" (``error`` set).
+        """
+        return self._controller(instance_id).detect_game_process(self._get_game(instance_id))
 
     def list_installed_games(self, instance_id: str) -> list[str]:
         """Game ids whose packages are installed on the device behind ``instance_id``."""
