@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -210,6 +211,19 @@ class InstanceWorkerHealthMixin(_Base):
                 self._POST_RESTART_GRACE_S,
             )
             await asyncio.sleep(self._POST_RESTART_GRACE_S)
+
+            # A game relaunch is the only moment a runtime account switch can
+            # happen (switching characters reloads the game). Clear the cached
+            # identity so the next rolling tick re-arms ``who_i_am`` and
+            # re-verifies who is logged in. The durable ``last_active_player`` is
+            # intentionally kept — the probe overwrites it with the freshly
+            # OCR'd id, self-correcting after a switch.
+            with contextlib.suppress(Exception):
+                await self._redis.hset(
+                    f"wos:instance:{self._cfg.instance_id}:state",
+                    "active_player",
+                    "",
+                )
 
             await self._set_instance_state(InstanceState.READY)
         finally:

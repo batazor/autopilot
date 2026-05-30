@@ -187,8 +187,19 @@ def restart_application_after_health_failure(
         )
         time.sleep(_POST_RESTART_GRACE_S)
 
+        # A game relaunch is the only moment a runtime account switch can happen,
+        # so clear the cached identity here too — the next rolling tick re-arms
+        # ``who_i_am`` to re-verify who is logged in. The durable
+        # ``last_active_player`` is kept; the probe overwrites it after a switch.
         with contextlib.suppress(redis.RedisError):
-            r.hset(key, mapping={"state": str(InstanceState.READY), "last_error": ""})
+            r.hset(
+                key,
+                mapping={
+                    "state": str(InstanceState.READY),
+                    "last_error": "",
+                    "active_player": "",
+                },
+            )
         restart_ok = True
     finally:
         # 4. Resume the worker only when the restart actually succeeded.

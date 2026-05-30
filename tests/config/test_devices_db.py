@@ -10,9 +10,11 @@ from config.devices_db import (
     count_devices,
     delete_device,
     device_exists,
+    get_last_active_player,
     load_registry,
     set_device_backend,
     set_device_game,
+    set_last_active_player,
     set_profile_game,
     upsert_device,
     upsert_device_gamer,
@@ -262,3 +264,85 @@ def test_set_profile_game_overrides_device_default(sqlite_db: Path) -> None:
     assert profile.game == "kingshot"
     # Device default unchanged
     assert load_registry().devices[0].game == "wos"
+
+
+# ---------------------------------------------------------------------------
+# last_active_player — durable identity restored after a worker restart
+# ---------------------------------------------------------------------------
+
+
+def test_last_active_player_defaults_empty(sqlite_db: Path) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    assert get_last_active_player("bs1") == ""
+
+
+def test_set_and_get_last_active_player(sqlite_db: Path) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    assert set_last_active_player("bs1", "401227964") is True
+    assert get_last_active_player("bs1") == "401227964"
+
+
+def test_get_last_active_player_matches_by_serial(sqlite_db: Path) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    set_last_active_player("bs1", "777")
+    # Worker passes (instance_id, adb_serial) candidates — serial must resolve too.
+    assert get_last_active_player("127.0.0.1:5555") == "777"
+    assert get_last_active_player("unknown-alias", "127.0.0.1:5555") == "777"
+
+
+def test_get_last_active_player_first_match_wins(sqlite_db: Path) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    set_last_active_player("bs1", "777")
+    # First non-empty match short-circuits; unknown candidates are skipped.
+    assert get_last_active_player("ghost", "bs1") == "777"
+    assert get_last_active_player("ghost", "also-ghost") == ""
+
+
+def test_set_last_active_player_noop_when_unchanged(sqlite_db: Path) -> None:
+    upsert_device("bs1")
+    assert set_last_active_player("bs1", "5") is True
+    assert set_last_active_player("bs1", "5") is False  # already current
+    assert set_last_active_player("bs1", "6") is True  # switched account
+
+
+def test_set_last_active_player_unknown_device_returns_false(sqlite_db: Path) -> None:
+    assert set_last_active_player("ghost", "1") is False
+    assert get_last_active_player("ghost") == ""
+
+
+def test_set_last_active_player_rejects_empty_inputs(sqlite_db: Path) -> None:
+    upsert_device("bs1")
+    assert set_last_active_player("", "1") is False
+    assert set_last_active_player("bs1", "") is False
+
+
+def test_last_active_player_survives_other_device_writes(sqlite_db: Path) -> None:
+    """A separate field update (backend) must not wipe the stored identity."""
+    upsert_device("bs1", adb_serial="X")
+    set_last_active_player("bs1", "999")
+    set_device_backend("bs1", screenshot_backend="scrcpy")
+    assert get_last_active_player("bs1") == "999"
+
+
+def test_last_active_player_migration_on_legacy_db(sqlite_db: Path) -> None:
+    """A DB created before the column exists gains it on first open (no crash)."""
+    import sqlite3
+
+    # Simulate a legacy state.db: a devices table without last_active_player.
+    sqlite_db.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(sqlite_db))
+    conn.execute(
+        "CREATE TABLE devices (name TEXT PRIMARY KEY, adb_serial TEXT NOT NULL "
+        "DEFAULT '', screenshot_backend TEXT NOT NULL DEFAULT '', "
+        "input_backend TEXT NOT NULL DEFAULT '', updated_at REAL NOT NULL)"
+    )
+    conn.execute(
+        "INSERT INTO devices (name, adb_serial, updated_at) VALUES ('bs1', 'X', 0)"
+    )
+    conn.commit()
+    conn.close()
+
+    # First access through devices_db runs the migration (_ensure_identity_columns).
+    assert get_last_active_player("bs1") == ""
+    assert set_last_active_player("bs1", "123") is True
+    assert get_last_active_player("bs1") == "123"

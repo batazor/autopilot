@@ -677,13 +677,21 @@ class DslOcrMixin(_Base):
                 try:
                     await self.redis_client.hset(redis_key, mapping=mapping)
                     if store_redis_field == "player_id" and value:
+                        identified = str(self.player_id or value)
                         await self.redis_client.hset(
                             f"wos:instance:{instance_id}:state",
                             mapping={
-                                "active_player": str(self.player_id or value),
+                                "active_player": identified,
                                 "active_player_at": str(time.time()),
                             },
                         )
+                        # Durably remember the identity so a worker restart can
+                        # restore ``active_player`` and skip the ``who_i_am`` probe
+                        # (config.devices_db). Best-effort — never fail the OCR step.
+                        with suppress(Exception):
+                            from config.devices import set_last_active_player
+
+                            set_last_active_player(instance_id, identified)
                     redis_written = True
                     if scope == "player" and self.player_id:
                         from dashboard.dashboard_events import (
