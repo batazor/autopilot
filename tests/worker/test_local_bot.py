@@ -66,12 +66,39 @@ def test_bot_status_embedded() -> None:
 
 def test_start_embedded_bot_noop_when_running() -> None:
     with (
-        patch.object(local_bot, "bot_status", return_value={"running": True, "mode": "embedded", "pid": None}),
+        patch.object(
+            local_bot,
+            "bot_status",
+            return_value={"running": True, "mode": "embedded", "pid": None},
+        ),
         patch("dashboard.bot_services.ensure_embedded_bot") as ensure,
+        patch(
+            "worker.health_watchdog_process.ensure_health_watchdog_process"
+        ) as ensure_watchdog,
     ):
         out = local_bot.start_embedded_bot()
         ensure.assert_not_called()
+        ensure_watchdog.assert_called_once_with()
         assert out["running"] is True
+
+
+def test_start_supervisor_subprocess_noop_revives_health_watchdog() -> None:
+    with (
+        patch.object(
+            local_bot,
+            "bot_status",
+            return_value={"running": True, "mode": "supervisor", "pid": 123},
+        ),
+        patch(
+            "worker.health_watchdog_process.ensure_health_watchdog_process"
+        ) as ensure_watchdog,
+        patch.object(local_bot.subprocess, "Popen") as popen,
+    ):
+        out = local_bot.start_supervisor_subprocess()
+
+    popen.assert_not_called()
+    ensure_watchdog.assert_called_once_with()
+    assert out["running"] is True
 
 
 def test_start_supervisor_subprocess_starts_health_watchdog() -> None:

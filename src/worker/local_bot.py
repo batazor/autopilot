@@ -117,8 +117,12 @@ def bot_status() -> dict[str, Any]:
 
 def start_supervisor_subprocess() -> dict[str, Any]:
     """Spawn ``python -m worker.supervisor`` plus the health watchdog."""
-    if bot_status()["running"]:
-        return bot_status()
+    status = bot_status()
+    if status["running"]:
+        from worker.health_watchdog_process import ensure_health_watchdog_process
+
+        ensure_health_watchdog_process()
+        return status
     from worker.health_watchdog_process import ensure_health_watchdog_process
 
     repo = repo_root()
@@ -138,8 +142,12 @@ def start_supervisor_subprocess() -> dict[str, Any]:
 
 def start_embedded_bot() -> dict[str, Any]:
     """Start the async supervisor thread in the current process."""
-    if bot_status()["running"]:
-        return bot_status()
+    status = bot_status()
+    if status["running"]:
+        from worker.health_watchdog_process import ensure_health_watchdog_process
+
+        ensure_health_watchdog_process()
+        return status
     from dashboard.bot_services import ensure_embedded_bot
 
     ensure_embedded_bot()
