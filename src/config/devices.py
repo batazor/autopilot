@@ -154,6 +154,16 @@ def set_last_active_player(device_name: str, player_id: str) -> bool:
     return changed
 
 
+def clear_last_active_player(device_name: str, player_id: str = "") -> bool:
+    """Clear the stored ``last_active_player`` for *device_name*."""
+    from config.devices_db import clear_last_active_player as _db_clear
+
+    changed = _db_clear(device_name, player_id)
+    if changed:
+        _invalidate()
+    return changed
+
+
 def get_last_active_player(*device_candidates: str) -> str:
     """Stored ``last_active_player`` for the first matching device alias, or ``""``."""
     from config.devices_db import get_last_active_player as _db_get

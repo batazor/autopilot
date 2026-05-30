@@ -136,3 +136,79 @@ def test_area_region_probe_uses_red_dot_detector_for_red_dot_region(
     assert row["action"] == "red_dot"
     assert row["matched"] is True
     assert row["red_dot_present"] is True
+
+
+def test_area_region_probe_defaults_to_area_threshold(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    ok, encoded = cv2.imencode(".png", frame)
+    assert ok
+
+    area_doc = {
+        "version": 2,
+        "screens": [
+            {
+                "screen_id": "chief_profile",
+                "ocr": "",
+                "regions": [
+                    {
+                        "name": "chief_profile.title",
+                        "action": "exist",
+                        "threshold": 0.85,
+                        "bbox": {
+                            "x": 12,
+                            "y": 1,
+                            "width": 27,
+                            "height": 5,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    captured: dict[str, float] = {}
+
+    async def fake_evaluate(_image, _area_doc, _repo, rules, **_kwargs):
+        captured["threshold"] = rules[0]["threshold"]
+        return {
+            rules[0]["name"]: {
+                "matched": True,
+                "action": "findIcon",
+                "region": rules[0]["region"],
+                "threshold": rules[0]["threshold"],
+                "score": rules[0]["threshold"],
+            }
+        }
+
+    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: area_doc)
+    monkeypatch.setattr(
+        overlay_test,
+        "load_preview_bytes",
+        lambda **_kwargs: (encoded.tobytes(), "temporal/bs1.png", 1.0),
+    )
+    monkeypatch.setattr(
+        overlay_test,
+        "load_rolling_instance_preview",
+        lambda _instance_id: (None, "", None),
+    )
+    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_kwargs: {})
+    monkeypatch.setattr(overlay_test, "evaluate_overlay_rules_async", fake_evaluate)
+    monkeypatch.setattr(
+        "dashboard.redis_client.get_instance_state",
+        lambda *_args, **_kwargs: {
+            "current_screen": "chief_profile",
+            "active_player": "p1",
+        },
+    )
+
+    result = overlay_test.run_area_region_probe(
+        client=object(),
+        instance_id="bs1",
+        region="chief_profile.title",
+    )
+
+    assert captured["threshold"] == 0.85
+    assert result["result"]["threshold"] == 0.85

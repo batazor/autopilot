@@ -1,8 +1,0 @@
-enabled: true
-name: 🔨 Tap build button
-device_level: true
-steps:
-  - while_match: build_button
-    steps:
-      - long_click: build_button
-        wait: 300ms

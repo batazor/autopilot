@@ -1,0 +1,17 @@
+overlay:
+  # When we're on the Heal Injured screen, drive the heal loop.
+  #
+  # NOTE (port follow-up): the legacy bot triggered healing from a *main_city*
+  # injured-troops indicator (`healInjured.state.isAvailable`) and then navigated
+  # to the heal screen. That main-city region + the `heal_injured` navigation node
+  # are not ported yet — until they are, this rule only fires once screen
+  # detection knows `heal_injured`. The `heal.title` crop is the screen landmark.
+  - name: heal.screen.visible
+    region: heal.title
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - heal_injured
+    ttl: 5m
+    steps:
+      - push_scenario: heal_injured

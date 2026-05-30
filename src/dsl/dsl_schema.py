@@ -125,6 +125,7 @@ class DslStep(BaseModel):
 
     threshold: float | None = None
     min_match_saturation: int | None = None
+    min_digits: int | None = None
     max: int | None = None
     min: int | None = None
     # OCR storage scope — ``player`` (default) writes to the player state

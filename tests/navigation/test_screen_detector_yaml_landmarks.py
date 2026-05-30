@@ -89,7 +89,7 @@ text_switch:
 screens:
   main_city:
     landmarks:
-      - ocr: is_main_city
+      - ocr: page.main_city.title
         contains: [city]
 """,
         encoding="utf-8",
@@ -110,7 +110,7 @@ screens:
                         "bbox": {"x": 11, "y": 2, "width": 70, "height": 5},
                     },
                     {
-                        "name": "is_main_city",
+                        "name": "page.main_city.title",
                         "bbox": {"x": 10, "y": 20, "width": 30, "height": 10},
                     },
                 ],

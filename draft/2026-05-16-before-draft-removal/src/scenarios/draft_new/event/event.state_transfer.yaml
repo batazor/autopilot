@@ -1,5 +1,0 @@
-enabled: false
-name: "State Transfer"
-node: event.state_transfer
-icon: state_transfer
-steps: []

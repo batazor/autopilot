@@ -94,7 +94,7 @@ screens:
       - name: page.vip.increase.use
         action: text
         type: string
-        threshold: 0.9
+        threshold: 0.85
         bbox:
           x: 71.96911196911196
           y: 27.717391304347824
@@ -134,7 +134,7 @@ screens:
         isSearch: true
       - name: button.use
         action: exist
-        threshold: 0.9
+        threshold: 0.85
         bbox:
           x: 71.1969111969112
           y: 27.608695652173914

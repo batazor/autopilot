@@ -28,6 +28,7 @@ from services import (
     init_app_services,
     instance_worker_session,
 )
+from worker.health_watchdog_process import ensure_health_watchdog_process
 from worker.restart_backoff import compute_restart_delay
 
 if TYPE_CHECKING:
@@ -204,6 +205,7 @@ async def run_forever_async(*, stop_event: threading.Event | None = None) -> Non
         "(terminal where `uv run play` is running)"
     )
     assert_startup_configs_valid()
+    ensure_health_watchdog_process()
     await init_app_services()
     settings = get_settings()
     # Workers are keyed by instance_id so the reconcile loop can add/remove them

@@ -4,7 +4,7 @@ edges:
       resolver: template_icon
       region: main_city.icon_search
       template: games/wos/deals/deals/references/crop/main_city_main_city.to.deals.png
-      threshold: 0.9
+      threshold: 0.85
 
   deals:
     main_city: [icon.page.back]

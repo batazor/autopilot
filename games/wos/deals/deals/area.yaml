@@ -9,7 +9,7 @@
         {
           "name": "main_city.to.deals",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.85,
           "bbox": {
             "x": 89.38223938223938,
             "y": 17.82608695652174,
@@ -30,7 +30,7 @@
         {
           "name": "deals.title",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.85,
           "bbox": {
             "x": 11.787833827893152,
             "y": 0.8865666983352204,

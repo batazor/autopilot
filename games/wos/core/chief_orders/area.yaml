@@ -1,0 +1,106 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "chief_order_notify",
+      "ocr": "references/chief_order_notify.png",
+      "regions": [
+        {
+          "name": "chief.order.urgent",
+          "action": "color_check",
+          "threshold": 0.9,
+          "type": "red",
+          "bbox": {
+            "x": 40.54943373125191,
+            "y": 26.37741046831956,
+            "width": 0.994796449341905,
+            "height": 0.378787878787886,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.productivity",
+          "action": "color_check",
+          "threshold": 0.9,
+          "type": "red",
+          "bbox": {
+            "x": 40.549433731251916,
+            "y": 66.76997245179062,
+            "width": 1.0713192531374318,
+            "height": 0.37878787878788955,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.order.rush",
+          "action": "color_check",
+          "threshold": 0.9,
+          "type": "red",
+          "bbox": {
+            "x": 78.96388123660849,
+            "y": 26.411845730027554,
+            "width": 1.071319253137446,
+            "height": 0.3787878787878789,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 2.2943297279580466,
+            "y": 4.129793510324484,
+            "width": 9.177318911832188,
+            "height": 3.0973451327433628,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "chief_order_enact",
+      "ocr": "references/chief_order_enact.png",
+      "regions": [
+        {
+          "name": "chief.enact",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 33.10390036053753,
+            "y": 67.99410029498526,
+            "width": 34.0871845296624,
+            "height": 3.392330383480825,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chief.enact.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 1.3110455588331695,
+            "y": 4.129793510324484,
+            "width": 10.488364470665356,
+            "height": 3.392330383480826,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -6,7 +6,7 @@ overlay:
     region: main_city.icon_search
     action: findIcon
     template: games/wos/deals/deals/references/crop/main_city_main_city.to.deals.png
-    threshold: 0.9
+    threshold: 0.85
     isRedDot: true
     screens:
       - main_city

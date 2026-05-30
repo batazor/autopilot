@@ -5,6 +5,7 @@ import threading
 from typing import Any
 
 import dashboard.bot_services as bot_services
+from worker import health_watchdog_process
 
 
 def test_shutdown_hooks_skip_signals_outside_main_thread(mocker) -> None:
@@ -31,35 +32,39 @@ def test_ensure_health_watchdog_reuses_existing_process(mocker) -> None:
 
     spawned: list[object] = []
 
-    mocker.patch.object(bot_services, "_health_proc", new=None)
+    mocker.patch.object(health_watchdog_process, "_health_proc", new=None)
     mocker.patch.object(
-        bot_services,
-        "_existing_health_watchdog_process",
+        health_watchdog_process,
+        "existing_health_watchdog_process",
         new=lambda _repo: ExistingProcess(),
     )
-    mocker.patch.object(bot_services.subprocess, "Popen", new=lambda *a, **kw: spawned.append((a, kw)))
+    mocker.patch.object(
+        health_watchdog_process.subprocess,
+        "Popen",
+        new=lambda *a, **kw: spawned.append((a, kw)),
+    )
 
-    bot_services.ensure_health_watchdog()
+    health_watchdog_process.ensure_health_watchdog_process()
 
     assert spawned == []
-    assert bot_services._health_proc is None
+    assert health_watchdog_process._health_proc is None
 
 
 def test_ensure_health_watchdog_logs_existing_process_once(mocker, caplog: Any) -> None:
     class ExistingProcess:
         pid = 12345
 
-    mocker.patch.object(bot_services, "_health_proc", new=None)
-    mocker.patch.object(bot_services, "_known_health_watchdog_pid", new=None)
+    mocker.patch.object(health_watchdog_process, "_health_proc", new=None)
+    mocker.patch.object(health_watchdog_process, "_known_health_watchdog_pid", new=None)
     mocker.patch.object(
-        bot_services,
-        "_existing_health_watchdog_process",
+        health_watchdog_process,
+        "existing_health_watchdog_process",
         new=lambda _repo: ExistingProcess(),
     )
 
-    with caplog.at_level(logging.INFO, logger=bot_services.__name__):
-        bot_services.ensure_health_watchdog()
-        bot_services.ensure_health_watchdog()
+    with caplog.at_level(logging.INFO, logger=health_watchdog_process.__name__):
+        health_watchdog_process.ensure_health_watchdog_process()
+        health_watchdog_process.ensure_health_watchdog_process()
 
     messages = [
         record.getMessage()
@@ -88,14 +93,14 @@ def test_stop_health_watchdog_stops_discovered_process(mocker) -> None:
 
     existing = ExistingProcess()
 
-    mocker.patch.object(bot_services, "_health_proc", new=None)
+    mocker.patch.object(health_watchdog_process, "_health_proc", new=None)
     mocker.patch.object(
-        bot_services,
-        "_health_watchdog_processes",
+        health_watchdog_process,
+        "health_watchdog_processes",
         new=lambda _repo: [existing],
     )
 
-    bot_services._stop_health_watchdog()
+    health_watchdog_process.stop_health_watchdog_process()
 
     assert existing.terminated is True
     assert existing.waited is True

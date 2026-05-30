@@ -1,0 +1,50 @@
+name: "📜 Chief Orders: Enact Available"
+enabled: true
+
+# Enacts one lit governor order per run (Urgent → Productivity → Rush priority).
+# Each order selector is a color_check (red dot = available) used as a click target;
+# clicking it opens the enact screen. After an enact the game returns to the city,
+# so the later sibling matches naturally no-op. Idempotent + landmark-gated → safe
+# as device_level. Full 3-order combo per run is a follow-up (needs city<->orders nav).
+device_level: true
+priority: 70_000
+
+steps:
+  - match: chief.back
+    threshold: 0.85
+
+  # Urgent Mobilization
+  - match: chief.order.urgent
+    steps:
+      - click: chief.order.urgent
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - push_scenario: dismiss_unknown_popup
+
+  # Productivity Day
+  - match: chief.order.productivity
+    steps:
+      - click: chief.order.productivity
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - push_scenario: dismiss_unknown_popup
+
+  # Rush Job
+  - match: chief.order.rush
+    steps:
+      - click: chief.order.rush
+      - wait: 2s
+      - match: chief.enact
+        threshold: 0.85
+        steps:
+          - click: chief.enact
+          - wait: 3s
+          - push_scenario: dismiss_unknown_popup

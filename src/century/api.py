@@ -64,7 +64,18 @@ class CaptchaData:
 
 
 class CenturyAPIError(Exception):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        err_code: int | str | None = None,
+        api_msg: str | None = None,
+        endpoint: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.err_code = str(err_code) if err_code is not None else None
+        self.api_msg = api_msg
+        self.endpoint = endpoint
 
 
 def _retry_century_error(exc: BaseException) -> bool:
@@ -141,9 +152,14 @@ class CenturyClient:
             body = resp.json()
 
         if body.get("msg", "").lower() != "success":
-            msg = f"player fetch failed: {body.get('msg')} err_code={body.get('err_code')}"
+            api_msg = str(body.get("msg") or "")
+            err_code = body.get("err_code")
+            msg = f"player fetch failed: {api_msg} err_code={err_code}"
             raise CenturyAPIError(
-                msg
+                msg,
+                err_code=err_code,
+                api_msg=api_msg,
+                endpoint="player",
             )
 
         d = body["data"]

@@ -3,4 +3,4 @@ screens:
     priority: 60
     rules:
     - match: deals.title
-      threshold: 0.9
+      threshold: 0.85

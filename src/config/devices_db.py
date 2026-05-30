@@ -413,6 +413,36 @@ def set_last_active_player(device_name: str, player_id: str) -> bool:
     return True
 
 
+def clear_last_active_player(device_name: str, player_id: str = "") -> bool:
+    """Clear the durable active player for ``device_name``.
+
+    When ``player_id`` is provided, clear only if the stored value still matches.
+    This avoids wiping a newer identity written by a fresh ``who_i_am`` probe.
+    """
+    device_name = (device_name or "").strip()
+    player_id = (player_id or "").strip()
+    if not device_name:
+        return False
+    with _conn_lock, _connect() as conn:
+        canonical = _find_device_row_id(conn, device_name)
+        if canonical is None:
+            return False
+        row = conn.execute(
+            "SELECT last_active_player FROM devices WHERE name = ?", (canonical,)
+        ).fetchone()
+        stored = (row["last_active_player"] or "").strip() if row else ""
+        if not stored:
+            return False
+        if player_id and stored != player_id:
+            return False
+        conn.execute(
+            "UPDATE devices SET last_active_player = '', updated_at = ? WHERE name = ?",
+            (time.time(), canonical),
+        )
+        conn.commit()
+    return True
+
+
 def get_last_active_player(*device_candidates: str) -> str:
     """Return the stored ``last_active_player`` for the first matching device alias.
 

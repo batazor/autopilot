@@ -28,8 +28,19 @@ def _scenario_root(tmp_path: Path) -> Path:
     return scenario_root
 
 
-def _write_who_i_am_repo(tmp_path: Path) -> None:
+def _write_who_i_am_repo(
+    tmp_path: Path,
+    *,
+    player_id_min_digits: int | None = None,
+) -> None:
     scenario_root = _scenario_root(tmp_path)
+    player_id_step: dict[str, Any] = {
+        "ocr": "player.id",
+        "store": "player_id",
+        "type": "integer",
+    }
+    if player_id_min_digits is not None:
+        player_id_step["min_digits"] = player_id_min_digits
     (scenario_root / "onboarding").mkdir(parents=True)
     (scenario_root / "onboarding" / "who_i_am.yaml").write_text(
         yaml.dump(
@@ -40,9 +51,7 @@ def _write_who_i_am_repo(tmp_path: Path) -> None:
                 # itself, so it must run before any ``player_id`` is known and
                 # is exempt from the implicit player-identity gate.
                 "device_level": True,
-                "steps": [
-                    {"ocr": "player.id", "store": "player_id", "type": "integer"},
-                ],
+                "steps": [player_id_step],
             }
         ),
         encoding="utf-8",
@@ -191,6 +200,41 @@ async def test_ocr_step_skips_persist_below_threshold(
     assert result.success is True
     v = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert v in {None, ""}, "low-confidence OCR must not persist player_id"
+
+
+@pytest.mark.asyncio
+async def test_device_level_who_i_am_retries_when_player_id_digits_too_short(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    _write_who_i_am_repo(tmp_path, player_id_min_digits=8)
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
+
+    class _ShortIdStub:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
+            return OCRResult(region_id="r0", text="2721690 &", confidence=0.97)
+
+    import ocr.client as ocr_client_module
+
+    mocker.patch.object(ocr_client_module, "OcrClient", _ShortIdStub)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-ocr-short-device",
+        player_id="",
+        scenario_key="who_i_am",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is False
+    assert result.metadata["reason"] == "identity_not_resolved"
+    ap = await redis_async.hget("wos:instance:bs1:state", "active_player")  # type: ignore[attr-defined]
+    assert ap in {None, ""}
+    last = await redis_async.hgetall("wos:instance:bs1:state")  # type: ignore[attr-defined]
+    assert last["dsl_last_ocr_status"] == "integer_too_short"
+    assert last["dsl_last_ocr_value"] == "2721690"
 
 
 @pytest.mark.asyncio
@@ -679,8 +723,10 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
 
     redis_client = redis_async
     await redis_async.hset("wos:player:player_42:state", mapping={"player_id": "765502864"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    calls = {"count": 0}
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
+        calls["count"] += 1
         msg = "player HTTP 403: Forbidden"
         raise CenturyAPIError(msg)
 
@@ -703,7 +749,92 @@ async def test_exec_fetch_player_api_error_is_soft_failure(
     final = await redis_async.hgetall("wos:player:player_42:state")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert final["player_id"] == "765502864"
     assert "nickname" not in final
+    assert "century_player_sync_failed_at" in final
+    assert final["century_player_sync_error"] == "player HTTP 403: Forbidden"
     assert "player HTTP 403" in caplog.text
+
+    result2 = await task.execute("bs1")
+    assert result2.success is True
+    assert calls["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_exec_fetch_player_role_not_exist_clears_active_player(
+    tmp_path: Path,
+    mocker,
+    caplog: pytest.LogCaptureFixture,
+    redis_async: object,
+) -> None:
+    scenario_root = _scenario_root(tmp_path)
+    (scenario_root / "onboarding").mkdir(parents=True)
+    (scenario_root / "onboarding" / "sync_century.yaml").write_text(
+        yaml.dump({"enabled": True, "steps": [{"exec": "fetch_player"}]}),
+        encoding="utf-8",
+    )
+    (tmp_path / "area.json").write_text("{}", encoding="utf-8")
+
+    from config.devices_db import get_last_active_player, set_last_active_player, upsert_device
+
+    upsert_device("bs2", adb_serial="127.0.0.1:5625")
+    assert set_last_active_player("bs2", "2721690") is True
+
+    redis_client = redis_async
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:player:2721690:state",
+        mapping={"player_id": "2721690"},
+    )
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs2:state",
+        mapping={"active_player": "2721690"},
+    )
+    calls = {"count": 0}
+
+    async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
+        calls["count"] += 1
+        raise CenturyAPIError(
+            "player fetch failed: role not exist. err_code=40001",
+            err_code=40001,
+            api_msg="role not exist",
+            endpoint="player",
+        )
+
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    from century.api import CenturyClient
+
+    mocker.patch.object(CenturyClient, "fetch_player", new=fake_fetch_player)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-exec-role-missing",
+        player_id="2721690",
+        scenario_key="sync_century",
+        redis_client=redis_client,  # type: ignore[arg-type]
+    )
+    with caplog.at_level("WARNING"):
+        result = await task.execute("bs2")
+
+    assert result.success is True
+    final = await redis_async.hgetall("wos:player:2721690:state")  # type: ignore[attr-defined]
+    assert final["century_player_sync_err_code"] == "40001"
+    assert final["century_player_sync_error"] == "role not exist"
+    ap = await redis_async.hget("wos:instance:bs2:state", "active_player")  # type: ignore[attr-defined]
+    assert ap in {None, ""}
+    invalid = await redis_async.hget("wos:instance:bs2:state", "invalid_player_id")  # type: ignore[attr-defined]
+    assert invalid == "2721690"
+    assert get_last_active_player("bs2") == ""
+    assert "role not exist" in caplog.text
+
+    assert set_last_active_player("bs2", "2721690") is True
+    await redis_async.hset(  # type: ignore[attr-defined]
+        "wos:instance:bs2:state",
+        mapping={"active_player": "2721690"},
+    )
+    result2 = await task.execute("bs2")
+    assert result2.success is True
+    assert calls["count"] == 1
+    ap2 = await redis_async.hget("wos:instance:bs2:state", "active_player")  # type: ignore[attr-defined]
+    assert ap2 in {None, ""}
+    assert get_last_active_player("bs2") == ""
 
 
 # ---------------------------------------------------------------------------

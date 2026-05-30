@@ -1,0 +1,14 @@
+overlay:
+  # On the Alliance Chests screen, drive the loot+gift claim flow.
+  # NOTE (port follow-up): `alliance_chests` is not a wired navigation node yet, so
+  # this fires only once screen detection knows it. The `chest.to_gift` tab is the
+  # screen landmark.
+  - name: alliance_chests.visible
+    region: chest.to_gift
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - alliance_chests
+    ttl: 20m
+    steps:
+      - push_scenario: claim_alliance_chests

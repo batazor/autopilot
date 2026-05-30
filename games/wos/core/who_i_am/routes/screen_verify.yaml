@@ -5,4 +5,4 @@ screens:
       interval_seconds: 1.0
     rules:
     - match: chief_profile.title
-      threshold: 0.9
+      threshold: 0.85

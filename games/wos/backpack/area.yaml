@@ -68,7 +68,7 @@ screens:
     has_red_dot: true
   - name: backpack.title
     action: exist
-    threshold: 0.9
+    threshold: 0.8
     bbox:
       x: 11.930501930501931
       y: 0.8695652173913043

@@ -16,6 +16,10 @@ from config.runtime_bootstrap import (
 )
 from config.startup_validation import assert_startup_configs_valid
 from licensing import LicenseError, generate_fingerprint, load_license
+from worker.health_watchdog_process import (
+    ensure_health_watchdog_process,
+    stop_health_watchdog_process,
+)
 from worker.restart_backoff import compute_restart_delay
 
 logger = logging.getLogger(__name__)
@@ -349,6 +353,7 @@ def main() -> None:
     set_settings(load_settings())
     assert_startup_configs_valid()
     _enforce_license_gate()
+    ensure_health_watchdog_process()
     multiprocessing.set_start_method("spawn", force=True)
     supervisor = Supervisor()
     # The ``autopilot.workers.active`` gauge needs to peek at the supervisor's
@@ -357,6 +362,7 @@ def main() -> None:
     try:
         supervisor.run()
     finally:
+        stop_health_watchdog_process()
         shutdown_runtime_observability()
 
 

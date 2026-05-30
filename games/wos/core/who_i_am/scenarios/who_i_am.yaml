@@ -12,10 +12,13 @@ steps:
     store: player_id
     type: integer
     preprocess: fast_line
+    threshold: 0.75
+    min_digits: 8
 
   - ocr: player.state
     type: integer
     preprocess: fast_line
+    threshold: 0.45
     state: state
 
   - exec: fetch_player
@@ -23,3 +26,4 @@ steps:
   - push_scenario:
       name: check_main_city
       priority: 82_000
+    cond: active_player != null

@@ -212,7 +212,7 @@
         {
           "name": "chief_profile.title",
           "action": "exist",
-          "threshold": 0.9,
+          "threshold": 0.85,
           "bbox": {
             "x": 12.316602316602317,
             "y": 0.5434782608695652,

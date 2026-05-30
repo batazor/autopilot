@@ -1,5 +1,0 @@
-enabled: false
-name: "Crystal Reactivation"
-node: event.crystal_reactivation
-icon: crystal_reactivation
-steps: []

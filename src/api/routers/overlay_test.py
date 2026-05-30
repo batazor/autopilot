@@ -79,7 +79,7 @@ def get_area_region_probe(
     instance_id: str,
     client: RedisDep,
     region: str | None = Query(default=None),
-    threshold: float = Query(default=0.9, ge=0.0, le=1.0),
+    threshold: float | None = Query(default=None, ge=0.0, le=1.0),
 ) -> AreaRegionProbeResult:
     if instance_id not in list_instance_ids():
         raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")

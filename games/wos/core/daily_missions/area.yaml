@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "daily_missions",
+      "ocr": "references/daily_missions.png",
+      "regions": [
+        {
+          "name": "daily.claim_all",
+          "action": "color_check",
+          "threshold": 0.9,
+          "type": "green",
+          "bbox": {
+            "x": 35.07046869878729,
+            "y": 75.07374631268438,
+            "width": 5.899705014749266,
+            "height": 2.3598820058997063,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "daily.to_growth",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 19.665683382497544,
+            "y": 81.2684365781711,
+            "width": 26.220911176663396,
+            "height": 2.9498525073746293,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "daily.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 93.41199606686334,
+            "y": 18.731563421828913,
+            "width": 4.588659455916087,
+            "height": 1.917404129793507,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

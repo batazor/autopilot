@@ -7,6 +7,7 @@ import pytest
 
 from config.device_display import DeviceDisplayConfig
 from config.devices_db import (
+    clear_last_active_player,
     count_devices,
     delete_device,
     device_exists,
@@ -308,6 +309,17 @@ def test_set_last_active_player_noop_when_unchanged(sqlite_db: Path) -> None:
 def test_set_last_active_player_unknown_device_returns_false(sqlite_db: Path) -> None:
     assert set_last_active_player("ghost", "1") is False
     assert get_last_active_player("ghost") == ""
+
+
+def test_clear_last_active_player(sqlite_db: Path) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    assert set_last_active_player("bs1", "401227964") is True
+    assert clear_last_active_player("bs1", "other") is False
+    assert get_last_active_player("bs1") == "401227964"
+
+    assert clear_last_active_player("127.0.0.1:5555", "401227964") is True
+    assert get_last_active_player("bs1") == ""
+    assert clear_last_active_player("bs1") is False
 
 
 def test_set_last_active_player_rejects_empty_inputs(sqlite_db: Path) -> None:

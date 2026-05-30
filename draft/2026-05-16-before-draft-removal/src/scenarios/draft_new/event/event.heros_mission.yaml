@@ -1,5 +1,0 @@
-enabled: false
-name: "Heros Mission"
-node: event.heros_mission
-icon: heros_mission
-steps: []

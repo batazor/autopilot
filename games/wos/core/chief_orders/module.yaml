@@ -1,0 +1,14 @@
+id: chief_orders
+title: Chief Orders
+description: >-
+  Enact lit governor orders (Urgent Mobilization / Productivity Day / Rush Job)
+  for the resource combo. Ported from the legacy Go bot's
+  `usecases/chief/chief_resource_claim.yaml`. This port enacts one lit order per
+  run; the full sequential 3-order combo needs main_city<->chief_orders
+  navigation (follow-up).
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

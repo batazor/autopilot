@@ -99,7 +99,7 @@ export default function ApprovalsPage() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [regionProbe, setRegionProbe] = useState<AreaRegionProbeResult | null>(null);
   const [probeRegion, setProbeRegion] = useState("");
-  const [probeThreshold, setProbeThreshold] = useState(0.9);
+  const [probeThreshold, setProbeThreshold] = useState<number | null>(null);
   const [probeTick, setProbeTick] = useState(0);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Date.now());
@@ -207,7 +207,7 @@ export default function ApprovalsPage() {
     try {
       const data = await fetchAreaRegionProbe(instanceId, {
         region: probeRegion || undefined,
-        threshold: probeThreshold,
+        threshold: probeThreshold ?? undefined,
       });
       setRegionProbe(data);
       if (!probeRegion && data.selected_region) {
@@ -812,7 +812,10 @@ export default function ApprovalsPage() {
             selectedRegion={probeRegion}
             threshold={probeThreshold}
             error={probeError}
-            onRegionChange={setProbeRegion}
+            onRegionChange={(region) => {
+              setProbeRegion(region);
+              setProbeThreshold(null);
+            }}
             onThresholdChange={setProbeThreshold}
             onRefresh={refreshProbe}
           />
@@ -1047,7 +1050,7 @@ function RegionProbePanel({
   probe: AreaRegionProbeResult | null;
   imageUrl: string | null;
   selectedRegion: string;
-  threshold: number;
+  threshold: number | null;
   error: string | null;
   onRegionChange: (region: string) => void;
   onThresholdChange: (threshold: number) => void;
@@ -1059,7 +1062,8 @@ function RegionProbePanel({
   const isRedDotProbe = action === "red_dot";
   const redDotPresent = result?.red_dot_present === true;
   const score = asNumber(result?.score);
-  const thresholdSeen = asNumber(result?.threshold) ?? threshold;
+  const thresholdSeen = asNumber(result?.threshold) ?? threshold ?? 0.9;
+  const thresholdValue = threshold ?? thresholdSeen;
   const searchRegion = String(result?.search_region || selectedRegion || "—");
   const resolvedRegion = String(result?.resolved_region || result?.region || selectedRegion || "—");
   const reason = [result?.reason, result?.detail].filter(Boolean).join(" · ");
@@ -1097,7 +1101,7 @@ function RegionProbePanel({
             min={0}
             max={1}
             step={0.01}
-            value={threshold}
+            value={thresholdValue}
             onChange={(e) => onThresholdChange(clamp01(Number(e.target.value)))}
           />
         </label>

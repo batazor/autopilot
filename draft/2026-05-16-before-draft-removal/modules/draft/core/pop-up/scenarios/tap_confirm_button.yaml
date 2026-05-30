@@ -1,9 +1,0 @@
-enabled: true
-name: ✅ Tap confirm dialog
-device_level: true
-steps:
-- match: confirm_button
-  threshold: 0.98
-  min_match_saturation: 48
-- click: confirm_button
-- wait: 1500ms

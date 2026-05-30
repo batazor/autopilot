@@ -119,9 +119,10 @@ def start_supervisor_subprocess() -> dict[str, Any]:
     """Spawn ``python -m worker.supervisor`` plus the health watchdog."""
     if bot_status()["running"]:
         return bot_status()
-    from dashboard.bot_services import ensure_health_watchdog
+    from worker.health_watchdog_process import ensure_health_watchdog_process
 
     repo = repo_root()
+    ensure_health_watchdog_process()
     kwargs: dict[str, object] = {
         "cwd": str(repo),
         "env": os.environ.copy(),
@@ -132,7 +133,6 @@ def start_supervisor_subprocess() -> dict[str, Any]:
         [sys.executable, "-m", _SUPERVISOR_MODULE],
         **kwargs,  # type: ignore[arg-type]
     )
-    ensure_health_watchdog()
     return {"running": True, "mode": "supervisor", "pid": proc.pid}
 
 
@@ -148,12 +148,15 @@ def start_embedded_bot() -> dict[str, Any]:
 
 def stop_supervisor_subprocess() -> dict[str, Any]:
     """Terminate repo-local ``worker.supervisor`` processes."""
+    from worker.health_watchdog_process import stop_health_watchdog_process
+
     for proc in _supervisor_processes():
         proc.terminate()
         try:
             proc.wait(timeout=8.0)
         except psutil.TimeoutExpired:
             proc.kill()
+    stop_health_watchdog_process()
     return bot_status()
 
 

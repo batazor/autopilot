@@ -46,4 +46,11 @@ def test_who_i_am_resolves_player_id_before_player_state_writes() -> None:
         "player.state",
     ]
     assert all(s["preprocess"] == "fast_line" for s in ocr_steps[:2])
+    assert ocr_steps[0]["threshold"] == 0.75
+    assert ocr_steps[0]["min_digits"] == 8
+    assert ocr_steps[1]["threshold"] == 0.45
     assert "player.power" not in {s["ocr"] for s in ocr_steps}
+
+    push_steps = [s for s in steps if isinstance(s, dict) and "push_scenario" in s]
+    assert push_steps[0]["push_scenario"]["name"] == "check_main_city"
+    assert push_steps[0]["cond"] == "active_player != null"

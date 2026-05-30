@@ -1,0 +1,89 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "alliance_chests",
+      "ocr": "references/alliance_chests.png",
+      "regions": [
+        {
+          "name": "chest.loot.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 32.448377581120944,
+            "y": 93.65781710914456,
+            "width": 35.39823008849559,
+            "height": 3.834808259587021,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chest.to_gift",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.11406096361849,
+            "y": 26.991150442477878,
+            "width": 42.608980662078004,
+            "height": 3.3923303834808323,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chest.to_loot",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 5.571943625040971,
+            "y": 26.84365781710915,
+            "width": 42.28121927236972,
+            "height": 3.6873156342182867,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "chest.back",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 0.9832841691248771,
+            "y": 4.277286135693216,
+            "width": 10.488364470665358,
+            "height": 3.6873156342182893,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "alliance_chest_gift",
+      "ocr": "references/alliance_chest_gift.png",
+      "regions": [
+        {
+          "name": "chest.gift.claim_all",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 74.40183546378238,
+            "y": 92.9203539823009,
+            "width": 18.354637823664376,
+            "height": 2.9498525073746436,
+            "rotation": 0.0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    }
+  ]
+}

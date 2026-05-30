@@ -455,7 +455,7 @@ class BotActions:
             img = snap.frame_bgr
             transform = snap.transform
         except frame_bus.FrameBusTimeout:
-            logger.warning(
+            logger.info(
                 "frame_bus: timed out waiting for %r — direct screenshot "
                 "(rolling loop cold, paused, or not publishing frames)",
                 instance_id,

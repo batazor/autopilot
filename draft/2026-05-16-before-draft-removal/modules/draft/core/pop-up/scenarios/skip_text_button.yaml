@@ -1,9 +1,0 @@
-enabled: true
-name: ⏭️ Tap skip (text screen)
-device_level: true
-steps:
-- while_match: skip_text_button
-  max: 1
-  steps:
-  - click: skip_text_button
-  - wait: 2s

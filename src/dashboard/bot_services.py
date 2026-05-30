@@ -10,36 +10,30 @@ from __future__ import annotations
 
 import atexit
 import logging
-import os
 import signal
-import subprocess
-import sys
 import threading
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import psutil
-
 from config.loader import get_settings, load_settings, set_settings
-from config.paths import repo_root
 from config.redis_health import verify_sync_redis_url
 from config.state_store import register_on_save
 from scheduler.wake import wake_scheduler
+from worker.health_watchdog_process import (
+    ensure_health_watchdog_process,
+    stop_health_watchdog_process,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from types import FrameType
 
 _THREAD_NAME = "wos-async-services"
-_HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"
 
 _started = False
 _lock = threading.RLock()
 _stop_event: threading.Event | None = None
 _thread: threading.Thread | None = None
 _stop_in_progress = False
-_health_proc: subprocess.Popen[bytes] | None = None
-_known_health_watchdog_pid: int | None = None
 _hooks_installed = False
 # ``signal.getsignal`` returns either a callable, ``signal.SIG_DFL``/``SIG_IGN``
 # (ints), ``signal.Handlers`` enum, or ``None``. Keep the dict permissive so the
@@ -98,86 +92,13 @@ def _existing_supervisor_thread() -> threading.Thread | None:
     return None
 
 
-def _is_health_watchdog_process(proc: psutil.Process, repo: Path) -> bool:
-    try:
-        if proc.pid == os.getpid():
-            return False
-        cmdline = proc.cmdline()
-        if not any(
-            arg == "-m"
-            and idx + 1 < len(cmdline)
-            and cmdline[idx + 1] == _HEALTH_WATCHDOG_MODULE
-            for idx, arg in enumerate(cmdline)
-        ):
-            return False
-        return Path(proc.cwd()).resolve() == repo
-    except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
-        return False
-
-
-def _health_watchdog_processes(repo: Path) -> list[psutil.Process]:
-    return [
-        proc
-        for proc in psutil.process_iter()
-        if _is_health_watchdog_process(proc, repo)
-    ]
-
-
-def _existing_health_watchdog_process(repo: Path) -> psutil.Process | None:
-    for proc in _health_watchdog_processes(repo):
-        return proc
-    return None
-
-
 def ensure_health_watchdog() -> None:
     """Spawn ``python -m worker.game_health_watchdog`` if not already running."""
-    global _health_proc, _known_health_watchdog_pid
-    with _lock:
-        if _health_proc is not None and _health_proc.poll() is None:
-            _known_health_watchdog_pid = _health_proc.pid
-            return
-        _health_proc = None
-        repo = repo_root()
-        log = logging.getLogger(__name__)
-        existing = _existing_health_watchdog_process(repo)
-        if existing is not None:
-            if _known_health_watchdog_pid != existing.pid:
-                log.info("Game health watchdog subprocess already running pid=%s", existing.pid)
-            else:
-                log.debug("Game health watchdog subprocess already running pid=%s", existing.pid)
-            _known_health_watchdog_pid = existing.pid
-            return
-        try:
-            _health_proc = subprocess.Popen(
-                [sys.executable, "-m", _HEALTH_WATCHDOG_MODULE],
-                cwd=str(repo),
-                env=os.environ.copy(),
-            )
-            _known_health_watchdog_pid = _health_proc.pid
-            log.info("Game health watchdog subprocess pid=%s", _health_proc.pid)
-        except Exception:
-            log.exception("Failed to start game health watchdog subprocess")
+    ensure_health_watchdog_process(log=logging.getLogger(__name__))
 
 
 def _stop_health_watchdog() -> None:
-    global _health_proc, _known_health_watchdog_pid
-    repo = repo_root()
-    with _lock:
-        proc = _health_proc
-        _health_proc = None
-        _known_health_watchdog_pid = None
-    if proc is not None and proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=8.0)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    for existing in _health_watchdog_processes(repo):
-        existing.terminate()
-        try:
-            existing.wait(timeout=8.0)
-        except psutil.TimeoutExpired:
-            existing.kill()
+    stop_health_watchdog_process(log=logging.getLogger(__name__))
 
 
 def ensure_embedded_bot() -> None:

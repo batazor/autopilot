@@ -72,3 +72,51 @@ def test_start_embedded_bot_noop_when_running() -> None:
         out = local_bot.start_embedded_bot()
         ensure.assert_not_called()
         assert out["running"] is True
+
+
+def test_start_supervisor_subprocess_starts_health_watchdog() -> None:
+    events: list[str] = []
+
+    class Proc:
+        pid = 777
+
+    with (
+        patch.object(local_bot, "bot_status", return_value={"running": False}),
+        patch(
+            "worker.health_watchdog_process.ensure_health_watchdog_process",
+            side_effect=lambda: events.append("watchdog"),
+        ),
+        patch.object(
+            local_bot.subprocess,
+            "Popen",
+            side_effect=lambda *_args, **_kwargs: events.append("supervisor") or Proc(),
+        ),
+    ):
+        out = local_bot.start_supervisor_subprocess()
+
+    assert out == {"running": True, "mode": "supervisor", "pid": 777}
+    assert events == ["watchdog", "supervisor"]
+
+
+def test_stop_supervisor_subprocess_stops_health_watchdog() -> None:
+    events: list[str] = []
+    proc = MagicMock()
+    proc.wait.side_effect = lambda timeout: events.append(f"wait:{timeout}")
+
+    with (
+        patch.object(local_bot, "_supervisor_processes", return_value=[proc]),
+        patch(
+            "worker.health_watchdog_process.stop_health_watchdog_process",
+            side_effect=lambda: events.append("watchdog"),
+        ),
+        patch.object(
+            local_bot,
+            "bot_status",
+            return_value={"running": False, "mode": None, "pid": None},
+        ),
+    ):
+        out = local_bot.stop_supervisor_subprocess()
+
+    proc.terminate.assert_called_once_with()
+    assert out["running"] is False
+    assert events == ["wait:8.0", "watchdog"]

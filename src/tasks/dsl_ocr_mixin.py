@@ -40,13 +40,17 @@ if TYPE_CHECKING:
 else:
     _Base = object
 
+def _ocr_digits(text: str) -> str:
+    return re.sub(r"\D+", "", str(text or ""))
+
+
 def parse_ocr_integer(text: str) -> int | None:
     """Strip non-digits from ``text`` and return the int — None if no digits.
 
     Game UI labels OCR as ``"1,234,567"`` / ``"1 234 567"`` / ``"12345"``;
     the digit-only pass handles thousands separators uniformly.
     """
-    digits = re.sub(r"\D+", "", str(text or ""))
+    digits = _ocr_digits(text)
     if not digits:
         return None
     return int(digits)
@@ -525,6 +529,36 @@ class DslOcrMixin(_Base):
         type_hint = str(step.get("type") or region_def.get("type") or "string").strip().lower()
         value: str = text
         if type_hint in {"int", "integer"}:
+            digits = _ocr_digits(text)
+            raw_min_digits = step.get("min_digits")
+            if raw_min_digits is None:
+                raw_min_digits = region_def.get("min_digits")
+            try:
+                min_digits = int(raw_min_digits or 0)
+            except (TypeError, ValueError):
+                min_digits = 0
+            if min_digits > 0 and len(digits) < min_digits:
+                logger.warning(
+                    "dsl_scenario: store skipped field=%s reason=integer_too_short "
+                    "value=%r digits=%r min_digits=%d region=%s scenario=%s",
+                    planned_store_field or "?",
+                    text,
+                    digits,
+                    min_digits,
+                    region,
+                    scen_label,
+                )
+                await self._ocr_audit_step(
+                    instance_id,
+                    region=region,
+                    step=step,
+                    status="integer_too_short",
+                    threshold_s=thr_s,
+                    confidence_s=conf_s,
+                    raw_text=text,
+                    value_s=digits,
+                )
+                return
             parsed = parse_ocr_integer(text)
             if parsed is None:
                 logger.warning(

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from century.api import CenturyAPIError, CenturyClient, PlayerData
 from config.buildings import BuildingDef, get_building_registry
-from config.devices import upsert_device_gamer
+from config.devices import clear_last_active_player, upsert_device_gamer
 from config.heroes import get_hero_registry
 from config.paths import repo_root
 from config.state_store import get_state_store
@@ -35,6 +35,9 @@ DslExecHandler = Callable[["DslExecContext"], Awaitable[None]]
 
 _DEVICES_PATH = repo_root() / "db" / "devices.yaml"
 _FETCH_PLAYER_TTL_SECONDS = 15 * 60
+_FETCH_PLAYER_FAILURE_TTL_SECONDS = 15 * 60
+_CENTURY_ROLE_NOT_EXIST_ERR_CODE = "40001"
+_CENTURY_ERR_CODE_RE = re.compile(r"\berr_code=(?P<err_code>\d+)\b", re.IGNORECASE)
 _BUILDING_NAME_RE = re.compile(
     r"^\s*(?P<name>.+?)\s+(?:Lv\.?|Level)\s*\.?\s*(?P<level>\d+)\s*$",
     re.IGNORECASE,
@@ -67,6 +70,132 @@ def _decode_redis_raw(raw: Any) -> str:
         except Exception:
             return ""
     return str(raw).strip()
+
+
+def _century_error_code(exc: CenturyAPIError) -> str:
+    raw = getattr(exc, "err_code", None)
+    if raw is not None:
+        return str(raw).strip()
+    m = _CENTURY_ERR_CODE_RE.search(str(exc))
+    return m.group("err_code") if m else ""
+
+
+def _century_error_message(exc: CenturyAPIError) -> str:
+    raw = getattr(exc, "api_msg", None)
+    return str(raw).strip() if raw is not None else str(exc).strip()
+
+
+async def _clear_active_player_if_matches(
+    ctx: DslExecContext,
+    *,
+    player_id: str,
+    reason: str,
+) -> None:
+    if ctx.redis_client is None or not player_id:
+        return
+    instance_key = f"wos:instance:{ctx.instance_id}:state"
+    try:
+        raw_active = await ctx.redis_client.hget(instance_key, "active_player")
+        active = _decode_redis_raw(raw_active)
+        with contextlib.suppress(Exception):
+            clear_last_active_player(ctx.instance_id, player_id)
+        if active != player_id:
+            return
+        now = time.time()
+        await ctx.redis_client.hdel(instance_key, "active_player", "active_player_at")
+        await ctx.redis_client.hset(
+            instance_key,
+            mapping={
+                "invalid_player_id": player_id,
+                "invalid_player_id_at": str(now),
+                "invalid_player_id_reason": reason,
+            },
+        )
+        logger.info(
+            "dsl exec fetch_player: cleared invalid active_player=%s on %s (%s)",
+            player_id,
+            ctx.instance_id,
+            reason,
+        )
+    except Exception:
+        logger.debug(
+            "dsl exec fetch_player: failed to clear invalid active_player",
+            exc_info=True,
+        )
+
+
+async def _recent_fetch_failure(
+    ctx: DslExecContext,
+    *,
+    state_key: str,
+    fid: int,
+) -> bool:
+    if ctx.redis_client is None:
+        return False
+    try:
+        raw_ts = await ctx.redis_client.hget(state_key, "century_player_sync_failed_at")
+        ts_s = _decode_redis_raw(raw_ts)
+        ts = float(ts_s) if ts_s else 0.0
+    except Exception:
+        ts = 0.0
+    if not ts:
+        return False
+    age = time.time() - ts
+    if age >= _FETCH_PLAYER_FAILURE_TTL_SECONDS:
+        return False
+    try:
+        err_code = _decode_redis_raw(
+            await ctx.redis_client.hget(state_key, "century_player_sync_err_code")
+        )
+        error = _decode_redis_raw(
+            await ctx.redis_client.hget(state_key, "century_player_sync_error")
+        )
+    except Exception:
+        err_code = ""
+        error = ""
+    if err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
+        await _clear_active_player_if_matches(
+            ctx,
+            player_id=ctx.player_id.strip(),
+            reason=f"century_err_code_{err_code}",
+        )
+    logger.info(
+        "dsl exec fetch_player: skip by failure TTL fid=%s age=%.1fs err_code=%s error=%r",
+        fid,
+        age,
+        err_code or "-",
+        error,
+    )
+    return True
+
+
+async def _remember_fetch_failure(
+    ctx: DslExecContext,
+    *,
+    state_key: str,
+    fid: int,
+    exc: CenturyAPIError,
+) -> str:
+    err_code = _century_error_code(exc)
+    error = _century_error_message(exc) or str(exc)
+    if ctx.redis_client is None:
+        return err_code
+    try:
+        await ctx.redis_client.hset(
+            state_key,
+            mapping={
+                "century_player_sync_failed_at": str(time.time()),
+                "century_player_sync_error": error,
+                "century_player_sync_err_code": err_code,
+            },
+        )
+    except Exception:
+        logger.debug(
+            "dsl exec fetch_player: failed to persist API failure fid=%s",
+            fid,
+            exc_info=True,
+        )
+    return err_code
 
 
 def _normalise_lookup_text(value: str) -> str:
@@ -167,11 +296,30 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
             time.time() - ts,
         )
         return
+    if await _recent_fetch_failure(ctx, state_key=state_key, fid=fid):
+        return
 
     try:
         data: PlayerData = await CenturyClient().fetch_player(fid)
     except CenturyAPIError as exc:
-        logger.warning("dsl exec fetch_player: API error fid=%s: %s", fid, exc)
+        err_code = await _remember_fetch_failure(
+            ctx,
+            state_key=state_key,
+            fid=fid,
+            exc=exc,
+        )
+        if err_code == _CENTURY_ROLE_NOT_EXIST_ERR_CODE:
+            await _clear_active_player_if_matches(
+                ctx,
+                player_id=ctx.player_id.strip(),
+                reason=f"century_err_code_{err_code}",
+            )
+        logger.warning(
+            "dsl exec fetch_player: API error fid=%s err_code=%s: %s",
+            fid,
+            err_code or "-",
+            exc,
+        )
         return
     except Exception:
         logger.exception("dsl exec fetch_player: unexpected error fid=%s", fid)
@@ -187,6 +335,13 @@ async def _exec_fetch_player(ctx: DslExecContext) -> None:
     }
     try:
         await ctx.redis_client.hset(state_key, mapping=mapping)
+        with contextlib.suppress(Exception):
+            await ctx.redis_client.hdel(
+                state_key,
+                "century_player_sync_failed_at",
+                "century_player_sync_error",
+                "century_player_sync_err_code",
+            )
     except Exception:
         logger.exception("dsl exec fetch_player: redis hset failed key=%s", state_key)
         return

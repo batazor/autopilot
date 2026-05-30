@@ -7,7 +7,7 @@
       "ocr": "references/main_city.png",
       "regions": [
         {
-          "name": "is_main_city",
+          "name": "page.main_city.title",
           "action": "text",
           "threshold": 0.9,
           "bbox": {
@@ -612,7 +612,7 @@
           "hash": "8c4c58cb5e45fd998fcd1d4128e1a19871277dd4ac96f18690a542b7974bcefb"
         },
         {
-          "name": "is_main_city.main_city_v3",
+          "name": "page.main_city.title.main_city_v3",
           "action": "exist",
           "threshold": 0.9,
           "bbox": {

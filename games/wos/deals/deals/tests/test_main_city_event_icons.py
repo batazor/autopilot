@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import cv2
 import pytest
+import yaml
 
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from layout.area_manifest import load_area_doc
@@ -56,6 +57,23 @@ def _load_bgr(name: str) -> np.ndarray:
 @pytest.fixture(scope="module")
 def area_doc() -> dict:
     return load_area_doc(REPO_ROOT)
+
+
+def test_deals_hub_thresholds_are_live_tolerant() -> None:
+    """Live BlueStacks frames score below 0.90 on the animated Deals icon/title."""
+    edge_doc = yaml.safe_load(
+        (MODULE_DIR / "routes" / "edge_taps.yaml").read_text(encoding="utf-8")
+    )
+    verify_doc = yaml.safe_load(
+        (MODULE_DIR / "routes" / "screen_verify.yaml").read_text(encoding="utf-8")
+    )
+    analyze_doc = yaml.safe_load(
+        (MODULE_DIR / "analyze" / "analyze.yaml").read_text(encoding="utf-8")
+    )
+
+    assert edge_doc["edges"]["main_city"]["deals"]["threshold"] == 0.85
+    assert verify_doc["screens"]["deals"]["rules"][0]["threshold"] == 0.85
+    assert analyze_doc["overlay"][0]["threshold"] == 0.85
 
 
 @pytest.mark.asyncio

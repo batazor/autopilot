@@ -1,0 +1,13 @@
+overlay:
+  # On the Chief Orders screen, drive the enact flow.
+  # NOTE (port follow-up): `chief_order_notify` is not a wired navigation node yet,
+  # so this fires only once screen detection knows it. `chief.back` is the landmark.
+  - name: chief_orders.visible
+    region: chief.back
+    action: findIcon
+    threshold: 0.85
+    screens:
+      - chief_order_notify
+    ttl: 15m
+    steps:
+      - push_scenario: claim_chief_orders

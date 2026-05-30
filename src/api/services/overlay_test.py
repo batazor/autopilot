@@ -1240,7 +1240,7 @@ def run_area_region_probe(
     client: Any,
     instance_id: str,
     region: str | None = None,
-    threshold: float = 0.9,
+    threshold: float | None = None,
 ) -> AreaRegionProbeResult:
     """Run a one-off ``exist``/``findIcon`` probe for a selected area region."""
     from dashboard.redis_client import get_instance_state
@@ -1274,13 +1274,18 @@ def run_area_region_probe(
     overlays: list[OverlayShape] = []
     crops: ProbeCrops | None = None
     if image_bgr is not None and selected:
-        safe_threshold = max(0.0, min(1.0, float(threshold)))
         selected_pair = screen_region_by_name(
             area_doc,
             selected,
             state_flat=state_flat,
         )
         selected_region_def = selected_pair[1] if selected_pair is not None else {}
+        raw_threshold = (
+            threshold
+            if threshold is not None
+            else selected_region_def.get("threshold", 0.9)
+        )
+        safe_threshold = max(0.0, min(1.0, float(raw_threshold)))
         use_red_dot_probe = bool(selected_region_def.get("has_red_dot")) and not bool(
             selected_region_def.get("isSearch")
         )
