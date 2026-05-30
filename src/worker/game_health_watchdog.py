@@ -110,6 +110,70 @@ def _is_game_running_after_retries(
     return False
 
 
+def _capture_restart_context(ba: BotActions, instance_id: str) -> tuple[str, str]:
+    """Snapshot *what was on screen* and *how detection failed* at restart time.
+
+    Returns ``(foreground, detection)`` where ``foreground`` is the resumed
+    ``pkg/activity`` (the launcher/another app ⇒ a real crash; the game itself ⇒
+    a detection flake) and ``detection`` summarises the probe — ``error=…`` means
+    "couldn't ask ADB" (transient), ``clean_miss`` means the process is truly gone.
+    """
+    foreground = ""
+    try:
+        foreground = ba.current_foreground_activity(instance_id)
+    except Exception:
+        logger.debug("Watchdog: foreground capture failed on %s", instance_id, exc_info=True)
+    detection = "detect_failed"
+    try:
+        d = ba.detect_game_process(instance_id)
+        detail = f"error={d.error}" if d.error else "clean_miss"
+        detection = f"method={d.method_used} found={d.found} {detail}"
+    except Exception:
+        logger.debug("Watchdog: detection detail failed on %s", instance_id, exc_info=True)
+    return foreground, detection
+
+
+def _record_restart_breadcrumb(
+    r: redis.Redis, instance_id: str, *, foreground: str, detection: str
+) -> None:
+    """Persist the restart reason so it survives the ephemeral stdout logs.
+
+    Writes ``last_game_restart_{at,foreground,detection}`` + a running
+    ``game_restart_count`` to the instance state hash, and appends a
+    ``game.restart`` row to the Debug Timeline.
+    """
+    ts = time.time()
+    key = _INST_STATE_KEY_FMT.format(instance_id=instance_id)
+    with contextlib.suppress(redis.RedisError):
+        r.hset(
+            key,
+            mapping={
+                "last_game_restart_at": f"{ts:.3f}",
+                "last_game_restart_foreground": foreground or "unknown",
+                "last_game_restart_detection": detection,
+            },
+        )
+        r.hincrby(key, "game_restart_count", 1)
+    with contextlib.suppress(redis.RedisError):
+        tl_key = f"wos:debug:timeline:{instance_id}"
+        r.lpush(
+            tl_key,
+            json.dumps(
+                {
+                    "t": ts,
+                    "event": "game.restart",
+                    "instance_id": instance_id,
+                    "reason": "process_dead_after_retries",
+                    "foreground": foreground or "unknown",
+                    "detection": detection,
+                },
+                ensure_ascii=False,
+                default=str,
+            ),
+        )
+        r.ltrim(tl_key, 0, 999)
+
+
 def restart_application_after_health_failure(
     instance_id: str,
     r: redis.Redis,
@@ -223,6 +287,27 @@ def restart_application_after_health_failure(
                 r.hset(key, mapping={"paused": "0", "auto_paused": "0"})
 
 
+def _reload_settings_if_devices_changed(
+    prev_ids: set[str],
+) -> tuple[Settings, set[str], bool]:
+    """Re-read the device registry so a device registered after the watchdog
+    started gets game-health monitoring without a bot restart.
+
+    Returns ``(settings, instance_ids, changed)``. Rebinds the process-wide
+    settings only when the instance set actually changed, so the periodic
+    re-read stays cheap and ``BotActions`` is only rebuilt on a real change.
+    """
+    from config.devices import invalidate_device_registry
+
+    invalidate_device_registry()
+    fresh = load_settings()
+    ids = {i.instance_id for i in fresh.instances}
+    changed = ids != prev_ids
+    if changed:
+        set_settings(fresh)
+    return fresh, ids, changed
+
+
 def run_forever(stop: threading.Event | None = None) -> None:
     bootstrap_runtime_observability("health-watchdog")
     assert_startup_configs_valid()
@@ -234,17 +319,35 @@ def run_forever(stop: threading.Event | None = None) -> None:
 
     instrument_redis_client(r, component="health_watchdog")
     ba = BotActions(settings)
+    monitored_ids = {i.instance_id for i in settings.instances}
 
     logger.info(
         "Game health watchdog: interval=%ss instances=%s",
         interval,
-        [i.instance_id for i in settings.instances],
+        sorted(monitored_ids),
     )
 
     ev = stop if stop is not None else threading.Event()
     adb_bin = (settings.worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
 
     while not ev.is_set():
+        # Pick up devices registered after startup (and drop unregistered ones)
+        # without a watchdog restart — mirrors the worker supervisor's reconcile.
+        # ``BotActions`` snapshots ``settings.instances`` at construction, so it
+        # must be rebuilt for a new device's serial to resolve.
+        fresh, new_ids, changed = _reload_settings_if_devices_changed(monitored_ids)
+        if changed:
+            added = sorted(new_ids - monitored_ids)
+            removed = sorted(monitored_ids - new_ids)
+            settings = fresh
+            ba = BotActions(settings)
+            monitored_ids = new_ids
+            logger.info(
+                "Watchdog: device set changed (added=%s removed=%s) — monitoring %s",
+                added or "-",
+                removed or "-",
+                sorted(new_ids),
+            )
         # One ``adb devices`` per tick — anything not in ``device`` state is
         # presumed offline (BlueStacks closed, lost USB, user kill-server, …).
         # Instead of hammering the failing serial each tick (which throws
@@ -350,9 +453,16 @@ def run_forever(stop: threading.Event | None = None) -> None:
             try:
                 if _is_game_running_after_retries(ba, iid, stop=ev):
                     continue
+                foreground, detection = _capture_restart_context(ba, iid)
                 logger.warning(
-                    "Watchdog: Whiteout process dead on %s after retries — restarting application",
+                    "Watchdog: Whiteout process dead on %s after retries — restarting "
+                    "application (foreground=%s, detection=%s)",
                     iid,
+                    foreground or "unknown",
+                    detection,
+                )
+                _record_restart_breadcrumb(
+                    r, iid, foreground=foreground, detection=detection
                 )
                 restart_application_after_health_failure(iid, r, settings)
             except Exception:

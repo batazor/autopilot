@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import re
 import shlex
 import subprocess
 import tempfile
@@ -656,6 +657,27 @@ class AdbController:
             if any(m in s for m in markers):
                 return True
         return False
+
+    def current_foreground_activity(self) -> str:
+        """Best-effort ``pkg/activity`` of the resumed foreground app (or "").
+
+        Records *what was on screen* when the watchdog decided the game was
+        dead — a launcher/other-app component points at a real crash, while the
+        game's own component points at a detection flake. Never raises.
+        """
+        markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
+        try:
+            out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
+        except Exception:
+            logger.debug("current_foreground_activity: dumpsys failed on %s", self._serial)
+            return ""
+        for line in out.splitlines():
+            s = line.strip()
+            if any(m in s for m in markers):
+                match = re.search(r"[A-Za-z0-9_.]+/[A-Za-z0-9_.]+", s)
+                if match:
+                    return match.group(0)
+        return ""
 
     def ensure_game_foreground(self, game: str | None = None) -> None:
         """Start ``game`` if it isn't the foreground resumed activity."""

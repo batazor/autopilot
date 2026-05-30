@@ -644,6 +644,10 @@ class BotActions:
         """True if the configured game on ``instance_id`` is the resumed top activity."""
         return self._controller(instance_id).is_game_foreground(self._get_game(instance_id))
 
+    def current_foreground_activity(self, instance_id: str) -> str:
+        """Resumed foreground component (``pkg/activity``) on ``instance_id`` (or "")."""
+        return self._controller(instance_id).current_foreground_activity()
+
     def is_game_running(self, instance_id: str) -> bool:
         """True if the configured game's process is alive on ``instance_id``.
 
