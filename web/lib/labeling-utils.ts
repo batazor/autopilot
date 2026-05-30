@@ -13,7 +13,9 @@ export function isPendingCapture(refRel: string): boolean {
 export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
   const rel = refRel.replace(/\\/g, "/").trim();
   const name = rel.split("/").pop() ?? rel;
-  const prefixMatch = rel.match(/^(?:modules\/[^/]+\/references|references)\/(.*)$/);
+  const prefixMatch = rel.match(
+    /^(?:games\/[^/]+\/.*\/references|modules\/[^/]+\/references|references)\/(.*)$/,
+  );
   const relUnder = prefixMatch?.[1] ?? rel;
   return {
     rel,
@@ -29,13 +31,15 @@ export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
 
 /** Infer module scope from a repo-relative reference path.
  *
- * Returns the first path segment after ``modules/`` (the module slug);
- * returns ``null`` for unrecognised paths. Root ``references/`` was drained
- * during the modules migration, so there's no longer a "core" scope to
- * infer there.
+ * Returns the game-prefixed module key for ``games/<game>/.../references``
+ * paths, or the first path segment after legacy ``modules/`` paths. Root
+ * ``references/`` was drained during the modules migration, so there's no
+ * longer a "core" scope to infer there.
  */
 export function inferScopeFromRef(refRel: string): string | null {
   const rel = refRel.replace(/\\/g, "/").trim();
+  const gameModule = rel.match(/^games\/([^/]+)\/(.+)\/references\//);
+  if (gameModule) return `${gameModule[1]}:${gameModule[2]}`;
   const m = rel.match(/^modules\/([^/]+)\/references\//);
   if (m) return m[1];
   return null;

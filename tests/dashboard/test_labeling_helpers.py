@@ -68,6 +68,27 @@ def test_labeling_workflow_steps_temporal() -> None:
     assert steps[0].detail == "temporal (unsaved)"
 
 
+def test_labeling_query_params_include_module_scope() -> None:
+    from dashboard.click_approvals import labeling_query_params_for_area_region
+
+    doc = {
+        "screens": [
+            {
+                "ocr": "games/wos/core/who_i_am/references/chief_profile.png",
+                "regions": [{"name": "player.id"}],
+            }
+        ]
+    }
+
+    params = labeling_query_params_for_area_region(doc, "player.id")
+
+    assert params == {
+        "ref": "games/wos/core/who_i_am/references/chief_profile.png",
+        "module": "wos:core/who_i_am",
+        "region": "player.id",
+    }
+
+
 def test_preview_delete_reference_impact(tmp_path: Path) -> None:
     repo = tmp_path
     ref_root = repo / "references"

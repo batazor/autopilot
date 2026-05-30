@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import json
-from contextlib import suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -11,6 +10,8 @@ from typing import Any
 import yaml
 
 from config.module_discovery import iter_module_area_manifests
+
+AreaManifestFingerprint = tuple[tuple[str, int, int], ...]
 
 
 def _load_area_mapping(path: Path) -> dict[str, Any]:
@@ -67,14 +68,31 @@ def _normalize_module_area_doc(
     return out
 
 
-def area_manifest_max_mtime(repo_root: Path, *, game: str | None = None) -> float:
-    """Latest mtime across every per-module ``area.*`` manifest."""
+def _manifest_fingerprint_entry(repo_root: Path, path: Path) -> tuple[str, int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    try:
+        rel = path.relative_to(repo_root).as_posix()
+    except ValueError:
+        rel = str(path.resolve())
+    return (rel, int(stat.st_mtime_ns), int(stat.st_size))
+
+
+def area_manifest_fingerprint(
+    repo_root: Path,
+    *,
+    game: str | None = None,
+) -> AreaManifestFingerprint:
+    """Fingerprint every per-module ``area.*`` manifest used by the merged loader."""
     repo_root = repo_root.resolve()
-    mtimes: list[float] = []
+    entries: list[tuple[str, int, int]] = []
     for module_area in iter_module_area_manifests(repo_root, game=game):
         if module_area.is_file():
-            with suppress(OSError):
-                mtimes.append(float(module_area.stat().st_mtime))
+            entry = _manifest_fingerprint_entry(repo_root, module_area)
+            if entry is not None:
+                entries.append(entry)
     # Transitional: Phase 3 removed root ``area.json`` from production, but
     # the test suite still writes a root file in ~40 fixtures. Reading it as
     # a fallback keeps those tests green without forcing a mass migration.
@@ -82,9 +100,16 @@ def area_manifest_max_mtime(repo_root: Path, *, game: str | None = None) -> floa
     # this branch is effectively a no-op outside of tests.
     legacy_root = repo_root / "area.json"
     if legacy_root.is_file():
-        with suppress(OSError):
-            mtimes.append(float(legacy_root.stat().st_mtime))
-    return max(mtimes) if mtimes else 0.0
+        entry = _manifest_fingerprint_entry(repo_root, legacy_root)
+        if entry is not None:
+            entries.append(entry)
+    return tuple(entries)
+
+
+def area_manifest_max_mtime(repo_root: Path, *, game: str | None = None) -> float:
+    """Latest mtime across every per-module ``area.*`` manifest."""
+    fingerprint = area_manifest_fingerprint(repo_root, game=game)
+    return max((mtime_ns / 1_000_000_000 for _, mtime_ns, _ in fingerprint), default=0.0)
 
 
 def clear_area_doc_cache() -> None:
@@ -103,14 +128,14 @@ def load_area_doc(repo_root: Path, *, game: str | None = None) -> dict[str, Any]
     repo_root = repo_root.resolve()
     g = (game or default_game()).strip()
     return _load_area_doc_cached(
-        str(repo_root), area_manifest_max_mtime(repo_root, game=g), g
+        str(repo_root), area_manifest_fingerprint(repo_root, game=g), g
     )
 
 
 @lru_cache(maxsize=64)
 def _load_area_doc_cached(
     repo_root_s: str,
-    fingerprint: float,
+    fingerprint: AreaManifestFingerprint,
     game: str,
 ) -> dict[str, Any]:
     # fingerprint is part of the cache key; file edits invalidate automatically.

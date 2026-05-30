@@ -14,7 +14,8 @@ from dashboard.redis_client import get_instance_state
 from dsl import template_resolver as _tmpl
 from layout.area_lookup import screen_region_by_name
 from layout.area_manifest import (
-    area_manifest_max_mtime,
+    AreaManifestFingerprint,
+    area_manifest_fingerprint,
 )
 from layout.area_manifest import (
     load_area_doc as _load_merged_area_doc,
@@ -22,7 +23,7 @@ from layout.area_manifest import (
 from layout.area_versions import effective_ocr_for_region, region_version_of
 
 _AREA_DOC_TTL_S = 60.0
-_area_doc_cache: dict[tuple[str, float], tuple[float, dict[str, Any]]] = {}
+_area_doc_cache: dict[tuple[str, AreaManifestFingerprint], tuple[float, dict[str, Any]]] = {}
 
 
 def scenario_display_name(scenario_key: str) -> str:
@@ -39,7 +40,7 @@ def load_area_doc(area_path: Path) -> dict[str, Any]:
     manifests from the parent directory regardless.
     """
     repo_root = area_path.resolve().parent
-    fingerprint = area_manifest_max_mtime(repo_root)
+    fingerprint = area_manifest_fingerprint(repo_root)
     key = (str(repo_root), fingerprint)
     now = time.monotonic()
     cached = _area_doc_cache.get(key)
@@ -63,6 +64,22 @@ def labeling_query_ref_from_area_ocr(ocr_rel: str) -> str | None:
     return s or None
 
 
+def labeling_query_module_from_area_ocr(ocr_rel: str) -> str | None:
+    """Module scope key for a repo-relative module reference path."""
+    s = (ocr_rel or "").replace("\\", "/").strip().lstrip("/")
+    parts = s.split("/")
+    try:
+        ref_idx = parts.index("references")
+    except ValueError:
+        return None
+    if len(parts) >= 4 and parts[0] == "games" and ref_idx > 2:
+        module_path = "/".join(parts[2:ref_idx])
+        return f"{parts[1]}:{module_path}" if module_path else None
+    if len(parts) >= 3 and parts[0] == "modules" and ref_idx == 2:
+        return parts[1] or None
+    return None
+
+
 def labeling_query_params_for_area_region(
     area_doc: dict[str, Any],
     region_name: str,
@@ -81,6 +98,9 @@ def labeling_query_params_for_area_region(
 
     resolved_region = str(reg.get("name") or "").strip() or str(region_name or "").strip()
     params = {"ref": lbl_ref}
+    module_scope = labeling_query_module_from_area_ocr(ref_rel)
+    if module_scope:
+        params["module"] = module_scope
     if resolved_region:
         params["region"] = resolved_region
 

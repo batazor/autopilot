@@ -131,6 +131,15 @@ def is_pending_temporal_ref(ref_rel: str, env: LabelingScopeEnv) -> bool:
     return rel.startswith(f"{TEMPORAL_SUBDIR}/") and not rel.endswith("_current_state.png")
 
 
+def _allow_loose_ref_match(ref_rel: str, env: LabelingScopeEnv) -> bool:
+    """Whether basename/tail matching is safe for a reference lookup."""
+    if not env.ctx.is_all:
+        return True
+    from config.games import is_module_reference
+
+    return not is_module_reference(ref_rel)
+
+
 def entry_for_ref(
     doc: dict[str, Any],
     ref_rel: str,
@@ -159,10 +168,16 @@ def entry_for_ref(
         if ocr_abs == ref_abs:
             return idx, entry
         try:
-            if ocr_abs.name == ref_abs.name and ocr.endswith(ref_abs.name):
+            if (
+                _allow_loose_ref_match(ref_rel, env)
+                and ocr_abs.name == ref_abs.name
+                and ocr.endswith(ref_abs.name)
+            ):
                 return idx, entry
         except OSError:
             pass
+    if not _allow_loose_ref_match(ref_rel, env):
+        return None
     # Legacy tail match
     short = rel_under_ref_root(ref_rel, env)
     for idx, entry in enumerate(screens):

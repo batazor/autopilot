@@ -35,7 +35,12 @@ from config.paths import repo_root
 from dashboard.click_approvals import active_player_state_flat
 from dashboard.reference_preview import load_rolling_instance_preview
 from layout.area_lookup import screen_region_by_name
-from layout.area_manifest import area_manifest_max_mtime, load_area_doc
+from layout.area_manifest import (
+    AreaManifestFingerprint,
+    area_manifest_fingerprint,
+    area_manifest_max_mtime,
+    load_area_doc,
+)
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 from layout.template_match import _bbox_px_bounds, patch_bgr_from_bbox_percent
@@ -544,13 +549,15 @@ def _overlay_test_recall_hint(instance_id: str) -> str | None:
         return _overlay_test_hint_cache.get(instance_id)
 
 
-# Process-local LRU of recent detection results keyed by ``(frame_hash, area_mtime)``.
+# Process-local LRU of recent detection results keyed by ``(frame_hash, area_fingerprint)``.
 # Hashing a 720×1280 BGR frame with blake2b runs in ~3–5 ms — orders of magnitude
-# cheaper than re-running the full multi-screen scan. ``area_mtime`` invalidates
-# the cache when ``area.json`` is edited (region geometry or templates changed).
+# cheaper than re-running the full multi-screen scan. The area fingerprint
+# invalidates the cache when any merged area manifest changes.
 _OVERLAY_TEST_RESULT_CACHE_MAX = 32
 _overlay_test_result_cache_lock = threading.Lock()
-_overlay_test_result_cache: OrderedDict[tuple[bytes, float], str] = OrderedDict()
+_overlay_test_result_cache: OrderedDict[
+    tuple[bytes, AreaManifestFingerprint], str
+] = OrderedDict()
 
 
 def _overlay_test_frame_fingerprint(png_bytes: bytes | None) -> bytes | None:
@@ -568,11 +575,11 @@ def _overlay_test_frame_fingerprint(png_bytes: bytes | None) -> bytes | None:
 
 def _overlay_test_result_cache_get(
     fingerprint: bytes | None,
-    area_mtime: float,
+    area_fingerprint: AreaManifestFingerprint,
 ) -> str | None:
     if fingerprint is None:
         return None
-    key = (fingerprint, area_mtime)
+    key = (fingerprint, area_fingerprint)
     with _overlay_test_result_cache_lock:
         cached = _overlay_test_result_cache.get(key)
         if cached is not None:
@@ -582,12 +589,12 @@ def _overlay_test_result_cache_get(
 
 def _overlay_test_result_cache_put(
     fingerprint: bytes | None,
-    area_mtime: float,
+    area_fingerprint: AreaManifestFingerprint,
     detected: str,
 ) -> None:
     if fingerprint is None or not detected:
         return
-    key = (fingerprint, area_mtime)
+    key = (fingerprint, area_fingerprint)
     with _overlay_test_result_cache_lock:
         _overlay_test_result_cache[key] = detected
         _overlay_test_result_cache.move_to_end(key)
@@ -919,8 +926,8 @@ def run_overlay_test(
     # Content-hash cache: when the dashboard repolls with the same preview PNG
     # (worker hasn't captured a fresh frame yet), skip the full scan entirely.
     frame_fp = _overlay_test_frame_fingerprint(png)
-    area_mtime_for_cache = area_manifest_max_mtime(repo_root())
-    cached_detected = _overlay_test_result_cache_get(frame_fp, area_mtime_for_cache)
+    area_fingerprint_for_cache = area_manifest_fingerprint(repo_root())
+    cached_detected = _overlay_test_result_cache_get(frame_fp, area_fingerprint_for_cache)
     if cached_detected is not None:
         detected_screen = cached_detected
         screen_detect_ms = 0
@@ -929,7 +936,9 @@ def run_overlay_test(
             image_bgr, hint=screen_hint
         )
         if detected_screen:
-            _overlay_test_result_cache_put(frame_fp, area_mtime_for_cache, detected_screen)
+            _overlay_test_result_cache_put(
+                frame_fp, area_fingerprint_for_cache, detected_screen
+            )
     overlay_screen = detected_screen
     screen_source = "detected" if overlay_screen else "none"
     if detected_screen:

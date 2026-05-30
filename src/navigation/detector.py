@@ -13,7 +13,7 @@ import numpy as np
 from analysis.overlay_engine import evaluate_overlay_rules_async
 from analysis.overlay_rules import normalize_overlay_action
 from config.paths import repo_root
-from layout.area_manifest import area_manifest_max_mtime, load_area_doc
+from layout.area_manifest import AreaManifestFingerprint, area_manifest_fingerprint, load_area_doc
 from navigation.screen_graph import (
     screen_landmark_rules,
     screen_verify_config_fingerprint,
@@ -624,7 +624,7 @@ async def _evaluate_overlay_rules_in_thread(
 
 _suggest_detector_lock = threading.Lock()
 _suggest_detector: ScreenDetector | None = None
-_suggest_detector_area_mtime: float = 0.0
+_suggest_detector_area_fingerprint: AreaManifestFingerprint = ()
 
 
 def _shared_suggest_detector() -> ScreenDetector:
@@ -633,20 +633,20 @@ def _shared_suggest_detector() -> ScreenDetector:
     Building one means constructing ``OcrClient(load_settings())`` and paying
     the first-call cache warm-up. The labeling UI and overlay-test probe both
     hit this on every poll, so we cache the instance and invalidate its
-    ``_area_doc`` only when an ``area.json`` / module area manifest mtime
-    advances — that keeps labeling edits live without rebuilding the detector.
+    ``_area_doc`` only when an ``area.json`` / module area manifest changes —
+    that keeps labeling edits live without rebuilding the detector.
     """
-    global _suggest_detector, _suggest_detector_area_mtime
+    global _suggest_detector, _suggest_detector_area_fingerprint
     from config.loader import load_settings
 
-    mtime = area_manifest_max_mtime(repo_root())
+    fingerprint = area_manifest_fingerprint(repo_root())
     with _suggest_detector_lock:
         if _suggest_detector is None:
             _suggest_detector = ScreenDetector(OcrClient(load_settings()))
-            _suggest_detector_area_mtime = mtime
-        elif mtime > _suggest_detector_area_mtime:
+            _suggest_detector_area_fingerprint = fingerprint
+        elif fingerprint != _suggest_detector_area_fingerprint:
             _suggest_detector._area_doc = None
-            _suggest_detector_area_mtime = mtime
+            _suggest_detector_area_fingerprint = fingerprint
         return _suggest_detector
 
 

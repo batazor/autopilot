@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import TYPE_CHECKING
 
@@ -126,3 +127,43 @@ def test_load_area_doc_cache_hits_until_mtime_changes(tmp_path: Path) -> None:
     third = load_area_doc(tmp_path)
     assert third is not first
     assert len(third["screens"]) == 2
+
+
+def test_load_area_doc_cache_invalidates_when_non_max_manifest_changes(
+    tmp_path: Path,
+) -> None:
+    clear_area_doc_cache()
+    modules_root = _modules_root_for(_default_game(), repo_root=tmp_path)
+    older_dir = modules_root / "older_area"
+    newer_dir = modules_root / "newer_area"
+    older_dir.mkdir(parents=True)
+    newer_dir.mkdir(parents=True)
+    (older_dir / "module.yaml").write_text("id: older_area\n", encoding="utf-8")
+    (newer_dir / "module.yaml").write_text("id: newer_area\n", encoding="utf-8")
+    older_area = older_dir / "area.yaml"
+    newer_area = newer_dir / "area.yaml"
+    older_area.write_text(
+        yaml.safe_dump({"screens": [{"screen_id": "older.v1"}]}),
+        encoding="utf-8",
+    )
+    newer_area.write_text(
+        yaml.safe_dump({"screens": [{"screen_id": "newer"}]}),
+        encoding="utf-8",
+    )
+
+    from config.module_discovery import _clear_module_discovery_caches
+
+    _clear_module_discovery_caches()
+    first = load_area_doc(tmp_path)
+    assert {s["screen_id"] for s in first["screens"]} == {"older.v1", "newer"}
+
+    newer_mtime = newer_area.stat().st_mtime
+    older_area.write_text(
+        yaml.safe_dump({"screens": [{"screen_id": "older.v2"}]}),
+        encoding="utf-8",
+    )
+    os.utime(older_area, (newer_mtime - 1, newer_mtime - 1))
+
+    second = load_area_doc(tmp_path)
+    assert second is not first
+    assert {s["screen_id"] for s in second["screens"]} == {"older.v2", "newer"}

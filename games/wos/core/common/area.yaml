@@ -24,28 +24,6 @@
       ]
     },
     {
-      "id": 1401,
-      "screen_id": "",
-      "ocr": "references/chief_profile.png",
-      "regions": [
-        {
-          "name": "icon.page.back",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 0.7702702702702703,
-            "y": 0.5163043478260869,
-            "width": 10.832046332046332,
-            "height": 4.95,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          },
-          "isSearch": true
-        }
-      ]
-    },
-    {
       "id": 1402,
       "screen_id": "",
       "ocr": "references/page.rewards.png",

@@ -65,6 +65,57 @@ def test_list_reference_paths_module_scope_includes_temporal(
     assert "games/wos/ads/references/temporal/bs1_shot_test.png" in rels
 
 
+def test_all_scope_requires_exact_module_reference_path(labeling_repo: Path) -> None:
+    import yaml
+
+    from api.services.labeling import get_labeling_document
+    from config.module_discovery import _clear_module_discovery_caches
+    from layout.area_manifest import clear_area_doc_cache
+
+    common = labeling_repo / "games" / "wos" / "core" / "common"
+    who_i_am = labeling_repo / "games" / "wos" / "core" / "who_i_am"
+    for module_dir, module_id in ((common, "common"), (who_i_am, "who_i_am")):
+        (module_dir / "references").mkdir(parents=True)
+        (module_dir / "module.yaml").write_text(
+            f"id: {module_id}\narea: area.yaml\nreferences: references\n",
+            encoding="utf-8",
+        )
+
+    common_ref = "games/wos/core/common/references/chief_profile.png"
+    who_ref = "games/wos/core/who_i_am/references/chief_profile.png"
+    (labeling_repo / common_ref).write_bytes(b"common")
+    (labeling_repo / who_ref).write_bytes(b"who")
+    (common / "area.yaml").write_text(
+        yaml.safe_dump({"version": 2, "screens": []}),
+        encoding="utf-8",
+    )
+    (who_i_am / "area.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "version": 2,
+                "screens": [
+                    {
+                        "screen_id": "chief_profile",
+                        "ocr": "references/chief_profile.png",
+                        "regions": [{"name": "player.id", "action": "text"}],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _clear_module_discovery_caches()
+    clear_area_doc_cache()
+
+    common_doc = get_labeling_document(common_ref, scope="all")
+    assert common_doc["entry_id"] is None
+    assert common_doc["regions"] == []
+
+    who_doc = get_labeling_document(who_ref, scope="all")
+    assert who_doc["screen_id"] == "chief_profile"
+    assert who_doc["regions"][0]["name"] == "player.id"
+
+
 def test_import_dropped_png(labeling_repo: Path) -> None:
     from api.services.labeling import import_dropped_png
 

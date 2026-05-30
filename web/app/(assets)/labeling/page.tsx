@@ -157,9 +157,14 @@ function LabelingPageInner() {
         setScopes(list);
         const fromUrl = params.get("module");
         const fromRef = inferScopeFromRef(params.get("ref") ?? "");
+        const urlScope =
+          fromUrl && list.some((s) => s.key === fromUrl) ? fromUrl : null;
+        const refScope =
+          fromRef && list.some((s) => s.key === fromRef) ? fromRef : null;
         const initial =
-          (fromUrl && list.some((s) => s.key === fromUrl) && fromUrl) ||
-          (fromRef && list.some((s) => s.key === fromRef) && fromRef) ||
+          (refScope && (!urlScope || urlScope === "all") && refScope) ||
+          urlScope ||
+          refScope ||
           list.find((s) => s.key === "all")?.key ||
           list[0]?.key ||
           "all";
