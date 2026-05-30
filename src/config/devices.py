@@ -140,6 +140,27 @@ def upsert_device_gamer(
     return changed
 
 
+def set_last_active_player(device_name: str, player_id: str) -> bool:
+    """Persist the player id last identified on *device_name* (see devices_db).
+
+    Returns True iff the stored value changed; invalidates the registry cache so
+    the next read reflects it.
+    """
+    from config.devices_db import set_last_active_player as _db_set
+
+    changed = _db_set(device_name, player_id)
+    if changed:
+        _invalidate()
+    return changed
+
+
+def get_last_active_player(*device_candidates: str) -> str:
+    """Stored ``last_active_player`` for the first matching device alias, or ``""``."""
+    from config.devices_db import get_last_active_player as _db_get
+
+    return _db_get(*device_candidates)
+
+
 # ---------------------------------------------------------------------------
 # Global registry cache
 # ---------------------------------------------------------------------------

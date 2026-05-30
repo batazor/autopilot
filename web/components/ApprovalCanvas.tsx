@@ -18,6 +18,9 @@ type Props = {
   /** Called when the stream closes (e.g. scrcpy stopped). Lets the page
    *  fall back to the still-image source. */
   onStreamClosed?: (reason: string) => void;
+  /** Worker is alive (fresh heartbeat) but hasn't produced a preview yet.
+   *  Controls the empty-state copy: warming-up vs. start-the-bot. */
+  workerActive?: boolean;
 };
 
 type BitmapSource = HTMLImageElement | VideoFrame;
@@ -29,6 +32,7 @@ export function ApprovalCanvas({
   height,
   overlays,
   onStreamClosed,
+  workerActive,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -245,7 +249,14 @@ export function ApprovalCanvas({
   if (!hasSource) {
     return (
       <div className="preview-empty">
-        No screenshot yet — start the bot or wait for a rolling preview.
+        {workerActive ? (
+          <span className="preview-empty__warming">
+            <span className="preview-empty__spinner" aria-hidden />
+            Bot running — warming up capture…
+          </span>
+        ) : (
+          "No preview yet — start the bot to see a rolling screenshot."
+        )}
       </div>
     );
   }

@@ -91,6 +91,9 @@ export type ClickApprovalView = {
   has_pending: boolean;
   approval_enabled: boolean;
   heartbeat_active: boolean;
+  /** Worker ``last_seen_at`` heartbeat is fresh — i.e. the bot is actually
+   *  running for this instance (distinct from the UI-presence heartbeat). */
+  worker_alive: boolean;
   scenario_key: string;
   scenario_label: string;
   region_label: string;
@@ -346,6 +349,18 @@ export type PlayerStatsView = {
   level_events: PlayerLevelEvent[];
 };
 
+export type EventTimerRow = {
+  event: string;
+  status: string;
+  remaining: string;
+  remaining_s: number;
+  reset_at: string;
+  recorded_at: string;
+  raw_text: string;
+  confidence: string;
+  source_region: string;
+};
+
 export type AllianceDay = {
   day: string;
   power: number;
@@ -374,6 +389,7 @@ export type PlayerPersistedView = {
     recruitment: Record<string, number>;
     troops: Record<string, string | boolean>;
     alliance_block: Record<string, string | number>;
+    event_timers: EventTimerRow[];
     heroes: {
       metrics: Record<string, number | boolean>;
       owned: HeroStateRow[];
@@ -595,6 +611,10 @@ export type AreaRegionProbeResult = {
     mean_saturation?: number;
     tap_x_pct?: number;
     tap_y_pct?: number;
+    red_dot_present?: boolean;
+    red_dot_required?: boolean;
+    red_dot_search_mode?: string;
+    want_dot_present?: boolean;
   } | null;
   overlays: OverlayShape[];
 };

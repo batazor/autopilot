@@ -132,6 +132,9 @@ class DslStep(BaseModel):
     # so a typo (``scope: instnace``) fails parse instead of falling back
     # to ``player`` and silently writing to the wrong key.
     scope: Literal["player", "instance"] | None = None
+    # OCR-only: persist a durable reset timer snapshot into SQLite
+    # ``GamerState.event_timers`` under the exact event name.
+    event_timer: str | dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _exactly_one_action(self) -> DslStep:

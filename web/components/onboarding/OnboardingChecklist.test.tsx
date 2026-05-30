@@ -3,6 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("react-confetti", () => ({
+  default: (props: { className?: string }) => (
+    <canvas data-testid="onboarding-confetti" className={props.className} />
+  ),
+}));
+
 import { OnboardingChecklist } from "./OnboardingChecklist";
 import * as api from "@/lib/api";
 import * as onboarding from "@/lib/onboarding";
@@ -78,7 +84,7 @@ describe("OnboardingChecklist", () => {
     expect(scenarioItem).not.toHaveClass("is-done");
   });
 
-  it("hides entirely when all six milestones are complete", async () => {
+  it("shows the completed widget with confetti when all six milestones finish", async () => {
     stub({
       device_added_at: "t",
       bot_started_at: "t",
@@ -87,9 +93,27 @@ describe("OnboardingChecklist", () => {
       first_ocr_at: "t",
       approvals_disabled_at: "t",
     });
-    const { container } = render(<OnboardingChecklist />);
+    render(<OnboardingChecklist />);
     await flush();
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText("First steps complete")).toBeInTheDocument();
+    expect(screen.getByText("Ready for regular runs")).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-confetti")).toBeInTheDocument();
+  });
+
+  it("does not replay confetti after completion was already celebrated", async () => {
+    onboarding.markChecklistCelebrated();
+    stub({
+      device_added_at: "t",
+      bot_started_at: "t",
+      first_scenario_at: "t",
+      first_approval_at: "t",
+      first_ocr_at: "t",
+      approvals_disabled_at: "t",
+    });
+    render(<OnboardingChecklist />);
+    await flush();
+    expect(screen.getByText("First steps complete")).toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-confetti")).not.toBeInTheDocument();
   });
 
   it("hides after the user clicks Dismiss and persists the flag", async () => {

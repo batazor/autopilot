@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 import pytest
@@ -787,3 +788,84 @@ def test_require_approval_skip_returns_ok_and_queues_consume_marker(
     assert tap._consume_skip(req_id) is False
     # The slot was cleared by the cleanup path (skip is non-approve).
     assert r.get("wos:ui:click_approval:current:bs1") is None
+
+
+def test_abort_pending_approval_round_trip(monkeypatch: Any, redis_sync: Any) -> None:
+    """``abort_pending_approval`` stamps a reason that ``_approval_abort_reason``
+    reads back for any request that started before the abort."""
+    r = _RedisProxy(redis_sync)
+    _patch_redis(monkeypatch, r)
+
+    tap.abort_pending_approval("bs1", "game restart triggered")
+
+    # A request that entered at t=0 (before the abort) sees the reason.
+    assert tap._approval_abort_reason("bs1", since=0.0) == "game restart triggered"
+    # A request that started "in the future" (after the abort) is unaffected.
+    assert tap._approval_abort_reason("bs1", since=time.time() + 60) is None
+    # No abort stamped for another instance.
+    assert tap._approval_abort_reason("bs2", since=0.0) is None
+
+
+def test_require_approval_aborts_pending_click_on_restart(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """A restart-issued abort (stamped after the request started) makes the
+    operator-decision wait give up: ok=False and the slot is cleared so the
+    bot never taps the freshly-restarted game."""
+    r = _RedisProxy(redis_sync)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    # Abort stamped in the (relative) future so it is always >= entered_at.
+    r.set(
+        "wos:ui:click_approval:abort:bs1",
+        json.dumps({"at": time.time() + 60, "reason": "aborted_for_restart"}),
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is False
+    assert req_id is not None
+    # Slot cleared by the non-approve cleanup path — next request can publish.
+    assert r.get("wos:ui:click_approval:current:bs1") is None
+
+
+def test_require_approval_aborts_while_waiting_for_page(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """When the approvals page is closed the request blocks in the page-open
+    wait; a restart abort there returns (False, None) without ever publishing."""
+    r = _RedisProxy(redis_sync)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    # No heartbeat → stuck waiting for the page to open.
+    r.set(
+        "wos:ui:click_approval:abort:bs1",
+        json.dumps({"at": time.time() + 60, "reason": "aborted_for_restart"}),
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is False
+    assert req_id is None
+    assert r.get("wos:ui:click_approval:current:bs1") is None
+
+
+def test_require_approval_ignores_stale_abort(
+    monkeypatch: Any, redis_sync: Any
+) -> None:
+    """An abort stamped before the request started belongs to an earlier
+    (already finished) request and must not block the new one."""
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    r.set("wos:ui:click_approval:heartbeat:bs1", "1")
+    r.set(
+        "wos:ui:click_approval:abort:bs1",
+        json.dumps({"at": time.time() - 60, "reason": "aborted_for_restart"}),
+    )
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
+
+    assert ok is True
+    assert req_id is not None

@@ -131,6 +131,10 @@ def _overlay_signals() -> DetectionSignals:
         ("monthly card 9.99 /mo subscribe", False, PopupKind.PURCHASE),
         ("verify you are not a robot", True, PopupKind.CAPTCHA),
         ("level up reward tap to claim", False, PopupKind.REWARD_CLAIM),
+        ("victory tap anywhere to continue", False, PopupKind.TAP_TO_CONTINUE),
+        ("rewards received tap to continue", False, PopupKind.TAP_TO_CONTINUE),
+        # "tap anywhere" wins over the reward cues so a splash taps the center.
+        ("tap anywhere to claim your reward", False, PopupKind.TAP_TO_CONTINUE),
         ("daily login got it", False, PopupKind.SAFE_DISMISS),
         ("event splash", True, PopupKind.SAFE_DISMISS),
         ("mysterious notice", False, PopupKind.UNKNOWN_MODAL),

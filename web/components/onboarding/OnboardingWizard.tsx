@@ -16,6 +16,7 @@ import {
   startLocalBot,
 } from "@/lib/api";
 import { adbSerialAliases, adbSerialMatches } from "@/lib/adb-serial";
+import { OnboardingConfetti } from "@/components/onboarding/OnboardingConfetti";
 import type { AdbStatus, LicenseStatus } from "@/lib/config-pages";
 import {
   type EnvHealth,
@@ -241,6 +242,7 @@ export function OnboardingWizard() {
   const licenseOk = Boolean(licenseStatus?.active);
   const envOk = Boolean(env?.redis.ok);
   const deviceOk = Boolean(state?.device_added_at) || hasCurrentDevice(adbStatus);
+  const wizardComplete = step === STEP_BOT && botRunning;
   const canContinue =
     step === STEP_LICENSE
       ? licenseOk
@@ -255,6 +257,7 @@ export function OnboardingWizard() {
       <DialogBackdrop transition className="headless-dialog__backdrop" />
       <div className="headless-dialog__container">
         <DialogPanel transition className="headless-dialog__panel onboarding-wizard">
+          <OnboardingConfetti active={wizardComplete} />
           <div className="onboarding-wizard__header">
             <DialogTitle className="headless-dialog__title">
               Welcome to Autopilot

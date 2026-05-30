@@ -97,7 +97,12 @@ class PopupBlockingHandler:
                     logger.warning("popup: purchase modal with no close point on %s — escalating", instance_id)
                     return PopupHandleResult.ESCALATE
                 actions.tap(instance_id, state.close_point)
-            elif state.kind == PopupKind.REWARD_CLAIM and state.primary_point is not None:
+            elif (
+                state.kind in (PopupKind.REWARD_CLAIM, PopupKind.TAP_TO_CONTINUE)
+                and state.primary_point is not None
+            ):
+                # REWARD_CLAIM → the claim button; TAP_TO_CONTINUE → the center
+                # ("tap anywhere"). Both are the card's primary point, never the X.
                 actions.tap(instance_id, state.primary_point)
             elif state.close_point is not None:
                 actions.tap(instance_id, state.close_point)  # prefer the X

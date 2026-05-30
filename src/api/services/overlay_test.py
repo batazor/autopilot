@@ -1275,12 +1275,24 @@ def run_area_region_probe(
     crops: ProbeCrops | None = None
     if image_bgr is not None and selected:
         safe_threshold = max(0.0, min(1.0, float(threshold)))
+        selected_pair = screen_region_by_name(
+            area_doc,
+            selected,
+            state_flat=state_flat,
+        )
+        selected_region_def = selected_pair[1] if selected_pair is not None else {}
+        use_red_dot_probe = bool(selected_region_def.get("has_red_dot")) and not bool(
+            selected_region_def.get("isSearch")
+        )
         rule = {
             "name": f"probe.area.{selected}",
             "region": selected,
-            "action": "exist",
-            "threshold": safe_threshold,
         }
+        if use_red_dot_probe:
+            rule["isRedDot"] = True
+        else:
+            rule["action"] = "exist"
+            rule["threshold"] = safe_threshold
         try:
             results = asyncio.run(
                 evaluate_overlay_rules_async(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -96,15 +97,15 @@ class InstanceWorkerHealthMixin(_Base):
 
         while time.monotonic() < deadline:
             try:
-                if ba.is_game_foreground(inst):
+                if ba.is_game_running(inst):
                     logger.info(
-                        "Startup: Whiteout verified running and foreground on %s",
+                        "Startup: Whiteout process verified running on %s",
                         inst,
                     )
                     return True
             except Exception:
                 logger.debug(
-                    "Startup: foreground probe failed on %s", inst, exc_info=True
+                    "Startup: process probe failed on %s", inst, exc_info=True
                 )
 
             remaining = deadline - time.monotonic()
@@ -178,28 +179,30 @@ class InstanceWorkerHealthMixin(_Base):
                 )
                 return
 
-            # Poll until the game reports foreground (best-effort, bounded).
+            # Poll until the game process is back (best-effort, bounded).
+            # Aliveness, not foreground — the BlueStacks resumed-activity parse
+            # would otherwise never confirm and we'd always burn the timeout.
             loop = asyncio.get_running_loop()
             deadline = loop.time() + self._FOREGROUND_VERIFY_TIMEOUT_S
             while loop.time() < deadline:
                 try:
-                    is_fg = await self._run_blocking(
-                        self._bot_actions.is_game_foreground,
+                    is_up = await self._run_blocking(
+                        self._bot_actions.is_game_running,
                         self._cfg.instance_id,
                     )
                 except Exception:
                     logger.debug(
-                        "Restart: is_game_foreground probe failed on %s",
+                        "Restart: is_game_running probe failed on %s",
                         self._cfg.instance_id,
                         exc_info=True,
                     )
-                    is_fg = False
-                if is_fg:
+                    is_up = False
+                if is_up:
                     break
                 await asyncio.sleep(self._FOREGROUND_VERIFY_INTERVAL_S)
             else:
                 logger.warning(
-                    "Restart: %s did not return to foreground within %.1fs — resuming anyway",
+                    "Restart: %s process did not come back within %.1fs — resuming anyway",
                     self._cfg.instance_id,
                     self._FOREGROUND_VERIFY_TIMEOUT_S,
                 )
@@ -210,6 +213,19 @@ class InstanceWorkerHealthMixin(_Base):
                 self._POST_RESTART_GRACE_S,
             )
             await asyncio.sleep(self._POST_RESTART_GRACE_S)
+
+            # A game relaunch is the only moment a runtime account switch can
+            # happen (switching characters reloads the game). Clear the cached
+            # identity so the next rolling tick re-arms ``who_i_am`` and
+            # re-verifies who is logged in. The durable ``last_active_player`` is
+            # intentionally kept — the probe overwrites it with the freshly
+            # OCR'd id, self-correcting after a switch.
+            with contextlib.suppress(Exception):
+                await self._redis.hset(
+                    f"wos:instance:{self._cfg.instance_id}:state",
+                    "active_player",
+                    "",
+                )
 
             await self._set_instance_state(InstanceState.READY)
         finally:

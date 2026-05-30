@@ -49,6 +49,37 @@ def test_build_persisted_player_view(player_state_repo: Path) -> None:
     assert any(r["id"] == "furnace" for r in view["building_levels"])
 
 
+def test_build_persisted_player_view_includes_event_timers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from config.state_schema import EventTimerState
+    from dashboard import player_state_data as psd
+
+    monkeypatch.setattr(psd.time, "time", lambda: 1_700_000_000.0)
+    gamer = GamerState(id=42, nickname="TimerPlayer")
+    gamer.event_timers["shop.artisans_trove"] = EventTimerState(
+        remaining_s=119479,
+        recorded_at=1_700_000_000.0,
+        reset_at=1_700_119_479.0,
+        raw_text="1d 09:11:19",
+        source_region="artisans_trove.delay",
+        confidence=0.97,
+    )
+
+    view = psd.build_persisted_player_view(gamer)
+
+    timer = view["event_timers"][0]
+    assert timer["event"] == "shop.artisans_trove"
+    assert timer["status"] == "waiting"
+    assert timer["remaining"] == "1d 09:11:19"
+    assert timer["remaining_s"] == 119479
+    assert timer["raw_text"] == "1d 09:11:19"
+    assert timer["confidence"] == "0.97"
+    assert timer["source_region"] == "artisans_trove.delay"
+    assert timer["reset_at"] != "—"
+    assert timer["recorded_at"] != "—"
+
+
 def test_building_level_rows_from_redis() -> None:
     from dashboard.player_state_data import building_level_rows_from_redis
 

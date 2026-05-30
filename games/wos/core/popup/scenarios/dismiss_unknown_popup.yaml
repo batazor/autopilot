@@ -7,6 +7,13 @@ priority: 70_000
 cond: currentNode == unknown
 
 steps:
+  # Smart pass first: the game-wide, template-free pop-up detector localizes a
+  # blurred-scrim modal and dismisses it with a single safety-classified tap
+  # (loop-until-clear, approval-gated). No-op when the detector is disabled
+  # (worker.popup_detector_enabled) or when it finds nothing / escalates — the
+  # region shotgun below then runs as the deeper fallback.
+  - exec: dismiss_popup
+
   - while_match: button.free
     max: 1
     steps:

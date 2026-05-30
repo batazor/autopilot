@@ -463,6 +463,25 @@ def _labeling_href_for_region(
     return f"/labeling?{urlencode(qp)}"
 
 
+# A worker that wrote its ``last_seen_at`` heartbeat within this window is
+# treated as alive. The worker refreshes it every main-loop tick (sub-second),
+# so 15s comfortably covers a slow tick without flapping.
+_WORKER_ALIVE_WINDOW_S = 15.0
+
+
+def _worker_recently_seen(instance_state: dict[str, Any]) -> bool:
+    """True iff the worker's ``last_seen_at`` heartbeat is fresh.
+
+    Distinguishes "bot running, capture warming up" from "bot stopped" so the UI
+    placeholder can tell the operator which one they're looking at.
+    """
+    try:
+        last = float(instance_state.get("last_seen_at"))
+    except (TypeError, ValueError):
+        return False
+    return (time.time() - last) <= _WORKER_ALIVE_WINDOW_S
+
+
 def get_approval_view(
     client: Any,
     instance_id: str,
@@ -547,6 +566,10 @@ def get_approval_view(
         # is ON; expose it as a derived flag so the UI can render an explicit
         # "Heartbeat: ON / OFF" status line without a second round-trip.
         "heartbeat_active": enabled,
+        # Worker liveness derived from the ``last_seen_at`` heartbeat — lets the
+        # preview placeholder say "warming up" vs "start the bot". Unlike
+        # ``heartbeat_active`` (UI presence), this reflects the actual worker.
+        "worker_alive": _worker_recently_seen(instance_state),
         "has_pending": payload is not None,
         "pending": payload,
         "scenario_key": scenario_key,

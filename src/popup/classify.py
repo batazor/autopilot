@@ -21,6 +21,20 @@ _CURRENCY_RE = re.compile(r"[$€£¥₩]")
 DENY_PURCHASE = ["usd", "buy", "purchase", "spend", "gems", "price", "/mo", "subscribe"]
 SAFE_DISMISS = ["got it", "close", "later", "skip", "ok", "confirm later"]
 REWARD_CUES = ["claim", "collect", "tap to", "received", "reward", "level up"]
+# Full-screen reward / info pages dismissed by tapping *anywhere* — they carry
+# no X, so the top-right close geometry is wrong. The safe action is a center
+# tap. Kept narrow (the "tap … to continue/close/skip/proceed" family) so a
+# generic reward card with a Claim button still resolves to REWARD_CLAIM.
+# NB: no "tap the screen" — it collides with CAPTCHA's "tap the" cue (checked
+# first) and would wrongly lock the page as a captcha.
+TAP_CONTINUE_CUES = [
+    "tap anywhere",
+    "tap to continue",
+    "tap screen to continue",
+    "tap to close",
+    "tap to skip",
+    "tap to proceed",
+]
 CAPTCHA_CUES = ["verify", "select all", "tap the", "captcha", "i am not a robot"]
 
 # Fuzzy threshold for vocabulary matches. High so noisy OCR fragments don't
@@ -49,6 +63,12 @@ class SafetyClassifier:
 
         if self._is_purchase(text):
             return PopupKind.PURCHASE
+
+        # "Tap anywhere / tap to continue" pages have no X — tap the center.
+        # Checked before REWARD_CLAIM so a "tap anywhere to claim" splash taps
+        # the center (anywhere works) rather than guessing a claim-button spot.
+        if self._has_cue(text, TAP_CONTINUE_CUES):
+            return PopupKind.TAP_TO_CONTINUE
 
         if self._has_cue(text, REWARD_CUES) and not has_close:
             return PopupKind.REWARD_CLAIM

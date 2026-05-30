@@ -88,6 +88,26 @@
     @apply mt-2 block text-[11px] leading-snug text-amber-200/75;
   }
 
+  .nav-bot-banner__devnav {
+    @apply mt-2 flex items-center gap-1.5;
+  }
+
+  .nav-bot-banner__devnav-label {
+    @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-amber-400/20 bg-black/15 px-2 py-1 text-[11px] font-semibold text-amber-100/90;
+  }
+
+  .nav-bot-banner__devnav-name {
+    @apply min-w-0 truncate;
+  }
+
+  .nav-bot-banner--running .nav-bot-banner__devnav-label {
+    @apply border-emerald-400/20 text-emerald-100/90;
+  }
+
+  .nav-bot-banner--devices .nav-bot-banner__devnav-label {
+    @apply border-sky-400/20 text-sky-100/90;
+  }
+
   .nav-bot-banner__chips {
     @apply mt-2 flex min-w-0 flex-wrap gap-1.5;
   }

@@ -1,7 +1,9 @@
 """ADB / devices API — backs the Next.js /adb page."""
 from __future__ import annotations
 
+import socket
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from fastapi import HTTPException
@@ -18,6 +20,7 @@ from config.devices_db import (
     upsert_device,
 )
 from config.devices_db import set_device_backend as db_set_device_backend
+from config.games import GAMES
 from config.loader import load_settings
 from config.paths import repo_root
 
@@ -27,11 +30,14 @@ _REPO = repo_root()
 # the *historical* file lived (the dashboard's ADB page renders this as info).
 _SETTINGS_DISPLAY = "src/config/_settings_data.py"
 _DEVICES_DB_REL = "db/state/state.db"
-_DEFAULT_TCP_ADB_TARGETS = ("127.0.0.1:5555",)
+# Emulator ADB ports are allocated in steps of 10 starting at 5555
+# (5555, 5565, ... 5625). Probe the whole range so newly-added instances are
+# auto-discovered without hardcoding each port.
+_ADB_TCP_PORT_RANGE = range(5555, 5626, 10)
 
 
-def _parse_adb_devices(stdout: str) -> list[dict[str, str]]:
-    live: list[dict[str, str]] = []
+def _parse_adb_devices(stdout: str) -> list[dict[str, Any]]:
+    live: list[dict[str, Any]] = []
     for line in (stdout or "").splitlines():
         line = line.strip()
         if not line or line.startswith("List of devices"):
@@ -49,7 +55,7 @@ def _parse_adb_devices(stdout: str) -> list[dict[str, str]]:
     return live
 
 
-def _scan_adb_devices(adb_exe: str) -> tuple[list[dict[str, str]], str | None]:
+def _scan_adb_devices(adb_exe: str) -> tuple[list[dict[str, Any]], str | None]:
     proc = subprocess.run(
         [adb_exe, "devices", "-l"],
         capture_output=True,
@@ -62,7 +68,7 @@ def _scan_adb_devices(adb_exe: str) -> tuple[list[dict[str, str]], str | None]:
     return _parse_adb_devices(proc.stdout or ""), None
 
 
-def _has_live_adb_serial(live: list[dict[str, str]], serial: str) -> bool:
+def _has_live_adb_serial(live: list[dict[str, Any]], serial: str) -> bool:
     target = canonical_adb_serial(serial)
     return any(
         canonical_adb_serial(row.get("canonical_serial") or row.get("serial") or "")
@@ -71,15 +77,38 @@ def _has_live_adb_serial(live: list[dict[str, str]], serial: str) -> bool:
     )
 
 
-def _probe_default_tcp_adb_targets(adb_exe: str, live: list[dict[str, str]]) -> bool:
-    attempted = False
-    for target in _DEFAULT_TCP_ADB_TARGETS:
-        if _has_live_adb_serial(live, target):
-            continue
-        attempted = True
+def _port_open(port: int, timeout: float = 0.3) -> bool:
+    """Cheap TCP liveness check so we only ``adb connect`` ports that listen."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(timeout)
+        return sock.connect_ex(("127.0.0.1", port)) == 0
+
+
+def _probe_default_tcp_adb_targets(adb_exe: str, live: list[dict[str, Any]]) -> bool:
+    candidates = [
+        port
+        for port in _ADB_TCP_PORT_RANGE
+        if not _has_live_adb_serial(live, f"127.0.0.1:{port}")
+    ]
+    if not candidates:
+        return False
+
+    # Probe liveness in parallel (sub-second) instead of letting ``adb connect``
+    # block ~5s per dead port. This keeps the /adb status endpoint snappy no
+    # matter how wide the port range grows.
+    with ThreadPoolExecutor(max_workers=len(candidates)) as pool:
+        open_ports = [
+            port
+            for port, is_open in zip(
+                candidates, pool.map(_port_open, candidates), strict=True
+            )
+            if is_open
+        ]
+
+    for port in open_ports:
         try:
             subprocess.run(
-                [adb_exe, "connect", target],
+                [adb_exe, "connect", f"127.0.0.1:{port}"],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -89,13 +118,83 @@ def _probe_default_tcp_adb_targets(adb_exe: str, live: list[dict[str, str]]) -> 
             # Best-effort discovery only. A refused localhost port should not
             # make a USB/physical device scan look broken.
             continue
-    return attempted
+    return bool(open_ports)
+
+
+def _adb_shell_text(
+    adb_exe: str,
+    serial: str,
+    *args: str,
+    timeout: float = 4.0,
+) -> str:
+    try:
+        proc = subprocess.run(
+            [adb_exe, "-s", serial, "shell", *args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except Exception:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout or ""
+
+
+def _parse_pm_packages(stdout: str) -> set[str]:
+    packages: set[str] = set()
+    for raw in (stdout or "").splitlines():
+        line = raw.strip()
+        if not line.startswith("package:"):
+            continue
+        package = line.removeprefix("package:").strip()
+        if "=" in package:
+            package = package.rsplit("=", 1)[-1].strip()
+        if package:
+            packages.add(package)
+    return packages
+
+
+def _detect_known_games(adb_exe: str, serial: str) -> list[dict[str, Any]]:
+    installed = _parse_pm_packages(
+        _adb_shell_text(adb_exe, serial, "pm", "list", "packages")
+    )
+    if not installed:
+        return []
+
+    foreground_text = "\n".join(
+        [
+            _adb_shell_text(adb_exe, serial, "dumpsys", "activity", "activities"),
+            _adb_shell_text(adb_exe, serial, "dumpsys", "window"),
+        ]
+    )
+
+    detected: list[dict[str, Any]] = []
+    for gid, spec in GAMES.items():
+        for package in spec.packages:
+            if package not in installed:
+                continue
+            running = bool(
+                _adb_shell_text(adb_exe, serial, "pidof", package, timeout=2.0).strip()
+                or package in foreground_text
+            )
+            detected.append(
+                {
+                    "id": gid,
+                    "label": spec.label,
+                    "package": package,
+                    "beta": package != spec.package,
+                    "running": running,
+                }
+            )
+    return detected
 
 
 def get_adb_status() -> dict[str, Any]:
     settings = load_settings()
     adb_exe = str(settings.worker.adb_executable or "adb")
-    live: list[dict[str, str]]
+    live: list[dict[str, Any]]
     scan_error: str | None = None
     try:
         live, scan_error = _scan_adb_devices(adb_exe)
@@ -108,6 +207,9 @@ def get_adb_status() -> dict[str, Any]:
     except Exception as exc:
         live = []
         scan_error = str(exc)
+
+    for row in live:
+        row["detected_games"] = _detect_known_games(adb_exe, str(row["serial"]))
 
     configured: list[dict[str, Any]] = []
     for device in load_registry().devices:
@@ -138,6 +240,19 @@ def get_adb_status() -> dict[str, Any]:
         "live_devices": live,
         "scan_error": scan_error,
     }
+
+
+def _notify_supervisor_reconcile(reason: str) -> None:
+    """Wake a running worker supervisor so it picks up the registry change without
+    a restart. Best-effort: if Redis is down or no bot is running, the periodic
+    reconcile poll (and the next Start) still converges."""
+    try:
+        from dashboard.dashboard_events import publish_device_reconcile
+        from dashboard.redis_client import get_redis
+
+        publish_device_reconcile(get_redis(), reason=reason)
+    except Exception:  # pragma: no cover - notification is best-effort
+        pass
 
 
 def _serial_matches(a: str, b: str) -> bool:
@@ -209,7 +324,7 @@ def register_device(serial: str) -> dict[str, Any]:
                 "created": False,
                 "name": device.name,
                 "adb_serial": device.effective_serial,
-                "restart_required": True,
+                "restart_required": False,
                 "scrcpy_install": scrcpy_install,
             }
 
@@ -219,6 +334,9 @@ def register_device(serial: str) -> dict[str, Any]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     invalidate_device_registry()
+    # Nudge a running supervisor to spawn this device's worker right away; no
+    # bot restart needed.
+    _notify_supervisor_reconcile(f"register:{name}")
     scrcpy_install = _auto_install_scrcpy_if_required(
         adb_serial,
         screenshot_backend="",
@@ -229,7 +347,7 @@ def register_device(serial: str) -> dict[str, Any]:
         "created": True,
         "name": name,
         "adb_serial": adb_serial,
-        "restart_required": True,
+        "restart_required": False,
         "scrcpy_install": scrcpy_install,
     }
 

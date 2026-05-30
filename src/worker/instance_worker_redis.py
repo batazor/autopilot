@@ -63,11 +63,27 @@ class InstanceWorkerRedisMixin(_Base):
         # (see ``Supervisor.run``); leaving it alone here means a crash +
         # auto-restart of this subprocess preserves the original session's
         # uptime instead of resetting to "0s" every time we reconnect.
+        # Restore the last-identified player from the durable device registry so
+        # a worker restart skips the ``who_i_am`` probe (gated on
+        # ``active_player == ""``). Falls back to "" when nothing was ever
+        # identified — the probe then runs as before. A game relaunch clears
+        # ``active_player`` again (see ``_restart_instance`` /
+        # ``game_health_watchdog``) so an account switch is re-verified lazily.
+        restored_player = ""
+        with suppress(Exception):
+            from config.devices import get_last_active_player
+
+            restored_player = get_last_active_player(
+                self._cfg.instance_id, self._cfg.bluestacks_window_title
+            )
+        active_player_mapping: dict[str, str] = {"active_player": restored_player}
+        if restored_player:
+            active_player_mapping["active_player_at"] = str(time.time())
         await self._redis.hset(
             inst_key,
             mapping={
                 "state": InstanceState.READY,
-                "active_player": "",
+                **active_player_mapping,
                 "paused": "0",
                 "last_seen_at": str(time.time()),
                 "last_error": "",
@@ -76,6 +92,12 @@ class InstanceWorkerRedisMixin(_Base):
                 "current_screen": "",
             },
         )
+        if restored_player:
+            logger.info(
+                "identity restore: active_player=%s from durable store instance=%s",
+                restored_player,
+                self._cfg.instance_id,
+            )
         # Fallback for hosts that came up without supervisor seeding (legacy
         # path, embedded mode racing with worker boot, or a manual Redis
         # flushdb between stop/start) — set the field only if absent so we

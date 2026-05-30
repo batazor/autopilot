@@ -37,6 +37,7 @@ export type IconName =
   | "alert"
   | "arrow-up"
   | "chevron-right"
+  | "chevron-left"
   | "play"
   | "pause"
   | "discord";
@@ -252,6 +253,9 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   "chevron-right": strokeIcon(
     <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />,
+  ),
+  "chevron-left": strokeIcon(
+    <path d="M15 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />,
   ),
   play: <path d="M8 5l12 7-12 7V5z" fill="currentColor" stroke="none" />,
   pause: (

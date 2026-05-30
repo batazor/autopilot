@@ -133,7 +133,7 @@ def test_register_device_creates_fleet_device_from_emulator_serial(
         "created": True,
         "name": "bs2",
         "adb_serial": "127.0.0.1:5555",
-        "restart_required": True,
+        "restart_required": False,
         "scrcpy_install": {
             "ok": True,
             "serial": "127.0.0.1:5555",
@@ -258,6 +258,7 @@ def test_get_adb_status_probes_default_emulator_tcp_port(
             "serial": "127.0.0.1:5555",
             "canonical_serial": "127.0.0.1:5555",
             "line": "127.0.0.1:5555 device product:bluestacks",
+            "detected_games": [],
         }
     ]
 
@@ -280,3 +281,47 @@ def test_get_adb_status_reports_canonical_serial_for_emulator_alias(
 
     assert status["live_devices"][0]["serial"] == "emulator-5554"
     assert status["live_devices"][0]["canonical_serial"] == "127.0.0.1:5555"
+
+
+def test_get_adb_status_marks_wos_beta_package(
+    devices_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Completed:
+        def __init__(self, stdout: str = "", returncode: int = 0) -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = ""
+
+    def fake_run(args, **_kwargs):
+        if args[1:3] == ["devices", "-l"]:
+            return Completed(
+                "List of devices attached\n"
+                "127.0.0.1:5625 device product:bluestacks\n"
+            )
+        if args[1:4] == ["-s", "127.0.0.1:5625", "shell"]:
+            shell_args = args[4:]
+            if shell_args == ["pm", "list", "packages"]:
+                return Completed("package:com.xyz.gof\n")
+            if shell_args == ["pidof", "com.xyz.gof"]:
+                return Completed("1234\n")
+            if shell_args[:2] == ["dumpsys", "activity"]:
+                return Completed("topResumedActivity com.xyz.gof/.MainActivity\n")
+            if shell_args[:2] == ["dumpsys", "window"]:
+                return Completed("")
+        return Completed(returncode=1)
+
+    monkeypatch.setattr(adb_api.subprocess, "run", fake_run)
+    monkeypatch.setattr(adb_api, "_probe_default_tcp_adb_targets", lambda *_args: False)
+
+    status = adb_api.get_adb_status()
+
+    assert status["live_devices"][0]["detected_games"] == [
+        {
+            "id": "wos",
+            "label": "Whiteout Survival",
+            "package": "com.xyz.gof",
+            "beta": True,
+            "running": True,
+        }
+    ]

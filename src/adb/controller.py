@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 from contextlib import contextmanager, suppress
+from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -40,10 +41,68 @@ if TYPE_CHECKING:
     from adb.scrcpy import ScrcpyClient
     from config.device_display import DeviceDisplayConfig
 
+from adb.serial import is_emulator_adb_serial
 from config.games import default_game as _default_game
+from config.games import game_ids_for_packages as _game_ids_for_packages
+from config.games import matching_packages_for_game as _matching_packages_for_game
 from config.games import package_for_game as _package_for_game
+from config.games import packages_for_game as _packages_for_game
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ProcessDetection:
+    """Structured result of a game-process liveness probe.
+
+    ``found`` is the answer; ``pids`` lists every matching process (the main
+    process plus sub-processes like ``com.gof.global:render``) when the winning
+    method can report PIDs — ``dumpsys``/``am stack`` confirm presence but yield
+    no PIDs, so ``pids`` is empty there even when ``found`` is true.
+    ``method_used`` is the detection method that produced the verdict
+    (``"none"`` if every method failed). ``error`` is ``None`` on a clean
+    verdict — including a clean *not running* — and is only set when **every**
+    method failed (ADB error/timeout), so callers can tell "process is dead"
+    apart from "we could not ask".
+    """
+
+    found: bool
+    pids: list[int]
+    method_used: str
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class _ShellOutcome:
+    """Full result of one ADB shell invocation (``rc`` is ``None`` on timeout)."""
+
+    rc: int | None
+    stdout: str
+    stderr: str
+
+    @property
+    def timed_out(self) -> bool:
+        return self.rc is None
+
+
+@dataclass
+class _MethodOutcome:
+    """Per-method detection result.
+
+    ``error is None`` means the method ran cleanly; ``matched`` is then the
+    authoritative found/not-found. ``error`` set means the method itself failed
+    (timeout / non-zero rc) and the verdict is unknown — fall through to the
+    next method.
+    """
+
+    matched: bool = False
+    pids: list[int] = field(default_factory=list)
+    error: str | None = None
+
+
+def _parse_pids(text: str) -> list[int]:
+    """Extract integer PIDs from whitespace-separated ``pidof`` output."""
+    return [int(tok) for tok in text.split() if tok.isdigit()]
 
 # Phase 2: package for the default game (WOS). Phase 2.5 parameterizes the
 # methods below so per-profile games select their own package at call time —
@@ -389,27 +448,209 @@ class AdbController:
     # ------------------------------------------------------------------
 
     def restart_application(self, game: str | None = None) -> None:
-        pkg = _package_for_game(game or _default_game())
+        pkg = self._launch_package_for_game(game)
         logger.warning("Restarting %s on %s", pkg, self._serial)
         self._shell("am", "force-stop", pkg)
         time.sleep(2)
         self._shell("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
         logger.info("Application restarted on %s", self._serial)
 
+    def is_game_running(self, game: str | None = None) -> bool:
+        """True if ``game``'s process is alive (regardless of foreground state).
+
+        This is the trustworthy "game is up" signal for the health watchdog. On
+        BlueStacks the ``dumpsys`` resumed-activity parse used by
+        :meth:`is_game_foreground` is unreliable — the host launcher
+        (``com.bluestacks.launcher`` / ``com.uncube.launcher3``) is frequently
+        reported as the top activity even while the game runs and renders
+        normally. Treating that as "not foreground" force-restarted a perfectly
+        healthy game. Process-aliveness does not have that failure mode.
+
+        Thin boolean wrapper over :meth:`detect_game_process`. A detection-level
+        failure (every method errored/timed out) is treated as *not running* by
+        this wrapper — but unlike a clean miss it is logged at WARNING by the
+        detector, so the watchdog's retry loop absorbs a transient blip without
+        a false restart while a persistent ADB outage still surfaces.
+        """
+        return self.detect_game_process(game).found
+
+    def detect_game_process(self, game: str | None = None) -> ProcessDetection:
+        """Resilient multi-method process probe for ``game``.
+
+        Tries detection methods in turn and stops at the first that *positively*
+        finds the process. On BlueStacks ``pidof`` returns rc=1 even for a live
+        game (it is not a clean Android userspace), so the ``ps`` scan leads for
+        emulator serials and ``pidof`` is demoted to a last resort; on real
+        devices ``pidof`` is fast and reliable, so it leads there.
+
+        Method order:
+          - ``ps -A`` (falls back to ``ps``) — parses PIDs, matches the package
+            and any sub-process (``<pkg>:render`` etc.); the only method that
+            returns PIDs for partial names.
+          - ``dumpsys activity recents`` — presence check, no PIDs.
+          - ``am stack list`` — presence check, no PIDs (removed on newer
+            Android; a non-zero rc there is treated as a method failure, not a
+            "not found", so we fall through cleanly).
+          - ``pidof`` — exact main-process PID.
+
+        Returns a :class:`ProcessDetection`. ``error`` is only populated when
+        *every* method failed, distinguishing "process is dead" (clean rc, no
+        match) from "we could not ask" (ADB error/timeout) — see requirement on
+        not conflating pidof's overloaded rc=1.
+        """
+        packages = _packages_for_game(game or _default_game())
+        errors: list[str] = []
+        last_clean: ProcessDetection | None = None
+        for pkg in packages:
+            detection = self._detect_game_process_for_package(pkg)
+            if detection.found:
+                return detection
+            if detection.error is not None:
+                errors.append(f"{pkg}: {detection.error}")
+            else:
+                last_clean = detection
+
+        if last_clean is not None:
+            return last_clean
+        err = "; ".join(errors) or "no detection method available"
+        return ProcessDetection(found=False, pids=[], method_used="none", error=err)
+
+    def _detect_game_process_for_package(self, pkg: str) -> ProcessDetection:
+        prefer_ps = is_emulator_adb_serial(self._serial)
+
+        methods: list[tuple[str, Callable[[str], _MethodOutcome]]] = [
+            ("ps", self._detect_via_ps),
+            ("dumpsys_recents", self._detect_via_recents),
+            ("am_stack", self._detect_via_am_stack),
+            ("pidof", self._detect_via_pidof),
+        ]
+        if not prefer_ps:
+            # Clean Android: pidof first (fast + reliable), rest as fallback.
+            methods = [methods[3], *methods[:3]]
+
+        errors: list[str] = []
+        last_clean_method: str | None = None
+        for name, fn in methods:
+            try:
+                outcome = fn(pkg)
+            except Exception as exc:  # defensive: a parser bug must not kill the probe
+                outcome = _MethodOutcome(error=f"unexpected {exc!r}")
+
+            if outcome.error is not None:
+                logger.debug(
+                    "process-detect[%s]: %s failed for %s: %s",
+                    self._serial, name, pkg, outcome.error,
+                )
+                errors.append(f"{name}: {outcome.error}")
+                continue
+
+            if outcome.matched:
+                pids = sorted(set(outcome.pids))
+                logger.debug(
+                    "process-detect[%s]: %s found %s (pids=%s)",
+                    self._serial, name, pkg, pids,
+                )
+                return ProcessDetection(
+                    found=True, pids=pids, method_used=name, error=None
+                )
+
+            # Clean run, no match — authoritative "not running" for this method,
+            # but keep trying: a later method may catch a sub-process this one
+            # cannot see (e.g. pidof misses <pkg>:render).
+            logger.debug(
+                "process-detect[%s]: %s reports %s not running",
+                self._serial, name, pkg,
+            )
+            last_clean_method = name
+
+        if last_clean_method is not None:
+            # At least one method ran cleanly and saw nothing → genuinely dead.
+            return ProcessDetection(
+                found=False, pids=[], method_used=last_clean_method, error=None
+            )
+
+        # Every method failed — unknown, not "dead". Warn once (req. 7).
+        err = "; ".join(errors) or "no detection method available"
+        logger.warning(
+            "process-detect[%s]: all methods failed for %s — %s",
+            self._serial, pkg, err,
+        )
+        return ProcessDetection(found=False, pids=[], method_used="none", error=err)
+
+    def _detect_via_pidof(self, pkg: str) -> _MethodOutcome:
+        out = self._shell_full("pidof", pkg, timeout=5.0)
+        if out.timed_out:
+            return _MethodOutcome(error="timed out")
+        pids = _parse_pids(out.stdout)
+        if out.rc == 0:
+            return _MethodOutcome(matched=bool(pids), pids=pids)
+        # pidof's rc=1 is overloaded: "not found" AND some error states. Treat a
+        # silent rc=1 (no stderr) as a clean miss; anything noisier is a failure.
+        if out.rc == 1 and not out.stderr:
+            return _MethodOutcome(matched=False)
+        return _MethodOutcome(error=f"rc={out.rc} {out.stderr}".strip())
+
+    def _detect_via_ps(self, pkg: str) -> _MethodOutcome:
+        out = self._shell_full("ps", "-A", timeout=5.0)
+        if out.timed_out:
+            return _MethodOutcome(error="timed out (ps -A)")
+        if out.rc != 0:
+            # Legacy toybox/BusyBox images reject ``-A``; bare ``ps`` lists all.
+            out = self._shell_full("ps", timeout=5.0)
+            if out.timed_out:
+                return _MethodOutcome(error="timed out (ps)")
+            if out.rc != 0:
+                return _MethodOutcome(error=f"rc={out.rc} {out.stderr}".strip())
+        return self._match_ps_pids(out.stdout, pkg)
+
+    def _match_ps_pids(self, stdout: str, pkg: str) -> _MethodOutcome:
+        """Parse ``ps`` output: PID is column 2, process name is the last column.
+
+        Matches the package itself and Android sub-processes named ``<pkg>:tag``
+        (e.g. ``com.gof.global:render``) — but not unrelated ``<pkg>foo``.
+        """
+        pids: list[int] = []
+        for line in stdout.splitlines():
+            parts = line.split()
+            if len(parts) < 2 or not parts[1].isdigit():
+                continue  # header ("USER PID ...") or malformed row
+            name = parts[-1]
+            if name == pkg or name.startswith(f"{pkg}:"):
+                pids.append(int(parts[1]))
+        return _MethodOutcome(matched=bool(pids), pids=pids)
+
+    def _detect_via_recents(self, pkg: str) -> _MethodOutcome:
+        out = self._shell_full("dumpsys", "activity", "recents", timeout=10.0)
+        if out.timed_out:
+            return _MethodOutcome(error="timed out")
+        if out.rc != 0:
+            return _MethodOutcome(error=f"rc={out.rc} {out.stderr}".strip())
+        matched = any(pkg in line for line in out.stdout.splitlines())
+        return _MethodOutcome(matched=matched)
+
+    def _detect_via_am_stack(self, pkg: str) -> _MethodOutcome:
+        out = self._shell_full("am", "stack", "list", timeout=5.0)
+        if out.timed_out:
+            return _MethodOutcome(error="timed out")
+        if out.rc != 0:
+            return _MethodOutcome(error=f"rc={out.rc} {out.stderr}".strip())
+        matched = any(pkg in line for line in out.stdout.splitlines())
+        return _MethodOutcome(matched=matched)
+
     def is_game_foreground(self, game: str | None = None) -> bool:
         """True if ``game``'s process is alive and is the resumed foreground activity."""
-        pkg = _package_for_game(game or _default_game())
+        game_id = game or _default_game()
+        packages = _packages_for_game(game_id)
         # Fast check: is the process even alive?
-        pid = self._shell("pidof", pkg, timeout=5.0)
-        if not pid.strip():
-            logger.debug("is_game_foreground: no PID for %s — process dead", pkg)
+        if not any(self._detect_game_process_for_package(pkg).found for pkg in packages):
+            logger.debug("is_game_foreground: no PID for %s — process dead", game_id)
             return False
 
         # Foreground check: dumpsys activity stack
         out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
         markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
         for line in out.splitlines():
-            if pkg not in line:
+            if not any(pkg in line for pkg in packages):
                 continue
             s = line.strip()
             if any(m in s for m in markers):
@@ -418,7 +659,7 @@ class AdbController:
 
     def ensure_game_foreground(self, game: str | None = None) -> None:
         """Start ``game`` if it isn't the foreground resumed activity."""
-        pkg = _package_for_game(game or _default_game())
+        pkg = self._launch_package_for_game(game)
         if self.is_game_foreground(game):
             logger.info("Game already foreground (%s on %s)", pkg, self._serial)
             return
@@ -434,15 +675,49 @@ class AdbController:
         Used by the ``/adb`` UI dropdown to filter selectable games to those
         the user actually has on the emulator. Empty on offline devices.
         """
-        from config.games import GAMES
+        return _game_ids_for_packages(self._installed_packages())
 
+    def _installed_game_packages(self, game: str | None = None) -> list[str]:
+        """Installed Android package ids for ``game``, preserving registry order."""
+        return list(
+            _matching_packages_for_game(
+                game or _default_game(),
+                self._installed_packages(),
+            )
+        )
+
+    def _installed_packages(self) -> set[str]:
+        """Android package ids installed on the active device."""
         out = self._shell("pm", "list", "packages", timeout=10.0)
-        installed_pkgs = {
+        return {
             line.removeprefix("package:").strip()
             for line in out.splitlines()
             if line.strip()
         }
-        return [gid for gid, spec in GAMES.items() if spec.package in installed_pkgs]
+
+    def _running_package_for_game(self, game: str | None = None) -> str | None:
+        """Running Android package id for ``game``, including aliases."""
+        for pkg in _packages_for_game(game or _default_game()):
+            if self._detect_game_process_for_package(pkg).found:
+                return pkg
+        return None
+
+    def _launch_package_for_game(self, game: str | None = None) -> str:
+        """Best package to launch/restart for ``game`` on this device.
+
+        Prefer the package already running (e.g. WOS beta), then an installed
+        alias, then the canonical package as a final default.
+        """
+        game_id = game or _default_game()
+        running_package = self._running_package_for_game(game_id)
+        if running_package is not None:
+            return running_package
+
+        installed_packages = self._installed_game_packages(game_id)
+        if installed_packages:
+            return installed_packages[0]
+
+        return _package_for_game(game_id)
 
     # ------------------------------------------------------------------
     # Touch input — all with jitter to simulate natural fingers
@@ -1080,6 +1355,30 @@ class AdbController:
                 "ADB shell %s failed (rc=%d): %s", args, result.returncode, result.stderr.strip()
             )
         return result.stdout.strip()
+
+    def _shell_full(self, *args: str, timeout: float = 15.0) -> _ShellOutcome:
+        """Like :meth:`_shell` but preserves rc/stderr and timeout vs failure.
+
+        :meth:`_shell` collapses timeout, non-zero exit, and success-with-empty
+        output all to ``""`` — fine for fire-and-forget commands, useless when
+        the caller must tell "process not found" (clean rc) from "the call
+        failed" (timeout / error rc). Used by :meth:`detect_game_process`; logs
+        nothing itself so the detector owns the per-method DEBUG/WARNING policy.
+        """
+        try:
+            result = subprocess.run(
+                [self._adb_exe, "-s", self._serial, "shell", *list(args)],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return _ShellOutcome(rc=None, stdout="", stderr="")
+        return _ShellOutcome(
+            rc=result.returncode,
+            stdout=result.stdout.strip(),
+            stderr=result.stderr.strip(),
+        )
 
 
 # ---------------------------------------------------------------------------

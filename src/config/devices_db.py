@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS devices (
     display_json TEXT,
     device_order INTEGER NOT NULL DEFAULT 0,
     game TEXT NOT NULL DEFAULT 'wos',
+    last_active_player TEXT NOT NULL DEFAULT '',
     updated_at REAL NOT NULL
 );
 
@@ -96,6 +97,21 @@ def _ensure_game_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN game TEXT NOT NULL DEFAULT 'wos'")
 
 
+def _ensure_identity_columns(conn: sqlite3.Connection) -> None:
+    """One-time migration: add ``last_active_player`` to legacy ``devices`` rows.
+
+    Persists the in-game player id that was last identified on a device so the
+    worker can restore ``active_player`` after a restart and skip the ``who_i_am``
+    probe (see ``worker.instance_worker_redis._connect``). DBs created before this
+    column lack it; add it on the fly so old ``state.db`` files keep booting.
+    """
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
+    if "last_active_player" not in cols:
+        conn.execute(
+            "ALTER TABLE devices ADD COLUMN last_active_player TEXT NOT NULL DEFAULT ''"
+        )
+
+
 @contextmanager
 def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     db_path = path or state_db_path()
@@ -106,6 +122,7 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.execute("PRAGMA foreign_keys = ON")
         conn.executescript(_SCHEMA_SQL)
         _ensure_game_columns(conn)
+        _ensure_identity_columns(conn)
         # Minicap was removed in favor of scrcpy; keep old DB rows bootable.
         conn.execute(
             "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
@@ -361,6 +378,65 @@ def _find_device_row_id(
         (candidate, candidate),
     ).fetchone()
     return row["name"] if row else None
+
+
+# ---------------------------------------------------------------------------
+# durable active-player identity (survives worker restarts → skip who_i_am)
+# ---------------------------------------------------------------------------
+
+
+def set_last_active_player(device_name: str, player_id: str) -> bool:
+    """Persist the player id last identified on *device_name*.
+
+    Matches the device row by name OR adb_serial (whichever the caller has).
+    No-ops (and returns False) when the device is unknown or the stored value
+    is already current. Returns True iff a row was actually updated.
+    """
+    device_name = (device_name or "").strip()
+    player_id = (player_id or "").strip()
+    if not device_name or not player_id:
+        return False
+    with _conn_lock, _connect() as conn:
+        canonical = _find_device_row_id(conn, device_name)
+        if canonical is None:
+            return False
+        row = conn.execute(
+            "SELECT last_active_player FROM devices WHERE name = ?", (canonical,)
+        ).fetchone()
+        if row is not None and (row["last_active_player"] or "") == player_id:
+            return False
+        conn.execute(
+            "UPDATE devices SET last_active_player = ?, updated_at = ? WHERE name = ?",
+            (player_id, time.time(), canonical),
+        )
+        conn.commit()
+    return True
+
+
+def get_last_active_player(*device_candidates: str) -> str:
+    """Return the stored ``last_active_player`` for the first matching device alias.
+
+    Callers pass whatever device handles they have (instance_id, adb serial,
+    window title); the first one that resolves to a device row with a non-empty
+    stored id wins. Returns ``""`` when nothing is found.
+    """
+    seen: set[str] = set()
+    with _conn_lock, _connect() as conn:
+        for raw in device_candidates:
+            candidate = str(raw or "").strip()
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            canonical = _find_device_row_id(conn, candidate)
+            if canonical is None:
+                continue
+            row = conn.execute(
+                "SELECT last_active_player FROM devices WHERE name = ?", (canonical,)
+            ).fetchone()
+            stored = (row["last_active_player"] or "").strip() if row else ""
+            if stored:
+                return stored
+    return ""
 
 
 def upsert_device_gamer(

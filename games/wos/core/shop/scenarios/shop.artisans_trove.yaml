@@ -10,6 +10,7 @@ steps:
       - click: artisans_trove.box
       - wait: 1s
       - ocr: artisans_trove.delay
+        event_timer: shop.artisans_trove
       - push_scenario:
           name: shop.artisans_trove
-          delay: artisans_trove.delay
+          delay: shop.artisans_trove

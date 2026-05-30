@@ -19,6 +19,21 @@
     @apply rounded-lg border border-dashed border-wos-border px-4 py-8 text-center text-wos-text-muted;
   }
 
+  .preview-empty__warming {
+    @apply inline-flex items-center gap-2 text-emerald-300;
+  }
+
+  .preview-empty__spinner {
+    @apply inline-block h-3.5 w-3.5 rounded-full border-2 border-emerald-400/30 border-t-emerald-300;
+    animation: preview-empty-spin 0.7s linear infinite;
+  }
+
+  @keyframes preview-empty-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   .scenario-card {
     @apply mb-3 rounded-xl border border-wos-border-subtle bg-wos-surface/80 p-3 sm:p-4;
   }

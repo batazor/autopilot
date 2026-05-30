@@ -93,7 +93,12 @@ class PopupDetector:
 
         text = (await self._ocr_card(image, bbox)).lower()
         kind = self._classifier.classify(text, signals, has_close=detected_close is not None)
-        primary_point = self._find_primary(bbox) if kind == PopupKind.REWARD_CLAIM else None
+        if kind == PopupKind.REWARD_CLAIM:
+            primary_point = self._find_primary(bbox)
+        elif kind == PopupKind.TAP_TO_CONTINUE:
+            primary_point = self._find_continue_point(bbox)
+        else:
+            primary_point = None
 
         return PopupState(
             kind=kind,
@@ -160,6 +165,15 @@ class PopupDetector:
         cx = bbox.x + bbox.w // 2
         cy = bbox.y + int(bbox.h * 0.85)
         return Point(cx, cy)
+
+    def _find_continue_point(self, bbox: Region) -> Point:
+        """Tap target for a "tap anywhere / tap to continue" page: the center.
+
+        These pages carry no close button and advance on a tap *anywhere* on the
+        card, so the geometric center is the safest, most reliable target — never
+        the top-right corner where ``close_region`` would otherwise point.
+        """
+        return Point(bbox.x + bbox.w // 2, bbox.y + bbox.h // 2)
 
     async def _ocr_card(self, image: np.ndarray, bbox: Region) -> str:
         """OCR only the modal bbox crop. Never the full frame."""

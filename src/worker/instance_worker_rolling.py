@@ -236,8 +236,6 @@ class InstanceWorkerRollingMixin(_Base):
         outcome = "ok"
         analysis_started = time.monotonic()
         try:
-            if await self._maybe_handle_popup(image_bgr):
-                return
             if _rolling_should_skip_screen_detect(
                 cfg, task_busy=task_busy, navigating=navigating
             ):
@@ -250,6 +248,11 @@ class InstanceWorkerRollingMixin(_Base):
                 return
 
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
+            # Screen is UNKNOWN (landmarks occluded) → a modal may be up. Try a
+            # safe geometric dismiss before overlay analysis; short-circuit the
+            # tick if handled. Known screens are gated out inside the method.
+            if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
+                return
 
             device_level_only = _rolling_overlay_device_level_only(
                 active_player=active_player,
@@ -430,9 +433,9 @@ class InstanceWorkerRollingMixin(_Base):
         )
         outcome = "ok"
         try:
-            if await self._maybe_handle_popup(image_bgr):
-                return
             current_screen = await self._detect_current_screen_on_frame(image_bgr)
+            if await self._maybe_handle_popup(image_bgr, current_screen=current_screen):
+                return
             await self._overlay_analyze_bgr(
                 image_bgr,
                 current_screen_override=current_screen,

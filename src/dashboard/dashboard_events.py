@@ -16,6 +16,21 @@ logger = logging.getLogger(__name__)
 
 CHANNEL = "wos:events:dashboard"
 
+# Wakes the worker supervisor's hot device-reconcile loop. The /adb
+# register/unregister endpoints publish here so a newly-registered device gets a
+# worker (and a removed one loses its worker) without a full bot restart.
+DEVICE_RECONCILE_CHANNEL = "wos:events:device_reconcile"
+
+
+def publish_device_reconcile(client: Any, *, reason: str = "") -> None:
+    """Best-effort nudge for the supervisor to reconcile its device→worker set."""
+    if client is None:
+        return
+    try:
+        client.publish(DEVICE_RECONCILE_CHANNEL, reason or "reconcile")
+    except Exception:
+        logger.debug("device reconcile publish failed", exc_info=True)
+
 
 def publish_dashboard_event(
     client: Any,

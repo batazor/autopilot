@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 from century.api import CenturyAPIError, CenturyClient
 from config.buildings import get_building_registry
 from config.devices import load_devices, upsert_device_gamer
+from config.event_timers import event_timer_remaining_seconds, event_timer_to_dict
 from config.heroes import HeroDef, get_hero_registry
 from config.loader import load_settings
 from config.paths import repo_root
@@ -141,6 +142,67 @@ def _format_seen_at(ts: object) -> str:
     if delta < 86400:
         return f"{delta // 3600}h ago"
     return f"{delta // 86400}d ago"
+
+
+def _format_duration(seconds: object) -> str:
+    try:
+        total = max(0, int(round(float(seconds))))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    days, rem = divmod(total, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, sec = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours:02d}:{minutes:02d}:{sec:02d}"
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{sec:02d}"
+    return f"{minutes:02d}:{sec:02d}"
+
+
+def _format_timestamp(ts: object) -> str:
+    try:
+        value = float(ts)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "—"
+    if value <= 0:
+        return "—"
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
+
+
+def event_timer_rows(g: GamerState) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    now = time.time()
+    for event_name, entry in (g.event_timers or {}).items():
+        data = event_timer_to_dict(entry)
+        remaining = event_timer_remaining_seconds(entry, now=now)
+        try:
+            remaining_s = int(round(remaining)) if remaining is not None else 0
+        except (TypeError, ValueError):
+            remaining_s = 0
+        try:
+            confidence = float(data.get("confidence") or 0.0)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        if remaining is None:
+            status = "invalid"
+        elif remaining_s <= 0:
+            status = "ready"
+        else:
+            status = "waiting"
+        rows.append(
+            {
+                "event": str(event_name),
+                "status": status,
+                "remaining": _format_duration(remaining_s),
+                "remaining_s": remaining_s,
+                "reset_at": _format_timestamp(data.get("reset_at")),
+                "recorded_at": _format_timestamp(data.get("recorded_at")),
+                "raw_text": str(data.get("raw_text") or "—"),
+                "confidence": f"{confidence:.2f}" if confidence > 0 else "—",
+                "source_region": str(data.get("source_region") or "—"),
+            }
+        )
+    return sorted(rows, key=lambda r: (int(r["remaining_s"]), str(r["event"]).lower()))
 
 
 def hero_entries_rows(entries: dict[str, Any]) -> list[dict[str, Any]]:
@@ -277,6 +339,7 @@ def build_persisted_player_view(g: GamerState) -> dict[str, Any]:
             "arena_power": g.arena.myPower,
             "contentment": g.chief.contentment,
         },
+        "event_timers": event_timer_rows(g),
         "heroes": build_heroes_view(g),
     }
 

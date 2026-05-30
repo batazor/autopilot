@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { AppRadioGroup } from "@/components/headless";
+import { AppMenu, AppRadioGroup, type AppMenuItem } from "@/components/headless";
 import {
   fetchAdbStatus,
   fetchScrcpyStatus,
@@ -12,7 +12,11 @@ import {
   updateDeviceBackend,
 } from "@/lib/api";
 import { adbSerialMatches } from "@/lib/adb-serial";
-import type { ScrcpyInstallResult, ScrcpyStatus } from "@/lib/config-pages";
+import type {
+  AdbDetectedGame,
+  ScrcpyInstallResult,
+  ScrcpyStatus,
+} from "@/lib/config-pages";
 
 const INPUT_BACKEND_OPTIONS = [
   { value: "", label: "auto (scrcpy)" },
@@ -52,6 +56,33 @@ function scrcpyInstallNote(result?: ScrcpyInstallResult | null): string {
   if (!result) return "";
   if (result.ok || result.installed) return " Scrcpy server installed.";
   return ` Scrcpy auto-install failed: ${result.last_error ?? "unknown error"}.`;
+}
+
+function gameBadgeLabel(game: AdbDetectedGame): string {
+  if (game.id === "wos") return "WOS";
+  return game.label || game.id.toUpperCase();
+}
+
+function renderDetectedGames(games?: AdbDetectedGame[]) {
+  if (!games?.length) return <span className="muted">—</span>;
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      {games.map((game) => (
+        <span
+          key={`${game.id}-${game.package}`}
+          className={`status-pill ${game.running ? "pill-live" : "pill-busy"}`}
+          title={`${game.label} (${game.package}) · ${game.running ? "running" : "installed"}`}
+        >
+          <span>{gameBadgeLabel(game)}</span>
+          {game.beta && (
+            <span className="rounded-full border border-current/40 px-1 py-0 text-[9px] font-semibold uppercase opacity-90">
+              beta
+            </span>
+          )}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export default function AdbPage() {
@@ -120,7 +151,7 @@ export default function AdbPage() {
       const installNote = scrcpyInstallNote(out.scrcpy_install);
       setSuccess(
         out.created
-          ? `Registered ${out.adb_serial} as ${out.name}.${installNote} Restart the bot to launch its worker.`
+          ? `Registered ${out.adb_serial} as ${out.name}.${installNote} Its worker starts automatically while the bot is running.`
           : `${out.adb_serial} is already registered as ${out.name}.${installNote}`,
       );
       await load();
@@ -184,6 +215,15 @@ export default function AdbPage() {
     resettingSerial !== null ||
     savingBackend !== null;
 
+  const unregistered = status
+    ? status.live_devices.filter(
+        (d) =>
+          !status.configured.some((c) =>
+            adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
+          ),
+      )
+    : [];
+
   return (
     <>
       <PageHeader title="ADB">
@@ -206,6 +246,32 @@ export default function AdbPage() {
       {success && <p className="success-banner mb-4">{success}</p>}
       {status && (
         <>
+          {unregistered.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              <span>
+                <strong>
+                  {unregistered.length === 1
+                    ? "1 live device isn't registered"
+                    : `${unregistered.length} live devices aren't registered`}
+                </strong>{" "}
+                — register {unregistered.length === 1 ? "it" : "them"} to run the
+                bot. The worker starts automatically while the bot is running.
+              </span>
+              {unregistered.map((d) => (
+                <button
+                  key={d.serial}
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => onRegisterDevice(d.serial)}
+                >
+                  {registeringSerial === d.serial
+                    ? "Registering…"
+                    : `Register ${d.serial}`}
+                </button>
+              ))}
+            </div>
+          )}
           <dl className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-wos-border-subtle/70 bg-wos-panel-raised/40 px-3 py-2 text-xs">
             <div className="flex items-center gap-2">
               <dt className="font-semibold uppercase tracking-wide text-wos-text-muted">
@@ -294,6 +360,7 @@ export default function AdbPage() {
                   <tr>
                     <th>Serial</th>
                     <th>Line</th>
+                    <th>Game</th>
                     <th>Scrcpy</th>
                     <th>Actions</th>
                   </tr>
@@ -305,57 +372,63 @@ export default function AdbPage() {
                     const isConfigured = status.configured.some((c) =>
                       adbSerialMatches(c.adb_serial, d.serial, d.canonical_serial),
                     );
+                    const actionItems: AppMenuItem[] = [
+                      {
+                        label: isConfigured
+                          ? "Registered"
+                          : registeringSerial === d.serial
+                            ? "Registering..."
+                            : "Register",
+                        disabled: busy || isConfigured,
+                        title: isConfigured
+                          ? "Already registered in the fleet"
+                          : "Add this live ADB device to the fleet registry",
+                        onClick: () => onRegisterDevice(d.serial),
+                      },
+                      {
+                        label:
+                          installingScrcpy === d.serial
+                            ? "Installing..."
+                            : scInstalled
+                              ? "Reinstall scrcpy"
+                              : "Install scrcpy",
+                        disabled: busy,
+                        title: "Download scrcpy-server.jar from Genymobile/scrcpy and push to /data/local/tmp",
+                        onClick: () => onInstallScrcpy(d.serial),
+                      },
+                      { kind: "separator" },
+                      {
+                        label:
+                          resettingSerial === d.serial
+                            ? "Resetting..."
+                            : "Reset screen",
+                        disabled: busy,
+                        title: "adb shell wm size reset && wm density reset",
+                        onClick: () => onResetDisplay(d.serial),
+                      },
+                    ];
                     return (
                       <tr key={d.serial}>
                         <td>
                           <code>{d.serial}</code>
+                          {!isConfigured && (
+                            <span
+                              className="ml-2 rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-200"
+                              title="Not in the fleet registry — no worker will run for it"
+                            >
+                              unregistered
+                            </span>
+                          )}
                         </td>
                         <td className="muted">{d.line}</td>
+                        <td>{renderDetectedGames(d.detected_games)}</td>
                         <td>{renderBinaryCell(sc)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            disabled={busy || isConfigured}
-                            title={
-                              isConfigured
-                                ? "Already registered in the fleet"
-                                : "Add this live ADB device to the fleet registry"
-                            }
-                            onClick={() => onRegisterDevice(d.serial)}
-                            style={{ marginRight: 6 }}
-                          >
-                            {isConfigured
-                              ? "Registered"
-                              : registeringSerial === d.serial
-                                ? "Registering…"
-                                : "Register"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={busy}
-                            title="Download scrcpy-server.jar from Genymobile/scrcpy and push to /data/local/tmp"
-                            onClick={() => onInstallScrcpy(d.serial)}
-                            style={{ marginRight: 6 }}
-                          >
-                            {installingScrcpy === d.serial
-                              ? "Installing…"
-                              : scInstalled
-                                ? "Reinstall scrcpy"
-                                : "Install scrcpy"}
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={busy}
-                            title="adb shell wm size reset && wm density reset"
-                            onClick={() => onResetDisplay(d.serial)}
-                          >
-                            {resettingSerial === d.serial
-                              ? "Resetting…"
-                              : "Reset screen"}
-                          </button>
+                          <AppMenu
+                            items={actionItems}
+                            ariaLabel={`Open actions for ${d.serial}`}
+                            buttonTitle="Actions"
+                          />
                         </td>
                       </tr>
                     );
