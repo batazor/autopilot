@@ -16,9 +16,9 @@ stages:
 
 build-bot-amd64:
   stage: build
-  image: docker:27-cli
+  image: docker:29-cli
   services:
-    - docker:27-dind
+    - docker:29-dind
   variables:
     # Talk to the dind service over TLS (GitLab's recommended setup).
     DOCKER_HOST: tcp://docker:2376
