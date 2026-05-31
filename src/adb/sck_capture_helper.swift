@@ -1,8 +1,6 @@
 import AppKit
 import Foundation
-import ImageIO
 import ScreenCaptureKit
-import UniformTypeIdentifiers
 
 struct CaptureRequest: Decodable {
     let instance_id: String
@@ -20,6 +18,7 @@ struct ErrorResponse: Encodable {
 
 struct CaptureResponse: Encodable {
     let ok: Bool
+    let format: String
     let width: Int
     let height: Int
     let bytes: Int
@@ -40,9 +39,9 @@ struct Main {
             do {
                 let data = Data(line.utf8)
                 let request = try JSONDecoder().decode(CaptureRequest.self, from: data)
-                let (response, png) = try await capture(request)
+                let (response, pixels) = try await capture(request)
                 try writeJSONLine(response)
-                FileHandle.standardOutput.write(png)
+                FileHandle.standardOutput.write(pixels)
                 FileHandle.standardOutput.write(Data([0x0A]))
             } catch {
                 let response = ErrorResponse(ok: false, error: String(describing: error))
@@ -65,18 +64,22 @@ struct Main {
         config.sourceRect = sourceRect(for: window, request: request)
 
         let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-        guard let png = pngData(from: image) else {
-            throw RuntimeError("failed to encode PNG")
+        // Send raw BGRA pixels (no padding): the Python side reshapes the buffer
+        // straight into a numpy array, skipping a PNG encode here and a PNG
+        // decode there — the per-frame hot path for emulator capture.
+        guard let pixels = bgraData(from: image) else {
+            throw RuntimeError("failed to extract BGRA pixels")
         }
         return (
             CaptureResponse(
                 ok: true,
+                format: "bgra",
                 width: image.width,
                 height: image.height,
-                bytes: png.count,
+                bytes: pixels.count,
                 window_id: window.windowID
             ),
-            png
+            pixels
         )
     }
 
@@ -199,16 +202,35 @@ struct Main {
         return Double(NSScreen.main?.backingScaleFactor ?? 2.0)
     }
 
-    static func pngData(from image: CGImage) -> Data? {
-        let data = NSMutableData()
-        guard let dest = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+    static func bgraData(from image: CGImage) -> Data? {
+        let width = image.width
+        let height = image.height
+        let bytesPerRow = width * 4
+        guard width > 0, height > 0 else {
             return nil
         }
-        CGImageDestinationAddImage(dest, image, nil)
-        guard CGImageDestinationFinalize(dest) else {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        // premultipliedFirst + byteOrder32Little lays the bytes out as B, G, R, A
+        // in memory — exactly what OpenCV expects once we drop the alpha column.
+        // Frames are opaque (alpha == 255) so premultiplied == straight.
+        let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue
+            | CGBitmapInfo.byteOrder32Little.rawValue
+        guard let ctx = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: colorSpace,
+            bitmapInfo: bitmapInfo
+        ) else {
             return nil
         }
-        return data as Data
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let buffer = ctx.data else {
+            return nil
+        }
+        return Data(bytes: buffer, count: bytesPerRow * height)
     }
 
     static func writeJSONLine<T: Encodable>(_ value: T) throws {

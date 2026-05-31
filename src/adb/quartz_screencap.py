@@ -192,22 +192,44 @@ def _sck_screencap_bgr(
     payload = (json.dumps(request, separators=(",", ":")) + "\n").encode()
     with _SCK_HELPER_LOCK:
         try:
-            data = _request_sck_png_locked(helper, payload)
+            header, data = _request_sck_frame_locked(helper, payload)
         except Exception:
             _restart_sck_helper_locked()
             raise
 
-    arr = np.frombuffer(data, dtype=np.uint8)
-    image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    if image is None:
-        msg = "ScreenCaptureKit helper returned an invalid PNG"
-        raise RuntimeError(msg)
+    image = _decode_sck_frame(header, data)
     if image.shape[1] != target_w or image.shape[0] != target_h:
         image = cv2.resize(image, (target_w, target_h), interpolation=cv2.INTER_AREA)
     return image
 
 
-def _request_sck_png_locked(helper: subprocess.Popen[bytes], payload: bytes) -> bytes:
+def _decode_sck_frame(header: dict[str, Any], data: bytes) -> np.ndarray:
+    """Turn a helper response into a BGR frame.
+
+    ``format == "bgra"`` (current helper) is a raw tightly-packed BGRA buffer we
+    reshape directly — no image codec involved. Any other value is treated as
+    PNG bytes for backward compatibility with an older helper binary.
+    """
+    if header.get("format") == "bgra":
+        width = int(header["width"])
+        height = int(header["height"])
+        expected = width * height * 4
+        if len(data) != expected:
+            msg = f"BGRA buffer is {len(data)} bytes, expected {expected} ({width}x{height})"
+            raise RuntimeError(msg)
+        frame = np.frombuffer(data, dtype=np.uint8).reshape(height, width, 4)
+        return np.ascontiguousarray(frame[:, :, :3])
+    arr = np.frombuffer(data, dtype=np.uint8)
+    image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if image is None:
+        msg = "ScreenCaptureKit helper returned an invalid PNG"
+        raise RuntimeError(msg)
+    return image
+
+
+def _request_sck_frame_locked(
+    helper: subprocess.Popen[bytes], payload: bytes
+) -> tuple[dict[str, Any], bytes]:
     assert helper.stdin is not None
     assert helper.stdout is not None
     helper.stdin.write(payload)
@@ -227,7 +249,7 @@ def _request_sck_png_locked(helper: subprocess.Popen[bytes], payload: bytes) -> 
     if len(data) != byte_count:
         msg = f"ScreenCaptureKit helper returned {len(data)} bytes, expected {byte_count}"
         raise RuntimeError(msg)
-    return data
+    return header, data
 
 
 def _ensure_sck_helper() -> subprocess.Popen[bytes]:
