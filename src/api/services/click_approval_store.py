@@ -693,6 +693,122 @@ def get_approval_status(client: Any, instance_id: str) -> dict[str, Any]:
     }
 
 
+_SUBMIT_DECISION_LUA = """
+local current = redis.call("GET", KEYS[1])
+local decision = ARGV[1]
+local expected_request_id = ARGV[2]
+if not current then
+  if expected_request_id ~= "" then
+    local prior = redis.call(
+      "GET",
+      "wos:ui:click_approval:response:" .. expected_request_id
+    )
+    if prior == decision then
+      return 2
+    end
+  end
+  return 0
+end
+
+local ok, payload = pcall(cjson.decode, current)
+if not ok or type(payload) ~= "table" then
+  redis.call("DEL", KEYS[1])
+  return 0
+end
+
+local actual_request_id = tostring(payload["request_id"] or "")
+if expected_request_id ~= "" and actual_request_id ~= expected_request_id then
+  return 0
+end
+
+local response_key = tostring(payload["response_key"] or "")
+if response_key ~= "" then
+  redis.call("SET", response_key, decision, "EX", 120)
+end
+redis.call("DEL", KEYS[1])
+return 1
+"""
+
+_DECISION_MISSING_OR_STALE = 0
+_DECISION_SUBMITTED = 1
+_DECISION_ALREADY_RECORDED = 2
+
+
+def _response_key_for_request_id(request_id: str) -> str:
+    return f"wos:ui:click_approval:response:{request_id}"
+
+
+def _submit_decision_result_fallback(
+    client: Any,
+    curr_key: str,
+    decision: str,
+    expected_request_id: str,
+) -> int:
+    raw = client.get(curr_key)
+    if not raw:
+        recorded = (
+            _as_text(client.get(_response_key_for_request_id(expected_request_id))).lower()
+            if expected_request_id
+            else ""
+        )
+        if expected_request_id and recorded == decision:
+            return _DECISION_ALREADY_RECORDED
+        return _DECISION_MISSING_OR_STALE
+    try:
+        payload = json.loads(_as_text(raw))
+    except json.JSONDecodeError:
+        client.delete(curr_key)
+        return _DECISION_MISSING_OR_STALE
+    if not isinstance(payload, dict):
+        client.delete(curr_key)
+        return _DECISION_MISSING_OR_STALE
+
+    actual_request_id = _as_text(payload.get("request_id"))
+    if expected_request_id and actual_request_id != expected_request_id:
+        return _DECISION_MISSING_OR_STALE
+
+    response_key = _as_text(payload.get("response_key"))
+    if response_key:
+        client.set(response_key, decision, ex=120)
+
+    # Test doubles do not always support Redis scripting. Keep the fallback
+    # conservative: only clear the visible slot if it still names the request we
+    # just answered, so a newly-published request is not deleted by a late UI
+    # response to the previous one.
+    if actual_request_id:
+        try:
+            current = json.loads(_as_text(client.get(curr_key)))
+        except (TypeError, json.JSONDecodeError):
+            current = None
+        current_request_id = (
+            _as_text(current.get("request_id")) if isinstance(current, dict) else ""
+        )
+        if current_request_id == actual_request_id:
+            client.delete(curr_key)
+    else:
+        client.delete(curr_key)
+    return _DECISION_SUBMITTED
+
+
+def _submit_decision_result(
+    client: Any,
+    curr_key: str,
+    decision: str,
+    expected_request_id: str,
+) -> int:
+    eval_fn = getattr(client, "eval", None)
+    if callable(eval_fn):
+        return int(
+            eval_fn(_SUBMIT_DECISION_LUA, 1, curr_key, decision, expected_request_id)
+        )
+    return _submit_decision_result_fallback(
+        client,
+        curr_key,
+        decision,
+        expected_request_id,
+    )
+
+
 def submit_decision(
     client: Any,
     instance_id: str,
@@ -705,24 +821,12 @@ def submit_decision(
         msg = f"invalid decision: {decision}"
         raise ValueError(msg)
     curr_key = _current_key(instance_id)
-    raw = client.get(curr_key)
-    if not raw:
-        return False
-    try:
-        payload = json.loads(_as_text(raw))
-    except json.JSONDecodeError:
-        client.delete(curr_key)
-        return False
-    if not isinstance(payload, dict):
-        client.delete(curr_key)
-        return False
     expected_request_id = request_id.strip()
-    if expected_request_id and _as_text(payload.get("request_id")) != expected_request_id:
+    result = _submit_decision_result(client, curr_key, decision, expected_request_id)
+    if result == _DECISION_MISSING_OR_STALE:
         return False
-    response_key = _as_text(payload.get("response_key"))
-    if response_key:
-        client.set(response_key, decision, ex=120)
-    client.delete(curr_key)
+    if result == _DECISION_ALREADY_RECORDED:
+        return True
     from dashboard.dashboard_events import publish_dashboard_event
 
     publish_dashboard_event(

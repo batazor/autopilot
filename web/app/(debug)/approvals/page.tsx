@@ -17,6 +17,7 @@ import { useFleet } from "@/components/FleetContextProvider";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import {
+  ApiError,
   clearPendingApproval,
   clearQueueAll,
   clickApprovalImageUrl,
@@ -119,6 +120,7 @@ export default function ApprovalsPage() {
   // and race to display the same toast twice. Drop overlapping calls — the
   // in-flight request will still surface anything new.
   const notificationsInFlightRef = useRef(false);
+  const decisionInFlightRef = useRef("");
   // Remember which pending-request key was last seen so we can bump the
   // image cache key only when the underlying request actually changes
   // (otherwise we'd thrash the browser's decoded-image cache every second).
@@ -357,16 +359,29 @@ export default function ApprovalsPage() {
 
   const onDecision = useCallback(
     async (decision: Decision) => {
-      if (!instanceId || busyAction !== null) return;
+      if (!instanceId || busyAction !== null || decisionInFlightRef.current) return;
+      const requestId =
+        typeof view?.pending?.request_id === "string" ? view.pending.request_id : "";
+      decisionInFlightRef.current = `${instanceId}:${requestId || "(unknown)"}`;
       setBusyAction(decision);
       try {
-        const requestId =
-          typeof view?.pending?.request_id === "string" ? view.pending.request_id : "";
         await submitDecision(instanceId, decision, requestId);
         await refresh();
       } catch (e) {
+        if (e instanceof ApiError && e.status === 409) {
+          try {
+            await refresh();
+            setError(null);
+          } catch (refreshError) {
+            setError(
+              refreshError instanceof Error ? refreshError.message : String(refreshError),
+            );
+          }
+          return;
+        }
         setError(e instanceof Error ? e.message : String(e));
       } finally {
+        decisionInFlightRef.current = "";
         setBusyAction(null);
       }
     },
@@ -1411,10 +1426,7 @@ function PendingApprovalCard({
 }) {
   const actionLabel = view.action_label || actionType || "action";
   const isBusy = (d: Decision) => busyAction === d;
-  // Disable a button only when *another* decision is in flight. Operators
-  // commonly want to bail to "reject" the moment they realise approve was the
-  // wrong call; the old global busy flag locked them out for ~1s.
-  const isDisabled = (d: Decision) => busyAction !== null && busyAction !== d;
+  const isDisabled = () => busyAction !== null;
 
   return (
     <>
@@ -1424,7 +1436,7 @@ function PendingApprovalCard({
         <button
           type="button"
           className="btn-approve"
-          disabled={isDisabled("approve")}
+          disabled={isDisabled()}
           onClick={() => onDecision("approve")}
           aria-keyshortcuts="A Y"
         >
@@ -1434,7 +1446,7 @@ function PendingApprovalCard({
         <button
           type="button"
           className="btn-skip"
-          disabled={isDisabled("skip")}
+          disabled={isDisabled()}
           onClick={() => onDecision("skip")}
           title="Treat as no-op success (don't tap, but don't abort the scenario)"
           aria-keyshortcuts="S"
@@ -1445,7 +1457,7 @@ function PendingApprovalCard({
         <button
           type="button"
           className="btn-reject"
-          disabled={isDisabled("reject")}
+          disabled={isDisabled()}
           onClick={() => onDecision("reject")}
           aria-keyshortcuts="R N"
         >

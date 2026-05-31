@@ -52,11 +52,25 @@ import type { GiftCodesView, WikiDetail, WikiEntrySummary, WikiScope } from "./w
 
 const base = "";
 
+export class ApiError extends Error {
+  readonly path: string;
+  readonly status: number;
+  readonly body: string;
+
+  constructor(path: string, status: number, body: string) {
+    super(`${path}: ${status}${body ? ` — ${body}` : ""}`);
+    this.name = "ApiError";
+    this.path = path;
+    this.status = status;
+    this.body = body;
+  }
+}
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${base}${path}`, { cache: "no-store", ...init });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${path}: ${res.status}${text ? ` — ${text}` : ""}`);
+    throw new ApiError(path, res.status, text);
   }
   return res.json() as Promise<T>;
 }
