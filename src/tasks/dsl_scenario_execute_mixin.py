@@ -455,6 +455,37 @@ class DslScenarioExecuteMixin(_Base):
                                 rejected_by_operator = float(rej_s) >= nav_started_at
                             except ValueError:
                                 rejected_by_operator = False
+                # Verify-after-tap race recovery. ``navigate_to`` returns False
+                # when its post-tap screen verify loses the race with the rolling
+                # detector — but the tap usually *did* land us on the target (the
+                # motivating case: ``hall_of_heroes.witness`` pushed off the
+                # ``deals.hall_of_heroes.add`` red dot; the ``+`` tap transitions
+                # the screen, yet verify confirms a beat late). If the freshly-read
+                # ``current_screen`` is one of this scenario's allowed nodes, run
+                # the steps in place instead of abandoning the task. Aborting here
+                # strands the bot on the event page (red dot still lit, claim loop
+                # never runs) and hands control to ``check_main_city`` /
+                # ``who_i_am``, which navigate away before the work happens. An
+                # operator reject is a *real* stop, so exclude it.
+                if (
+                    not nav_ok
+                    and cur_at_fail
+                    and cur_at_fail in allowed_nodes
+                    and not rejected_by_operator
+                ):
+                    nav_ok = True
+                    logger.info(
+                        "dsl_scenario: %s nav verify missed but current_screen=%s "
+                        "is an allowed node — running steps in place",
+                        _scen(key), cur_at_fail,
+                    )
+                    if self.redis_client is not None:
+                        with suppress(Exception):
+                            await self.redis_client.hset(
+                                f"wos:instance:{instance_id}:state",
+                                "nav_error", "",
+                            )
+            if not nav_ok:
                 await self._clear_step_context(instance_id)
                 if self.redis_client is not None:
                     with suppress(Exception):
