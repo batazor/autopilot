@@ -7,13 +7,12 @@ steps:
   # ``button.free`` carries ``isSearch: true`` — the matcher scans the full
   # frame, so this loop walks every visible Free button in turn (one tap per
   # iteration). Exits once nothing free remains.
-  - while_match: button.free
+  - while_match: button.free.small
     max: 4
     steps:
-      - click: button.free
+      - click: button.free.small
       - wait: 1.5s
       - while_match: button.tap_anywhere_to_exit
-        max: 1
         steps:
           - click: button.tap_anywhere_to_exit
           - wait: 1s

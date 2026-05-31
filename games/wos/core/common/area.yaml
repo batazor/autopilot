@@ -846,6 +846,28 @@
           "hash": "a69c551b81368d9b33a57568ae7898d1e4569aacb4b7cdd994937494e4306011"
         }
       ]
+    },
+    {
+      "id": 1408,
+      "screen_id": "hall_of_heroes.witness",
+      "ocr": "references/button.free.small.png",
+      "regions": [
+        {
+          "name": "button.free.small",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 59.83218697359006,
+            "y": 15.722181871780776,
+            "width": 21.624408869048697,
+            "height": 4.653488285078013,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "isSearch": true
+        }
+      ]
     }
   ]
 }

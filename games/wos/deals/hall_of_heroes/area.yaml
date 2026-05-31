@@ -15,7 +15,7 @@
             "y": 15.434782608695652,
             "width": 18.6003861003861,
             "height": 4.7,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           }
@@ -29,11 +29,25 @@
             "y": 37.28260869565217,
             "width": 6.613899613899614,
             "height": 3.6271739130434777,
-            "rotation": 0.0,
+            "rotation": 0,
             "original_width": 720,
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "hall_of_heroes.point",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 16.963007159904528,
+            "y": 38.36308791188738,
+            "width": 14.999999999999977,
+            "height": 2.7338480425736194,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
