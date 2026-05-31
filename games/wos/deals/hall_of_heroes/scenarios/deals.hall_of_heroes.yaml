@@ -3,4 +3,23 @@ name: "Deals: Hall of Heroes"
 priority: 80_000
 nodes:
   - deals.hall_of_heroes
-steps: []
+steps:
+  # Tips/hint overlay can sit over the reward panel and obscure the score —
+  # dismiss it first so the OCR read below sees a clean frame. The tips control
+  # is a toggle (one tap turns guidance off): ``max: 1`` runs a single iteration
+  # (absent → no-op, present → one tap) and guards against re-toggling it back on.
+  - while_match: deals.hall_of_heroes.tips
+    max: 1
+    steps:
+      - click: deals.hall_of_heroes.tips
+      - wait: 0.5s
+
+  # Persist the player's current Hall of Heroes event score. ``state:`` (not
+  # ``store:``) — this is a long-lived per-player fact that should survive bot
+  # restarts and feed later cond/threshold checks, not a transient same-run
+  # value that gets HDEL'd at scenario start. ``type: integer`` strips thousands
+  # separators (``"1,234"`` → ``1234``).
+  - ocr: hall_of_heroes.point
+    type: integer
+    preprocess: fast_digits
+    state: events.hall_of_heroes.point
