@@ -84,6 +84,19 @@ orange-leaning blobs (cooked-meat icons, salmon UI elements) sit at S≈170,
 V≈204 — these floors discriminate cleanly. Sampling restricted to mask pixels
 so an inner white counter digit cannot drag the medians down."""
 
+RED_DOT_MAX_MEDIAN_HUE = 5
+"""Max *folded* median hue (HSV) of the matched red pixels inside the contour.
+
+Notification badges are pure red: their masked pixels straddle hue 0/180, so
+folding the 170–179 wraparound onto the negative side gives a median of ~0
+(measured 0 across all 6 main_city_v2 badges). High-rarity item gems — the
+amber jewel inset in a silver ring on backpack "Pass" items — are saturated and
+bright enough to clear every other floor, but they lean orange: their masked
+pixels sit entirely at hue 6–10 (folded median ≈ 8) with no wraparound. Gating
+the orange side at 5 rejects those gems while leaving real badges (median 0,
+and any magenta-leaning red, which folds negative) untouched. Sampling is
+restricted to mask pixels, same as the S/V medians above."""
+
 RED_DOT_SURROUND_RING_PX = 4
 RED_DOT_MIN_SURROUND_MEDIAN_SATURATION = 45
 """Median saturation of the thin ring just outside the candidate contour
@@ -239,6 +252,7 @@ def find_red_dots(
     if mask.size == 0:
         return []
     hsv = cv2.cvtColor(patch_bgr, cv2.COLOR_BGR2HSV)
+    hue_plane = hsv[..., 0]
     sat_plane = hsv[..., 1]
     val_plane = hsv[..., 2]
     ring_kernel = cv2.getStructuringElement(
@@ -300,6 +314,15 @@ def find_red_dots(
         if s_med < RED_DOT_MIN_MEDIAN_SATURATION:
             continue
         if v_med < RED_DOT_MIN_MEDIAN_VALUE:
+            continue
+
+        # Reject orange-leaning blobs (amber rarity gems on "Pass" items) that
+        # clear the saturation/value floors but are not red. Fold the 170–179
+        # wraparound onto the negative side so a pure-red badge straddling
+        # hue 0/180 lands at a median of ~0; an orange gem sits at ~+8.
+        hue_inside = hue_plane[inside].astype(np.int16)
+        hue_folded = np.where(hue_inside >= 90, hue_inside - 180, hue_inside)
+        if float(np.median(hue_folded)) > RED_DOT_MAX_MEDIAN_HUE:
             continue
 
         circularity = 4.0 * pi * area / (perimeter * perimeter)

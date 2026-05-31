@@ -38,6 +38,9 @@ WIDENED_BY_COUNTER_FIXTURE = (
 PLUS5_BOOSTER_PILL_FIXTURE = (
     REPO_ROOT / "tests" / "fixtures" / "red_dot_plus5_booster_pill.png"
 )
+BACKPACK_PASS_GEM_FALSE_POSITIVE = (
+    REPO_ROOT / "tests" / "fixtures" / "red_dot_backpack_pass_gem_false_positive.png"
+)
 
 REFERENCE_W = 720
 REFERENCE_H = REFERENCE_IMAGE_HEIGHT
@@ -323,6 +326,23 @@ def test_plus5_booster_pill_is_not_a_red_dot() -> None:
     assert img is not None, f"failed to load fixture: {PLUS5_BOOSTER_PILL_FIXTURE}"
     # The fixture is a region crop — pass the full-frame height for radius scaling.
     assert find_red_dots(img, image_h_for_norm=REFERENCE_H) == []
+
+
+def test_backpack_pass_gems_are_not_red_dots() -> None:
+    """The Backpack "Other" tab shows "Pass" items whose icon has a round amber
+    gem inset in a silver ring. Those gems clear the saturation (S≈194) and
+    value (V≈200) floors and are circular, but their red-mask pixels sit at
+    hue 6–10 (folded median ≈8) — they are orange, not red. The median-hue gate
+    must keep them out. Captured 720×1280 frame; this is the exact frame that
+    fired a ``put_all_red_dots`` approval to tap the gem at ≈(296, 624)."""
+    img = cv2.imread(str(BACKPACK_PASS_GEM_FALSE_POSITIVE))
+    assert img is not None, f"failed to load fixture: {BACKPACK_PASS_GEM_FALSE_POSITIVE}"
+    # ``put_all_red_dots`` sweeps the whole frame — the detector must find none.
+    assert find_red_dots(img, image_h_for_norm=img.shape[0]) == []
+    # And a tight bbox over a single gem icon must report no badge.
+    h, w = img.shape[:2]
+    gem_bbox = _bbox_percent(252, 580, 90, 90, frame_w=w, frame_h=h)
+    assert has_red_dot_in_bbox_percent(img, gem_bbox) is False
 
 
 # ---------------------------------------------------------------------------
