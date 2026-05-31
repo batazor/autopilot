@@ -80,7 +80,7 @@ class InstanceWorkerHealthMixin(_Base):
             return False
 
         try:
-            ba.apply_display_then_launch_game(inst)
+            ba.apply_display_then_launch_game(inst, require_approval=False)
         except Exception:
             logger.warning(
                 "Startup: display profile / game launch failed for %s — continuing",
@@ -121,7 +121,7 @@ class InstanceWorkerHealthMixin(_Base):
                     forced_restart = True
                     time.sleep(min(3.0, remaining))
                 else:
-                    ba.ensure_game_foreground(inst)
+                    ba.ensure_game_foreground(inst, require_approval=False)
                     time.sleep(min(settle_s, remaining))
             except Exception:
                 logger.exception("Startup: launch/restart failed on %s", inst)
@@ -163,14 +163,22 @@ class InstanceWorkerHealthMixin(_Base):
 
         try:
             try:
-                await self._run_blocking(
+                restarted = await self._run_blocking(
                     self._bot_actions.restart_application,
                     self._cfg.instance_id,
                 )
+                if restarted is False:
+                    logger.info(
+                        "Restart: %s blocked/rejected by approval",
+                        self._cfg.instance_id,
+                    )
+                    await self._set_instance_state(InstanceState.READY)
+                    return
                 await asyncio.sleep(3.0)
                 await self._run_blocking(
                     self._bot_actions.ensure_game_foreground,
                     self._cfg.instance_id,
+                    require_approval=False,
                 )
             except Exception:
                 logger.exception("Failed to restart application on %s", self._cfg.instance_id)

@@ -88,6 +88,10 @@ class PopupBlockingHandler:
             if state.kind == PopupKind.NONE:
                 return PopupHandleResult.HANDLED
 
+            if state.kind == PopupKind.PAGE:
+                logger.info("popup: known page %r on %s — deferring", state.screen_name or "-", instance_id)
+                return PopupHandleResult.ESCALATE
+
             if state.kind == PopupKind.CAPTCHA:
                 return await self._route_captcha(instance_id)
 

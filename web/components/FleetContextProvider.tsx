@@ -17,6 +17,7 @@ import {
   loadFleetPlayerId,
   saveFleetInstanceId,
   saveFleetPlayerId,
+  subscribeFleetInstanceId,
 } from "@/lib/fleet-prefs";
 
 // Keep in sync with config/games.py::GAMES — defaults match
@@ -145,6 +146,15 @@ export function FleetContextProvider({ children }: { children: ReactNode }) {
     },
     [replaceQuery, setInstanceIdState],
   );
+
+  useEffect(() => {
+    return subscribeFleetInstanceId((id) => {
+      const next = id.trim();
+      if (next && instances.length > 0 && !instances.includes(next)) return;
+      setInstanceIdState((current) => (current === next ? current : next));
+      setGameOverride("");
+    });
+  }, [instances, setInstanceIdState]);
 
   const setPlayerId = useCallback(
     (id: string) => {

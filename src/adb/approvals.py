@@ -21,8 +21,9 @@ _APPROVAL_PREVIEW_REFRESH_SECONDS = 2.0
 _APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT = 3
 # Approval mode: by default there is NO non-decision exit from the wait
 # loop — no wall-clock deadline AND no heartbeat-loss abort. The decision is
-# always the operator's. The trade-off: closing the approvals page WILL hang
-# the worker on this task until the page is reopened and a decision is given.
+# always the operator's. The request is published even when the approvals page
+# is closed, then the worker waits on that pending decision until the page is
+# opened and the operator acts.
 #
 # Operators who want a safety-net auto-reject can set
 # ``WOS_APPROVAL_TIMEOUT_SECONDS`` (>0) to bound the wait. The request is
@@ -324,8 +325,8 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         return True, None
 
     # Captured before any blocking wait so an abort signal stamped at any point
-    # after we entered (page-open wait, publish, or operator wait) aborts this
-    # request rather than only the operator-decision phase.
+    # after we entered (publish wait or operator wait) aborts this request
+    # rather than only the operator-decision phase.
     entered_at = time.time()
 
     preview_capturer = payload.get("_preview_capturer")
@@ -348,25 +349,6 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
             logger.debug("approval preview refresh failed for %s", instance_id, exc_info=True)
             return
         last_preview_refresh_at = now
-
-    hb_key = f"wos:ui:click_approval:heartbeat:{instance_id}"
-    if not _r_get(hb_key):
-        # Approval always required — wait until the approvals page is opened.
-        logger.info(
-            "Click approval: page not open, waiting for operator to open it (%s)", instance_id
-        )
-        while not _r_get(hb_key):
-            abort_reason = _approval_abort_reason(instance_id, entered_at)
-            if abort_reason is not None:
-                logger.info(
-                    "Click approval: aborted while waiting for page to open (%s): %s",
-                    instance_id,
-                    abort_reason,
-                )
-                return False, None
-            _refresh_preview_if_due(payload)
-            time.sleep(_APPROVAL_POLL_SECONDS)
-        logger.info("Click approval: page opened — proceeding (%s)", instance_id)
 
     current_key = f"wos:ui:click_approval:current:{instance_id}"
 
@@ -566,6 +548,11 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                 instance_id=instance_id,
                 reason="pending",
             )
+            if not _r_get(f"wos:ui:click_approval:heartbeat:{instance_id}"):
+                logger.info(
+                    "Click approval: pending request published while page is closed (%s)",
+                    instance_id,
+                )
             break
         time.sleep(_APPROVAL_POLL_SECONDS)
     else:
@@ -813,5 +800,4 @@ def _consume_skip(req_id: str | None) -> bool:
         _skipped_req_ids.discard(req_id)
         return True
     return False
-
 

@@ -29,6 +29,7 @@ class PopupKind(StrEnum):
     PURCHASE = "purchase"  # price/Buy/Spend present — NEVER tap CTA, only X
     CAPTCHA = "captcha"  # route to 2captcha handler, do NOT dismiss
     AD_WEBVIEW = "ad_webview"  # full-bleed, no blurred scrim — model fallback
+    PAGE = "page"  # known screen/page; let screen-specific automation handle it
     UNKNOWN_MODAL = "unknown_modal"  # overlay present but unclassified — escalate-aware
 
 
@@ -65,3 +66,4 @@ class PopupState:
     primary_point: Point | None  # Claim/Confirm CTA, only set for REWARD_CLAIM
     card_text: str  # OCR'd card text (lowercased, joined)
     signals: DetectionSignals
+    screen_name: str | None = None  # set when kind == PAGE

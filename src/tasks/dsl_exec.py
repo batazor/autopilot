@@ -60,6 +60,9 @@ class DslExecContext:
     ``cond``). Each handler reads what it needs; unknown keys are silently
     ignored so adding a new arg never breaks older handlers."""
 
+    result: dict[str, Any] = field(default_factory=dict)
+    """Best-effort diagnostics the handler can expose on the scenario trace."""
+
 
 def _decode_redis_raw(raw: Any) -> str:
     if raw is None:
@@ -814,6 +817,8 @@ def _popup_tap_target(state: PopupState) -> tuple[Point, str] | None:
     kind. Returns ``None`` when there is no safe action — the caller stops and
     lets the legacy region shotgun take over.
     """
+    if state.kind == PopupKind.PAGE:
+        return None
     if state.kind == PopupKind.TAP_TO_CONTINUE and state.primary_point is not None:
         # "Tap anywhere / tap to continue" page — the card center, never a
         # (non-existent) top-right X.
@@ -838,20 +843,13 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
     tap is rejected, or ``max_layers`` is reached.
 
     This is the smart front-half of ``dismiss_unknown_popup.yaml``; the region
-    shotgun in that scenario remains the deeper fallback. The handler is a
-    no-op when ``worker.popup_detector_enabled`` is off so enabling/disabling
-    the detector toggles both the live tick and this fallback together.
+    shotgun in that scenario remains the deeper fallback when the detector
+    finds nothing actionable or escalates.
 
     Args (sibling YAML keys on the ``exec:`` step):
     * ``max_layers`` — cap on stacked dismissals (default
       ``_DISMISS_POPUP_MAX_LAYERS``).
     """
-    if not getattr(dsl_runtime.settings().worker, "popup_detector_enabled", False):
-        logger.debug(
-            "dsl exec dismiss_popup: detector disabled — deferring to region shotgun"
-        )
-        return
-
     args = ctx.args or {}
     try:
         max_layers = int(args.get("max_layers", _DISMISS_POPUP_MAX_LAYERS))
@@ -875,6 +873,12 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
                 actions.capture_screen_bgr, ctx.instance_id
             )
         except Exception:
+            ctx.result.update(
+                {
+                    "reason": "capture_failed",
+                    "popup_action": "error",
+                }
+            )
             logger.exception(
                 "dsl exec dismiss_popup: capture failed instance=%s",
                 ctx.instance_id,
@@ -884,6 +888,12 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
         try:
             state = await detector.detect(image)
         except Exception:
+            ctx.result.update(
+                {
+                    "reason": "detect_failed",
+                    "popup_action": "error",
+                }
+            )
             logger.exception(
                 "dsl exec dismiss_popup: detect failed instance=%s",
                 ctx.instance_id,
@@ -891,6 +901,13 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             return
 
         if state.kind == PopupKind.NONE:
+            ctx.result.update(
+                {
+                    "reason": "no_popup",
+                    "popup_action": "clear",
+                    "popup_dismissed": dismissed,
+                }
+            )
             logger.info(
                 "dsl exec dismiss_popup: instance=%s clear after %d dismissal(s)",
                 ctx.instance_id,
@@ -898,7 +915,45 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             )
             return
 
+        if state.kind == PopupKind.PAGE:
+            screen_name = (state.screen_name or "").strip()
+            ctx.result.update(
+                {
+                    "reason": "screen_page",
+                    "popup_action": "defer_to_screen",
+                    "popup_kind": state.kind.value,
+                    "popup_screen": screen_name,
+                    "popup_dismissed": dismissed,
+                }
+            )
+            if ctx.redis_client is not None and screen_name:
+                try:
+                    await ctx.redis_client.hset(
+                        f"wos:instance:{ctx.instance_id}:state",
+                        "current_screen",
+                        screen_name,
+                    )
+                except Exception:
+                    logger.debug(
+                        "dsl exec dismiss_popup: failed to persist detected page",
+                        exc_info=True,
+                    )
+            logger.info(
+                "dsl exec dismiss_popup: %s is page %r — deferring to screen automation",
+                ctx.instance_id,
+                screen_name or "-",
+            )
+            return
+
         if state.kind == PopupKind.CAPTCHA:
+            ctx.result.update(
+                {
+                    "reason": "captcha",
+                    "popup_action": "blocked",
+                    "popup_kind": state.kind.value,
+                    "popup_dismissed": dismissed,
+                }
+            )
             # No worker-side solver — never tap into a captcha. Stop so the
             # region shotgun cannot blindly tap it either.
             logger.info(
@@ -909,6 +964,14 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
 
         target = _popup_tap_target(state)
         if target is None:
+            ctx.result.update(
+                {
+                    "reason": "no_safe_tap",
+                    "popup_action": "escalated",
+                    "popup_kind": state.kind.value,
+                    "popup_dismissed": dismissed,
+                }
+            )
             # Overlay present but no safe point (ad/webview without a learned
             # close model). Escalate to the region shotgun, which carries
             # tap-anywhere candidates the geometric heuristic lacks.
@@ -921,6 +984,16 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             return
 
         point, approval_region = target
+        ctx.result.update(
+            {
+                "popup_action": "tap_pending",
+                "popup_kind": state.kind.value,
+                "popup_tap_x": point.x,
+                "popup_tap_y": point.y,
+                "popup_approval_region": approval_region,
+                "popup_dismissed": dismissed,
+            }
+        )
         try:
             tapped = bool(
                 await asyncio.to_thread(
@@ -932,6 +1005,17 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
                 )
             )
         except Exception:
+            ctx.result.update(
+                {
+                    "reason": "tap_failed",
+                    "popup_action": "error",
+                    "popup_kind": state.kind.value,
+                    "popup_tap_x": point.x,
+                    "popup_tap_y": point.y,
+                    "popup_approval_region": approval_region,
+                    "popup_dismissed": dismissed,
+                }
+            )
             logger.exception(
                 "dsl exec dismiss_popup: tap failed at (%d,%d) instance=%s",
                 point.x,
@@ -940,6 +1024,17 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             )
             return
         if not tapped:
+            ctx.result.update(
+                {
+                    "reason": "tap_rejected",
+                    "popup_action": "blocked",
+                    "popup_kind": state.kind.value,
+                    "popup_tap_x": point.x,
+                    "popup_tap_y": point.y,
+                    "popup_approval_region": approval_region,
+                    "popup_dismissed": dismissed,
+                }
+            )
             # Operator rejected the approval (or the slot is busy). Bail so the
             # "no" actually stops the loop instead of re-prompting every layer.
             logger.info(
@@ -952,7 +1047,17 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
             )
             return
 
-        dismissed += 1  # noqa: SIM113 — counts successful taps, not loop turns
+        dismissed += 1
+        ctx.result.update(
+            {
+                "popup_action": "tapped",
+                "popup_kind": state.kind.value,
+                "popup_tap_x": point.x,
+                "popup_tap_y": point.y,
+                "popup_approval_region": approval_region,
+                "popup_dismissed": dismissed,
+            }
+        )
         logger.info(
             "dsl exec dismiss_popup: instance=%s layer=%d kind=%s tap=(%d,%d)",
             ctx.instance_id,
@@ -963,6 +1068,13 @@ async def _exec_dismiss_popup(ctx: DslExecContext) -> None:
         )
         await asyncio.sleep(_DISMISS_POPUP_SETTLE_S)
 
+    ctx.result.update(
+        {
+            "reason": "max_layers",
+            "popup_action": "max_layers",
+            "popup_dismissed": dismissed,
+        }
+    )
     logger.info(
         "dsl exec dismiss_popup: instance=%s reached max-layers cap (%d) — stopping",
         ctx.instance_id,

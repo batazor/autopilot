@@ -9,45 +9,44 @@ cond: currentNode == unknown
 steps:
   # Smart pass first: the game-wide, template-free pop-up detector localizes a
   # blurred-scrim modal and dismisses it with a single safety-classified tap
-  # (loop-until-clear, approval-gated). No-op when the detector is disabled
-  # (worker.popup_detector_enabled) or when it finds nothing / escalates — the
-  # region shotgun below then runs as the deeper fallback.
+  # (loop-until-clear, approval-gated). No-op when it finds nothing / escalates
+  # — the region shotgun below then runs as the deeper fallback.
   - exec: dismiss_popup
 
-  - while_match: button.free
-    max: 1
+  - cond: currentNode == unknown
     steps:
-      - click: button.free
-      - wait: 1s
+      - while_match: button.free
+        max: 1
+        steps:
+          - click: button.free
+          - wait: 1s
 
-  - while_match: claim_button_close
-    max: 1
-    steps:
-      - click: claim_button_close
-      - wait: 1s
+      - while_match: claim_button_close
+        max: 1
+        steps:
+          - click: claim_button_close
+          - wait: 1s
 
-  - while_match: icon.page.back
-    max: 1
-    steps:
-      - click: icon.page.back
-      - wait: 1s
+      - while_match: icon.page.back
+        max: 1
+        steps:
+          - click: icon.page.back
+          - wait: 1s
 
-  - while_match: button.tap_anywhere_to_exit
-    max: 1
-    steps:
-      - click: button.tap_anywhere_to_exit
-      - wait: 1s
+      - while_match: button.tap_anywhere_to_exit
+        max: 1
+        steps:
+          - click: button.tap_anywhere_to_exit
+          - wait: 1s
 
-  - while_match: button.click_to_continue
-    max: 1
-    steps:
-      - click: button.click_to_continue
-      - wait: 1s
+      - while_match: button.click_to_continue
+        max: 1
+        steps:
+          - click: button.click_to_continue
+          - wait: 1s
 
-  - while_match: heroes.sr.new.close
-    max: 1
-    steps:
-      - click: heroes.sr.new.close
-      - wait: 1s
-
-  - click: icon.page.back
+      - while_match: heroes.sr.new.close
+        max: 1
+        steps:
+          - click: heroes.sr.new.close
+          - wait: 1s

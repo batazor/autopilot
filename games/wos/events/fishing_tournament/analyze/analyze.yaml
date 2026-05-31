@@ -2,7 +2,7 @@ overlay:
   - name: fishing_tournament.main_city.event_icon.visible
     region: main_city.icon_search
     action: findIcon
-    template: games/wos/events/fishing_tournament/references/main_city.event.fishing_tournament.png
+    template: games/wos/events/fishing_tournament/references/main_city.to.fishing_tournament.png
     threshold: 0.9
     isRedDot: true
     screens:

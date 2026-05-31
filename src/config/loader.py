@@ -76,25 +76,6 @@ class WorkerConfig:
     """
     adb_executable: str = ""
     """Explicit ``adb`` path when empty PATH differs from GUI (taps + screencap)."""
-    popup_detector_enabled: bool = False
-    """Enable the template-free pop-up detector (``src/popup``) in the worker tick.
-
-    When True, each analyzed frame is first checked for a blurred-scrim modal; a
-    confirmed pop-up is dismissed with a single geometric tap (safety-classified)
-    and the rest of the tick short-circuits. The legacy ``dismiss_unknown_popup``
-    shotgun scenario remains the deeper fallback either way. Enable per-process
-    with ``WOS_POPUP_DETECTOR=1``.
-
-    Default OFF until two known issues are fixed:
-    1. False positives — a full-screen page with a large flat background (e.g.
-       the Mail page, story cutscenes) reads like a blurred scrim, so the worker
-       short-circuits screen detection and may issue a stray dismiss tap. Fix:
-       gate action on ``ScreenDetector`` returning UNKNOWN
-       (see ``PopupDetector.corroborates_unknown_screen``).
-    2. Approval-blocked taps — when click-approval is on, the dismiss tap blocks
-       on the rolling thread pool waiting for operator approval, which can stall
-       the rolling capture loop. Fix: make the popup tap approval-aware / async.
-    """
     device_display: DeviceDisplayConfig | None = None
     """Default ADB display profile applied at worker boot (per-device overrides in devices.yaml)."""
 
@@ -157,8 +138,6 @@ def load_settings(path: Path | None = None) -> Settings:
     scheduler_cfg = SchedulerConfig(**(raw.get("scheduler") or {}))
     worker_raw = dict(raw.get("worker") or {})
     device_display = parse_device_display(worker_raw.pop("device_display", None))
-    if (popup_flag := _env_value("WOS_POPUP_DETECTOR")) != "":
-        worker_raw["popup_detector_enabled"] = popup_flag.lower() in {"1", "true", "yes", "on"}
     worker_cfg = WorkerConfig(**worker_raw, device_display=device_display)
 
     # Each ``db/devices.yaml`` entry maps to one ``InstanceConfig``. Inline

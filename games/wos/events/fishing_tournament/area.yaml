@@ -1,2 +1,21 @@
 version: 2
-screens: []
+screens:
+- id: 1
+  screen_id: ''
+  ocr: references/main_city.png
+  regions:
+  - name: main_city.to.fishing_tournament
+    action: exist
+    threshold: 0.9
+    bbox:
+      x: 91.46599836366745
+      y: 24.57345524096585
+      width: 5.373492532807728
+      height: 4.134712429762747
+      rotation: 0
+      original_width: 720
+      original_height: 1280
+- id: 2
+  screen_id: ''
+  ocr: references/fishing_tournament.main.png
+  regions: []

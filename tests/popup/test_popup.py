@@ -20,7 +20,8 @@ from popup.detector import PopupDetector
 from popup.mask import SharpnessMask
 from popup.models import DetectionSignals, PopupKind
 
-FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = REPO_ROOT / "tests" / "fixtures"
 
 # --- helpers ---------------------------------------------------------------
 
@@ -211,3 +212,18 @@ async def test_detector_charm_master_pack_if_present(ocr_client) -> None:
     assert state.close_point is not None
     assert cr.x <= state.close_point.x <= cr.x + cr.w
     assert cr.y <= state.close_point.y <= cr.y + cr.h
+
+
+async def test_detector_treats_welcome_back_as_page(ocr_client) -> None:
+    path = REPO_ROOT / "games/wos/core/welcome_back/references/welcome_back.png"
+    if not path.exists():
+        pytest.skip(f"missing welcome reference: {path}")
+    img = cv2.imread(str(path))
+    assert img is not None
+
+    state = await PopupDetector(ocr_client).detect(img)
+
+    assert state.kind == PopupKind.PAGE
+    assert state.screen_name == "welcome_back"
+    assert state.close_point is None
+    assert state.primary_point is None

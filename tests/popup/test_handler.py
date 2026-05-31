@@ -18,7 +18,13 @@ _CLOSE = Point(540, 320)
 _CLAIM = Point(330, 700)
 
 
-def _state(kind: PopupKind, *, close: Point | None = _CLOSE, primary: Point | None = None) -> PopupState:
+def _state(
+    kind: PopupKind,
+    *,
+    close: Point | None = _CLOSE,
+    primary: Point | None = None,
+    screen_name: str | None = None,
+) -> PopupState:
     overlay = kind != PopupKind.NONE
     return PopupState(
         kind=kind,
@@ -27,6 +33,7 @@ def _state(kind: PopupKind, *, close: Point | None = _CLOSE, primary: Point | No
         primary_point=primary,
         card_text="",
         signals=DetectionSignals(card_frac=0.5, center=(0.5, 0.5), scrim_sharp=0.0, overlay_present=overlay),
+        screen_name=screen_name,
     )
 
 
@@ -148,6 +155,17 @@ async def test_captcha_without_handler_escalates() -> None:
 
 async def test_ad_webview_without_close_escalates() -> None:
     detector = _FakeDetector([_state(PopupKind.AD_WEBVIEW, close=None)])
+    handler = PopupBlockingHandler(detector, _capture, config=_FAST)
+    actions = _FakeActions()
+
+    result = await handler.handle("bs1", actions)
+
+    assert result == PopupHandleResult.ESCALATE
+    assert actions.taps == []
+
+
+async def test_known_page_escalates_without_tap() -> None:
+    detector = _FakeDetector([_state(PopupKind.PAGE, close=None, screen_name="welcome_back")])
     handler = PopupBlockingHandler(detector, _capture, config=_FAST)
     actions = _FakeActions()
 

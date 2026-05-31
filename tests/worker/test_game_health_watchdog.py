@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import threading
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
+import worker.game_health_watchdog as watchdog
 from adb.controller import ProcessDetection
 from worker.game_health_watchdog import (
     _capture_restart_context,
     _is_game_running_after_retries,
     _record_restart_breadcrumb,
+    restart_application_after_health_failure,
 )
 
 if TYPE_CHECKING:
@@ -92,6 +95,46 @@ class _FakeRedis:
         pass
 
 
+class _FakeRecoveryRedis(_FakeRedis):
+    def __init__(self) -> None:
+        super().__init__()
+        self.published: list[tuple[str, str]] = []
+        self.deleted: list[str] = []
+
+    def publish(self, key: str, value: str) -> None:
+        self.published.append((key, value))
+
+    def delete(self, key: str) -> None:
+        self.deleted.append(key)
+
+
+class _LaunchOnlyBotActions:
+    latest: _LaunchOnlyBotActions | None = None
+
+    def __init__(self, _settings: object) -> None:
+        type(self).latest = self
+        self.running = False
+        self.launch_calls: list[tuple[str, bool]] = []
+        self.restart_calls: list[str] = []
+
+    def ensure_game_foreground(
+        self,
+        instance_id: str,
+        *,
+        require_approval: bool = True,
+    ) -> bool:
+        self.launch_calls.append((instance_id, require_approval))
+        self.running = True
+        return True
+
+    def is_game_running(self, _instance_id: str) -> bool:
+        return self.running
+
+    def restart_application(self, instance_id: str) -> bool:
+        self.restart_calls.append(instance_id)
+        return True
+
+
 def test_capture_restart_context_clean_miss_means_process_gone() -> None:
     ba = _CtxBotActions(
         "com.bluestacks.appmarket/.Main",
@@ -138,6 +181,28 @@ def test_record_restart_breadcrumb_persists_reason_and_count() -> None:
     assert rows[0]["event"] == "game.restart"
     assert rows[0]["foreground"] == "com.gof.global/.MainActivity"
     assert rows[0]["reason"] == "process_dead_after_retries"
+
+
+def test_health_recovery_starts_missing_application_without_restart(monkeypatch) -> None:
+    redis = _FakeRecoveryRedis()
+    monkeypatch.setattr(watchdog, "BotActions", _LaunchOnlyBotActions)
+    monkeypatch.setattr(watchdog.time, "sleep", lambda _seconds: None)
+
+    restart_application_after_health_failure(
+        "bs1",
+        cast("object", redis),  # type: ignore[arg-type]
+        cast("object", SimpleNamespace()),  # type: ignore[arg-type]
+    )
+
+    actions = _LaunchOnlyBotActions.latest
+    assert actions is not None
+    assert actions.launch_calls == [("bs1", False), ("bs1", False)]
+    assert actions.restart_calls == []
+    assert redis.deleted == ["wos:instance:bs1:lock"]
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["state"] == "ready"
+    assert state["paused"] == "0"
+    assert state["auto_paused"] == "0"
 
 
 def test_reload_settings_detects_added_and_removed_devices(monkeypatch) -> None:

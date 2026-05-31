@@ -29,6 +29,72 @@ export function syntheticReferenceMeta(refRel: string): LabelingReferenceMeta {
   };
 }
 
+/** Decide which reference to select after (re)loading the reference list.
+ *
+ * Robustness rules (see the labeling page):
+ * - A ``?ref=`` from the URL is only honored if it still exists in the list.
+ *   A temporal capture named in the URL can be stale (rotated/discarded);
+ *   trusting it would 404 the document + image fetches and dead-end the UI.
+ * - Otherwise, keep the current selection only if it still exists. If it went
+ *   stale (e.g. the selected reference was just deleted), fall back to the
+ *   first available reference.
+ * - When the list is empty, clear the selection.
+ *
+ * Returns the ref that should be selected, or ``null`` to clear it. ``null``
+ * with an unchanged current selection means "leave as-is".
+ */
+export function resolveSelectedRef(args: {
+  list: LabelingReferenceMeta[];
+  urlRef: string | null;
+  currentRef: string;
+}): string | null {
+  const { list, urlRef, currentRef } = args;
+  const exists = (rel: string) => list.some((r) => r.rel === rel);
+  if (urlRef && exists(urlRef)) return urlRef;
+  if (currentRef && exists(currentRef)) return currentRef;
+  if (list.length) return list[0].rel;
+  return null;
+}
+
+/** Pick the next reference to select after the active one is removed.
+ *
+ * Prefers a published (non-temporal) reference so the operator lands on real
+ * saved work rather than another unsaved capture; falls back to whatever is
+ * first, or ``""`` when nothing remains.
+ */
+export function nextRefAfterRemoval(list: LabelingReferenceMeta[]): string {
+  return list.find((r) => !isPendingCapture(r.rel))?.rel ?? list[0]?.rel ?? "";
+}
+
+/** Whether doc-derived display fields may be trusted for the current selection.
+ *
+ * The fetched document lags behind ``refRel`` during async loads and is left
+ * over after a failed load, so its ``display_ref``/``is_pending`` must only be
+ * used when the doc actually belongs to the current reference.
+ */
+export function docMatchesRef(
+  doc: Pick<LabelingDocument, "ref"> | null,
+  refRel: string,
+): boolean {
+  return Boolean(doc) && doc?.ref === refRel;
+}
+
+/** The reference whose image should be shown on the canvas.
+ *
+ * Temporal captures are shown as-is. For published references the document's
+ * ``display_ref`` (which may resolve a version-bound OCR image) is preferred,
+ * but only when the doc matches the current selection — otherwise we'd show the
+ * previous reference's image against the new ``refRel``.
+ */
+export function resolveImageRef(
+  refRel: string,
+  doc: Pick<LabelingDocument, "ref" | "display_ref"> | null,
+): string {
+  if (isPendingCapture(refRel)) return refRel;
+  const shown = docMatchesRef(doc, refRel) ? (doc?.display_ref ?? "").trim() : "";
+  return shown || refRel;
+}
+
 /** Infer module scope from a repo-relative reference path.
  *
  * Returns the game-prefixed module key for ``games/<game>/.../references``

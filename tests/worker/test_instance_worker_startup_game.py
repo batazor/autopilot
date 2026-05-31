@@ -69,7 +69,9 @@ def test_startup_returns_when_game_already_running() -> None:
         ok = worker._ensure_whiteout_at_worker_start()
 
     assert ok is True
-    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with("bs1")
+    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with(
+        "bs1", require_approval=False
+    )
     worker._bot_actions.ensure_game_foreground.assert_not_called()
 
 
@@ -86,8 +88,13 @@ def test_startup_launches_until_running() -> None:
 
     assert ok is True
     assert worker._ui_paused is False
-    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with("bs1")
+    worker._bot_actions.apply_display_then_launch_game.assert_called_once_with(
+        "bs1", require_approval=False
+    )
     assert worker._bot_actions.ensure_game_foreground.call_count >= 1
+    worker._bot_actions.ensure_game_foreground.assert_called_with(
+        "bs1", require_approval=False
+    )
     worker._bot_actions.restart_application.assert_not_called()
 
 

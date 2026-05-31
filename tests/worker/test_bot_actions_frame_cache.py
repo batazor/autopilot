@@ -44,9 +44,11 @@ class _StubController:
     def type_text(self, *_a: Any) -> bool:
         return True
 
-    def restart_application(self, game: str | None = None) -> None: ...
+    def restart_application(self, game: str | None = None) -> bool:
+        return True
 
-    def ensure_game_foreground(self, game: str | None = None) -> None: ...
+    def ensure_game_foreground(self, game: str | None = None, **_kw: Any) -> bool:
+        return True
 
     def get_screen_resolution(self) -> tuple[int, int]:
         return self.resolution
@@ -207,6 +209,7 @@ def test_swipe_direction_maps_delta_through_bot_frame(
         ("swipe_direction", lambda b: b.swipe_direction("bs1", "up", 100)),
         ("long_tap", lambda b: b.long_tap("bs1", Point(5, 5))),
         ("type_text", lambda b: b.type_text("bs1", "abc")),
+        ("restart_application", lambda b: b.restart_application("bs1")),
         ("ensure_game_foreground", lambda b: b.ensure_game_foreground("bs1")),
     ],
 )

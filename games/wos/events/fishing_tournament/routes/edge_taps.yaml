@@ -3,7 +3,7 @@ edges:
     event.fishing_tournament:
       resolver: template_icon
       region: main_city.icon_search
-      template: games/wos/events/fishing_tournament/references/main_city.event.fishing_tournament.png
+      template: games/wos/events/fishing_tournament/references/main_city.to.fishing_tournament.png
       threshold: 0.9
 
   event.fishing_tournament:

@@ -7,6 +7,7 @@ capture source.
 """
 from __future__ import annotations
 
+import atexit
 import contextlib
 import json
 import logging
@@ -240,12 +241,32 @@ def _ensure_sck_helper() -> subprocess.Popen[bytes]:
 
 def _restart_sck_helper_locked() -> None:
     global _SCK_HELPER
-    if _SCK_HELPER is not None:
-        with contextlib.suppress(Exception):
-            _SCK_HELPER.kill()
-        with contextlib.suppress(Exception):
-            _SCK_HELPER.wait(timeout=1.0)
+    helper = _SCK_HELPER
     _SCK_HELPER = None
+    if helper is None:
+        return
+    if helper.poll() is None:
+        with contextlib.suppress(Exception):
+            helper.kill()
+    _close_sck_helper_pipes(helper)
+    with contextlib.suppress(Exception):
+        helper.wait(timeout=1.0)
+
+
+def _close_sck_helper_pipes(helper: subprocess.Popen[bytes]) -> None:
+    for pipe in (helper.stdin, helper.stdout, helper.stderr):
+        if pipe is None:
+            continue
+        with contextlib.suppress(BrokenPipeError, OSError, ValueError):
+            pipe.close()
+
+
+def _shutdown_sck_helper() -> None:
+    with _SCK_HELPER_LOCK:
+        _restart_sck_helper_locked()
+
+
+atexit.register(_shutdown_sck_helper)
 
 
 def _start_sck_helper() -> subprocess.Popen[bytes]:

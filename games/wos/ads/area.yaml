@@ -85,6 +85,12 @@
           }
         }
       ]
+    },
+    {
+      "id": 70,
+      "screen_id": "",
+      "ocr": "references/craftsmans_treasure.png",
+      "regions": []
     }
   ]
 }

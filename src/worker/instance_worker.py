@@ -149,8 +149,8 @@ class InstanceWorker(
         self._screen_unknown_streak = 0
         self._ocr_client = ocr_client
         self._screen_detector = ScreenDetector(ocr_client)
-        # Template-free pop-up detector. Cheap to hold even when the feature
-        # flag is off — ``_maybe_handle_popup`` short-circuits before using it.
+        # Template-free pop-up detector, with screen analysis to avoid treating
+        # known event/ad pages as generic pop-ups.
         self._popup_detector = PopupDetector(ocr_client)
         # Monotonic clock of the last detector-issued pop-up tap; paired with a
         # Redis cooldown lock so we don't re-tap the same modal every frame.

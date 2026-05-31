@@ -37,7 +37,13 @@ _CLAIM = Point(330, 700)
 _BBOX = Region(100, 300, 460, 480)
 
 
-def _state(kind: PopupKind, *, close: Point | None = _CLOSE, primary: Point | None = None) -> PopupState:
+def _state(
+    kind: PopupKind,
+    *,
+    close: Point | None = _CLOSE,
+    primary: Point | None = None,
+    screen_name: str | None = None,
+) -> PopupState:
     overlay = kind != PopupKind.NONE
     return PopupState(
         kind=kind,
@@ -46,6 +52,7 @@ def _state(kind: PopupKind, *, close: Point | None = _CLOSE, primary: Point | No
         primary_point=primary,
         card_text="",
         signals=DetectionSignals(card_frac=0.5, center=(0.5, 0.5), scrim_sharp=0.0, overlay_present=overlay),
+        screen_name=screen_name,
     )
 
 
@@ -68,13 +75,18 @@ class _FakeActions:
         return True
 
 
-def _worker(detector: _FakeDetector, actions: _FakeActions, *, enabled: bool = True, busy: bool = False) -> InstanceWorker:
+def _worker(detector: _FakeDetector, actions: _FakeActions, *, busy: bool = False) -> InstanceWorker:
     w = object.__new__(InstanceWorker)
     w._cfg = SimpleNamespace(instance_id="bs1")
-    w._settings = SimpleNamespace(worker=SimpleNamespace(popup_detector_enabled=enabled))
+    w._settings = SimpleNamespace(worker=SimpleNamespace())
     w._popup_detector = detector
     w._bot_actions = actions
     w._redis = None
+    w._last_current_screen = None
+    w._last_detected_screen = None
+    w._last_detected_screen_at = 0.0
+    w._unknown_since = 0.0
+    w._screen_unknown_streak = 0
     w._last_popup_tap_mono = 0.0
     busy_event = asyncio.Event()
     if busy:
@@ -85,20 +97,11 @@ def _worker(detector: _FakeDetector, actions: _FakeActions, *, enabled: bool = T
         return fn(*args, **kwargs)
 
     w._run_rolling_blocking = _run_inline  # type: ignore[method-assign]
+    w._note_boot_interactive_screen = lambda _screen: None  # type: ignore[method-assign]
     return w
 
 
 _FRAME = np.zeros((1280, 720, 3), dtype=np.uint8)
-
-
-async def test_disabled_flag_is_noop() -> None:
-    detector = _FakeDetector(_state(PopupKind.SAFE_DISMISS))
-    actions = _FakeActions()
-    worker = _worker(detector, actions, enabled=False)
-
-    assert await worker._maybe_handle_popup(_FRAME, current_screen=None) is False
-    assert detector.calls == 0  # never even runs the detector
-    assert actions.taps == []
 
 
 async def test_busy_task_defers() -> None:
@@ -117,6 +120,16 @@ async def test_none_returns_false() -> None:
 
     assert await worker._maybe_handle_popup(_FRAME, current_screen=None) is False
     assert actions.taps == []
+
+
+async def test_known_page_defers_without_tap() -> None:
+    detector = _FakeDetector(_state(PopupKind.PAGE, close=None, screen_name="welcome_back"))
+    actions = _FakeActions()
+    worker = _worker(detector, actions)
+
+    assert await worker._maybe_handle_popup(_FRAME, current_screen=None) is False
+    assert actions.taps == []
+    assert worker._last_current_screen == "welcome_back"
 
 
 async def test_safe_dismiss_taps_close() -> None:

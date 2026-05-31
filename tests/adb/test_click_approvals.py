@@ -106,6 +106,26 @@ def test_require_approval_default_on_when_redis_key_missing(
     assert req_id is not None
 
 
+def test_require_approval_publishes_pending_when_page_closed(
+    monkeypatch: Any,
+    redis_sync: Any,
+) -> None:
+    r = _RedisProxy(redis_sync, approve_on_current=True)
+    r.set("wos:ui:click_approval:enabled:bs1", "1")
+    _patch_redis(monkeypatch, r)
+
+    ok, req_id = tap._require_approval(
+        "bs1", {"type": "restart_application", "package": "com.gof.global"}
+    )
+
+    assert ok is True
+    assert req_id is not None
+    current = json.loads(r.get("wos:ui:click_approval:current:bs1") or "{}")
+    assert current["request_id"] == req_id
+    assert current["type"] == "restart_application"
+    assert current["status"] == "approved"
+
+
 def test_require_approval_explicit_off_bypasses(
     monkeypatch: Any,
     redis_sync: Any,
@@ -830,14 +850,13 @@ def test_require_approval_aborts_pending_click_on_restart(
     assert r.get("wos:ui:click_approval:current:bs1") is None
 
 
-def test_require_approval_aborts_while_waiting_for_page(
+def test_require_approval_aborts_with_page_closed(
     monkeypatch: Any, redis_sync: Any
 ) -> None:
-    """When the approvals page is closed the request blocks in the page-open
-    wait; a restart abort there returns (False, None) without ever publishing."""
+    """A page-closed request is still published, then abort can clear it."""
     r = _RedisProxy(redis_sync)
     r.set("wos:ui:click_approval:enabled:bs1", "1")
-    # No heartbeat → stuck waiting for the page to open.
+    # No heartbeat: request still publishes so the UI can show it when opened.
     r.set(
         "wos:ui:click_approval:abort:bs1",
         json.dumps({"at": time.time() + 60, "reason": "aborted_for_restart"}),
@@ -847,7 +866,7 @@ def test_require_approval_aborts_while_waiting_for_page(
     ok, req_id = tap._require_approval("bs1", {"type": "tap", "x": 1, "y": 2})
 
     assert ok is False
-    assert req_id is None
+    assert req_id is not None
     assert r.get("wos:ui:click_approval:current:bs1") is None
 
 

@@ -257,6 +257,8 @@ export default function ApprovalsPage() {
     notificationsInFlightRef.current = false;
     userPickedSourceRef.current = false;
     setImageSource("live");
+    setView(null);
+    setError(null);
     setToasts([]);
     lastPendingKeyRef.current = "";
     lastPreviewMtimeRef.current = null;
@@ -1477,6 +1479,24 @@ function PendingApprovalCard({
       {actionType === "set_node" && setNodeTarget ? (
         <p className="approvals-callout approvals-callout--info">
           Will set <strong>current_screen</strong> to <code>{setNodeTarget}</code>.
+        </p>
+      ) : null}
+
+      {actionType === "restart_application" ? (
+        <p className="approvals-callout approvals-callout--warn">
+          Will force-stop and relaunch the game app on this instance.
+        </p>
+      ) : null}
+
+      {actionType === "ensure_game_foreground" ? (
+        <p className="approvals-callout approvals-callout--warn">
+          Will launch or bring the game app to the foreground on this instance.
+        </p>
+      ) : null}
+
+      {actionType === "system_back" ? (
+        <p className="approvals-callout approvals-callout--warn">
+          Will press Android system Back on this instance.
         </p>
       ) : null}
 

@@ -396,6 +396,10 @@ def _payload_action_label(payload: dict[str, Any]) -> str:
         return "type text"
     if kind == "system_back":
         return "system back"
+    if kind == "restart_application":
+        return "restart game app"
+    if kind == "ensure_game_foreground":
+        return "bring game to foreground"
     if kind == "tap":
         return "click"
     if kind == "diagnostic":

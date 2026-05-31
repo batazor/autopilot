@@ -52,12 +52,16 @@
     @apply break-all;
   }
 
+  .labeling-intro {
+    @apply truncate;
+  }
+
   .labeling-canvas-heading {
-    @apply mb-2 text-base font-semibold text-wos-text;
+    @apply sr-only;
   }
 
   .labeling-canvas-toolbar {
-    @apply mb-3 flex-wrap gap-2;
+    @apply mb-2 flex-wrap gap-2;
   }
 
   .labeling-canvas-tool-hint {
@@ -207,15 +211,19 @@
   }
 
   .labeling-workflow {
-    @apply mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5;
+    @apply mb-3 flex flex-wrap items-center gap-1.5;
   }
 
   .labeling-step {
-    @apply rounded-lg border border-wos-border-subtle px-3 py-2 text-sm leading-snug;
+    @apply inline-flex min-w-0 items-center gap-1.5 rounded-full border border-wos-border-subtle px-2.5 py-1 text-xs leading-none;
   }
 
   .labeling-step--done {
     @apply border-emerald-500/40 bg-emerald-500/10;
+  }
+
+  .labeling-step--pending {
+    @apply opacity-70;
   }
 
   .labeling-step--pending .labeling-step__icon {
@@ -227,7 +235,12 @@
   }
 
   .labeling-step__detail {
-    @apply mt-0.5 block text-xs text-wos-text-secondary;
+    @apply min-w-0 truncate text-xs text-wos-text-secondary;
+  }
+
+  .labeling-step__detail::before {
+    content: "·";
+    @apply mr-1.5 text-wos-text-muted;
   }
 
   .labeling-stale-banner {

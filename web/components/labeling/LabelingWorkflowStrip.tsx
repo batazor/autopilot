@@ -28,6 +28,7 @@ export function LabelingWorkflowStrip({ steps }: Props) {
         <div
           key={step.key}
           role="listitem"
+          title={step.detail || step.label}
           className={`labeling-step ${step.done ? "labeling-step--done" : "labeling-step--pending"}`}
         >
           <span className="labeling-step__icon">{step.done ? "✓" : "○"}</span>

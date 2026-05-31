@@ -106,6 +106,45 @@ async def test_device_level_scenario_runs_with_empty_player_id(
 
 
 @pytest.mark.asyncio
+async def test_exec_result_is_added_to_steps_trace(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """Exec handlers can expose no-op/tap diagnostics on the scenario trace."""
+    _write_scenario(
+        tmp_path,
+        {"device_level": True, "steps": [{"exec": "diagnose"}]},
+    )
+    patch_dsl(mocker, make_actions(), repo_root=tmp_path)
+
+    async def _diagnose(ctx: Any) -> None:
+        ctx.result.update(
+            {
+                "reason": "no_popup",
+                "popup_action": "clear",
+            }
+        )
+
+    import tasks.dsl_exec as dsl_exec
+
+    mocker.patch.dict(dsl_exec.DSL_EXEC_REGISTRY, {"diagnose": _diagnose})
+
+    task = dsl.DslScenarioTask(
+        task_id="t1",
+        player_id="",
+        scenario_key="scn",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    trace = result.metadata["steps_trace"]
+    assert trace[0]["summary"] == "exec:diagnose"
+    assert trace[0]["reason"] == "no_popup"
+    assert trace[0]["popup_action"] == "clear"
+
+
+@pytest.mark.asyncio
 async def test_player_bound_scenario_runs_with_explicit_player_id(
     tmp_path: Path,
     mocker,

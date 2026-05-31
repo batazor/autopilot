@@ -1504,11 +1504,12 @@ class DslScenarioExecuteMixin(_Base):
             if "exec" in step:
                 cmd = str(step.get("exec") or "").strip()
                 await self._write_step_context(instance_id, scenario=key)
+                exec_row: dict[str, Any] = {}
                 if cmd:
                     args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
-                    await self._run_exec_step(cmd, instance_id, args)
+                    exec_row = await self._run_exec_step(cmd, instance_id, args)
                 await _mark_top_level_step_done()
-                _trace_row(_resumable_step, step, "ok")
+                _trace_row(_resumable_step, step, "ok", **exec_row)
                 continue
             if "click" in step:
                 reg = str(step.get("click") or "").strip()

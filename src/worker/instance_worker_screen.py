@@ -194,9 +194,9 @@ class InstanceWorkerScreenMixin(_Base):
         suppressed during cooldown — so the caller short-circuits the rest of
         the tick (a modal occludes the landmarks overlay rules rely on anyway).
 
-        Returns ``False`` when nothing actionable was done: feature disabled,
-        a *known* screen is showing, no modal, captcha, approval-deferred, or
-        the detector declined (ad/webview with no learned close model). The
+        Returns ``False`` when nothing actionable was done: a *known* screen is
+        showing, no modal, known page, captcha, approval-deferred, or the
+        detector declined (ad/webview with no learned close model). The
         normal pipeline — and the legacy ``dismiss_unknown_popup`` shotgun —
         then runs as before.
 
@@ -212,8 +212,6 @@ class InstanceWorkerScreenMixin(_Base):
           can stall capture. So we defer to the legacy unknown-popup scenario,
           whose taps run on the task executor and are approval-gated there.
         """
-        if not getattr(self._settings.worker, "popup_detector_enabled", False):
-            return False
         if self._task_busy.is_set():
             return False
         # UNKNOWN-gate: a known screen is never a modal we should dismiss.
@@ -227,6 +225,10 @@ class InstanceWorkerScreenMixin(_Base):
             return False
 
         if state.kind == PopupKind.NONE:
+            return False
+
+        if state.kind == PopupKind.PAGE:
+            await self._record_popup_page(state.screen_name)
             return False
 
         # Captcha is never dismissed (no worker-side solver). Short-circuit so
@@ -284,6 +286,34 @@ class InstanceWorkerScreenMixin(_Base):
             target.y,
         )
         return True
+
+    async def _record_popup_page(self, screen_name: str | None) -> None:
+        detected = (screen_name or "").strip()
+        if not detected:
+            return
+        self._record_popup(PopupKind.PAGE, "page")
+        self._last_detected_screen = detected
+        self._last_detected_screen_at = time.monotonic()
+        was_unknown = self._unknown_since > 0.0
+        self._unknown_since = 0.0
+        self._screen_unknown_streak = 0
+        self._last_current_screen = detected
+        if self._redis is not None:
+            with contextlib.suppress(Exception):
+                await self._redis.hset(
+                    f"wos:instance:{self._cfg.instance_id}:state",
+                    "current_screen",
+                    detected,
+                )
+        if was_unknown:
+            await self._drop_pending_dismiss_unknown_popup(detected)
+        self._note_boot_interactive_screen(detected)
+        set_log_context(node=detected)
+        logger.info(
+            "popup: %s detected as page %s — deferring to screen automation",
+            self._cfg.instance_id,
+            detected,
+        )
 
     async def _acquire_popup_tap_cooldown(self) -> bool:
         """True if a fresh tap is allowed; False while the cooldown is active.

@@ -177,6 +177,7 @@ class BotActions:
         self,
         instance_id: str,
         *,
+        require_approval: bool = True,
         settle_s: float = _DISPLAY_SETTLE_AFTER_WM_S,
     ) -> None:
         """Apply wm/density (and related settings), then start Whiteout.
@@ -209,7 +210,7 @@ class BotActions:
             logger.info(
                 "Launching game %s on %s", game, instance_id,
             )
-            ctrl.ensure_game_foreground(game)
+            ctrl.ensure_game_foreground(game, require_approval=require_approval)
 
     def _adb_bin(self) -> str:
         # Resolve the adb path eagerly so downstream consumers (scrcpy,
@@ -632,13 +633,24 @@ class BotActions:
             self._mark_post_action_frame_boundary(instance_id)
         return ok
 
-    def restart_application(self, instance_id: str) -> None:
+    def restart_application(self, instance_id: str) -> bool:
         self.invalidate_frame_cache(instance_id)
-        self._controller(instance_id).restart_application(self._get_game(instance_id))
+        ok = self._controller(instance_id).restart_application(self._get_game(instance_id))
+        if ok:
+            self._mark_post_action_frame_boundary(instance_id)
+        return ok
 
-    def ensure_game_foreground(self, instance_id: str) -> None:
+    def ensure_game_foreground(
+        self,
+        instance_id: str,
+        *,
+        require_approval: bool = True,
+    ) -> bool:
         self.invalidate_frame_cache(instance_id)
-        self._controller(instance_id).ensure_game_foreground(self._get_game(instance_id))
+        return self._controller(instance_id).ensure_game_foreground(
+            self._get_game(instance_id),
+            require_approval=require_approval,
+        )
 
     def is_game_foreground(self, instance_id: str) -> bool:
         """True if the configured game on ``instance_id`` is the resumed top activity."""

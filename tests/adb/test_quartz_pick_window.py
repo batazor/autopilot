@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+from adb import quartz_screencap
 from adb.quartz_screencap import QuartzWindow, _pick_window
 
 
@@ -56,3 +57,51 @@ def test_no_bluestacks_window_raises() -> None:
     windows = [_win(1, "Safari", owner="Safari", w=800, h=600)]
     with pytest.raises(RuntimeError, match="No BlueStacks Quartz window found"):
         _pick_window(windows, instance_id="bs1", quartz_window_title="")
+
+
+class _Pipe:
+    def __init__(self, *, close_exc: BaseException | None = None) -> None:
+        self.close_exc = close_exc
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+        if self.close_exc is not None:
+            raise self.close_exc
+
+
+class _FakeHelper:
+    def __init__(self) -> None:
+        self.stdin = _Pipe(close_exc=BrokenPipeError())
+        self.stdout = _Pipe()
+        self.stderr = _Pipe()
+        self.killed = False
+        self.wait_timeout: float | None = None
+
+    def poll(self) -> None:
+        return None
+
+    def kill(self) -> None:
+        self.killed = True
+
+    def wait(self, timeout: float) -> None:
+        self.wait_timeout = timeout
+
+
+def test_restart_sck_helper_closes_broken_stdin_pipe() -> None:
+    """Close the helper pipes before dropping it so BufferedWriter __del__ is quiet."""
+    helper = _FakeHelper()
+    old_helper = quartz_screencap._SCK_HELPER
+    try:
+        quartz_screencap._SCK_HELPER = helper  # type: ignore[assignment]
+
+        quartz_screencap._restart_sck_helper_locked()
+    finally:
+        quartz_screencap._SCK_HELPER = old_helper
+
+    assert quartz_screencap._SCK_HELPER is old_helper
+    assert helper.killed is True
+    assert helper.wait_timeout == 1.0
+    assert helper.stdin.closed is True
+    assert helper.stdout.closed is True
+    assert helper.stderr.closed is True

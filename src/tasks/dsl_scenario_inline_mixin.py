@@ -244,7 +244,7 @@ class DslScenarioInlineMixin(_Base):
         name: str,
         instance_id: str,
         args: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> dict[str, Any]:
         """Dispatch ``exec: <name>`` to :data:`tasks.dsl_exec.DSL_EXEC_REGISTRY`.
 
         Sibling YAML keys on the step (everything besides ``exec`` and ``cond``)
@@ -256,7 +256,7 @@ class DslScenarioInlineMixin(_Base):
         fn = DSL_EXEC_REGISTRY.get(name)
         if fn is None:
             logger.warning("dsl_scenario: unknown exec step %r", name)
-            return
+            return {"reason": "unknown_exec"}
         ctx = DslExecContext(
             redis_client=self.redis_client,
             player_id=self.player_id,  # ty: ignore[invalid-argument-type]
@@ -267,6 +267,8 @@ class DslScenarioInlineMixin(_Base):
             await fn(ctx)
         except Exception:
             logger.exception("dsl_scenario: exec %r failed", name)
+            return {"reason": "exec_failed"}
+        return dict(ctx.result)
 
     async def _run_system_back_step(
         self,
@@ -1236,10 +1238,11 @@ class DslScenarioInlineMixin(_Base):
             return None
         if "exec" in step:
             name = str(step.get("exec") or "").strip()
+            exec_row: dict[str, Any] = {}
             if name:
                 args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
-                await self._run_exec_step(name, instance_id, args)
-            self._append_trace_row(trace_path, step, "ok")
+                exec_row = await self._run_exec_step(name, instance_id, args)
+            self._append_trace_row(trace_path, step, "ok", **exec_row)
             return None
         if "ocr" in step:
             region = str(step.get("ocr") or "").strip()

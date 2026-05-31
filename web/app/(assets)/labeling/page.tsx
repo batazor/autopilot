@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
 import { LabelingCard } from "@/components/labeling/LabelingCard";
 import { LabelingReferencePanel } from "@/components/labeling/LabelingReferencePanel";
@@ -41,10 +41,14 @@ import {
 import type { EditorRegion } from "@/lib/bbox";
 import {
   apiToEditorRegions,
+  docMatchesRef,
   editorToApiRegions,
   isPendingCapture,
   inferScopeFromRef,
   labelingWorkflowSteps,
+  nextRefAfterRemoval,
+  resolveImageRef,
+  resolveSelectedRef,
 } from "@/lib/labeling-utils";
 import type {
   LabelingDocument,
@@ -96,15 +100,23 @@ function LabelingPageInner() {
     "discard" | "delete-version" | "delete-reference" | null
   >(null);
   const [screenIdOptions, setScreenIdOptions] = useState<string[]>([]);
+  // Monotonic token to discard out-of-order document loads (see loadDoc).
+  const loadSeqRef = useRef(0);
 
   const activeVersion = versionParam.trim() || null;
-  const displayRef = doc?.display_ref ?? refRel;
-  const isPending = doc?.is_pending ?? isPendingCapture(refRel);
-  const imageRef = useMemo(() => {
-    if (isPendingCapture(refRel)) return refRel;
-    const shown = (doc?.display_ref ?? "").trim();
-    return shown || refRel;
-  }, [refRel, doc?.display_ref]);
+  // The fetched doc lags behind `refRel` during async loads and is left over
+  // after a failed load. Only trust doc-derived display fields when the doc
+  // actually belongs to the current selection, otherwise we'd show the prior
+  // reference's name/image against the new ref.
+  const docMatches = docMatchesRef(doc, refRel);
+  const displayRef = docMatches ? (doc?.display_ref ?? refRel) : refRel;
+  const isPending = docMatches
+    ? (doc?.is_pending ?? isPendingCapture(refRel))
+    : isPendingCapture(refRel);
+  const imageRef = useMemo(
+    () => resolveImageRef(refRel, doc),
+    [refRel, doc],
+  );
   const anyDirty = dirty || screenDirty;
 
   const screenNodeListboxOptions = useMemo(() => {
@@ -197,15 +209,16 @@ function LabelingPageInner() {
     if (!moduleScope) return;
     reloadRefs(moduleScope)
       .then((list) => {
-        const fromUrl = params.get("ref");
-        if (
-          fromUrl &&
-          (list.some((r) => r.rel === fromUrl) || isPendingCapture(fromUrl))
-        ) {
-          setRefRel(fromUrl);
-        } else if (list.length && !refRel) {
-          setRefRel(list[0].rel);
-        }
+        // Honor a valid URL ref, keep a still-valid current selection, or fall
+        // back to the first reference. A stale URL/selection (e.g. a rotated
+        // temporal capture or a just-deleted ref) is dropped instead of left to
+        // 404 the document + image fetches. See resolveSelectedRef.
+        const next = resolveSelectedRef({
+          list,
+          urlRef: params.get("ref"),
+          currentRef: refRel,
+        });
+        if (next !== null && next !== refRel) setRefRel(next);
       })
       .catch((e: Error) => setError(e.message));
   }, [moduleScope, params, refRel, reloadRefs]);
@@ -213,7 +226,8 @@ function LabelingPageInner() {
   const updateUrl = useCallback(
     (rel: string, version: string | null, module?: string) => {
       const url = new URL(window.location.href);
-      url.searchParams.set("ref", rel);
+      if (rel) url.searchParams.set("ref", rel);
+      else url.searchParams.delete("ref");
       url.searchParams.set("module", module ?? moduleScope);
       if (version) url.searchParams.set("version", version);
       else url.searchParams.delete("version");
@@ -256,11 +270,28 @@ function LabelingPageInner() {
     [refRel, updateUrl],
   );
 
+  const clearDocState = useCallback(() => {
+    setDoc(null);
+    setRegions([]);
+    setScreenId("");
+    setBasename("");
+    setEditVersionCond("");
+    setSelectedId(null);
+    setDirty(false);
+    setScreenDirty(false);
+  }, []);
+
   const loadDoc = useCallback(
     async (rel: string, version?: string | null) => {
       if (!rel || !moduleScope) return;
+      // Guard against out-of-order responses: rapid ref switching can leave a
+      // slow earlier fetch resolving after a newer one. Only the latest load
+      // is allowed to commit to state.
+      const seq = ++loadSeqRef.current;
+      const isStale = () => seq !== loadSeqRef.current;
       try {
         const d = await fetchLabelingDocument(rel, moduleScope, version);
+        if (isStale()) return;
         if (d.redirect_version) {
           selectRef(d.ref, d.redirect_version);
           return;
@@ -277,14 +308,26 @@ function LabelingPageInner() {
         setScreenDirty(false);
         setError(null);
       } catch (e) {
+        if (isStale()) return;
+        // The selected reference could not be loaded (e.g. deleted out from
+        // under us, or a 404 from a stale URL). Drop the previous doc so the
+        // canvas/sidebar don't keep rendering the old reference's data.
+        clearDocState();
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [selectRef, moduleScope],
+    [selectRef, moduleScope, clearDocState],
   );
 
   useEffect(() => {
-    if (!refRel || !moduleScope || !scopesReady) return;
+    // No selection (e.g. last reference deleted): drop any leftover doc so the
+    // canvas, regions and sidebar reset to the empty state.
+    if (!refRel) {
+      loadSeqRef.current += 1;
+      clearDocState();
+      return;
+    }
+    if (!moduleScope || !scopesReady) return;
     const urlModule = moduleParam.trim();
     if (urlModule && urlModule !== moduleScope) return;
     loadDoc(refRel, activeVersion);
@@ -295,6 +338,7 @@ function LabelingPageInner() {
     moduleParam,
     scopesReady,
     loadDoc,
+    clearDocState,
   ]);
 
   const imageUrl = useMemo(
@@ -397,10 +441,12 @@ function LabelingPageInner() {
     await runBusy(async () => {
       await discardLabelingCapture(refRel, moduleScope);
       const list = await reloadRefs(moduleScope);
-      const next =
-        list.find((r) => !isPendingCapture(r.rel))?.rel ?? list[0]?.rel ?? "";
+      const next = nextRefAfterRemoval(list);
       if (next) selectRef(next, null);
-      else setRefRel("");
+      else {
+        setRefRel("");
+        updateUrl("", null);
+      }
       showSuccess("Discarded pending capture");
     });
   };
@@ -423,10 +469,12 @@ function LabelingPageInner() {
     await runBusy(async () => {
       const out = await deleteLabelingReference(target, moduleScope);
       const list = await reloadRefs(moduleScope);
-      const next =
-        list.find((r) => !isPendingCapture(r.rel))?.rel ?? list[0]?.rel ?? "";
+      const next = nextRefAfterRemoval(list);
       if (next) selectRef(next, null);
-      else setRefRel("");
+      else {
+        setRefRel("");
+        updateUrl("", null);
+      }
       const cropPart = out.crops_removed.length
         ? ` · ${out.crops_removed.length} crop(s) removed`
         : "";
@@ -566,18 +614,18 @@ function LabelingPageInner() {
           <span className="status-pill status-running">{activeVersion}</span>
         ) : null}
       </PageHeader>
-      <p className="meta">
-        Canvas left (draw regions on the screenshot). Sidebar right: reference select, region
-        properties, save. Bboxes are percentages in the active module&apos;s area file.
+      <p className="meta labeling-intro">
+        <span title="Draw regions on the canvas; bboxes are percentages of the active module's area file.">
+          Draw regions on canvas · save to area file
+        </span>
         {activeScopeMeta ? (
           <>
-            {" "}
-            · <strong>{activeScopeMeta.title}</strong> ·{" "}
-            <code>{activeScopeMeta.references_prefix}</code>
+            {" · "}
+            <strong>{activeScopeMeta.title}</strong>
             {doc?.area_path || activeScopeMeta.area_path ? (
               <>
-                {" "}
-                · <code>{doc?.area_path ?? activeScopeMeta.area_path}</code>
+                {" · "}
+                <code>{doc?.area_path ?? activeScopeMeta.area_path}</code>
               </>
             ) : null}
           </>
