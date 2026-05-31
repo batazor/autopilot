@@ -11,17 +11,21 @@ steps:
   - ocr: player.id
     store: player_id
     type: integer
-    preprocess: fast_line
+    preprocess: fast_digits
     threshold: 0.75
     min_digits: 8
 
   - ocr: player.state
     type: integer
-    preprocess: fast_line
+    preprocess: fast_digits
     threshold: 0.45
     state: state
 
+  # Century doesn't know beta-build accounts (returns 40001), so skip the player
+  # sync there. The OCR above still attaches the player id to this instance/build;
+  # ``last_game_is_beta`` is written by the controller per running package.
   - exec: fetch_player
+    cond: last_game_is_beta != "1"
 
   - push_scenario:
       name: check_main_city

@@ -68,7 +68,7 @@ async def _ocr_field(region_name: str) -> tuple[int | None, str, float]:
     assert pw > 0 and ph > 0, f"degenerate pixel bbox for {region_name}: {(px, py, pw, ph)}"
 
     # Mirror production resolution: ``type: integer`` regions use Tesseract
-    # ``fast_line`` unless the area/step overrides it.
+    # ``fast_digits`` (PSM 7 + digit whitelist) unless the area/step overrides it.
     preprocess = resolve_preprocess(
         explicit=region_def.get("preprocess"),
         type_hint=region_def.get("type"),

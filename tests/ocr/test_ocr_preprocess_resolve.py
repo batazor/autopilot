@@ -16,8 +16,10 @@ def test_auto_derives_fast_line_for_time(type_hint: str) -> None:
     "type_hint",
     ["int", "integer", "Int", "  integer  "],
 )
-def test_auto_derives_fast_line_for_integer_types(type_hint: str) -> None:
-    assert resolve_preprocess(None, type_hint) == "fast_line"
+def test_auto_derives_fast_digits_for_integer_types(type_hint: str) -> None:
+    # Integer regions get the digit whitelist (PSM 7 + 0-9 only) so an
+    # ambiguous glyph can't be emitted as a symbol and shorten the number.
+    assert resolve_preprocess(None, type_hint) == "fast_digits"
 
 
 @pytest.mark.parametrize(
@@ -41,8 +43,8 @@ def test_explicit_value_lowercased() -> None:
 
 def test_empty_explicit_falls_through_to_type() -> None:
     assert resolve_preprocess("", "time") == "fast_line"
-    assert resolve_preprocess("   ", "integer") == "fast_line"
-    assert resolve_preprocess(None, "int") == "fast_line"
+    assert resolve_preprocess("   ", "integer") == "fast_digits"
+    assert resolve_preprocess(None, "int") == "fast_digits"
     assert resolve_preprocess("fast_line", "integer") == "fast_line"
     assert resolve_preprocess("digits", "integer") == "digits"
 

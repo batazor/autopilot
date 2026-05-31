@@ -5,6 +5,7 @@ matching, and the "process dead" vs "detection failed" distinction.
 """
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 from adb.controller import AdbController, ProcessDetection, _ShellOutcome
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
 PKG = "com.gof.global"  # the WOS package
 BETA_PKG = "com.xyz.gof"  # WOS beta package
+KINGSHOT_PKG = "com.run.tower.defense"
 
 # Realistic `ps -A` dump: main process, a sub-process, a look-alike that must
 # NOT match (``com.gof.globalX``), plus unrelated system processes.
@@ -33,6 +35,12 @@ u0_a2         2240   555  900000  40000 0                   0 S com.xyz.gof:rend
 u0_a2         2250   555  900000  40000 0                   0 S com.xyz.gofX
 root           999     1   10000   2000 0                   0 S zygote"""
 
+KINGSHOT_PS_OUT = """\
+USER           PID  PPID     VSZ    RSS WCHAN            ADDR S NAME
+u0_a3         3234   555 1000000  50000 0                   0 S com.run.tower.defense
+u0_a3         3240   555  900000  40000 0                   0 S com.run.tower.defense:render
+root           999     1   10000   2000 0                   0 S zygote"""
+
 EMPTY_PS = "USER           PID  PPID     VSZ    RSS WCHAN            ADDR S NAME"
 
 
@@ -47,12 +55,33 @@ def _controller(
 ) -> AdbController:
     """Build a controller without touching ADB, wiring a fake ``_shell_full``."""
     ctrl = AdbController.__new__(AdbController)
+    ctrl._instance_id = "bs1"
     ctrl._serial = serial
     ctrl._adb_exe = "adb"
     ctrl._shell_full = shell  # type: ignore[method-assign]
+    ctrl._approval_payload_with_preview = (  # type: ignore[method-assign]
+        lambda payload: payload
+    )
+    ctrl._approval_execution = (  # type: ignore[method-assign]
+        lambda _req_id: contextlib.nullcontext()
+    )
+    ctrl._refresh_rolling_preview = lambda: None  # type: ignore[method-assign]
     if shell_text is not None:
         ctrl._shell = shell_text  # type: ignore[method-assign]
     return ctrl
+
+
+class _FakeRedis:
+    def __init__(self, state: dict[str, str] | None = None) -> None:
+        self.hashes: dict[str, dict[str, str]] = {}
+        if state is not None:
+            self.hashes["wos:instance:bs1:state"] = dict(state)
+
+    def hgetall(self, key: str) -> dict[str, str]:
+        return dict(self.hashes.get(key, {}))
+
+    def hset(self, key: str, *, mapping: dict[str, str]) -> None:
+        self.hashes.setdefault(key, {}).update(mapping)
 
 
 def test_ps_returns_main_and_sub_process_pids() -> None:
@@ -213,6 +242,7 @@ def test_ensure_game_foreground_launches_running_wos_beta_package(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, ...]] = []
+    redis = _FakeRedis()
 
     def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
         if args[:2] == ("ps", "-A"):
@@ -228,11 +258,21 @@ def test_ensure_game_foreground_launches_running_wos_beta_package(
 
     def shell_text(*args: str, timeout: float = 15.0) -> str:
         calls.append(args)
+        if args == ("pm", "list", "packages"):
+            return f"package:{BETA_PKG}"
         if args[:3] == ("dumpsys", "activity", "activities"):
             return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        if args[:3] == ("cmd", "package", "resolve-activity"):
+            return f"{BETA_PKG}/com.unity3d.player.MyMainPlayerActivity"
         return ""
 
     monkeypatch.setattr("adb.controller.time.sleep", lambda _seconds: None)
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+    monkeypatch.setattr(
+        "adb.controller._require_approval",
+        lambda _iid, _p: (True, "req"),
+    )
+    monkeypatch.setattr("adb.controller._consume_skip", lambda _req_id: False)
 
     _controller(
         "127.0.0.1:5625",
@@ -241,10 +281,218 @@ def test_ensure_game_foreground_launches_running_wos_beta_package(
     ).ensure_game_foreground("wos")
 
     assert (
-        "monkey",
-        "-p",
-        BETA_PKG,
-        "-c",
-        "android.intent.category.LAUNCHER",
-        "1",
+        "am",
+        "start",
+        "-n",
+        f"{BETA_PKG}/com.unity3d.player.MyMainPlayerActivity",
     ) in calls
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["last_game_id"] == "wos"
+    assert state["last_game_package"] == BETA_PKG
+    # Beta alias build → flag set so identity/gift-code scenarios skip it.
+    assert state["last_game_is_beta"] == "1"
+
+
+def test_launch_package_uses_running_original_over_remembered_beta(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis({"last_game_id": "wos", "last_game_package": BETA_PKG})
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, PS_OUT)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{PKG}\npackage:{BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("wos")
+        == PKG
+    )
+    assert redis.hashes["wos:instance:bs1:state"]["last_game_package"] == PKG
+    # Canonical store package → not beta.
+    assert redis.hashes["wos:instance:bs1:state"]["last_game_is_beta"] == "0"
+
+
+def test_launch_package_uses_remembered_beta_when_nothing_is_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis({"last_game_id": "wos", "last_game_package": BETA_PKG})
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, EMPTY_PS)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{PKG}\npackage:{BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("wos")
+        == BETA_PKG
+    )
+
+
+def test_launch_package_uses_remembered_beta_when_original_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis({"last_game_id": "wos", "last_game_package": BETA_PKG})
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, EMPTY_PS)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("wos")
+        == BETA_PKG
+    )
+
+
+def test_launch_package_uses_most_recent_wos_beta_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis()
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, EMPTY_PS)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        if args[:3] == ("dumpsys", "activity", "recents"):
+            return _mk(
+                0,
+                "\n".join(
+                    [
+                        f"  * Recent #0: Task{{... A={BETA_PKG} U=0 ...}}",
+                        f"  * Recent #1: Task{{... A={PKG} U=0 ...}}",
+                    ]
+                ),
+            )
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{PKG}\npackage:{BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("wos")
+        == BETA_PKG
+    )
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["last_game_id"] == "wos"
+    assert state["last_game_package"] == BETA_PKG
+    assert state["last_game_package_source"] == "recents"
+
+
+def test_launch_package_uses_recent_beta_when_original_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis()
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, EMPTY_PS)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        if args[:3] == ("dumpsys", "activity", "recents"):
+            return _mk(0, f"  * Recent #0: Task{{... A={BETA_PKG} U=0 ...}}")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{BETA_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("wos")
+        == BETA_PKG
+    )
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["last_game_package"] == BETA_PKG
+    assert state["last_game_package_source"] == "recents"
+
+
+def test_launch_package_uses_running_kingshot_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis = _FakeRedis()
+
+    def shell_full(*args: str, timeout: float = 15.0) -> _ShellOutcome:
+        if args[:2] == ("ps", "-A"):
+            return _mk(0, KINGSHOT_PS_OUT)
+        if args[0] == "pidof":
+            return _mk(1, "")
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    def shell_text(*args: str, timeout: float = 15.0) -> str:
+        if args == ("pm", "list", "packages"):
+            return f"package:{KINGSHOT_PKG}"
+        if args[:3] == ("dumpsys", "activity", "activities"):
+            return "ResumedActivity: com.uncube.launcher3/.HomeActivity"
+        msg = f"unexpected call {args}"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr("adb.controller._redis", lambda: redis)
+
+    assert (
+        _controller("127.0.0.1:5555", shell_full, shell_text)
+        ._launch_package_for_game("kingshot")
+        == KINGSHOT_PKG
+    )
+    state = redis.hashes["wos:instance:bs1:state"]
+    assert state["last_game_id"] == "kingshot"
+    assert state["last_game_package"] == KINGSHOT_PKG

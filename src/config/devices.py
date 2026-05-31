@@ -25,6 +25,11 @@ class Gamer:
     id: int
     nickname: str
     level: int = 0
+    # Android package this account was last identified on. Empty until a
+    # ``who_i_am`` probe attaches it. A beta-alias package (see
+    # ``config.games``) marks the account as a beta build that Century-backed
+    # flows (gift codes) must skip.
+    game_package: str = ""
 
     @property
     def player_id(self) -> str:
@@ -149,6 +154,20 @@ def set_last_active_player(device_name: str, player_id: str) -> bool:
     from config.devices_db import set_last_active_player as _db_set
 
     changed = _db_set(device_name, player_id)
+    if changed:
+        _invalidate()
+    return changed
+
+
+def set_gamer_package(player_id: str, package: str) -> bool:
+    """Pin a registered account to the Android build it runs on (see devices_db).
+
+    Returns True iff the stored value changed; invalidates the registry cache so
+    the next read reflects it.
+    """
+    from config.devices_db import set_gamer_package as _db_set
+
+    changed = _db_set(player_id, package)
     if changed:
         _invalidate()
     return changed

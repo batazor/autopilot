@@ -35,7 +35,7 @@
             "original_height": 1280
           },
           "type": "integer",
-          "preprocess": "fast_line"
+          "preprocess": "fast_digits"
         },
         {
           "name": "player.power",
@@ -81,7 +81,7 @@
             "original_height": 1280
           },
           "type": "integer",
-          "preprocess": "fast_line"
+          "preprocess": "fast_digits"
         },
         {
           "name": "icon.settingse",

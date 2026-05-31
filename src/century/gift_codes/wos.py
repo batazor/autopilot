@@ -27,6 +27,7 @@ from century.api import CenturyAPIError, CenturyClient, ErrCode
 from century.captcha import solve_captcha
 from century.gift_codes.models import RedeemStatus
 from config.devices import load_devices
+from config.games import package_for_game, packages_for_game
 from config.giftcodes_db import (
     code_exists,
     list_codes,
@@ -44,6 +45,20 @@ logger = logging.getLogger(__name__)
 
 _GAME_ID = "wos"
 _EXTERNAL_ACCOUNTS_FEATURE = "gift_codes.external_accounts"
+
+
+def _is_beta_package(package: str) -> bool:
+    """True if ``package`` is a known beta/alias build of ``_GAME_ID``.
+
+    Beta-build accounts don't exist in the Century gift-code API (it answers
+    ``40001`` for them), so they're excluded from redemption. The canonical
+    store package is the first entry of ``packages_for_game``; any other accepted
+    alias is a beta build.
+    """
+    pkg = (package or "").strip()
+    if not pkg:
+        return False
+    return pkg in packages_for_game(_GAME_ID) and pkg != package_for_game(_GAME_ID)
 
 # ── Scraper ────────────────────────────────────────────────────────────────
 
@@ -251,7 +266,23 @@ class GiftCodeRedeemer:
         summary = GiftRedeemSummary()
         codes = list_codes()
         registry = load_devices()
-        local_player_ids = registry.all_player_ids()
+        # Pin each local account to its build via ``game_package`` and skip beta
+        # aliases — Century can't redeem for accounts it doesn't know (40001).
+        beta_player_ids = {
+            g.player_id
+            for d in registry.devices
+            for g in d.all_gamers()
+            if _is_beta_package(g.game_package)
+        }
+        local_player_ids = [
+            pid for pid in registry.all_player_ids() if pid not in beta_player_ids
+        ]
+        if beta_player_ids:
+            logger.info(
+                "WOS redeem: skipping %d beta-build account(s): %s",
+                len(beta_player_ids),
+                ", ".join(sorted(beta_player_ids)),
+            )
         all_player_ids = list(local_player_ids)
         external_nicks: dict[str, str] = {}
         if has_feature(_EXTERNAL_ACCOUNTS_FEATURE):

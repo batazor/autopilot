@@ -84,6 +84,38 @@ def test_fast_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyPatc
     assert captured_cmd
     assert captured_cmd[0][captured_cmd[0].index("--psm") + 1] == "7"
     assert captured_cmd[0][captured_cmd[0].index("-l") + 1] == "eng"
+    # ``fast_line`` is shared with timers (``12:34:56``) — no digit whitelist,
+    # the ``:`` separators must survive.
+    assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
+
+
+def test_fast_digits_uses_psm7_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = b""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    OcrClient(get_settings())._run_tesseract(crop, preprocess="fast_digits")
+
+    cmd = captured_cmd[0]
+    # Single line (PSM 7) like ``fast_line``, but digit-whitelisted so an
+    # ambiguous glyph resolves to a digit instead of e.g. ``&`` — which would
+    # be stripped downstream and silently shorten a player id.
+    assert cmd[cmd.index("--psm") + 1] == "7"
+    wl_idx = cmd.index("-c") + 1
+    assert cmd[wl_idx] == "tessedit_char_whitelist=0123456789"
 
 
 def test_enhance_uses_single_word_tesseract_psm(monkeypatch: pytest.MonkeyPatch) -> None:

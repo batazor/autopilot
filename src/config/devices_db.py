@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS device_profile_gamers (
     nickname TEXT NOT NULL DEFAULT '',
     level INTEGER NOT NULL DEFAULT 0,
     gamer_order INTEGER NOT NULL DEFAULT 0,
+    game_package TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (profile_id, player_id)
 );
 
@@ -112,6 +113,22 @@ def _ensure_identity_columns(conn: sqlite3.Connection) -> None:
         )
 
 
+def _ensure_gamer_package_column(conn: sqlite3.Connection) -> None:
+    """One-time migration: add ``game_package`` to legacy ``device_profile_gamers``.
+
+    Records the Android package the account was last identified on. Since
+    players don't intersect across builds, this pins each account to its build
+    (canonical vs beta alias) so Century-backed flows — gift-code redemption in
+    particular — can skip beta accounts the API can't see. DBs created before
+    this column lack it; add it on the fly so old ``state.db`` files keep booting.
+    """
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(device_profile_gamers)")}
+    if "game_package" not in cols:
+        conn.execute(
+            "ALTER TABLE device_profile_gamers ADD COLUMN game_package TEXT NOT NULL DEFAULT ''"
+        )
+
+
 @contextmanager
 def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
     db_path = path or state_db_path()
@@ -123,6 +140,7 @@ def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
         conn.executescript(_SCHEMA_SQL)
         _ensure_game_columns(conn)
         _ensure_identity_columns(conn)
+        _ensure_gamer_package_column(conn)
         # Minicap was removed in favor of scrcpy; keep old DB rows bootable.
         conn.execute(
             "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
@@ -413,6 +431,31 @@ def set_last_active_player(device_name: str, player_id: str) -> bool:
     return True
 
 
+def set_gamer_package(player_id: str | int, package: str) -> bool:
+    """Pin the registered account ``player_id`` to the build it runs on.
+
+    Writes ``game_package`` for every ``device_profile_gamers`` row with this
+    player id (a player id is unique to one account, so this is normally one
+    row). No-ops when the account isn't registered or the value is unchanged.
+    Returns True iff a row was updated.
+    """
+    package = (package or "").strip()
+    try:
+        pid = int(str(player_id).strip())
+    except (TypeError, ValueError):
+        return False
+    if not package:
+        return False
+    with _conn_lock, _connect() as conn:
+        cur = conn.execute(
+            "UPDATE device_profile_gamers SET game_package = ? "
+            "WHERE player_id = ? AND game_package != ?",
+            (package, pid, package),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def clear_last_active_player(device_name: str, player_id: str = "") -> bool:
     """Clear the durable active player for ``device_name``.
 
@@ -651,6 +694,8 @@ def load_registry() -> Any:
                     id=int(g["player_id"]),
                     nickname=g["nickname"] or "",
                     level=int(g["level"] or 0),
+                    # Column guaranteed by ``_ensure_gamer_package_column``.
+                    game_package=g["game_package"] or "",
                 )
                 for g in gamers_by_profile.get(profile_id, [])
             )

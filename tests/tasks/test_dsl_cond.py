@@ -279,3 +279,24 @@ async def test_cond_field_eq_null_true_when_field_is_unset(redis_async: object) 
     things like ``startup`` scenarios that should only run pre-identity."""
     step = {"cond": "active_player == null"}
     assert await dsl._dsl_cond_allows_step(step, "bs1", redis_async) is True  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_beta_gate_skips_fetch_player_on_beta(redis_async: object) -> None:
+    """``who_i_am`` gates ``exec: fetch_player`` with ``last_game_is_beta != "1"``
+    so the Century sync is skipped on beta builds."""
+    r = redis_async
+    await r.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        "wos:instance:bs1:state",
+        mapping={"last_game_is_beta": "1"},
+    )
+    step = {"exec": "fetch_player", "cond": 'last_game_is_beta != "1"'}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_beta_gate_runs_fetch_player_on_canonical(redis_async: object) -> None:
+    """Canonical build (flag unset or "0") → fetch_player runs."""
+    step = {"exec": "fetch_player", "cond": 'last_game_is_beta != "1"'}
+    # Field unset → empty != "1" → True (Century sync proceeds).
+    assert await dsl._dsl_cond_allows_step(step, "bs1", redis_async) is True  # type: ignore[arg-type]

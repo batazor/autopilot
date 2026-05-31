@@ -15,6 +15,7 @@ from config.devices_db import (
     load_registry,
     set_device_backend,
     set_device_game,
+    set_gamer_package,
     set_last_active_player,
     set_profile_game,
     upsert_device,
@@ -131,6 +132,30 @@ def test_upsert_gamer_updates_nickname(sqlite_db: Path) -> None:
     upsert_device_gamer("bs1", "1", "old_nick")
     assert upsert_device_gamer("bs1", "1", "new_nick") is True
     assert load_registry().devices[0].profiles[0].gamers[0].nickname == "new_nick"
+
+
+def test_gamer_package_defaults_empty(sqlite_db: Path) -> None:
+    upsert_device_gamer("bs1", "1", "hero")
+    assert load_registry().devices[0].profiles[0].gamers[0].game_package == ""
+
+
+def test_set_gamer_package_pins_account_to_build(sqlite_db: Path) -> None:
+    upsert_device_gamer("bs1", "1", "hero")
+    assert set_gamer_package("1", "com.xyz.gof") is True
+    gamer = load_registry().devices[0].profiles[0].gamers[0]
+    assert gamer.game_package == "com.xyz.gof"
+    # Idempotent: same value → no write.
+    assert set_gamer_package("1", "com.xyz.gof") is False
+
+
+def test_set_gamer_package_noop_for_unknown_account(sqlite_db: Path) -> None:
+    assert set_gamer_package("999", "com.gof.global") is False
+
+
+def test_set_gamer_package_rejects_blank(sqlite_db: Path) -> None:
+    upsert_device_gamer("bs1", "1", "hero")
+    assert set_gamer_package("1", "") is False
+    assert set_gamer_package("1", "   ") is False
 
 
 def test_upsert_gamer_rejects_empty_inputs(sqlite_db: Path) -> None:

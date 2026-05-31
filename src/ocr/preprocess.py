@@ -51,8 +51,12 @@ def digits_for_ocr(image: np.ndarray) -> np.ndarray:
     return binary_tile_for_ocr(image)
 
 
-# Timers and integer stat cells: Tesseract single-line (PSM 7).
-_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time", "int", "integer"})
+# Timers: Tesseract single-line (PSM 7), no whitelist — colons must survive.
+_FAST_LINE_TYPE_HINTS: frozenset[str] = frozenset({"time"})
+# Integer stat cells (player id, power, server id): PSM 7 + digit whitelist so
+# Tesseract can't emit a stray glyph (``&``, ``§``…) for an ambiguous digit and
+# silently shorten the number once non-digits are stripped downstream.
+_FAST_DIGITS_TYPE_HINTS: frozenset[str] = frozenset({"int", "integer"})
 
 
 def resolve_preprocess(
@@ -65,11 +69,13 @@ def resolve_preprocess(
 
     1. ``explicit`` — the value set on the rule/step or area.json region by
        the operator (caller picks which one wins, usually rule > region).
-    2. Auto-derivation — ``time`` / ``int`` / ``integer`` → ``fast_line``.
-       Other types → ``None``.
+    2. Auto-derivation — ``time`` → ``fast_line``; ``int`` / ``integer`` →
+       ``fast_digits``. Other types → ``None``.
     3. ``None`` — raw crop, Tesseract block mode (PSM 6).
 
-    ``digits`` / ``enhance`` keep Tesseract pipelines with binarization.
+    ``fast_line`` / ``fast_digits`` are both PSM 7 on the raw crop; only
+    ``fast_digits`` adds the digit whitelist. ``digits`` / ``enhance`` keep
+    Tesseract pipelines with binarization.
     """
     if explicit:
         v = str(explicit).strip().lower()
@@ -77,6 +83,8 @@ def resolve_preprocess(
             return v
     if type_hint:
         v = str(type_hint).strip().lower()
+        if v in _FAST_DIGITS_TYPE_HINTS:
+            return "fast_digits"
         if v in _FAST_LINE_TYPE_HINTS:
             return "fast_line"
     return None

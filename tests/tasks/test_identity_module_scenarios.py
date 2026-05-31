@@ -45,7 +45,7 @@ def test_who_i_am_resolves_player_id_before_player_state_writes() -> None:
         "player.id",
         "player.state",
     ]
-    assert all(s["preprocess"] == "fast_line" for s in ocr_steps[:2])
+    assert all(s["preprocess"] == "fast_digits" for s in ocr_steps[:2])
     assert ocr_steps[0]["threshold"] == 0.75
     assert ocr_steps[0]["min_digits"] == 8
     assert ocr_steps[1]["threshold"] == 0.45

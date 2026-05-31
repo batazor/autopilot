@@ -310,6 +310,37 @@ def _registry(*ids: int) -> DeviceRegistry:
 
 
 @pytest.mark.asyncio
+async def test_redeem_all_skips_beta_build_accounts(
+    sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
+) -> None:
+    """An account pinned to a beta-alias package is excluded from redemption —
+    Century answers 40001 for beta accounts it doesn't know."""
+    from config.games import packages_for_game
+
+    beta_pkg = packages_for_game("wos")[1]  # first accepted alias = beta build
+    profile = DeviceProfile(
+        email="user@example.com",
+        gamers=(
+            Gamer(id=1, nickname="canonical"),  # game_package="" → attempted
+            Gamer(id=2, nickname="beta", game_package=beta_pkg),  # skipped
+        ),
+    )
+    registry = DeviceRegistry(devices=[DeviceEntry(name="bs1", profiles=(profile,))])
+
+    upsert_code("FREE100")
+    mocker.patch.object(redeemer, "load_devices", return_value=registry)
+    mocker.patch.object(redeemer, "solve_captcha", return_value="ABCD")
+    r = GiftCodeRedeemer()
+    r._client = _client_mock(redeem_calls=[(ErrCode.SUCCESS, "ok")])
+
+    summary = await r.redeem_all()
+
+    # Only the canonical account is attempted; the beta account never reaches Century.
+    assert r._client.fetch_player.await_args_list == [mocker.call(1)]
+    assert {res.player_id for res in summary.results} == {"1"}
+
+
+@pytest.mark.asyncio
 async def test_redeem_all_propagates_cdk_not_found_to_every_player(
     sqlite_db: Path, tmp_path: Path, mocker: MockerFixture, _no_sleep: None
 ) -> None:

@@ -121,6 +121,26 @@ _TAP_MICRO_MOVE_PROBABILITY = 0.28
 _SWIPE_ENDPOINT_JITTER_PCT = 0.018
 _SWIPE_ENDPOINT_JITTER_MAX_PX = 24
 _LONG_SWIPE_OVERSHOOT_MIN_PX = 260
+_LAUNCHER_ACTION = "android.intent.action.MAIN"
+_LAUNCHER_CATEGORY = "android.intent.category.LAUNCHER"
+_STATE_KEY_FMT = "wos:instance:{instance_id}:state"
+_LAST_GAME_ID_FIELD = "last_game_id"
+_LAST_GAME_PACKAGE_FIELD = "last_game_package"
+_LAST_GAME_PACKAGE_AT_FIELD = "last_game_package_at"
+_LAST_GAME_PACKAGE_SOURCE_FIELD = "last_game_package_source"
+# "1" when the running package is a beta/alias build (not the canonical store
+# package). Century-backed flows (identity sync, gift codes) can't see beta
+# accounts, so scenarios gate on this field to skip them on beta instances.
+_LAST_GAME_IS_BETA_FIELD = "last_game_is_beta"
+
+
+def _mentions_package(text: str, pkg: str) -> bool:
+    """True when ``text`` contains ``pkg`` as a package/component token."""
+
+    if not text or not pkg:
+        return False
+    pattern = rf"(?<![A-Za-z0-9_]){re.escape(pkg)}(?![A-Za-z0-9_])"
+    return re.search(pattern, text) is not None
 
 
 def _clamp(val: int, lo: int, hi: int) -> int:
@@ -448,16 +468,44 @@ class AdbController:
     # App lifecycle
     # ------------------------------------------------------------------
 
-    def restart_application(self, game: str | None = None) -> None:
+    def restart_application(self, game: str | None = None) -> bool:
         pkg = self._launch_package_for_game(game)
+        payload = self._approval_payload_with_preview(
+            {
+                "type": "restart_application",
+                "package": pkg,
+                "serial": self._serial,
+            }
+        )
+        ok, req_id = _require_approval(self._instance_id, payload)
+        if not ok:
+            logger.info(
+                "ADB restart blocked (no approval): %s package=%s",
+                self._instance_id,
+                pkg,
+            )
+            return False
+        if _consume_skip(req_id):
+            logger.info(
+                "ADB restart skipped by operator: %s package=%s",
+                self._instance_id,
+                pkg,
+            )
+            self._refresh_rolling_preview()
+            return False
         logger.warning("Restarting %s on %s", pkg, self._serial)
-        self._shell("am", "force-stop", pkg)
-        time.sleep(2)
-        self._shell("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
+        with self._approval_execution(req_id):
+            self._shell("am", "force-stop", pkg)
+            time.sleep(2)
+            self._start_launcher_activity(pkg)
+            if self._detect_live_process_for_package(pkg):
+                self._remember_game_package(game or _default_game(), pkg, source="launch")
+            self._refresh_rolling_preview()
         logger.info("Application restarted on %s", self._serial)
+        return True
 
     def is_game_running(self, game: str | None = None) -> bool:
-        """True if ``game``'s process is alive (regardless of foreground state).
+        """True if ``game``'s selected package process is alive.
 
         This is the trustworthy "game is up" signal for the health watchdog. On
         BlueStacks the ``dumpsys`` resumed-activity parse used by
@@ -467,13 +515,12 @@ class AdbController:
         normally. Treating that as "not foreground" force-restarted a perfectly
         healthy game. Process-aliveness does not have that failure mode.
 
-        Thin boolean wrapper over :meth:`detect_game_process`. A detection-level
-        failure (every method errored/timed out) is treated as *not running* by
-        this wrapper — but unlike a clean miss it is logged at WARNING by the
-        detector, so the watchdog's retry loop absorbs a transient blip without
-        a false restart while a persistent ADB outage still surfaces.
+        Thin boolean wrapper over a process-only package scan. If a supported
+        alias is the package that is actually running, that alias satisfies
+        liveness and becomes the restart/foreground target.
         """
-        return self.detect_game_process(game).found
+        game_id = game or _default_game()
+        return self._running_package_for_game(game_id) is not None
 
     def detect_game_process(self, game: str | None = None) -> ProcessDetection:
         """Resilient multi-method process probe for ``game``.
@@ -638,25 +685,147 @@ class AdbController:
         matched = any(pkg in line for line in out.stdout.splitlines())
         return _MethodOutcome(matched=matched)
 
+    def _state_key(self) -> str:
+        return _STATE_KEY_FMT.format(instance_id=self._instance_id)
+
+    def _remember_game_package(
+        self,
+        game: str,
+        pkg: str,
+        *,
+        source: str,
+    ) -> None:
+        """Persist the package that most recently represented ``game``."""
+
+        game_id = game or _default_game()
+        if pkg not in _packages_for_game(game_id):
+            return
+        # Canonical store package is the first entry of ``packages_for_game``;
+        # anything else is an accepted alias (a beta build).
+        is_beta = "1" if pkg != _package_for_game(game_id) else "0"
+        try:
+            _redis().hset(
+                self._state_key(),
+                mapping={
+                    _LAST_GAME_ID_FIELD: game_id,
+                    _LAST_GAME_PACKAGE_FIELD: pkg,
+                    _LAST_GAME_PACKAGE_AT_FIELD: f"{time.time():.3f}",
+                    _LAST_GAME_PACKAGE_SOURCE_FIELD: source,
+                    _LAST_GAME_IS_BETA_FIELD: is_beta,
+                },
+            )
+        except Exception:
+            logger.debug(
+                "game-package memory write failed for %s package=%s",
+                self._instance_id,
+                pkg,
+                exc_info=True,
+            )
+
+    def _detect_live_process_for_package(self, pkg: str) -> bool:
+        """Process-only liveness check used for launch target selection.
+
+        ``detect_game_process`` intentionally accepts Android recents / stack
+        evidence as a soft liveness signal for BlueStacks health checks. Launch
+        selection needs a stricter answer: if only recents mention a package,
+        that package is a candidate to launch, not proof that it is running.
+        """
+
+        methods: list[Callable[[str], _MethodOutcome]] = [
+            self._detect_via_ps,
+            self._detect_via_pidof,
+        ]
+        if not is_emulator_adb_serial(self._serial):
+            methods.reverse()
+        for fn in methods:
+            try:
+                outcome = fn(pkg)
+            except Exception:
+                logger.debug(
+                    "live-process probe failed for %s on %s",
+                    pkg,
+                    self._serial,
+                    exc_info=True,
+                )
+                continue
+            if outcome.error is None and outcome.matched:
+                return True
+        return False
+
+    def _foreground_package_for_game(
+        self,
+        game: str,
+        target_packages: list[str],
+    ) -> str | None:
+        """Package from ``target_packages`` currently in the resumed activity."""
+
+        if not target_packages:
+            return None
+        try:
+            out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
+        except Exception:
+            logger.debug("foreground package probe failed on %s", self._serial, exc_info=True)
+            return None
+        markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
+        for line in out.splitlines():
+            s = line.strip()
+            if not any(m in s for m in markers):
+                continue
+            pkg = next((p for p in target_packages if _mentions_package(s, p)), "")
+            if pkg:
+                self._remember_game_package(game, pkg, source="foreground")
+                return pkg
+        return None
+
+    def _remembered_game_package(
+        self,
+        game: str,
+        target_packages: list[str],
+    ) -> str | None:
+        game_id = game or _default_game()
+        try:
+            state = _redis().hgetall(self._state_key())
+        except Exception:
+            logger.debug(
+                "game-package memory read failed for %s",
+                self._instance_id,
+                exc_info=True,
+            )
+            return None
+        if not isinstance(state, dict):
+            return None
+        remembered_game = str(state.get(_LAST_GAME_ID_FIELD) or game_id).strip()
+        pkg = str(state.get(_LAST_GAME_PACKAGE_FIELD) or "").strip()
+        if remembered_game != game_id:
+            return None
+        if pkg not in target_packages:
+            return None
+        return pkg
+
+    def _recent_package_for_game(
+        self,
+        game: str,
+        target_packages: list[str],
+    ) -> str | None:
+        """Most recent package from Android's task recents, if any."""
+
+        if not target_packages:
+            return None
+        out = self._shell_full("dumpsys", "activity", "recents", timeout=10.0)
+        if out.timed_out or out.rc != 0:
+            return None
+        for line in out.stdout.splitlines():
+            for pkg in target_packages:
+                if _mentions_package(line, pkg):
+                    self._remember_game_package(game, pkg, source="recents")
+                    return pkg
+        return None
+
     def is_game_foreground(self, game: str | None = None) -> bool:
         """True if ``game``'s process is alive and is the resumed foreground activity."""
         game_id = game or _default_game()
-        packages = _packages_for_game(game_id)
-        # Fast check: is the process even alive?
-        if not any(self._detect_game_process_for_package(pkg).found for pkg in packages):
-            logger.debug("is_game_foreground: no PID for %s — process dead", game_id)
-            return False
-
-        # Foreground check: dumpsys activity stack
-        out = self._shell("dumpsys", "activity", "activities", timeout=10.0)
-        markers = ("topResumedActivity=", "ResumedActivity:", "mResumedActivity:")
-        for line in out.splitlines():
-            if not any(pkg in line for pkg in packages):
-                continue
-            s = line.strip()
-            if any(m in s for m in markers):
-                return True
-        return False
+        packages = self._target_packages_for_game(game_id)
+        return self._foreground_package_for_game(game_id, packages) is not None
 
     def current_foreground_activity(self) -> str:
         """Best-effort ``pkg/activity`` of the resumed foreground app (or "").
@@ -679,17 +848,52 @@ class AdbController:
                     return match.group(0)
         return ""
 
-    def ensure_game_foreground(self, game: str | None = None) -> None:
+    def ensure_game_foreground(
+        self,
+        game: str | None = None,
+        *,
+        require_approval: bool = True,
+    ) -> bool:
         """Start ``game`` if it isn't the foreground resumed activity."""
         pkg = self._launch_package_for_game(game)
         if self.is_game_foreground(game):
             logger.info("Game already foreground (%s on %s)", pkg, self._serial)
-            return
+            return True
+        req_id: str | None = None
+        if require_approval:
+            payload = self._approval_payload_with_preview(
+                {
+                    "type": "ensure_game_foreground",
+                    "package": pkg,
+                    "serial": self._serial,
+                }
+            )
+            ok, req_id = _require_approval(self._instance_id, payload)
+            if not ok:
+                logger.info(
+                    "ADB foreground launch blocked (no approval): %s package=%s",
+                    self._instance_id,
+                    pkg,
+                )
+                return False
+            if _consume_skip(req_id):
+                logger.info(
+                    "ADB foreground launch skipped by operator: %s package=%s",
+                    self._instance_id,
+                    pkg,
+                )
+                self._refresh_rolling_preview()
+                return False
         logger.warning(
             "Game not in foreground — launching %s on %s", pkg, self._serial
         )
-        self._shell("monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1")
-        time.sleep(2)
+        with self._approval_execution(req_id):
+            self._start_launcher_activity(pkg)
+            time.sleep(2)
+            if self._detect_live_process_for_package(pkg):
+                self._remember_game_package(game or _default_game(), pkg, source="launch")
+            self._refresh_rolling_preview()
+        return True
 
     def list_installed_games(self) -> list[str]:
         """Game ids whose packages are installed on the device.
@@ -717,29 +921,102 @@ class AdbController:
             if line.strip()
         }
 
-    def _running_package_for_game(self, game: str | None = None) -> str | None:
-        """Running Android package id for ``game``, including aliases."""
-        for pkg in _packages_for_game(game or _default_game()):
-            if self._detect_game_process_for_package(pkg).found:
+    def _target_packages_for_game(
+        self,
+        game: str,
+        installed_packages: list[str] | None = None,
+    ) -> list[str]:
+        """Launch/check candidates for ``game``, preserving configured package order."""
+
+        game_id = game or _default_game()
+        if installed_packages:
+            return list(installed_packages)
+        return list(_packages_for_game(game_id))
+
+    def _running_package_for_game(
+        self,
+        game: str | None = None,
+        target_packages: list[str] | None = None,
+    ) -> str | None:
+        """Live Android process package id for ``game``."""
+
+        game_id = game or _default_game()
+        packages = target_packages or self._target_packages_for_game(game_id)
+        for pkg in packages:
+            if self._detect_live_process_for_package(pkg):
+                self._remember_game_package(game_id, pkg, source="process")
                 return pkg
         return None
 
     def _launch_package_for_game(self, game: str | None = None) -> str:
-        """Best package to launch/restart for ``game`` on this device.
+        """Package to launch/restart for ``game`` on this device.
 
-        Prefer the package already running (e.g. WOS beta), then an installed
-        alias, then the canonical package as a final default.
+        The package already foreground/running wins. If nothing is running,
+        Redis and Android recents preserve the last package variant seen on this
+        instance. Only when there is no runtime/recent signal do we fall back to
+        the configured canonical package.
         """
+
         game_id = game or _default_game()
-        running_package = self._running_package_for_game(game_id)
+        installed_packages = self._installed_game_packages(game_id)
+        target_packages = self._target_packages_for_game(game_id, installed_packages)
+
+        foreground_package = self._foreground_package_for_game(game_id, target_packages)
+        if foreground_package is not None:
+            return foreground_package
+
+        running_package = self._running_package_for_game(game_id, target_packages)
         if running_package is not None:
             return running_package
 
-        installed_packages = self._installed_game_packages(game_id)
+        remembered_package = self._remembered_game_package(game_id, target_packages)
+        if remembered_package is not None:
+            return remembered_package
+
+        recent_package = self._recent_package_for_game(game_id, target_packages)
+        if recent_package is not None:
+            return recent_package
+
         if installed_packages:
             return installed_packages[0]
 
         return _package_for_game(game_id)
+
+    def _launcher_component_for_package(self, pkg: str) -> str:
+        out = self._shell(
+            "cmd",
+            "package",
+            "resolve-activity",
+            "-a",
+            _LAUNCHER_ACTION,
+            "-c",
+            _LAUNCHER_CATEGORY,
+            "-p",
+            pkg,
+            "--brief",
+            timeout=10.0,
+        )
+        for line in reversed(out.splitlines()):
+            s = line.strip()
+            if "/" in s and _mentions_package(s, pkg):
+                return s
+        return ""
+
+    def _start_launcher_activity(self, pkg: str) -> None:
+        """Bring ``pkg`` to the foreground via its normal launcher intent."""
+        component = self._launcher_component_for_package(pkg)
+        if component:
+            self._shell("am", "start", "-n", component, timeout=10.0)
+            return
+        self._shell(
+            "monkey",
+            "-p",
+            pkg,
+            "-c",
+            _LAUNCHER_CATEGORY,
+            "1",
+            timeout=10.0,
+        )
 
     # ------------------------------------------------------------------
     # Touch input — all with jitter to simulate natural fingers

@@ -784,6 +784,23 @@ class DslOcrMixin(_Base):
                             from config.devices import set_last_active_player
 
                             set_last_active_player(instance_id, identified)
+                        # Pin this account to the build it was just seen on. Players
+                        # don't intersect across builds, so the package tells
+                        # Century-backed flows (gift codes) whether the account is a
+                        # beta alias they must skip. Best-effort.
+                        with suppress(Exception):
+                            raw_pkg = await self.redis_client.hget(
+                                f"wos:instance:{instance_id}:state", "last_game_package"
+                            )
+                            pkg = (
+                                raw_pkg.decode()
+                                if isinstance(raw_pkg, bytes)
+                                else (raw_pkg or "")
+                            )
+                            if pkg:
+                                from config.devices import set_gamer_package
+
+                                set_gamer_package(identified, str(pkg))
                     redis_written = True
                     if scope == "player" and self.player_id:
                         from dashboard.dashboard_events import (

@@ -146,6 +146,11 @@ class OcrClient:
     def _tesseract_psm_and_whitelist(preprocess: str | None) -> tuple[str, bool]:
         """Return ``(psm, use_digit_whitelist)`` for the preprocess tag."""
         pre_tag = (preprocess or "").strip().lower()
+        if pre_tag == "fast_digits":
+            # Single line of digits (player id, power, server id): force the
+            # digit whitelist so an ambiguous glyph resolves to a digit instead
+            # of a symbol that gets stripped, shortening the number.
+            return "7", True
         if pre_tag == "fast_line":
             return "7", False
         if pre_tag in ("enhance", "digits"):

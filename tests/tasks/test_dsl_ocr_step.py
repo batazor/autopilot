@@ -18,6 +18,7 @@ from config.games import modules_root_for as _modules_root_for
 from layout.area_manifest import load_area_doc
 from layout.types import Region as LayoutRegion
 from ocr.client import OcrClient, OCRResult
+from ocr.preprocess import resolve_preprocess
 
 
 def _scenario_root(tmp_path: Path) -> Path:
@@ -168,6 +169,46 @@ async def test_device_level_who_i_am_promotes_ocr_player_id_to_active_player(
     assert p == "765502864"
     ap = await redis_async.hget("wos:instance:bs1:state", "active_player")  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
     assert ap == "765502864"
+
+
+@pytest.mark.asyncio
+async def test_device_level_who_i_am_attaches_running_package_to_account(
+    tmp_path: Path,
+    mocker,
+    redis_async: object,
+) -> None:
+    """Resolving identity pins the account to the build it ran on so gift codes
+    can later skip beta-alias accounts (``config.devices.set_gamer_package``)."""
+    _write_who_i_am_repo(tmp_path)
+    actions = make_actions(np.zeros((100, 200, 3), dtype=np.uint8))
+    # The controller stamps the running package onto instance state per tick.
+    await redis_async.hset(  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+        "wos:instance:bs1:state", mapping={"last_game_package": "com.xyz.gof"}
+    )
+
+    class _StubOcrClient:
+        async def ocr_region(self, image: np.ndarray, region: LayoutRegion, **_kwargs: Any) -> OCRResult:
+            return OCRResult(region_id="r0", text="ID: 765 502 864", confidence=0.97)
+
+    import ocr.client as ocr_client_module
+
+    mocker.patch.object(ocr_client_module, "OcrClient", _StubOcrClient)
+    patch_dsl(mocker, actions, repo_root=tmp_path)
+
+    import config.devices as devices_module
+
+    set_pkg = mocker.patch.object(devices_module, "set_gamer_package", return_value=True)
+
+    task = dsl.DslScenarioTask(
+        task_id="t-ocr-pkg",
+        player_id="",
+        scenario_key="who_i_am",
+        redis_client=redis_async,  # type: ignore[arg-type]
+    )
+    result = await task.execute("bs1")
+
+    assert result.success is True
+    set_pkg.assert_called_once_with("765502864", "com.xyz.gof")
 
 
 @pytest.mark.asyncio
@@ -362,7 +403,7 @@ async def test_consecutive_ocr_steps_share_one_capture_and_request(
         LayoutRegion(72, 128, 144, 128),
         LayoutRegion(288, 640, 216, 256),
     ]
-    assert captured["region_preprocess"] == ["fast_line", None]
+    assert captured["region_preprocess"] == ["fast_digits", None]
     assert captured["region_digit_count"] == [9, None]
     assert captured["region_digit_x0"] == [4, 0]
     pid = await redis_async.hget("wos:player:player_42:state", "player_id")  # type: ignore[attr-defined]
@@ -924,10 +965,13 @@ _LIVE_PLAYER_ID = "401227964"
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ocr_chief_profile_player_id_live_tesseract_fast_line_pipeline(
+async def test_ocr_chief_profile_player_id_live_tesseract_fast_digits_pipeline(
     ocr_client: OcrClient,
 ) -> None:
-    """Regression: ``who_i_am`` reads live ``player.id`` via Tesseract fast_line.
+    """Regression: ``who_i_am`` reads live ``player.id`` via the production pipeline.
+
+    Resolves the preprocess from the area doc (``fast_digits`` — PSM 7 + digit
+    whitelist) so the test tracks production instead of a hard-coded tag.
 
     Fixture copied from ``temporal/bs1_approval_current.png``.
     """
@@ -957,8 +1001,14 @@ async def test_ocr_chief_profile_player_id_live_tesseract_fast_line_pipeline(
     region_px = LayoutRegion(px, py, pw, ph)
 
     area_threshold = float(pair[1].get("threshold") or 0.9)
+    preprocess = resolve_preprocess(
+        explicit=pair[1].get("preprocess"), type_hint=pair[1].get("type")
+    )
+    assert preprocess == "fast_digits", (
+        f"player.id should resolve to fast_digits, got {preprocess!r}"
+    )
     result = await ocr_client.ocr_region(
-        image, region_px, preprocess="fast_line", digit_x0=0
+        image, region_px, preprocess=preprocess, digit_x0=0
     )
 
     ocr_digits = re.sub(r"\D+", "", result.text or "")
@@ -968,7 +1018,7 @@ async def test_ocr_chief_profile_player_id_live_tesseract_fast_line_pipeline(
     )
     assert (result.text or "").strip() == _LIVE_PLAYER_ID
     assert result.confidence >= area_threshold, (
-        f"fast_line conf {result.confidence:.4f} below area.json threshold "
+        f"fast_digits conf {result.confidence:.4f} below area.json threshold "
         f"{area_threshold:.3f} — who_i_am would skip store"
     )
 
