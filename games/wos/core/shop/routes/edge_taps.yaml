@@ -13,6 +13,7 @@ edges:
     shop.regular_pack:         [shop.to.regular_pack]
     shop.dawn_fund:            [shop.to.dawn_fund]
     shop.get_gems:             [shop.to.get_gems]
+    shop.artisans_trove:       [shop.to.artisans_trove]
 
   # Shop tabs close directly to main_city via icon.page.back — there is no
   # tab → hub edge (cross-tab navigation goes main_city → shop → tab).

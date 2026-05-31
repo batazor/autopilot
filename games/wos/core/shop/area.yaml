@@ -509,6 +509,20 @@
             "original_height": 1280
           },
           "has_red_dot": true
+        },
+        {
+          "name": "shop.to.artisans_trove",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 14.903050948354073,
+            "y": 8.855700010566636,
+            "width": 7.425401683244066,
+            "height": 3.2164042748094333,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
