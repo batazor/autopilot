@@ -48,6 +48,20 @@
             "original_width": 720,
             "original_height": 1280
           }
+        },
+        {
+          "name": "deals.hall_of_heroes.tips",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 88.59591500578722,
+            "y": 38.74134699390075,
+            "width": 5.385735620883964,
+            "height": 1.9773298785468,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
