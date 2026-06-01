@@ -65,6 +65,68 @@ def test_list_reference_paths_module_scope_includes_temporal(
     assert "games/wos/ads/references/temporal/bs1_shot_test.png" in rels
 
 
+def test_kingshot_labeling_scopes_and_all_refs_do_not_include_wos(
+    labeling_repo: Path,
+) -> None:
+    from api.services.game_resolver import set_current_request_game
+    from api.services.labeling import list_reference_paths
+    from api.services.labeling_scope import list_labeling_scopes
+    from config.module_discovery import _clear_module_discovery_caches
+    from layout.area_manifest import clear_area_doc_cache
+
+    for game, title in (("wos", "WOS Main"), ("kingshot", "Kingshot Main")):
+        mod = labeling_repo / "games" / game / "core" / "main_city"
+        (mod / "references").mkdir(parents=True)
+        (mod / "module.yaml").write_text(
+            f"id: main_city\ntitle: {title}\narea: area.yaml\nreferences: references\n",
+            encoding="utf-8",
+        )
+        (mod / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
+        (mod / "references" / f"{game}.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    _clear_module_discovery_caches()
+    clear_area_doc_cache()
+    set_current_request_game("kingshot")
+    try:
+        scope_keys = {s["key"] for s in list_labeling_scopes()}
+        rels = {r["rel"] for r in list_reference_paths(scope="all", limit=50)}
+    finally:
+        set_current_request_game("wos")
+
+    assert "kingshot:core/main_city" in scope_keys
+    assert "wos:core/main_city" not in scope_keys
+    assert "games/kingshot/core/main_city/references/kingshot.png" in rels
+    assert "games/wos/core/main_city/references/wos.png" not in rels
+
+
+def test_http_labeling_scopes_respect_game_query(labeling_repo: Path) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from api.routers.labeling import router
+    from config.module_discovery import _clear_module_discovery_caches
+
+    for game in ("wos", "kingshot"):
+        mod = labeling_repo / "games" / game / "core" / "main_city"
+        (mod / "references").mkdir(parents=True)
+        (mod / "module.yaml").write_text(
+            "id: main_city\ntitle: Main City\narea: area.yaml\nreferences: references\n",
+            encoding="utf-8",
+        )
+        (mod / "area.yaml").write_text('{"version": 2, "screens": []}\n', encoding="utf-8")
+
+    _clear_module_discovery_caches()
+    app = FastAPI()
+    app.include_router(router)
+
+    with TestClient(app) as client:
+        data = client.get("/api/labeling/scopes?game=kingshot").json()
+
+    keys = {s["key"] for s in data["scopes"]}
+    assert "kingshot:core/main_city" in keys
+    assert "wos:core/main_city" not in keys
+
+
 def test_all_scope_requires_exact_module_reference_path(labeling_repo: Path) -> None:
     import yaml
 

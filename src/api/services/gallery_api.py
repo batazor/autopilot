@@ -31,16 +31,16 @@ def _request_game() -> str:
 def _context_for_scope(scope: str, *, game: str) -> WikiModuleContext:
     scope = normalize_module_scope(scope)
     if scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
-        return all_modules_context(_REPO)
+        return all_modules_context(_REPO, game=game)
     for ctx in list_labeling_modules(_REPO, game=game):
         if ctx.storage_key == scope or ctx.module_id == scope:
             return ctx
-    return all_modules_context(_REPO)
+    return all_modules_context(_REPO, game=game)
 
 
 def _area_doc_for_context(ctx: WikiModuleContext) -> tuple[dict[str, Any], str]:
     if ctx.is_all:
-        return merge_all_area_docs(ctx.repo_root), ctx.references_prefix
+        return merge_all_area_docs(ctx.repo_root, game=ctx.game), ctx.references_prefix
     doc = load_json(ctx.area_path) if ctx.area_path is not None and ctx.area_path.is_file() else {}
     return doc if isinstance(doc, dict) else {}, ctx.references_prefix
 

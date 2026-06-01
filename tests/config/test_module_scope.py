@@ -73,6 +73,19 @@ def test_path_matches_module_scope(tmp_path: Path) -> None:
     assert not path_matches_module_scope(core, tmp_path, "vip")
 
 
+def test_path_matches_all_scope_is_game_scoped(tmp_path: Path) -> None:
+    wos = _modules_root_for("wos", repo_root=tmp_path) / "core" / "main_city" / "scenarios" / "wos.yaml"
+    kingshot = _modules_root_for("kingshot", repo_root=tmp_path) / "core" / "main_city" / "scenarios" / "ks.yaml"
+    for path in (wos, kingshot):
+        path.parent.mkdir(parents=True)
+        path.write_text("", encoding="utf-8")
+
+    assert path_matches_module_scope(kingshot, tmp_path, ALL_MODULES_KEY, game="kingshot")
+    assert not path_matches_module_scope(wos, tmp_path, ALL_MODULES_KEY, game="kingshot")
+    assert path_matches_module_scope(wos, tmp_path, ALL_MODULES_KEY, game="wos")
+    assert not path_matches_module_scope(kingshot, tmp_path, ALL_MODULES_KEY, game="wos")
+
+
 def test_iter_module_dirs_discovers_nested_module_yaml(tmp_path: Path) -> None:
     from config.module_discovery import iter_module_dirs, module_storage_key
 

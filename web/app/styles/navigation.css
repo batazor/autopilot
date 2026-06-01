@@ -104,6 +104,14 @@
     @apply mt-2 flex items-center gap-1.5;
   }
 
+  .nav-bot-banner__device-stack {
+    @apply mt-2 flex flex-col gap-1.5;
+  }
+
+  .nav-bot-banner__device-stack .nav-bot-banner__devnav {
+    @apply mt-0;
+  }
+
   .nav-bot-banner__devnav-label {
     @apply flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md border border-amber-400/20 bg-black/15 px-2 py-1 text-[11px] font-semibold text-amber-100/90;
   }
@@ -116,11 +124,31 @@
     @apply h-4 w-4 shrink-0 rounded-sm object-contain;
   }
 
+  .nav-bot-banner__game-select {
+    @apply min-w-0;
+  }
+
+  .nav-bot-banner__game-select .headless-listbox__button {
+    @apply min-h-0 border-amber-400/20 bg-black/15 px-2 py-1 text-[11px] font-semibold text-amber-100/90;
+  }
+
+  .nav-bot-banner__game-select .headless-listbox__value {
+    @apply truncate;
+  }
+
   .nav-bot-banner--running .nav-bot-banner__devnav-label {
     @apply border-emerald-400/20 text-emerald-100/90;
   }
 
+  .nav-bot-banner--running .nav-bot-banner__game-select .headless-listbox__button {
+    @apply border-emerald-400/20 text-emerald-100/90;
+  }
+
   .nav-bot-banner--devices .nav-bot-banner__devnav-label {
+    @apply border-sky-400/20 text-sky-100/90;
+  }
+
+  .nav-bot-banner--devices .nav-bot-banner__game-select .headless-listbox__button {
     @apply border-sky-400/20 text-sky-100/90;
   }
 

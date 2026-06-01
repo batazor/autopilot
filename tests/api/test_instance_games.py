@@ -10,8 +10,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
+from fastapi import HTTPException
 
-from api.routers.instances import list_instance_games
+from api.routers import instances as instances_router
+from api.routers.instances import list_instance_games, put_instance_game
 from config.devices_db import set_device_game, upsert_device
 from config.state_sqlite import set_state_db_path_for_tests
 
@@ -27,6 +29,9 @@ class _FakeRedis:
 
     def hgetall(self, key: str) -> dict[str, str]:
         return self._state.get(key, {})
+
+    def publish(self, _channel: str, _payload: str) -> int:
+        return 1
 
 
 @pytest.fixture
@@ -78,3 +83,48 @@ def test_redis_unknown_game_falls_back_to_profile(sqlite_db: Path) -> None:
     games = list_instance_games(redis)["games"]
 
     assert games == {"bs1": "wos"}
+
+
+def test_put_instance_game_saves_installed_game(
+    sqlite_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    monkeypatch.setattr(
+        instances_router,
+        "_live_detected_games_for_instance",
+        lambda _instance_id: [{"id": "kingshot", "running": False}],
+    )
+    monkeypatch.setattr(instances_router, "list_instance_ids", lambda: ["bs1"])
+
+    out = put_instance_game(
+        "bs1",
+        instances_router.InstanceGameBody(game="kingshot"),
+        _FakeRedis(),
+    )
+
+    assert out == {"game": "kingshot"}
+    assert list_instance_games(_FakeRedis())["games"] == {"bs1": "kingshot"}
+
+
+def test_put_instance_game_rejects_unavailable_live_game(
+    sqlite_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    upsert_device("bs1", adb_serial="127.0.0.1:5555")
+    monkeypatch.setattr(
+        instances_router,
+        "_live_detected_games_for_instance",
+        lambda _instance_id: [{"id": "wos", "running": False}],
+    )
+    monkeypatch.setattr(instances_router, "list_instance_ids", lambda: ["bs1"])
+
+    with pytest.raises(HTTPException) as exc:
+        put_instance_game(
+            "bs1",
+            instances_router.InstanceGameBody(game="kingshot"),
+            _FakeRedis(),
+        )
+
+    assert exc.value.status_code == 400
+    assert "not installed" in str(exc.value.detail)

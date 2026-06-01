@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from api.services import labeling_scope as ls
-from config.module_registry import CORE_MODULE_KEY, normalize_module_scope
+from config.games import default_game
+from config.module_registry import (
+    CORE_MODULE_KEY,
+    list_labeling_modules,
+    normalize_module_scope,
+)
 from config.paths import repo_root
 from config.reference_naming import (
     TEMPORAL_SUBDIR,
@@ -76,22 +81,22 @@ def _is_rolling_preview_png(path: Path, ref_root: Path) -> bool:
     return path.stem.endswith(_ROLLING_STEM_SUFFIX)
 
 
-def _list_labeling_reference_pngs(env: ls.LabelingScopeEnv, *, limit: int) -> list[Path]:
+def _list_reference_pngs_for_root(ref_root: Path, *, limit: int) -> list[Path]:
     """Published refs plus pending ``temporal/*_shot_*.png`` (not rolling previews)."""
     published = list_reference_pngs(
         limit=limit,
-        root=env.ref_root,
+        root=ref_root,
         exclude_temporal=True,
         exclude_crop=True,
         exclude_events=True,
     )
-    published = [p for p in published if not _is_rolling_preview_png(p, env.ref_root)]
+    published = [p for p in published if not _is_rolling_preview_png(p, ref_root)]
 
     pending: list[Path] = []
-    temporal_dir = env.ref_root / TEMPORAL_SUBDIR
+    temporal_dir = ref_root / TEMPORAL_SUBDIR
     if temporal_dir.is_dir():
         for path in temporal_dir.glob("*.png"):
-            if _is_rolling_preview_png(path, env.ref_root):
+            if _is_rolling_preview_png(path, ref_root):
                 continue
             pending.append(path)
         pending.sort(key=lambda p: p.stat().st_mtime, reverse=True)
@@ -109,16 +114,56 @@ def _list_labeling_reference_pngs(env: ls.LabelingScopeEnv, *, limit: int) -> li
     return merged
 
 
+def _reference_roots_for_scope(env: ls.LabelingScopeEnv) -> list[Path]:
+    if not env.ctx.is_all:
+        return [env.ref_root]
+
+    roots: list[Path] = []
+    seen: set[Path] = set()
+
+    def add(path: Path) -> None:
+        root = path.resolve()
+        if root not in seen:
+            seen.add(root)
+            roots.append(root)
+
+    game = env.ctx.game or default_game()
+    for ctx in list_labeling_modules(env.repo_root, game=game):
+        add(ctx.references_dir)
+    if game == default_game():
+        add(env.repo_root / "references")
+    return roots
+
+
+def _list_labeling_reference_pngs(env: ls.LabelingScopeEnv, *, limit: int) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for root in _reference_roots_for_scope(env):
+        for path in _list_reference_pngs_for_root(root, limit=limit):
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            paths.append(path)
+    paths.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return paths[:limit]
+
+
 def list_reference_paths(*, scope: str = CORE_MODULE_KEY, limit: int = 300) -> list[dict[str, Any]]:
     env = ls.scope_env(scope)
     paths = _list_labeling_reference_pngs(env, limit=limit)
     area_doc = ls.load_area_doc(env)
-    meta_by_rel = build_reference_leaf_meta_index(area_doc, env.ref_root)
+    meta_root = env.repo_root if env.ctx.is_all else env.ref_root
+    meta_by_rel = build_reference_leaf_meta_index(area_doc, meta_root)
     out: list[dict[str, Any]] = []
     for p in paths:
         try:
             rel_repo = p.resolve().relative_to(env.repo_root).as_posix()
-            rel_under = p.resolve().relative_to(env.ref_root).as_posix()
+            rel_under = (
+                rel_repo
+                if env.ctx.is_all
+                else p.resolve().relative_to(env.ref_root).as_posix()
+            )
         except ValueError:
             continue
         meta = meta_by_rel.get(rel_under)

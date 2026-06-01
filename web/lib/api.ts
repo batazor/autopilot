@@ -114,6 +114,20 @@ export async function fetchInstanceGames(): Promise<Record<string, string>> {
   return data.games ?? {};
 }
 
+export async function updateInstanceGame(
+  instanceId: string,
+  game: string,
+): Promise<{ game: string }> {
+  return apiFetch<{ game: string }>(
+    `/api/instances/${encodeURIComponent(instanceId)}/game`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game }),
+    },
+  );
+}
+
 // Active game id for the next API call. FleetContextProvider keeps this in
 // lockstep with ``useFleet().game`` via :func:`setActiveGame`. Module-scoped
 // query builders (``labelingScopeQuery``, ``modulesScopeQuery``) read it so
@@ -585,7 +599,7 @@ export async function fetchLabelingScreenIds(
   scope: string,
   current = "",
 ): Promise<string[]> {
-  const q = new URLSearchParams({ scope });
+  const q = new URLSearchParams({ scope, ...gameQueryEntries() });
   if (current.trim()) q.set("current", current.trim());
   const data = await apiFetch<{ screen_ids: string[] }>(
     `/api/labeling/screen-ids?${q}`,
@@ -619,7 +633,7 @@ function labelingRefPath(refRel: string): string {
 
 /** Stable URL for Konva/img — pass ``cacheKey`` (e.g. imageNonce) to bust cache after refresh/capture. */
 export function labelingImageUrl(refRel: string, cacheKey?: number | string): string {
-  const q = new URLSearchParams();
+  const q = new URLSearchParams(gameQueryEntries());
   if (cacheKey != null && cacheKey !== "") {
     q.set("n", String(cacheKey));
   }
@@ -710,7 +724,7 @@ export async function importLabelingPng(
   fd.append("instance_id", instanceId);
   fd.append("scope", scope);
   fd.append("file", file);
-  const res = await fetch(`${base}/api/labeling/import-png`, {
+  const res = await fetch(`${base}/api/labeling/import-png${labelingScopeQuery(scope)}`, {
     method: "POST",
     body: fd,
   });
@@ -750,8 +764,9 @@ export async function discardLabelingCapture(
   refRel: string,
   scope: string,
 ): Promise<void> {
-  const q = new URLSearchParams({ ref: refRel, scope });
-  await apiFetch(`/api/labeling/capture?${q}`, { method: "DELETE" });
+  await apiFetch(`/api/labeling/capture${labelingScopeQuery(scope, { ref: refRel })}`, {
+    method: "DELETE",
+  });
 }
 
 export async function deleteLabelingReference(

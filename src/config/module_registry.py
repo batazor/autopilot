@@ -39,6 +39,7 @@ class WikiModuleContext:
     default_ref: str | None = None
     is_all: bool = False
     storage_key_override: str | None = None
+    game: str | None = None
 
     @property
     def storage_key(self) -> str:
@@ -207,10 +208,15 @@ def _module_context(
         storage_key_override=_module_discovery.module_storage_key(
             module_dir, repo_root, game=game
         ),
+        game=(game or default_game()).strip(),
     )
 
 
-def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
+def all_modules_context(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> WikiModuleContext:
     """Merged view across every ``modules/<id>/`` area/references tree.
 
     ``area_path`` is ``None`` — there is no single writable file for this
@@ -228,6 +234,7 @@ def all_modules_context(repo_root: Path | None = None) -> WikiModuleContext:
         references_prefix="references",
         area_path=None,
         is_all=True,
+        game=(game or default_game()).strip(),
     )
 
 
@@ -274,7 +281,7 @@ def get_wiki_module(
 ) -> WikiModuleContext:
     key = normalize_module_scope(module_key)
     if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
-        return all_modules_context(repo_root)
+        return all_modules_context(repo_root, game=game)
     for ctx in list_wiki_modules(repo_root, game=game):
         if ctx.storage_key == key or ctx.module_id == key:
             return ctx
@@ -283,7 +290,7 @@ def get_wiki_module(
         sk = ctx.storage_key
         if ":" in sk and sk.split(":", 1)[1] == key:
             return ctx
-    return all_modules_context(repo_root)
+    return all_modules_context(repo_root, game=game)
 
 
 def path_matches_module_scope(
@@ -302,7 +309,7 @@ def path_matches_module_scope(
     except ValueError:
         return False
     if scope == ALL_MODULES_KEY:
-        return True
+        return rel.startswith(f"{modules_path_prefix(g)}/")
     if scope == CORE_MODULE_KEY:
         return rel.startswith(
             f"{modules_path_prefix(g)}/{_module_discovery.CORE_MODULES_DIR}/"
@@ -320,12 +327,16 @@ def path_matches_module_scope(
     return False
 
 
-def merge_all_area_docs(repo_root: Path | None = None) -> dict[str, Any]:
+def merge_all_area_docs(
+    repo_root: Path | None = None,
+    *,
+    game: str | None = None,
+) -> dict[str, Any]:
     """Union of screens from every per-module ``area.yaml`` manifest."""
     root = (repo_root if repo_root is not None else default_repo_root()).resolve()
     from layout.area_manifest import load_area_doc
 
-    return load_area_doc(root)
+    return load_area_doc(root, game=game)
 
 
 def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:
@@ -334,8 +345,10 @@ def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:
         return False
     if ctx.is_all:
         if raw.startswith("references/"):
-            return True
-        return is_module_reference(raw) and "/references/" in raw
+            return not (ctx.game and ctx.game != default_game())
+        if not (is_module_reference(raw) and "/references/" in raw):
+            return False
+        return not ctx.game or raw.startswith(f"{modules_path_prefix(ctx.game)}/")
     prefix = ctx.references_prefix.rstrip("/") + "/"
     if ctx.module_id is None:
         if is_module_reference(raw):
@@ -347,7 +360,7 @@ def ocr_path_belongs_to_context(ocr: str, ctx: WikiModuleContext) -> bool:
 def filter_area_doc_for_context(doc: dict[str, Any], ctx: WikiModuleContext) -> dict[str, Any]:
     """Return a shallow copy with only screens belonging to ``ctx``."""
     if ctx.is_all:
-        return merge_all_area_docs(ctx.repo_root)
+        return merge_all_area_docs(ctx.repo_root, game=ctx.game)
     out = copy.deepcopy(doc)
     screens = out.get("screens")
     if not isinstance(screens, list):

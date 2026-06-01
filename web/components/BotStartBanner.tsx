@@ -14,6 +14,7 @@ import {
   startLocalBot,
   stopLocalBot,
   toggleInstancePause,
+  updateInstanceGame,
 } from "@/lib/api";
 import {
   loadFleetInstanceId,
@@ -26,7 +27,7 @@ import {
   type AdbReadiness,
 } from "@/lib/adb-device-ready";
 import { adbSerialMatches } from "@/lib/adb-serial";
-import type { AdbStatus } from "@/lib/config-pages";
+import type { AdbDetectedGame, AdbStatus } from "@/lib/config-pages";
 import { approvalsHref, instanceHref } from "@/lib/fleet-links";
 import type {
   BotStatusView,
@@ -35,6 +36,7 @@ import type {
   OverviewView,
 } from "@/lib/types";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
+import { AppListbox } from "@/components/headless";
 import { Icon } from "@/components/ui/Icon";
 
 const BOT_POLL_MS = 4000;
@@ -105,6 +107,36 @@ function deviceChipLabel(adb: AdbStatus | null): string {
   return `${live}/${configured} live`;
 }
 
+function detectedGamesForInstance(
+  adb: AdbStatus | null,
+  instanceId: string,
+): AdbDetectedGame[] {
+  if (!adb || !instanceId) return [];
+  const configured = adb.configured.find(
+    (row) => row.name === instanceId || row.adb_serial === instanceId,
+  );
+  const serial = configured?.adb_serial || instanceId;
+  const live = adb.live_devices.find((row) =>
+    adbSerialMatches(serial, row.serial, row.canonical_serial),
+  );
+  return live?.detected_games ?? [];
+}
+
+function uniqueGameOptions(games: AdbDetectedGame[]) {
+  const seen = new Set<string>();
+  return games
+    .filter((game) => {
+      if (!game.id || seen.has(game.id)) return false;
+      seen.add(game.id);
+      return true;
+    })
+    .map((game) => ({ value: game.id, label: game.label || game.id }));
+}
+
+function runningDetectedGame(games: AdbDetectedGame[]): string {
+  return games.find((game) => game.running)?.id ?? "";
+}
+
 // Switch the dashboard's active device from Bot control. The banner lives in
 // the sidebar, *outside* FleetContextProvider, so it can't read that context —
 // instead it shares the same source of truth the provider uses: the persisted
@@ -173,50 +205,85 @@ function useDeviceSwitcher() {
 
 type DeviceSwitcherState = ReturnType<typeof useDeviceSwitcher>;
 
-function DeviceCarousel({ switcher }: { switcher: DeviceSwitcherState }) {
+function DeviceCarousel({
+  switcher,
+  adbStatus,
+  changingGame,
+  onGameChange,
+}: {
+  switcher: DeviceSwitcherState;
+  adbStatus: AdbStatus | null;
+  changingGame: boolean;
+  onGameChange: (instanceId: string, game: string) => void;
+}) {
   const { instances, current, index, step, games } = switcher;
   if (instances.length === 0) return null;
   const multi = instances.length > 1;
-  const currentGame = current ? (games[current] ?? "") : "";
+  const detected = detectedGamesForInstance(adbStatus, current);
+  const liveGame = runningDetectedGame(detected);
+  const configuredGame = current ? (games[current] ?? "") : "";
+  const currentGame = liveGame || configuredGame;
+  const gameOptions = uniqueGameOptions(detected);
+  const launchGame =
+    configuredGame && gameOptions.some((option) => option.value === configuredGame)
+      ? configuredGame
+      : (gameOptions[0]?.value ?? configuredGame);
   const gameLabel = GAME_LABELS[currentGame] ?? currentGame;
   return (
-    <div
-      className="nav-bot-banner__devnav"
-      role="group"
-      aria-label="Active device"
-    >
-      <button
-        type="button"
-        className="nav-bot-banner__action"
-        onClick={() => step(-1)}
-        disabled={!multi}
-        aria-label="Previous device"
-        title="Previous device"
+    <div className="nav-bot-banner__device-stack">
+      <div
+        className="nav-bot-banner__devnav"
+        role="group"
+        aria-label="Active device"
       >
-        <Icon name="chevron-left" size="sm" />
-      </button>
-      <span
-        className="nav-bot-banner__devnav-label"
-        title={gameLabel ? `${current} · ${gameLabel}` : current}
-      >
-        <GameIcon game={currentGame} />
-        <span className="nav-bot-banner__devnav-name">{current || "—"}</span>
-        {multi ? (
-          <span className="nav-bot-banner__badge">
-            {index + 1}/{instances.length}
-          </span>
-        ) : null}
-      </span>
-      <button
-        type="button"
-        className="nav-bot-banner__action"
-        onClick={() => step(1)}
-        disabled={!multi}
-        aria-label="Next device"
-        title="Next device"
-      >
-        <Icon name="chevron-right" size="sm" />
-      </button>
+        <button
+          type="button"
+          className="nav-bot-banner__action"
+          onClick={() => step(-1)}
+          disabled={!multi}
+          aria-label="Previous device"
+          title="Previous device"
+        >
+          <Icon name="chevron-left" size="sm" />
+        </button>
+        <span
+          className="nav-bot-banner__devnav-label"
+          title={gameLabel ? `${current} · ${gameLabel}` : current}
+        >
+          <GameIcon game={currentGame} />
+          <span className="nav-bot-banner__devnav-name">{current || "—"}</span>
+          {multi ? (
+            <span className="nav-bot-banner__badge">
+              {index + 1}/{instances.length}
+            </span>
+          ) : null}
+        </span>
+        <button
+          type="button"
+          className="nav-bot-banner__action"
+          onClick={() => step(1)}
+          disabled={!multi}
+          aria-label="Next device"
+          title="Next device"
+        >
+          <Icon name="chevron-right" size="sm" />
+        </button>
+      </div>
+      {current && gameOptions.length > 0 ? (
+        <div className="nav-bot-banner__game-select">
+          <AppListbox
+            options={gameOptions}
+            value={launchGame}
+            onChange={(game) => onGameChange(current, game)}
+            disabled={changingGame}
+            minWidth={150}
+            maxWidth={180}
+            fullWidth
+            aria-label="Game to launch"
+            title="Game to launch on this device"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -372,6 +439,32 @@ export function BotStartBanner() {
     },
     onError: (e) => {
       setLocalError(e instanceof Error ? e.message : "Failed to start bot");
+    },
+  });
+  const gameMutation = useMutation({
+    mutationFn: ({ instanceId, game }: { instanceId: string; game: string }) =>
+      updateInstanceGame(instanceId, game),
+    onMutate: async ({ instanceId, game }) => {
+      setLocalError(null);
+      await qc.cancelQueries({ queryKey: FLEET_INSTANCE_GAMES_QUERY_KEY });
+      const previous = qc.getQueryData<Record<string, string>>(
+        FLEET_INSTANCE_GAMES_QUERY_KEY,
+      );
+      qc.setQueryData<Record<string, string>>(
+        FLEET_INSTANCE_GAMES_QUERY_KEY,
+        (prev) => ({ ...(prev ?? {}), [instanceId]: game }),
+      );
+      return { previous };
+    },
+    onError: (e, _vars, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(FLEET_INSTANCE_GAMES_QUERY_KEY, ctx.previous);
+      }
+      setLocalError(e instanceof Error ? e.message : "Failed to set game");
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: FLEET_INSTANCE_GAMES_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: BOT_FLEET_QUERY_KEY });
     },
   });
   const stopMutation = useMutation({
@@ -654,7 +747,14 @@ export function BotStartBanner() {
             </button>
           </div>
         </div>
-        <DeviceCarousel switcher={deviceSwitcher} />
+        <DeviceCarousel
+          switcher={deviceSwitcher}
+          adbStatus={adbStatus}
+          changingGame={gameMutation.isPending}
+          onGameChange={(instanceId, game) =>
+            gameMutation.mutate({ instanceId, game })
+          }
+        />
         <InstanceStatusLine row={currentRow} approval={approvalStatus} />
         <div className="nav-bot-banner__chips" aria-label="Bot details">
           <span className="nav-bot-banner__chip">
@@ -738,7 +838,14 @@ export function BotStartBanner() {
           </span>
         </div>
       </div>
-      <DeviceCarousel switcher={deviceSwitcher} />
+      <DeviceCarousel
+        switcher={deviceSwitcher}
+        adbStatus={adbStatus}
+        changingGame={gameMutation.isPending}
+        onGameChange={(instanceId, game) =>
+          gameMutation.mutate({ instanceId, game })
+        }
+      />
       <p className="nav-bot-banner__desc">
         {adbProblem ? (
           <>

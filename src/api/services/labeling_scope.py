@@ -51,14 +51,14 @@ def context_for_scope(
     g = _request_game(game)
     key = normalize_module_scope(scope)
     if key in (ALL_MODULES_KEY, CORE_MODULE_KEY):
-        return all_modules_context(_REPO)
+        return all_modules_context(_REPO, game=g)
     for ctx in list_labeling_modules(_REPO, game=g):
         if ctx.storage_key == key or ctx.module_id == key:
             return ctx
         sk = ctx.storage_key
         if ":" in sk and sk.split(":", 1)[1] == key:
             return ctx
-    return all_modules_context(_REPO)
+    return all_modules_context(_REPO, game=g)
 
 
 def scope_env(scope: str | None, *, game: str | None = None) -> LabelingScopeEnv:
@@ -74,7 +74,7 @@ def scope_env(scope: str | None, *, game: str | None = None) -> LabelingScopeEnv
 def list_labeling_scopes(*, game: str | None = None) -> list[dict[str, Any]]:
     root = _REPO.resolve()
     g = _request_game(game)
-    ctxs: list[WikiModuleContext] = [all_modules_context(root)]
+    ctxs: list[WikiModuleContext] = [all_modules_context(root, game=g)]
     ctxs.extend(c for c in list_labeling_modules(root, game=g) if c.module_id is not None)
     out: list[dict[str, Any]] = []
     for ctx in ctxs:
@@ -99,7 +99,7 @@ def list_labeling_scopes(*, game: str | None = None) -> list[dict[str, Any]]:
 
 def load_area_doc(env: LabelingScopeEnv) -> dict[str, Any]:
     if env.ctx.is_all:
-        return merge_all_area_docs(env.repo_root)
+        return merge_all_area_docs(env.repo_root, game=env.ctx.game)
     if env.area_path is not None and env.area_path.is_file():
         doc = load_json(env.area_path)
         if isinstance(doc, dict):
@@ -128,7 +128,11 @@ def repo_ref_for_under(rel_under: str, env: LabelingScopeEnv) -> str:
 
 def is_pending_temporal_ref(ref_rel: str, env: LabelingScopeEnv) -> bool:
     rel = rel_under_ref_root(ref_rel, env)
-    return rel.startswith(f"{TEMPORAL_SUBDIR}/") and not rel.endswith("_current_state.png")
+    if rel.endswith("_current_state.png"):
+        return False
+    if env.ctx.is_all:
+        return TEMPORAL_SUBDIR in Path(rel).parts
+    return rel.startswith(f"{TEMPORAL_SUBDIR}/")
 
 
 def _allow_loose_ref_match(ref_rel: str, env: LabelingScopeEnv) -> bool:

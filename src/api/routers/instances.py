@@ -8,15 +8,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from adb.serial import canonical_adb_serial
 from api.deps import get_redis
 from api.services import instance_detail as detail
 from api.services.dashboard_stream import instance_revision
 from api.services.instances import list_instance_ids
+from config.devices import invalidate_device_registry
 from config.test_module import (
     get_instance_test_module,
     set_instance_test_module,
 )
-from dashboard.dashboard_events import publish_dashboard_event
+from dashboard.dashboard_events import publish_dashboard_event, publish_device_reconcile
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
 
@@ -31,6 +33,10 @@ class InstanceCommandBody(BaseModel):
 
 class TestModuleBody(BaseModel):
     module: str | None = None
+
+
+class InstanceGameBody(BaseModel):
+    game: str
 
 
 @router.get("")
@@ -78,6 +84,75 @@ def list_instance_games(client: RedisDep) -> dict[str, dict[str, str]]:
     except Exception:
         pass
     return {"games": out}
+
+
+def _live_detected_games_for_instance(instance_id: str) -> list[dict[str, Any]]:
+    """Detected games installed on the matching live ADB device, if available."""
+    from api.services.adb_api import get_adb_status
+    from config.devices import load_devices
+
+    registry = load_devices()
+    target_serial = ""
+    for entry in registry.devices:
+        if entry.name == instance_id or entry.effective_serial == instance_id:
+            target_serial = entry.effective_serial
+            break
+    if not target_serial:
+        return []
+    target = canonical_adb_serial(target_serial)
+    adb = get_adb_status()
+    for row in adb.get("live_devices", []):
+        serial = canonical_adb_serial(
+            str(row.get("canonical_serial") or row.get("serial") or "")
+        )
+        if serial == target:
+            games = row.get("detected_games") or []
+            return [g for g in games if isinstance(g, dict)]
+    return []
+
+
+@router.put("/{instance_id}/game")
+def put_instance_game(
+    instance_id: str,
+    body: InstanceGameBody,
+    client: RedisDep,
+) -> dict[str, str]:
+    """Set the device-level game the bot should launch for this instance."""
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+
+    from config.devices_db import set_device_game
+    from config.games import GAMES, is_known_game
+
+    game = (body.game or "").strip()
+    if not is_known_game(game):
+        raise HTTPException(
+            status_code=400,
+            detail=f"unknown game: {game!r}; known: {', '.join(sorted(GAMES))}",
+        )
+
+    try:
+        detected = _live_detected_games_for_instance(instance_id)
+    except Exception:
+        detected = []
+    if detected:
+        available = {str(row.get("id") or "").strip() for row in detected}
+        if game not in available:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{game!r} is not installed on {instance_id}",
+            )
+
+    try:
+        value = set_device_game(instance_id, game)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    invalidate_device_registry()
+    publish_dashboard_event(client, topic="instance", instance_id=instance_id, reason="game")
+    publish_dashboard_event(client, topic="fleet", instance_id=instance_id, reason="game")
+    publish_device_reconcile(client, reason=f"game:{instance_id}:{value}")
+    return {"game": value}
 
 
 @router.get("/{instance_id}")
