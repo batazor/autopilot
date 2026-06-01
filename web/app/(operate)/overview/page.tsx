@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, type MouseEvent } from "react";
+import {
+  useCallback,
+  useOptimistic,
+  useTransition,
+  type MouseEvent,
+} from "react";
 import {
   useMutation,
   useQuery,
@@ -23,6 +28,7 @@ import {
 import { DataTableSkeleton } from "@/components/skeleton/DataTableSkeleton";
 import { MetricsRowSkeleton } from "@/components/skeleton/MetricsRowSkeleton";
 import { StatusPill } from "@/components/StatusPill";
+import { PendingButton } from "@/components/ui/PendingButton";
 import { fetchOverview, toggleInstancePause } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { FleetInstanceRow } from "@/lib/types";
@@ -61,6 +67,18 @@ export default function OverviewPage() {
       showSuccess(willResume ? `${instanceId} resumed` : `${instanceId} paused`);
     },
   });
+
+  // Optimistic fleet: flip the toggled instance's paused flag on the current
+  // frame so the row reflects the click before the server confirms. Reverts to
+  // the real value once the query refetch lands (or on error).
+  const [optimisticFleet, flipPaused] = useOptimistic(
+    data?.fleet ?? [],
+    (fleet: FleetInstanceRow[], instanceId: string) =>
+      fleet.map((r) =>
+        r.instance_id === instanceId ? { ...r, paused: !r.paused } : r,
+      ),
+  );
+  const [, startPauseTransition] = useTransition();
   const pauseBusyId = pauseMutation.isPending
     ? (pauseMutation.variables ?? null)
     : null;
@@ -73,7 +91,14 @@ export default function OverviewPage() {
   const onTogglePause = (instanceId: string, e: MouseEvent) => {
     e.stopPropagation();
     if (pauseMutation.isPending) return;
-    pauseMutation.mutate(instanceId);
+    startPauseTransition(async () => {
+      flipPaused(instanceId);
+      try {
+        await pauseMutation.mutateAsync(instanceId);
+      } catch {
+        // Surfaced via pauseMutation.error → ErrorBanner; optimistic state reverts.
+      }
+    });
   };
 
   const errorMessage = overview.isError
@@ -116,8 +141,8 @@ export default function OverviewPage() {
         <p className="meta">{m.paused} instance(s) paused.</p>
       ) : null}
 
-      {data?.has_devices && data.fleet.length ? (
-        <FleetStatusGrid fleet={data.fleet} onOpen={openInstance} />
+      {data?.has_devices && optimisticFleet.length ? (
+        <FleetStatusGrid fleet={optimisticFleet} onOpen={openInstance} />
       ) : null}
 
       <section className="panel">
@@ -174,7 +199,7 @@ export default function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {data?.fleet.flatMap((row) =>
+                {optimisticFleet.flatMap((row) =>
                   fleetRows(row, {
                     pauseBusyId,
                     onOpen: openInstance,
@@ -334,15 +359,13 @@ function fleetRows(
       </td>
       <td onClick={(e) => e.stopPropagation()}>
         <div className="fleet-row-actions">
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={anyBusy}
-            aria-busy={rowBusy}
+          <PendingButton
+            pending={rowBusy}
+            disabled={anyBusy && !rowBusy}
             onClick={(e) => handlers.onTogglePause(row.instance_id, e)}
           >
-            {rowBusy ? "…" : row.paused ? "Resume" : "Pause"}
-          </button>
+            {row.paused ? "Resume" : "Pause"}
+          </PendingButton>
         </div>
       </td>
     </tr>

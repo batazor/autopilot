@@ -91,6 +91,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     edit_dsl,
     events,
     fish_detect,
+    fish_video,
     gallery,
     gift_codes,
     instances,
@@ -155,6 +156,7 @@ app.include_router(wiki.router)
 app.include_router(click_approvals.router)
 app.include_router(overlay_test.router)
 app.include_router(fish_detect.router)
+app.include_router(fish_video.router)
 app.include_router(modules.router)
 app.include_router(gallery.router)
 app.include_router(adb.router)

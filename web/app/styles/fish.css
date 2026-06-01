@@ -1,0 +1,122 @@
+@layer components {
+  /* --- Fish video validator -------------------------------------------- */
+  .fish-video__intro {
+    @apply mt-0 mb-3 text-sm text-wos-text-muted;
+  }
+
+  /* Drag & drop upload zone */
+  .fish-dropzone {
+    @apply flex h-56 w-full cursor-pointer flex-col items-center justify-center
+      gap-1 rounded-xl border-2 border-dashed border-wos-border bg-wos-input/40
+      px-6 text-center text-wos-text-muted transition;
+  }
+
+  .fish-dropzone:hover {
+    @apply border-accent/50 bg-wos-input/70;
+  }
+
+  .fish-dropzone--active {
+    @apply border-accent bg-accent/10 text-wos-text-secondary;
+  }
+
+  .fish-dropzone--busy {
+    @apply pointer-events-none opacity-60;
+  }
+
+  .fish-dropzone__icon {
+    @apply mb-3 h-8 w-8 text-wos-text-muted;
+  }
+
+  .fish-dropzone--active .fish-dropzone__icon {
+    @apply text-accent;
+  }
+
+  .fish-dropzone__title {
+    @apply mb-1 text-sm font-medium text-wos-text-secondary;
+  }
+
+  .fish-dropzone__hint {
+    @apply mb-4 text-xs text-wos-text-muted;
+  }
+
+  .fish-dropzone__browse {
+    @apply inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-2
+      text-sm font-medium leading-5 text-white shadow-sm transition
+      hover:bg-accent/85 focus:outline-none focus:ring-4 focus:ring-accent/40;
+  }
+
+  /* Header row: state pill + meta + clear */
+  .fish-status-row {
+    @apply mb-3 flex flex-wrap items-center gap-2;
+  }
+
+  .fish-meta {
+    @apply font-mono text-xs text-wos-text-muted;
+  }
+
+  /* Progress bar */
+  .fish-progress {
+    @apply my-3;
+  }
+
+  .fish-progress__track {
+    @apply h-2 w-full overflow-hidden rounded-full bg-wos-border-subtle/50;
+  }
+
+  .fish-progress__fill {
+    @apply h-full rounded-full bg-accent transition-[width] duration-300;
+  }
+
+  /* Legend chips */
+  .fish-legend {
+    @apply mt-1 flex flex-wrap items-center gap-3 text-xs text-wos-text-muted;
+  }
+
+  .fish-legend__item {
+    @apply inline-flex items-center gap-1.5;
+  }
+
+  .fish-legend__dot {
+    @apply inline-block h-2.5 w-2.5 rounded-sm;
+  }
+
+  /* Filmstrip */
+  .fish-filmstrip {
+    @apply mt-3 flex gap-2 overflow-x-auto pb-2;
+    scrollbar-width: thin;
+  }
+
+  .fish-thumb {
+    @apply flex flex-none cursor-pointer flex-col items-center gap-1 rounded-lg
+      border border-transparent bg-transparent p-1 transition;
+  }
+
+  .fish-thumb:hover {
+    @apply bg-wos-panel-raised/60;
+  }
+
+  .fish-thumb--active {
+    @apply border-accent bg-accent/10;
+  }
+
+  .fish-thumb__img {
+    @apply block w-[84px] rounded-md ring-1 ring-wos-border-subtle;
+  }
+
+  .fish-thumb__cap {
+    @apply font-mono text-[0.7rem] leading-none text-wos-text-muted;
+  }
+
+  .fish-thumb--active .fish-thumb__cap {
+    @apply text-wos-text-secondary;
+  }
+
+  /* Selected frame */
+  .fish-frame-img {
+    @apply w-full rounded-lg ring-1 ring-wos-border-subtle;
+  }
+
+  .fish-swipe-empty {
+    @apply text-sm text-wos-text-muted;
+  }
+}

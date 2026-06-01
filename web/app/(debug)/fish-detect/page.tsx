@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
+import { FishVideoPanel } from "@/components/fish/FishVideoPanel";
 import { useFleet } from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { AppCheckbox } from "@/components/headless";
@@ -123,7 +124,10 @@ export default function FishDetectPage() {
         </div>
       ) : null}
 
-      <div className="toolbar" style={{ flexWrap: "wrap", alignItems: "flex-end" }}>
+      <div
+        className="toolbar"
+        style={{ flexWrap: "wrap", alignItems: "flex-end", marginBottom: "1rem" }}
+      >
         <label>
           Confidence threshold: <strong>{threshold.toFixed(2)}</strong>
           <input
@@ -164,7 +168,7 @@ export default function FishDetectPage() {
         ) : null}
       </div>
 
-      <div className="approvals-grid">
+      <div className="approvals-grid" style={{ marginBottom: "1rem" }}>
         <section className="panel">
           <h2>Frame</h2>
           <ApprovalCanvas
@@ -225,6 +229,8 @@ export default function FishDetectPage() {
           )}
         </section>
       </div>
+
+      <FishVideoPanel threshold={threshold} />
     </>
   );
 }

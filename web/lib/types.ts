@@ -604,6 +604,45 @@ export type FishDetectResult = {
   error: string;
 };
 
+export type SwipePrediction = {
+  fish_index: number;
+  center_x: number;
+  center_y: number;
+  escape_to_x: number;
+  escape_to_y: number;
+  catch_to_x: number;
+  catch_to_y: number;
+  escape_deg: number;
+  escape_compass: string;
+  catch_compass: string;
+  speed_px_s: number;
+};
+
+export type FishVideoFrame = {
+  index: number;
+  frame_pos: number;
+  t_ms: number;
+  detections: FishDetectionRow[];
+  swipes: SwipePrediction[];
+};
+
+export type FishVideoJob = {
+  job_id: string;
+  state: "queued" | "running" | "done" | "error";
+  processed: number;
+  total: number;
+  fps_in: number;
+  duration_ms: number;
+  frame_width: number;
+  frame_height: number;
+  interval_ms: number;
+  threshold: number;
+  model_id: string;
+  available: boolean;
+  error: string;
+  frames: FishVideoFrame[];
+};
+
 export type ProbeCropSide = {
   available?: boolean;
   width?: number;

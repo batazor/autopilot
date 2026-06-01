@@ -15,9 +15,14 @@ import logging
 from typing import TYPE_CHECKING, TypedDict
 
 import cv2
-import numpy as np
 
 from api.services.click_approval_overlay import load_preview_bytes
+from api.services.fish_common import (
+    FishDetectionRow,
+    decode_bgr,
+    detections_to_rows,
+    draw_detections,
+)
 from config.loader import load_settings
 from dashboard.reference_preview import load_rolling_instance_preview
 from inference.roboflow_client import (
@@ -27,24 +32,9 @@ from inference.roboflow_client import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    import numpy as np
 
 logger = logging.getLogger(__name__)
-
-_BOX_COLOR = (0, 200, 255)  # BGR — amber, readable on the icy game palette
-
-
-class FishDetectionRow(TypedDict):
-    """One detected fish in pixel coords of the source frame (top-left origin)."""
-
-    x: int
-    y: int
-    width: int
-    height: int
-    center_x: int
-    center_y: int
-    confidence: float
-    class_name: str
 
 
 class FishDetectResult(TypedDict):
@@ -72,31 +62,6 @@ def _load_frame(instance_id: str) -> tuple[bytes | None, str, float | None]:
     return png, rel or "", mtime
 
 
-def _decode_bgr(png: bytes) -> np.ndarray | None:
-    arr = np.frombuffer(png, dtype=np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    return img if img is not None else None
-
-
-def _detections_to_rows(detections: Sequence[Detection]) -> list[FishDetectionRow]:
-    rows: list[FishDetectionRow] = []
-    for d in detections:
-        cx, cy = d.center
-        rows.append(
-            FishDetectionRow(
-                x=d.left,
-                y=d.top,
-                width=int(round(d.width)),
-                height=int(round(d.height)),
-                center_x=cx,
-                center_y=cy,
-                confidence=round(d.confidence, 4),
-                class_name=d.class_name,
-            )
-        )
-    return rows
-
-
 def _run_detection(
     image_bgr: np.ndarray,
     *,
@@ -121,7 +86,7 @@ def run_fish_detect(
     width = height = 0
     image_bgr: np.ndarray | None = None
     if png is not None:
-        image_bgr = _decode_bgr(png)
+        image_bgr = decode_bgr(png)
         if image_bgr is not None:
             height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
@@ -158,21 +123,8 @@ def run_fish_detect(
         base["error"] = f"{type(exc).__name__}: {exc}"
         return base
 
-    base["detections"] = _detections_to_rows(detections)
+    base["detections"] = detections_to_rows(detections)
     return base
-
-
-def _draw_detections(image_bgr: np.ndarray, rows: list[FishDetectionRow]) -> np.ndarray:
-    out = image_bgr.copy()
-    for r in rows:
-        x, y, w, h = r["x"], r["y"], r["width"], r["height"]
-        cv2.rectangle(out, (x, y), (x + w, y + h), _BOX_COLOR, 2)
-        label = f"{r['class_name']} {r['confidence']:.2f}".strip()
-        ty = max(0, y - 6)
-        cv2.putText(
-            out, label, (x, ty), cv2.FONT_HERSHEY_SIMPLEX, 0.45, _BOX_COLOR, 1, cv2.LINE_AA
-        )
-    return out
 
 
 def load_fish_detect_image(
@@ -189,10 +141,10 @@ def load_fish_detect_image(
     png, _, _ = _load_frame(instance_id)
     if png is None:
         return None, result
-    image_bgr = _decode_bgr(png)
+    image_bgr = decode_bgr(png)
     if image_bgr is None:
         return None, result
-    annotated = _draw_detections(image_bgr, result["detections"])
+    annotated = draw_detections(image_bgr, result["detections"])
     ok, enc = cv2.imencode(".png", annotated)
     if not ok:
         return None, result

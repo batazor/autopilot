@@ -25,6 +25,7 @@ import type {
   ClickApprovalStatus,
   ClickApprovalView,
   FishDetectResult,
+  FishVideoJob,
   InstanceDetail,
   LabelingDocument,
   LabelingReferenceMeta,
@@ -527,6 +528,35 @@ export function fishDetectImageUrl(
   const q = new URLSearchParams({ t: String(cacheKey ?? Date.now()) });
   if (options.threshold != null) q.set("threshold", String(options.threshold));
   return `${base}/api/instances/${encodeURIComponent(instanceId)}/fish-detect/image?${q}`;
+}
+
+export async function uploadFishVideo(
+  file: File,
+  options: { threshold?: number; intervalMs?: number } = {},
+): Promise<{ job_id: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (options.threshold != null) fd.append("threshold", String(options.threshold));
+  if (options.intervalMs != null) fd.append("interval_ms", String(options.intervalMs));
+  // Don't set Content-Type — the browser fills in the multipart boundary.
+  return apiFetch<{ job_id: string }>("/api/fish-detect/video", {
+    method: "POST",
+    body: fd,
+  });
+}
+
+export async function fetchFishVideoJob(jobId: string): Promise<FishVideoJob> {
+  return apiFetch<FishVideoJob>(`/api/fish-detect/video/${encodeURIComponent(jobId)}`);
+}
+
+export function fishVideoFrameImageUrl(jobId: string, index: number): string {
+  return `${base}/api/fish-detect/video/${encodeURIComponent(jobId)}/frame/${index}/image`;
+}
+
+export async function deleteFishVideoJob(jobId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/fish-detect/video/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
 }
 
 function labelingScopeQuery(
