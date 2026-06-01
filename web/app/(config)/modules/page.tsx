@@ -7,6 +7,7 @@ import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { NewModuleDialog } from "@/components/modules/NewModuleDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Icon } from "@/components/ui/Icon";
+import { Spinner } from "@/components/ui/Spinner";
 import {
   fetchModules,
   fetchWikiScopes,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/api";
 import type { ModuleRow, ScenarioRow } from "@/lib/config-pages";
 import { editDslHref } from "@/lib/debug-links";
+import { filterModules } from "@/lib/modules-filter";
 import type { WikiScope } from "@/lib/wiki";
 
 const GAME_TABS: { id: string; label: string }[] = [
@@ -156,6 +158,7 @@ export default function ModulesPage() {
   const [scopes, setScopes] = useState<WikiScope[]>([]);
   const [scope, setScope] = useState("all");
   const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -164,11 +167,14 @@ export default function ModulesPage() {
 
   const reload = useCallback(async () => {
     setError(null);
+    setLoading(true);
     try {
       const mods = await fetchModules(scope, game);
       setModules(mods);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
   }, [scope, game]);
 
@@ -185,18 +191,7 @@ export default function ModulesPage() {
     reload();
   }, [reload]);
 
-  const q = filter.trim().toLowerCase();
-  const filtered = useMemo(() => {
-    if (!q) return modules;
-    return modules.filter(
-      (m) =>
-        m.id.toLowerCase().includes(q) ||
-        m.title.toLowerCase().includes(q) ||
-        m.storage_key.toLowerCase().includes(q) ||
-        m.description.toLowerCase().includes(q) ||
-        m.rel_path.toLowerCase().includes(q),
-    );
-  }, [modules, q]);
+  const filtered = useMemo(() => filterModules(modules, filter), [modules, filter]);
 
   const scopeOptions = useMemo(() => {
     const mapped = scopes.map((s) => ({ value: s.key, label: s.label }));
@@ -379,26 +374,47 @@ export default function ModulesPage() {
         }}
         onError={(message) => setError(message)}
       />
-      <ErrorBanner message={error} />
+      <ErrorBanner
+        message={error}
+        onRetry={() => void reload()}
+        retrying={loading}
+      />
       <section className="panel module-editor-panel">
         <div className="module-panel-head">
           <div>
             <h2>Modules</h2>
             <p className="meta">
-              {filtered.length === modules.length
-                ? `${modules.length} loaded`
-                : `${filtered.length} of ${modules.length} shown`}
+              {loading
+                ? "Loading…"
+                : error
+                  ? "Couldn’t load modules"
+                  : filtered.length === modules.length
+                    ? `${modules.length} loaded`
+                    : `${filtered.length} of ${modules.length} shown`}
             </p>
           </div>
           <span className="status-pill module-status-muted">
             {visibleExpanded} expanded
           </span>
         </div>
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="module-empty">
+            <Spinner />
+            <span>Loading modules…</span>
+          </div>
+        ) : error ? null : filtered.length === 0 ? (
           <div className="module-empty">
             <Icon name="list-empty" size="lg" />
-            <strong>No modules match this filter</strong>
-            <span>Clear the filter or switch scope to see more modules.</span>
+            <strong>
+              {modules.length === 0
+                ? "No modules found"
+                : "No modules match this filter"}
+            </strong>
+            <span>
+              {modules.length === 0
+                ? "Nothing is registered for this game and scope yet."
+                : "Clear the filter or switch scope to see more modules."}
+            </span>
             {filter ? (
               <button
                 type="button"

@@ -91,17 +91,23 @@ export default function LicenseAdminPage() {
     loadStatus();
   }, [loadStatus]);
 
+  // Pro licenses are bound to one host, so the machine fingerprint is
+  // mandatory. Trial licenses are host-agnostic (issued as machine_id "*"), so
+  // the fingerprint is optional there.
+  const tier = form.tier.trim() || "pro";
+  const requiresFingerprint = tier === "pro";
+
   const canSubmit = useMemo(
     () =>
       !submitting &&
       adminToken.trim().length > 0 &&
       form.sub.trim().length > 0 &&
-      form.machineId.trim().length > 0 &&
+      (!requiresFingerprint || form.machineId.trim().length > 0) &&
       form.days >= 1 &&
       form.days <= 365 &&
       form.maxDevices >= 1 &&
       form.maxPlayersPerDevice >= 1,
-    [adminToken, form, submitting],
+    [adminToken, form, submitting, requiresFingerprint],
   );
 
   const onSubmit = async (ev: React.FormEvent) => {
@@ -115,12 +121,17 @@ export default function LicenseAdminPage() {
       } catch {
         /* ignore */
       }
+      // Trial licenses are host-agnostic: fall back to the wildcard machine id
+      // when the fingerprint is left blank. Pro requires a real fingerprint
+      // (enforced by canSubmit), so it always carries one here.
+      const machineId =
+        form.machineId.trim() || (tier === "trial" ? "*" : "");
       const out = await issueLicense(
         {
           sub: form.sub.trim(),
-          machine_id: form.machineId.trim(),
+          machine_id: machineId,
           days: form.days,
-          tier: form.tier.trim() || "pro",
+          tier,
           features: parseFeatures(form.features),
           max_devices: form.maxDevices,
           max_players_per_device: form.maxPlayersPerDevice,
@@ -200,13 +211,22 @@ export default function LicenseAdminPage() {
           </label>
 
           <label>
-            <span>Machine fingerprint</span>
+            <span>
+              Machine fingerprint{" "}
+              {requiresFingerprint ? (
+                <em className="text-amber-300 not-italic">(required for pro)</em>
+              ) : (
+                <em className="text-wos-text-muted not-italic">
+                  (optional — trial is host-agnostic)
+                </em>
+              )}
+            </span>
             <input
               type="text"
-              required
+              required={requiresFingerprint}
               value={form.machineId}
               onChange={(e) => setForm({ ...form, machineId: e.target.value })}
-              placeholder="ABCD-EFGH-IJKL-MNOP"
+              placeholder={requiresFingerprint ? "ABCD-EFGH-IJKL-MNOP" : "blank → * (any host)"}
               style={{ fontFamily: "monospace" }}
             />
           </label>
@@ -226,12 +246,13 @@ export default function LicenseAdminPage() {
 
           <label>
             <span>Tier</span>
-            <input
-              type="text"
-              value={form.tier}
+            <select
+              value={tier}
               onChange={(e) => setForm({ ...form, tier: e.target.value })}
-              placeholder="pro"
-            />
+            >
+              <option value="pro">pro</option>
+              <option value="trial">trial</option>
+            </select>
           </label>
 
           <label>

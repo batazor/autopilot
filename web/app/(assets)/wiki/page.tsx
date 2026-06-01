@@ -28,11 +28,19 @@ const TABS: { key: EntityTab; label: string }[] = [
   { key: "faq", label: "FAQ" },
 ];
 
+// Game selector. Wiki content is Whiteout Survival only for now; other games
+// are listed as "(soon)" and can't be selected until their wiki data lands.
+const WIKI_GAMES: { value: string; label: string; available: boolean }[] = [
+  { value: "wos", label: "Whiteout Survival", available: true },
+  { value: "kingshot", label: "Kingshot (soon)", available: false },
+];
+
 function WikiPageInner() {
   const params = useSearchParams();
   const [tab, setTab] = useState<EntityTab>(
     (params.get("section") as EntityTab) || "buildings",
   );
+  const [game, setGame] = useState("wos");
   const [scopes, setScopes] = useState<WikiScope[]>([]);
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
@@ -121,6 +129,19 @@ function WikiPageInner() {
   return (
     <>
       <PageHeader title="Wiki reference" />
+      <div className="toolbar">
+        <AppListbox
+          inline
+          label="Game"
+          value={game}
+          onChange={(v) => {
+            // Only switch to a game whose wiki data has shipped.
+            if (WIKI_GAMES.find((g) => g.value === v)?.available) setGame(v);
+          }}
+          options={WIKI_GAMES.map((g) => ({ value: g.value, label: g.label }))}
+          minWidth={200}
+        />
+      </div>
       <p className="meta">
         Buildings, heroes, items, gear — data from <code>db/</code> and{" "}
         <code>modules/*/wiki/</code>.
