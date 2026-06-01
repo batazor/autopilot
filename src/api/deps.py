@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 
 from config.loader import load_settings
 from config.redis_metrics import instrument_redis_client
@@ -16,6 +18,17 @@ _REDIS_MAX_CONNECTIONS = 32
 _REDIS_POOL_WAIT_TIMEOUT_S = 5.0
 _REDIS_SOCKET_CONNECT_TIMEOUT_S = 5.0
 _REDIS_SOCKET_TIMEOUT_S = 10.0
+# Pooled connections that sit idle can have their socket dropped underneath
+# them (server idle timeout, NAT/keepalive expiry, a network blip). Without a
+# health check redis-py hands the dead connection back out and the next command
+# fails with ``ConnectionError: ... Bad file descriptor`` / ``Connection reset``
+# instead of reconnecting. PING any connection idle longer than this before use
+# so a stale socket is detected and replaced transparently.
+_REDIS_HEALTH_CHECK_INTERVAL_S = 30
+# Retry the *whole command* on connection/timeout errors: the failed connection
+# is disconnected and the retry runs on a fresh one, so a single bad socket is
+# recovered rather than bubbling a 500 to the dashboard.
+_REDIS_RETRIES = 3
 
 
 def get_redis() -> redis.Redis:
@@ -29,6 +42,10 @@ def get_redis() -> redis.Redis:
             timeout=_REDIS_POOL_WAIT_TIMEOUT_S,
             socket_connect_timeout=_REDIS_SOCKET_CONNECT_TIMEOUT_S,
             socket_timeout=_REDIS_SOCKET_TIMEOUT_S,
+            socket_keepalive=True,
+            health_check_interval=_REDIS_HEALTH_CHECK_INTERVAL_S,
+            retry=Retry(ExponentialBackoff(cap=0.5, base=0.05), _REDIS_RETRIES),
+            retry_on_error=[redis.ConnectionError, redis.TimeoutError],
         )
         _redis_client = redis.Redis(connection_pool=pool)
         instrument_redis_client(_redis_client, component="api")

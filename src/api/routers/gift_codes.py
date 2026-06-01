@@ -1,9 +1,11 @@
 """Gift codes HTTP routes."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.services import gift_codes_api as svc
@@ -13,8 +15,10 @@ router = APIRouter(prefix="/api/gift-codes", tags=["gift-codes"])
 
 
 @router.get("")
-def get_gift_codes(q: str = Query(default="")) -> dict[str, Any]:
-    return svc.build_gift_codes_view(query=q)
+def get_gift_codes(
+    q: str = Query(default=""), game: str = Query(default="wos")
+) -> dict[str, Any]:
+    return svc.build_gift_codes_view(query=q, game=game)
 
 
 @router.post("/scrape")
@@ -115,3 +119,38 @@ def delete_external_account(
         ) from exc
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/external-accounts/{player_id}/codes")
+def external_account_codes(
+    player_id: int, game: str = Query(default="wos")
+) -> dict[str, Any]:
+    """Per-code redemption status for one external account (child table)."""
+    return svc.external_account_codes(player_id, game=game)
+
+
+@router.get("/external-accounts/{player_id}/redeem/stream")
+async def external_account_redeem_stream(
+    player_id: int, game: str = Query(default="wos")
+) -> StreamingResponse:
+    """Run the redeemer for one account, streaming progress as SSE.
+
+    Feature is checked up-front so an unlicensed caller gets 402 instead of an
+    event stream. Each frame is ``data: {json}`` with type progress/done/error.
+    """
+    try:
+        svc.require_external_accounts_feature()
+    except LicenseError as exc:
+        raise HTTPException(
+            status_code=402, detail={"reason": "feature_not_licensed", "msg": str(exc)}
+        ) from exc
+
+    async def event_source() -> Any:
+        async for event in svc.stream_external_account_redeem(player_id, game=game):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

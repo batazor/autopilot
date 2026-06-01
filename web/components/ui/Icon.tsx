@@ -29,6 +29,7 @@ export type IconName =
   | "adb"
   | "balance"
   | "operate"
+  | "games"
   | "debug"
   | "assets"
   | "config"
@@ -213,6 +214,17 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8" />
       <circle cx="12" cy="12" r="3" />
+    </>,
+  ),
+  games: strokeIcon(
+    <>
+      <path
+        d="M8 9h8a4 4 0 0 1 4 4 3 3 0 0 1-3 3c-1.2 0-2-.6-2.8-1.4L13 15h-2l-1.2 1.6C9 17.4 8.2 18 7 18a3 3 0 0 1-3-3 4 4 0 0 1 4-4z"
+        strokeLinejoin="round"
+      />
+      <path d="M7 12v2M6 13h2" strokeLinecap="round" />
+      <circle cx="15.5" cy="12.5" r=".6" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="14" r=".6" fill="currentColor" stroke="none" />
     </>,
   ),
   debug: strokeIcon(

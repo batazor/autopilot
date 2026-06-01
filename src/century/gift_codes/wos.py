@@ -391,6 +391,70 @@ class GiftCodeRedeemer:
         return summary
 
     # ------------------------------------------------------------------
+    # Single account (all its pending codes)
+    # ------------------------------------------------------------------
+
+    async def redeem_for_player(
+        self,
+        fid: str | int,
+        progress_cb: Callable[[int, int, str], None] | None = None,
+    ) -> GiftRedeemSummary:
+        """Redeem every currently-needed code for a single account (``fid``).
+
+        Mirrors :meth:`redeem_all` but scoped to one player — backs the
+        dashboard's per-external-account "Run now" button. Persists each result
+        to the redemptions DB just like the full pass, so the status table the
+        UI reads stays consistent. ``progress_cb(done, total, message)`` fires
+        once per attempted code for the live progress bar.
+        """
+        pid = str(fid)
+        summary = GiftRedeemSummary()
+        codes = list_codes()
+
+        nick = pid
+        for ext in list_external_gamers(game=_GAME_ID):
+            if str(ext.player_id) == pid:
+                nick = ext.nickname or pid
+                break
+
+        pending = [
+            code
+            for code in codes
+            if not code.is_effectively_expired() and code.needs_redemption(pid)
+        ]
+        total_work = len(pending)
+        if progress_cb is not None:
+            progress_cb(0, total_work, "starting")
+
+        for done, code in enumerate(pending, start=1):
+            status, api_ec, api_msg = await self._redeem_one(int(pid), code.name)
+            if progress_cb is not None:
+                progress_cb(done, total_work, f"{code.name} → {nick}")
+            if api_ec is not None:
+                code.last_api_err_code = api_ec
+                code.last_api_msg = api_msg or None
+                upsert_code(code.name, last_api_err_code=api_ec, last_api_msg=api_msg or "")
+            set_redemption(code.name, pid, status)
+            code.user_for[pid] = status
+            summary.add(
+                GiftRedeemResult(
+                    code=code.name,
+                    player_id=pid,
+                    nickname=nick,
+                    status=status,
+                    attempted=True,
+                    api_err_code=api_ec,
+                    api_msg=api_msg,
+                )
+            )
+            logger.info("%s (%s): %s", nick, pid, status.value)
+            if status == RedeemStatus.CDK_NOT_FOUND:
+                logger.warning("Code %s does not exist — stopping", code.name)
+                break
+            await asyncio.sleep(_jittered(_INTER_CODE_DELAY))
+        return summary
+
+    # ------------------------------------------------------------------
     # Single player + code
     # ------------------------------------------------------------------
 
@@ -461,3 +525,13 @@ async def run_gift_code_redeemer(
 ) -> GiftRedeemSummary:
     redeemer = GiftCodeRedeemer()
     return await redeemer.redeem_all(progress_cb=progress_cb)
+
+
+async def run_gift_code_redeemer_for_player(
+    fid: str | int,
+    progress_cb: Callable[[int, int, str], None] | None = None,
+) -> GiftRedeemSummary:
+    """Redeem all pending codes for a single account — see
+    :meth:`GiftCodeRedeemer.redeem_for_player`."""
+    redeemer = GiftCodeRedeemer()
+    return await redeemer.redeem_for_player(fid, progress_cb=progress_cb)

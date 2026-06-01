@@ -3,7 +3,14 @@
 import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { AppCombobox } from "@/components/headless";
 import { ErrorBanner } from "@/components/feedback";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,6 +20,7 @@ import {
   fetchLabelingDocument,
   fetchLabelingScopes,
   galleryImageUrl,
+  setActiveGame,
 } from "@/lib/api";
 import type { EditorRegion } from "@/lib/bbox";
 import type { GalleryItem } from "@/lib/config-pages";
@@ -28,9 +36,32 @@ function formatBytes(n: number): string {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+// Keep in sync with config/games.py::GAMES (mirrors the labeling page).
+const GAME_OPTIONS: { value: string; label: string }[] = [
+  { value: "wos", label: "Whiteout Survival" },
+  { value: "kingshot", label: "Kingshot" },
+];
+
+function normalizeGame(value: string | null): string {
+  return GAME_OPTIONS.some((g) => g.value === value) ? (value as string) : "wos";
+}
+
 function GalleryPageInner() {
   const router = useRouter();
   const params = useSearchParams();
+
+  const [game, setGame] = useState<string>(() =>
+    normalizeGame(params.get("game")),
+  );
+  // References are game-specific. This page lives outside FleetContextProvider,
+  // so mirror the selection into lib/api's active-game cache (read by
+  // gameQueryEntries) during render — guarded — so the scope/gallery fetches
+  // emit ?game= on the same commit.
+  const gameSyncRef = useRef<string | null>(null);
+  if (gameSyncRef.current !== game) {
+    setActiveGame(game);
+    gameSyncRef.current = game;
+  }
 
   const [scopes, setScopes] = useState<LabelingScopeOption[]>([]);
   const [scope, setScope] = useState(params.get("module")?.trim() || "all");
@@ -55,7 +86,7 @@ function GalleryPageInner() {
         }
       })
       .catch((e: Error) => setError(e.message));
-  }, [scope]);
+  }, [scope, game]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setQuery(rawQuery.trim()), 250);
@@ -64,11 +95,12 @@ function GalleryPageInner() {
 
   useEffect(() => {
     const url = new URLSearchParams();
+    if (game && game !== "wos") url.set("game", game);
     if (scope && scope !== "all") url.set("module", scope);
     if (query) url.set("q", query);
     const qs = url.toString();
     router.replace(qs ? `/gallery?${qs}` : "/gallery", { scroll: false });
-  }, [scope, query, router]);
+  }, [game, scope, query, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,7 +124,7 @@ function GalleryPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [scope, query]);
+  }, [scope, query, game]);
 
   const scopeOptions = useMemo(
     () =>
@@ -127,6 +159,18 @@ function GalleryPageInner() {
   const clearSearch = useCallback(() => {
     setRawQuery("");
     setQuery("");
+  }, []);
+
+  const handleGameChange = useCallback((value: string) => {
+    const next = normalizeGame(value);
+    setGame((prev) => {
+      if (prev === next) return prev;
+      // Scopes/references are game-specific — reset the module filter so we
+      // don't render the previous game's scope against the new game.
+      setActiveGame(next);
+      setScope("all");
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -171,6 +215,23 @@ function GalleryPageInner() {
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-4">
         <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs uppercase tracking-wide text-wos-text-muted">
+              Game
+            </span>
+            <select
+              value={game}
+              onChange={(e) => handleGameChange(e.target.value)}
+              className="rounded border border-wos-border bg-wos-surface px-3 py-2 text-sm text-wos-text outline-none focus:border-accent"
+            >
+              {GAME_OPTIONS.map((g) => (
+                <option key={g.value} value={g.value}>
+                  {g.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <div className="min-w-[220px]">
             <AppCombobox
               label="Module"

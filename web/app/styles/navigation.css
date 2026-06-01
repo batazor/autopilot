@@ -112,6 +112,10 @@
     @apply min-w-0 truncate;
   }
 
+  .nav-bot-banner__game-icon {
+    @apply h-4 w-4 shrink-0 rounded-sm object-contain;
+  }
+
   .nav-bot-banner--running .nav-bot-banner__devnav-label {
     @apply border-emerald-400/20 text-emerald-100/90;
   }

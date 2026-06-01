@@ -184,6 +184,7 @@ ignore = [
 # under test — that's literally what unit tests are for.
 "tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501", "SLF001"]
 "games/**/tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501", "SLF001"]
+"notify_monitor/tests/**/*.py" = ["ANN001", "ANN002", "ANN003", "ANN201", "ANN202", "E501", "SLF001"]
 
 [tool.ty]
 # Strategy: baseline + ratchet (see scripts/ty-ratchet.py).

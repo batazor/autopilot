@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { fetchLicenseStatus } from "@/lib/api";
 import { NAV_GROUPS, type NavGroupId } from "@/lib/nav-groups";
-import { getNavLock, NAV_LOCK_BADGE } from "@/lib/nav-locks";
+import { getNavLock, isLockDisabling, NAV_LOCK_BADGE } from "@/lib/nav-locks";
 
 function isActivePath(pathname: string, href: string): boolean {
   return (
@@ -60,6 +60,7 @@ export function SectionTabs({ groupId }: { groupId: NavGroupId }) {
           {group.tabs.map((tab) => {
             const active = isActivePath(pathname, tab.href);
             const lock = getNavLock(tab.href, tier);
+            const disabling = isLockDisabling(lock);
             const linkHref = lock?.kind === "pro" ? "/license" : tab.href;
             return (
               <Tab
@@ -68,10 +69,10 @@ export function SectionTabs({ groupId }: { groupId: NavGroupId }) {
                 href={linkHref}
                 className={[
                   "section-tab headless-tab",
-                  lock ? "opacity-60" : "",
+                  disabling ? "opacity-60" : "",
                   lock?.kind === "soon" ? "pointer-events-none" : "",
                 ].join(" ")}
-                aria-current={active && !lock ? "page" : undefined}
+                aria-current={active && !disabling ? "page" : undefined}
                 aria-disabled={lock?.kind === "soon" ? true : undefined}
                 title={lock?.tooltip ?? tab.description}
               >

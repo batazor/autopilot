@@ -129,8 +129,13 @@ class CenturyClient:
     def _ts_seconds() -> str:
         return str(int(time.time()))
 
-    def _ts_redeem(self) -> str:
-        """Timestamp for ``/api/gift_code``. KS expects milliseconds, WOS seconds."""
+    def _ts(self) -> str:
+        """API timestamp in the game's expected unit (KS ms, WOS seconds).
+
+        Applies to ``/api/player`` and ``/api/gift_code`` alike — the real
+        Kingshot browser client sends millisecond timestamps to both, so we
+        mirror that. ``redeem_time_unit`` carries the per-game unit.
+        """
         now = time.time()
         if self._game.redeem_time_unit == "ms":
             return str(int(now * 1000))
@@ -142,7 +147,7 @@ class CenturyClient:
 
     @_CENTURY_RETRY
     async def fetch_player(self, fid: int) -> PlayerData:
-        ts = self._ts_seconds()
+        ts = self._ts()
         sign = self._sign(("fid", str(fid)), ("time", ts))
         data = {"fid": str(fid), "time": ts, "sign": sign}
 
@@ -209,7 +214,7 @@ class CenturyClient:
         ``captcha_code`` is required when ``game.has_captcha`` is True (WOS);
         ignored otherwise (Kingshot — the API accepts the raw cdk + fid).
         """
-        ts = self._ts_redeem()
+        ts = self._ts()
         if self._game.has_captcha:
             if not captcha_code:
                 msg = f"{self._game.id}: captcha_code required"
@@ -228,8 +233,19 @@ class CenturyClient:
                 "sign": sign,
             }
         else:
-            sign = self._sign(("cdk", code), ("fid", str(fid)), ("time", ts))
-            data = {"fid": str(fid), "cdk": code, "time": ts, "sign": sign}
+            # Kingshot: no captcha, but the browser client still sends an empty
+            # ``captcha_code`` and includes it in the sign — omitting it yields a
+            # different MD5 and the server rejects the request.
+            sign = self._sign(
+                ("captcha_code", ""), ("cdk", code), ("fid", str(fid)), ("time", ts)
+            )
+            data = {
+                "fid": str(fid),
+                "cdk": code,
+                "captcha_code": "",
+                "time": ts,
+                "sign": sign,
+            }
 
         async with httpx.AsyncClient(headers=self._headers, timeout=self._timeout) as client:
             resp = await client.post(f"{self._game.base_url}/gift_code", data=data)

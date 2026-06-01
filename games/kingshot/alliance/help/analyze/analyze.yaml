@@ -1,0 +1,14 @@
+# Overlay rules for the Kingshot alliance "help all" button.
+# Mirrors games/wos/alliance/helper — when the help button is visible, tap it.
+# The `button.alliance.help` region must be labeled (area.yaml) before the
+# module is enabled (module.yaml `enabled: true`).
+overlay:
+  - name: alliance_help_button.visible
+    region: button.alliance.help
+    action: findIcon
+    device_level: true
+    screens:
+      - main_city
+    priority: 100_000
+    steps:
+      - click: button.alliance.help

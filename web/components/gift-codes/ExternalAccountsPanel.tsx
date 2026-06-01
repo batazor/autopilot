@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { AppTabs } from "@/components/headless";
 import {
   type ExternalAccount,
+  type ExternalAccountCode,
+  externalAccountRedeemStreamUrl,
   FeatureLockedError,
   deleteExternalAccount,
+  fetchExternalAccountCodes,
   fetchExternalAccounts,
   redeemGiftCodes,
   toggleExternalAccount,
@@ -14,6 +24,180 @@ import {
 } from "@/lib/api";
 
 export type ExternalAccountsGame = { id: string; label: string };
+
+function CodeStatusPill({ c }: { c: ExternalAccountCode }) {
+  const cls = c.redeemed
+    ? "pill-live"
+    : c.slot_expired
+      ? "pill-paused"
+      : c.needs_run
+        ? "pill-offline"
+        : "pill-paused";
+  return <span className={`status-pill ${cls}`}>{c.status}</span>;
+}
+
+// Expanded child row under one external account: per-code status table plus a
+// "Run now" button that streams redeem progress (SSE) into a progress bar.
+function AccountCodesRow({
+  game,
+  playerId,
+  licensed,
+  colSpan,
+  onRedeemed,
+}: {
+  game: string;
+  playerId: number;
+  licensed: boolean;
+  colSpan: number;
+  onRedeemed: () => void;
+}) {
+  const [codes, setCodes] = useState<ExternalAccountCode[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number; message: string } | null>(
+    null,
+  );
+  const [runError, setRunError] = useState<string | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+
+  const loadCodes = useCallback(async () => {
+    try {
+      const data = await fetchExternalAccountCodes(game, playerId);
+      setCodes(data.codes);
+      setLoadError(null);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
+    }
+  }, [game, playerId]);
+
+  useEffect(() => {
+    void loadCodes();
+    return () => {
+      esRef.current?.close();
+    };
+  }, [loadCodes]);
+
+  const run = () => {
+    if (running) return;
+    setRunError(null);
+    setProgress({ done: 0, total: 0, message: "starting…" });
+    setRunning(true);
+    const es = new EventSource(externalAccountRedeemStreamUrl(game, playerId));
+    esRef.current = es;
+    es.onmessage = (ev) => {
+      let data: { type: string; done?: number; total?: number; message?: string };
+      try {
+        data = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      if (data.type === "progress") {
+        setProgress({ done: data.done ?? 0, total: data.total ?? 0, message: data.message ?? "" });
+      } else if (data.type === "done") {
+        es.close();
+        setRunning(false);
+        void loadCodes();
+        onRedeemed();
+      } else if (data.type === "error") {
+        es.close();
+        setRunning(false);
+        setRunError(data.message ?? "redeem failed");
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      setRunning(false);
+      setRunError((prev) => prev ?? "connection error during redeem");
+    };
+  };
+
+  const pending = codes?.filter((c) => c.needs_run).length ?? 0;
+  const pct =
+    progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+
+  return (
+    <tr>
+      <td colSpan={colSpan} className="bg-wos-panel-raised/40">
+        <div className="flex flex-col gap-3 p-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs uppercase tracking-wide text-wos-text-muted">
+              Gift codes for {playerId}
+            </span>
+            {licensed ? (
+              <button
+                type="button"
+                className="btn-primary px-2 py-1 text-xs"
+                onClick={run}
+                disabled={running}
+                title={pending ? `${pending} code(s) need redeeming` : "Re-run redeem for this account"}
+              >
+                {running ? "Running…" : `Run now ${pending ? `(${pending})` : ""}`}
+              </button>
+            ) : (
+              <span className="meta">read-only — upgrade to run</span>
+            )}
+            {progress ? (
+              <span className="meta">
+                {progress.total > 0 ? `${progress.done}/${progress.total}` : "—"} · {progress.message}
+              </span>
+            ) : null}
+          </div>
+
+          {progress && (running || pct > 0) ? (
+            <div
+              className="h-2 w-full overflow-hidden rounded-full bg-wos-border-subtle"
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className={`h-full rounded-full bg-sky-400 transition-[width] duration-300 ${running && progress.total === 0 ? "animate-pulse" : ""}`}
+                style={{ width: `${running && progress.total === 0 ? 100 : pct}%` }}
+              />
+            </div>
+          ) : null}
+
+          {runError ? <div className="error-banner">{runError}</div> : null}
+          {loadError ? <div className="error-banner">{loadError}</div> : null}
+
+          {codes === null ? (
+            <p className="muted">Loading codes…</p>
+          ) : codes.length === 0 ? (
+            <p className="meta">No gift codes known yet.</p>
+          ) : (
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Gift code</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    <th>Needs run</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codes.map((c) => (
+                    <tr key={c.code} className={c.slot_expired ? "row-disabled" : undefined}>
+                      <td>
+                        <code>{c.code}</code>
+                      </td>
+                      <td>
+                        <CodeStatusPill c={c} />
+                      </td>
+                      <td className="meta">{c.expires}</td>
+                      <td>{c.needs_run ? "yes" : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
 
 function PanelTitle({ accountsCount }: { accountsCount: number }) {
   return (
@@ -110,6 +294,9 @@ export function ExternalAccountsPanel({
   // Inline update (edit the label of an existing row).
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
+
+  // Which account's per-code child table is expanded (one at a time).
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -351,11 +538,22 @@ export function ExternalAccountsPanel({
             <tbody>
               {accounts.map((a) => {
                 const editing = editingId === a.player_id;
+                const expanded = expandedId === a.player_id;
                 return (
-                  <tr key={a.player_id} className={a.enabled ? undefined : "row-disabled"}>
-                    <td>
-                      <code>{a.player_id}</code>
-                    </td>
+                  <Fragment key={a.player_id}>
+                    <tr className={a.enabled ? undefined : "row-disabled"}>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn-secondary mr-1.5 px-1.5 py-0.5 text-xs"
+                          aria-expanded={expanded}
+                          title={expanded ? "Hide gift codes" : "Show gift codes"}
+                          onClick={() => setExpandedId(expanded ? null : a.player_id)}
+                        >
+                          {expanded ? "▾" : "▸"}
+                        </button>
+                        <code>{a.player_id}</code>
+                      </td>
                     <td>{a.nickname || "—"}</td>
                     <td>
                       {editing ? (
@@ -429,8 +627,18 @@ export function ExternalAccountsPanel({
                           </button>
                         </div>
                       )}
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
+                    {expanded ? (
+                      <AccountCodesRow
+                        game={game}
+                        playerId={a.player_id}
+                        licensed={licensed}
+                        colSpan={7}
+                        onRedeemed={load}
+                      />
+                    ) : null}
+                  </Fragment>
                 );
               })}
             </tbody>

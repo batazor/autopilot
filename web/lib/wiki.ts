@@ -26,6 +26,7 @@ export type GiftCodeRow = {
 };
 
 export type GiftCodesView = {
+  game: string;
   codes_path: string;
   devices_path: string;
   parse_error: string | null;

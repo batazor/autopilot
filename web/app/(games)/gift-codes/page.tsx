@@ -29,7 +29,22 @@ const STATUS_CLASS: Record<string, string> = {
   CDK_EXPIRED: "pill-offline",
   CDK_NOT_FOUND: "pill-offline",
   STOVE_LEVEL_TOO_LOW: "pill-danger",
+  VIP_LEVEL_TOO_LOW: "pill-danger",
   FAILED: "pill-danger",
+};
+
+// Hover help shown on each status pill so operators can read what a state
+// means without cross-referencing the err_code table.
+const STATUS_HELP: Record<string, string> = {
+  PENDING: "Queued — not attempted yet.",
+  SUCCESS: "Redeemed successfully.",
+  ALREADY_RECEIVED: "This account already claimed this code.",
+  CDK_EXPIRED: "The code has expired.",
+  CDK_NOT_FOUND: "The game server doesn't recognize this code.",
+  STOVE_LEVEL_TOO_LOW: "Furnace / Town Center level too low for this code.",
+  VIP_LEVEL_TOO_LOW: "Account VIP level too low for this code.",
+  FAILED:
+    "Redeem failed — often transient (e.g. Kingshot login/session expired, err_code 40009). Retried on the next run.",
 };
 
 function GiftCodesTable({
@@ -76,9 +91,11 @@ function GiftCodesTable({
                   const p = r.players[pid];
                   const st = p?.status ?? "—";
                   const cls = STATUS_CLASS[st] ?? "pill-offline";
+                  const help = STATUS_HELP[st];
+                  const tip = [help, p?.label].filter(Boolean).join(" — ") || undefined;
                   return (
                     <td key={pid}>
-                      <span className={`status-pill ${cls}`} title={p?.label}>
+                      <span className={`status-pill ${cls}`} title={tip}>
                         {st}
                       </span>
                     </td>

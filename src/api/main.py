@@ -97,6 +97,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     instances,
     labeling,
     modules,
+    notify,
     onboarding,
     optimizer,
     overlay_test,
@@ -163,6 +164,7 @@ app.include_router(adb.router)
 app.include_router(dev_bot.router)
 app.include_router(balance.router)
 app.include_router(optimizer.router)
+app.include_router(notify.router)
 app.include_router(edit_dsl.router)
 app.include_router(license_routes.router)
 app.include_router(config_reload.router)

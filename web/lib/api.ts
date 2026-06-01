@@ -574,8 +574,9 @@ function labelingScopeQuery(
 }
 
 export async function fetchLabelingScopes(): Promise<LabelingScopeOption[]> {
+  const qs = new URLSearchParams(gameQueryEntries()).toString();
   const data = await apiFetch<{ scopes: LabelingScopeOption[] }>(
-    "/api/labeling/scopes",
+    qs ? `/api/labeling/scopes?${qs}` : "/api/labeling/scopes",
   );
   return data.scopes;
 }
@@ -896,9 +897,15 @@ export async function bindLabelingVersionOcr(
   );
 }
 
-export async function fetchGiftCodes(q = ""): Promise<GiftCodesView> {
-  const params = q ? `?q=${encodeURIComponent(q)}` : "";
-  return apiFetch<GiftCodesView>(`/api/gift-codes${params}`);
+export async function fetchGiftCodes(
+  q = "",
+  game = "wos",
+): Promise<GiftCodesView> {
+  const sp = new URLSearchParams();
+  if (q) sp.set("q", q);
+  if (game) sp.set("game", game);
+  const params = sp.toString();
+  return apiFetch<GiftCodesView>(`/api/gift-codes${params ? `?${params}` : ""}`);
 }
 
 export async function scrapeGiftCodes(): Promise<{ ok: boolean; new_codes: string[]; count: number }> {
@@ -1012,6 +1019,41 @@ export async function deleteExternalAccount(
     `/api/gift-codes/external-accounts/${playerId}?${q}`,
     { method: "DELETE" },
   );
+}
+
+// Per-code redemption status for one external account (child table).
+export type ExternalAccountCode = {
+  code: string;
+  expires: string;
+  slot_expired: boolean;
+  status: string;
+  redeemed: boolean;
+  needs_run: boolean;
+};
+
+export type ExternalAccountCodesView = {
+  fid: string;
+  nickname: string;
+  feature_licensed: boolean;
+  codes: ExternalAccountCode[];
+  summary: { total: number; redeemed: number; needs_run: number };
+};
+
+export async function fetchExternalAccountCodes(
+  game: string,
+  playerId: number,
+): Promise<ExternalAccountCodesView> {
+  const q = new URLSearchParams({ game }).toString();
+  return externalAccountsFetch<ExternalAccountCodesView>(
+    `/api/gift-codes/external-accounts/${playerId}/codes?${q}`,
+  );
+}
+
+/** SSE endpoint that streams redeem progress for one account. Consume with
+ *  EventSource; frames are JSON {type:'progress'|'done'|'error', ...}. */
+export function externalAccountRedeemStreamUrl(game: string, playerId: number): string {
+  const q = new URLSearchParams({ game }).toString();
+  return `${base}/api/gift-codes/external-accounts/${playerId}/redeem/stream?${q}`;
 }
 
 export async function fetchWikiScopes(game?: string): Promise<WikiScope[]> {
@@ -1231,7 +1273,7 @@ export async function fetchGallery(
   scope = "all",
   q = "",
 ): Promise<{ items: GalleryItem[]; count: number }> {
-  const params = new URLSearchParams({ scope });
+  const params = new URLSearchParams({ scope, ...gameQueryEntries() });
   if (q) params.set("q", q);
   return apiFetch(`/api/gallery?${params}`);
 }

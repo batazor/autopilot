@@ -5,6 +5,7 @@ export type NavGroupIconId = NavGroupId;
 
 export const NAV_GROUP_ICONS: Record<NavGroupId, IconName> = {
   operate: "operate",
+  games: "games",
   debug: "debug",
   assets: "assets",
   config: "config",
@@ -34,7 +35,6 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/optimizer": "optimizer",
   "/gift-codes": "gift-codes",
   "/wiki": "wiki",
-  "/games/kingshot": "wiki",
   "/labeling": "labeling",
   "/edit-dsl": "edit-dsl",
   "/modules": "modules",

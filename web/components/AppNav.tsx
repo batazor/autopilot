@@ -22,6 +22,7 @@ import { VersionFooterRow } from "@/components/VersionBadge";
 import { fetchLicenseStatus } from "@/lib/api";
 import {
   getNavLock,
+  isLockDisabling,
   NAV_LOCK_BADGE,
   type NavLock,
 } from "@/lib/nav-locks";
@@ -476,7 +477,7 @@ function NavRow({
   lock?: NavLock;
   onNavigate?: () => void;
 }) {
-  const locked = Boolean(lock);
+  const disabling = isLockDisabling(lock);
   const showDesc = active && description;
   const linkHref = lock?.kind === "pro" ? "/license" : href;
   const title = lock ? lock.tooltip : description;
@@ -497,13 +498,13 @@ function NavRow({
         onClick={handleClick}
         className={[
           "nav-link",
-          active && !locked ? "nav-link--active" : "",
+          active && !disabling ? "nav-link--active" : "",
           highlighted ? "nav-link--highlighted" : "",
           variant === "pinned" ? "nav-link--pinned" : "",
-          locked ? "opacity-60" : "",
+          disabling ? "opacity-60" : "",
           lock?.kind === "soon" ? "cursor-not-allowed" : "",
         ].join(" ")}
-        aria-current={active && !locked ? "page" : undefined}
+        aria-current={active && !disabling ? "page" : undefined}
         aria-disabled={lock?.kind === "soon" ? true : undefined}
         title={title}
       >

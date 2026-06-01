@@ -8,6 +8,7 @@ import {
   fetchClickApprovalStatus,
   fetchAdbStatus,
   fetchBotStatus,
+  fetchInstanceGames,
   fetchInstances,
   fetchOverview,
   startLocalBot,
@@ -40,6 +41,30 @@ const BOT_POLL_MS = 4000;
 const BOT_STATUS_QUERY_KEY = ["botStartBanner"] as const;
 const BOT_FLEET_QUERY_KEY = ["botStartBannerFleet"] as const;
 const FLEET_INSTANCES_QUERY_KEY = ["fleetInstances"] as const;
+const FLEET_INSTANCE_GAMES_QUERY_KEY = ["fleetInstanceGames"] as const;
+
+const GAME_LABELS: Record<string, string> = {
+  wos: "Whiteout Survival",
+  kingshot: "Kingshot",
+};
+
+// Small per-instance game badge — mirrors the Overview fleet table so the
+// operator can see which game a device runs (or will run) at a glance.
+function GameIcon({ game }: { game: string }) {
+  const slug = (game || "").toLowerCase();
+  if (slug !== "wos" && slug !== "kingshot") return null;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/games/${slug}.webp`}
+      alt={GAME_LABELS[slug] ?? slug}
+      width={16}
+      height={16}
+      className="nav-bot-banner__game-icon"
+      title={GAME_LABELS[slug] ?? slug}
+    />
+  );
+}
 
 function approvalStatusQueryKey(instanceId: string) {
   return ["botStartBannerApproval", instanceId] as const;
@@ -95,7 +120,13 @@ function useDeviceSwitcher() {
     queryFn: fetchInstances,
     refetchInterval: BOT_POLL_MS,
   });
+  const gamesQuery = useQuery<Record<string, string>>({
+    queryKey: FLEET_INSTANCE_GAMES_QUERY_KEY,
+    queryFn: fetchInstanceGames,
+    refetchInterval: BOT_POLL_MS,
+  });
   const instances = instancesQuery.data ?? [];
+  const games = gamesQuery.data ?? {};
   const [selected, setSelected] = useState("");
 
   useEffect(() => {
@@ -137,15 +168,17 @@ function useDeviceSwitcher() {
     [instances, index, select],
   );
 
-  return { instances, current, index, step };
+  return { instances, current, index, step, games };
 }
 
 type DeviceSwitcherState = ReturnType<typeof useDeviceSwitcher>;
 
 function DeviceCarousel({ switcher }: { switcher: DeviceSwitcherState }) {
-  const { instances, current, index, step } = switcher;
+  const { instances, current, index, step, games } = switcher;
   if (instances.length === 0) return null;
   const multi = instances.length > 1;
+  const currentGame = current ? (games[current] ?? "") : "";
+  const gameLabel = GAME_LABELS[currentGame] ?? currentGame;
   return (
     <div
       className="nav-bot-banner__devnav"
@@ -162,7 +195,11 @@ function DeviceCarousel({ switcher }: { switcher: DeviceSwitcherState }) {
       >
         <Icon name="chevron-left" size="sm" />
       </button>
-      <span className="nav-bot-banner__devnav-label" title={current}>
+      <span
+        className="nav-bot-banner__devnav-label"
+        title={gameLabel ? `${current} · ${gameLabel}` : current}
+      >
+        <GameIcon game={currentGame} />
         <span className="nav-bot-banner__devnav-name">{current || "—"}</span>
         {multi ? (
           <span className="nav-bot-banner__badge">

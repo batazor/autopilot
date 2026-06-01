@@ -21,11 +21,18 @@ from dashboard.reference_preview import list_reference_pngs
 _REPO = repo_root()
 
 
-def _context_for_scope(scope: str) -> WikiModuleContext:
+def _request_game() -> str:
+    """Active game for the current request (set by ``request_game`` dependency)."""
+    from api.services.game_resolver import current_request_game
+
+    return current_request_game()
+
+
+def _context_for_scope(scope: str, *, game: str) -> WikiModuleContext:
     scope = normalize_module_scope(scope)
     if scope in (ALL_MODULES_KEY, CORE_MODULE_KEY):
         return all_modules_context(_REPO)
-    for ctx in list_labeling_modules(_REPO):
+    for ctx in list_labeling_modules(_REPO, game=game):
         if ctx.storage_key == scope or ctx.module_id == scope:
             return ctx
     return all_modules_context(_REPO)
@@ -53,8 +60,12 @@ def _refs_for_png(rel: str, area_doc: dict[str, Any]) -> list[str]:
     return out
 
 
-def _collect_reference_roots(ctx: WikiModuleContext) -> list[Path]:
-    """Aggregate references_dir across modules for ``all`` / ``core`` scopes."""
+def _collect_reference_roots(ctx: WikiModuleContext, *, game: str) -> list[Path]:
+    """Aggregate references_dir across modules for ``all`` / ``core`` scopes.
+
+    Only the active ``game``'s modules are walked, so the "All"/"Core" scopes
+    show that game's references rather than every game's.
+    """
     roots: list[Path] = []
     seen: set[Path] = set()
 
@@ -65,12 +76,12 @@ def _collect_reference_roots(ctx: WikiModuleContext) -> list[Path]:
             roots.append(r)
 
     if ctx.is_all:
-        for mctx in list_labeling_modules(_REPO):
+        for mctx in list_labeling_modules(_REPO, game=game):
             _push(mctx.references_dir)
         return roots
     if ctx.module_id is None:
         _push(ctx.references_dir)
-        for mctx in list_labeling_modules(_REPO):
+        for mctx in list_labeling_modules(_REPO, game=game):
             if mctx.module_dir is not None and is_core_nested_module(mctx.module_dir, _REPO):
                 _push(mctx.references_dir)
         return roots
@@ -79,9 +90,10 @@ def _collect_reference_roots(ctx: WikiModuleContext) -> list[Path]:
 
 
 def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
-    ctx = _context_for_scope(scope)
+    game = _request_game()
+    ctx = _context_for_scope(scope, game=game)
     area_doc, ref_prefix = _area_doc_for_context(ctx)
-    roots = _collect_reference_roots(ctx)
+    roots = _collect_reference_roots(ctx, game=game)
     seen_paths: set[Path] = set()
     paths: list[Path] = []
     for r in roots:

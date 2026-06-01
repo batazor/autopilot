@@ -90,6 +90,11 @@ class InstanceWorkerRedisMixin(_Base):
                 "nav_error": "",
                 "nav_target": "",
                 "current_screen": "",
+                # The game this worker is actually running. Persisted so the
+                # dashboard's per-instance game badge reflects what's live (or
+                # last ran) rather than the static device-profile config — the
+                # field survives worker stop, so it doubles as "last game run".
+                "game": str(getattr(self._cfg, "game", "") or ""),
             },
         )
         if restored_player:

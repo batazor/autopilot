@@ -1,9 +1,12 @@
 """Gift codes dashboard data."""
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from century.gift_codes.models import RedeemStatus
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 from century.gift_codes.wos import poll_once, run_gift_code_redeemer
 from config.devices import load_devices
 from config.giftcodes_db import list_codes
@@ -48,8 +51,8 @@ def _build_row(code: Any, player_ids: list[str], registry: Any) -> dict[str, Any
     return row
 
 
-def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
-    codes = list_codes()
+def build_gift_codes_view(*, query: str = "", game: str = "wos") -> dict[str, Any]:
+    codes = list_codes(game=game)
     registry = load_devices()
     player_ids = list(dict.fromkeys(registry.all_player_ids()))
     for c in codes:
@@ -91,6 +94,7 @@ def build_gift_codes_view(*, query: str = "") -> dict[str, Any]:
             active.append(row)
 
     return {
+        "game": game,
         "codes_db": str(state_db_path().relative_to(_REPO)),
         "devices_path": str(state_db_path().relative_to(_REPO)),
         "parse_error": None,
@@ -235,3 +239,101 @@ def delete_external_account(*, game: str, player_id: int) -> dict[str, Any]:
         msg = f"external account not found: game={game} player_id={player_id}"
         raise KeyError(msg)
     return {"ok": True, "game": game, "player_id": player_id}
+
+
+def require_external_accounts_feature() -> None:
+    """Raise ``LicenseError`` unless the external-accounts feature is licensed.
+
+    Lets the router gate the SSE redeem endpoint *before* the stream starts, so
+    an unlicensed caller gets a clean 402 instead of a half-open event stream.
+    """
+    from licensing.gate import require_feature
+
+    require_feature(_EXTERNAL_FEATURE)
+
+
+def external_account_codes(player_id: int, *, game: str = "wos") -> dict[str, Any]:
+    """Per-code redemption status for one external account (child table).
+
+    Reads-only and always allowed (mirrors :func:`list_external_accounts`), so
+    the status table renders even for read-only rows after a license downgrade.
+    """
+    from config.giftcodes_db import list_external_gamers
+    from licensing.gate import has_feature
+
+    pid = str(player_id)
+    codes = list_codes(game=game)
+
+    nickname = pid
+    for ext in list_external_gamers(game=game):
+        if str(ext.player_id) == pid:
+            nickname = ext.nickname or pid
+            break
+
+    rows: list[dict[str, Any]] = []
+    for code in codes:
+        status = code.user_for.get(pid, RedeemStatus.PENDING)
+        rows.append(
+            {
+                "code": code.name,
+                "expires": code.expires.isoformat() if code.expires else "—",
+                "slot_expired": code.is_effectively_expired(),
+                "status": status.value,
+                "redeemed": status.value in _REDEEMED,
+                "needs_run": bool(
+                    not code.is_effectively_expired() and code.needs_redemption(pid)
+                ),
+            }
+        )
+
+    redeemed = sum(1 for r in rows if r["redeemed"])
+    needs_run = sum(1 for r in rows if r["needs_run"])
+    return {
+        "fid": pid,
+        "nickname": nickname,
+        "feature_licensed": has_feature(_EXTERNAL_FEATURE),
+        "codes": rows,
+        "summary": {"total": len(rows), "redeemed": redeemed, "needs_run": needs_run},
+    }
+
+
+async def stream_external_account_redeem(
+    player_id: int, *, game: str = "wos"
+) -> AsyncIterator[dict[str, Any]]:
+    """Yield progress events while redeeming all pending codes for one account.
+
+    Runs the single-account redeemer on a background task whose ``progress_cb``
+    feeds an :class:`asyncio.Queue`; we drain the queue and yield events of the
+    form ``{"type": "progress"|"done"|"error", ...}``. Caller (router) wraps
+    each dict as an SSE ``data:`` frame.
+    """
+    import asyncio
+
+    from century.gift_codes.wos import run_gift_code_redeemer_for_player
+
+    queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+
+    def _cb(done: int, total: int, message: str) -> None:
+        queue.put_nowait(
+            {"type": "progress", "done": done, "total": total, "message": message}
+        )
+
+    async def _run() -> None:
+        try:
+            summary = await run_gift_code_redeemer_for_player(player_id, progress_cb=_cb)
+            attempted = len(getattr(summary, "results", []) or [])
+            queue.put_nowait({"type": "done", "attempted": attempted})
+        except Exception as exc:
+            queue.put_nowait({"type": "error", "message": str(exc)})
+        finally:
+            queue.put_nowait(None)
+
+    task = asyncio.create_task(_run())
+    try:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+    finally:
+        await task

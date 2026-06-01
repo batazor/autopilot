@@ -1,7 +1,11 @@
 id: main_city
 title: Main City (Kingshot)
-# Kingshot stub introduced in Phase 5 of the multi-game migration.
-# This module exists so the worker can boot with `device.game = "kingshot"`
-# and the scenario loader finds *something*. Real Kingshot modules are
-# authored separately once the labeling/area data is captured.
+description: >-
+  Kingshot main city screen — the navigation hub. Screen regions and the
+  detection landmark are captured via the Labeling UI (select game "kingshot",
+  module "main_city"). Until then area.yaml stays empty and the node is
+  registered through routes/screen_verify.yaml.
+area: area.yaml
+references: references
+scenarios: scenarios
 wiki: false

@@ -1,0 +1,9 @@
+id: alliance/help
+title: Alliance · Help (Kingshot)
+description: Alliance help-all automation — taps the help button when it is visible.
+wiki: false
+# Skeleton: the `button.alliance.help` region is not captured yet, so this
+# module opts out of discovery until labeling is done (see
+# `config.module_discovery._module_manifest_enabled`). Once the button is
+# labeled on a Kingshot `main_city` capture, set `enabled: true`.
+enabled: false

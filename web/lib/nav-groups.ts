@@ -1,4 +1,4 @@
-export type NavGroupId = "operate" | "debug" | "assets" | "config";
+export type NavGroupId = "operate" | "games" | "debug" | "assets" | "config";
 
 export type NavTab = {
   href: string;
@@ -29,6 +29,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    id: "games",
+    label: "Games",
+    description: "Per-game pages & gift codes",
+    defaultHref: "/gift-codes",
+    tabs: [
+      {
+        href: "/gift-codes",
+        label: "Gift codes",
+        description: "Century Game promo codes per game",
+      },
+    ],
+  },
+  {
     id: "debug",
     label: "Debug",
     description: "Approvals, queue & tooling",
@@ -50,6 +63,11 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Fishing Tournament model debugger",
       },
       {
+        href: "/notify-monitor",
+        label: "Notify monitor",
+        description: "Android notification events per player",
+      },
+      {
         href: "/queue",
         label: "Queue",
         description: "Fleet task queue",
@@ -68,12 +86,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/gallery", label: "Gallery" },
       { href: "/edit-dsl", label: "DSL editor" },
       { href: "/wiki", label: "Wiki reference" },
-      {
-        href: "/games/kingshot",
-        label: "Kingshot",
-        description: "Game page and authoring status",
-      },
-      { href: "/gift-codes", label: "Gift codes" },
     ],
   },
   {
