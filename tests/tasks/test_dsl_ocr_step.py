@@ -832,8 +832,9 @@ async def test_exec_fetch_player_role_not_exist_clears_active_player(
 
     async def fake_fetch_player(_self: Any, fid: int) -> PlayerData:
         calls["count"] += 1
+        msg = "player fetch failed: role not exist. err_code=40001"
         raise CenturyAPIError(
-            "player fetch failed: role not exist. err_code=40001",
+            msg,
             err_code=40001,
             api_msg="role not exist",
             endpoint="player",

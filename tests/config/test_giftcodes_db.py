@@ -5,8 +5,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
-from century.gift_codes.models import RedeemStatus
 
+from century.gift_codes.models import RedeemStatus
 from config.giftcodes_db import (
     code_exists,
     count_codes,

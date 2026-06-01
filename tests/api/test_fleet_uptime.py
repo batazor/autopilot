@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from api.services.fleet import _fleet_uptime
 
 

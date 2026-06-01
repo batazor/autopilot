@@ -5,7 +5,6 @@ from typing import Any
 
 from century.gift_codes.models import RedeemStatus
 from century.gift_codes.wos import poll_once, run_gift_code_redeemer
-
 from config.devices import load_devices
 from config.giftcodes_db import list_codes
 from config.paths import repo_root
