@@ -77,16 +77,35 @@ describe("NewModuleDialog", () => {
     await user.click(screen.getByRole("button", { name: /create/i }));
 
     await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
-    expect(spy).toHaveBeenCalledWith({
-      id: "my_feature",
-      title: "My Feature",
-      description: "desc",
-      parent: "",
-      wiki: false,
-    });
+    expect(spy).toHaveBeenCalledWith(
+      {
+        id: "my_feature",
+        title: "My Feature",
+        description: "desc",
+        parent: "",
+        wiki: false,
+      },
+      "wos",
+    );
     expect(onCreated).toHaveBeenCalledWith(sampleRow);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("saves the module under the selected game (initialGame)", async () => {
+    const user = userEvent.setup();
+    const spy = vi.spyOn(api, "createModule").mockResolvedValue(sampleRow);
+    arrange({ initialGame: "kingshot" });
+
+    await user.type(screen.getByPlaceholderText(/my_feature/i), "ks_feature");
+    await user.type(screen.getByPlaceholderText(/my feature/i), "KS Feature");
+    await user.click(screen.getByRole("button", { name: /create/i }));
+
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ks_feature" }),
+      "kingshot",
+    );
   });
 
   it("routes API errors to onError and keeps the dialog open", async () => {

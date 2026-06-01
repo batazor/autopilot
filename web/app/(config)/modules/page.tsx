@@ -365,6 +365,7 @@ export default function ModulesPage() {
       </div>
       <NewModuleDialog
         open={newOpen}
+        initialGame={game}
         onClose={() => setNewOpen(false)}
         onCreated={async (row) => {
           await reload();

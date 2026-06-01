@@ -1163,8 +1163,9 @@ export type CreateModuleInput = {
 
 export async function createModule(
   body: CreateModuleInput,
+  game?: string,
 ): Promise<ModuleRow> {
-  const q = new URLSearchParams(gameQueryEntries()).toString();
+  const q = new URLSearchParams(game ? { game } : gameQueryEntries()).toString();
   const data = await apiFetch<{ module: ModuleRow }>(
     `/api/modules${q ? `?${q}` : ""}`,
     {

@@ -17,7 +17,14 @@ type Props = {
   onClose: () => void;
   onCreated: (row: ModuleRow) => void;
   onError: (message: string) => void;
+  /** Game to save the new module under; defaults to the page's active game. */
+  initialGame?: string;
 };
+
+const GAME_OPTIONS = [
+  { value: "wos", label: "Whiteout Survival" },
+  { value: "kingshot", label: "Kingshot" },
+];
 
 const PARENT_OPTIONS = [
   { value: "", label: "(root) — modules/<id>/" },
@@ -29,7 +36,14 @@ const PARENT_OPTIONS = [
 
 const ID_PATTERN = /^[a-z][a-z0-9_]*$/;
 
-export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
+export function NewModuleDialog({
+  open,
+  onClose,
+  onCreated,
+  onError,
+  initialGame = "wos",
+}: Props) {
+  const [game, setGame] = useState(initialGame);
   const [moduleId, setModuleId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -39,32 +53,36 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
 
   useEffect(() => {
     if (!open) return;
+    setGame(initialGame);
     setModuleId("");
     setTitle("");
     setDescription("");
     setParent("");
     setWiki(false);
     setBusy(false);
-  }, [open]);
+  }, [open, initialGame]);
 
   const idValid = ID_PATTERN.test(moduleId.trim());
   const titleValid = title.trim().length > 0;
   const canSubmit = !busy && idValid && titleValid;
   const cleanId = moduleId.trim();
-  const locationPreview = `modules/${parent ? `${parent}/` : ""}${
+  const locationPreview = `games/${game}/${parent ? `${parent}/` : ""}${
     cleanId || "<id>"
   }/`;
 
   const handleSubmit = async () => {
     setBusy(true);
     try {
-      const row = await createModule({
-        id: moduleId.trim(),
-        title: title.trim(),
-        description: description.trim(),
-        parent,
-        wiki,
-      });
+      const row = await createModule(
+        {
+          id: moduleId.trim(),
+          title: title.trim(),
+          description: description.trim(),
+          parent,
+          wiki,
+        },
+        game,
+      );
       onCreated(row);
       onClose();
     } catch (err) {
@@ -138,6 +156,13 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
                   rows={2}
                 />
               </label>
+
+              <AppListbox
+                label="Game"
+                value={game}
+                onChange={setGame}
+                options={GAME_OPTIONS}
+              />
 
               <AppListbox
                 label="Parent"

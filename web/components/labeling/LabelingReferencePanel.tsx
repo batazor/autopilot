@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { AppListbox } from "@/components/headless";
 import { LabelingModuleCombobox } from "@/components/labeling/LabelingModuleCombobox";
 import {
@@ -73,6 +73,24 @@ export function LabelingReferencePanel({
     }
     return options;
   }, [filteredRefs, refRel]);
+
+  // Auto-select the first match as the filter narrows, so the preview follows
+  // the search without opening the dropdown. Only fires when the current
+  // selection isn't itself a match — so refining a query that still matches the
+  // selection leaves it (and the loaded doc) alone, and clearing the filter
+  // keeps the current selection.
+  useEffect(() => {
+    if (!filter.trim()) return;
+    const matches = filterReferences(refs, filter);
+    if (matches.length === 0) return;
+    if (matches.some((r) => r.rel === refRel)) return;
+    const first = [...matches].sort((a, b) =>
+      referenceSelectLabel(a).localeCompare(referenceSelectLabel(b), undefined, {
+        sensitivity: "base",
+      }),
+    )[0];
+    if (first && first.rel !== refRel) onSelect(first.rel);
+  }, [filter, refs, refRel, onSelect]);
 
   return (
     <details className="labeling-panel-block" open>

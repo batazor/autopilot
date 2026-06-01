@@ -34,6 +34,7 @@ import {
   refreshLabelingReference,
   renameLabelingReference,
   saveLabelingRegions,
+  setActiveGame,
   suggestLabelingVersionId,
   syncLabelingVersionRegions,
   updateLabelingVersionCond,
@@ -57,12 +58,60 @@ import type {
   LabelingStaleCrop,
 } from "@/lib/types";
 
+// Keep in sync with config/games.py::GAMES. Labels mirror the modules page.
+const GAME_OPTIONS: { value: string; label: string }[] = [
+  { value: "wos", label: "Whiteout Survival" },
+  { value: "kingshot", label: "Kingshot" },
+];
+
+function normalizeGame(value: string | null): string {
+  return GAME_OPTIONS.some((g) => g.value === value) ? (value as string) : "wos";
+}
+
+/**
+ * Turn a refresh failure into an operator-readable message. A live re-capture
+ * needs the instance's emulator reachable over ADB; when it isn't, the API
+ * returns a 503 whose body leaks raw ADB/worker internals ("device '…' not
+ * found", "rolling preview is ~Ns old"). Recognise that case and explain it
+ * plainly — refreshing is optional, so the rest of the page stays usable.
+ */
+function describeRefreshError(e: unknown, instanceId: string): string {
+  const raw = e instanceof Error ? e.message : String(e);
+  const offline =
+    /not found|isn't refreshing|isn’t refreshing|ADB failed|rolling preview|503/i.test(
+      raw,
+    );
+  if (offline) {
+    return (
+      `Can't capture a fresh screenshot for "${instanceId}": its emulator/device ` +
+      `is offline (ADB couldn't reach it). Start the emulator and the bot worker, ` +
+      `or pick an online instance. You can still edit the existing reference and ` +
+      `its regions without refreshing.`
+    );
+  }
+  return raw;
+}
+
 function LabelingPageInner() {
   const { showSuccess } = useFeedback();
   const params = useSearchParams();
   const router = useRouter();
   const versionParam = params.get("version") ?? "";
   const moduleParam = params.get("module") ?? "";
+
+  const [game, setGameState] = useState<string>(() =>
+    normalizeGame(params.get("game")),
+  );
+  // Mirror the selected game into lib/api's active-game cache so the labeling
+  // fetches (which read it via gameQueryEntries) emit ?game=. This page lives
+  // outside FleetContextProvider, so nothing else keeps that cache in sync.
+  // Done during render (guarded) so the value is correct before the scope /
+  // reference effects fire on the same commit.
+  const gameSyncRef = useRef<string | null>(null);
+  if (gameSyncRef.current !== game) {
+    setActiveGame(game);
+    gameSyncRef.current = game;
+  }
 
   const [scopes, setScopes] = useState<LabelingScopeOption[]>([]);
   const [scopesReady, setScopesReady] = useState(false);
@@ -255,6 +304,35 @@ function LabelingPageInner() {
     [router, scopes],
   );
 
+  const changeGame = useCallback(
+    (next: string) => {
+      const value = normalizeGame(next);
+      if (value === game) return;
+      // Scopes, references and crops are game-specific; reset the whole
+      // selection so we don't render the previous game's data against the new
+      // one. Sync the active-game cache immediately for the refetch.
+      setActiveGame(value);
+      setGameState(value);
+      setScopes([]);
+      setScopesReady(false);
+      setModuleScope("all");
+      setRefs([]);
+      setRefRel("");
+      setDoc(null);
+      setDirty(false);
+      setScreenDirty(false);
+      setSelectedId(null);
+      setError(null);
+      const url = new URL(window.location.href);
+      url.searchParams.set("game", value);
+      url.searchParams.delete("module");
+      url.searchParams.delete("ref");
+      url.searchParams.delete("version");
+      router.replace(url.pathname + url.search);
+    },
+    [game, router],
+  );
+
   const selectRef = useCallback(
     (rel: string, version?: string | null) => {
       setRefRel(rel);
@@ -421,13 +499,21 @@ function LabelingPageInner() {
 
   const confirmRefresh = async () => {
     if (!refRel || !instanceId || busy) return;
-    await runBusy(async () => {
+    // Always close the confirm dialog first — on failure the old code left it
+    // open because setRefreshPending(false) only ran after a successful refresh.
+    setRefreshPending(false);
+    setBusy(true);
+    setError(null);
+    try {
       await refreshLabelingReference(refRel, instanceId, moduleScope);
       setImageNonce((n) => n + 1);
       await loadDoc(refRel, activeVersion);
-      setRefreshPending(false);
       showSuccess(`Refreshed ${displayRef}`);
-    });
+    } catch (e) {
+      setError(describeRefreshError(e, instanceId));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onDiscard = () => {
@@ -634,6 +720,15 @@ function LabelingPageInner() {
       <ErrorBanner message={error ?? instancesError} />
 
       <div className="labeling-header-toolbar toolbar">
+        <AppListbox
+          inline
+          label="Game"
+          value={game}
+          onChange={changeGame}
+          disabled={busy}
+          options={GAME_OPTIONS}
+          minWidth={170}
+        />
         <AppListbox
           inline
           label="Instance"
