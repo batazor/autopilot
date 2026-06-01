@@ -8,6 +8,7 @@ import {
   FeatureLockedError,
   deleteExternalAccount,
   fetchExternalAccounts,
+  redeemGiftCodes,
   toggleExternalAccount,
   upsertExternalAccount,
 } from "@/lib/api";
@@ -141,9 +142,21 @@ export function ExternalAccountsPanel({
         label: newLabel.trim() || undefined,
         validate_fid: true,
       });
-      setStatus(`Added ${id}.`);
       setNewId("");
       setNewLabel("");
+      await load();
+      // Add-then-run: immediately redeem so the new account picks up the
+      // current gift codes without a separate click. The add already
+      // succeeded, so a redeem failure is surfaced without losing the row.
+      setStatus(`Added ${id} — running redeem…`);
+      try {
+        await redeemGiftCodes();
+        setStatus(`Added ${id} and ran redeem.`);
+      } catch (err) {
+        setStatus(
+          `Added ${id}, but redeem failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -308,7 +321,7 @@ export function ExternalAccountsPanel({
             />
           </div>
           <button type="submit" className="btn-primary" disabled={busy || !newId.trim()}>
-            {busy ? "Adding…" : "Add account"}
+            {busy ? "Working…" : "Add & redeem"}
           </button>
           <button
             type="button"

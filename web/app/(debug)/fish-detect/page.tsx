@@ -101,7 +101,17 @@ export default function FishDetectPage() {
 
   return (
     <>
-      <FleetPageHeader title="Fish detect">
+      <FleetPageHeader
+        title="Fish detect"
+        titleBadge={
+          <span
+            className="rounded-full border border-amber-400/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300"
+            title="This feature is a work in progress"
+          >
+            In progress
+          </span>
+        }
+      >
         {result ? (
           <span
             className={`status-pill ${result.available ? "status-idle" : "pill-stale"}`}

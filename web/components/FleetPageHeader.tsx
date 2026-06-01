@@ -18,6 +18,8 @@ import {
 
 type FleetPageHeaderProps = {
   title: string;
+  /** Small inline badge rendered next to the title (e.g. an "in progress" tag). */
+  titleBadge?: ReactNode;
   children?: ReactNode;
   /** Show player dropdown (Player state and similar). */
   showPlayer?: boolean;
@@ -35,6 +37,7 @@ type QuickLink = {
 
 export function FleetPageHeader({
   title,
+  titleBadge,
   children,
   showPlayer = false,
   hideQuickLinks = false,
@@ -97,7 +100,10 @@ export function FleetPageHeader({
   return (
     <header className="app-header">
       <div className="min-w-0 flex-1">
-        <h1>{title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1>{title}</h1>
+          {titleBadge}
+        </div>
         {children ? (
           <div className="mt-1 max-w-4xl text-sm text-wos-text-secondary">
             {children}
