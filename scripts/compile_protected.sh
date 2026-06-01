@@ -72,6 +72,7 @@ for pkg in ${PKG_LIST}; do
         --module \
         --include-package="${pkg}" \
         --remove-output \
+        --no-docstrings \
         --quiet \
         --no-progressbar \
         --output-dir=. \
