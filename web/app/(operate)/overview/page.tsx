@@ -117,9 +117,6 @@ export default function OverviewPage() {
   return (
     <>
       <FleetPageHeader title="Overview" />
-      <div className="mb-3 flex items-center justify-end">
-        <LiveIndicator status={streamStatus} />
-      </div>
       <ErrorBanner
         message={errorMessage}
         onRetry={() => void overview.refetch()}
@@ -128,12 +125,43 @@ export default function OverviewPage() {
 
       {loading && !m ? <MetricsRowSkeleton count={5} /> : null}
       {m ? (
-        <div className="metrics-row">
+        <div className="metrics-row metrics-deck">
           <Metric label="Instances" value={String(m.instances)} />
-          <Metric label="Live workers" value={`${m.live_workers}/${m.instances}`} />
-          <Metric label="Queue" value={String(m.queue)} href={queueHref()} />
-          <Metric label="Busy" value={String(m.busy)} href={queueHref()} />
-          <Metric label="Locks" value={String(m.locks)} />
+          <Metric
+            label="Live workers"
+            value={`${m.live_workers}/${m.instances}`}
+            tone={
+              m.instances === 0
+                ? undefined
+                : m.live_workers === 0
+                  ? "danger"
+                  : m.live_workers < m.instances
+                    ? "warn"
+                    : "ok"
+            }
+            hint={
+              m.instances > 0 && m.live_workers < m.instances
+                ? `${m.instances - m.live_workers} down`
+                : undefined
+            }
+          />
+          <Metric
+            label="Queue"
+            value={String(m.queue)}
+            href={queueHref()}
+            tone={m.queue > 0 ? "accent" : undefined}
+          />
+          <Metric
+            label="Busy"
+            value={String(m.busy)}
+            href={queueHref()}
+            tone={m.busy > 0 ? "accent" : undefined}
+          />
+          <Metric
+            label="Locks"
+            value={String(m.locks)}
+            tone={m.locks > 0 ? "warn" : undefined}
+          />
         </div>
       ) : null}
 
@@ -146,7 +174,13 @@ export default function OverviewPage() {
       ) : null}
 
       <section className="panel">
-        <h2>Fleet</h2>
+        <div className="fleet-section__head">
+          <h2>Fleet</h2>
+          {data?.has_devices && optimisticFleet.length ? (
+            <span className="fleet-count">{optimisticFleet.length}</span>
+          ) : null}
+          <LiveIndicator status={streamStatus} />
+        </div>
         {data && !data.has_devices ? (
           <div className="ui-empty">
             <h3 className="ui-empty__title">No devices configured yet</h3>
@@ -224,28 +258,33 @@ function Metric({
   label,
   value,
   href,
+  tone,
+  hint,
 }: {
   label: string;
   value: string;
   href?: string;
+  tone?: "ok" | "warn" | "accent" | "danger";
+  hint?: string;
 }) {
+  const className = ["metric-card", tone ? `metric-card--${tone}` : null]
+    .filter(Boolean)
+    .join(" ");
   const inner = (
     <>
       <div className="label">{label}</div>
       <div className="value">{value}</div>
+      {hint ? <div className="hint">{hint}</div> : null}
     </>
   );
   if (href) {
     return (
-      <Link
-        href={href}
-        className="metric-card no-underline transition hover:border-wos-border hover:bg-wos-panel-raised/80"
-      >
+      <Link href={href} className={`${className} no-underline`}>
         {inner}
       </Link>
     );
   }
-  return <div className="metric-card">{inner}</div>;
+  return <div className={className}>{inner}</div>;
 }
 
 function GameIcon({ game }: { game: string }) {

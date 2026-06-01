@@ -47,7 +47,10 @@ export function FleetStatusGrid({
             title={row.alert || undefined}
           >
             <div className="fleet-tile__head">
-              <span className="fleet-tile__name">{row.instance_id}</span>
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <span className="fleet-tile__dot" aria-hidden />
+                <span className="fleet-tile__name">{row.instance_id}</span>
+              </span>
               <StatusPill status={row.status} />
             </div>
             <div className="fleet-tile__meta">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ExternalAccountsPanel,
   type ExternalAccountsGame,
@@ -18,6 +19,8 @@ const KNOWN_GAMES: ExternalAccountsGame[] = [
   { id: "wos", label: "Whiteout Survival" },
   { id: "kingshot", label: "Kingshot" },
 ];
+
+const DEFAULT_GAME = KNOWN_GAMES[0]?.id ?? "wos";
 
 const STATUS_CLASS: Record<string, string> = {
   PENDING: "pill-paused",
@@ -90,7 +93,42 @@ function GiftCodesTable({
   );
 }
 
-export default function GiftCodesPage() {
+function GiftCodesContent() {
+  const params = useSearchParams();
+  // Game lives in the URL (?game=…) so the selection is a shareable/bookmarkable
+  // reference. Falls back to wos for missing/unknown values.
+  const urlGameParam = params.get("game") ?? DEFAULT_GAME;
+  const urlGame = KNOWN_GAMES.some((g) => g.id === urlGameParam)
+    ? urlGameParam
+    : DEFAULT_GAME;
+
+  // Local state drives the UI synchronously. We mirror it to the URL via the
+  // History API for shareable links — router.replace() is unreliable for
+  // query-only changes in the App Router (it soft-navigates without updating
+  // useSearchParams), so the tab click would otherwise appear to do nothing.
+  const [game, setGameState] = useState(urlGame);
+
+  const setGame = useCallback((next: string) => {
+    setGameState(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("game", next);
+    window.history.replaceState(null, "", url.pathname + url.search);
+  }, []);
+
+  // Adopt the URL's game on external navigation (back/forward, fresh load, an
+  // in-app link carrying ?game=…), and canonicalize the URL so the active game
+  // is always explicit — bare /gift-codes (or an unknown value) becomes
+  // ?game=wos. Our own writes use replaceState, which doesn't re-fire
+  // useSearchParams, so this won't fight the local selection.
+  useEffect(() => {
+    setGameState(urlGame);
+    if (params.get("game") !== urlGame) {
+      const url = new URL(window.location.href);
+      url.searchParams.set("game", urlGame);
+      window.history.replaceState(null, "", url.pathname + url.search);
+    }
+  }, [params, urlGame]);
+
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchGiftCodes>> | null>(
     null,
   );
@@ -99,19 +137,15 @@ export default function GiftCodesPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [view, setView] = useState<"active" | "expired">("active");
-  // Lifted out of <ExternalAccountsPanel> so the selector lives at the top
-  // of the page where operators expect a global "what game am I working in"
-  // switch.
-  const [game, setGame] = useState<string>(KNOWN_GAMES[0]?.id ?? "wos");
 
   const load = useCallback(async () => {
     try {
-      setData(await fetchGiftCodes(filter));
+      setData(await fetchGiftCodes(filter, game));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [filter]);
+  }, [filter, game]);
 
   useEffect(() => {
     load();
@@ -153,7 +187,6 @@ export default function GiftCodesPage() {
 
       {KNOWN_GAMES.length > 1 ? (
         <AppTabs
-          variant="section"
           renderPanels={false}
           selectedKey={game}
           onChange={setGame}
@@ -266,5 +299,13 @@ export default function GiftCodesPage() {
         onGameChange={setGame}
       />
     </>
+  );
+}
+
+export default function GiftCodesPage() {
+  return (
+    <Suspense fallback={null}>
+      <GiftCodesContent />
+    </Suspense>
   );
 }

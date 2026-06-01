@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { AppTabs } from "@/components/headless";
 import {
@@ -13,27 +13,6 @@ import {
 } from "@/lib/api";
 
 export type ExternalAccountsGame = { id: string; label: string };
-
-type AddRow = { player_id: number; label: string };
-
-// Accepts either ``fid`` on its own or ``fid<TAB|space>label``.
-function parseBulk(text: string): { rows: AddRow[]; errors: string[] } {
-  const rows: AddRow[] = [];
-  const errors: string[] = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    const parts = line.split(/\s+/);
-    const idStr = parts[0] ?? "";
-    const id = Number(idStr);
-    if (!Number.isInteger(id) || id <= 0) {
-      errors.push(`${idStr || "(empty)"}: not a valid fid`);
-      continue;
-    }
-    rows.push({ player_id: id, label: parts.slice(1).join(" ") });
-  }
-  return { rows, errors };
-}
 
 function PanelTitle({ accountsCount }: { accountsCount: number }) {
   return (
@@ -51,6 +30,34 @@ function PanelTitle({ accountsCount }: { accountsCount: number }) {
         </span>
       ) : null}
     </h2>
+  );
+}
+
+// Summary status bar — same mini metric cards the gift-codes page uses, so the
+// panel reads as one cohesive screen with the standard gamer view above it.
+function StatusBar({
+  total,
+  enabled,
+}: {
+  total: number;
+  enabled: number;
+}) {
+  const items = [
+    { label: "Accounts", value: total },
+    { label: "Enabled", value: enabled },
+    { label: "Disabled", value: total - enabled },
+  ];
+  return (
+    <div className="mb-4 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))]">
+      {items.map((it) => (
+        <div key={it.label} className="panel !p-3">
+          <div className="text-xs uppercase tracking-wide text-wos-text-muted">
+            {it.label}
+          </div>
+          <div className="mt-1 text-xl font-semibold text-wos-text">{it.value}</div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -85,14 +92,23 @@ export function ExternalAccountsPanel({
       setUncontrolledGame(next);
     }
   };
+
   const [view, setView] = useState<{
     licensed: boolean;
     accounts: ExternalAccount[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [bulk, setBulk] = useState("");
-  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // Create form — only the gamer id is required; the API resolves the nickname
+  // via validate_fid and the label is an optional operator note.
+  const [newId, setNewId] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+
+  // Inline update (edit the label of an existing row).
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editLabel, setEditLabel] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -108,48 +124,29 @@ export function ExternalAccountsPanel({
     void load();
   }, [load]);
 
-  const onAdd = async () => {
+  const onCreate = async (e: FormEvent) => {
+    e.preventDefault();
     setStatus(null);
     setError(null);
-    const { rows, errors } = parseBulk(bulk);
-    if (errors.length) {
-      setError(errors.join(", "));
-      return;
-    }
-    if (!rows.length) {
-      setError("Nothing to add — paste one fid per line (optionally fid<space>label).");
+    const id = Number(newId.trim());
+    if (!Number.isInteger(id) || id <= 0) {
+      setError("Enter a valid gamer id (positive number).");
       return;
     }
     setBusy(true);
-    let added = 0;
-    let failed = 0;
-    const messages: string[] = [];
     try {
-      for (const row of rows) {
-        try {
-          await upsertExternalAccount(game, {
-            player_id: row.player_id,
-            label: row.label || undefined,
-            // validate_fid=true → API hits /api/player to confirm the fid
-            // and auto-populates the nickname.
-            validate_fid: true,
-          });
-          added += 1;
-        } catch (e) {
-          failed += 1;
-          if (e instanceof FeatureLockedError) {
-            // No point continuing — the Pro gate just rejected us. Surface
-            // the upsell and stop.
-            setError(e.message);
-            return;
-          }
-          messages.push(`${row.player_id}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-      const summary = `Added ${added}, failed ${failed}`;
-      setStatus(messages.length ? `${summary} — ${messages.join("; ")}` : summary);
-      setBulk("");
+      // validate_fid=true → API confirms the fid and auto-populates nickname.
+      await upsertExternalAccount(game, {
+        player_id: id,
+        label: newLabel.trim() || undefined,
+        validate_fid: true,
+      });
+      setStatus(`Added ${id}.`);
+      setNewId("");
+      setNewLabel("");
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -169,10 +166,44 @@ export function ExternalAccountsPanel({
     }
   };
 
+  const beginEdit = (acc: ExternalAccount) => {
+    setStatus(null);
+    setError(null);
+    setEditingId(acc.player_id);
+    setEditLabel(acc.label ?? "");
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditLabel("");
+  };
+
+  const saveEdit = async (acc: ExternalAccount) => {
+    setBusy(true);
+    setError(null);
+    try {
+      // validate_fid=false → label-only update, skip the /api/player round-trip.
+      await upsertExternalAccount(game, {
+        player_id: acc.player_id,
+        label: editLabel.trim() || undefined,
+        enabled: acc.enabled,
+        validate_fid: false,
+      });
+      cancelEdit();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onDelete = async (acc: ExternalAccount) => {
     if (
       typeof window !== "undefined" &&
-      !window.confirm(`Delete external account ${acc.player_id} (${acc.nickname || "no nickname"})?`)
+      !window.confirm(
+        `Delete external account ${acc.player_id} (${acc.nickname || "no nickname"})?`,
+      )
     ) {
       return;
     }
@@ -193,18 +224,15 @@ export function ExternalAccountsPanel({
   const showTabs = games.length > 1 && !isControlled;
   const tabs = games.map((g) => ({ key: g.id, label: g.label, title: g.id }));
 
+  const TabStrip = showTabs ? (
+    <AppTabs tabs={tabs} selectedKey={game} onChange={setGame} renderPanels={false} />
+  ) : null;
+
   if (view === null && !error) {
     return (
       <section className="panel panel--spaced">
         <PanelTitle accountsCount={0} />
-        {showTabs ? (
-          <AppTabs
-            tabs={tabs}
-            selectedKey={game}
-            onChange={setGame}
-            renderPanels={false}
-          />
-        ) : null}
+        {TabStrip}
         <p className="muted">Loading…</p>
       </section>
     );
@@ -212,18 +240,12 @@ export function ExternalAccountsPanel({
 
   const licensed = view?.licensed ?? false;
   const accounts = view?.accounts ?? [];
+  const enabledCount = accounts.filter((a) => a.enabled).length;
 
   return (
     <section className="panel panel--spaced">
       <PanelTitle accountsCount={accounts.length} />
-      {showTabs ? (
-        <AppTabs
-          tabs={tabs}
-          selectedKey={game}
-          onChange={setGame}
-          renderPanels={false}
-        />
-      ) : null}
+      {TabStrip}
       <p className="muted">
         Redeem this game&apos;s gift codes for accounts the bot does not own —
         alliance members, partner farms, secondary accounts on other hardware.
@@ -244,46 +266,59 @@ export function ExternalAccountsPanel({
         </div>
       ) : null}
 
+      <StatusBar total={accounts.length} enabled={enabledCount} />
+
       {error ? <div className="error-banner">{error}</div> : null}
       {status ? <p className="muted">{status}</p> : null}
 
       {licensed ? (
-        <div className="mb-4">
-          <label
-            htmlFor="bulk-add"
-            className="muted block text-xs uppercase tracking-wide"
-          >
-            Add accounts (one per line: <code>fid</code> or{" "}
-            <code>fid label</code>)
-          </label>
-          <textarea
-            id="bulk-add"
-            rows={4}
-            value={bulk}
-            onChange={(e) => setBulk(e.target.value)}
-            disabled={busy}
-            placeholder="401227964 Alliance: PHX/r24&#10;555000111 Farm-3"
-            className="mt-1 field-sizing-content max-h-80 w-full rounded-lg border border-wos-border-subtle bg-wos-input p-2 font-mono text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
-          />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={busy || !bulk.trim()}
-              onClick={onAdd}
+        <form onSubmit={onCreate} className="mb-4 flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="ext-add-id"
+              className="muted text-xs uppercase tracking-wide"
             >
-              {busy ? "Adding…" : "Add accounts"}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={load}
+              Gamer ID (fid) <span className="text-amber-300">*</span>
+            </label>
+            <input
+              id="ext-add-id"
+              inputMode="numeric"
+              required
+              value={newId}
+              onChange={(e) => setNewId(e.target.value.replace(/[^0-9]/g, ""))}
               disabled={busy}
-            >
-              Reload
-            </button>
+              placeholder="401227964"
+              className="w-40 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 font-mono text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+            />
           </div>
-        </div>
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="ext-add-label"
+              className="muted text-xs uppercase tracking-wide"
+            >
+              Label (optional)
+            </label>
+            <input
+              id="ext-add-label"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              disabled={busy}
+              placeholder="Alliance: PHX / Farm-3"
+              className="w-56 rounded-lg border border-wos-border-subtle bg-wos-input px-2.5 py-1.5 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+            />
+          </div>
+          <button type="submit" className="btn-primary" disabled={busy || !newId.trim()}>
+            {busy ? "Adding…" : "Add account"}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={load}
+            disabled={busy}
+          >
+            Reload
+          </button>
+        </form>
       ) : null}
 
       {accounts.length > 0 ? (
@@ -294,58 +329,102 @@ export function ExternalAccountsPanel({
                 <th>fid</th>
                 <th>Nickname</th>
                 <th>Label</th>
-                <th>Enabled</th>
+                <th>Status</th>
                 <th>Added</th>
                 <th>Last seen</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {accounts.map((a) => (
-                <tr key={a.player_id} className={a.enabled ? undefined : "row-disabled"}>
-                  <td>
-                    <code>{a.player_id}</code>
-                  </td>
-                  <td>{a.nickname || "—"}</td>
-                  <td>{a.label || "—"}</td>
-                  <td>
-                    <span className={`status-pill ${a.enabled ? "pill-live" : "pill-paused"}`}>
-                      {a.enabled ? "enabled" : "disabled"}
-                    </span>
-                  </td>
-                  <td>{fmtDate(a.added_at)}</td>
-                  <td>{fmtDate(a.last_seen_at)}</td>
-                  <td>
-                    {licensed ? (
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => onToggle(a)}
+              {accounts.map((a) => {
+                const editing = editingId === a.player_id;
+                return (
+                  <tr key={a.player_id} className={a.enabled ? undefined : "row-disabled"}>
+                    <td>
+                      <code>{a.player_id}</code>
+                    </td>
+                    <td>{a.nickname || "—"}</td>
+                    <td>
+                      {editing ? (
+                        <input
+                          autoFocus
+                          value={editLabel}
+                          onChange={(e) => setEditLabel(e.target.value)}
                           disabled={busy}
-                        >
-                          {a.enabled ? "Disable" : "Enable"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => onDelete(a)}
-                          disabled={busy}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="meta">read-only</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                          className="w-48 rounded-md border border-wos-border-subtle bg-wos-input px-2 py-1 text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+                        />
+                      ) : (
+                        a.label || "—"
+                      )}
+                    </td>
+                    <td>
+                      <span
+                        className={`status-pill ${a.enabled ? "pill-live" : "pill-paused"}`}
+                      >
+                        {a.enabled ? "enabled" : "disabled"}
+                      </span>
+                    </td>
+                    <td>{fmtDate(a.added_at)}</td>
+                    <td>{fmtDate(a.last_seen_at)}</td>
+                    <td>
+                      {!licensed ? (
+                        <span className="meta">read-only</span>
+                      ) : editing ? (
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            className="btn-primary px-2 py-1 text-xs"
+                            onClick={() => saveEdit(a)}
+                            disabled={busy}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1 text-xs"
+                            onClick={cancelEdit}
+                            disabled={busy}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-1">
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1 text-xs"
+                            onClick={() => onToggle(a)}
+                            disabled={busy}
+                          >
+                            {a.enabled ? "Disable" : "Enable"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1 text-xs"
+                            onClick={() => beginEdit(a)}
+                            disabled={busy}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2 py-1 text-xs"
+                            onClick={() => onDelete(a)}
+                            disabled={busy}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : licensed ? (
-        <p className="meta">No external accounts yet.</p>
+        <p className="meta">No external accounts yet — add one above.</p>
       ) : null}
     </section>
   );

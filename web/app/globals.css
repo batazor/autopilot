@@ -10,6 +10,7 @@
 @import "./styles/ui-core.css";
 @import "./styles/tables-status.css";
 @import "./styles/queue.css";
+@import "./styles/overview.css";
 @import "./styles/forms-misc.css";
 @import "./styles/labeling.css";
 @import "./styles/wiki-player.css";

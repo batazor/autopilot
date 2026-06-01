@@ -1,0 +1,176 @@
+/* Overview "command deck" polish — fleet ops console aesthetic.
+   Mission-control feel: tabular mono numerals, status-color language, subtle
+   depth + liveness motion. Scoped to the Overview page so other pages that
+   reuse .metric-card / .panel keep their existing look. */
+@layer components {
+  /* ---- Command deck (metrics strip) ------------------------------------ */
+
+  .metrics-deck {
+    @apply relative;
+  }
+
+  .metrics-deck .metric-card {
+    @apply relative isolate overflow-hidden transition-[transform,border-color,background-color,box-shadow] duration-200;
+  }
+
+  /* Top hairline accent — dim at rest, ignites on hover for clickable cards. */
+  .metrics-deck .metric-card::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px opacity-60 transition-opacity duration-200;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      var(--metric-accent, var(--wos-border-hover)),
+      transparent
+    );
+  }
+
+  .metrics-deck a.metric-card:hover {
+    @apply -translate-y-0.5 border-wos-border bg-wos-panel-raised/80;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.18),
+      0 10px 26px -12px rgba(0, 0, 0, 0.5);
+  }
+
+  .metrics-deck a.metric-card:hover::before {
+    @apply opacity-100;
+  }
+
+  .metrics-deck .metric-card .label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-wos-text-muted;
+  }
+
+  .metrics-deck .metric-card .value {
+    @apply text-2xl font-semibold leading-none tabular-nums;
+    font-family: var(--font-mono);
+    letter-spacing: -0.02em;
+    color: var(--metric-accent, var(--wos-text));
+  }
+
+  /* Semantic tones — set the accent var used by the value + hairline. */
+  .metric-card--ok {
+    --metric-accent: var(--wos-status-ok-fg);
+  }
+  .metric-card--warn {
+    --metric-accent: var(--wos-status-warn-fg);
+  }
+  .metric-card--accent {
+    --metric-accent: var(--wos-accent-muted);
+  }
+  .metric-card--danger {
+    --metric-accent: var(--wos-status-danger-fg);
+  }
+
+  .metric-card .hint {
+    @apply mt-0.5 truncate text-[11px] font-medium text-wos-text-muted;
+  }
+
+  /* ---- Fleet section header -------------------------------------------- */
+
+  .fleet-section__head {
+    @apply mb-3 flex items-center gap-2.5;
+  }
+
+  .fleet-section__head h2 {
+    @apply m-0;
+  }
+
+  .fleet-count {
+    @apply inline-flex min-w-6 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised px-2 py-0.5 text-xs font-semibold tabular-nums text-wos-text-secondary;
+  }
+
+  .fleet-section__head .live-indicator {
+    @apply ml-auto;
+  }
+
+  /* ---- Fleet tiles: status dot, glow rail, depth, staggered reveal ------ */
+
+  .fleet-tile {
+    @apply relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+  }
+
+  .fleet-tile:hover {
+    @apply -translate-y-0.5;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.18),
+      0 12px 28px -14px rgba(0, 0, 0, 0.55);
+  }
+
+  .fleet-tile__dot {
+    @apply relative inline-block h-2.5 w-2.5 shrink-0 rounded-full;
+    background: var(--tile-accent, var(--wos-text-muted));
+  }
+
+  /* Breathing halo on the live dot — the one motion that says "this is live". */
+  .fleet-tile--live .fleet-tile__dot::after {
+    content: "";
+    @apply absolute inset-0 rounded-full;
+    background: var(--wos-status-ok-fg);
+    animation: fleet-dot-pulse 2s ease-in-out infinite;
+  }
+
+  .fleet-tile--live {
+    --tile-accent: var(--wos-status-ok-fg);
+    box-shadow:
+      inset 3px 0 0 -1px var(--wos-status-ok-fg),
+      0 1px 2px rgba(0, 0, 0, 0.14);
+  }
+  .fleet-tile--paused,
+  .fleet-tile--alert {
+    --tile-accent: var(--wos-status-warn-fg);
+  }
+  .fleet-tile--danger {
+    --tile-accent: var(--wos-status-danger-fg);
+  }
+  .fleet-tile--offline {
+    --tile-accent: var(--wos-border);
+  }
+
+  /* Staggered page-load reveal — orchestrated, not scattered. */
+  .fleet-grid .fleet-tile {
+    animation: fleet-tile-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+  .fleet-grid .fleet-tile:nth-child(1) { animation-delay: 0.02s; }
+  .fleet-grid .fleet-tile:nth-child(2) { animation-delay: 0.06s; }
+  .fleet-grid .fleet-tile:nth-child(3) { animation-delay: 0.1s; }
+  .fleet-grid .fleet-tile:nth-child(4) { animation-delay: 0.14s; }
+  .fleet-grid .fleet-tile:nth-child(5) { animation-delay: 0.18s; }
+  .fleet-grid .fleet-tile:nth-child(n + 6) { animation-delay: 0.22s; }
+
+  @keyframes fleet-dot-pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.7;
+    }
+    70%,
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
+
+  @keyframes fleet-tile-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fleet-tile--live .fleet-tile__dot::after {
+      animation: none;
+    }
+    .fleet-grid .fleet-tile {
+      animation: none;
+    }
+    .metrics-deck a.metric-card:hover,
+    .fleet-tile:hover {
+      @apply translate-y-0;
+    }
+  }
+}
