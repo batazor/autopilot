@@ -27,5 +27,34 @@ services:
       timeout: 5s
       retries: 3
 
+  # Roboflow object-detection inference server. Used by feature debuggers that
+  # locate objects a fixed template can't match (Fishing Tournament fish
+  # detector → model find-fish-ssnpa/6). The host process (``uv run play`` /
+  # ``uv run bot``) reaches it at http://127.0.0.1:9001 — matched by the
+  # ``WOS_INFERENCE_URL`` default. Set ROBOFLOW_API_KEY in ``.env`` so the
+  # server can pull model weights on first request (cached in the volume).
+  #
+  # OPTIONAL — gated behind the ``full`` / ``inference`` profile so the default
+  # ``docker compose up -d`` does not pull this image. Enable it with:
+  #     docker compose --profile full up -d
+  #     docker compose up -d inference   # (naming the service also starts it)
+  inference:
+    image: roboflow/roboflow-inference-server-cpu:latest
+    profiles: ["full", "inference"]
+    ports:
+      - "127.0.0.1:9001:9001"
+    environment:
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY:-}
+    volumes:
+      - inference_cache:/tmp/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9001/info')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   redis_data:
+  inference_cache:

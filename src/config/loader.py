@@ -42,6 +42,23 @@ class OcrConfig:
 
 
 @dataclass(frozen=True)
+class InferenceConfig:
+    """Object-detection inference sidecar (Roboflow inference server).
+
+    Used by feature debuggers (e.g. the Fishing Tournament fish detector) that
+    locate objects a fixed template can't. ``service_url`` points at the
+    self-hosted ``roboflow-inference-server-cpu`` container; ``api_key`` is the
+    Roboflow key the server uses to pull model weights on first request.
+    """
+
+    service_url: str = "http://127.0.0.1:9001"
+    api_key: str = ""
+    fish_model_id: str = "find-fish-ssnpa/6"
+    confidence: float = 0.4
+    timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
 class SchedulerConfig:
     interval_seconds: int = 30
     ortools_timeout_seconds: float = 1.0
@@ -87,6 +104,7 @@ class Settings:
     scheduler: SchedulerConfig
     worker: WorkerConfig
     instances: list[InstanceConfig]
+    inference: InferenceConfig = InferenceConfig()
 
 
 def _env_value(name: str) -> str:
@@ -99,6 +117,16 @@ def _env_int(name: str) -> int | None:
         return None
     try:
         return int(raw)
+    except ValueError:
+        return None
+
+
+def _env_float(name: str) -> float | None:
+    raw = _env_value(name)
+    if not raw:
+        return None
+    try:
+        return float(raw)
     except ValueError:
         return None
 
@@ -133,8 +161,21 @@ def load_settings(path: Path | None = None) -> Settings:
     if (ocr_timeout := _env_int("WOS_OCR_TIMEOUT_SECONDS")) is not None:
         ocr_raw["timeout_seconds"] = ocr_timeout
 
+    inference_raw = dict(raw.get("inference") or {})
+    if inference_url := _env_value("WOS_INFERENCE_URL"):
+        inference_raw["service_url"] = inference_url
+    if roboflow_key := _env_value("ROBOFLOW_API_KEY"):
+        inference_raw["api_key"] = roboflow_key
+    if fish_model := _env_value("WOS_FISH_MODEL_ID"):
+        inference_raw["fish_model_id"] = fish_model
+    if (fish_conf := _env_float("WOS_FISH_CONFIDENCE")) is not None:
+        inference_raw["confidence"] = fish_conf
+    if (infer_timeout := _env_float("WOS_INFERENCE_TIMEOUT_SECONDS")) is not None:
+        inference_raw["timeout_seconds"] = infer_timeout
+
     redis_cfg = RedisConfig(**redis_raw)
     ocr_cfg = OcrConfig(**ocr_raw)
+    inference_cfg = InferenceConfig(**inference_raw)
     scheduler_cfg = SchedulerConfig(**(raw.get("scheduler") or {}))
     worker_raw = dict(raw.get("worker") or {})
     device_display = parse_device_display(worker_raw.pop("device_display", None))
@@ -167,6 +208,7 @@ def load_settings(path: Path | None = None) -> Settings:
         scheduler=scheduler_cfg,
         worker=worker_cfg,
         instances=instances,
+        inference=inference_cfg,
     )
 
 

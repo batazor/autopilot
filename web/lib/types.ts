@@ -575,6 +575,35 @@ export type OverlayTestResult = {
   analysis: OverlayAnalysisSummary;
 };
 
+export type FishDetectionRow = {
+  /** Top-left corner (pixels, source-frame coords). */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Bounding-box center (tap target). */
+  center_x: number;
+  center_y: number;
+  confidence: number;
+  class_name: string;
+};
+
+export type FishDetectResult = {
+  instance_id: string;
+  /** False when the inference sidecar is unconfigured or unreachable. */
+  available: boolean;
+  model_id: string;
+  confidence: number;
+  frame_width: number;
+  frame_height: number;
+  preview_available: boolean;
+  preview_rel: string;
+  preview_mtime: number | null;
+  detections: FishDetectionRow[];
+  /** Populated (with available=false) when detection could not run. */
+  error: string;
+};
+
 export type ProbeCropSide = {
   available?: boolean;
   width?: number;

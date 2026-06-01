@@ -28,6 +28,7 @@ export const NAV_ICONS: Record<string, IconName> = {
   "/alliance-stats": "player-stats",
   "/approvals": "approvals",
   "/overlay-test": "overlay-test",
+  "/fish-detect": "overlay-test",
   "/queue": "queue",
   "/routes": "routes",
   "/optimizer": "optimizer",

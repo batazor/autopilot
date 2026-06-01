@@ -45,6 +45,11 @@ export const NAV_GROUPS: NavGroup[] = [
         description: "Rule match debugger",
       },
       {
+        href: "/fish-detect",
+        label: "Fish detect",
+        description: "Fishing Tournament model debugger",
+      },
+      {
         href: "/queue",
         label: "Queue",
         description: "Fleet task queue",

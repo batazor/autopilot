@@ -98,6 +98,7 @@ packages = [
     "src/optimizer",
     "src/scheduler",
     "src/dsl",
+    "src/inference",
     "src/popup",
     "src/tasks",
     "src/dashboard",

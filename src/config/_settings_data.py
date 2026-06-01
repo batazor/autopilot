@@ -29,6 +29,16 @@ SETTINGS: dict[str, Any] = {
         "interval_seconds": 30,
         "ortools_timeout_seconds": 1.0,
     },
+    # Object-detection inference sidecar (Roboflow inference server). Used by
+    # feature debuggers (Fishing Tournament fish detector). Override the URL /
+    # key via ``WOS_INFERENCE_URL`` / ``ROBOFLOW_API_KEY`` env vars.
+    "inference": {
+        "service_url": "http://127.0.0.1:9001",
+        "api_key": "",
+        "fish_model_id": "find-fish-ssnpa/6",
+        "confidence": 0.4,
+        "timeout_seconds": 30.0,
+    },
     "worker": {
         # adb path; align with UI adb override when needed.
         "adb_executable": "",

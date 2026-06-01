@@ -24,6 +24,7 @@ import type {
   AreaRegionProbeResult,
   ClickApprovalStatus,
   ClickApprovalView,
+  FishDetectResult,
   InstanceDetail,
   LabelingDocument,
   LabelingReferenceMeta,
@@ -504,6 +505,28 @@ export async function fetchAreaRegionProbe(
   return apiFetch<AreaRegionProbeResult>(
     `/api/instances/${encodeURIComponent(instanceId)}/area-region-probe${suffix}`,
   );
+}
+
+export async function fetchFishDetections(
+  instanceId: string,
+  options: { threshold?: number } = {},
+): Promise<FishDetectResult> {
+  const q = new URLSearchParams();
+  if (options.threshold != null) q.set("threshold", String(options.threshold));
+  const suffix = q.size ? `?${q}` : "";
+  return apiFetch<FishDetectResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/fish-detect${suffix}`,
+  );
+}
+
+export function fishDetectImageUrl(
+  instanceId: string,
+  cacheKey?: number | string | null,
+  options: { threshold?: number } = {},
+): string {
+  const q = new URLSearchParams({ t: String(cacheKey ?? Date.now()) });
+  if (options.threshold != null) q.set("threshold", String(options.threshold));
+  return `${base}/api/instances/${encodeURIComponent(instanceId)}/fish-detect/image?${q}`;
 }
 
 function labelingScopeQuery(
