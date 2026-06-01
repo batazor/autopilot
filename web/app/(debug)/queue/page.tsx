@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 
 const PENDING_PAGE_SIZE = 25;
 const HISTORY_PAGE_SIZE = 20;
@@ -68,6 +76,7 @@ import {
 } from "@/components/queue/QueueVisuals";
 import { QueuePendingCalendar } from "@/components/queue/QueuePendingCalendar";
 import { overlayTestHref, regionFromQueueHistory } from "@/lib/debug-links";
+import { PendingButton } from "@/components/ui/PendingButton";
 import { fetchQueue, removeQueueTasks, runQueueTaskNow } from "@/lib/api";
 import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import type { QueueView } from "@/lib/types";
@@ -87,17 +96,29 @@ export default function QueuePage() {
   }>({ col: "schedule", dir: "asc" });
   const [pendingPage, setPendingPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
+  const [isPending, startTransition] = useTransition();
+
+  // Optimistic pending list: removed task ids drop out on the current frame so
+  // rows vanish the moment Delete is clicked, before the server confirms. The
+  // list reverts to the fetched data once refresh() lands (or on error).
+  const [optimisticPending, dropPendingOptimistic] = useOptimistic(
+    data?.pending ?? [],
+    (rows, removedIds: string[]) =>
+      rows.filter((r) => !removedIds.includes(r.task_id)),
+  );
 
   const cycleSort = (col: "instance" | "player") => {
-    setPendingSort((prev) => {
-      if (prev.col !== col) return { col, dir: "asc" };
-      if (prev.dir === "asc") return { col, dir: "desc" };
-      return { col: "schedule", dir: "asc" };
+    startTransition(() => {
+      setPendingSort((prev) => {
+        if (prev.col !== col) return { col, dir: "asc" };
+        if (prev.dir === "asc") return { col, dir: "desc" };
+        return { col: "schedule", dir: "asc" };
+      });
     });
   };
 
   const sortedPending = useMemo(() => {
-    const rows = data?.pending ?? [];
+    const rows = optimisticPending;
     if (pendingSort.col === "schedule") return rows;
     const sign = pendingSort.dir === "asc" ? 1 : -1;
     const key = pendingSort.col === "instance" ? "instance_id" : "player_id";
@@ -109,7 +130,7 @@ export default function QueuePage() {
       if (cmp !== 0) return sign * cmp;
       return a.scheduled_at - b.scheduled_at;
     });
-  }, [data?.pending, pendingSort]);
+  }, [optimisticPending, pendingSort]);
 
   const sortArrow = (col: "instance" | "player") => {
     if (pendingSort.col !== col) return "";
@@ -229,20 +250,23 @@ export default function QueuePage() {
     }
   };
 
-  const onDelete = async () => {
+  const onDelete = () => {
     if (!selected.size || busy) return;
-    setBusy(true);
-    try {
-      const n = selected.size;
-      await removeQueueTasks([...selected]);
-      setSelected(new Set());
-      await refresh();
-      showSuccess(n === 1 ? "Removed 1 task" : `Removed ${n} tasks`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
+    const ids = [...selected];
+    startTransition(async () => {
+      dropPendingOptimistic(ids);
+      setBusy(true);
+      try {
+        await removeQueueTasks(ids);
+        setSelected(new Set());
+        await refresh();
+        showSuccess(ids.length === 1 ? "Removed 1 task" : `Removed ${ids.length} tasks`);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(false);
+      }
+    });
   };
 
   const onRunRow = useCallback(
@@ -263,26 +287,29 @@ export default function QueuePage() {
   );
 
   const onDeleteRow = useCallback(
-    async (taskId: string) => {
+    (taskId: string) => {
       if (busy) return;
-      setBusy(true);
-      try {
-        await removeQueueTasks([taskId]);
-        setSelected((prev) => {
-          if (!prev.has(taskId)) return prev;
-          const next = new Set(prev);
-          next.delete(taskId);
-          return next;
-        });
-        await refresh();
-        showSuccess("Removed 1 task");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setBusy(false);
-      }
+      startTransition(async () => {
+        dropPendingOptimistic([taskId]);
+        setBusy(true);
+        try {
+          await removeQueueTasks([taskId]);
+          setSelected((prev) => {
+            if (!prev.has(taskId)) return prev;
+            const next = new Set(prev);
+            next.delete(taskId);
+            return next;
+          });
+          await refresh();
+          showSuccess("Removed 1 task");
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setBusy(false);
+        }
+      });
     },
-    [busy, refresh, showSuccess],
+    [busy, dropPendingOptimistic, refresh, showSuccess],
   );
 
   return (
@@ -330,7 +357,7 @@ export default function QueuePage() {
               ]}
             />
             {pendingView === "table" ? (
-              <div className="data-table-wrap">
+              <div className="data-table-wrap" data-pending={isPending ? "" : undefined}>
                 <table className="data-table queue-table">
                   <thead>
                     <tr>
@@ -441,7 +468,7 @@ export default function QueuePage() {
               </div>
             ) : (
               <QueuePendingCalendar
-                pending={data?.pending ?? []}
+                pending={optimisticPending}
                 history={data?.history ?? []}
                 onReschedule={() => {
                   showSuccess("Task rescheduled");
@@ -477,35 +504,29 @@ export default function QueuePage() {
           />
         )}
 
-        {data && data.pending.length > 0 ? (
+        {optimisticPending.length > 0 ? (
           <div className="toolbar toolbar--spaced">
             <AppListbox
               inline
               label="Task"
               value={pick}
               onChange={setPick}
-              options={data.pending.map((r) => ({
+              options={optimisticPending.map((r) => ({
                 value: r.task_id,
                 label: `${r.scenario} · ${r.instance_id}`,
               }))}
               minWidth={280}
             />
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy}
-              onClick={onRunNow}
-            >
+            <PendingButton pending={busy} onClick={onRunNow}>
               Run now
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={busy || !selected.size}
+            </PendingButton>
+            <PendingButton
+              pending={busy && selected.size > 0}
+              disabled={!selected.size}
               onClick={onDelete}
             >
               Delete selected ({selected.size})
-            </button>
+            </PendingButton>
           </div>
         ) : null}
       </section>

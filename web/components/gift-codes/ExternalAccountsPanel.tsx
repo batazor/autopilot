@@ -263,7 +263,7 @@ export function ExternalAccountsPanel({
             onChange={(e) => setBulk(e.target.value)}
             disabled={busy}
             placeholder="401227964 Alliance: PHX/r24&#10;555000111 Farm-3"
-            className="mt-1 w-full rounded-lg border border-wos-border-subtle bg-wos-input p-2 font-mono text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
+            className="mt-1 field-sizing-content max-h-80 w-full rounded-lg border border-wos-border-subtle bg-wos-input p-2 font-mono text-sm text-wos-text focus:border-sky-400/70 focus:outline-none focus:ring-2 focus:ring-sky-400/25"
           />
           <div className="mt-2 flex flex-wrap gap-2">
             <button

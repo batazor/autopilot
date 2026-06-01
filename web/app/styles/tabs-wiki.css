@@ -9,8 +9,7 @@
   }
 
   .headless-tab-list--section {
-    @apply scroll-smooth py-2;
-    scrollbar-width: thin;
+    @apply scrollbar-thin scroll-smooth py-2;
   }
 
   .headless-tab-list--toolbar {
@@ -45,8 +44,7 @@
 
   /* —— Section tabs (per route group) —— */
   .section-tabs {
-    @apply scroll-smooth py-2;
-    scrollbar-width: thin;
+    @apply scrollbar-thin scroll-smooth py-2;
   }
 
   .section-tab {

@@ -3,6 +3,10 @@
     @apply mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6;
   }
 
+  .data-table-wrap[data-pending] {
+    @apply pointer-events-none opacity-60 transition-opacity;
+  }
+
   .queue-metrics {
     @apply xl:grid-cols-5;
   }

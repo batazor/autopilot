@@ -82,8 +82,7 @@
 
   /* Filmstrip */
   .fish-filmstrip {
-    @apply mt-3 flex gap-2 overflow-x-auto pb-2;
-    scrollbar-width: thin;
+    @apply scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2;
   }
 
   .fish-thumb {

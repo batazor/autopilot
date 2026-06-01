@@ -134,7 +134,7 @@ export function NewModuleDialog({ open, onClose, onCreated, onError }: Props) {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="What this module automates…"
-                  className="module-create-dialog__input"
+                  className="module-create-dialog__input field-sizing-content"
                   rows={2}
                 />
               </label>

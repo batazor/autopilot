@@ -13,7 +13,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html
+      lang="en"
+      className="h-full scrollbar-gutter-stable"
+      suppressHydrationWarning
+    >
       <body className="h-full">
         <Script id="wos-theme-boot" strategy="beforeInteractive">
           {THEME_BOOT_SCRIPT}
