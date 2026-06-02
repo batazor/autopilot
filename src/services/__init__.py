@@ -75,6 +75,63 @@ def get_active_game() -> str:
     return default_game()
 
 
+def resolve_effective_game(instance_config: InstanceConfig) -> str:
+    """Game id the worker should serve for ``instance_config``.
+
+    The device can already be running a *different* game than the one its DB row
+    configures (operator switched the foreground app, stale row, etc.). Probe
+    the device: if a *known* game is actually running and differs from the
+    configured game, adopt it — and update the matching ``Settings.instances``
+    entry so launch / foreground checks (which read the game from Settings, not
+    from the ``InstanceConfig`` handed to the worker) target the same game.
+
+    Falls back to the configured game when the device is offline or no known
+    game is running, so a fresh boot still launches the configured game.
+
+    Must run after :func:`init_app_services` (it reads loaded ``Settings``).
+    """
+    from dataclasses import replace
+
+    from adb import AdbController
+    from adb.screencap import DEFAULT_ADB_BIN
+    from config.games import default_game
+
+    configured = (instance_config.game or "").strip() or default_game()
+    settings = get_settings()
+    adb_bin = (settings.worker.adb_executable or "").strip() or DEFAULT_ADB_BIN
+    try:
+        controller = AdbController(
+            instance_config.instance_id,
+            instance_config.bluestacks_window_title,
+            adb_bin=adb_bin,
+        )
+        running = controller.detect_running_game()
+    except Exception:
+        logger.debug(
+            "resolve_effective_game: device probe failed for %s — using configured game %s",
+            instance_config.instance_id,
+            configured,
+            exc_info=True,
+        )
+        return configured
+
+    if not running or running == configured:
+        return configured
+
+    logger.warning(
+        "Device %s is running %s but is configured for %s — adopting %s for this run",
+        instance_config.instance_id,
+        running,
+        configured,
+        running,
+    )
+    for i, inst in enumerate(settings.instances):
+        if inst.instance_id == instance_config.instance_id:
+            settings.instances[i] = replace(inst, game=running)
+            break
+    return running
+
+
 # ---- lifecycle -------------------------------------------------------------
 
 
