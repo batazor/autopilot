@@ -93,6 +93,100 @@ def _parse_scenes(js: str) -> list[dict]:
     return list(seen.values())
 
 
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def _match_array(text: str, start: int) -> int:
+    """Return index of the ``]`` that closes the ``[`` at ``start``."""
+    depth = 0
+    i = start
+    while i < len(text):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
+def _parse_markers(js: str) -> dict[str, list[dict]]:
+    """``MapName:[{n:1,x:..,y:..,stage:..,tentative:!0}]`` → normalized name → list."""
+    markers: dict[str, list[dict]] = {}
+    for m in re.finditer(r"([A-Za-z]+):\[\{n:1,x:", js):
+        name = m.group(1)
+        lb = js.index("[", m.start())
+        arr = js[lb : _match_array(js, lb) + 1]
+        objs: list[dict] = []
+        for om in re.finditer(r"\{n:(\d+),x:([-\d.]+),y:([-\d.]+)([^}]*)\}", arr):
+            rest = om.group(4)
+            stage = re.search(r"stage:(\d+)", rest)
+            objs.append(
+                {
+                    "n": int(om.group(1)),
+                    "x": float(om.group(2)),
+                    "y": float(om.group(3)),
+                    "stage": int(stage.group(1)) if stage else None,
+                    "tentative": "tentative:!0" in rest,
+                }
+            )
+        markers[_norm(name)] = objs
+    return markers
+
+
+def _parse_item_names(html: str) -> dict[str, list[str]]:
+    """``"mapName":"X","items":[...]`` (RSC, escaped) → normalized name → names."""
+    items: dict[str, list[str]] = {}
+    for m in re.finditer(r'mapName\\":\\"([^"\\]+)\\",\\"items\\":\[', html):
+        start = html.index("[", m.end() - 1)
+        depth = 0
+        i = start
+        while i < len(html):
+            if html[i] == "[":
+                depth += 1
+            elif html[i] == "]":
+                depth -= 1
+                if depth == 0:
+                    break
+            i += 1
+        names = re.findall(r'\\"([^"\\]+)\\"', html[start : i + 1])
+        items[_norm(m.group(1))] = names
+    return items
+
+
+def _attach_points(scenes: list[dict], js: str, html: str) -> None:
+    """Compute final image-% coordinates per item and attach as ``scene['points']``.
+
+    The site renders each marker at ``left = (rect.left + x*(rect.right-rect.left))``
+    and ``top = (rect.top + y*(rect.bottom-rect.top))`` of the displayed image.
+    Item name is ``items[n-1]`` for that map.
+    """
+    markers = _parse_markers(js)
+    names_by_map = _parse_item_names(html)
+    for s in scenes:
+        key = _norm(s["slug"])
+        rect = s["sceneRect"] or {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}
+        fx = rect["right"] - rect["left"]
+        fy = rect["bottom"] - rect["top"]
+        names = names_by_map.get(key, [])
+        pts = []
+        for e in markers.get(key, []):
+            name = names[e["n"] - 1] if e["n"] - 1 < len(names) else f"Item #{e['n']}"
+            pts.append(
+                {
+                    "n": e["n"],
+                    "name": name,
+                    "xPct": round((rect["left"] + e["x"] * fx) * 100, 2),
+                    "yPct": round((rect["top"] + e["y"] * fy) * 100, 2),
+                    "stage": e["stage"],
+                    "tentative": e["tentative"],
+                }
+            )
+        s["points"] = pts
+
+
 def _download_images(scenes: list[dict]) -> None:
     IMG_DIR.mkdir(parents=True, exist_ok=True)
     urls = sorted({s["src"] for s in scenes} | {e for s in scenes for e in s["extraSrcs"]})
@@ -123,6 +217,21 @@ def _write_data(scenes: list[dict]) -> None:
         "  bottom: number;",
         "};",
         "",
+        "/** One findable item: name + position as a percentage of the scene image. */",
+        "export type DreamscapePoint = {",
+        "  /** Marker number on the source guide. */",
+        "  n: number;",
+        "  name: string;",
+        "  /** Left position, percent of image width (0-100). */",
+        "  xPct: number;",
+        "  /** Top position, percent of image height (0-100). */",
+        "  yPct: number;",
+        "  /** Stage the item first appears in, when known. */",
+        "  stage: number | null;",
+        "  /** Community-flagged as an unconfirmed location. */",
+        "  tentative: boolean;",
+        "};",
+        "",
         "export type DreamscapeScene = {",
         "  slug: string;",
         "  title: string;",
@@ -134,6 +243,8 @@ def _write_data(scenes: list[dict]) -> None:
         "  images: string[];",
         "  /** Normalized playable-area rectangle within the image, when known. */",
         "  sceneRect: DreamscapeRect | null;",
+        "  /** Findable items with positions (% of the base image). */",
+        "  points: DreamscapePoint[];",
         "  /** Active = current event rotation; archived scenes stay 1:1 reusable. */",
         "  active: boolean;",
         "};",
@@ -151,6 +262,18 @@ def _write_data(scenes: list[dict]) -> None:
             )
         else:
             rect = "null"
+        points = ", ".join(
+            "{ n: %d, name: %s, xPct: %s, yPct: %s, stage: %s, tentative: %s }"
+            % (
+                p["n"],
+                json.dumps(p["name"]),
+                p["xPct"],
+                p["yPct"],
+                "null" if p["stage"] is None else p["stage"],
+                "true" if p["tentative"] else "false",
+            )
+            for p in s.get("points", [])
+        )
         out += [
             "  {",
             f"    slug: {json.dumps(s['slug'])},",
@@ -160,6 +283,7 @@ def _write_data(scenes: list[dict]) -> None:
             f"    height: {s['height']},",
             f"    images: {json.dumps(imgs)},",
             f"    sceneRect: {rect},",
+            f"    points: [{points}],",
             f"    active: {'true' if active else 'false'},",
             "  },",
         ]
@@ -182,8 +306,11 @@ def main() -> None:
     html = _get(WIKI_URL).decode("utf-8", "ignore")
     js = _find_scene_chunk(html)
     scenes = _parse_scenes(js)
+    _attach_points(scenes, js, html)
     _download_images(scenes)
     _write_data(scenes)
+    pts = sum(len(s["points"]) for s in scenes)
+    print(f"points: {pts} across {sum(1 for s in scenes if s['points'])} scenes")
 
 
 if __name__ == "__main__":

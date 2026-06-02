@@ -56,6 +56,55 @@ function SceneTile({
   );
 }
 
+function InteractiveScene({
+  scene,
+  showMarkers,
+  hovered,
+  onHover,
+}: {
+  scene: DreamscapeScene;
+  showMarkers: boolean;
+  hovered: number | null;
+  onHover: (n: number | null) => void;
+}) {
+  return (
+    <div
+      className="relative mx-auto w-full max-w-md overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep"
+      style={{ aspectRatio: `${scene.width} / ${scene.height}` }}
+    >
+      <Image
+        src={scene.src}
+        alt={`${scene.title} scene`}
+        fill
+        sizes="(max-width: 768px) 100vw, 448px"
+        className="object-contain"
+      />
+      {showMarkers &&
+        scene.points.map((p) => (
+          <button
+            key={p.n}
+            type="button"
+            title={`${p.n}. ${p.name}${p.tentative ? " (unconfirmed)" : ""}`}
+            onMouseEnter={() => onHover(p.n)}
+            onMouseLeave={() => onHover(null)}
+            onFocus={() => onHover(p.n)}
+            onBlur={() => onHover(null)}
+            style={{ left: `${p.xPct}%`, top: `${p.yPct}%` }}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border text-[10px] font-bold leading-none transition ${
+              hovered === p.n
+                ? "z-10 scale-125 border-white bg-wos-accent text-wos-on-accent"
+                : p.tentative
+                  ? "border-amber-300/80 bg-amber-500/70 text-black"
+                  : "border-white/80 bg-black/70 text-white"
+            }`}
+          >
+            <span className="flex h-5 w-5 items-center justify-center">{p.n}</span>
+          </button>
+        ))}
+    </div>
+  );
+}
+
 function SceneGallery({
   scene,
   onZoom,
@@ -63,19 +112,82 @@ function SceneGallery({
   scene: DreamscapeScene;
   onZoom: (src: string) => void;
 }) {
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [hovered, setHovered] = useState<number | null>(null);
+
   return (
     <div className="panel">
       <div className="mb-3 flex items-baseline justify-between gap-3">
         <h2 className="text-lg font-semibold">{scene.title}</h2>
         <span className="text-sm text-wos-text-muted">
-          {scene.images.length} item-location map
+          {scene.points.length} items · {scene.images.length} map
           {scene.images.length === 1 ? "" : "s"} · {scene.width}×{scene.height}
         </span>
       </div>
       <p className="mb-4 text-sm text-wos-text-muted">
-        Item names &amp; hiding spots are identical for every player within a
-        scene — these maps are 1:1 references. Tap any map to zoom.
+        Item names &amp; locations are identical for every player within a scene —
+        these are 1:1 references. Hover a marker or list row to highlight it.
       </p>
+
+      {scene.points.length > 0 ? (
+        <div className="mb-5 grid gap-4 md:grid-cols-[auto_1fr]">
+          <div>
+            <label className="mb-2 flex items-center gap-2 text-sm text-wos-text-muted">
+              <input
+                type="checkbox"
+                checked={showMarkers}
+                onChange={(e) => setShowMarkers(e.target.checked)}
+              />
+              Show markers
+            </label>
+            <InteractiveScene
+              scene={scene}
+              showMarkers={showMarkers}
+              hovered={hovered}
+              onHover={setHovered}
+            />
+          </div>
+          <div>
+            <h3 className="mb-2 text-sm font-semibold">
+              Items ({scene.points.length})
+            </h3>
+            <ol className="grid max-h-[60vh] grid-cols-1 gap-x-4 gap-y-0.5 overflow-auto pr-2 text-sm sm:grid-cols-2">
+              {scene.points.map((p) => (
+                <li
+                  key={p.n}
+                  onMouseEnter={() => setHovered(p.n)}
+                  onMouseLeave={() => setHovered(null)}
+                  className={`flex items-baseline gap-2 rounded px-1 py-0.5 ${
+                    hovered === p.n ? "bg-wos-option-hover" : ""
+                  }`}
+                >
+                  <span className="w-5 shrink-0 text-right text-wos-text-muted">
+                    {p.n}
+                  </span>
+                  <span>{p.name}</span>
+                  {p.tentative ? (
+                    <span
+                      className="text-amber-400"
+                      title="Community-flagged as unconfirmed"
+                    >
+                      ?
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      ) : (
+        <p className="mb-4 rounded border border-wos-border-subtle bg-wos-panel-raised px-3 py-2 text-sm text-wos-text-muted">
+          No marker data for this scene yet — the screenshots below are still 1:1
+          references.
+        </p>
+      )}
+
+      <h3 className="mb-2 text-sm font-semibold">
+        Stage screenshots ({scene.images.length})
+      </h3>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {scene.images.map((src, i) => (
           <button
