@@ -51,6 +51,8 @@ _COMMON_PATTERNS: tuple[tuple[str, str, str], ...] = (
     ("gathering_complete", r"(gathering|gather|march).*(complete|finished|returned|done)",
      "Resource gathering finished"),
     ("healing_complete", r"heal(ing)?.*(complete|finished|done)", "Troop healing finished"),
+    ("infirmary_overflowing", r"(infirmary.*(overflow|full)|injured troops.*(died|dying|have died))",
+     "Infirmary overflowing / injured troops dying"),
     ("storehouse_supply", r"storehouse.*(ready|claim|supplies)", "Storehouse supplies ready to claim"),
     ("attack_incoming", r"(attack|rally|incoming|under attack|enemy).*(incoming|detected|approaching|spotted)?",
      "Incoming attack / rally"),
