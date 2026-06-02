@@ -53,6 +53,16 @@ _PAGE_SCREEN_EXCLUDE = frozenset({"", "unknown", "none", "main_city"})
 _CLOSE_SEARCH_LEFT_PAD_FRAC = 0.15
 _CLOSE_SEARCH_RIGHT_PAD_FRAC = 0.60
 _CLOSE_SEARCH_Y_PAD_FRAC = 0.15
+# Minimum rightward / upward reach of the close search, as a fraction of the
+# FRAME (not the close slice). The sharpness mask under-segments the right edge
+# of WOS deal/ad cards — their snowy/sky artwork carries little fine texture, so
+# the card bbox stops short of the visual border while the white X sits at the
+# *visual* top-right corner, several percent of the frame beyond the bbox. A
+# pad tied only to the (narrow) close slice never reaches it, so the finder
+# latches onto a background blob lower-left of the real X. These frame-relative
+# floors guarantee the protruding corner X is inside the search window.
+_CLOSE_SEARCH_RIGHT_FRAME_FRAC = 0.15
+_CLOSE_SEARCH_UP_FRAME_FRAC = 0.04
 _CLOSE_MIN_SIDE_FRAC = 0.18
 _CLOSE_MAX_SIDE_FRAC = 0.60
 _CLOSE_MIN_AREA_FRAC = 0.012
@@ -237,6 +247,18 @@ class PopupDetector:
         bright low-saturation strokes (white X buttons) and dark strokes (black X
         buttons in tests / plain dialogs), filters for square-ish components,
         then picks the best right-biased candidate.
+
+        Three thresholds are tried independently and their candidates pooled:
+
+        - loose white (``s<=90, v>=145``) — the workhorse for white X buttons on
+          ordinary darker cards.
+        - tight white (``s<=60, v>=210``) — isolates a *pure*-white X from a
+          merely-bright background. WOS deal cards over snowy/sky artwork
+          (e.g. "Iceball Play Pack") flood the loose mask: the X fuses with the
+          off-white surround into one oversized blob that the size filter drops,
+          leaving only a spurious lower component. The tight mask carves the X
+          back out as a clean square.
+        - dark (``v<=95``) — black X buttons in plain dialogs / tests.
         """
         x1, y1, x2, y2 = self._expanded_close_search_bounds(image, close_region)
         if x2 <= x1 or y2 <= y1:
@@ -248,6 +270,7 @@ class PopupDetector:
         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
         masks = (
             ((hsv[:, :, 1] <= 90) & (hsv[:, :, 2] >= 145)),
+            ((hsv[:, :, 1] <= 60) & (hsv[:, :, 2] >= 210)),
             (hsv[:, :, 2] <= 95),
         )
 
@@ -272,12 +295,21 @@ class PopupDetector:
     ) -> tuple[int, int, int, int]:
         height, width = image.shape[:2]
         pad_left = int(close_region.w * _CLOSE_SEARCH_LEFT_PAD_FRAC)
-        pad_right = int(close_region.w * _CLOSE_SEARCH_RIGHT_PAD_FRAC)
-        pad_y = int(close_region.h * _CLOSE_SEARCH_Y_PAD_FRAC)
+        # Reach the visual top-right corner even when the card bbox clips it:
+        # take the larger of the slice-relative pad and a frame-relative floor.
+        pad_right = max(
+            int(close_region.w * _CLOSE_SEARCH_RIGHT_PAD_FRAC),
+            int(width * _CLOSE_SEARCH_RIGHT_FRAME_FRAC),
+        )
+        pad_up = max(
+            int(close_region.h * _CLOSE_SEARCH_Y_PAD_FRAC),
+            int(height * _CLOSE_SEARCH_UP_FRAME_FRAC),
+        )
+        pad_down = int(close_region.h * _CLOSE_SEARCH_Y_PAD_FRAC)
         x1 = max(0, close_region.x - pad_left)
-        y1 = max(0, close_region.y - pad_y)
+        y1 = max(0, close_region.y - pad_up)
         x2 = min(width, close_region.x + close_region.w + pad_right)
-        y2 = min(height, close_region.y + close_region.h + pad_y)
+        y2 = min(height, close_region.y + close_region.h + pad_down)
         return x1, y1, x2, y2
 
     def _close_candidates_from_mask(
