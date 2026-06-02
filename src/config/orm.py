@@ -50,6 +50,17 @@ def get_engine(path: Path) -> Engine:
                 cur = dbapi_conn.cursor()
                 cur.execute("PRAGMA journal_mode=WAL")
                 cur.execute("PRAGMA foreign_keys=ON")
+                # Block-and-retry for up to 5s instead of erroring out when another
+                # process holds the write lock — the worker runs one process per
+                # device, all writing into the shared state.db, so concurrent writes
+                # are normal. This is the cross-process safety the in-process locks
+                # can't provide.
+                cur.execute("PRAGMA busy_timeout=5000")
+                # Durable under WAL (only an OS-level power loss can drop the last
+                # txn); a large write speedup over the default FULL.
+                cur.execute("PRAGMA synchronous=NORMAL")
+                # Keep the -wal file from growing unbounded under steady writes.
+                cur.execute("PRAGMA wal_autocheckpoint=1000")
                 cur.close()
 
             _engines[key] = engine

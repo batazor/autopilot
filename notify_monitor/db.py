@@ -117,6 +117,12 @@ def _make_engine(path: str) -> Engine:
         cur = dbapi_conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA foreign_keys=ON")
+        # Block-and-retry instead of erroring when the poller thread and a web
+        # request write at the same time.
+        cur.execute("PRAGMA busy_timeout=5000")
+        # Durable under WAL; faster writes than the default FULL.
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA wal_autocheckpoint=1000")
         cur.close()
 
     return engine
