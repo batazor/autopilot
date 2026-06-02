@@ -36,6 +36,9 @@ class MonitorService:
         self.last_poll_ts: float | None = None
         self.last_poll_human: str | None = None
         self.last_error: str | None = None
+        # last distinct AdbError message, to suppress repeated warnings while a
+        # device stays offline (reset once a poll succeeds or a new error type appears)
+        self._last_adb_error: str | None = None
         self.last_cycle_count = 0
         self.cycles = 0
         self.running = False
@@ -83,9 +86,22 @@ class MonitorService:
                     self.poll_once()
                 else:
                     log.debug("Monitor disabled via settings; idle")
+            except adb_reader.AdbError as exc:
+                # Device offline / not connected is an expected, transient
+                # condition (emulator down, no `adb connect`). Log a concise
+                # warning once per distinct message instead of a full traceback
+                # every cycle.
+                msg = str(exc)
+                self.last_error = msg
+                if msg != self._last_adb_error:
+                    self._last_adb_error = msg
+                    log.warning("ADB unavailable, retrying every %ds: %s", interval, msg)
             except Exception as exc:
                 self.last_error = str(exc)
+                self._last_adb_error = None
                 log.exception("Poll cycle failed")
+            else:
+                self._last_adb_error = None
             self._stop.wait(timeout=max(1, interval))
 
     def _poll_interval(self) -> int:
