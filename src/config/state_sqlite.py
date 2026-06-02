@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import threading
 import time
 from datetime import UTC, datetime
@@ -17,6 +16,7 @@ from config.paths import repo_root
 from config.state_schema import GamerState, StateDB
 
 if TYPE_CHECKING:
+    import sqlite3
     from pathlib import Path
 
     from sqlalchemy.engine import Engine
@@ -234,10 +234,10 @@ def _ensure_player_power_daily_columns(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_schema(engine: Engine) -> None:
-    """Create missing tables, then run the legacy game-scoping migrations.
+    """Create missing tables, then run the tracked legacy game-scoping migrations.
 
     ``create_all`` only builds *missing* tables, so legacy single-game DBs keep
-    their old (gameless) PK shape — the raw migrations below rebuild those. Order
+    their old (gameless) PK shape — the migrations below rebuild those. Order
     matters: add the ``player_power_daily`` value columns *before* the rebuild
     copies them.
     """
@@ -250,15 +250,10 @@ def _ensure_schema(engine: Engine) -> None:
             AllianceDaily.__table__,
         ],
     )
-    raw = engine.raw_connection()
-    try:
-        conn = raw.driver_connection
-        conn.row_factory = sqlite3.Row  # legacy migrations read row["name"]
-        _ensure_player_power_daily_columns(conn)
-        _ensure_game_scoped_schema(conn)
-        conn.commit()
-    finally:
-        raw.close()
+    orm.apply_migrations(engine, "state", [
+        ("001_add_power_columns", _ensure_player_power_daily_columns),
+        ("002_game_scoped_rebuild", _ensure_game_scoped_schema),
+    ])
 
 
 def _engine() -> Engine:

@@ -10,23 +10,35 @@ file (via ``set_state_db_path_for_tests``) get an isolated engine.
 
 Each owning module registers its own SQLModel tables and is responsible for
 creating them (``SQLModel.metadata.create_all(engine, tables=[...])``) plus any
-legacy data migration, guarded so it runs once per engine — see
-``ensure_once``.
+legacy data migration, guarded so it runs once per engine — see ``ensure_once``.
+
+Schema transforms (legacy column adds, table rebuilds) run through
+``apply_migrations``: ordered, namespaced steps recorded once each in a
+``_schema_migrations`` table. ``state.db`` is a single file, so a per-file
+``PRAGMA user_version`` can't track three modules independently — the tracking
+table can, by namespacing step names. Step bodies must stay defensive (a no-op
+when their change is already present), because production DBs predate the
+tracking table and their changes were applied by the old idempotent code.
 """
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 import threading
+import time
 from typing import TYPE_CHECKING
 
 from sqlalchemy import event
 from sqlmodel import Session, create_engine
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
 
     from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
 
 _lock = threading.RLock()
 _engines: dict[str, Engine] = {}
@@ -84,6 +96,47 @@ def ensure_once(engine: Engine, tag: str, setup: Callable[[Engine], None]) -> No
             return
         setup(engine)
         _initialized.add(marker)
+
+
+def apply_migrations(
+    engine: Engine,
+    namespace: str,
+    steps: Sequence[tuple[str, Callable[[sqlite3.Connection], None]]],
+) -> None:
+    """Run ordered migration ``steps``, each at most once, tracked durably.
+
+    Applied steps are recorded as ``"{namespace}:{name}"`` in a shared
+    ``_schema_migrations`` table, so a step runs once per database file ever
+    (across process restarts) — unlike ``ensure_once``, which is per-process.
+
+    ``state.db`` is shared by three modules; namespacing the recorded names lets
+    each own an independent, ordered history in the one tracking table. Each
+    ``fn`` receives a ``sqlite3.Connection`` (``Row`` factory set) and must be
+    defensive: a DB that predates this table already has the change applied by
+    the old idempotent code, so the first run records the step as a no-op.
+    """
+    raw = engine.raw_connection()
+    try:
+        conn = raw.driver_connection
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS _schema_migrations ("
+            "name TEXT PRIMARY KEY, applied_at REAL NOT NULL)"
+        )
+        applied = {row["name"] for row in conn.execute("SELECT name FROM _schema_migrations")}
+        for name, fn in steps:
+            full = f"{namespace}:{name}"
+            if full in applied:
+                continue
+            fn(conn)
+            conn.execute(
+                "INSERT OR IGNORE INTO _schema_migrations (name, applied_at) VALUES (?, ?)",
+                (full, time.time()),
+            )
+            logger.info("applied migration %s", full)
+        conn.commit()
+    finally:
+        raw.close()
 
 
 def reset_for_tests() -> None:

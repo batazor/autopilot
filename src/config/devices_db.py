@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import threading
 import time
 from dataclasses import asdict
@@ -35,6 +34,8 @@ from config.device_display import DeviceDisplayConfig
 from config.state_sqlite import state_db_path
 
 if TYPE_CHECKING:
+    import sqlite3
+
     from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
@@ -157,8 +158,20 @@ def _ensure_columns(conn: sqlite3.Connection) -> None:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {ddl}")
 
 
+def _normalize_backends(conn: sqlite3.Connection) -> None:
+    """Rewrite removed backends to scrcpy so legacy device rows stay bootable."""
+    # Minicap was removed in favor of scrcpy.
+    conn.execute(
+        "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
+    )
+    # Minitouch was removed; scrcpy is the replacement fast input backend.
+    conn.execute(
+        "UPDATE devices SET input_backend = 'scrcpy' WHERE input_backend = 'minitouch'"
+    )
+
+
 def _ensure_schema(engine: Engine) -> None:
-    """Create missing tables, then backfill legacy columns + normalize values."""
+    """Create missing tables, then run tracked legacy migrations."""
     SQLModel.metadata.create_all(
         engine,
         tables=[
@@ -167,22 +180,10 @@ def _ensure_schema(engine: Engine) -> None:
             DeviceProfileGamerRow.__table__,
         ],
     )
-    raw = engine.raw_connection()
-    try:
-        conn = raw.driver_connection
-        conn.row_factory = sqlite3.Row  # _ensure_columns reads row["name"]
-        _ensure_columns(conn)
-        # Minicap was removed in favor of scrcpy; keep old DB rows bootable.
-        conn.execute(
-            "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'minicap'"
-        )
-        # Minitouch was removed; scrcpy is the replacement fast input backend.
-        conn.execute(
-            "UPDATE devices SET input_backend = 'scrcpy' WHERE input_backend = 'minitouch'"
-        )
-        conn.commit()
-    finally:
-        raw.close()
+    orm.apply_migrations(engine, "devices", [
+        ("001_backfill_columns", _ensure_columns),
+        ("002_normalize_backends", _normalize_backends),
+    ])
 
 
 def _engine() -> Engine:

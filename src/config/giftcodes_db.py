@@ -152,13 +152,7 @@ def _migrate_legacy_schema(conn: sqlite3.Connection) -> None:
 
 
 def _ensure_schema(engine: Engine) -> None:
-    """Run the legacy rebuild (if needed), then create any missing tables."""
-    raw = engine.raw_connection()
-    try:
-        _migrate_legacy_schema(raw.driver_connection)
-        raw.driver_connection.commit()
-    finally:
-        raw.close()
+    """Create missing tables, then run tracked legacy migrations."""
     SQLModel.metadata.create_all(
         engine,
         tables=[
@@ -167,6 +161,9 @@ def _ensure_schema(engine: Engine) -> None:
             GiftCodeExternalGamer.__table__,
         ],
     )
+    orm.apply_migrations(engine, "giftcodes", [
+        ("001_multigame", _migrate_legacy_schema),
+    ])
 
 
 def _engine() -> Engine:
