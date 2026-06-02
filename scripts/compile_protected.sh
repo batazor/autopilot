@@ -36,6 +36,14 @@ fi
 
 cd "${SRC_ROOT}"
 
+# Nuitka CLI flags can vary across releases. Keep stripping docstrings when the
+# installed version supports the flag, but stay buildable on newer releases
+# where it was removed.
+NUITKA_OPTIONAL_ARGS=()
+if "${PYTHON}" -m nuitka --help 2>/dev/null | grep -q -- '--no-docstrings'; then
+    NUITKA_OPTIONAL_ARGS+=(--no-docstrings)
+fi
+
 # Resolve ``__all__`` to every top-level package under SRC_ROOT (any directory
 # with an ``__init__.py``). Lets the Dockerfile default to "compile everything"
 # without enumerating package names in two places.
@@ -72,9 +80,9 @@ for pkg in ${PKG_LIST}; do
         --module \
         --include-package="${pkg}" \
         --remove-output \
-        --no-docstrings \
         --quiet \
         --no-progressbar \
+        "${NUITKA_OPTIONAL_ARGS[@]}" \
         --output-dir=. \
         "${pkg}"
 
