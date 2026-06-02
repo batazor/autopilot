@@ -1,6 +1,9 @@
 id: dreamscape_memory
 title: Dreamscape Memory
 description: Limited-time Dreamscape Memory event.
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
 references: references
 icon: dreamscape_memory
-wiki: false
+wiki_url: https://www.whiteoutsurvival.wiki/events/dreamscape-memory/

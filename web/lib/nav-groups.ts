@@ -39,6 +39,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Gift codes",
         description: "Century Game promo codes per game",
       },
+      {
+        href: "/dreamscape-memory",
+        label: "Dreamscape Memory",
+        description: "Item-location guides for the scavenger-hunt event",
+      },
     ],
   },
   {

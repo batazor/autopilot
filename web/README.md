@@ -70,6 +70,7 @@ All routes below are implemented in Next.js.
 | `/analyze` | Assets | Analyzer / overlay rules viewer |
 | `/wiki` | Assets | Wiki reference (buildings, heroes, items, gear, FAQ); sync scripts with progress on FAQ |
 | `/gift-codes` | Assets | Promo codes: table, scrape, redeem |
+| `/dreamscape-memory` | Games | Item-location guides for the Dreamscape Memory event (free — community data from [wostools.net](https://wostools.net/wiki/events/dreamscape-memory)) |
 | `/modules` | Config | Module catalog + scenario enable/disable |
 | `/adb` | Config | ADB devices |
 | `/balance` | Config | Resource balance view |
