@@ -3,8 +3,10 @@
 import Image from "next/image";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
+import { LiveEditorTab } from "@/components/dreamscape/LiveEditorTab";
 import {
   DREAMSCAPE_ACTIVE,
   DREAMSCAPE_ARCHIVE,
@@ -12,10 +14,16 @@ import {
 } from "@/lib/dreamscape";
 
 type Rotation = "active" | "archive";
+type View = "guides" | "live";
 
 const ROTATION_TABS: { key: Rotation; label: string }[] = [
   { key: "active", label: "Current event" },
   { key: "archive", label: "Archive" },
+];
+
+const VIEW_TABS: { key: View; label: string }[] = [
+  { key: "guides", label: "Guides" },
+  { key: "live", label: "Live editor" },
 ];
 
 function SceneTile({
@@ -289,6 +297,7 @@ function Lightbox({
 
 function DreamscapePageInner() {
   const params = useSearchParams();
+  const [view, setView] = useState<View>("guides");
   const [rotation, setRotation] = useState<Rotation>("active");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -344,6 +353,60 @@ function DreamscapePageInner() {
       </PageHeader>
 
       <AppTabs
+        tabs={VIEW_TABS}
+        selectedKey={view}
+        onChange={(key) => setView(key as View)}
+        renderPanels={false}
+      />
+
+      {view === "live" ? (
+        <FleetContextProvider>
+          <LiveEditorTab />
+        </FleetContextProvider>
+      ) : (
+        <DreamscapeGuides
+          scenes={scenes}
+          rotation={rotation}
+          setRotation={setRotation}
+          selectedSlug={selectedSlug}
+          setSelectedSlug={setSelectedSlug}
+          selected={selected}
+          onZoom={setZoom}
+        />
+      )}
+
+      {view === "guides" && selected && zoom ? (
+        <Lightbox
+          scene={selected}
+          src={zoom}
+          onClose={() => setZoom(null)}
+          onNav={navZoom}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DreamscapeGuides({
+  scenes,
+  rotation,
+  setRotation,
+  selectedSlug,
+  setSelectedSlug,
+  selected,
+  onZoom,
+}: {
+  scenes: DreamscapeScene[];
+  rotation: Rotation;
+  setRotation: (r: Rotation) => void;
+  selectedSlug: string | null;
+  setSelectedSlug: (s: string) => void;
+  selected: DreamscapeScene | null;
+  onZoom: (src: string) => void;
+}) {
+  return (
+    <>
+      <AppTabs
         tabs={ROTATION_TABS}
         selectedKey={rotation}
         onChange={(key) => setRotation(key as Rotation)}
@@ -366,7 +429,7 @@ function DreamscapePageInner() {
         </section>
 
         {selected ? (
-          <SceneGallery scene={selected} onZoom={setZoom} />
+          <SceneGallery scene={selected} onZoom={onZoom} />
         ) : (
           <section className="panel">
             <p className="meta">Select a scene to view its item-location maps.</p>
@@ -414,15 +477,6 @@ function DreamscapePageInner() {
           to refresh.
         </p>
       </section>
-
-      {selected && zoom ? (
-        <Lightbox
-          scene={selected}
-          src={zoom}
-          onClose={() => setZoom(null)}
-          onNav={navZoom}
-        />
-      ) : null}
     </>
   );
 }

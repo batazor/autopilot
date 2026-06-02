@@ -575,6 +575,31 @@ export type OverlayTestResult = {
   analysis: OverlayAnalysisSummary;
 };
 
+export type RegionOcrStatus = "ok" | "empty" | "error" | "no_region" | "no_frame";
+
+export type RegionOcrRow = {
+  region: string;
+  text: string;
+  confidence: number | null;
+  threshold: number | null;
+  low_confidence: boolean;
+  status: RegionOcrStatus;
+  duration_ms: number | null;
+};
+
+export type RegionOcrResult = {
+  instance_id: string;
+  current_screen: string;
+  preview: {
+    available: boolean;
+    rel: string;
+    mtime: number | null;
+    width: number;
+    height: number;
+  };
+  rows: RegionOcrRow[];
+};
+
 export type FishDetectionRow = {
   /** Top-left corner (pixels, source-frame coords). */
   x: number;

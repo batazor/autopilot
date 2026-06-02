@@ -33,6 +33,7 @@ import type {
   LabelingStaleCrop,
   NotificationEvent,
   OverlayTestResult,
+  RegionOcrResult,
   RoutesGraphResponse,
   RoutesNodeDetails,
   BotStatusView,
@@ -519,6 +520,19 @@ export async function fetchAreaRegionProbe(
   const suffix = q.size ? `?${q}` : "";
   return apiFetch<AreaRegionProbeResult>(
     `/api/instances/${encodeURIComponent(instanceId)}/area-region-probe${suffix}`,
+  );
+}
+
+/** Live OCR of one or more area regions on the current frame (the detected words). */
+export async function fetchRegionOcr(
+  instanceId: string,
+  regions: string[],
+  options: { threshold?: number } = {},
+): Promise<RegionOcrResult> {
+  const q = new URLSearchParams({ regions: regions.join(",") });
+  if (options.threshold != null) q.set("threshold", String(options.threshold));
+  return apiFetch<RegionOcrResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/region-ocr?${q}`,
   );
 }
 

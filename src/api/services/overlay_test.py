@@ -44,6 +44,9 @@ from layout.area_manifest import (
 from layout.area_versions import effective_ocr_for_region
 from layout.crop_paths import exported_crop_png, resolve_reference_path
 from layout.template_match import _bbox_px_bounds, patch_bgr_from_bbox_percent
+from layout.types import Region
+from ocr.preprocess import parse_digit_count, resolve_preprocess
+from services import get_ocr_client
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +149,29 @@ class AreaRegionProbeResult(TypedDict):
     result: dict[str, Any] | None
     overlays: list[OverlayShape]
     crops: ProbeCrops | None
+
+
+class RegionOcrRow(TypedDict):
+    """One region's live OCR read for the region-ocr endpoint."""
+
+    region: str
+    text: str
+    confidence: float | None
+    threshold: float | None
+    low_confidence: bool
+    # ok | empty | error | no_region | no_frame
+    status: str
+    # Wall-clock OCR time for this region (ms); None when not OCR'd.
+    duration_ms: float | None
+
+
+class RegionOcrResult(TypedDict):
+    """Response payload for live OCR of one or more area regions."""
+
+    instance_id: str
+    current_screen: str
+    preview: dict[str, Any]
+    rows: list[RegionOcrRow]
 
 
 def _coerce_float(value: object) -> float | None:
@@ -1374,6 +1400,176 @@ def run_area_region_probe(
         result=payload,
         overlays=overlays,
         crops=crops,
+    )
+
+
+def _ordered_unique(names: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in names:
+        name = (raw or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def run_region_ocr(
+    *,
+    client: Any,
+    instance_id: str,
+    regions: list[str],
+    threshold: float | None = None,
+) -> RegionOcrResult:
+    """OCR the live frame for each named area region and return the text.
+
+    Mirrors the worker's OCR step (:mod:`tasks.dsl_ocr_mixin`): resolve each
+    region's bbox from the merged area doc, crop it from the current frame, and
+    run it through the same OCR client + preprocess pipeline. Unlike
+    ``run_area_region_probe`` (which only returns template-match scores) this
+    returns the recognized text — what the badges in the Dreamscape live editor
+    need.
+    """
+    from dashboard.redis_client import get_instance_state
+
+    inst_state = get_instance_state(client, instance_id) or {}
+    current_screen = str(inst_state.get("current_screen") or "").strip()
+    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
+
+    png, rel, mtime = load_preview_bytes(
+        instance_id=instance_id, payload=None, source="live"
+    )
+    if png is None:
+        png, rel, mtime = load_rolling_instance_preview(instance_id)
+
+    width = height = 0
+    image_bgr: np.ndarray | None = None
+    if png is not None:
+        image_bgr = _decode_png_to_bgr(png)
+        if image_bgr is not None:
+            height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+
+    repo = repo_root()
+    area_doc = load_area_doc(repo)
+    ocr_client = get_ocr_client()
+
+    rows: list[RegionOcrRow] = []
+    for name in _ordered_unique(regions):
+        if image_bgr is None:
+            rows.append(
+                RegionOcrRow(
+                    region=name,
+                    text="",
+                    confidence=None,
+                    threshold=None,
+                    low_confidence=False,
+                    status="no_frame",
+                    duration_ms=None,
+                )
+            )
+            continue
+
+        pair = screen_region_by_name(
+            area_doc, name, state_flat=state_flat, screen_id=current_screen or None
+        )
+        region_def = pair[1] if pair is not None else None
+        bbox = region_def.get("bbox") if isinstance(region_def, dict) else None
+        px = py = pw = ph = 0
+        if isinstance(bbox, dict):
+            try:
+                px = int(round(float(bbox["x"]) / 100.0 * width))
+                py = int(round(float(bbox["y"]) / 100.0 * height))
+                pw = int(round(float(bbox["width"]) / 100.0 * width))
+                ph = int(round(float(bbox["height"]) / 100.0 * height))
+            except (KeyError, TypeError, ValueError):
+                pw = ph = 0
+        if not isinstance(bbox, dict) or pw <= 0 or ph <= 0:
+            rows.append(
+                RegionOcrRow(
+                    region=name,
+                    text="",
+                    confidence=None,
+                    threshold=None,
+                    low_confidence=False,
+                    status="no_region",
+                    duration_ms=None,
+                )
+            )
+            continue
+
+        raw_threshold = (
+            threshold if threshold is not None else region_def.get("threshold", 0.8)
+        )
+        safe_threshold = max(0.0, min(1.0, float(raw_threshold)))
+        preprocess = resolve_preprocess(
+            explicit=region_def.get("preprocess"),
+            type_hint=region_def.get("type"),
+        )
+        digit_count = parse_digit_count(region_def.get("digit_count"))
+        try:
+            digit_x0 = int(region_def.get("digit_x0", 0) or 0)
+        except (TypeError, ValueError):
+            digit_x0 = 0
+
+        t0 = time.perf_counter()
+        try:
+            result = asyncio.run(
+                ocr_client.ocr_region(
+                    image_bgr,
+                    Region(px, py, pw, ph),
+                    region_id=name,
+                    preprocess=preprocess,
+                    digit_count=digit_count,
+                    digit_x0=digit_x0,
+                )
+            )
+        except Exception as exc:
+            logger.warning("region_ocr: OCR failed for %s: %s", name, exc)
+            rows.append(
+                RegionOcrRow(
+                    region=name,
+                    text="",
+                    confidence=None,
+                    threshold=safe_threshold,
+                    low_confidence=False,
+                    status="error",
+                    duration_ms=round((time.perf_counter() - t0) * 1000.0, 1),
+                )
+            )
+            continue
+
+        duration_ms = round((time.perf_counter() - t0) * 1000.0, 1)
+        text = (result.text or "").strip()
+        conf = float(result.confidence or 0.0)
+        if result.error:
+            status = "error"
+        elif not text:
+            status = "empty"
+        else:
+            status = "ok"
+        rows.append(
+            RegionOcrRow(
+                region=name,
+                text=text,
+                confidence=round(conf, 4),
+                threshold=safe_threshold,
+                low_confidence=bool(text) and conf < safe_threshold,
+                status=status,
+                duration_ms=duration_ms,
+            )
+        )
+
+    return RegionOcrResult(
+        instance_id=instance_id,
+        current_screen=current_screen,
+        preview={
+            "available": png is not None,
+            "rel": rel,
+            "mtime": mtime,
+            "width": width,
+            "height": height,
+        },
+        rows=rows,
     )
 
 

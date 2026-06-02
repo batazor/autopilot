@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   discardLabelingCapture,
   fetchLabelingScreenIds,
+  fetchRegionOcr,
   importLabelingPng,
   labelingImageUrl,
   setActiveGame,
@@ -74,5 +75,18 @@ describe("labeling API game scope", () => {
     const url = String(fetchMock.mock.calls[0]?.[0]);
     expect(url).toContain("scope=kingshot%3Acore%2Fmain_city");
     expect(url).toContain("game=kingshot");
+  });
+
+  it("encodes regions as a comma-separated query for region-ocr", async () => {
+    const fetchMock = mockFetchJson({ rows: [] });
+
+    await fetchRegionOcr("bs1", ["dreamscape_memory.1", "dreamscape_memory.2"], {
+      threshold: 0.7,
+    });
+
+    const url = String(fetchMock.mock.calls[0]?.[0]);
+    expect(url).toContain("/api/instances/bs1/region-ocr");
+    expect(url).toContain("regions=dreamscape_memory.1%2Cdreamscape_memory.2");
+    expect(url).toContain("threshold=0.7");
   });
 });

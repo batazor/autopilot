@@ -12,9 +12,11 @@ from api.services.instances import list_instance_ids
 from api.services.overlay_test import (
     AreaRegionProbeResult,
     OverlayTestResult,
+    RegionOcrResult,
     load_overlay_test_image,
     run_area_region_probe,
     run_overlay_test,
+    run_region_ocr,
 )
 
 router = APIRouter(prefix="/api", tags=["overlay-test"])
@@ -91,5 +93,29 @@ def get_area_region_probe(
         client=client,
         instance_id=instance_id,
         region=region,
+        threshold=threshold,
+    )
+
+
+@router.get("/instances/{instance_id}/region-ocr")
+def get_region_ocr(
+    instance_id: str,
+    client: RedisDep,
+    regions: str = Query(..., description="comma-separated area region names"),
+    threshold: float | None = Query(default=None, ge=0.0, le=1.0),
+) -> RegionOcrResult:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    try:
+        client.ping()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    region_names = [r.strip() for r in regions.split(",") if r.strip()]
+    if not region_names:
+        raise HTTPException(status_code=422, detail="no region names provided")
+    return run_region_ocr(
+        client=client,
+        instance_id=instance_id,
+        regions=region_names,
         threshold=threshold,
     )
