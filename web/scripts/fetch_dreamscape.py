@@ -41,7 +41,8 @@ def _find_scene_chunk(html: str) -> str:
         text = _get(BASE + c).decode("utf-8", "ignore")
         if "ballroom" in text and "extraSrcs" in text:
             return text
-    raise SystemExit("scene registry chunk not found — page structure changed")
+    msg = "scene registry chunk not found — page structure changed"
+    raise SystemExit(msg)
 
 
 def _parse_scenes(js: str) -> list[dict]:
@@ -72,7 +73,7 @@ def _parse_scenes(js: str) -> list[dict]:
             obj,
         )
         rect = (
-            {k: float(v) for k, v in zip("left top right bottom".split(), rm.groups())}
+            {k: float(v) for k, v in zip(["left", "top", "right", "bottom"], rm.groups(), strict=True)}
             if rm
             else None
         )
@@ -263,14 +264,13 @@ def _write_data(scenes: list[dict]) -> None:
         else:
             rect = "null"
         points = ", ".join(
-            "{ n: %d, name: %s, xPct: %s, yPct: %s, stage: %s, tentative: %s }"
-            % (
-                p["n"],
-                json.dumps(p["name"]),
-                p["xPct"],
-                p["yPct"],
-                "null" if p["stage"] is None else p["stage"],
-                "true" if p["tentative"] else "false",
+            "{{ n: {n}, name: {name}, xPct: {x}, yPct: {y}, stage: {stage}, tentative: {tentative} }}".format(
+                n=p["n"],
+                name=json.dumps(p["name"]),
+                x=p["xPct"],
+                y=p["yPct"],
+                stage="null" if p["stage"] is None else p["stage"],
+                tentative="true" if p["tentative"] else "false",
             )
             for p in s.get("points", [])
         )
