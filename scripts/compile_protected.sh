@@ -72,7 +72,7 @@ for pkg in ${PKG_LIST}; do
         --module \
         --include-package="${pkg}" \
         --remove-output \
-        --no-docstrings \
+        --python-flag=no_docstrings \
         --quiet \
         --no-progressbar \
         --output-dir=. \
