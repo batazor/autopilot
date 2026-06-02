@@ -75,17 +75,31 @@ def _worker_process(instance_config: InstanceConfig) -> None:
     bootstrap_runtime_observability("worker", instance_id=instance_config.instance_id)
 
     async def _run() -> None:
+        from dataclasses import replace
+
         from services import (
             aclose_app_services,
             bind_active_game,
             init_app_services,
             instance_worker_session,
+            resolve_effective_game,
         )
 
-        bind_active_game(instance_config.game)
+        # Load Settings first — ``resolve_effective_game`` probes the device and
+        # reads the resolved adb path / instance list from Settings.
         await init_app_services()
+        # Adopt the game actually running on the device when it differs from the
+        # configured one, so the worker doesn't force-stop a live game (e.g. WOS)
+        # and launch the wrong one (the configured game).
+        effective_game = resolve_effective_game(instance_config)
+        cfg = (
+            instance_config
+            if effective_game == instance_config.game
+            else replace(instance_config, game=effective_game)
+        )
+        bind_active_game(cfg.game)
         try:
-            async with instance_worker_session(instance_config) as worker:
+            async with instance_worker_session(cfg) as worker:
                 await worker.run()
         finally:
             await aclose_app_services()

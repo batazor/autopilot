@@ -44,7 +44,9 @@ if TYPE_CHECKING:
 
 from adb.serial import is_emulator_adb_serial
 from config.games import default_game as _default_game
+from config.games import game_for_package as _game_for_package
 from config.games import game_ids_for_packages as _game_ids_for_packages
+from config.games import iter_games as _iter_games
 from config.games import matching_packages_for_game as _matching_packages_for_game
 from config.games import package_for_game as _package_for_game
 from config.games import packages_for_game as _packages_for_game
@@ -847,6 +849,34 @@ class AdbController:
                 if match:
                     return match.group(0)
         return ""
+
+    def current_foreground_game(self) -> str | None:
+        """Known game id of the resumed foreground app, or ``None``.
+
+        Reverse-looks-up the resumed activity's package against the game
+        registry. Returns ``None`` when the launcher / an unrelated app is
+        foreground (or the probe fails) — i.e. when nothing recognizable is
+        on screen.
+        """
+        activity = self.current_foreground_activity()
+        pkg = activity.split("/", 1)[0].strip() if activity else ""
+        return _game_for_package(pkg) if pkg else None
+
+    def detect_running_game(self) -> str | None:
+        """Known game actually live on this device, or ``None``.
+
+        Prefers the resumed foreground game; if nothing recognizable is
+        foreground (e.g. a transient launcher frame during boot) it falls back
+        to the first known game with a live process. ``None`` means no known
+        game is running — callers should then use the configured game.
+        """
+        foreground = self.current_foreground_game()
+        if foreground is not None:
+            return foreground
+        for game_id in _iter_games():
+            if self._running_package_for_game(game_id) is not None:
+                return game_id
+        return None
 
     def ensure_game_foreground(
         self,
