@@ -8,7 +8,7 @@ import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Index, func
+from sqlalchemy import Index, column, delete, func
 from sqlmodel import Field, Session, SQLModel, select
 
 from config import orm
@@ -233,6 +233,28 @@ def _ensure_player_power_daily_columns(conn: sqlite3.Connection) -> None:
             )
 
 
+def _ensure_gamers_power_index(conn: sqlite3.Connection) -> None:
+    """Expose ``state_json.$.power`` as an indexed VIRTUAL generated column.
+
+    ``gamers.state_json`` is an opaque blob; a query like "all gamers with power
+    > X" would otherwise have to load and parse every row. A VIRTUAL generated
+    column costs nothing at rest and, with the index below, lets such filters be
+    served from the index. It's deliberately *not* on the ``GamerRow`` model —
+    inserts/reads never touch it — so the write path is unchanged.
+    """
+    # table_xinfo (not table_info) lists generated columns, so this stays correct
+    # and idempotent even if the migration record is ever lost while the column exists.
+    existing = {row["name"] for row in conn.execute("PRAGMA table_xinfo(gamers)")}
+    if not existing:
+        return  # table absent — should not happen (create_all ran first)
+    if "power" not in existing:
+        conn.execute(
+            "ALTER TABLE gamers ADD COLUMN power INTEGER "
+            "GENERATED ALWAYS AS (json_extract(state_json, '$.power')) VIRTUAL"
+        )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_gamers_power ON gamers(game, power)")
+
+
 def _ensure_schema(engine: Engine) -> None:
     """Create missing tables, then run the tracked legacy game-scoping migrations.
 
@@ -253,6 +275,7 @@ def _ensure_schema(engine: Engine) -> None:
     orm.apply_migrations(engine, "state", [
         ("001_add_power_columns", _ensure_player_power_daily_columns),
         ("002_game_scoped_rebuild", _ensure_game_scoped_schema),
+        ("003_gamers_power_index", _ensure_gamers_power_index),
     ])
 
 
@@ -301,6 +324,27 @@ def load_state_db_raw(game: str | None = None) -> tuple[StateDB, str | None, str
         return StateDB(), f"{type(exc).__name__}: {exc}", ""
 
 
+def list_gamers_by_power(min_power: int, game: str | None = None) -> list[GamerState]:
+    """Return gamers with ``power >= min_power``, served from ``idx_gamers_power``.
+
+    Filters on the ``power`` VIRTUAL generated column (``state_json.$.power``) so
+    the database does the selection — no need to load and parse every blob.
+    """
+    g = (game or _default_game()).strip()
+    with _conn_lock, Session(_engine()) as s:
+        rows = s.exec(
+            select(GamerRow)
+            .where(GamerRow.game == g, column("power") >= min_power)
+            .order_by(column("power").desc())
+        ).all()
+    gamers: list[GamerState] = []
+    for row in rows:
+        raw = json.loads(row.state_json)
+        raw.setdefault("game", row.game)
+        gamers.append(GamerState.model_validate(raw))
+    return gamers
+
+
 def save_state_db(db: StateDB, game: str | None = None) -> None:
     """Persist every gamer in ``db``. Writes are scoped per-game so other
     games' rows are preserved.
@@ -326,11 +370,11 @@ def save_state_db(db: StateDB, game: str | None = None) -> None:
         )
         games_touched.add(g_game)
     with _conn_lock, Session(_engine()) as s:
-        # Delete only the games we're about to rewrite — leaves other games' rows alone.
+        # Delete only the games we're about to rewrite — leaves other games' rows
+        # alone. One bulk DELETE per game; it runs immediately, so the reused PKs
+        # are gone before the INSERTs below.
         for g_game in games_touched:
-            for existing in s.exec(select(GamerRow).where(GamerRow.game == g_game)).all():
-                s.delete(existing)
-        s.flush()  # run DELETEs before INSERTs so reused PKs don't collide
+            s.execute(delete(GamerRow).where(GamerRow.game == g_game))
         s.add_all(new_rows)
         s.commit()
 
@@ -346,12 +390,10 @@ def delete_player_state(player_id: str | int, game: str | None = None) -> dict[s
     counts: dict[str, int] = {}
     with _conn_lock, Session(_engine()) as s:
         for model in (GamerRow, PlayerPowerDaily, PlayerLevelEvent):
-            rows = s.exec(
-                select(model).where(model.game == g, model.player_id == pid)
-            ).all()
-            for row in rows:
-                s.delete(row)
-            counts[model.__tablename__] = len(rows)
+            result = s.execute(
+                delete(model).where(model.game == g, model.player_id == pid)
+            )
+            counts[model.__tablename__] = int(result.rowcount or 0)
         s.commit()
     return counts
 

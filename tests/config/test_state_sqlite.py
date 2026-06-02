@@ -10,6 +10,7 @@ from config.state_sqlite import (
     get_alliance_stats,
     get_player_stats,
     list_alliance_names,
+    list_gamers_by_power,
     load_state_db_raw,
     record_player_stats,
     save_state_db,
@@ -38,6 +39,32 @@ def test_save_load_roundtrip(sqlite_state: Path) -> None:
     assert len(db.gamers) == 1
     assert db.gamers[0].nickname == "Alice"
     assert db.gamers[0].power == 9000
+
+
+def test_list_gamers_by_power_filters_on_generated_column(sqlite_state: Path) -> None:
+    save_state_db(StateDB(gamers=[
+        GamerState(id=1, nickname="Weak", power=100),
+        GamerState(id=2, nickname="Mid", power=5000),
+        GamerState(id=3, nickname="Strong", power=9000),
+    ]))
+    strong = list_gamers_by_power(5000)
+    assert [g.id for g in strong] == [3, 2]  # power DESC, >= 5000 only
+    assert list_gamers_by_power(100_000) == []
+
+
+def test_list_gamers_by_power_uses_index(sqlite_state: Path) -> None:
+    import sqlite3
+
+    save_state_db(StateDB(gamers=[GamerState(id=1, power=100)]))
+    conn = sqlite3.connect(str(sqlite_state))
+    try:
+        plan = conn.execute(
+            "EXPLAIN QUERY PLAN SELECT state_json FROM gamers "
+            "WHERE game = 'wos' AND power >= 50"
+        ).fetchall()
+    finally:
+        conn.close()
+    assert any("idx_gamers_power" in str(row) for row in plan)
 
 
 def test_daily_power_and_level_event(sqlite_state: Path) -> None:
