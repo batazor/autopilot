@@ -1,2 +1,79 @@
-version: 2
-screens: []
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": 1,
+      "screen_id": "dreamscape_memory",
+      "ocr": "references/event_coming_soon.png",
+      "screen_region": "dreamscape_memory.title",
+      "regions": [
+        {
+          "name": "dreamscape_memory.title",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 12.016728624535327,
+            "y": 7.919223066936986,
+            "width": 15.000000000000007,
+            "height": 6.582557583598164,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "screen_id": "",
+      "ocr": "references/practice_level.png",
+      "regions": [
+        {
+          "name": "dreamscape_memory.1",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 8.624758721761525,
+            "y": 89.22080966416215,
+            "width": 24.014423076923073,
+            "height": 4.051410411451847,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "dreamscape_memory.2",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 38.730697740920796,
+            "y": 89.21915565593218,
+            "width": 23.653846153846164,
+            "height": 3.950164524566302,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        },
+        {
+          "name": "dreamscape_memory.3",
+          "action": "text",
+          "threshold": 0.8,
+          "bbox": {
+            "x": 68.64517800972256,
+            "y": 89.22080966416233,
+            "width": 22.932692307692317,
+            "height": 4.051410411452043,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          },
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}
