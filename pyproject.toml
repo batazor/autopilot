@@ -106,6 +106,7 @@ packages = [
     "src/api",
     "src/licensing",
     "src/wiki",
+    "notify_monitor",
 ]
 
 [tool.ruff]

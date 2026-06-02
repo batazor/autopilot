@@ -42,7 +42,8 @@ RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 WORKDIR /app
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_PREFERENCE=only-system \
-    UV_COMPILE_BYTECODE=1
+    UV_COMPILE_BYTECODE=1 \
+    UV_HTTP_TIMEOUT=300
 
 # Step 1: dependency layer. Copy manifests *only* — the resulting ``.venv/``
 # cache layer survives any source-only change. The BuildKit cache mount keeps
@@ -57,6 +58,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY src/ ./src/
 COPY games/ ./games/
 COPY db/ ./db/
+COPY notify_monitor/ ./notify_monitor/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
@@ -142,6 +144,7 @@ COPY --from=compiler /app/.venv ./.venv
 COPY --from=compiler /app/src ./src
 COPY --from=compiler /app/games ./games
 COPY --from=compiler /app/db ./db
+COPY --from=compiler /app/notify_monitor ./notify_monitor
 
 # License-data directory exists in the image so a fresh ``docker run`` that
 # *doesn't* bind-mount one still has a valid target path for the loader. The
