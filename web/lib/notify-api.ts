@@ -77,6 +77,7 @@ export type NotifyPattern = {
   event_type: string;
   description: string;
   active: number;
+  scenario: string;
 };
 
 export type NotifyUnrecognized = {
@@ -131,10 +132,13 @@ export const addNotifyPattern = (p: {
   event_type: string;
   pattern_regex: string;
   description?: string;
+  scenario?: string;
 }) => nfetch<{ ok: boolean; id: number }>("/api/notify/patterns", jsonInit("POST", p));
 export const updateNotifyPattern = (
   id: number,
-  fields: Partial<Pick<NotifyPattern, "game" | "event_type" | "pattern_regex" | "description">> & {
+  fields: Partial<
+    Pick<NotifyPattern, "game" | "event_type" | "pattern_regex" | "description" | "scenario">
+  > & {
     active?: boolean;
   },
 ) => nfetch<{ ok: boolean }>(`/api/notify/patterns/${id}`, jsonInit("PATCH", fields));
