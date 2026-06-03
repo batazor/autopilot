@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, ClassVar
 import cv2  # type: ignore[import-untyped]
 import numpy as np
 
+from ocr.digit_markers import DigitMarker, detect_digit_markers
 from ocr.preprocess import DIGITS_CHAR_WHITELIST, digits_for_ocr, enhance_for_ocr
 
 if TYPE_CHECKING:
@@ -123,6 +124,32 @@ class OcrClient:
 
     async def aclose(self) -> None:
         """Kept for the service container lifecycle; local OCR has no socket to close."""
+
+    def detect_digit_markers(
+        self,
+        image_bgr: np.ndarray,
+        *,
+        psm: int = 11,
+        min_conf: float = 0.30,
+        upscale: float = 2.0,
+    ) -> list[DigitMarker]:
+        """Find scattered numbered markers in a full image (Dreamscape guides).
+
+        Forwards this client's resolved tesseract config to
+        :func:`ocr.digit_markers.detect_digit_markers`. Synchronous and uncached
+        — a one-shot operator action, not a hot polling path. Run it in a worker
+        thread from async callers.
+        """
+        return detect_digit_markers(
+            image_bgr,
+            tesseract_cmd=self._tesseract_cmd,
+            lang=self._lang,
+            tessdata_dir=self._tessdata_dir,
+            timeout_s=self._timeout,
+            psm=psm,
+            min_conf=min_conf,
+            upscale=upscale,
+        )
 
     @staticmethod
     def _clamped_crop(image: np.ndarray, region: Region) -> np.ndarray:

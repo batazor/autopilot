@@ -174,6 +174,16 @@ class RegionOcrResult(TypedDict):
     rows: list[RegionOcrRow]
 
 
+class RegionOcrTestResult(TypedDict):
+    """Response payload for OCR + screen detection on an uploaded test image."""
+
+    instance_id: str
+    detected_screen: str
+    screen_source: str
+    preview: dict[str, Any]
+    rows: list[RegionOcrRow]
+
+
 def _coerce_float(value: object) -> float | None:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None
@@ -1451,10 +1461,46 @@ def run_region_ocr(
 
     repo = repo_root()
     area_doc = load_area_doc(repo)
-    ocr_client = get_ocr_client()
+    rows = _ocr_region_rows(
+        image_bgr,
+        regions,
+        area_doc=area_doc,
+        state_flat=state_flat,
+        current_screen=current_screen,
+        threshold=threshold,
+        width=width,
+        height=height,
+    )
 
+    return RegionOcrResult(
+        instance_id=instance_id,
+        current_screen=current_screen,
+        preview={
+            "available": png is not None,
+            "rel": rel,
+            "mtime": mtime,
+            "width": width,
+            "height": height,
+        },
+        rows=rows,
+    )
+
+
+def _ocr_region_rows(
+    image_bgr: np.ndarray | None,
+    region_names: list[str],
+    *,
+    area_doc: dict[str, Any],
+    state_flat: dict[str, Any],
+    current_screen: str,
+    threshold: float | None,
+    width: int,
+    height: int,
+) -> list[RegionOcrRow]:
+    """OCR each named region on ``image_bgr`` — shared by the live + upload paths."""
+    ocr_client = get_ocr_client()
     rows: list[RegionOcrRow] = []
-    for name in _ordered_unique(regions):
+    for name in _ordered_unique(region_names):
         if image_bgr is None:
             rows.append(
                 RegionOcrRow(
@@ -1558,17 +1604,49 @@ def run_region_ocr(
                 duration_ms=duration_ms,
             )
         )
+    return rows
 
-    return RegionOcrResult(
+
+def run_region_ocr_test(
+    *,
+    client: Any,
+    instance_id: str,
+    image_bytes: bytes,
+    regions: list[str],
+    threshold: float | None = None,
+) -> RegionOcrTestResult:
+    """Run screen detection + region OCR on an uploaded image (no persistence).
+
+    Lets the operator test the Dreamscape logic against a custom screenshot
+    instead of the live device. Any OpenCV-decodable image (PNG/JPG/…) works.
+    """
+    state_flat = active_player_state_flat(client=client, instance_id=instance_id)
+    image_bgr = _decode_png_to_bgr(image_bytes) if image_bytes else None
+    width = height = 0
+    if image_bgr is not None:
+        height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+
+    repo = repo_root()
+    area_doc = load_area_doc(repo)
+    detected_screen = ""
+    if image_bgr is not None:
+        detected_screen, _ms = _detect_screen_on_frame(image_bgr)
+
+    rows = _ocr_region_rows(
+        image_bgr,
+        regions,
+        area_doc=area_doc,
+        state_flat=state_flat,
+        current_screen=detected_screen,
+        threshold=threshold,
+        width=width,
+        height=height,
+    )
+    return RegionOcrTestResult(
         instance_id=instance_id,
-        current_screen=current_screen,
-        preview={
-            "available": png is not None,
-            "rel": rel,
-            "mtime": mtime,
-            "width": width,
-            "height": height,
-        },
+        detected_screen=detected_screen,
+        screen_source="detected" if detected_screen else "none",
+        preview={"available": image_bgr is not None, "width": width, "height": height},
         rows=rows,
     )
 

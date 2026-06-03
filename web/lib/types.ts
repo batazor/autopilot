@@ -600,6 +600,81 @@ export type RegionOcrResult = {
   rows: RegionOcrRow[];
 };
 
+export type RegionOcrTestResult = {
+  instance_id: string;
+  detected_screen: string;
+  screen_source: string;
+  preview: { available: boolean; width: number; height: number };
+  rows: RegionOcrRow[];
+};
+
+// ── Dreamscape Memory map onboarding ──────────────────────────────────────
+export type DreamscapeMarker = {
+  value: number;
+  xPct: number;
+  yPct: number;
+  conf: number;
+};
+
+export type DreamscapeDetectMarkersResult = {
+  width: number;
+  height: number;
+  psm: number;
+  markers: DreamscapeMarker[];
+  expected: number | null;
+  missing: number[];
+};
+
+export type DreamscapeParsedNameItem = { n: number; name: string };
+
+export type DreamscapeParseNamesResult = {
+  items: DreamscapeParsedNameItem[];
+  warnings: string[];
+};
+
+export type DreamscapeScenePoint = {
+  n: number;
+  name: string;
+  xPct: number;
+  yPct: number;
+};
+
+export type DreamscapeSceneRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
+export type DreamscapeSceneSummary = {
+  slug: string;
+  title: string;
+  source_image: string;
+  point_count: number;
+  active: boolean;
+};
+
+export type DreamscapeListMapsResult = {
+  active: string;
+  scenes: DreamscapeSceneSummary[];
+};
+
+export type DreamscapeSceneDetail = {
+  slug: string;
+  title: string;
+  source_image: string;
+  scene_rect: DreamscapeSceneRect | null;
+  points: DreamscapeScenePoint[];
+  active: boolean;
+};
+
+export type DreamscapeSaveMapResult = {
+  ok: boolean;
+  slug: string;
+  point_count: number;
+  active: string;
+};
+
 export type FishDetectionRow = {
   /** Top-left corner (pixels, source-frame coords). */
   x: number;

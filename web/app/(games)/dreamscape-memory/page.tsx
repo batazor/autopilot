@@ -7,6 +7,9 @@ import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
 import { LiveEditorTab } from "@/components/dreamscape/LiveEditorTab";
+import { SceneBuilder } from "@/components/dreamscape/SceneBuilder";
+import { SceneOnboarding } from "@/components/dreamscape/SceneOnboarding";
+import { SavedScenes } from "@/components/dreamscape/SavedScenes";
 import {
   DREAMSCAPE_ACTIVE,
   DREAMSCAPE_ARCHIVE,
@@ -404,6 +407,8 @@ function DreamscapeGuides({
   selected: DreamscapeScene | null;
   onZoom: (src: string) => void;
 }) {
+  const [building, setBuilding] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
   return (
     <>
       <AppTabs
@@ -415,7 +420,27 @@ function DreamscapeGuides({
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[300px_1fr]">
         <section className="panel">
-          <p className="meta mb-3">{scenes.length} scenes</p>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="meta">{scenes.length} scenes</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOnboarding(true)}
+                className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
+                title="Add a scene to the bot's map.yaml (image + OCR + names)"
+              >
+                Onboard → map.yaml
+              </button>
+              <button
+                type="button"
+                onClick={() => setBuilding(true)}
+                className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
+                title="Build a scene JSON to contribute upstream (not persisted)"
+              >
+                + New scene
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {scenes.map((scene) => (
               <SceneTile
@@ -436,6 +461,8 @@ function DreamscapeGuides({
           </section>
         )}
       </div>
+
+      <SavedScenes />
 
       <section className="panel mt-4 text-sm text-wos-text-muted">
         <h2 className="mb-2 text-base font-semibold text-wos-text">
@@ -477,6 +504,18 @@ function DreamscapeGuides({
           to refresh.
         </p>
       </section>
+
+      {building ? (
+        <FleetContextProvider>
+          <SceneBuilder onClose={() => setBuilding(false)} />
+        </FleetContextProvider>
+      ) : null}
+
+      {onboarding ? (
+        <FleetContextProvider>
+          <SceneOnboarding onClose={() => setOnboarding(false)} />
+        </FleetContextProvider>
+      ) : null}
     </>
   );
 }

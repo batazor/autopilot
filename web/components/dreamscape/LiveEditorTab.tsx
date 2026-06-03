@@ -17,6 +17,7 @@ import {
   overlayTestImageUrl,
   promoteLabelingReference,
   saveLabelingRegions,
+  testRegionOcr,
 } from "@/lib/api";
 import {
   DREAMSCAPE_ARCHIVED_KEY,
@@ -25,8 +26,10 @@ import {
   DREAMSCAPE_WORDS_REF,
   deriveLiveStatus,
   screenRefOptions,
+  statusFromDetectedScreen,
   wordBadges,
 } from "@/lib/dreamscape-live";
+import type { RegionOcrTestResult } from "@/lib/types";
 import { apiToEditorRegions, defaultRegion, editorToApiRegions } from "@/lib/labeling-utils";
 import { LiveStatusCard } from "./LiveStatusCard";
 
@@ -59,11 +62,57 @@ export function LiveEditorTab() {
     refetchInterval: POLL_MS,
   });
 
-  const status = useMemo(() => deriveLiveStatus(overlayQuery.data), [overlayQuery.data]);
-  const badges = useMemo(() => wordBadges(ocrQuery.data?.rows), [ocrQuery.data]);
-  const liveImageUrl = instanceId
-    ? overlayTestImageUrl(instanceId, overlayQuery.dataUpdatedAt || 0)
-    : null;
+  const [message, setMessage] = useState<string | null>(null);
+
+  // ── Test-image override: run our logic on an uploaded screenshot ──
+  const [testResult, setTestResult] = useState<RegionOcrTestResult | null>(null);
+  const [testImageUrl, setTestImageUrl] = useState<string | null>(null);
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) =>
+      testRegionOcr(instanceId, file, [...DREAMSCAPE_WORD_REGIONS]),
+    onSuccess: (res, file) => {
+      setTestImageUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(file);
+      });
+      setTestResult(res);
+    },
+    onError: (err: unknown) => setMessage(`Test image failed: ${String(err)}`),
+  });
+
+  const clearTest = () => {
+    setTestImageUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setTestResult(null);
+  };
+  useEffect(() => {
+    // Revoke the object URL when the tab unmounts.
+    return () => {
+      if (testImageUrl) URL.revokeObjectURL(testImageUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const testMode = testResult != null;
+  const status = useMemo(
+    () =>
+      testMode
+        ? statusFromDetectedScreen(testResult?.detected_screen)
+        : deriveLiveStatus(overlayQuery.data),
+    [testMode, testResult, overlayQuery.data],
+  );
+  const badges = useMemo(
+    () => wordBadges(testMode ? testResult?.rows : ocrQuery.data?.rows),
+    [testMode, testResult, ocrQuery.data],
+  );
+  const cardImageUrl = testMode
+    ? testImageUrl
+    : instanceId
+      ? overlayTestImageUrl(instanceId, overlayQuery.dataUpdatedAt || 0)
+      : null;
 
   // ── Editor (frozen reference frame) ──
   const [refRel, setRefRel] = useState<string>(DREAMSCAPE_WORDS_REF);
@@ -73,7 +122,6 @@ export function LiveEditorTab() {
   const [dirty, setDirty] = useState(false);
   const [imageNonce, setImageNonce] = useState(0);
   const [screenId, setScreenId] = useState("dreamscape_memory");
-  const [message, setMessage] = useState<string | null>(null);
 
   // ── Screen list + archive filter (operator-local, no repo data change) ──
   const [showArchived, setShowArchived] = useState(false);
@@ -250,11 +298,15 @@ export function LiveEditorTab() {
 
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <LiveStatusCard
-          imageUrl={liveImageUrl}
+          imageUrl={cardImageUrl}
           status={status}
           badges={badges}
-          loading={ocrQuery.isFetching}
+          loading={testMode ? uploadMutation.isPending : ocrQuery.isFetching}
           instanceSelected={Boolean(instanceId)}
+          testMode={testMode}
+          uploading={uploadMutation.isPending}
+          onUploadTestImage={(file) => uploadMutation.mutate(file)}
+          onClearTest={clearTest}
         />
 
         <section className="panel">

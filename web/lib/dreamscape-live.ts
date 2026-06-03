@@ -47,6 +47,16 @@ export function deriveLiveStatus(result: OverlayTestResult | null | undefined): 
   };
 }
 
+/** Build a status from a bare detected-screen string (e.g. the upload-test result). */
+export function statusFromDetectedScreen(detected: string | null | undefined): LiveStatus {
+  const d = (detected || "").trim();
+  return {
+    screenDetected: d.length > 0,
+    detectedScreen: d,
+    areaCovered: d.startsWith(DREAMSCAPE_SCREEN_PREFIX),
+  };
+}
+
 export type WordBadge = {
   region: string;
   /** 1-based position shown on the badge. */

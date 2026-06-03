@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { useRef } from "react";
 import type { LiveStatus, WordBadge } from "@/lib/dreamscape-live";
 import { DetectedWordsBadges } from "./DetectedWordsBadges";
 
@@ -28,24 +29,45 @@ function StatusPill({
   );
 }
 
-/** Live device frame + the two status pills + the detected-word badges. */
+/** Live device frame + the two status pills + the detected-word badges.
+ *
+ * When ``testMode`` is on, ``imageUrl``/``status``/``badges`` reflect an
+ * uploaded test image instead of the live device.
+ */
 export function LiveStatusCard({
   imageUrl,
   status,
   badges,
   loading,
   instanceSelected,
+  testMode,
+  uploading,
+  onUploadTestImage,
+  onClearTest,
 }: {
   imageUrl: string | null;
   status: LiveStatus;
   badges: WordBadge[];
   loading: boolean;
   instanceSelected: boolean;
+  testMode: boolean;
+  uploading: boolean;
+  onUploadTestImage: (file: File) => void;
+  onClearTest: () => void;
 }) {
+  const fileInput = useRef<HTMLInputElement>(null);
+
   return (
     <section className="panel">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Current screen</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          Current screen
+          {testMode ? (
+            <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+              TEST IMAGE
+            </span>
+          ) : null}
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill
             ok={status.screenDetected}
@@ -65,10 +87,10 @@ export function LiveStatusCard({
       </div>
 
       <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep">
-        {instanceSelected && imageUrl ? (
+        {imageUrl ? (
           <img
             src={imageUrl}
-            alt="live device frame"
+            alt={testMode ? "uploaded test image" : "live device frame"}
             className="h-full w-full object-contain"
           />
         ) : (
@@ -76,6 +98,38 @@ export function LiveStatusCard({
             {instanceSelected ? "Waiting for a live frame…" : "Select an instance"}
           </div>
         )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUploadTestImage(f);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover disabled:opacity-50"
+          disabled={!instanceSelected || uploading}
+          onClick={() => fileInput.current?.click()}
+          title="Upload a custom screenshot and run our detection + OCR logic on it"
+        >
+          {uploading ? "Testing…" : testMode ? "Upload another" : "Upload test image"}
+        </button>
+        {testMode ? (
+          <button
+            type="button"
+            className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
+            onClick={onClearTest}
+          >
+            Back to live
+          </button>
+        ) : null}
       </div>
 
       <div className="mt-3">

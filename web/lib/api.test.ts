@@ -6,7 +6,9 @@ import {
   fetchRegionOcr,
   importLabelingPng,
   labelingImageUrl,
+  saveDreamscapeScene,
   setActiveGame,
+  uploadDreamscapeSceneImage,
 } from "./api";
 
 function mockFetchJson(body: unknown) {
@@ -88,5 +90,61 @@ describe("labeling API game scope", () => {
     expect(url).toContain("/api/instances/bs1/region-ocr");
     expect(url).toContain("regions=dreamscape_memory.1%2Cdreamscape_memory.2");
     expect(url).toContain("threshold=0.7");
+  });
+});
+
+describe("dreamscape scene API", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    setActiveGame("");
+  });
+
+  it("posts the image as multipart to the scene image endpoint", async () => {
+    const fetchMock = mockFetchJson({
+      ok: true,
+      source_image: "games/wos/events/dreamscape_memory/references/maps/garden.png",
+    });
+
+    const res = await uploadDreamscapeSceneImage(
+      "garden",
+      new File(["png"], "garden.png", { type: "image/png" }),
+    );
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/dreamscape/scenes/garden/image");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeInstanceOf(FormData);
+    expect((init.body as FormData).get("file")).toBeInstanceOf(File);
+    expect(res.source_image).toContain("references/maps/garden.png");
+  });
+
+  it("posts the scene title + markers as JSON to the save endpoint", async () => {
+    const fetchMock = mockFetchJson({
+      ok: true,
+      slug: "garden",
+      point_count: 2,
+      active: "garden",
+    });
+
+    const res = await saveDreamscapeScene("garden", {
+      title: "Garden",
+      source_image: "games/wos/events/dreamscape_memory/references/maps/garden.png",
+      scene_rect: null,
+      points: [
+        { n: 1, name: "Book", xPct: 10, yPct: 20 },
+        { n: 2, name: "Wolf", xPct: 30, yPct: 40 },
+      ],
+      activate: true,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/dreamscape/scenes/garden");
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(String(init.body));
+    expect(body.title).toBe("Garden");
+    expect(body.activate).toBe(true);
+    expect(body.points).toHaveLength(2);
+    expect(body.points[0]).toEqual({ n: 1, name: "Book", xPct: 10, yPct: 20 });
+    expect(res.active).toBe("garden");
   });
 });

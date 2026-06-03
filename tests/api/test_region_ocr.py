@@ -133,6 +133,62 @@ def test_region_ocr_no_frame(tmp_path: Path, monkeypatch) -> None:
     assert result["rows"][0]["status"] == "no_frame"
 
 
+def test_region_ocr_test_runs_detection_and_ocr_on_upload(
+    tmp_path: Path, monkeypatch
+) -> None:
+    frame = np.zeros((1280, 720, 3), dtype=np.uint8)
+    ok, encoded = cv2.imencode(".png", frame)
+    assert ok
+
+    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: _AREA_DOC)
+    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_k: {})
+    monkeypatch.setattr(
+        overlay_test, "_detect_screen_on_frame", lambda _img, **_k: ("dreamscape_memory", 3)
+    )
+    monkeypatch.setattr(
+        overlay_test,
+        "get_ocr_client",
+        lambda: _FakeOcr(
+            {
+                "dreamscape_memory.1": OCRResult(
+                    region_id="dreamscape_memory.1", text="Book", confidence=0.95
+                )
+            }
+        ),
+    )
+
+    result = overlay_test.run_region_ocr_test(
+        client=object(),
+        instance_id="bs1",
+        image_bytes=encoded.tobytes(),
+        regions=["dreamscape_memory.1"],
+    )
+
+    assert result["detected_screen"] == "dreamscape_memory"
+    assert result["screen_source"] == "detected"
+    assert result["preview"]["available"] is True
+    assert result["rows"][0]["text"] == "Book"
+    assert isinstance(result["rows"][0]["duration_ms"], float)
+
+
+def test_region_ocr_test_handles_undecodable_bytes(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(overlay_test, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(overlay_test, "load_area_doc", lambda _repo: _AREA_DOC)
+    monkeypatch.setattr(overlay_test, "active_player_state_flat", lambda **_k: {})
+    monkeypatch.setattr(overlay_test, "get_ocr_client", lambda: _FakeOcr({}))
+
+    result = overlay_test.run_region_ocr_test(
+        client=object(),
+        instance_id="bs1",
+        image_bytes=b"not an image",
+        regions=["dreamscape_memory.1"],
+    )
+    assert result["detected_screen"] == ""
+    assert result["preview"]["available"] is False
+    assert result["rows"][0]["status"] == "no_frame"
+
+
 def test_region_ocr_empty_text(tmp_path: Path, monkeypatch) -> None:
     frame = np.zeros((1280, 720, 3), dtype=np.uint8)
     _patch_common(monkeypatch, tmp_path, frame=frame)
