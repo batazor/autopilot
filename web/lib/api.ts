@@ -34,6 +34,8 @@ import type {
   FishDetectResult,
   FishVideoJob,
   InstanceDetail,
+  MapStitchJob,
+  MapStitchParams,
   LabelingDocument,
   LabelingReferenceMeta,
   LabelingScopeOption,
@@ -681,6 +683,68 @@ export async function deleteFishVideoJob(jobId: string): Promise<{ ok: boolean }
   return apiFetch<{ ok: boolean }>(`/api/fish-detect/video/${encodeURIComponent(jobId)}`, {
     method: "DELETE",
   });
+}
+
+// --- map stitcher ----------------------------------------------------------
+export async function startMapCapture(
+  params: MapStitchParams,
+): Promise<{ job_id: string }> {
+  return apiFetch<{ job_id: string }>("/api/map-stitch/capture", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+}
+
+export async function startMapStitch(jobId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/map-stitch/${encodeURIComponent(jobId)}/stitch`,
+    { method: "POST" },
+  );
+}
+
+export async function fetchMapStitchJob(jobId: string): Promise<MapStitchJob> {
+  return apiFetch<MapStitchJob>(`/api/map-stitch/${encodeURIComponent(jobId)}`);
+}
+
+export async function deleteMapStitchJob(jobId: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(`/api/map-stitch/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function saveMapStitch(
+  jobId: string,
+  name: string,
+): Promise<{ name: string }> {
+  return apiFetch<{ name: string }>(
+    `/api/map-stitch/${encodeURIComponent(jobId)}/save`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    },
+  );
+}
+
+export async function fetchSavedMaps(): Promise<{ maps: string[] }> {
+  return apiFetch<{ maps: string[] }>("/api/map-stitch/maps");
+}
+
+export function mapStitchFrameImageUrl(jobId: string, name: string): string {
+  return `${base}/api/map-stitch/${encodeURIComponent(jobId)}/frame/${encodeURIComponent(name)}/image`;
+}
+
+export function mapStitchMapImageUrl(
+  jobId: string,
+  cacheKey?: number | string | null,
+): string {
+  const q = new URLSearchParams({ t: String(cacheKey ?? Date.now()) });
+  return `${base}/api/map-stitch/${encodeURIComponent(jobId)}/map/image?${q}`;
+}
+
+export function savedMapImageUrl(name: string): string {
+  return `${base}/api/map-stitch/maps/${encodeURIComponent(name)}/image`;
 }
 
 function labelingScopeQuery(

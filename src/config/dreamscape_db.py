@@ -41,6 +41,11 @@ _MODULE_REL = "games/wos/events/dreamscape_memory"
 _LEGACY_MAP_REL = f"{_MODULE_REL}/map.yaml"
 _DB_FILENAME = "scenes.db"
 
+# ``season`` doubles as the Guides category. Numbered content seasons are
+# 1, 2, 3, …; these reserved values carve out the non-numbered buckets.
+SEASON_PRACTICE = 0  # practice/test scenes (out of rotation)
+SEASON_MULTIPLAYER = 100  # co-op Multiplayer (Recall Road) scenes
+
 _path_override: Path | None = None
 
 
@@ -68,11 +73,25 @@ class DreamscapeSceneRow(SQLModel, table=True):
     slug: str = Field(primary_key=True)
     title: str = ""
     source_image: str = ""
+    # JSON: ["games/.../a.png", ...] — extra reference images for a multi-shot
+    # scene (e.g. the Multiplayer "Monument"). ``source_image`` is the primary /
+    # item-mapped image; ``images`` is the full gallery (primary first). Empty =
+    # single-image scene (the UI falls back to ``[source_image]``).
+    images_json: str = Field(default="[]")
     # JSON: {"left","top","width","height"} or null.
     scene_rect_json: str | None = Field(default=None)
     # JSON: [{"n","name","xPct","yPct"}, ...].
     points_json: str = Field(default="[]")
     active: bool = Field(default=False)
+    # Event-rotation status: True = retired/off-rotation scene (kept reusable),
+    # False = current rotation. Distinct from ``active`` (the single scene the
+    # bot is solving right now).
+    archived: bool = Field(default=False)
+    # Content batch / Guides category: 0 = practice/test, 1 = Season 1
+    # (wostools), 2 = Season 2, 3 = Season 3, 100 = Multiplayer (Recall Road).
+    # See ``SEASON_PRACTICE`` / ``SEASON_MULTIPLAYER``. Independent of
+    # ``archived`` (rotation status).
+    season: int = Field(default=1)
     updated_at: float = 0.0
 
 
@@ -83,7 +102,31 @@ class DreamscapeSceneRow(SQLModel, table=True):
 
 def _ensure_schema(engine: Engine) -> None:
     SQLModel.metadata.create_all(engine, tables=[DreamscapeSceneRow.__table__])
+    _add_missing_columns(engine)
     _import_legacy_map_yaml(engine)
+
+
+def _add_missing_columns(engine: Engine) -> None:
+    """Idempotent column adds for tables that predate a new field."""
+    with engine.begin() as conn:
+        cols = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(dreamscape_scenes)")
+        }
+        if "archived" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes "
+                "ADD COLUMN archived BOOLEAN NOT NULL DEFAULT 0"
+            )
+        if "season" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes ADD COLUMN season INTEGER NOT NULL DEFAULT 1"
+            )
+        if "images_json" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes "
+                "ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]'"
+            )
 
 
 def _engine() -> Engine:
@@ -189,9 +232,12 @@ def _row_to_detail(row: DreamscapeSceneRow) -> dict[str, Any]:
         "slug": row.slug,
         "title": row.title or row.slug,
         "source_image": row.source_image,
+        "images": _load_json(row.images_json, []),
         "scene_rect": _load_json(row.scene_rect_json, None),
         "points": _load_json(row.points_json, []),
         "active": bool(row.active),
+        "archived": bool(row.archived),
+        "season": int(row.season),
     }
 
 
@@ -208,8 +254,17 @@ def upsert_scene(
     scene_rect: dict[str, Any] | None,
     points: list[dict[str, Any]],
     activate: bool,
+    archived: bool | None = None,
+    season: int | None = None,
+    images: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Insert/replace a scene; when ``activate`` make it the sole active scene."""
+    """Insert/replace a scene; when ``activate`` make it the sole active scene.
+
+    ``archived``/``season``/``images`` are left untouched on update when
+    ``None`` (so re-imports and rect/point saves don't reset an operator's
+    rotation/season tagging or gallery); new rows default to not-archived,
+    Season 1, single-image.
+    """
     now = time.time()
     with _conn_lock, Session(_engine()) as s:
         row = s.get(DreamscapeSceneRow, slug)
@@ -218,8 +273,14 @@ def upsert_scene(
             s.add(row)
         row.title = title or slug
         row.source_image = source_image
+        if images is not None:
+            row.images_json = json.dumps([str(x) for x in images])
         row.scene_rect_json = _dump_rect(scene_rect)
         row.points_json = json.dumps(points)
+        if archived is not None:
+            row.archived = bool(archived)
+        if season is not None:
+            row.season = int(season)
         row.updated_at = now
         if activate:
             for other in s.exec(
@@ -249,11 +310,37 @@ def list_scenes() -> dict[str, Any]:
             "source_image": r.source_image,
             "point_count": len(_load_json(r.points_json, [])),
             "active": bool(r.active),
+            "archived": bool(r.archived),
+            "season": int(r.season),
         }
         for r in rows
     ]
     scenes.sort(key=lambda d: d["slug"])
     return {"active": active, "scenes": scenes}
+
+
+def set_archived(slug: str, archived: bool) -> bool:
+    """Set a scene's rotation status. Returns True if the scene existed."""
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(DreamscapeSceneRow, slug)
+        if row is None:
+            return False
+        row.archived = bool(archived)
+        row.updated_at = time.time()
+        s.commit()
+    return True
+
+
+def set_season(slug: str, season: int) -> bool:
+    """Set a scene's content season. Returns True if the scene existed."""
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(DreamscapeSceneRow, slug)
+        if row is None:
+            return False
+        row.season = int(season)
+        row.updated_at = time.time()
+        s.commit()
+    return True
 
 
 def get_scene(slug: str) -> dict[str, Any] | None:

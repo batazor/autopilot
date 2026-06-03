@@ -2,7 +2,7 @@
 
 Backs the dashboard flow that builds the solver's scene maps: persist a guide
 image, OCR its numbered markers, parse the pasted item-name list, and save a
-scene into ``map.yaml``. See ``api.services.dreamscape_onboarding``.
+scene into the module scene database. See ``api.services.dreamscape_onboarding``.
 """
 from __future__ import annotations
 

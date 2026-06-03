@@ -4,19 +4,47 @@ import type {
   RegionOcrRow,
 } from "@/lib/types";
 
-/** Repo-relative reference PNG for the Dreamscape practice-level screen. */
+/** Repo-relative reference PNG for the Dreamscape solo practice-level screen. */
 export const DREAMSCAPE_WORDS_REF =
   "games/wos/events/dreamscape_memory/references/practice_level.png";
+
+/** Repo-relative reference PNG for the Dreamscape multiplayer screen (6 words). */
+export const DREAMSCAPE_MULTIPLAYER_WORDS_REF =
+  "games/wos/events/dreamscape_memory/references/dreamscape_memory_.multiplayer.png";
 
 /** Labeling scope key for the dreamscape_memory module (see inferScopeFromRef). */
 export const DREAMSCAPE_SCOPE = "wos:events/dreamscape_memory";
 
-/** The three word-button regions OCR'd at the bottom of a recall-road level. */
+/** The three word-button regions OCR'd at the bottom of a solo recall-road level. */
 export const DREAMSCAPE_WORD_REGIONS = [
   "dreamscape_memory.1",
   "dreamscape_memory.2",
   "dreamscape_memory.3",
 ] as const;
+
+/** The six word-button regions OCR'd in multiplayer mode. */
+export const DREAMSCAPE_MULTIPLAYER_WORD_REGIONS = [
+  "dreamscape_memory_.multiplayer.1",
+  "dreamscape_memory_.multiplayer.2",
+  "dreamscape_memory_.multiplayer.3",
+  "dreamscape_memory_.multiplayer.4",
+  "dreamscape_memory_.multiplayer.5",
+  "dreamscape_memory_.multiplayer.6",
+] as const;
+
+/** Names of the solver-managed system regions, not edited by the operator:
+ * word-search zones (3 solo, 6 multiplayer) and the screen title marker. They
+ * belong in area.yaml but stay out of the region editor, where only item points
+ * are placed. */
+const SYSTEM_REGION_NAMES: ReadonlySet<string> = new Set<string>([
+  ...DREAMSCAPE_WORD_REGIONS,
+  ...DREAMSCAPE_MULTIPLAYER_WORD_REGIONS,
+]);
+
+/** True for solver-managed system regions (word-search zones + screen title). */
+export function isSystemRegion(name: string): boolean {
+  return SYSTEM_REGION_NAMES.has(name) || name.endsWith(".title");
+}
 
 export const DREAMSCAPE_SCREEN_PREFIX = "dreamscape_memory";
 
@@ -97,27 +125,15 @@ export function wordBadges(
 export type ScreenRef = {
   rel: string;
   label: string;
-  archived: boolean;
 };
 
-/** localStorage key for the operator's archived-screen set (browser only). */
-export const DREAMSCAPE_ARCHIVED_KEY = "dreamscape:archived-screens";
-
-/** Build the screen-selector options, hiding archived refs unless requested.
- *
- * There is no archive flag in area.yaml — "archived" is an operator-controlled,
- * browser-local set (no repo/data change). Refs in ``archivedRels`` are hidden
- * unless ``showArchived`` is on.
- */
+/** Build the screen-selector options from labeled references. */
 export function screenRefOptions(
   refs: LabelingReferenceMeta[] | null | undefined,
-  opts: { showArchived: boolean; archivedRels: ReadonlySet<string> },
 ): ScreenRef[] {
-  return (refs ?? [])
-    .map((r) => {
-      const sid = r.screen_id.trim();
-      const label = sid ? `${sid} · ${r.name}` : r.name;
-      return { rel: r.rel, label, archived: opts.archivedRels.has(r.rel) };
-    })
-    .filter((s) => opts.showArchived || !s.archived);
+  return (refs ?? []).map((r) => {
+    const sid = r.screen_id.trim();
+    const label = sid ? `${sid} · ${r.name}` : r.name;
+    return { rel: r.rel, label };
+  });
 }

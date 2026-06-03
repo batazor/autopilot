@@ -107,27 +107,21 @@ describe("wordBadges", () => {
   });
 });
 
-describe("screen list archive filter", () => {
+describe("screen list options", () => {
   const refs = [
-    refMeta({ rel: "a.png", screen_id: "dreamscape_memory" }),
-    refMeta({ rel: "b.png", screen_id: "" }),
+    refMeta({ rel: "a.png", screen_id: "dreamscape_memory", name: "a" }),
+    refMeta({ rel: "b.png", screen_id: "", name: "b" }),
   ];
 
-  it("hides operator-archived refs unless showArchived is on", () => {
-    const archivedRels = new Set(["b.png"]);
-    expect(
-      screenRefOptions(refs, { showArchived: false, archivedRels }).map((s) => s.rel),
-    ).toEqual(["a.png"]);
-    const all = screenRefOptions(refs, { showArchived: true, archivedRels });
-    expect(all.map((s) => s.rel)).toEqual(["a.png", "b.png"]);
-    expect(all.find((s) => s.rel === "b.png")?.archived).toBe(true);
+  it("builds an option per ref with a screen-id-prefixed label", () => {
+    const opts = screenRefOptions(refs);
+    expect(opts.map((s) => s.rel)).toEqual(["a.png", "b.png"]);
+    expect(opts[0].label).toBe("dreamscape_memory · a");
+    expect(opts[1].label).toBe("b");
   });
 
-  it("shows everything when nothing is archived", () => {
-    const opts = screenRefOptions(refs, {
-      showArchived: false,
-      archivedRels: new Set(),
-    });
-    expect(opts.map((s) => s.rel)).toEqual(["a.png", "b.png"]);
+  it("returns an empty list for null/undefined refs", () => {
+    expect(screenRefOptions(null)).toEqual([]);
+    expect(screenRefOptions(undefined)).toEqual([]);
   });
 });

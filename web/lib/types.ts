@@ -652,6 +652,8 @@ export type DreamscapeSceneSummary = {
   source_image: string;
   point_count: number;
   active: boolean;
+  archived: boolean;
+  season: number;
 };
 
 export type DreamscapeListMapsResult = {
@@ -663,9 +665,13 @@ export type DreamscapeSceneDetail = {
   slug: string;
   title: string;
   source_image: string;
+  /** Full reference-image gallery (primary first). Empty = single-image scene. */
+  images: string[];
   scene_rect: DreamscapeSceneRect | null;
   points: DreamscapeScenePoint[];
   active: boolean;
+  archived: boolean;
+  season: number;
 };
 
 export type DreamscapeSaveMapResult = {
@@ -741,6 +747,42 @@ export type FishVideoJob = {
   available: boolean;
   error: string;
   frames: FishVideoFrame[];
+};
+
+export type MapStitchState =
+  | "queued"
+  | "capturing"
+  | "captured"
+  | "stitching"
+  | "done"
+  | "error";
+
+export type MapStitchJob = {
+  job_id: string;
+  state: MapStitchState;
+  captured: number;
+  total: number;
+  frames: string[];
+  map_ready: boolean;
+  log: string;
+  error: string;
+  serial: string;
+  rows: number;
+  cols: number;
+  overlap: number;
+  swipe_ms: number;
+  settle_s: number;
+  home: boolean;
+};
+
+export type MapStitchParams = {
+  serial: string;
+  rows: number;
+  cols: number;
+  overlap: number;
+  swipe_ms: number;
+  settle_s: number;
+  home: boolean;
 };
 
 export type ProbeCropSide = {

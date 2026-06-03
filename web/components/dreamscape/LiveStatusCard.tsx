@@ -1,9 +1,10 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import type { LiveStatus, WordBadge } from "@/lib/dreamscape-live";
 import { DetectedWordsBadges } from "./DetectedWordsBadges";
+import { Button } from "./Button";
 
 function StatusPill({
   ok,
@@ -40,22 +41,32 @@ export function LiveStatusCard({
   badges,
   loading,
   instanceSelected,
-  testMode,
-  uploading,
+  testMode = false,
+  uploading = false,
   onUploadTestImage,
   onClearTest,
+  showWords = true,
 }: {
   imageUrl: string | null;
   status: LiveStatus;
   badges: WordBadge[];
   loading: boolean;
   instanceSelected: boolean;
-  testMode: boolean;
-  uploading: boolean;
-  onUploadTestImage: (file: File) => void;
-  onClearTest: () => void;
+  /** Test-image controls are shown only when ``onUploadTestImage`` is given. */
+  testMode?: boolean;
+  uploading?: boolean;
+  onUploadTestImage?: (file: File) => void;
+  onClearTest?: () => void;
+  /** Render the detected-words badges inside the card (default). Disable to
+   * show the word list in a separate panel beside the frame. */
+  showWords?: boolean;
 }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  // A rolling-preview URL that 404'd (worker hasn't written a frame yet).
+  // Cache-busting changes the URL each tick, so a failure auto-retries on the
+  // next frame rather than sticking on a broken image.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showImage = Boolean(imageUrl) && imageUrl !== failedSrc;
 
   return (
     <section className="panel">
@@ -87,11 +98,12 @@ export function LiveStatusCard({
       </div>
 
       <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep">
-        {imageUrl ? (
+        {showImage && imageUrl ? (
           <img
             src={imageUrl}
             alt={testMode ? "uploaded test image" : "live device frame"}
             className="h-full w-full object-contain"
+            onError={() => setFailedSrc(imageUrl)}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-wos-text-muted">
@@ -100,44 +112,44 @@ export function LiveStatusCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <input
-          ref={fileInput}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadTestImage(f);
-            e.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover disabled:opacity-50"
-          disabled={!instanceSelected || uploading}
-          onClick={() => fileInput.current?.click()}
-          title="Upload a custom screenshot and run our detection + OCR logic on it"
-        >
-          {uploading ? "Testing…" : testMode ? "Upload another" : "Upload test image"}
-        </button>
-        {testMode ? (
-          <button
-            type="button"
-            className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
-            onClick={onClearTest}
+      {onUploadTestImage ? (
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onUploadTestImage(f);
+              e.target.value = "";
+            }}
+          />
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={!instanceSelected || uploading}
+            onClick={() => fileInput.current?.click()}
+            title="Upload a custom screenshot and run our detection + OCR logic on it"
           >
-            Back to live
-          </button>
-        ) : null}
-      </div>
+            {uploading ? "Testing…" : testMode ? "Upload another" : "Upload test image"}
+          </Button>
+          {testMode && onClearTest ? (
+            <Button variant="secondary" size="sm" onClick={onClearTest}>
+              Back to live
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
 
-      <div className="mt-3">
-        <p className="meta mb-1.5">
-          Detected words {loading ? <span className="text-wos-text-muted">· refreshing…</span> : null}
-        </p>
-        <DetectedWordsBadges badges={badges} />
-      </div>
+      {showWords ? (
+        <div className="mt-3">
+          <p className="meta mb-1.5">
+            Detected words {loading ? <span className="text-wos-text-muted">· refreshing…</span> : null}
+          </p>
+          <DetectedWordsBadges badges={badges} />
+        </div>
+      ) : null}
 
       {status.detectedScreen ? (
         <p className="meta mt-2">

@@ -29,6 +29,48 @@
       "ocr": "references/practice_level.png",
       "regions": [
         {
+          "name": "Smoke",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 52.044497673947426,
+            "y": 26.232061191595385,
+            "width": 9.5087106795786,
+            "height": 5.07131236244192,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "Book",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 30.06497524752477,
+            "y": 37.74930571626941,
+            "width": 5.495049504950457,
+            "height": 2.0013885674612304,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "Wolf",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 66.05662128712868,
+            "y": 31.350660744763992,
+            "width": 7.574257425742563,
+            "height": 5.833834760472091,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "dreamscape_memory.1",
           "action": "text",
           "threshold": 0.8,
@@ -72,6 +114,103 @@
             "original_height": 1280
           },
           "type": "string"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "screen_id": "",
+      "ocr": "references/dreamscape_memory_.multiplayer.png",
+      "regions": [
+        {
+          "name": "dreamscape_memory_.multiplayer.1",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 7.112636724335124,
+            "y": 87.96450881578366,
+            "width": 22.391826923076906,
+            "height": 3.950164524566039,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory_.multiplayer.2",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 38.18703978410061,
+            "y": 88.0624466862097,
+            "width": 24.55528846153848,
+            "height": 3.5451809770228584,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory_.multiplayer.3",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 69.6153080954538,
+            "y": 88.06079267797988,
+            "width": 25.639272284928595,
+            "height": 3.4439350901369243,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory_.multiplayer.4",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 6.574563911924492,
+            "y": 93.7182815162584,
+            "width": 23.65384615384615,
+            "height": 4.152656298337811,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory_.multiplayer.5",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 37.9955810337432,
+            "y": 94.12657308026169,
+            "width": 24.194711538461444,
+            "height": 3.5451809770227967,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory_.multiplayer.6",
+          "action": "text",
+          "threshold": 0.8,
+          "type": "string",
+          "bbox": {
+            "x": 70.13775200171558,
+            "y": 94.02698120160582,
+            "width": 23.293269230769262,
+            "height": 3.8489186376802955,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     }

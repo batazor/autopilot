@@ -82,6 +82,8 @@ class SceneSummary(TypedDict):
     source_image: str
     point_count: int
     active: bool
+    archived: bool
+    season: int
 
 
 class ListMapsResult(TypedDict):
@@ -93,9 +95,12 @@ class SceneDetail(TypedDict):
     slug: str
     title: str
     source_image: str
+    images: list[str]
     scene_rect: SceneRect | None
     points: list[ScenePoint]
     active: bool
+    archived: bool
+    season: int
 
 
 class SaveMapResult(TypedDict):
@@ -351,6 +356,8 @@ def list_scenes() -> ListMapsResult:
             "source_image": str(s["source_image"]),
             "point_count": int(s["point_count"]),
             "active": bool(s["active"]),
+            "archived": bool(s.get("archived", False)),
+            "season": int(s.get("season", 1)),
         }
         for s in data["scenes"]
     ]
@@ -378,7 +385,10 @@ def get_scene(slug: str) -> SceneDetail:
         "slug": slug,
         "title": str(scene.get("title") or slug),
         "source_image": str(scene.get("source_image") or ""),
+        "images": [str(x) for x in (scene.get("images") or []) if str(x).strip()],
         "scene_rect": _coerce_rect(rect) if isinstance(rect, dict) else None,
         "points": points,
         "active": bool(scene.get("active")),
+        "archived": bool(scene.get("archived", False)),
+        "season": int(scene.get("season", 1)),
     }

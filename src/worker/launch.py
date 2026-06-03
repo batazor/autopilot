@@ -396,7 +396,7 @@ def _run_modern_play() -> None:
     web_port = int(os.environ.get("PORT", str(_DEFAULT_WEB_PORT)))
     skip_web = _env_flag("WOS_PLAY_NO_WEB")
     skip_api = _env_flag("WOS_PLAY_NO_API")
-    open_browser = _env_flag("WOS_PLAY_OPEN_BROWSER", default=True)
+    open_browser = _env_flag("WOS_PLAY_OPEN_BROWSER", default=False)
 
     from config.runtime_bootstrap import (
         bootstrap_runtime_observability,

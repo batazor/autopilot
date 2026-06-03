@@ -1,54 +1,42 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useFleet } from "@/components/FleetContextProvider";
-import { AppListbox, AppSwitch } from "@/components/headless";
-import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
-import { LabelingRegionsPanel } from "@/components/labeling/LabelingRegionsPanel";
-import type { EditorRegion } from "@/lib/bbox";
+import { AppListbox } from "@/components/headless";
 import {
-  captureLabelingScreenshot,
-  fetchLabelingDocument,
-  fetchLabelingReferences,
+  clickApprovalImageUrl,
   fetchOverlayTest,
   fetchRegionOcr,
-  labelingImageUrl,
-  overlayTestImageUrl,
-  promoteLabelingReference,
-  saveLabelingRegions,
-  testRegionOcr,
 } from "@/lib/api";
 import {
-  DREAMSCAPE_ARCHIVED_KEY,
-  DREAMSCAPE_SCOPE,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
   deriveLiveStatus,
-  screenRefOptions,
-  statusFromDetectedScreen,
   wordBadges,
 } from "@/lib/dreamscape-live";
-import type { RegionOcrTestResult } from "@/lib/types";
-import { apiToEditorRegions, defaultRegion, editorToApiRegions } from "@/lib/labeling-utils";
+import type { WordBadge } from "@/lib/dreamscape-live";
+import { useDashboardEventStream } from "@/lib/useDashboardEventStream";
 import { LiveStatusCard } from "./LiveStatusCard";
 
 const POLL_MS = 1500;
-const FRAME_W = 720;
-const FRAME_H = 1280;
 
-/** Filename-safe basename from a typed screen id (e.g. "x.coming_soon" → "x_coming_soon"). */
-function basenameFromScreen(name: string, instanceId: string): string {
-  const slug = name.trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/\./g, "_");
-  const raw = (instanceId ? `${instanceId}_` : "") + slug;
-  return raw.replace(/^_|_$/g, "") || slug;
-}
+/** The live status view is shared between solo (3 words) and multiplayer (6
+ * words); the word-region set and reference screen are the only differences. */
+export type LiveEditorTabProps = {
+  /** OCR word-button regions to poll/show as badges (defaults to solo's 3). */
+  wordRegions?: readonly string[];
+  /** Reference screen this mode keys its OCR poll on (defaults to solo's). */
+  wordsRef?: string;
+};
 
-export function LiveEditorTab() {
+export function LiveEditorTab({
+  wordRegions = DREAMSCAPE_WORD_REGIONS,
+  wordsRef = DREAMSCAPE_WORDS_REF,
+}: LiveEditorTabProps = {}) {
   const { instanceId, instances, setInstanceId, instancesLoading } = useFleet();
-  const queryClient = useQueryClient();
 
-  // ── Live polling (status + detected words) — independent of the editor ──
+  // ── Live polling (status + detected words) ──
   const overlayQuery = useQuery({
     queryKey: ["dreamscape-overlay", instanceId],
     queryFn: () => fetchOverlayTest(instanceId),
@@ -56,203 +44,46 @@ export function LiveEditorTab() {
     refetchInterval: POLL_MS,
   });
   const ocrQuery = useQuery({
-    queryKey: ["dreamscape-ocr", instanceId],
-    queryFn: () => fetchRegionOcr(instanceId, [...DREAMSCAPE_WORD_REGIONS]),
+    queryKey: ["dreamscape-ocr", instanceId, wordsRef],
+    queryFn: () => fetchRegionOcr(instanceId, [...wordRegions]),
     enabled: Boolean(instanceId),
     refetchInterval: POLL_MS,
   });
 
-  const [message, setMessage] = useState<string | null>(null);
-
-  // ── Test-image override: run our logic on an uploaded screenshot ──
-  const [testResult, setTestResult] = useState<RegionOcrTestResult | null>(null);
-  const [testImageUrl, setTestImageUrl] = useState<string | null>(null);
-
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) =>
-      testRegionOcr(instanceId, file, [...DREAMSCAPE_WORD_REGIONS]),
-    onSuccess: (res, file) => {
-      setTestImageUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return URL.createObjectURL(file);
-      });
-      setTestResult(res);
-    },
-    onError: (err: unknown) => setMessage(`Test image failed: ${String(err)}`),
-  });
-
-  const clearTest = () => {
-    setTestImageUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
-    setTestResult(null);
-  };
-  useEffect(() => {
-    // Revoke the object URL when the tab unmounts.
-    return () => {
-      if (testImageUrl) URL.revokeObjectURL(testImageUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const testMode = testResult != null;
   const status = useMemo(
-    () =>
-      testMode
-        ? statusFromDetectedScreen(testResult?.detected_screen)
-        : deriveLiveStatus(overlayQuery.data),
-    [testMode, testResult, overlayQuery.data],
+    () => deriveLiveStatus(overlayQuery.data),
+    [overlayQuery.data],
   );
   const badges = useMemo(
-    () => wordBadges(testMode ? testResult?.rows : ocrQuery.data?.rows),
-    [testMode, testResult, ocrQuery.data],
+    () => wordBadges(ocrQuery.data?.rows, wordRegions),
+    [ocrQuery.data, wordRegions],
   );
-  const cardImageUrl = testMode
-    ? testImageUrl
-    : instanceId
-      ? overlayTestImageUrl(instanceId, overlayQuery.dataUpdatedAt || 0)
-      : null;
 
-  // ── Editor (frozen reference frame) ──
-  const [refRel, setRefRel] = useState<string>(DREAMSCAPE_WORDS_REF);
-  const [regions, setRegions] = useState<EditorRegion[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [drawMode, setDrawMode] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [imageNonce, setImageNonce] = useState(0);
-  const [screenId, setScreenId] = useState("dreamscape_memory");
+  // Live device frame, 1:1 with the approvals page: the worker's rolling
+  // preview PNG, refreshed the instant the instance revision advances (SSE
+  // below) by bumping a cache-busting tick.
+  const [imageTick, setImageTick] = useState(0);
+  const cardImageUrl = instanceId
+    ? `${clickApprovalImageUrl(instanceId, "live")}&tick=${imageTick}`
+    : null;
 
-  // ── Screen list + archive filter (operator-local, no repo data change) ──
-  const [showArchived, setShowArchived] = useState(false);
-  const [archivedRels, setArchivedRels] = useState<Set<string>>(new Set());
-  const [newScreenName, setNewScreenName] = useState("");
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DREAMSCAPE_ARCHIVED_KEY);
-      if (raw) setArchivedRels(new Set(JSON.parse(raw) as string[]));
-    } catch {
-      /* ignore malformed/absent storage */
-    }
-  }, []);
-
-  const persistArchived = (next: Set<string>) => {
-    setArchivedRels(next);
-    try {
-      localStorage.setItem(DREAMSCAPE_ARCHIVED_KEY, JSON.stringify([...next]));
-    } catch {
-      /* ignore quota/availability */
-    }
-  };
-
-  const refsQuery = useQuery({
-    queryKey: ["dreamscape-refs"],
-    queryFn: () => fetchLabelingReferences(DREAMSCAPE_SCOPE),
-  });
-  const screenOptions = useMemo(
-    () => screenRefOptions(refsQuery.data, { showArchived, archivedRels }),
-    [refsQuery.data, showArchived, archivedRels],
-  );
-  // Keep the current ref visible in the dropdown even if it's archived/hidden.
-  const listboxOptions = useMemo(() => {
-    const opts = screenOptions.map((s) => ({
-      value: s.rel,
-      label: (s.archived ? "📦 " : "") + s.label,
-    }));
-    if (!opts.some((o) => o.value === refRel)) {
-      opts.unshift({ value: refRel, label: refRel.split("/").pop() ?? refRel });
-    }
-    return opts;
-  }, [screenOptions, refRel]);
-
-  const docQuery = useQuery({
-    queryKey: ["dreamscape-doc", refRel, imageNonce],
-    queryFn: () => fetchLabelingDocument(refRel, DREAMSCAPE_SCOPE),
-  });
-
-  // Reload editor regions from the document whenever it (re)loads and there are
-  // no unsaved edits — never stomp in-progress work.
-  useEffect(() => {
-    if (!docQuery.data || dirty) return;
-    setRegions(apiToEditorRegions(docQuery.data.regions));
-    setScreenId(docQuery.data.screen_id || "");
-  }, [docQuery.data, dirty]);
-
-  const selectScreen = (rel: string) => {
-    if (rel === refRel) return;
-    setRefRel(rel);
-    setDirty(false);
-    setSelectedId(null);
-    setDrawMode(false);
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      saveLabelingRegions(
-        refRel,
-        DREAMSCAPE_SCOPE,
-        editorToApiRegions(regions),
-        null,
-        screenId || null,
-      ),
-    onSuccess: (res) => {
-      setDirty(false);
-      setImageNonce((n) => n + 1);
-      const crops = res.crops_written_count ?? 0;
-      setMessage(`Saved ${regions.length} region(s)${crops ? ` · ${crops} crop(s)` : ""}.`);
+  // Keep the frame continuously current like the approvals screen: the worker
+  // bumps the ``instance`` revision whenever it writes a new rolling preview;
+  // a fallback poll covers degraded/closed SSE streams.
+  useDashboardEventStream({
+    topics: ["instance"],
+    instanceId: instanceId || undefined,
+    enabled: Boolean(instanceId),
+    onEvent: (topic) => {
+      if (topic === "instance") setImageTick((t) => t + 1);
     },
-    onError: (err: unknown) => setMessage(`Save failed: ${String(err)}`),
+    onFallbackPoll: () => setImageTick((t) => t + 1),
   });
-
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      const sid = newScreenName.trim();
-      if (!sid) throw new Error("enter a screen name");
-      const cap = await captureLabelingScreenshot(instanceId, DREAMSCAPE_SCOPE);
-      return promoteLabelingReference(
-        cap.ref,
-        basenameFromScreen(sid, instanceId),
-        instanceId,
-        DREAMSCAPE_SCOPE,
-        { regions: [], screenId: sid },
-      );
-    },
-    onSuccess: async (res) => {
-      setMessage(`Created screen "${res.screen_id || newScreenName}".`);
-      setNewScreenName("");
-      await queryClient.invalidateQueries({ queryKey: ["dreamscape-refs"] });
-      if (res.ref) selectScreen(res.ref);
-    },
-    onError: (err: unknown) => setMessage(`Create failed: ${String(err)}`),
-  });
-
-  const toggleArchiveCurrent = () => {
-    const next = new Set(archivedRels);
-    if (next.has(refRel)) next.delete(refRel);
-    else next.add(refRel);
-    persistArchived(next);
-  };
-
-  const addRegion = () => {
-    const name = `dreamscape_memory.region_${regions.length + 1}`;
-    setRegions((prev) => [...prev, defaultRegion(FRAME_W, FRAME_H, name)]);
-    setSelectedId(name);
-    setDirty(true);
-  };
-  const deleteSelected = () => {
-    if (!selectedId) return;
-    setRegions((prev) => prev.filter((r) => r.id !== selectedId));
-    setSelectedId(null);
-    setDirty(true);
-  };
 
   const instanceOptions = instances.map((id) => ({ value: id, label: id }));
-  const currentArchived = archivedRels.has(refRel);
 
   return (
     <div className="mt-4 space-y-4">
-      {/* Toolbar: instance + create-new-screen form */}
       <div className="flex flex-wrap items-end gap-3">
         <AppListbox
           label="Instance"
@@ -263,148 +94,88 @@ export function LiveEditorTab() {
           placeholder="Select a device"
           inline
         />
-        <form
-          className="flex items-end gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (instanceId && newScreenName.trim()) createMutation.mutate();
-          }}
-        >
-          <label className="flex flex-col gap-1 text-xs text-wos-text-muted">
-            New screen name
-            <input
-              type="text"
-              value={newScreenName}
-              onChange={(e) => setNewScreenName(e.target.value)}
-              placeholder="e.g. dreamscape_memory.practice"
-              className="w-64 rounded border border-wos-border bg-wos-bg-deep px-2 py-1.5 text-sm text-wos-text"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover disabled:opacity-50"
-            disabled={!instanceId || !newScreenName.trim() || createMutation.isPending}
-          >
-            {createMutation.isPending ? "Capturing…" : "Create new screen from game"}
-          </button>
-        </form>
       </div>
 
-      {message ? (
-        <p className="rounded border border-wos-border-subtle bg-wos-panel-raised px-3 py-2 text-sm text-wos-text-muted">
-          {message}
-        </p>
-      ) : null}
-
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,340px)_1fr]">
         <LiveStatusCard
           imageUrl={cardImageUrl}
           status={status}
           badges={badges}
-          loading={testMode ? uploadMutation.isPending : ocrQuery.isFetching}
+          loading={ocrQuery.isFetching}
           instanceSelected={Boolean(instanceId)}
-          testMode={testMode}
-          uploading={uploadMutation.isPending}
-          onUploadTestImage={(file) => uploadMutation.mutate(file)}
-          onClearTest={clearTest}
+          showWords={false}
         />
-
-        <section className="panel">
-          {/* Screen selector + archive controls */}
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <div className="flex flex-wrap items-end gap-2">
-              <AppListbox
-                label="Screen"
-                options={listboxOptions}
-                value={refRel}
-                onChange={selectScreen}
-                loading={refsQuery.isLoading}
-                minWidth={220}
-                inline
-              />
-              <button
-                type="button"
-                className="rounded border border-wos-border px-2.5 py-1.5 text-sm hover:border-wos-border-hover"
-                onClick={toggleArchiveCurrent}
-                title="Archive is a local view filter — it does not change area.yaml"
-              >
-                {currentArchived ? "Unarchive" : "Archive"}
-              </button>
-            </div>
-            <AppSwitch
-              checked={showArchived}
-              onChange={setShowArchived}
-              label="Show archived"
-              inline
-            />
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">Region editor</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className={`rounded border px-3 py-1.5 text-sm ${
-                  drawMode
-                    ? "border-wos-accent text-wos-accent"
-                    : "border-wos-border hover:border-wos-border-hover"
-                }`}
-                onClick={() => setDrawMode((d) => !d)}
-              >
-                {drawMode ? "Drawing…" : "Draw region"}
-              </button>
-              <button
-                type="button"
-                className="rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover"
-                onClick={addRegion}
-              >
-                Add region
-              </button>
-              <button
-                type="button"
-                className="rounded bg-wos-accent px-3 py-1.5 text-sm font-medium text-wos-on-accent disabled:opacity-50"
-                disabled={!dirty || saveMutation.isPending}
-                onClick={() => saveMutation.mutate()}
-              >
-                {saveMutation.isPending ? "Saving…" : dirty ? "Save area.json" : "Saved"}
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-[1fr_260px]">
-            <div className="mx-auto w-full max-w-[320px]">
-              <KonvaImageEditor
-                imageUrl={labelingImageUrl(refRel, imageNonce)}
-                imageWidth={FRAME_W}
-                imageHeight={FRAME_H}
-                regions={regions}
-                selectedId={selectedId}
-                drawMode={drawMode}
-                onSelect={setSelectedId}
-                onDeleteSelected={deleteSelected}
-                onRegionsChange={(next) => {
-                  setRegions(next);
-                  setDirty(true);
-                }}
-              />
-              <p className="meta mt-1.5">
-                {refRel.split("/").pop()} · screen: {screenId || "—"}
-                {currentArchived ? " · 📦 archived" : ""}
-              </p>
-            </div>
-            <LabelingRegionsPanel
-              regions={regions}
-              selectedId={selectedId}
-              activeVersion={null}
-              refRel={refRel}
-              imageNonce={imageNonce}
-              onSelect={setSelectedId}
-              onRegionsChange={setRegions}
-              onDirty={() => setDirty(true)}
-            />
-          </div>
-        </section>
+        <WordSearchPanel
+          badges={badges}
+          loading={ocrQuery.isFetching}
+          instanceSelected={Boolean(instanceId)}
+        />
       </div>
     </div>
+  );
+}
+
+/** Right-hand panel: the ordered words the bot is currently reading from the
+ * level, one row each, with the detected text and per-word OCR confidence. */
+function WordSearchPanel({
+  badges,
+  loading,
+  instanceSelected,
+}: {
+  badges: WordBadge[];
+  loading: boolean;
+  instanceSelected: boolean;
+}) {
+  return (
+    <section className="panel">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">
+          Words to find{" "}
+          <span className="text-sm font-normal text-wos-text-muted">
+            ({badges.length})
+          </span>
+        </h2>
+        {loading ? <span className="meta">refreshing…</span> : null}
+      </div>
+
+      {!instanceSelected ? (
+        <p className="meta">Select an instance to read the level&apos;s words.</p>
+      ) : (
+        <ol className="space-y-2">
+          {badges.map((b) => (
+            <li
+              key={b.region}
+              className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition ${
+                b.dimmed
+                  ? "border-wos-border-subtle bg-wos-panel-raised"
+                  : "border-wos-accent/60 bg-wos-accent/10"
+              }`}
+            >
+              <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                  b.dimmed
+                    ? "bg-wos-bg-deep text-wos-text-muted"
+                    : "bg-wos-accent/20 text-wos-accent"
+                }`}
+              >
+                {b.index}
+              </span>
+              <span
+                className={`flex-1 truncate text-lg font-medium ${
+                  b.dimmed ? "text-wos-text-muted" : "text-wos-text"
+                }`}
+              >
+                {b.text || (b.status === "empty" ? "— no text —" : "reading…")}
+              </span>
+              {b.confidence != null ? (
+                <span className="shrink-0 text-xs tabular-nums text-wos-text-muted">
+                  {Math.round(b.confidence * 100)}%
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

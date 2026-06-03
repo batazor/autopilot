@@ -4,7 +4,7 @@ priority: 90_000
 cond: "active_player != null"
 
 # Read the three word buttons at the bottom of a recall-road level, then let
-# exec.dreamscape_memory_solve look each word up in map.yaml and tap its place
+# exec.dreamscape_memory_solve looks each word up in the active scene DB row and taps its place
 # in the scene. Off-screen this is a safe no-op: OCR returns nothing / words are
 # unmapped, so the solver taps nothing. Enqueue when on a Dreamscape level
 # (manually, or from an overlay rule once the level screen is detectable).

@@ -1,12 +1,15 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
-import { KonvaImageEditor } from "@/components/konva/KonvaImageEditor";
+import { SceneCalibrator } from "@/components/dreamscape/SceneCalibrator";
 import type { EditorRegion } from "@/lib/bbox";
 import { defaultRegion } from "@/lib/labeling-utils";
+import { DREAMSCAPE_WORDS_REF } from "@/lib/dreamscape-live";
+import { Button } from "./Button";
 import {
   detectDreamscapeMarkers,
   galleryImageUrl,
@@ -40,11 +43,12 @@ function slugify(title: string): string {
   );
 }
 
-/** Onboard a Dreamscape scene into the solver's map.yaml: persist a numbered
+/** Onboard a Dreamscape scene into the solver's scene database: persist a numbered
  * guide image, OCR its markers, paste the item-name list, calibrate where the
  * scene sits in the game frame, and save. */
 export function SceneOnboarding({ onClose }: { onClose: () => void }) {
   const { instanceId, instances, setInstanceId, instancesLoading } = useFleet();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const slug = useMemo(() => slugify(title), [title]);
@@ -67,11 +71,23 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
 
   // ── Calibration (scene rectangle on a live game frame) ──
   const [liveNonce, setLiveNonce] = useState(0);
+  const [bgLive, setBgLive] = useState(false);
+  const [sceneOpacity, setSceneOpacity] = useState(0.05);
   const [rect, setRect] = useState<EditorRegion>(() => {
     const r = defaultRegion(FRAME_W, FRAME_H, "scene_rect");
     r.bbox = { ...r.bbox, x: 0, y: 6, width: 100, height: 72 };
     return r;
   });
+
+  // Calibration background: a real game-screen reference behind the guide. The
+  // practice-level screenshot by default; the live device frame when toggled.
+  const calibrationBg = useMemo(
+    () =>
+      bgLive && instanceId
+        ? overlayTestImageUrl(instanceId, liveNonce)
+        : galleryImageUrl(DREAMSCAPE_WORDS_REF),
+    [bgLive, instanceId, liveNonce],
+  );
 
   const [activate, setActivate] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -262,6 +278,9 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
           (res.active === res.slug ? " · active" : "") +
           ".",
       );
+      // Refresh the scene card list so the new scene shows immediately.
+      void queryClient.invalidateQueries({ queryKey: ["dreamscape-scenes"] });
+      void queryClient.invalidateQueries({ queryKey: ["dreamscape-scene", slug] });
     } catch (e) {
       setError(`Save failed: ${String(e)}`);
     } finally {
@@ -279,7 +298,7 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Onboard a scene → map.yaml</h2>
+          <h2 className="text-lg font-semibold">Onboard a scene → solver DB</h2>
           <button
             type="button"
             onClick={onClose}
@@ -329,13 +348,9 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                   e.target.value = "";
                 }}
               />
-              <button
-                type="button"
-                className="rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover"
-                onClick={() => fileInput.current?.click()}
-              >
+              <Button variant="secondary" onClick={() => fileInput.current?.click()}>
                 {imageUrl ? "Replace image" : "Upload numbered guide"}
-              </button>
+              </Button>
               <AppListbox
                 label="Device"
                 options={instances.map((id) => ({ value: id, label: id }))}
@@ -345,23 +360,21 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                 placeholder="Select"
                 inline
               />
-              <button
-                type="button"
-                className="rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover disabled:opacity-50"
+              <Button
+                variant="secondary"
                 disabled={!instanceId || busy === "capture"}
                 onClick={captureGuideFromDevice}
               >
                 {busy === "capture" ? "Capturing…" : "Capture from device"}
-              </button>
-              <button
-                type="button"
-                className="rounded bg-wos-accent px-3 py-1.5 text-sm font-medium text-wos-on-accent disabled:opacity-50"
+              </Button>
+              <Button
+                variant="accent"
                 disabled={!imageFile || busy === "upload"}
                 onClick={addToCollection}
                 title="Persist the guide image into the module's reference collection"
               >
                 {busy === "upload" ? "Adding…" : sourceImage ? "✓ In collection" : "Add to collection"}
-              </button>
+              </Button>
             </div>
           </section>
 
@@ -419,14 +432,13 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                   ))}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover disabled:opacity-50"
+                  <Button
+                    variant="secondary"
                     disabled={!imageFile || busy === "detect"}
                     onClick={detect}
                   >
                     {busy === "detect" ? "Detecting…" : "2 · Detect numbers (OCR)"}
-                  </button>
+                  </Button>
                   {missing.length ? (
                     <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">
                       missing: {missing.join(", ")}
@@ -456,14 +468,14 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                   placeholder={"1. Parachutte\n2. Envelope\n3. Pipe\n…"}
                   className="w-full rounded border border-wos-border bg-wos-bg-deep px-2 py-1.5 font-mono text-xs text-wos-text"
                 />
-                <button
-                  type="button"
-                  className="mt-1 rounded border border-wos-border px-3 py-1.5 text-sm hover:border-wos-border-hover disabled:opacity-50"
+                <Button
+                  variant="secondary"
+                  className="mt-1"
                   disabled={busy === "names"}
                   onClick={parseNames}
                 >
                   {busy === "names" ? "Parsing…" : "Parse & join"}
-                </button>
+                </Button>
                 {nameWarnings.length ? (
                   <ul className="mt-1 space-y-0.5 text-xs text-amber-400">
                     {nameWarnings.map((w) => (
@@ -516,36 +528,66 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
             <section className="mt-5">
               <h3 className="mb-1 text-sm font-semibold">4 · Calibrate scene rectangle</h3>
               <p className="meta mb-2">
-                Mark where the scene art sits inside the live 720×1280 game frame.
-                Point %s are mapped through this box to taps. Default covers most of
-                the frame; capture a live scene and adjust.
+                The background is a real 720×1280 game screen; the guide image is
+                overlaid as a movable/resizable region. Drag &amp; size it so the
+                scene art lines up with the real screen — this fixes cropped guides,
+                since point %s are mapped through this box onto the full frame.
               </p>
               <div className="grid gap-3 md:grid-cols-[320px_1fr]">
                 <div className="mx-auto w-full max-w-[280px]">
-                  <KonvaImageEditor
-                    imageUrl={
-                      instanceId ? overlayTestImageUrl(instanceId, liveNonce) : null
-                    }
-                    imageWidth={FRAME_W}
-                    imageHeight={FRAME_H}
-                    regions={[rect]}
-                    selectedId="scene_rect"
-                    drawMode={false}
-                    onSelect={() => {}}
-                    onRegionsChange={(next) => {
-                      if (next[0]) setRect(next[0]);
-                    }}
+                  <SceneCalibrator
+                    frameWidth={FRAME_W}
+                    frameHeight={FRAME_H}
+                    backgroundUrl={calibrationBg}
+                    sceneUrl={imageUrl}
+                    rect={rect}
+                    onRectChange={setRect}
+                    opacity={sceneOpacity}
                   />
                 </div>
-                <div className="text-xs text-wos-text-muted">
-                  <button
-                    type="button"
-                    className="mb-2 rounded border border-wos-border px-2.5 py-1 hover:border-wos-border-hover disabled:opacity-50"
-                    disabled={!instanceId}
-                    onClick={() => setLiveNonce((n) => n + 1)}
+                <div className="space-y-2 text-xs text-wos-text-muted">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={bgLive}
+                      onChange={(e) => setBgLive(e.target.checked)}
+                      disabled={!instanceId}
+                    />
+                    Use live device frame as background
+                  </label>
+                  {bgLive && instanceId ? (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setLiveNonce((n) => n + 1)}
+                    >
+                      Refresh live frame
+                    </Button>
+                  ) : null}
+                  <label className="flex items-center gap-2">
+                    Guide opacity
+                    <input
+                      type="range"
+                      min={0.05}
+                      max={1}
+                      step={0.05}
+                      value={sceneOpacity}
+                      onChange={(e) => setSceneOpacity(Number(e.target.value))}
+                    />
+                    <span>{Math.round(sceneOpacity * 100)}%</span>
+                  </label>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      setRect((r) => ({
+                        ...r,
+                        bbox: { ...r.bbox, x: 0, y: 0, width: 100, height: 100 },
+                      }))
+                    }
                   >
-                    Refresh live frame
-                  </button>
+                    Reset to full frame
+                  </Button>
                   <p>
                     rect: left {rect.bbox.x.toFixed(1)}% · top {rect.bbox.y.toFixed(1)}% ·
                     w {rect.bbox.width.toFixed(1)}% · h {rect.bbox.height.toFixed(1)}%
@@ -566,14 +608,14 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
             />
             Set active (the scene the bot solves)
           </label>
-          <button
-            type="button"
-            className="rounded border border-emerald-500 bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-400 hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 disabled:opacity-50"
+          <Button
+            variant="primary"
+            className="px-4"
             disabled={!sourceImage || pins.length === 0 || busy === "save"}
             onClick={save}
           >
             {busy === "save" ? "Saving…" : "5 · Save scene"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

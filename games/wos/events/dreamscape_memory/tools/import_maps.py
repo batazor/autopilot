@@ -9,9 +9,11 @@ truth) via :func:`dreamscape_db.upsert_scene`:
    Hangar, Kitchen, Court, Arena, …). Imported with coordinates.
 
 2. **Sheet-only maps** that the wostools catalog doesn't cover (Yard, Kid's
-   Room, Windmill, Dock, Inn, Cafes) — only names + numbers are known, so points
-   are laid out on a placeholder grid for the operator to position later (via the
-   onboarding "Detect numbers (OCR)" pass or by dragging pins).
+   Room, Windmill, …) — only names + numbers are known, so points are laid out on
+   a placeholder grid for the operator to position later (via the onboarding
+   "Detect numbers (OCR)" pass or by dragging pins). These names are pulled live
+   from the King Shield Google Sheet (``_fetch_sheet_maps``); a bundled fallback
+   (``_SHEET_FALLBACK``) covers offline runs and maps the sheet omits.
 
 Within-scene duplicate names are collapsed (kept-first) because the solver keys
 taps by name and can't hold two positions under one word. Existing scenes
@@ -22,19 +24,35 @@ every import here uses ``activate=False``.
 """
 from __future__ import annotations
 
+import csv
+import io
 import math
 import re
 import sys
+import urllib.request
 
 from config import dreamscape_db
 from config.paths import repo_root
 
 _DREAMSCAPE_TS = repo_root() / "web" / "lib" / "dreamscape.ts"
 
-# Maps present in the community sheet but NOT in the wostools catalog. Only
-# names+numbers are known; coordinates come later. Single-letter / numeric
-# entries are the sheet's watermark glyphs — kept verbatim for the operator.
-_SHEET_ONLY: dict[str, tuple[str, list[tuple[int, str]]]] = {
+# King Shield community item sheet — the upstream source of names+numbers per
+# map. Pulled live (CSV export) by ``_fetch_sheet_maps``; the bundled
+# ``_SHEET_FALLBACK`` below is used offline and for maps the sheet omits.
+SHEET_ID = "1MzrNWOcg-QpzpdBUulC0iorv2O6dzSrFhBe7nSdjxck"
+SHEET_CSV_URL = (
+    f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+)
+# Sheet spells some titles differently from the wostools catalog / DB slugs.
+_SLUG_ALIASES = {"hanger": "hangar"}
+_MAP_NAME_RE = re.compile(r"MAP NAME\s*:\s*(.+)", re.IGNORECASE)
+_ITEM_RE = re.compile(r"(\d+)\.\s*(.+)")
+
+# Bundled fallback: maps present in the community sheet but NOT in the wostools
+# catalog. Only names+numbers are known; coordinates come later. Single-letter /
+# numeric entries are the sheet's watermark glyphs — kept verbatim. Used when the
+# live fetch fails, and for maps the sheet no longer carries (Dock/Inn/Cafes).
+_SHEET_FALLBACK: dict[str, tuple[str, list[tuple[int, str]]]] = {
     "yard": (
         "Yard",
         [
@@ -144,17 +162,57 @@ _SHEET_ONLY: dict[str, tuple[str, list[tuple[int, str]]]] = {
     ),
 }
 
+def _slugify(title: str) -> str:
+    """Sheet ``MAP NAME`` → DB slug (apostrophes dropped, aliases applied)."""
+    s = re.sub(r"[^a-z0-9]+", "-", title.strip().lower().replace("'", "")).strip("-")
+    return _SLUG_ALIASES.get(s, s) or "scene"
+
+
+def _fetch_sheet_maps() -> dict[str, tuple[str, list[tuple[int, str]]]]:
+    """Live-pull the King Shield sheet → ``{slug: (title, [(n, name), ...])}``.
+
+    Names only (the sheet carries no coordinates). Numbers repeat across the
+    sheet's two item columns, so the first name seen per number wins.
+    """
+    req = urllib.request.Request(SHEET_CSV_URL, headers={"User-Agent": "autopilot-import"})
+    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (trusted URL)
+        text = resp.read().decode("utf-8", "replace")
+    out: dict[str, tuple[str, dict[int, str]]] = {}
+    cur: str | None = None
+    for row in csv.reader(io.StringIO(text)):
+        cells = [c.strip() for c in row]
+        header = next(
+            (m.group(1).strip() for c in cells if (m := _MAP_NAME_RE.match(c))), None
+        )
+        if header:
+            cur = header
+            out.setdefault(_slugify(header), (header, {}))
+            continue
+        if cur is None:
+            continue
+        _, items = out[_slugify(cur)]
+        for c in cells:
+            im = _ITEM_RE.match(c)
+            if im:
+                items.setdefault(int(im.group(1)), im.group(2).strip())
+    return {slug: (title, sorted(items.items())) for slug, (title, items) in out.items()}
+
+
 _POINT_RE = re.compile(
     r'\{\s*n:\s*(\d+),\s*name:\s*"([^"]*)",\s*xPct:\s*([-\d.]+),\s*yPct:\s*([-\d.]+)'
 )
 _SCENE_HEAD_RE = re.compile(r'slug:\s*"([^"]+)",\s*\n?\s*title:\s*"([^"]*)"')
+_ACTIVE_RE = re.compile(r"active:\s*(true|false)")
 
 
-def _parse_dreamscape_ts() -> list[tuple[str, str, list[tuple[int, str, float, float]]]]:
-    """Return ``[(slug, title, [(n, name, xPct, yPct), ...]), ...]`` from the catalog."""
+def _parse_dreamscape_ts() -> list[tuple[str, str, bool, list[tuple[int, str, float, float]]]]:
+    """Return ``[(slug, title, active, [(n, name, xPct, yPct), ...]), ...]``.
+
+    ``active`` is the wostools event-rotation flag (True = current rotation).
+    """
     text = _DREAMSCAPE_TS.read_text(encoding="utf-8")
     heads = list(_SCENE_HEAD_RE.finditer(text))
-    scenes: list[tuple[str, str, list[tuple[int, str, float, float]]]] = []
+    scenes: list[tuple[str, str, bool, list[tuple[int, str, float, float]]]] = []
     for i, head in enumerate(heads):
         start = head.end()
         end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
@@ -163,7 +221,9 @@ def _parse_dreamscape_ts() -> list[tuple[str, str, list[tuple[int, str, float, f
             (int(n), name, float(x), float(y))
             for n, name, x, y in _POINT_RE.findall(block)
         ]
-        scenes.append((head.group(1), head.group(2), pts))
+        m = _ACTIVE_RE.search(block)
+        active = m.group(1) == "true" if m else True
+        scenes.append((head.group(1), head.group(2), active, pts))
     return scenes
 
 
@@ -200,24 +260,40 @@ def _grid_points(items: list[tuple[int, str]]) -> list[dict]:
 
 def main() -> None:
     dry = "--dry-run" in sys.argv
-    located = [(s, t, p) for s, t, p in _parse_dreamscape_ts() if p]
-    located_slugs = {s for s, _, _ in located}
+    located = [(s, t, a, p) for s, t, a, p in _parse_dreamscape_ts() if p]
+    located_slugs = {s for s, _, _, _ in located}
 
-    plan: list[tuple[str, str, list[dict], str]] = []  # (slug, title, points, source)
-    for slug, title, pts in located:
+    # Live sheet is authoritative for names-only maps; the bundled fallback fills
+    # maps the sheet omits (Dock/Inn/Cafes) and covers offline runs.
+    try:
+        sheet_maps = _fetch_sheet_maps()
+        print(f"fetched {len(sheet_maps)} map(s) from the King Shield sheet")
+    except Exception as exc:  # noqa: BLE001 (network/parse — fall back gracefully)
+        print(f"warning: sheet fetch failed ({exc}); using bundled fallback only")
+        sheet_maps = {}
+    names_only = {**_SHEET_FALLBACK, **sheet_maps}
+
+    # (slug, title, points, source, archived)
+    plan: list[tuple[str, str, list[dict], str, bool]] = []
+    for slug, title, active, pts in located:
         points = [{"n": n, "name": nm, "xPct": x, "yPct": y} for n, nm, x, y in pts]
-        plan.append((slug, title, points, "located (dreamscape.ts)"))
-    for slug, (title, items) in _SHEET_ONLY.items():
+        plan.append((slug, title, points, "located (dreamscape.ts)", not active))
+    for slug, (title, items) in names_only.items():
         if slug in located_slugs:
             continue  # catalog already covers it with real coordinates
-        plan.append((slug, title, _grid_points(items), "names-only (sheet, placeholder grid)"))
+        src = "live sheet" if slug in sheet_maps else "bundled fallback"
+        # Names-only maps are retired rooms not in the current rotation.
+        plan.append(
+            (slug, title, _grid_points(items), f"names-only ({src}, placeholder grid)", True)
+        )
 
     total_points = 0
-    for slug, title, points, source in plan:
+    for slug, title, points, source, archived in plan:
         points, dropped = _dedupe(points)
         total_points += len(points)
+        tag = "archived" if archived else "current"
         note = f"  (deduped {len(dropped)}: {', '.join(dropped)})" if dropped else ""
-        print(f"{'DRY ' if dry else ''}{slug:14s} {len(points):3d} pts · {source}{note}")
+        print(f"{'DRY ' if dry else ''}{slug:14s} {len(points):3d} pts · {tag:8s} · {source}{note}")
         if not dry:
             dreamscape_db.upsert_scene(
                 slug,
@@ -226,6 +302,8 @@ def main() -> None:
                 scene_rect=None,  # operator calibrates per scene
                 points=points,
                 activate=False,  # never steal the active pointer
+                archived=archived,
+                season=1,  # wostools + King Shield sheet = Season 1
             )
 
     print(

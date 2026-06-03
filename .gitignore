@@ -29,6 +29,7 @@ src/config/_telemetry_secrets.py
 # but the actual license files are unique per machine and never shared.
 license-data/*.json
 license-data/*.jwt
+license-data/*.bak
 !license-data/.gitkeep
 
 # --- Python -------------------------------------------------------------------

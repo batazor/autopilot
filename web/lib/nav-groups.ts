@@ -42,7 +42,7 @@ export const NAV_GROUPS: NavGroup[] = [
       {
         href: "/dreamscape-memory",
         label: "Dreamscape Memory",
-        description: "Item-location guides for the scavenger-hunt event",
+        description: "Item-location guides for the scavenger-hunt event (solo + co-op)",
       },
     ],
   },
@@ -66,6 +66,11 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/fish-detect",
         label: "Fish detect",
         description: "Fishing Tournament model debugger",
+      },
+      {
+        href: "/map-stitch",
+        label: "Map stitch",
+        description: "Capture + stitch the world map over scrcpy",
       },
       {
         href: "/notify-monitor",

@@ -97,6 +97,7 @@ from api.routers import (  # noqa: E402 — silence filter must run before trans
     gift_codes,
     instances,
     labeling,
+    map_stitch,
     modules,
     notify,
     onboarding,
@@ -160,6 +161,7 @@ app.include_router(overlay_test.router)
 app.include_router(dreamscape_onboarding.router)
 app.include_router(fish_detect.router)
 app.include_router(fish_video.router)
+app.include_router(map_stitch.router)
 app.include_router(modules.router)
 app.include_router(gallery.router)
 app.include_router(adb.router)
