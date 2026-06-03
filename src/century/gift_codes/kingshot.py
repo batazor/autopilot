@@ -289,10 +289,10 @@ class GiftCodeRedeemer:
         summary = GiftRedeemSummary()
         codes = list_codes(game=_GAME_ID)
         registry = load_devices()
-        # Filter to gamers whose device profile is Kingshot. The registry
-        # exposes ``all_player_ids(game=...)`` after Phase 2 of the master
-        # migration; legacy registries without per-profile game fall back
-        # to returning every gamer.
+        # Filter to gamers whose device profile is Kingshot. Profiles without
+        # an explicit game fall back to the device default (see
+        # ``DeviceEntry.game_for_profile``), so single-game registries still
+        # resolve correctly.
         local_player_ids = registry.all_player_ids(game=_GAME_ID)
         all_player_ids = list(local_player_ids)
         external_nicks: dict[str, str] = {}
