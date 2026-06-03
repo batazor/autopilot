@@ -14,6 +14,13 @@ import psutil
 from config.paths import repo_root
 
 _HEALTH_WATCHDOG_MODULE = "worker.game_health_watchdog"
+# Launch via ``-c "import …; main()"`` rather than ``-m`` on purpose: in the
+# Nuitka-compiled image the package is a ``.so`` extension module, and ``-m``
+# (``runpy._run_module_as_main`` → ``loader.get_code()``) is unsupported on
+# compiled modules — it raises ``AttributeError: nuitka_module_loader has no
+# attribute 'get_code'`` and the watchdog crash-loops. A plain ``import`` of the
+# module works in both compiled and source builds.
+_HEALTH_WATCHDOG_LAUNCH_CODE = f"from {_HEALTH_WATCHDOG_MODULE} import main; main()"
 
 _lock = threading.RLock()
 _health_proc: subprocess.Popen[bytes] | None = None
@@ -25,12 +32,10 @@ def is_health_watchdog_process(proc: psutil.Process, repo: Path) -> bool:
         if proc.pid == os.getpid():
             return False
         cmdline = proc.cmdline()
-        if not any(
-            arg == "-m"
-            and idx + 1 < len(cmdline)
-            and cmdline[idx + 1] == _HEALTH_WATCHDOG_MODULE
-            for idx, arg in enumerate(cmdline)
-        ):
+        # Match both the current ``-c "from <module> import main; main()"`` launch
+        # and the legacy ``-m <module>`` form (older processes mid-rollout): the
+        # module path appears verbatim in some argv token either way.
+        if not any(_HEALTH_WATCHDOG_MODULE in arg for arg in cmdline):
             return False
         return Path(proc.cwd()).resolve() == repo
     except (psutil.AccessDenied, psutil.NoSuchProcess, psutil.ZombieProcess):
@@ -53,7 +58,7 @@ def existing_health_watchdog_process(repo: Path | None = None) -> psutil.Process
 
 
 def ensure_health_watchdog_process(*, log: logging.Logger | None = None) -> None:
-    """Spawn ``python -m worker.game_health_watchdog`` if not already running."""
+    """Spawn the ``worker.game_health_watchdog`` subprocess if not already running."""
     global _health_proc, _known_health_watchdog_pid
     logger = log or logging.getLogger(__name__)
     with _lock:
@@ -78,7 +83,7 @@ def ensure_health_watchdog_process(*, log: logging.Logger | None = None) -> None
             return
         try:
             _health_proc = subprocess.Popen(
-                [sys.executable, "-m", _HEALTH_WATCHDOG_MODULE],
+                [sys.executable, "-c", _HEALTH_WATCHDOG_LAUNCH_CODE],
                 cwd=str(repo),
                 env=os.environ.copy(),
             )
