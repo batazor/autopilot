@@ -126,6 +126,7 @@
         <input id="npEvent" placeholder="event_type (e.g. construction_complete)" />
         <input id="npRegex" placeholder="regex (case-insensitive)" style="min-width:260px;" class="mono" />
         <input id="npDesc" placeholder="description" />
+        <input id="npScenario" placeholder="scenario to push (optional)" class="mono" />
         <button class="btn primary" onclick="addPattern()">Add</button>
       </div>
     </div>
@@ -141,7 +142,7 @@
     </div>
 
     <table>
-      <thead><tr><th>Game</th><th>Event type</th><th>Regex</th><th>Description</th><th>Active</th><th></th></tr></thead>
+      <thead><tr><th>Game</th><th>Event type</th><th>Regex</th><th>Description</th><th>Scenario</th><th>Active</th><th></th></tr></thead>
       <tbody id="patternsBody"></tbody>
     </table>
   </section>
@@ -298,14 +299,16 @@ async function loadPatterns() {
     <td><input value="${esc(p.event_type)}" onchange="updatePattern(${p.id}, 'event_type', this.value)" style="width:170px"></td>
     <td><input value="${esc(p.pattern_regex)}" class="mono" onchange="updatePattern(${p.id}, 'pattern_regex', this.value)" style="width:260px"></td>
     <td><input value="${esc(p.description)}" onchange="updatePattern(${p.id}, 'description', this.value)" style="width:180px"></td>
+    <td><input value="${esc(p.scenario || '')}" class="mono" placeholder="—" onchange="updatePattern(${p.id}, 'scenario', this.value)" style="width:170px"></td>
     <td><input type="checkbox" ${p.active ? 'checked':''} onchange="updatePattern(${p.id}, 'active', this.checked)"></td>
-    <td><button class="btn danger" onclick="removePattern(${p.id})">Delete</button></td></tr>`).join('') || emptyRow(6);
+    <td><button class="btn danger" onclick="removePattern(${p.id})">Delete</button></td></tr>`).join('') || emptyRow(7);
 }
 async function addPattern() {
   const body = { game: $('#npGame').value, event_type: $('#npEvent').value.trim(),
-                 pattern_regex: $('#npRegex').value, description: $('#npDesc').value.trim() };
+                 pattern_regex: $('#npRegex').value, description: $('#npDesc').value.trim(),
+                 scenario: $('#npScenario').value.trim() };
   if (!body.event_type || !body.pattern_regex) return toast('event_type + regex required', true);
-  try { await post('/api/patterns', body); $('#npEvent').value=$('#npRegex').value=$('#npDesc').value=''; toast('pattern added'); loadPatterns(); }
+  try { await post('/api/patterns', body); $('#npEvent').value=$('#npRegex').value=$('#npDesc').value=$('#npScenario').value=''; toast('pattern added'); loadPatterns(); }
   catch (e) { toast(e.message, true); }
 }
 async function updatePattern(id, field, value) {

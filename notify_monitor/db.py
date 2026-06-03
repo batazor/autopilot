@@ -64,6 +64,9 @@ class Pattern(SQLModel, table=True):
     event_type: str
     description: str = ""
     active: bool = True
+    # DSL scenario key (YAML filename, no ext) to push onto the worker queue when
+    # this pattern matches. Empty = informational event only, no scenario push.
+    scenario: str = ""
 
 
 class Event(SQLModel, table=True):
@@ -259,11 +262,14 @@ def list_patterns(game: str | None = None, active_only: bool = False) -> list[di
         return [p.model_dump() for p in s.exec(stmt).all()]
 
 
-def add_pattern(game: str, pattern_regex: str, event_type: str, description: str = "", active: bool = True) -> int:
+def add_pattern(
+    game: str, pattern_regex: str, event_type: str, description: str = "",
+    active: bool = True, scenario: str = "",
+) -> int:
     with _write_lock, Session(_engine()) as s:
         pattern = Pattern(
             game=game, pattern_regex=pattern_regex, event_type=event_type,
-            description=description, active=bool(active),
+            description=description, active=bool(active), scenario=(scenario or "").strip(),
         )
         s.add(pattern)
         s.commit()
@@ -272,7 +278,7 @@ def add_pattern(game: str, pattern_regex: str, event_type: str, description: str
 
 
 def update_pattern(pattern_id: int, **fields: Any) -> None:
-    allowed = {"game", "pattern_regex", "event_type", "description", "active"}
+    allowed = {"game", "pattern_regex", "event_type", "description", "active", "scenario"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return

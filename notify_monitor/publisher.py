@@ -10,12 +10,19 @@ from __future__ import annotations
 import json
 import threading
 import time
+import uuid
 from typing import Any
 
 from . import config
 from .logging_setup import get_logger
 
 log = get_logger("publisher")
+
+
+def _queue_key(instance_id: str) -> str:
+    """Same convention as ``scheduler.queue._queue_key`` / dispatcher."""
+    iid = (instance_id or "").strip()
+    return f"wos:queue:{iid}" if iid else "wos:queue:unknown"
 
 
 class RedisPublisher:
@@ -79,6 +86,49 @@ class RedisPublisher:
             self.connected = False
             self.last_error = str(exc)
             log.exception("Redis publish failed (%s)", channel)
+            return False
+
+    def enqueue_scenario(
+        self,
+        instance_id: str,
+        player_id: str,
+        scenario_key: str,
+        *,
+        priority: int = config.PUSH_SCENARIO_PRIORITY,
+    ) -> bool:
+        """Push a DSL scenario directly onto the worker queue.
+
+        Writes a ``task_type=dsl_scenario`` envelope to ``wos:queue:<instance>``
+        via ``ZADD`` with ``run_at=now`` as the score — the exact primitive the
+        scheduler/optimizer use (see ``optimizer.dispatcher.enqueue_envelope``)
+        so the worker picks it up through its normal ``pop_due`` path. Returns
+        True on a successful write.
+        """
+        now = time.time()
+        body: dict[str, Any] = {
+            "task_id": f"notify:{uuid.uuid4().hex[:12]}",
+            "player_id": str(player_id),
+            "task_type": "dsl_scenario",
+            "priority": int(priority),
+            "run_at": now,
+            "instance_id": str(instance_id),
+            "created_at": now,
+            "dsl_scenario": scenario_key,
+        }
+        qk = _queue_key(instance_id)
+        try:
+            self._ensure_client().zadd(qk, {json.dumps(body): now})
+            self.connected = True
+            self.last_error = None
+            log.info(
+                "Enqueued scenario %s for player=%s -> %s",
+                scenario_key, player_id, qk,
+            )
+            return True
+        except Exception as exc:
+            self.connected = False
+            self.last_error = str(exc)
+            log.exception("Redis enqueue_scenario failed (%s)", qk)
             return False
 
     def status(self) -> dict[str, Any]:

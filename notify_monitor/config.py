@@ -21,12 +21,33 @@ STATIC_DIR = PACKAGE_DIR / "static"
 DB_PATH = Path(os.environ.get("NM_DB_PATH", DEFAULT_DB_PATH))
 LOG_PATH = Path(os.environ.get("NM_LOG_PATH", DEFAULT_LOG_PATH))
 
+# The bot's canonical state DB (devices + per-player gamer state). Read-only
+# here: used to resolve a notification's nickname -> gamer.id (queue player_id)
+# and the monitored adb serial -> device name (queue instance_id).
+DEFAULT_STATE_DB_PATH = PACKAGE_DIR.parent / "db" / "state" / "state.db"
+STATE_DB_PATH = Path(os.environ.get("NM_STATE_DB_PATH", DEFAULT_STATE_DB_PATH))
+
 # --- runtime defaults (seeded into the settings table on first run) --------
 
 DEFAULT_POLL_INTERVAL = 10          # seconds
 DEFAULT_ADB_SERIAL = ""             # empty -> default device (`adb` with no -s)
 DEFAULT_ADB_PATH = os.environ.get("NM_ADB_PATH", "adb")
 REDIS_URL = os.environ.get("NM_REDIS_URL", os.environ.get("WOS_REDIS_URL", "redis://127.0.0.1:6379/0"))
+
+
+# Recognized event_type -> DSL scenario key to enqueue directly onto the bot's
+# worker queue (``wos:queue:<instance>``). Only event types listed here trigger
+# a scenario push; every other recognized event is stored/published as an
+# informational event only. The scenario key is the YAML filename (no ext) under
+# the game's module ``scenarios/`` dir.
+EVENT_SCENARIOS: dict[str, dict[str, str]] = {
+    "wos": {
+        "intel_lighthouse": "intel_lighthouse",
+    },
+}
+
+# Priority for notification-pushed scenarios (matches the DSL default band).
+PUSH_SCENARIO_PRIORITY = 80_000
 
 
 @dataclass(frozen=True)
@@ -54,6 +75,7 @@ _COMMON_PATTERNS: tuple[tuple[str, str, str], ...] = (
     ("infirmary_overflowing", r"(infirmary.*(overflow|full)|injured troops.*(died|dying|have died))",
      "Infirmary overflowing / injured troops dying"),
     ("storehouse_supply", r"storehouse.*(ready|claim|supplies)", "Storehouse supplies ready to claim"),
+    ("intel_lighthouse", r"(intel|lighthouse).*(new|intel|check)", "New Intel in the Lighthouse"),
     ("attack_incoming", r"(attack|rally|incoming|under attack|enemy).*(incoming|detected|approaching|spotted)?",
      "Incoming attack / rally"),
     ("shield_expiring", r"(shield|protection).*(expir|end|run out)", "Shield about to expire"),

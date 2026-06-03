@@ -13,7 +13,7 @@ import time
 from collections import OrderedDict
 from typing import Any
 
-from . import adb_reader, db, parser
+from . import adb_reader, db, parser, state_lookup
 from .logging_setup import get_logger
 from .publisher import RedisPublisher
 
@@ -132,7 +132,7 @@ class MonitorService:
             if key in cycle_keys or not self._is_new(key):
                 continue
             cycle_keys.add(key)
-            recognized_one, unrec_one, skipped_one = self._handle(n, players_by_game)
+            recognized_one, unrec_one, skipped_one = self._handle(n, players_by_game, serial)
             recognized += recognized_one
             unrecognized += unrec_one
             skipped += skipped_one
@@ -151,7 +151,12 @@ class MonitorService:
         log.info("Cycle %d: %s", self.cycles, summary)
         return summary
 
-    def _handle(self, n: parser.Notification, players_by_game: dict[str, list[str]]) -> tuple[int, int, int]:
+    def _handle(
+        self,
+        n: parser.Notification,
+        players_by_game: dict[str, list[str]],
+        serial: str = "",
+    ) -> tuple[int, int, int]:
         """Process one notification. Returns (recognized, unrecognized, skipped)."""
         raw_text = n.raw_text
         if not raw_text:
@@ -176,7 +181,45 @@ class MonitorService:
         ts = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
         db.add_event(n.game, nickname, match.event_type, raw_text, ts)
         self.publisher.publish_event(n.game, nickname, match.event_type, raw_text, ts)
+        self._maybe_push_scenario(match.scenario, match.event_type, n.game, nickname, serial)
         return (1, 0, 0)
+
+    def _maybe_push_scenario(
+        self, scenario_key: str, event_type: str, game: str, nickname: str, serial: str
+    ) -> None:
+        """Enqueue the pattern's DSL scenario for this event, if one is set.
+
+        ``scenario_key`` comes from the matched pattern row (editable in the
+        Patterns UI). Resolves the queue ``player_id`` (numeric gamer.id, matched
+        by nickname) and ``instance_id`` (device name for the monitored adb
+        serial) from the bot's state DB, then pushes straight onto
+        ``wos:queue:<instance>``. Any missing piece is logged and the push
+        skipped — the event itself was already stored/published above.
+        """
+        scenario_key = (scenario_key or "").strip()
+        if not scenario_key:
+            return
+
+        # operator override; otherwise derive the device name from the serial
+        instance_id = (db.get_setting("instance_id", "") or "").strip()
+        if not instance_id:
+            instance_id = state_lookup.resolve_instance_id(serial) or ""
+        if not instance_id:
+            log.warning(
+                "Scenario %s mapped to %s but no instance_id (serial=%r); skipping push",
+                scenario_key, event_type, serial,
+            )
+            return
+
+        player_id = state_lookup.resolve_player_id(nickname, game)
+        if not player_id:
+            log.warning(
+                "Scenario %s mapped to %s but nickname %r has no gamer.id; skipping push",
+                scenario_key, event_type, nickname,
+            )
+            return
+
+        self.publisher.enqueue_scenario(instance_id, player_id, scenario_key)
 
     # --- status ------------------------------------------------------------
 

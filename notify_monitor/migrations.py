@@ -42,9 +42,23 @@ def _v1_create_tables(engine: Engine) -> None:
     SQLModel.metadata.create_all(engine)
 
 
+def _v2_add_pattern_scenario(engine: Engine) -> None:
+    """Add ``patterns.scenario`` to pre-existing DBs (fresh DBs get it from v1)."""
+    with engine.begin() as conn:
+        cols = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(patterns)").fetchall()
+        }
+        if "scenario" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE patterns ADD COLUMN scenario TEXT NOT NULL DEFAULT ''"
+            )
+
+
 # Append new entries here for future schema changes — never reorder/remove.
 _SCHEMA_MIGRATIONS: list[Callable[[Engine], None]] = [
     _v1_create_tables,
+    _v2_add_pattern_scenario,
 ]
 
 
@@ -63,24 +77,35 @@ def _set_user_version(engine: Engine, version: int) -> None:
 
 def _sync_seed_data(engine: Engine) -> None:
     """Insert any missing default settings and seed patterns. Idempotent."""
-    added = 0
+    added = backfilled = 0
     with Session(engine) as s:
         for key, val in DEFAULT_SETTINGS.items():
             if s.get(Setting, key) is None:
                 s.add(Setting(key=key, value=val))
-        existing = {(p.game, p.event_type) for p in s.exec(select(Pattern)).all()}
+        rows = s.exec(select(Pattern)).all()
+        existing = {(p.game, p.event_type): p for p in rows}
         for game in config.GAMES.values():
+            scenarios = config.EVENT_SCENARIOS.get(game.id, {})
             for event_type, regex, desc in game.seed_patterns:
-                if (game.id, event_type) in existing:
-                    continue
-                s.add(Pattern(
-                    game=game.id, pattern_regex=regex, event_type=event_type,
-                    description=desc, active=True,
-                ))
-                added += 1
+                seed_scenario = scenarios.get(event_type, "")
+                row = existing.get((game.id, event_type))
+                if row is None:
+                    s.add(Pattern(
+                        game=game.id, pattern_regex=regex, event_type=event_type,
+                        description=desc, active=True, scenario=seed_scenario,
+                    ))
+                    added += 1
+                elif seed_scenario and not (row.scenario or "").strip():
+                    # backfill the default scenario only when the operator has not
+                    # set one — never overwrite an existing edit.
+                    row.scenario = seed_scenario
+                    s.add(row)
+                    backfilled += 1
         s.commit()
     if added:
         log.info("seeded %d missing default pattern(s) for games: %s", added, ", ".join(config.GAMES))
+    if backfilled:
+        log.info("backfilled scenario on %d existing pattern(s)", backfilled)
 
 
 # --- entry point -----------------------------------------------------------
