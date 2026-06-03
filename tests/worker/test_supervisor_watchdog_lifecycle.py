@@ -63,6 +63,9 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
     events: list[str] = []
 
     class FakeSupervisor:
+        def is_healthy(self) -> bool:
+            return True
+
         def run(self) -> None:
             events.append("run")
 
@@ -97,6 +100,16 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
         "shutdown_runtime_observability",
         lambda: events.append("shutdown"),
     )
+
+    class _FakeHealthServer:
+        def shutdown(self) -> None:
+            events.append("stop-health-server")
+
+    monkeypatch.setattr(
+        supervisor,
+        "start_health_server",
+        lambda *_args, **_kwargs: (events.append("health-server"), _FakeHealthServer())[1],
+    )
     monkeypatch.setattr(supervisor, "Supervisor", FakeSupervisor)
 
     supervisor.main()
@@ -104,7 +117,9 @@ def test_multiprocess_supervisor_starts_and_stops_health_watchdog(monkeypatch) -
     assert events == [
         "bootstrap",
         "watchdog",
+        "health-server",
         "run",
+        "stop-health-server",
         "stop-watchdog",
         "shutdown",
     ]

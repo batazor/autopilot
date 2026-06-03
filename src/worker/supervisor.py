@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import multiprocessing
+import os
 import signal
 import time
 from contextlib import suppress as _suppress
@@ -16,11 +17,16 @@ from config.runtime_bootstrap import (
 )
 from config.startup_validation import assert_startup_configs_valid
 from licensing import LicenseError, generate_fingerprint, load_license
+from worker.health_server import start_health_server
 from worker.health_watchdog_process import (
     ensure_health_watchdog_process,
     stop_health_watchdog_process,
 )
 from worker.restart_backoff import compute_restart_delay
+
+# Loopback HTTP ``/health`` port for the headless supervisor. Override with
+# ``WOS_BOT_HEALTH_PORT``; keep the container healthcheck's port in sync.
+_DEFAULT_HEALTH_PORT = 8770
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,10 @@ _BASE_RESTART_DELAY_SECONDS = 10.0
 # delay, a worker that reliably dies just after the window (e.g. a periodic OOM
 # every ~45s) resets to attempt=1 every cycle and never escalates its backoff.
 _STABILITY_WINDOW_SECONDS = 300.0
+# The reconcile loop ticks ~1/s; if its last tick is older than this the
+# supervisor is considered hung and ``/health`` reports 503. Generous vs the
+# 1s cadence so a brief stall (e.g. a slow respawn) doesn't flap the probe.
+_HEALTH_STALE_SECONDS = 30.0
 _shutdown = False
 _CHILD_SHUTDOWN_GRACE_S = 0.2
 _CHILD_KILL_JOIN_S = 0.5
@@ -160,6 +170,16 @@ class Supervisor:
         self._settings = get_settings()
         self._processes: dict[str, multiprocessing.Process] = {}
         self._restart: dict[str, _RestartTracker] = {}
+        # Monotonic instant of the last reconcile-loop tick; backs ``is_healthy``
+        # / the ``/health`` endpoint. Seeded to "now" so the probe is green from
+        # construction (before ``run()`` takes its first tick).
+        self._last_tick = time.monotonic()
+
+    def is_healthy(self) -> bool:
+        """True while the reconcile loop is ticking (not shut down / not hung)."""
+        if _shutdown:
+            return False
+        return (time.monotonic() - self._last_tick) < _HEALTH_STALE_SECONDS
 
     def _spawn_worker(self, instance_config: InstanceConfig) -> multiprocessing.Process:
         proc = multiprocessing.Process(
@@ -216,6 +236,7 @@ class Supervisor:
 
         while not _shutdown:
             now = time.monotonic()
+            self._last_tick = now  # heartbeat for the /health endpoint
             for name, proc in list(self._processes.items()):
                 if proc.is_alive():
                     continue
@@ -373,11 +394,25 @@ def main() -> None:
     # The ``autopilot.workers.active`` gauge needs to peek at the supervisor's
     # process table — bind it here so the callback finds it.
     telemetry.bind_supervisor(supervisor)
+    health_server = start_health_server(supervisor.is_healthy, port=_health_port())
     try:
         supervisor.run()
     finally:
+        if health_server is not None:
+            health_server.shutdown()
         stop_health_watchdog_process()
         shutdown_runtime_observability()
+
+
+def _health_port() -> int:
+    raw = os.environ.get("WOS_BOT_HEALTH_PORT", "").strip()
+    if not raw:
+        return _DEFAULT_HEALTH_PORT
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("invalid WOS_BOT_HEALTH_PORT=%r — using %d", raw, _DEFAULT_HEALTH_PORT)
+        return _DEFAULT_HEALTH_PORT
 
 
 if __name__ == "__main__":
