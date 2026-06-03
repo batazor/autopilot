@@ -91,8 +91,13 @@ class ScenarioLoader:
             cb = self._on_reload
         n_on = sum(1 for s in loaded if s.enabled)
         roots_label = ", ".join(str(p) for p in self._paths)
+        # This loader only handles the legacy *declarative* schema (every step
+        # has ``task``+``cooldown``, run by ``ScenarioEvaluator``). Imperative
+        # DSL scenarios (``match``/``click``/``while_match``) are owned by
+        # ``DslScenarioTask`` and loaded elsewhere — so 0 here is normal when a
+        # game ships only imperative scenarios, not a discovery failure.
         logger.info(
-            "Loaded %d scenarios (%d enabled) from %d root(s)",
+            "Loaded %d declarative scheduler scenarios (%d enabled) from %d root(s)",
             len(loaded),
             n_on,
             len(self._paths),
