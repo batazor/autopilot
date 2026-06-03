@@ -85,3 +85,8 @@ result/
 *.licence.jwt
 *.licence.json
 *.wos-license.json
+
+# Dreamscape Memory module scene DB (operator/runtime data; seed via tools/import_maps.py)
+games/wos/events/dreamscape_memory/scenes.db
+games/wos/events/dreamscape_memory/scenes.db-wal
+games/wos/events/dreamscape_memory/scenes.db-shm

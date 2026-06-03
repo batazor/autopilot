@@ -109,6 +109,69 @@ async def test_cond_instance_text_substring_pipe_all_miss(redis_async: object) -
     assert allowed is False
 
 
+# ---------------------------------------------------------------------------
+# ``~~`` fuzzy contains — like ``~=`` but tolerant of OCR character noise, with
+# an optional inline threshold (``~~90``). RHS still supports ``|`` alternatives.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cond_fuzzy_matches_clean_substring(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "Victory!"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    step = {"cond": 'squad_status ~~ "victory"'}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is True  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_fuzzy_recovers_one_char_ocr_garble(redis_async: object) -> None:
+    """``~=`` would miss because ``Vlctory`` is not a substring of ``victory``;
+    ``~~`` (partial_ratio 85.7 ≥ default 85) still fires."""
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "Vlctory!"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await dsl._dsl_cond_allows_step({"cond": 'squad_status ~~ "victory"'}, "bs1", r) is True  # type: ignore[arg-type]
+    # Plain substring operator does not recover it.
+    assert await dsl._dsl_cond_allows_step({"cond": 'squad_status ~= "victory"'}, "bs1", r) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_fuzzy_inline_threshold_loosens_and_tightens(redis_async: object) -> None:
+    r = redis_async
+    # "vlcteny" vs "victory" scores 57.1: below default 85, above an inline 50.
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "vlcteny"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await dsl._dsl_cond_allows_step({"cond": 'squad_status ~~ "victory"'}, "bs1", r) is False  # type: ignore[arg-type]
+    assert await dsl._dsl_cond_allows_step({"cond": 'squad_status ~~50 "victory"'}, "bs1", r) is True  # type: ignore[arg-type]
+    # A one-char garble (85.7) is rejected by a strict inline 95.
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "vlctory"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await dsl._dsl_cond_allows_step({"cond": 'squad_status ~~95 "victory"'}, "bs1", r) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_fuzzy_pipe_alternatives(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "We were defeated"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    step = {"cond": 'squad_status ~~ "victory|defeat"'}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is True  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_fuzzy_clear_mismatch_is_false(redis_async: object) -> None:
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"squad_status": "Train troops"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    step = {"cond": 'squad_status ~~ "victory"'}
+    assert await dsl._dsl_cond_allows_step(step, "bs1", r) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_cond_eq_keeps_numeric_rhs_intact(redis_async: object) -> None:
+    """Regression: the ``~~`` inline-threshold digits must not leak into ``==``;
+    ``foo == 90`` keeps ``90`` as the RHS rather than swallowing it as a cutoff."""
+    r = redis_async
+    await r.hset("wos:instance:bs1:state", mapping={"foo": "90"})  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
+    assert await dsl._dsl_cond_allows_step({"cond": "foo == 90"}, "bs1", r) is True  # type: ignore[arg-type]
+    assert await dsl._dsl_cond_allows_step({"cond": "foo != 90"}, "bs1", r) is False  # type: ignore[arg-type]
+
+
 @pytest.mark.asyncio
 async def test_cond_instance_text_rhs_strips_unicode_smart_quotes(redis_async: object) -> None:
     r = redis_async

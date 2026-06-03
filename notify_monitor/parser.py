@@ -171,6 +171,7 @@ class MatchResult:
     pattern_id: int
     pattern_regex: str
     nickname: str | None = None  # if the pattern declared a `nickname` group
+    scenario: str = ""           # DSL scenario key to push, "" = none
 
 
 class PatternMatcher:
@@ -183,11 +184,11 @@ class PatternMatcher:
     def __init__(self, ttl_seconds: float = 5.0) -> None:
         self._ttl = ttl_seconds
         self._lock = threading.Lock()
-        self._compiled: dict[str, list[tuple[int, str, Pattern[str]]]] = {}
+        self._compiled: dict[str, list[tuple[int, str, str, Pattern[str]]]] = {}
         self._loaded_at = 0.0
 
     def _load(self) -> None:
-        compiled: dict[str, list[tuple[int, str, Pattern[str]]]] = {}
+        compiled: dict[str, list[tuple[int, str, str, Pattern[str]]]] = {}
         for row in db.list_patterns(active_only=True):
             try:
                 rex = re.compile(row["pattern_regex"], re.IGNORECASE)
@@ -195,7 +196,7 @@ class PatternMatcher:
                 log.warning("Skipping invalid pattern id=%s: %s", row["id"], exc)
                 continue
             compiled.setdefault(row["game"], []).append(
-                (row["id"], row["event_type"], rex)
+                (row["id"], row["event_type"], (row.get("scenario") or "").strip(), rex)
             )
         self._compiled = compiled
         self._loaded_at = time.monotonic()
@@ -214,11 +215,11 @@ class PatternMatcher:
 
     def match(self, raw_text: str, game: str) -> MatchResult | None:
         self._ensure_fresh()
-        for pattern_id, event_type, rex in self._compiled.get(game, []):
+        for pattern_id, event_type, scenario, rex in self._compiled.get(game, []):
             m = rex.search(raw_text)
             if m:
                 nick = None
                 if "nickname" in rex.groupindex:
                     nick = (m.group("nickname") or "").strip() or None
-                return MatchResult(event_type, pattern_id, rex.pattern, nick)
+                return MatchResult(event_type, pattern_id, rex.pattern, nick, scenario)
         return None

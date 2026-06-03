@@ -72,8 +72,21 @@ class DeviceEntry:
         """ADB serial for this device — explicit ``adb_serial`` or fall back to ``name``."""
         return self.adb_serial.strip() or self.name.strip()
 
-    def all_player_ids(self) -> list[str]:
-        return [pid for p in self.profiles for pid in p.player_ids()]
+    def all_player_ids(self, game: str | None = None) -> list[str]:
+        """Player IDs on this device, optionally filtered to a single ``game``.
+
+        ``game=None`` returns every player (legacy behaviour). When a game is
+        given, only profiles whose resolved game matches are included — see
+        :meth:`game_for_profile` for the per-profile/device fallback.
+        """
+        if game is None:
+            return [pid for p in self.profiles for pid in p.player_ids()]
+        return [
+            pid
+            for i, p in enumerate(self.profiles)
+            if self.game_for_profile(i) == game
+            for pid in p.player_ids()
+        ]
 
     def all_gamers(self) -> list[Gamer]:
         return [g for p in self.profiles for g in p.gamers]
@@ -96,8 +109,9 @@ class DeviceRegistry:
                     return gamer
         return None
 
-    def all_player_ids(self) -> list[str]:
-        return [pid for d in self.devices for pid in d.all_player_ids()]
+    def all_player_ids(self, game: str | None = None) -> list[str]:
+        """Player IDs across every device, optionally filtered to ``game``."""
+        return [pid for d in self.devices for pid in d.all_player_ids(game)]
 
     def player_ids_for_device(self, device_name: str) -> list[str]:
         """Player IDs registered under *device_name*.

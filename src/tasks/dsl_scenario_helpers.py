@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from rapidfuzz import fuzz
 
 from adb import _redis
 from config.event_timers import event_timer_remaining_seconds, read_event_timer
@@ -98,10 +99,21 @@ _COND_SCREEN_UNKNOWN_RHS = frozenset({"none", "unknown", "empty"})
 # - op:
 #   - `~=`: case-insensitive substring contains; RHS may use ``|`` for alternatives
 #     (e.g. ``"Upgrade|Build"`` matches if any alternative is a substring)
+#   - `~~`: case-insensitive FUZZY contains (rapidfuzz partial_ratio) — like `~=`
+#     but tolerant of OCR character noise (``"Vlctory"`` still matches ``"victory"``).
+#     Optional inline threshold ``~~90`` (0–100, default ``_COND_FUZZ_THRESHOLD``);
+#     RHS may use ``|`` alternatives, matching if any clears the threshold.
 #   - `==` / `!=`: case-insensitive full-string match
+# The ``~~`` branch carries its own optional threshold group so the digits are
+# only consumed after ``~~`` (``count == 90`` keeps ``90`` as the RHS).
 _COND_TEXT_RE = re.compile(
-    r'^\s*(?P<lhs>[\w.\-:]+)\s*(?P<op>==|!=|~=)\s*(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
+    r'^\s*(?P<lhs>[\w.\-:]+)\s*'
+    r'(?P<op>==|!=|~=|~~(?P<thr>\d{1,3})?)\s*'
+    r'(?P<rhs>"[^"]*"|\'[^\']*\'|.+?)\s*$'
 )
+# Default similarity cutoff (0–100) for the ``~~`` fuzzy operator when no inline
+# threshold is given. Matches the spirit of the solver's fuzzy tap recovery.
+_COND_FUZZ_THRESHOLD = 85.0
 # Bare RHS tokens that mean "field is unset / empty". Lets scenarios write
 # ``cond: active_player != null`` to gate on ``who_i_am`` having completed —
 # the canonical idiom for "this scenario needs a player binding". Without
@@ -334,6 +346,14 @@ async def _eval_instance_text_cond(expr: str, instance_id: str, redis_async: Any
         parts = [p.strip() for p in rhs_lc.split("|")]
         alts = [p for p in parts if p]
         return bool(alts) and any(a in cur_lc for a in alts)
+    if op.startswith("~~"):
+        thr_raw = m.group("thr")
+        threshold = float(thr_raw) if thr_raw else _COND_FUZZ_THRESHOLD
+        parts = [p.strip() for p in rhs_lc.split("|")]
+        alts = [p for p in parts if p]
+        if not alts or not cur_lc:
+            return False
+        return any(fuzz.partial_ratio(a, cur_lc) >= threshold for a in alts)
     if op == "==":
         return cur_lc == rhs_lc
     if op == "!=":

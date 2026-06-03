@@ -66,3 +66,38 @@ def test_settings_roundtrip(db):
     assert db.get_setting("poll_interval") == "10"
     db.set_setting("poll_interval", "30")
     assert db.get_setting("poll_interval") == "30"
+
+
+def test_seed_sets_scenario_for_intel(db):
+    pats = {(p["game"], p["event_type"]): p for p in db.list_patterns()}
+    intel = pats[("wos", "intel_lighthouse")]
+    assert intel["scenario"] == "intel_lighthouse"
+    # an informational pattern carries no scenario
+    assert pats[("wos", "storehouse_supply")]["scenario"] == ""
+
+
+def test_seed_backfills_scenario_without_clobbering_edits(db):
+    from notify_monitor import migrations
+    from notify_monitor.db import _engine
+
+    rows = {(p["game"], p["event_type"]): p for p in db.list_patterns()}
+    # operator cleared intel's scenario (simulating a stale/pre-migration DB)
+    db.update_pattern(rows[("wos", "intel_lighthouse")]["id"], scenario="")
+    # ...and set a custom scenario on another pattern that must survive re-seed
+    db.update_pattern(rows[("wos", "research_done")]["id"], scenario="my_custom")
+
+    migrations.run_migrations(_engine())
+
+    after = {(p["game"], p["event_type"]): p for p in db.list_patterns()}
+    assert after[("wos", "intel_lighthouse")]["scenario"] == "intel_lighthouse"  # backfilled
+    assert after[("wos", "research_done")]["scenario"] == "my_custom"  # preserved
+
+
+def test_matcher_returns_scenario(db):
+    from notify_monitor.parser import PatternMatcher
+
+    m = PatternMatcher(ttl_seconds=0.0)
+    res = m.match("New Intel in the Lighthouse — the Lighthouse has new Intel, check it", "wos")
+    assert res is not None
+    assert res.event_type == "intel_lighthouse"
+    assert res.scenario == "intel_lighthouse"

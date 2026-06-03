@@ -144,14 +144,20 @@ DSL filter on `match:` / `while_match:` steps:
   - `cond: <field> ~= "text"` — **case-insensitive substring** (contains).
     In the quoted RHS, **`|`** separates alternatives:
     `~= "Upgrade|Build"` is true if the live field contains **any** of those substrings.
+  - `cond: <field> ~~ "text"` — **fuzzy contains** (rapidfuzz `partial_ratio`):
+    like `~=` but tolerant of OCR character noise, e.g. `~~ "victory"` still
+    matches a field reading `"Vlctory!"`. Optional inline threshold `~~90`
+    (0–100, default 85); RHS supports `|` alternatives just like `~=`.
   - `cond: <field> == "text"` — **case-insensitive full-string** equality
   - `cond: <field> != "text"` — **case-insensitive full-string** inequality
 
 Notes:
 - `<field>` is a Redis field name; it may include dots (e.g. `chapter.task`).
 - Use quotes for the RHS when it contains spaces (recommended always).
-- `|` is only interpreted as alternation inside the **`~=`** RHS; `==` / `!=`
-  treat the whole quoted string literally.
+- `|` is only interpreted as alternation inside the **`~=`** / **`~~`** RHS;
+  `==` / `!=` treat the whole quoted string literally.
+- Prefer `~=` (exact substring) by default; reach for `~~` only when the field
+  is OCR'd and prone to character noise — fuzzy matching can over-match.
 
 ## DSL optional tap (region may be absent)
 

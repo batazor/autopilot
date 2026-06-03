@@ -1,4 +1,4 @@
-"""SQLite persistence for gift codes and per-player redemption status.
+"""SQLModel persistence for gift codes and per-player redemption status.
 
 Schema (one row per (game, code) and (game, code, player)):
 
@@ -11,24 +11,29 @@ Schema (one row per (game, code) and (game, code, player)):
 ``game`` is ``'wos'`` or ``'kingshot'``; legacy rows (single-game era) are
 migrated to ``'wos'`` on first connect.
 
-Shares one ``state.db`` with ``state_sqlite`` / ``devices_db``.
+Shares one ``state.db`` (and one SQLModel engine, see ``config.orm``) with
+``state_sqlite`` / ``devices_db``.
 """
 from __future__ import annotations
 
 import logging
-import sqlite3
 import threading
 import time
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import ForeignKeyConstraint, Index, func
+from sqlmodel import Field, Session, SQLModel, select
+
+from config import orm
 from config.state_sqlite import state_db_path
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
-    from pathlib import Path
+    import sqlite3
+    from collections.abc import Iterable
+
+    from sqlalchemy.engine import Engine
 
     from century.gift_codes.models import GiftCode, RedeemStatus
 
@@ -38,49 +43,59 @@ _conn_lock = threading.RLock()
 
 _DEFAULT_GAME = "wos"
 
-_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS gift_codes (
-    game TEXT NOT NULL DEFAULT 'wos',
-    name TEXT NOT NULL,
-    expires_at TEXT,
-    last_api_err_code INTEGER,
-    last_api_msg TEXT,
-    updated_at REAL NOT NULL,
-    PRIMARY KEY (game, name)
-);
 
-CREATE TABLE IF NOT EXISTS gift_code_redemptions (
-    game TEXT NOT NULL DEFAULT 'wos',
-    code_name TEXT NOT NULL,
-    player_id TEXT NOT NULL,
-    status TEXT NOT NULL,
-    attempted_at REAL NOT NULL,
-    PRIMARY KEY (game, code_name, player_id),
-    FOREIGN KEY (game, code_name) REFERENCES gift_codes(game, name) ON DELETE CASCADE
-);
+# ---------------------------------------------------------------------------
+# models
+# ---------------------------------------------------------------------------
 
-CREATE INDEX IF NOT EXISTS idx_gift_code_redemptions_code ON gift_code_redemptions(game, code_name);
 
--- External gamers: accounts the bot does NOT own (alliance members,
--- partner farms, secondary accounts on hardware we don't run). Used by
--- the gift-code redeemer when the ``gift_codes.external_accounts`` Pro
--- feature is licensed. Independent of devices/profiles — these have no
--- emulator. Same ``(game, player_id)`` key shape as the durable state
--- tables so cross-table queries stay simple.
-CREATE TABLE IF NOT EXISTS gift_code_external_gamers (
-    game TEXT NOT NULL,
-    player_id INTEGER NOT NULL,
-    nickname TEXT NOT NULL DEFAULT '',
-    label TEXT NOT NULL DEFAULT '',
-    enabled INTEGER NOT NULL DEFAULT 1,
-    added_at REAL NOT NULL,
-    last_seen_at REAL,
-    PRIMARY KEY (game, player_id)
-);
+class GiftCodeRow(SQLModel, table=True):
+    __tablename__ = "gift_codes"
 
-CREATE INDEX IF NOT EXISTS idx_gift_code_external_gamers_enabled
-    ON gift_code_external_gamers(game, enabled);
-"""
+    game: str = Field(default="wos", primary_key=True)
+    name: str = Field(primary_key=True)
+    expires_at: str | None = Field(default=None)
+    last_api_err_code: int | None = Field(default=None)
+    last_api_msg: str | None = Field(default=None)
+    updated_at: float
+
+
+class GiftCodeRedemption(SQLModel, table=True):
+    __tablename__ = "gift_code_redemptions"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["game", "code_name"],
+            ["gift_codes.game", "gift_codes.name"],
+            ondelete="CASCADE",
+        ),
+        Index("idx_gift_code_redemptions_code", "game", "code_name"),
+    )
+
+    game: str = Field(default="wos", primary_key=True)
+    code_name: str = Field(primary_key=True)
+    player_id: str = Field(primary_key=True)
+    status: str
+    attempted_at: float
+
+
+class GiftCodeExternalGamer(SQLModel, table=True):
+    __tablename__ = "gift_code_external_gamers"
+    __table_args__ = (
+        Index("idx_gift_code_external_gamers_enabled", "game", "enabled"),
+    )
+
+    game: str = Field(primary_key=True)
+    player_id: int = Field(primary_key=True)
+    nickname: str = Field(default="")
+    label: str = Field(default="")
+    enabled: int = Field(default=1)
+    added_at: float
+    last_seen_at: float | None = Field(default=None)
+
+
+# ---------------------------------------------------------------------------
+# schema setup + legacy migration
+# ---------------------------------------------------------------------------
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -136,20 +151,25 @@ def _migrate_legacy_schema(conn: sqlite3.Connection) -> None:
         """)
 
 
-@contextmanager
-def _connect(path: Path | None = None) -> Iterator[sqlite3.Connection]:
-    db_path = path or state_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), timeout=30.0, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    try:
-        conn.execute("PRAGMA foreign_keys = ON")
-        _migrate_legacy_schema(conn)
-        conn.executescript(_SCHEMA_SQL)
-        conn.commit()
-        yield conn
-    finally:
-        conn.close()
+def _ensure_schema(engine: Engine) -> None:
+    """Create missing tables, then run tracked legacy migrations."""
+    SQLModel.metadata.create_all(
+        engine,
+        tables=[
+            GiftCodeRow.__table__,
+            GiftCodeRedemption.__table__,
+            GiftCodeExternalGamer.__table__,
+        ],
+    )
+    orm.apply_migrations(engine, "giftcodes", [
+        ("001_multigame", _migrate_legacy_schema),
+    ])
+
+
+def _engine() -> Engine:
+    engine = orm.get_engine(state_db_path())
+    orm.ensure_once(engine, "giftcodes", _ensure_schema)
+    return engine
 
 
 # ---------------------------------------------------------------------------
@@ -173,34 +193,24 @@ def upsert_code(
     """
     now = time.time()
     expires_iso = expires.isoformat() if expires is not None else None
-    with _conn_lock, _connect() as conn:
-        existing = conn.execute(
-            "SELECT expires_at, last_api_err_code, last_api_msg "
-            "FROM gift_codes WHERE game = ? AND name = ?",
-            (game, name),
-        ).fetchone()
-        if existing is None:
-            conn.execute(
-                "INSERT INTO gift_codes (game, name, expires_at, last_api_err_code, "
-                "last_api_msg, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (game, name, expires_iso, last_api_err_code, last_api_msg, now),
-            )
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeRow, (game, name))
+        if row is None:
+            s.add(GiftCodeRow(
+                game=game, name=name, expires_at=expires_iso,
+                last_api_err_code=last_api_err_code, last_api_msg=last_api_msg,
+                updated_at=now,
+            ))
         else:
-            new_expires = expires_iso if expires is not None else existing["expires_at"]
-            new_err = (
-                last_api_err_code
-                if last_api_err_code is not None
-                else existing["last_api_err_code"]
-            )
-            new_msg = (
-                last_api_msg if last_api_msg is not None else existing["last_api_msg"]
-            )
-            conn.execute(
-                "UPDATE gift_codes SET expires_at = ?, last_api_err_code = ?, "
-                "last_api_msg = ?, updated_at = ? WHERE game = ? AND name = ?",
-                (new_expires, new_err, new_msg, now, game, name),
-            )
-        conn.commit()
+            if expires is not None:
+                row.expires_at = expires_iso
+            if last_api_err_code is not None:
+                row.last_api_err_code = last_api_err_code
+            if last_api_msg is not None:
+                row.last_api_msg = last_api_msg
+            row.updated_at = now
+            s.add(row)
+        s.commit()
 
 
 def set_redemption(
@@ -209,15 +219,19 @@ def set_redemption(
     """Record a redemption attempt. Sticky terminal statuses are not enforced
     here — callers (the redeemer) decide what to write; the schema only stores."""
     now = time.time()
-    with _conn_lock, _connect() as conn:
-        conn.execute(
-            "INSERT INTO gift_code_redemptions (game, code_name, player_id, status, attempted_at) "
-            "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(game, code_name, player_id) DO UPDATE SET "
-            "status = excluded.status, attempted_at = excluded.attempted_at",
-            (game, code_name, str(player_id), status.value, now),
-        )
-        conn.commit()
+    pid = str(player_id)
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeRedemption, (game, code_name, pid))
+        if row is None:
+            s.add(GiftCodeRedemption(
+                game=game, code_name=code_name, player_id=pid,
+                status=status.value, attempted_at=now,
+            ))
+        else:
+            row.status = status.value
+            row.attempted_at = now
+            s.add(row)
+        s.commit()
 
 
 def set_redemption_bulk(
@@ -230,25 +244,31 @@ def set_redemption_bulk(
     """Stamp the same terminal status for every listed player on one code.
     Used when CDK_EXPIRED / CDK_NOT_FOUND comes back — code is dead globally."""
     now = time.time()
-    rows = [(game, code_name, str(pid), status.value, now) for pid in player_ids]
-    if not rows:
+    pids = [str(pid) for pid in player_ids]
+    if not pids:
         return
-    with _conn_lock, _connect() as conn:
-        conn.executemany(
-            "INSERT INTO gift_code_redemptions (game, code_name, player_id, status, attempted_at) "
-            "VALUES (?, ?, ?, ?, ?) "
-            "ON CONFLICT(game, code_name, player_id) DO UPDATE SET "
-            "status = excluded.status, attempted_at = excluded.attempted_at",
-            rows,
-        )
-        conn.commit()
+    with _conn_lock, Session(_engine()) as s:
+        for pid in pids:
+            row = s.get(GiftCodeRedemption, (game, code_name, pid))
+            if row is None:
+                s.add(GiftCodeRedemption(
+                    game=game, code_name=code_name, player_id=pid,
+                    status=status.value, attempted_at=now,
+                ))
+            else:
+                row.status = status.value
+                row.attempted_at = now
+                s.add(row)
+        s.commit()
 
 
 def delete_code(name: str, *, game: str = _DEFAULT_GAME) -> None:
     """Remove a code (cascades redemptions). Used by tests / manual cleanup."""
-    with _conn_lock, _connect() as conn:
-        conn.execute("DELETE FROM gift_codes WHERE game = ? AND name = ?", (game, name))
-        conn.commit()
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeRow, (game, name))
+        if row is not None:
+            s.delete(row)  # ON DELETE CASCADE (foreign_keys=ON) clears redemptions
+            s.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -274,42 +294,32 @@ def list_codes(*, game: str | None = _DEFAULT_GAME) -> list[GiftCode]:
     """
     from century.gift_codes.models import GiftCode, RedeemStatus
 
-    with _conn_lock, _connect() as conn:
-        if game is None:
-            code_rows = conn.execute(
-                "SELECT game, name, expires_at, last_api_err_code, last_api_msg "
-                "FROM gift_codes ORDER BY updated_at DESC"
-            ).fetchall()
-            red_rows = conn.execute(
-                "SELECT game, code_name, player_id, status FROM gift_code_redemptions"
-            ).fetchall()
-        else:
-            code_rows = conn.execute(
-                "SELECT game, name, expires_at, last_api_err_code, last_api_msg "
-                "FROM gift_codes WHERE game = ? ORDER BY updated_at DESC",
-                (game,),
-            ).fetchall()
-            red_rows = conn.execute(
-                "SELECT game, code_name, player_id, status FROM gift_code_redemptions WHERE game = ?",
-                (game,),
-            ).fetchall()
+    with Session(_engine()) as s:
+        code_stmt = select(GiftCodeRow)
+        red_stmt = select(GiftCodeRedemption)
+        if game is not None:
+            code_stmt = code_stmt.where(GiftCodeRow.game == game)
+            red_stmt = red_stmt.where(GiftCodeRedemption.game == game)
+        code_stmt = code_stmt.order_by(GiftCodeRow.updated_at.desc())
+        code_rows = s.exec(code_stmt).all()
+        red_rows = s.exec(red_stmt).all()
 
     by_code: dict[tuple[str, str], dict[str, RedeemStatus]] = {}
     for r in red_rows:
         try:
-            status = RedeemStatus(r["status"])
+            status = RedeemStatus(r.status)
         except ValueError:
             status = RedeemStatus.PENDING
-        by_code.setdefault((r["game"], r["code_name"]), {})[r["player_id"]] = status
+        by_code.setdefault((r.game, r.code_name), {})[r.player_id] = status
 
     return [
         GiftCode(
-            name=row["name"],
-            game=row["game"],
-            expires=_parse_expires(row["expires_at"]),
-            user_for=by_code.get((row["game"], row["name"]), {}),
-            last_api_err_code=row["last_api_err_code"],
-            last_api_msg=row["last_api_msg"],
+            name=row.name,
+            game=row.game,
+            expires=_parse_expires(row.expires_at),
+            user_for=by_code.get((row.game, row.name), {}),
+            last_api_err_code=row.last_api_err_code,
+            last_api_msg=row.last_api_msg,
         )
         for row in code_rows
     ]
@@ -321,37 +331,27 @@ def get_redemption(
     """Return the recorded status for one (code, player), or ``None`` if missing."""
     from century.gift_codes.models import RedeemStatus
 
-    with _conn_lock, _connect() as conn:
-        row = conn.execute(
-            "SELECT status FROM gift_code_redemptions "
-            "WHERE game = ? AND code_name = ? AND player_id = ?",
-            (game, code_name, str(player_id)),
-        ).fetchone()
+    with Session(_engine()) as s:
+        row = s.get(GiftCodeRedemption, (game, code_name, str(player_id)))
     if row is None:
         return None
     try:
-        return RedeemStatus(row["status"])
+        return RedeemStatus(row.status)
     except ValueError:
         return RedeemStatus.PENDING
 
 
 def code_exists(name: str, *, game: str = _DEFAULT_GAME) -> bool:
-    with _conn_lock, _connect() as conn:
-        row = conn.execute(
-            "SELECT 1 FROM gift_codes WHERE game = ? AND name = ?", (game, name)
-        ).fetchone()
-    return row is not None
+    with Session(_engine()) as s:
+        return s.get(GiftCodeRow, (game, name)) is not None
 
 
 def count_codes(*, game: str | None = None) -> int:
-    with _conn_lock, _connect() as conn:
-        if game is None:
-            row = conn.execute("SELECT COUNT(*) AS n FROM gift_codes").fetchone()
-        else:
-            row = conn.execute(
-                "SELECT COUNT(*) AS n FROM gift_codes WHERE game = ?", (game,)
-            ).fetchone()
-    return int(row["n"] or 0)
+    with Session(_engine()) as s:
+        stmt = select(func.count()).select_from(GiftCodeRow)
+        if game is not None:
+            stmt = stmt.where(GiftCodeRow.game == game)
+        return int(s.scalar(stmt) or 0)
 
 
 # ---------------------------------------------------------------------------
@@ -377,15 +377,15 @@ class ExternalGamer:
     last_seen_at: float | None = None
 
 
-def _row_to_external(row: sqlite3.Row) -> ExternalGamer:
+def _row_to_external(row: GiftCodeExternalGamer) -> ExternalGamer:
     return ExternalGamer(
-        game=row["game"],
-        player_id=int(row["player_id"]),
-        nickname=row["nickname"] or "",
-        label=row["label"] or "",
-        enabled=bool(row["enabled"]),
-        added_at=float(row["added_at"] or 0.0),
-        last_seen_at=float(row["last_seen_at"]) if row["last_seen_at"] is not None else None,
+        game=row.game,
+        player_id=int(row.player_id),
+        nickname=row.nickname or "",
+        label=row.label or "",
+        enabled=bool(row.enabled),
+        added_at=float(row.added_at or 0.0),
+        last_seen_at=float(row.last_seen_at) if row.last_seen_at is not None else None,
     )
 
 
@@ -408,37 +408,25 @@ def upsert_external_gamer(
         msg = f"invalid player_id: {player_id!r}"
         raise ValueError(msg) from exc
     now = time.time()
-    with _conn_lock, _connect() as conn:
-        existing = conn.execute(
-            "SELECT nickname, label, enabled, added_at, last_seen_at "
-            "FROM gift_code_external_gamers WHERE game = ? AND player_id = ?",
-            (game, pid),
-        ).fetchone()
-        if existing is None:
-            conn.execute(
-                "INSERT INTO gift_code_external_gamers "
-                "(game, player_id, nickname, label, enabled, added_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (game, pid, nickname or "", label or "", 1 if (enabled is not False) else 0, now),
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeExternalGamer, (game, pid))
+        if row is None:
+            row = GiftCodeExternalGamer(
+                game=game, player_id=pid,
+                nickname=nickname or "", label=label or "",
+                enabled=1 if (enabled is not False) else 0, added_at=now,
             )
         else:
-            new_nick = nickname if nickname is not None else (existing["nickname"] or "")
-            new_label = label if label is not None else (existing["label"] or "")
-            new_enabled = 1 if (
-                enabled if enabled is not None else bool(existing["enabled"])
-            ) else 0
-            conn.execute(
-                "UPDATE gift_code_external_gamers "
-                "SET nickname = ?, label = ?, enabled = ? "
-                "WHERE game = ? AND player_id = ?",
-                (new_nick, new_label, new_enabled, game, pid),
-            )
-        conn.commit()
-        row = conn.execute(
-            "SELECT * FROM gift_code_external_gamers WHERE game = ? AND player_id = ?",
-            (game, pid),
-        ).fetchone()
-    return _row_to_external(row)
+            if nickname is not None:
+                row.nickname = nickname
+            if label is not None:
+                row.label = label
+            if enabled is not None:
+                row.enabled = 1 if enabled else 0
+        s.add(row)
+        s.commit()
+        s.refresh(row)
+        return _row_to_external(row)
 
 
 def delete_external_gamer(player_id: int | str, *, game: str = _DEFAULT_GAME) -> bool:
@@ -447,13 +435,13 @@ def delete_external_gamer(player_id: int | str, *, game: str = _DEFAULT_GAME) ->
         pid = int(str(player_id).strip())
     except (TypeError, ValueError):
         return False
-    with _conn_lock, _connect() as conn:
-        cur = conn.execute(
-            "DELETE FROM gift_code_external_gamers WHERE game = ? AND player_id = ?",
-            (game, pid),
-        )
-        conn.commit()
-    return cur.rowcount > 0
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeExternalGamer, (game, pid))
+        if row is None:
+            return False
+        s.delete(row)
+        s.commit()
+        return True
 
 
 def set_external_gamer_enabled(
@@ -464,14 +452,14 @@ def set_external_gamer_enabled(
         pid = int(str(player_id).strip())
     except (TypeError, ValueError):
         return False
-    with _conn_lock, _connect() as conn:
-        cur = conn.execute(
-            "UPDATE gift_code_external_gamers SET enabled = ? "
-            "WHERE game = ? AND player_id = ?",
-            (1 if enabled else 0, game, pid),
-        )
-        conn.commit()
-    return cur.rowcount > 0
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeExternalGamer, (game, pid))
+        if row is None:
+            return False
+        row.enabled = 1 if enabled else 0
+        s.add(row)
+        s.commit()
+        return True
 
 
 def touch_external_gamer_seen(
@@ -483,40 +471,34 @@ def touch_external_gamer_seen(
     except (TypeError, ValueError):
         return
     ts = when if when is not None else time.time()
-    with _conn_lock, _connect() as conn:
-        conn.execute(
-            "UPDATE gift_code_external_gamers SET last_seen_at = ? "
-            "WHERE game = ? AND player_id = ?",
-            (ts, game, pid),
-        )
-        conn.commit()
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(GiftCodeExternalGamer, (game, pid))
+        if row is not None:
+            row.last_seen_at = ts
+            s.add(row)
+            s.commit()
 
 
 def list_external_gamers(
     *, game: str = _DEFAULT_GAME, enabled_only: bool = False
 ) -> list[ExternalGamer]:
     """Return every external gamer for ``game`` (optionally only enabled)."""
-    sql = "SELECT * FROM gift_code_external_gamers WHERE game = ?"
-    params: tuple[object, ...] = (game,)
-    if enabled_only:
-        sql += " AND enabled = 1"
-    sql += " ORDER BY added_at ASC, player_id ASC"
-    with _conn_lock, _connect() as conn:
-        rows = conn.execute(sql, params).fetchall()
+    with Session(_engine()) as s:
+        stmt = select(GiftCodeExternalGamer).where(GiftCodeExternalGamer.game == game)
+        if enabled_only:
+            stmt = stmt.where(GiftCodeExternalGamer.enabled == 1)
+        stmt = stmt.order_by(
+            GiftCodeExternalGamer.added_at.asc(), GiftCodeExternalGamer.player_id.asc()
+        )
+        rows = s.exec(stmt).all()
     return [_row_to_external(r) for r in rows]
 
 
 def count_external_gamers(*, game: str | None = None, enabled_only: bool = False) -> int:
-    sql = "SELECT COUNT(*) AS n FROM gift_code_external_gamers"
-    params: tuple[object, ...] = ()
-    clauses: list[str] = []
-    if game is not None:
-        clauses.append("game = ?")
-        params = (*params, game)
-    if enabled_only:
-        clauses.append("enabled = 1")
-    if clauses:
-        sql += " WHERE " + " AND ".join(clauses)
-    with _conn_lock, _connect() as conn:
-        row = conn.execute(sql, params).fetchone()
-    return int(row["n"] or 0)
+    with Session(_engine()) as s:
+        stmt = select(func.count()).select_from(GiftCodeExternalGamer)
+        if game is not None:
+            stmt = stmt.where(GiftCodeExternalGamer.game == game)
+        if enabled_only:
+            stmt = stmt.where(GiftCodeExternalGamer.enabled == 1)
+        return int(s.scalar(stmt) or 0)

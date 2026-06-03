@@ -379,6 +379,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
   const [eventType, setEventType] = useState("");
   const [regex, setRegex] = useState("");
   const [desc, setDesc] = useState("");
+  const [scenario, setScenario] = useState("");
   // tester
   const [testRegex, setTestRegex] = useState("");
   const [testText, setTestText] = useState("");
@@ -402,10 +403,17 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
       return;
     }
     try {
-      await addNotifyPattern({ game, event_type: eventType.trim(), pattern_regex: regex, description: desc.trim() });
+      await addNotifyPattern({
+        game,
+        event_type: eventType.trim(),
+        pattern_regex: regex,
+        description: desc.trim(),
+        scenario: scenario.trim(),
+      });
       setEventType("");
       setRegex("");
       setDesc("");
+      setScenario("");
       showSuccess("Pattern added");
       load();
       onChange();
@@ -416,7 +424,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
 
   const edit = async (
     p: NotifyPattern,
-    field: "event_type" | "pattern_regex" | "description" | "active",
+    field: "event_type" | "pattern_regex" | "description" | "scenario" | "active",
     value: string | boolean,
   ) => {
     try {
@@ -463,6 +471,12 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             onChange={(e) => setRegex(e.target.value)}
           />
           <input placeholder="description" value={desc} onChange={(e) => setDesc(e.target.value)} />
+          <input
+            placeholder="scenario to push (optional)"
+            className="mono"
+            value={scenario}
+            onChange={(e) => setScenario(e.target.value)}
+          />
           <button type="button" className="btn btn-primary" onClick={add}>
             Add
           </button>
@@ -525,6 +539,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             { header: "event_type", value: (p) => p.event_type },
             { header: "pattern_regex", value: (p) => p.pattern_regex },
             { header: "description", value: (p) => p.description },
+            { header: "scenario", value: (p) => p.scenario },
             { header: "active", value: (p) => (p.active ? "yes" : "no") },
           ]}
         />
@@ -538,6 +553,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
               <th>Event type</th>
               <th>Regex</th>
               <th>Description</th>
+              <th>Scenario</th>
               <th>Active</th>
               <th />
             </tr>
@@ -568,6 +584,15 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
                     defaultValue={p.description}
                     style={{ width: 180 }}
                     onBlur={(e) => e.target.value !== p.description && edit(p, "description", e.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    defaultValue={p.scenario}
+                    className="mono"
+                    placeholder="—"
+                    style={{ width: 170 }}
+                    onBlur={(e) => e.target.value !== p.scenario && edit(p, "scenario", e.target.value)}
                   />
                 </td>
                 <td>

@@ -164,8 +164,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Bot-mode healthcheck (process check). The ``api`` service overrides this in
 # ``docker-compose.prod.yml`` with a curl probe against ``/health``.
+# The image ships no procps (no ``ps``/``pgrep``) and the supervisor runs as
+# pid 1 with argv ``.../bin/bot`` (the ``bot`` entrypoint, not
+# ``worker.supervisor``), so probe pid 1's cmdline via /proc with ``grep``.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
-    CMD sh -c "ps aux | grep -q '[w]orker.supervisor' || exit 1"
+    CMD sh -c "grep -aq 'bin/bot' /proc/1/cmdline || exit 1"
 
 LABEL org.opencontainers.image.title="autopilot-bot" \
       org.opencontainers.image.description="WOS automation bot (worker + scheduler + API)" \

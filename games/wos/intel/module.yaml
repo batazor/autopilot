@@ -1,0 +1,9 @@
+id: intel
+title: Intel
+description: Intel feature skeleton — regions and scenarios filled in via UI labeling.
+enabled: true
+scenarios: scenarios
+analyze: analyze/analyze.yaml
+area: area.yaml
+references: references
+wiki: false

@@ -3,8 +3,13 @@
 import Image from "next/image";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { AppTabs } from "@/components/headless";
+import { LiveEditorTab } from "@/components/dreamscape/LiveEditorTab";
+import { SceneBuilder } from "@/components/dreamscape/SceneBuilder";
+import { SceneOnboarding } from "@/components/dreamscape/SceneOnboarding";
+import { SavedScenes } from "@/components/dreamscape/SavedScenes";
 import {
   DREAMSCAPE_ACTIVE,
   DREAMSCAPE_ARCHIVE,
@@ -12,10 +17,16 @@ import {
 } from "@/lib/dreamscape";
 
 type Rotation = "active" | "archive";
+type View = "guides" | "live";
 
 const ROTATION_TABS: { key: Rotation; label: string }[] = [
   { key: "active", label: "Current event" },
   { key: "archive", label: "Archive" },
+];
+
+const VIEW_TABS: { key: View; label: string }[] = [
+  { key: "guides", label: "Guides" },
+  { key: "live", label: "Live editor" },
 ];
 
 function SceneTile({
@@ -289,6 +300,7 @@ function Lightbox({
 
 function DreamscapePageInner() {
   const params = useSearchParams();
+  const [view, setView] = useState<View>("guides");
   const [rotation, setRotation] = useState<Rotation>("active");
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [zoom, setZoom] = useState<string | null>(null);
@@ -344,6 +356,62 @@ function DreamscapePageInner() {
       </PageHeader>
 
       <AppTabs
+        tabs={VIEW_TABS}
+        selectedKey={view}
+        onChange={(key) => setView(key as View)}
+        renderPanels={false}
+      />
+
+      {view === "live" ? (
+        <FleetContextProvider>
+          <LiveEditorTab />
+        </FleetContextProvider>
+      ) : (
+        <DreamscapeGuides
+          scenes={scenes}
+          rotation={rotation}
+          setRotation={setRotation}
+          selectedSlug={selectedSlug}
+          setSelectedSlug={setSelectedSlug}
+          selected={selected}
+          onZoom={setZoom}
+        />
+      )}
+
+      {view === "guides" && selected && zoom ? (
+        <Lightbox
+          scene={selected}
+          src={zoom}
+          onClose={() => setZoom(null)}
+          onNav={navZoom}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function DreamscapeGuides({
+  scenes,
+  rotation,
+  setRotation,
+  selectedSlug,
+  setSelectedSlug,
+  selected,
+  onZoom,
+}: {
+  scenes: DreamscapeScene[];
+  rotation: Rotation;
+  setRotation: (r: Rotation) => void;
+  selectedSlug: string | null;
+  setSelectedSlug: (s: string) => void;
+  selected: DreamscapeScene | null;
+  onZoom: (src: string) => void;
+}) {
+  const [building, setBuilding] = useState(false);
+  const [onboarding, setOnboarding] = useState(false);
+  return (
+    <>
+      <AppTabs
         tabs={ROTATION_TABS}
         selectedKey={rotation}
         onChange={(key) => setRotation(key as Rotation)}
@@ -352,7 +420,27 @@ function DreamscapePageInner() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[300px_1fr]">
         <section className="panel">
-          <p className="meta mb-3">{scenes.length} scenes</p>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="meta">{scenes.length} scenes</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setOnboarding(true)}
+                className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
+                title="Add a scene to the bot's map.yaml (image + OCR + names)"
+              >
+                Onboard → map.yaml
+              </button>
+              <button
+                type="button"
+                onClick={() => setBuilding(true)}
+                className="rounded border border-wos-border px-2.5 py-1 text-xs hover:border-wos-border-hover"
+                title="Build a scene JSON to contribute upstream (not persisted)"
+              >
+                + New scene
+              </button>
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             {scenes.map((scene) => (
               <SceneTile
@@ -366,13 +454,15 @@ function DreamscapePageInner() {
         </section>
 
         {selected ? (
-          <SceneGallery scene={selected} onZoom={setZoom} />
+          <SceneGallery scene={selected} onZoom={onZoom} />
         ) : (
           <section className="panel">
             <p className="meta">Select a scene to view its item-location maps.</p>
           </section>
         )}
       </div>
+
+      <SavedScenes />
 
       <section className="panel mt-4 text-sm text-wos-text-muted">
         <h2 className="mb-2 text-base font-semibold text-wos-text">
@@ -415,13 +505,16 @@ function DreamscapePageInner() {
         </p>
       </section>
 
-      {selected && zoom ? (
-        <Lightbox
-          scene={selected}
-          src={zoom}
-          onClose={() => setZoom(null)}
-          onNav={navZoom}
-        />
+      {building ? (
+        <FleetContextProvider>
+          <SceneBuilder onClose={() => setBuilding(false)} />
+        </FleetContextProvider>
+      ) : null}
+
+      {onboarding ? (
+        <FleetContextProvider>
+          <SceneOnboarding onClose={() => setOnboarding(false)} />
+        </FleetContextProvider>
       ) : null}
     </>
   );

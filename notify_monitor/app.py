@@ -53,6 +53,7 @@ class PatternIn(BaseModel):
     event_type: str
     description: str = ""
     active: bool = True
+    scenario: str = ""
 
 
 class PatternPatch(BaseModel):
@@ -61,6 +62,7 @@ class PatternPatch(BaseModel):
     event_type: str | None = None
     description: str | None = None
     active: bool | None = None
+    scenario: str | None = None
 
 
 class PatternTest(BaseModel):
@@ -185,7 +187,10 @@ def api_add_pattern(body: PatternIn) -> dict[str, Any]:
     _validate_regex(body.pattern_regex)
     if not body.event_type.strip():
         raise HTTPException(400, "event_type required")
-    pid = db.add_pattern(body.game, body.pattern_regex, body.event_type, body.description, body.active)
+    pid = db.add_pattern(
+        body.game, body.pattern_regex, body.event_type, body.description,
+        body.active, body.scenario,
+    )
     monitor.matcher.refresh()
     return {"ok": True, "id": pid}
 

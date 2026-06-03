@@ -168,7 +168,7 @@ class _FakeMatcher(parser.PatternMatcher):
         super().__init__(ttl_seconds=999)
         compiled = {}
         for pid, game, et, rx in patterns:
-            compiled.setdefault(game, []).append((pid, et, re.compile(rx, re.IGNORECASE)))
+            compiled.setdefault(game, []).append((pid, et, "", re.compile(rx, re.IGNORECASE)))
         self._compiled = compiled
         import time
         self._loaded_at = time.monotonic()

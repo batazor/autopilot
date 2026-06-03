@@ -24,6 +24,13 @@ import type {
   AreaRegionProbeResult,
   ClickApprovalStatus,
   ClickApprovalView,
+  DreamscapeDetectMarkersResult,
+  DreamscapeListMapsResult,
+  DreamscapeParseNamesResult,
+  DreamscapeSaveMapResult,
+  DreamscapeSceneDetail,
+  DreamscapeSceneRect,
+  DreamscapeScenePoint,
   FishDetectResult,
   FishVideoJob,
   InstanceDetail,
@@ -33,6 +40,8 @@ import type {
   LabelingStaleCrop,
   NotificationEvent,
   OverlayTestResult,
+  RegionOcrResult,
+  RegionOcrTestResult,
   RoutesGraphResponse,
   RoutesNodeDetails,
   BotStatusView,
@@ -519,6 +528,107 @@ export async function fetchAreaRegionProbe(
   const suffix = q.size ? `?${q}` : "";
   return apiFetch<AreaRegionProbeResult>(
     `/api/instances/${encodeURIComponent(instanceId)}/area-region-probe${suffix}`,
+  );
+}
+
+/** Live OCR of one or more area regions on the current frame (the detected words). */
+export async function fetchRegionOcr(
+  instanceId: string,
+  regions: string[],
+  options: { threshold?: number } = {},
+): Promise<RegionOcrResult> {
+  const q = new URLSearchParams({ regions: regions.join(",") });
+  if (options.threshold != null) q.set("threshold", String(options.threshold));
+  return apiFetch<RegionOcrResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/region-ocr?${q}`,
+  );
+}
+
+/** Run screen detection + region OCR on an uploaded test image (no persistence). */
+export async function testRegionOcr(
+  instanceId: string,
+  file: File,
+  regions: string[],
+  options: { threshold?: number } = {},
+): Promise<RegionOcrTestResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("regions", regions.join(","));
+  if (options.threshold != null) fd.append("threshold", String(options.threshold));
+  // Don't set Content-Type — the browser fills in the multipart boundary.
+  return apiFetch<RegionOcrTestResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/region-ocr-test`,
+    { method: "POST", body: fd },
+  );
+}
+
+// ── Dreamscape Memory map onboarding ──────────────────────────────────────
+
+export async function detectDreamscapeMarkers(
+  file: File,
+  options: { expected?: number; psm?: number } = {},
+): Promise<DreamscapeDetectMarkersResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  if (options.expected != null) fd.append("expected", String(options.expected));
+  if (options.psm != null) fd.append("psm", String(options.psm));
+  return apiFetch<DreamscapeDetectMarkersResult>("/api/dreamscape/detect-markers", {
+    method: "POST",
+    body: fd,
+  });
+}
+
+export async function parseDreamscapeNames(
+  text: string,
+): Promise<DreamscapeParseNamesResult> {
+  return apiFetch<DreamscapeParseNamesResult>("/api/dreamscape/parse-names", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function uploadDreamscapeSceneImage(
+  slug: string,
+  file: File,
+): Promise<{ ok: boolean; source_image: string }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return apiFetch(`/api/dreamscape/scenes/${encodeURIComponent(slug)}/image`, {
+    method: "POST",
+    body: fd,
+  });
+}
+
+export async function saveDreamscapeScene(
+  slug: string,
+  body: {
+    title: string;
+    source_image: string;
+    scene_rect: DreamscapeSceneRect | null;
+    points: DreamscapeScenePoint[];
+    activate: boolean;
+  },
+): Promise<DreamscapeSaveMapResult> {
+  return apiFetch<DreamscapeSaveMapResult>(
+    `/api/dreamscape/scenes/${encodeURIComponent(slug)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export async function fetchDreamscapeScenes(): Promise<DreamscapeListMapsResult> {
+  return apiFetch<DreamscapeListMapsResult>("/api/dreamscape/scenes");
+}
+
+export async function fetchDreamscapeScene(
+  slug: string,
+): Promise<DreamscapeSceneDetail> {
+  return apiFetch<DreamscapeSceneDetail>(
+    `/api/dreamscape/scenes/${encodeURIComponent(slug)}`,
   );
 }
 
