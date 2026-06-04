@@ -1138,6 +1138,7 @@ class AdbController:
         approval_region: str | None = None,
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
+        require_approval: bool = True,
         revalidate: Callable[[], bool] | None = None,
         hold_ms: int = 0,
     ) -> bool:
@@ -1184,10 +1185,14 @@ class AdbController:
             ap["approval_source"] = src
         if approval_context:
             ap["approval_context"] = dict(approval_context)
-        if click_approval_enabled(self._instance_id) and src != "navigation":
+        if require_approval and click_approval_enabled(self._instance_id) and src != "navigation":
             self._attach_approval_preview(ap)
             ap["_preview_capturer"] = self._attach_approval_preview
-        ok, req_id = _require_approval(self._instance_id, ap)
+        ok, req_id = (
+            _require_approval(self._instance_id, ap)
+            if require_approval
+            else (True, None)
+        )
         if not ok:
             logger.info("ADB tap blocked (no approval): %s (%d,%d)", self._instance_id, x, y)
             return False

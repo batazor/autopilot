@@ -10,6 +10,7 @@ import {
   clickApprovalImageUrl,
   createQueueTask,
   fetchBotStatus,
+  fetchInstanceDetail,
   fetchDreamscapeScene,
   fetchDreamscapeScenes,
   fetchOverlayTest,
@@ -246,6 +247,27 @@ export function LiveEditorTab({
     refetchInterval: 4000,
   });
   const botRunning = Boolean(botQuery.data?.running);
+  const instanceDetailQuery = useQuery({
+    queryKey: ["dreamscape-instance-detail", instanceId],
+    queryFn: () => fetchInstanceDetail(instanceId),
+    enabled: Boolean(instanceId),
+    refetchInterval: POLL_MS,
+  });
+  const instanceDetail =
+    instanceDetailQuery.data && "preview_available" in instanceDetailQuery.data
+      ? instanceDetailQuery.data
+      : null;
+  const liveFramePlaceholder = !instanceId
+    ? "Select an instance"
+    : !botRunning
+      ? "Bot stopped — rolling preview is not being published."
+      : instanceDetailQuery.isLoading
+        ? "Checking rolling preview…"
+        : !instanceDetail?.preview_available
+          ? "No rolling preview PNG from worker yet."
+          : cardImageUrl === failedImageUrl
+            ? "Rolling preview image failed to load."
+            : "Waiting for a live frame…";
 
   const startMutation = useMutation({
     // Start the local worker (idempotent if already up), then enqueue the
@@ -389,20 +411,25 @@ export function LiveEditorTab({
           placeholder="Select a device"
           inline
         />
-        <Button
-          variant="primary"
-          disabled={
-            !instanceId || !scenarioKey || startMutation.isPending
-          }
-          onClick={() => startMutation.mutate()}
-          title="Start the bot and run this mode's solver in a fast ~300ms loop to keep up with the level's animation"
-        >
-          {startMutation.isPending
-            ? "Starting…"
-            : botRunning
-              ? "Solve now"
-              : "Play"}
-        </Button>
+        {botRunning ? (
+          <span
+            title="Bot is running the game loop"
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm"
+          >
+            Gaming
+          </span>
+        ) : (
+          <Button
+            variant="primary"
+            disabled={
+              !instanceId || !scenarioKey || startMutation.isPending
+            }
+            onClick={() => startMutation.mutate()}
+            title="Start the bot and run this mode's solver in a fast ~300ms loop to keep up with the level's animation"
+          >
+            {startMutation.isPending ? "Starting…" : "Play"}
+          </Button>
+        )}
         {botRunning ? (
           <Button
             variant="secondary"
@@ -454,7 +481,7 @@ export function LiveEditorTab({
               />
             ) : (
               <div className="flex h-full items-center justify-center px-4 text-center text-sm text-wos-text-muted">
-                {instanceId ? "Waiting for a live frame…" : "Select an instance"}
+                {liveFramePlaceholder}
               </div>
             )}
             {confettiVisible ? <WinConfetti /> : null}

@@ -52,6 +52,9 @@ _DEFAULT_REGIONS: tuple[str, ...] = (
 # scene map to solve (override per-step with ``level_region:``; empty disables
 # name matching and falls back to the operator's active scene).
 _DEFAULT_LEVEL_REGION = "dreamscape_memory.level.name"
+_DEFAULT_HELP_REGION = "dreamscape_memory.help"
+_DEFAULT_HELP_COUNTER_REGION = "dreamscape_memory.help.counter"
+_DEFAULT_HELP_COUNT = 2
 
 _DEFAULT_MULTIPLAYER_REGIONS: tuple[str, ...] = (
     "dreamscape_memory_.multiplayer.1",
@@ -112,6 +115,16 @@ def _normalize_level_name(raw: object) -> str:
     s = re.sub(r"(?<=[a-z])[\|/\\]+(?=[a-z])", " ", s)
     s = re.sub(r"[^a-z0-9]+", " ", s)
     return " ".join(s.split())
+
+
+def _parse_help_counter(raw: object) -> int | None:
+    match = re.search(r"\d+", str(raw or ""))
+    if match is None:
+        return None
+    try:
+        return max(0, int(match.group(0)))
+    except ValueError:
+        return None
 
 
 def _scene_rect(raw: object) -> tuple[float, float, float, float] | None:
@@ -401,6 +414,20 @@ def _threshold(region_def: dict[str, Any]) -> float:
         return 0.0
 
 
+def _region_center_for_frame(
+    area_doc: dict[str, Any],
+    name: str,
+    frame_w: int,
+    frame_h: int,
+) -> Point | None:
+    pair = screen_region_by_name(area_doc, name)
+    region_def = pair[1] if pair else None
+    if not isinstance(region_def, dict):
+        return None
+    px = _region_to_px(region_def, frame_w, frame_h)
+    return px.center() if px is not None else None
+
+
 async def _ocr_current_frame(
     image: Any,
     area_doc: dict[str, Any],
@@ -639,7 +666,13 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     args = ctx.args or {}
     regions = _solver_regions_from_args(args)
     level_region = str(args.get("level_region") or _DEFAULT_LEVEL_REGION).strip()
+    help_region = str(args.get("help_region", _DEFAULT_HELP_REGION) or "").strip()
+    help_counter_region = str(
+        args.get("help_counter_region", _DEFAULT_HELP_COUNTER_REGION) or ""
+    ).strip()
     all_ocr_regions = ([level_region] if level_region else []) + regions
+    if help_region and help_counter_region:
+        all_ocr_regions.append(help_counter_region)
 
     ttl_s = _parse_duration_s(args.get("ttl"), _DEFAULT_LOOP_TTL_S)
     wait_s = _parse_duration_s(args.get("wait"), _DEFAULT_LOOP_WAIT_S)
@@ -664,6 +697,10 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     seen_words: list[str] = []
     clicked_keys: set[str] = set()
     clicked_words: list[str] = []
+    helped_keys: set[str] = set()
+    helped_words: list[str] = []
+    help_counter_reads: list[int] = []
+    help_remaining = _DEFAULT_HELP_COUNT
     unmapped: list[str] = []
     skipped_clicked: list[str] = []
     iterations = 0
@@ -721,8 +758,17 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             seen_words.clear()
             clicked_keys.clear()
             clicked_words.clear()
+            helped_keys.clear()
+            helped_words.clear()
+            help_counter_reads.clear()
+            help_remaining = _DEFAULT_HELP_COUNT
             skipped_clicked.clear()
             unmapped.clear()
+        if help_region and help_counter_region:
+            counter = _parse_help_counter(ocr_values.get(help_counter_region, ""))
+            if counter is not None:
+                help_remaining = min(help_remaining, counter)
+                help_counter_reads.append(counter)
 
         for word in words:
             key = _normalize_word(word)
@@ -743,7 +789,12 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 if candidate.raw_word not in skipped_clicked:
                     skipped_clicked.append(candidate.raw_word)
                 continue
-            ok = await asyncio.to_thread(actions.tap, ctx.instance_id, candidate.point)
+            ok = await asyncio.to_thread(
+                actions.tap,
+                ctx.instance_id,
+                candidate.point,
+                require_approval=False,
+            )
             logger.info(
                 "dreamscape_memory_solve_loop: %s %r key=%r -> (%d,%d) instance=%s",
                 "tapped" if ok else "tap-rejected",
@@ -761,6 +812,52 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             if tap_delay_s > 0:
                 await asyncio.sleep(tap_delay_s)
 
+        help_word = next(
+            (
+                miss
+                for miss in misses
+                if (key := _normalize_word(miss)) and key not in helped_keys
+            ),
+            "",
+        )
+        if help_word and help_region and help_remaining > 0:
+            help_point = _region_center_for_frame(area_doc, help_region, dev_w, dev_h)
+            help_key = _normalize_word(help_word)
+            if help_point is None:
+                logger.warning(
+                    "dreamscape_memory_solve_loop: help region not found/malformed: %s",
+                    help_region,
+                )
+                helped_keys.add(help_key)
+            else:
+                ok = await asyncio.to_thread(
+                    actions.tap,
+                    ctx.instance_id,
+                    help_point,
+                    require_approval=False,
+                )
+                logger.info(
+                    "dreamscape_memory_solve_loop: %s help for unmapped %r -> (%d,%d) instance=%s",
+                    "tapped" if ok else "help-tap-rejected",
+                    help_word,
+                    help_point.x,
+                    help_point.y,
+                    ctx.instance_id,
+                )
+                if ok:
+                    helped_keys.add(help_key)
+                    helped_words.append(help_word)
+                    help_remaining = max(0, help_remaining - 1)
+                    taps_total += 1
+                    if tap_delay_s > 0:
+                        await asyncio.sleep(tap_delay_s)
+        elif help_word and help_region:
+            logger.info(
+                "dreamscape_memory_solve_loop: no help remaining for unmapped %r instance=%s",
+                help_word,
+                ctx.instance_id,
+            )
+
         if wait_s > 0:
             await asyncio.sleep(wait_s)
 
@@ -773,6 +870,10 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             "seen": seen_words,
             "clicked": clicked_words,
             "clicked_keys": sorted(clicked_keys),
+            "helped": helped_words,
+            "helped_keys": sorted(helped_keys),
+            "help_counter_reads": help_counter_reads,
+            "help_remaining": help_remaining,
             "skipped_clicked": skipped_clicked,
             "taps": taps_total,
             "unmapped": unmapped,

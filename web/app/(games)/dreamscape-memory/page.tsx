@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { PageHeader } from "@/components/PageHeader";
@@ -18,6 +18,10 @@ import {
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
 } from "@/lib/dreamscape-live";
+import {
+  dreamscapeNewCapturesEventName,
+  loadDreamscapeNewCaptures,
+} from "@/lib/dreamscape-new-captures";
 
 type View = "guides" | "solo" | "multiplayer" | "new" | "editor" | "test";
 
@@ -50,11 +54,33 @@ function DreamscapePageInner() {
   const [view, setViewState] = useState<View>(
     isView(viewParam) ? viewParam : "guides",
   );
+  const [newCount, setNewCount] = useState(0);
 
   // Keep local state in sync with the URL for deep-links and back/forward.
   useEffect(() => {
     if (isView(viewParam)) setViewState(viewParam);
   }, [viewParam]);
+
+  useEffect(() => {
+    const sync = () => setNewCount(loadDreamscapeNewCaptures().length);
+    sync();
+    window.addEventListener(dreamscapeNewCapturesEventName(), sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(dreamscapeNewCapturesEventName(), sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+
+  const viewTabs = useMemo(
+    () =>
+      VIEW_TABS.map((tab) =>
+        tab.key === "new" && newCount > 0
+          ? { ...tab, label: `New · ${newCount}` }
+          : tab,
+      ),
+    [newCount],
+  );
 
   const setView = (next: View) => {
     setViewState(next);
@@ -87,7 +113,7 @@ function DreamscapePageInner() {
       </PageHeader>
 
       <AppTabs
-        tabs={VIEW_TABS}
+        tabs={viewTabs}
         selectedKey={view}
         onChange={(key) => setView(key as View)}
         renderPanels={false}

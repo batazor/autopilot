@@ -546,6 +546,7 @@ class BotActions:
         approval_region: str | None = None,
         approval_source: str | None = None,
         approval_context: dict[str, object] | None = None,
+        require_approval: bool = True,
         revalidate: Callable[[], bool] | None = None,
         hold_ms: int = 0,
     ) -> bool:
@@ -557,6 +558,7 @@ class BotActions:
             approval_region=approval_region,
             approval_source=approval_source,
             approval_context=approval_context,
+            require_approval=require_approval,
             revalidate=revalidate,
             hold_ms=hold_ms,
         )

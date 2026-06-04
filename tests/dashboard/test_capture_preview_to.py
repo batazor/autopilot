@@ -10,42 +10,40 @@ if TYPE_CHECKING:
     import pytest
 
 
-def test_capture_preview_to_uses_rolling_when_fresh(
+def test_capture_preview_to_uses_direct_adb_capture(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     target = tmp_path / "shot.png"
 
-    def _copy(_iid: str, dest: Path, **_: object) -> tuple[bool, str]:
-        dest.write_bytes(b"from-rolling")
-        return True, ""
-
-    monkeypatch.setattr(rp, "copy_rolling_preview_to", _copy)
-    monkeypatch.setattr(rp, "_adb_screencap_to_target", lambda *_a, **_k: (False, "adb"))
-
-    ok, msg = rp.capture_preview_to("bs1", target)
-    assert ok is True
-    assert msg == ""
-    assert target.read_bytes() == b"from-rolling"
-
-
-def test_capture_preview_to_falls_back_to_adb_when_stale(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    target = tmp_path / "shot.png"
-
-    monkeypatch.setattr(
-        rp,
-        "copy_rolling_preview_to",
-        lambda *_a, **_k: (False, "rolling preview for 'bs1' is ~19s old"),
-    )
-
-    def _adb(_iid: str, dest: Path, *, rolling_msg: str = "") -> tuple[bool, str]:
+    def _capture(_iid: str, dest: Path) -> tuple[bool, str]:
         dest.write_bytes(b"from-adb")
         return True, ""
 
-    monkeypatch.setattr(rp, "_adb_screencap_to_target", _adb)
+    monkeypatch.setattr(rp, "capture_adb_screenshot_to", _capture)
 
     ok, msg = rp.capture_preview_to("bs1", target)
     assert ok is True
     assert msg == ""
     assert target.read_bytes() == b"from-adb"
+
+
+def test_capture_preview_to_does_not_read_rolling_preview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "shot.png"
+
+    def _copy(*_args: object, **_kwargs: object) -> tuple[bool, str]:
+        msg = "labeling capture must not use rolling preview"
+        raise AssertionError(msg)
+
+    def _capture(_iid: str, dest: Path) -> tuple[bool, str]:
+        dest.write_bytes(b"fresh")
+        return True, ""
+
+    monkeypatch.setattr(rp, "copy_rolling_preview_to", _copy)
+    monkeypatch.setattr(rp, "capture_adb_screenshot_to", _capture)
+
+    ok, msg = rp.capture_preview_to("bs1", target)
+    assert ok is True
+    assert msg == ""
+    assert target.read_bytes() == b"fresh"

@@ -529,7 +529,7 @@ def capture_new_screenshot(
     *,
     scope: str = CORE_MODULE_KEY,
 ) -> dict[str, Any]:
-    """Copy the worker rolling preview into ``<prefix>/temporal/<shot>.png``."""
+    """Capture a fresh ADB screenshot into ``<prefix>/temporal/<shot>.png``."""
     env = ls.scope_env(scope)
     iid = instance_id.strip()
     if not iid:
@@ -550,7 +550,7 @@ def refresh_reference(
     *,
     scope: str = CORE_MODULE_KEY,
 ) -> dict[str, Any]:
-    """Overwrite an existing reference PNG from the rolling preview."""
+    """Overwrite an existing reference PNG with a fresh ADB screenshot."""
     env = ls.scope_env(scope)
     ref_rel = ref_rel.replace("\\", "/").strip().lstrip("/")
     iid = instance_id.strip()

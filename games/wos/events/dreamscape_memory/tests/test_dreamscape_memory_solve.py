@@ -41,6 +41,12 @@ def test_normalize_level_name_strips_ocr_separators_and_progress() -> None:
     assert solve._normalize_level_name("Practice Level 23%") == "practice level"
 
 
+def test_parse_help_counter_reads_digits_or_none() -> None:
+    assert solve._parse_help_counter("2") == 2
+    assert solve._parse_help_counter("x2") == 2
+    assert solve._parse_help_counter("") is None
+
+
 # ── _points_to_targets (pure) ─────────────────────────────────────────────────
 
 
@@ -288,6 +294,7 @@ def test_resolve_taps_fuzzy_keeps_near_collisions_apart() -> None:
 class _FakeDreamscapeActions:
     def __init__(self) -> None:
         self.taps: list[tuple[int, int]] = []
+        self.require_approval_values: list[bool] = []
         self.frame = np.zeros((1280, 720, 3), dtype=np.uint8)
 
     def screen_resolution(self, _instance_id: str) -> tuple[int, int]:
@@ -297,12 +304,22 @@ class _FakeDreamscapeActions:
         assert max_age_ms > 0
         return self.frame
 
-    def tap(self, _instance_id: str, point: object) -> bool:
+    def tap(
+        self,
+        _instance_id: str,
+        point: object,
+        *,
+        require_approval: bool = True,
+    ) -> bool:
+        self.require_approval_values.append(require_approval)
         self.taps.append((point.x, point.y))
         return True
 
 
 class _FakeDreamscapeOcr:
+    def __init__(self, *, help_counter: str = "2") -> None:
+        self.help_counter = help_counter
+
     async def ocr_regions(
         self,
         _image: np.ndarray,
@@ -311,11 +328,12 @@ class _FakeDreamscapeOcr:
         region_ids: list[str] | None = None,
         region_preprocess: list[str | None] | None = None,
     ) -> list[OCRResult]:
-        assert region_preprocess == ["enhance_line", None, None]
+        assert region_preprocess == ["enhance_line", None, None, "fast_digits"]
         values = {
             "dreamscape_memory.level.name": "Practice Level",
             "dreamscape_memory.1": "Book",
             "dreamscape_memory.2": "Smoke",
+            "dreamscape_memory.help.counter": self.help_counter,
         }
         return [
             OCRResult(region_id=rid, text=values.get(rid, ""), confidence=1.0)
@@ -353,6 +371,34 @@ def _minimal_solver_area_doc() -> dict:
                     reg("dreamscape_memory.level.name", preprocess="enhance_line"),
                     reg("dreamscape_memory.1"),
                     reg("dreamscape_memory.2"),
+                    {
+                        "name": "dreamscape_memory.help.counter",
+                        "action": "text",
+                        "threshold": 0.5,
+                        "preprocess": "fast_digits",
+                        "type": "int",
+                        "bbox": {
+                            "x": 80,
+                            "y": 75,
+                            "width": 10,
+                            "height": 5,
+                            "original_width": 720,
+                            "original_height": 1280,
+                        },
+                    },
+                    {
+                        "name": "dreamscape_memory.help",
+                        "action": "exist",
+                        "threshold": 0.9,
+                        "bbox": {
+                            "x": 80,
+                            "y": 80,
+                            "width": 10,
+                            "height": 10,
+                            "original_width": 720,
+                            "original_height": 1280,
+                        },
+                    },
                 ],
             }
         ],
@@ -396,9 +442,101 @@ async def test_solve_loop_remembers_clicked_words(monkeypatch: pytest.MonkeyPatc
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
     assert actions.taps == [(360, 512), (374, 384)]
+    assert actions.require_approval_values == [False, False]
     assert ctx.result["seen"] == ["Book", "Smoke"]
     assert ctx.result["clicked_keys"] == ["book", "smoke"]
     assert ctx.result["skipped_clicked"] == ["Book", "Smoke"]
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_taps_help_once_for_new_unmapped_word(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = _FakeDreamscapeActions()
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: _FakeDreamscapeOcr())
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _level_name, _fuzz_threshold: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        },
+    )
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1", "dreamscape_memory.2"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 2,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert actions.taps == [(360, 512), (612, 1088)]
+    assert actions.require_approval_values == [False, False]
+    assert ctx.result["clicked_keys"] == ["book"]
+    assert ctx.result["helped"] == ["Smoke"]
+    assert ctx.result["helped_keys"] == ["smoke"]
+    assert ctx.result["help_counter_reads"] == [2, 2]
+    assert ctx.result["help_remaining"] == 1
+    assert ctx.result["unmapped"] == ["Smoke"]
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_does_not_tap_help_when_counter_is_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = _FakeDreamscapeActions()
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(
+        solve.dsl_runtime,
+        "ocr_client",
+        lambda: _FakeDreamscapeOcr(help_counter="0"),
+    )
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _level_name, _fuzz_threshold: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        },
+    )
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1", "dreamscape_memory.2"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 2,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert actions.taps == [(360, 512)]
+    assert ctx.result["helped"] == []
+    assert ctx.result["help_counter_reads"] == [0, 0]
+    assert ctx.result["help_remaining"] == 0
+    assert ctx.result["unmapped"] == ["Smoke"]
 
 
 @pytest.mark.asyncio
@@ -456,7 +594,10 @@ async def test_solve_loop_treats_start_screen_after_tap_as_win(
         lambda _level_name, _fuzz_threshold: {
             "slug": "practice-level",
             "scene_rect": None,
-            "points": [{"name": "Book", "xPct": 50.0, "yPct": 40.0}],
+            "points": [
+                {"name": "Book", "xPct": 50.0, "yPct": 40.0},
+                {"name": "Smoke", "xPct": 52.0, "yPct": 30.0},
+            ],
         },
     )
 
@@ -478,7 +619,7 @@ async def test_solve_loop_treats_start_screen_after_tap_as_win(
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
     assert detect_calls == 2
-    assert actions.taps == [(360, 512)]
+    assert actions.taps == [(360, 512), (374, 384)]
     assert ctx.result["terminal_screen"] == solve._START_SCREEN
     assert ctx.result["status"] == "won"
 

@@ -29,71 +29,14 @@
       "ocr": "references/practice_level.png",
       "regions": [
         {
-          "name": "Smoke",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 52.044497673947426,
-            "y": 26.232061191595385,
-            "width": 9.5087106795786,
-            "height": 5.07131236244192,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "Book",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 30.06497524752477,
-            "y": 37.74930571626941,
-            "width": 5.495049504950457,
-            "height": 2.0013885674612304,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "Wolf",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 66.05662128712868,
-            "y": 31.350660744763992,
-            "width": 7.574257425742563,
-            "height": 5.833834760472091,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
           "name": "dreamscape_memory.level.name",
           "action": "exist",
           "threshold": 0.9,
-          "preprocess": "enhance_line",
           "bbox": {
             "x": 11.749384238506586,
             "y": 1.2749959758308427,
             "width": 50.664800296220996,
             "height": 3.7697106505688067,
-            "rotation": 0,
-            "original_width": 720,
-            "original_height": 1280
-          }
-        },
-        {
-          "name": "Bird",
-          "action": "exist",
-          "threshold": 0.9,
-          "bbox": {
-            "x": 26.384591584158372,
-            "y": 15.664940298831297,
-            "width": 8.168316831683175,
-            "height": 4.334181902337423,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -143,6 +86,34 @@
             "original_height": 1280
           },
           "type": "string"
+        },
+        {
+          "name": "dreamscape_memory.help",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 87.60526008871165,
+            "y": 83.37542930899663,
+            "width": 6.81899533629095,
+            "height": 3.6367975126884966,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "dreamscape_memory.help.counter",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 94.33930226197481,
+            "y": 81.9535953583734,
+            "width": 2.3994623905483032,
+            "height": 1.4389988743303879,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
         }
       ]
     },
