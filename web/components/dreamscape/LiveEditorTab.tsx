@@ -13,8 +13,8 @@ import {
   fetchInstanceDetail,
   fetchDreamscapeScene,
   fetchDreamscapeScenes,
-  fetchOverlayTest,
   fetchRegionOcr,
+  fetchScreenDetect,
   startLocalBot,
   stopLocalBot,
 } from "@/lib/api";
@@ -26,8 +26,8 @@ import {
   DREAMSCAPE_TIME_UP_SCREEN,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
-  deriveLiveStatus,
   levelNameRead,
+  statusFromDetectedScreen,
   wordBadges,
 } from "@/lib/dreamscape-live";
 import {
@@ -131,9 +131,9 @@ export function LiveEditorTab({
   const autoCaptureBusy = useRef(false);
 
   // ── Live polling (status + detected words) ──
-  const overlayQuery = useQuery({
-    queryKey: ["dreamscape-overlay", instanceId],
-    queryFn: () => fetchOverlayTest(instanceId),
+  const screenQuery = useQuery({
+    queryKey: ["dreamscape-screen", instanceId],
+    queryFn: () => fetchScreenDetect(instanceId),
     enabled: Boolean(instanceId),
     refetchInterval: POLL_MS,
   });
@@ -146,8 +146,8 @@ export function LiveEditorTab({
   });
 
   const status = useMemo(
-    () => deriveLiveStatus(overlayQuery.data),
-    [overlayQuery.data],
+    () => statusFromDetectedScreen(screenQuery.data?.detected_screen),
+    [screenQuery.data],
   );
   const terminalScreen = status.detectedScreen;
   const badges = useMemo(
@@ -215,13 +215,14 @@ export function LiveEditorTab({
     : null;
   const showImage = Boolean(cardImageUrl) && cardImageUrl !== failedImageUrl;
 
-  // Keep the frame continuously current like the approvals screen: the worker
-  // bumps the ``instance`` revision whenever it writes a new rolling preview;
-  // a fallback poll covers degraded/closed SSE streams.
+  // Keep the frame continuously current like the approvals screen: the SSE
+  // stream watches the rolling preview mtime, and a short client fallback covers
+  // degraded/closed streams.
   useDashboardEventStream({
     topics: ["instance"],
     instanceId: instanceId || undefined,
     enabled: Boolean(instanceId),
+    fallbackPollMs: 1000,
     onEvent: (topic) => {
       if (topic === "instance") setImageTick((t) => t + 1);
     },

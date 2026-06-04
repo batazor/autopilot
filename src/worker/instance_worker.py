@@ -829,6 +829,11 @@ class InstanceWorker(
                         _INST_STATE_KEY_FMT.format(instance_id=self._cfg.instance_id),
                         mapping=mapping,
                     )
+            # Publish the first rolling preview PNG before the startup overlay
+            # probe. The overlay pass can be slow on a cold detector/import path,
+            # but the live UI only needs a current frame to stop showing an empty
+            # screenshot panel.
+            await self._device_reference_snapshot_tick(analyze=False)
             if game_ready:
                 # Run startup overlay before queue cleanup so any visible popup
                 # enqueues its own dismiss/claim scenario before ``who_i_am``.
@@ -836,8 +841,8 @@ class InstanceWorker(
             await self._seed_startup_tasks()
             if game_ready:
                 await self._maybe_enqueue_who_i_am_when_active_player_missing()
-            # Rolling preview must start immediately — do not block on startup
-            # overlay / screen-detect (those can take tens of seconds on phone).
+            # Keep publishing after the primed first frame. The loop owns ongoing
+            # screen/overlay analysis; the startup overlay above is a one-shot.
             self._rolling_snapshot_task = asyncio.create_task(
                 self._device_reference_snapshot_loop(),
                 name=f"refsnap-{self._cfg.instance_id}",

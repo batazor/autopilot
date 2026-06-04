@@ -174,6 +174,16 @@ class RegionOcrResult(TypedDict):
     rows: list[RegionOcrRow]
 
 
+class ScreenDetectResult(TypedDict):
+    """Response payload for lightweight live screen detection."""
+
+    instance_id: str
+    detected_screen: str
+    screen_source: str
+    preview: dict[str, Any]
+    duration_ms: int
+
+
 class RegionOcrTestResult(TypedDict):
     """Response payload for OCR + screen detection on an uploaded test image."""
 
@@ -667,6 +677,64 @@ def _load_overlay_test_preview(
     return png, rel or "", mtime, "live"
 
 
+def _screen_detect_hint(
+    *,
+    client: Any | None,
+    instance_id: str,
+) -> str | None:
+    """Current-screen hint for static-frame screen detection."""
+    screen_hint: str | None = None
+    if client is not None:
+        try:
+            from dashboard.redis_client import get_instance_state
+
+            inst_state = get_instance_state(client, instance_id) or {}
+            hint_raw = str(inst_state.get("current_screen") or "").strip()
+            screen_hint = hint_raw or None
+        except Exception:
+            logger.debug("overlay-test: hint lookup failed", exc_info=True)
+
+    # When the live worker isn't running, Redis ``current_screen`` is empty and
+    # every probe pays the cold-path scan. Fall back to the last detection we
+    # saw for this overlay-test session so the sticky verify path can take over.
+    if screen_hint is None:
+        screen_hint = _overlay_test_recall_hint(instance_id)
+    return screen_hint
+
+
+def _detect_screen_from_preview_png(
+    *,
+    instance_id: str,
+    client: Any | None,
+    png: bytes | None,
+    image_bgr: np.ndarray | None,
+) -> tuple[str, int]:
+    """Detect screen on a loaded preview PNG using the shared hash/hint cache."""
+    screen_hint = _screen_detect_hint(client=client, instance_id=instance_id)
+
+    # Content-hash cache: when the dashboard repolls with the same preview PNG
+    # (worker hasn't captured a fresh frame yet), skip the full scan entirely.
+    frame_fp = _overlay_test_frame_fingerprint(png)
+    area_fingerprint_for_cache: AreaManifestFingerprint | None = None
+    if frame_fp is not None:
+        area_fingerprint_for_cache = area_manifest_fingerprint(repo_root())
+        cached_detected = _overlay_test_result_cache_get(
+            frame_fp, area_fingerprint_for_cache
+        )
+        if cached_detected is not None:
+            return cached_detected, 0
+
+    detected_screen, screen_detect_ms = _detect_screen_on_frame(
+        image_bgr, hint=screen_hint
+    )
+    if detected_screen and area_fingerprint_for_cache is not None:
+        _overlay_test_result_cache_put(
+            frame_fp, area_fingerprint_for_cache, detected_screen
+        )
+        _overlay_test_remember_hint(instance_id, detected_screen)
+    return detected_screen, screen_detect_ms
+
+
 def _overlay_test_cond_context(
     *,
     has_active_player: bool,
@@ -897,6 +965,49 @@ def _run_module_analyzer_breakdown(
     return runs, modules_total_ms
 
 
+def run_screen_detect(
+    *,
+    instance_id: str,
+    preview_source: str = "live",
+    preview_rel: str | None = None,
+    client: Any | None = None,
+) -> ScreenDetectResult:
+    """Detect the current screen on the rolling preview without overlay analysis."""
+    png, rel, mtime, frame_source = _load_overlay_test_preview(
+        instance_id=instance_id,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
+    )
+
+    width = height = 0
+    image_bgr: np.ndarray | None = None
+    if png is not None:
+        image_bgr = _decode_png_to_bgr(png)
+        if image_bgr is not None:
+            height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
+
+    detected_screen, screen_detect_ms = _detect_screen_from_preview_png(
+        instance_id=instance_id,
+        client=client,
+        png=png,
+        image_bgr=image_bgr,
+    )
+    return ScreenDetectResult(
+        instance_id=instance_id,
+        detected_screen=detected_screen,
+        screen_source="detected" if detected_screen else "none",
+        preview={
+            "available": png is not None,
+            "rel": rel,
+            "mtime": mtime,
+            "width": width,
+            "height": height,
+            "source": frame_source,
+        },
+        duration_ms=screen_detect_ms,
+    )
+
+
 def run_overlay_test(
     *,
     instance_id: str,
@@ -942,43 +1053,14 @@ def run_overlay_test(
         if image_bgr is not None:
             height, width = int(image_bgr.shape[0]), int(image_bgr.shape[1])
 
-    screen_hint: str | None = None
-    if client is not None:
-        try:
-            from dashboard.redis_client import get_instance_state
-
-            inst_state = get_instance_state(client, instance_id) or {}
-            hint_raw = str(inst_state.get("current_screen") or "").strip()
-            screen_hint = hint_raw or None
-        except Exception:
-            logger.debug("overlay-test: hint lookup failed", exc_info=True)
-
-    # When the live worker isn't running, Redis ``current_screen`` is empty and
-    # every probe pays the cold-path scan. Fall back to the last detection we
-    # saw for this overlay-test session so the sticky verify path can take over.
-    if screen_hint is None:
-        screen_hint = _overlay_test_recall_hint(instance_id)
-
-    # Content-hash cache: when the dashboard repolls with the same preview PNG
-    # (worker hasn't captured a fresh frame yet), skip the full scan entirely.
-    frame_fp = _overlay_test_frame_fingerprint(png)
-    area_fingerprint_for_cache = area_manifest_fingerprint(repo_root())
-    cached_detected = _overlay_test_result_cache_get(frame_fp, area_fingerprint_for_cache)
-    if cached_detected is not None:
-        detected_screen = cached_detected
-        screen_detect_ms = 0
-    else:
-        detected_screen, screen_detect_ms = _detect_screen_on_frame(
-            image_bgr, hint=screen_hint
-        )
-        if detected_screen:
-            _overlay_test_result_cache_put(
-                frame_fp, area_fingerprint_for_cache, detected_screen
-            )
+    detected_screen, screen_detect_ms = _detect_screen_from_preview_png(
+        instance_id=instance_id,
+        client=client,
+        png=png,
+        image_bgr=image_bgr,
+    )
     overlay_screen = detected_screen
     screen_source = "detected" if overlay_screen else "none"
-    if detected_screen:
-        _overlay_test_remember_hint(instance_id, detected_screen)
 
     repo = repo_root()
     area_doc = load_area_doc(repo)

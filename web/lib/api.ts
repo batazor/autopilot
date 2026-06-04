@@ -46,6 +46,7 @@ import type {
   RegionOcrTestResult,
   RoutesGraphResponse,
   RoutesNodeDetails,
+  ScreenDetectResult,
   BotStatusView,
   HealthView,
   OverviewView,
@@ -499,6 +500,24 @@ export async function fetchOverlayTest(
   const suffix = q.size ? `?${q}` : "";
   return apiFetch<OverlayTestResult>(
     `/api/instances/${encodeURIComponent(instanceId)}/overlay-test${suffix}`,
+  );
+}
+
+export async function fetchScreenDetect(
+  instanceId: string,
+  options: {
+    previewSource?: "live" | "reference";
+    previewRel?: string;
+  } = {},
+): Promise<ScreenDetectResult> {
+  const q = new URLSearchParams();
+  if (options.previewSource === "reference" && options.previewRel?.trim()) {
+    q.set("previewSource", "reference");
+    q.set("previewRel", options.previewRel.trim());
+  }
+  const suffix = q.size ? `?${q}` : "";
+  return apiFetch<ScreenDetectResult>(
+    `/api/instances/${encodeURIComponent(instanceId)}/screen-detect${suffix}`,
   );
 }
 

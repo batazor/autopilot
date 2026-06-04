@@ -575,6 +575,21 @@ export type OverlayTestResult = {
   analysis: OverlayAnalysisSummary;
 };
 
+export type ScreenDetectResult = {
+  instance_id: string;
+  detected_screen: string;
+  screen_source: string;
+  preview: {
+    available: boolean;
+    rel: string;
+    mtime: number | null;
+    width: number;
+    height: number;
+    source?: "live" | "reference" | string;
+  };
+  duration_ms: number;
+};
+
 export type RegionOcrStatus = "ok" | "empty" | "error" | "no_region" | "no_frame";
 
 export type RegionOcrRow = {

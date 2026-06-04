@@ -15,11 +15,13 @@ from api.services.overlay_test import (
     OverlayTestResult,
     RegionOcrResult,
     RegionOcrTestResult,
+    ScreenDetectResult,
     load_overlay_test_image,
     run_area_region_probe,
     run_overlay_test,
     run_region_ocr,
     run_region_ocr_test,
+    run_screen_detect,
 )
 
 router = APIRouter(prefix="/api", tags=["overlay-test"])
@@ -50,6 +52,27 @@ def get_overlay_test(
         ignore_screen_gate=ignore_screen_gate,
         has_active_player=has_active_player,
         detailed_analysis=detailed_analysis,
+        preview_source=preview_source,
+        preview_rel=preview_rel,
+        client=client,
+    )
+
+
+@router.get("/instances/{instance_id}/screen-detect")
+def get_screen_detect(
+    instance_id: str,
+    client: RedisDep,
+    preview_source: str = Query(default="live", alias="previewSource"),
+    preview_rel: str | None = Query(default=None, alias="previewRel"),
+) -> ScreenDetectResult:
+    if instance_id not in list_instance_ids():
+        raise HTTPException(status_code=404, detail=f"unknown instance: {instance_id}")
+    try:
+        client.ping()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"redis unavailable: {exc}") from exc
+    return run_screen_detect(
+        instance_id=instance_id,
         preview_source=preview_source,
         preview_rel=preview_rel,
         client=client,

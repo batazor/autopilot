@@ -4,6 +4,7 @@ import {
   discardLabelingCapture,
   fetchLabelingScreenIds,
   fetchRegionOcr,
+  fetchScreenDetect,
   importLabelingPng,
   labelingImageUrl,
   saveDreamscapeScene,
@@ -90,6 +91,15 @@ describe("labeling API game scope", () => {
     expect(url).toContain("/api/instances/bs1/region-ocr");
     expect(url).toContain("regions=dreamscape_memory.1%2Cdreamscape_memory.2");
     expect(url).toContain("threshold=0.7");
+  });
+
+  it("calls the lightweight screen-detect endpoint", async () => {
+    const fetchMock = mockFetchJson({ detected_screen: "dreamscape_memory" });
+
+    await fetchScreenDetect("bs1");
+
+    const url = String(fetchMock.mock.calls[0]?.[0]);
+    expect(url).toBe("/api/instances/bs1/screen-detect");
   });
 });
 

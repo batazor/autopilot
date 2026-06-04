@@ -83,7 +83,11 @@ def get_click_approval_image(
     )
     if png is None:
         raise HTTPException(status_code=404, detail="no preview image available")
-    return Response(content=png, media_type="image/png")
+    return Response(
+        content=png,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 @router.post("/instances/{instance_id}/click-approval/decision")
