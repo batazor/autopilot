@@ -275,8 +275,12 @@ def save_scene_image(slug: str, image_bytes: bytes) -> dict[str, Any]:
     if not ok or buf is None:
         msg = "could not re-encode image as PNG"
         raise ValueError(msg)
-    _atomic_write_bytes(_MAPS_IMG_DIR / f"{slug}.png", buf.tobytes())
-    return {"ok": True, "source_image": f"{_MODULE_REL}/references/maps/{slug}.png"}
+    # One folder per scene: references/maps/<slug>/<slug>.png.
+    _atomic_write_bytes(_MAPS_IMG_DIR / slug / f"{slug}.png", buf.tobytes())
+    return {
+        "ok": True,
+        "source_image": f"{_MODULE_REL}/references/maps/{slug}/{slug}.png",
+    }
 
 
 def _coerce_rect(raw: Any) -> dict[str, float] | None:

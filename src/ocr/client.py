@@ -163,7 +163,7 @@ class OcrClient:
     @staticmethod
     def _prepare_crop(crop: np.ndarray, preprocess: str | None) -> np.ndarray:
         pre_tag = (preprocess or "").strip().lower()
-        if pre_tag == "enhance":
+        if pre_tag in ("enhance", "enhance_line"):
             return enhance_for_ocr(crop)
         if pre_tag == "digits":
             return digits_for_ocr(crop)
@@ -179,6 +179,8 @@ class OcrClient:
             # of a symbol that gets stripped, shortening the number.
             return "7", True
         if pre_tag == "fast_line":
+            return "7", False
+        if pre_tag == "enhance_line":
             return "7", False
         if pre_tag in ("enhance", "digits"):
             return "8", pre_tag == "digits"

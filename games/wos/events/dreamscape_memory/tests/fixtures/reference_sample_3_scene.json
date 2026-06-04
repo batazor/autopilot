@@ -1,7 +1,7 @@
 {
   "slug": "reference-sample-3",
   "title": "Reference Sample 3 (Recall Road)",
-  "source_image": "games/wos/events/dreamscape_memory/references/maps/reference-sample-3.png",
+  "source_image": "games/wos/events/dreamscape_memory/references/maps/monument/reference-sample-3.png",
   "scene_rect": null,
   "points": [],
   "source": "whiteout-references/Dreamscape/maps/adb_map_20260508_191942.png (720x1280, unmapped)"

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from config.capture_rate import MIN_CAPTURE_INTERVAL_S
 from config.paths import repo_root
 from config.reference_naming import rolling_preview_basename, temporal_png_abs_path
 from config.tracing import screenshot_analysis_duration_histogram
@@ -478,8 +479,15 @@ class InstanceWorkerRollingMixin(_Base):
                 # Re-read worker config every iteration so a hot-edit of
                 # ``settings.yaml`` propagates without a restart.
                 cfg_now = self._settings.worker
-                interval = _rolling_snapshot_interval(cfg_now)
-                await asyncio.sleep(max(0.3, interval))
+                # A fast-capture module (module.yaml ``capture_interval_ms``)
+                # overrides the global interval while its scenario is running;
+                # its lower floor lets such modules reach ~10 fps.
+                override = getattr(self, "_capture_interval_override_s", None)
+                if override:
+                    interval, floor = override, MIN_CAPTURE_INTERVAL_S
+                else:
+                    interval, floor = _rolling_snapshot_interval(cfg_now), 0.3
+                await asyncio.sleep(max(floor, interval))
                 if self._stopping:
                     return
                 if self._ui_paused:

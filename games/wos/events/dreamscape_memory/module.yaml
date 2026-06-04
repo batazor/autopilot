@@ -1,6 +1,9 @@
 id: dreamscape_memory
 title: Dreamscape Memory
 description: Limited-time Dreamscape Memory event.
+# Fast solver: capture ~10 fps while a dreamscape scenario runs (overrides the
+# global rolling-capture interval; see config/capture_rate.py).
+capture_interval_ms: 100
 scenarios: scenarios
 analyze: analyze/analyze.yaml
 area: area.yaml

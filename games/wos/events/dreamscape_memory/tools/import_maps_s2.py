@@ -7,7 +7,8 @@ each map (validated 1:1 by row order), parse the item-name list, and upsert each
 as a ``<slug>-s2`` scene — the suffix avoids clobbering Season 1 scenes that
 share a room name (court/arena/farmhouse).
 
-Images land in ``references/maps/<slug>-s2.png``. The sheet has no coordinates,
+Images land in ``references/maps/<slug>-s2/<slug>-s2.png`` (one folder per
+scene). The sheet has no coordinates,
 but the guide image has the numbers printed on it, so by default we OCR them and
 snap each pin to its real position (multi-pass digit OCR); unread numbers fall
 back to a placeholder grid for manual dragging. Pass ``--no-ocr`` to skip the
@@ -186,7 +187,8 @@ def main() -> None:
     total = placed = 0
     for (title, items), img in zip(maps, images):
         slug = f"{_slugify(title)}-s2"
-        rel = f"{_MODULE_REL}/references/maps/{slug}.png"
+        # One folder per scene: references/maps/<slug>/<slug>.png.
+        rel = f"{_MODULE_REL}/references/maps/{slug}/{slug}.png"
         points = _dedupe(_grid_points(items))
         total += len(points)
         # Snap pins to the numbers printed on the guide; keep grid for misses.
@@ -198,10 +200,12 @@ def main() -> None:
         ocr_note = f" · OCR placed {len(pos)}/{len(points)}" if ocr else ""
         print(f"{'DRY ' if dry else ''}{slug:22s} {len(points):3d} pts · {len(img):>7d}B{ocr_note}")
         if not dry:
-            (repo_root() / rel).write_bytes(img)
+            dest = repo_root() / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(img)
             dreamscape_db.upsert_scene(
                 slug,
-                title=f"{title} (S2)",
+                title=title,  # season is tracked by the season field, not the title
                 source_image=rel,
                 scene_rect=None,
                 points=points,
@@ -209,6 +213,11 @@ def main() -> None:
                 archived=False,  # Season 2 is current content
                 season=2,
             )
+            # This season-specific scene supersedes the generic wostools entry
+            # for the same room (if the Season 1 catalog imported one).
+            base = _slugify(title)
+            if dreamscape_db.delete_scene(base):
+                print(f"  removed wostools dup {base!r} (superseded by {slug})")
 
     placed_note = f", {placed} OCR-placed" if ocr else ""
     print(f"\n{'(dry run) ' if dry else ''}{len(maps)} scene(s), {total} point(s){placed_note}.")

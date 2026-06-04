@@ -87,7 +87,9 @@ result/
 *.licence.json
 *.wos-license.json
 
-# Dreamscape Memory module scene DB (operator/runtime data; seed via tools/import_maps.py)
-games/wos/events/dreamscape_memory/scenes.db
+# Dreamscape Memory module scene DB — the COMMITTED source of truth for scenes.
+# Seeded once via tools/import_maps.py, then hand-edited by operators (points,
+# galleries, practice-level); those edits live ONLY here, so the .db is tracked.
+# The WAL/SHM sidecars are transient — never commit them (checkpoint before add).
 games/wos/events/dreamscape_memory/scenes.db-wal
 games/wos/events/dreamscape_memory/scenes.db-shm

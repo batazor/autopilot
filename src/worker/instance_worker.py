@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from adb import BotActions, abort_pending_approval, click_approval_enabled
 from adb.screencap import DEFAULT_ADB_BIN
+from config.capture_rate import capture_interval_s_for_scenario_key
 
 # Both functions are imported solely so they live as attributes on the
 # ``worker.instance_worker`` module — ``worker.instance_worker_redis._connect``
@@ -190,6 +191,10 @@ class InstanceWorker(
         # flag that distinguishes "we cancelled this for a restart" (translate
         # to a failed TaskResult) from a worker-shutdown cascade (propagate).
         self._current_task_handle: asyncio.Task[Any] | None = None
+        # Per-module rolling-capture override (seconds), set while a scenario
+        # from a module declaring ``capture_interval_ms`` is executing; read by
+        # the rolling loop. None = use the global snapshot interval.
+        self._capture_interval_override_s: float | None = None
         self._task_aborted_for_restart: bool = False
         self._worker_boot_at: float = 0.0
         # First screen detect that is not ``loading`` / empty — boot grace starts here.
@@ -248,6 +253,11 @@ class InstanceWorker(
             # an in-flight scenario keeps tapping a force-stopped game.
             inner = asyncio.create_task(task.execute(self._cfg.instance_id))
             self._current_task_handle = inner
+            # Speed up the rolling capture loop if this scenario's module asks
+            # for a faster frame rate (module.yaml ``capture_interval_ms``).
+            self._capture_interval_override_s = capture_interval_s_for_scenario_key(
+                repo_root(), getattr(task, "scenario_key", "")
+            )
             # In approval mode the task is legitimately blocked on operator
             # input (``_require_approval`` busy-waits on Redis); the worker
             # timeout would kill it mid-wait and discard the pending tap.
@@ -263,6 +273,7 @@ class InstanceWorker(
             finally:
                 if self._current_task_handle is inner:
                     self._current_task_handle = None
+                    self._capture_interval_override_s = None
 
             return result
 

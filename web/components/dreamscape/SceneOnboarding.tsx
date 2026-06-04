@@ -6,6 +6,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
 import { SceneCalibrator } from "@/components/dreamscape/SceneCalibrator";
+import {
+  ScenePointEditor,
+  type ScenePin as Pin,
+} from "@/components/dreamscape/ScenePointEditor";
 import type { EditorRegion } from "@/lib/bbox";
 import { defaultRegion } from "@/lib/labeling-utils";
 import { DREAMSCAPE_WORDS_REF } from "@/lib/dreamscape-live";
@@ -21,17 +25,6 @@ import {
 
 const FRAME_W = 720;
 const FRAME_H = 1280;
-
-/** A pin on the guide image: number, name, position (% of guide image). */
-type Pin = {
-  n: number;
-  name: string;
-  xPct: number;
-  yPct: number;
-  conf: number | null;
-  /** False = name had no OCR'd marker; operator must place it. */
-  placed: boolean;
-};
 
 function slugify(title: string): string {
   return (
@@ -217,38 +210,6 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // ── Pin editing on the guide image ──
-  const onImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const xPct = Math.round(((e.clientX - r.left) / r.width) * 10000) / 100;
-    const yPct = Math.round(((e.clientY - r.top) / r.height) * 10000) / 100;
-    if (selectedN != null) {
-      // Relocate the selected pin.
-      setPins((prev) =>
-        prev.map((p) => (p.n === selectedN ? { ...p, xPct, yPct, placed: true } : p)),
-      );
-      return;
-    }
-    // Add a new pin with the next free number.
-    const nextN = pins.length ? Math.max(...pins.map((p) => p.n)) + 1 : 1;
-    setPins((prev) =>
-      [...prev, { n: nextN, name: "", xPct, yPct, conf: null, placed: true }].sort(
-        (a, b) => a.n - b.n,
-      ),
-    );
-    setSelectedN(nextN);
-  };
-
-  const renamePin = (n: number, name: string) =>
-    setPins((prev) => prev.map((p) => (p.n === n ? { ...p, name } : p)));
-  const deletePin = (n: number) => {
-    setPins((prev) => prev.filter((p) => p.n !== n));
-    if (selectedN === n) setSelectedN(null);
-  };
-
-  const unplaced = pins.filter((p) => !p.placed).length;
-  const unnamed = pins.filter((p) => !p.name.trim()).length;
-
   const save = async () => {
     if (!sourceImage) {
       setError("Add the image to the collection first.");
@@ -379,59 +340,14 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
           </section>
 
           {imageUrl ? (
-            <div className="grid min-h-0 gap-4 md:grid-cols-[1fr_300px]">
-              {/* Guide image with pins */}
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-xs text-wos-text-muted">
-                  <span>
-                    {selectedN != null
-                      ? `Click the image to move pin #${selectedN}`
-                      : "Click a pin to select it, or click empty space to add one"}
-                  </span>
-                  {selectedN != null ? (
-                    <button
-                      type="button"
-                      className="rounded border border-wos-border px-1.5 hover:border-wos-border-hover"
-                      onClick={() => setSelectedN(null)}
-                    >
-                      deselect
-                    </button>
-                  ) : null}
-                </div>
-                <div
-                  className="relative mx-auto w-full max-w-md cursor-crosshair select-none overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep"
-                  onClick={onImageClick}
-                >
-                  <img
-                    src={imageUrl}
-                    alt="guide"
-                    className="pointer-events-none block h-auto w-full"
-                  />
-                  {pins.map((p) => (
-                    <button
-                      key={p.n}
-                      type="button"
-                      title={`${p.n}. ${p.name || "(unnamed)"}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedN((cur) => (cur === p.n ? null : p.n));
-                      }}
-                      style={{ left: `${p.xPct}%`, top: `${p.yPct}%` }}
-                      className={`absolute flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border text-[10px] font-bold leading-none ${
-                        selectedN === p.n
-                          ? "z-10 scale-125 border-white bg-wos-accent text-wos-on-accent"
-                          : !p.placed
-                            ? "border-amber-300/80 bg-amber-500/80 text-black"
-                            : p.conf != null && p.conf < 0.5
-                              ? "border-orange-300/80 bg-orange-600/80 text-white"
-                              : "border-white/80 bg-black/70 text-white"
-                      }`}
-                    >
-                      {p.n}
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+            <ScenePointEditor
+              imageUrl={imageUrl}
+              pins={pins}
+              selectedN={selectedN}
+              onSelectN={setSelectedN}
+              onChange={setPins}
+              imageFooter={
+                <>
                   <Button
                     variant="secondary"
                     disabled={!imageFile || busy === "detect"}
@@ -444,79 +360,37 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                       missing: {missing.join(", ")}
                     </span>
                   ) : null}
-                  {unplaced ? (
-                    <span className="rounded bg-amber-500/15 px-2 py-1 text-xs text-amber-400">
-                      {unplaced} unplaced (amber) — click to position
-                    </span>
+                </>
+              }
+              listHeader={
+                <>
+                  <h3 className="mb-1 text-sm font-semibold">3 · Item names</h3>
+                  <p className="meta mb-1">Paste the sheet&apos;s numbered list.</p>
+                  <textarea
+                    value={namesText}
+                    onChange={(e) => setNamesText(e.target.value)}
+                    rows={5}
+                    placeholder={"1. Parachutte\n2. Envelope\n3. Pipe\n…"}
+                    className="w-full rounded border border-wos-border bg-wos-bg-deep px-2 py-1.5 font-mono text-xs text-wos-text"
+                  />
+                  <Button
+                    variant="secondary"
+                    className="mt-1"
+                    disabled={busy === "names"}
+                    onClick={parseNames}
+                  >
+                    {busy === "names" ? "Parsing…" : "Parse & join"}
+                  </Button>
+                  {nameWarnings.length ? (
+                    <ul className="mt-1 space-y-0.5 text-xs text-amber-400">
+                      {nameWarnings.map((w) => (
+                        <li key={w}>⚠ {w}</li>
+                      ))}
+                    </ul>
                   ) : null}
-                  {unnamed ? (
-                    <span className="rounded bg-wos-panel-raised px-2 py-1 text-xs text-wos-text-muted">
-                      {unnamed} unnamed
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* Names + pin list */}
-              <div className="min-h-0">
-                <h3 className="mb-1 text-sm font-semibold">3 · Item names</h3>
-                <p className="meta mb-1">Paste the sheet&apos;s numbered list.</p>
-                <textarea
-                  value={namesText}
-                  onChange={(e) => setNamesText(e.target.value)}
-                  rows={5}
-                  placeholder={"1. Parachutte\n2. Envelope\n3. Pipe\n…"}
-                  className="w-full rounded border border-wos-border bg-wos-bg-deep px-2 py-1.5 font-mono text-xs text-wos-text"
-                />
-                <Button
-                  variant="secondary"
-                  className="mt-1"
-                  disabled={busy === "names"}
-                  onClick={parseNames}
-                >
-                  {busy === "names" ? "Parsing…" : "Parse & join"}
-                </Button>
-                {nameWarnings.length ? (
-                  <ul className="mt-1 space-y-0.5 text-xs text-amber-400">
-                    {nameWarnings.map((w) => (
-                      <li key={w}>⚠ {w}</li>
-                    ))}
-                  </ul>
-                ) : null}
-
-                <p className="meta mb-1 mt-3">{pins.length} point(s)</p>
-                <ol className="max-h-48 space-y-1 overflow-auto pr-1">
-                  {pins.map((p) => (
-                    <li key={p.n} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedN((c) => (c === p.n ? null : p.n))}
-                        className={`w-6 shrink-0 rounded text-right text-xs ${
-                          selectedN === p.n ? "text-wos-accent" : "text-wos-text-muted"
-                        }`}
-                      >
-                        {p.n}
-                      </button>
-                      <input
-                        type="text"
-                        value={p.name}
-                        onChange={(e) => renamePin(p.n, e.target.value)}
-                        placeholder={`Item ${p.n}`}
-                        className="min-w-0 flex-1 rounded border border-wos-border bg-wos-bg-deep px-2 py-1 text-sm text-wos-text"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => deletePin(p.n)}
-                        className="rounded px-1.5 text-sm text-wos-text-muted hover:text-rose-400"
-                        title="Remove"
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </div>
+                </>
+              }
+            />
           ) : (
             <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-wos-border text-sm text-wos-text-muted">
               Upload or capture a numbered guide image to begin.

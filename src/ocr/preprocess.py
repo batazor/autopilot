@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 
     from layout.types import Region
 
-# Upscale factor for CLAHE + Otsu pipelines (``enhance`` / ``digits``).
+# Upscale factor for CLAHE + Otsu pipelines
+# (``enhance`` / ``enhance_line`` / ``digits``).
 _OCR_BINARY_UPSCALE = 3.0
 
 # Tesseract whitelist for digit-only regions (``digits`` preprocess / ``type: int``).
@@ -74,8 +75,8 @@ def resolve_preprocess(
     3. ``None`` — raw crop, Tesseract block mode (PSM 6).
 
     ``fast_line`` / ``fast_digits`` are both PSM 7 on the raw crop; only
-    ``fast_digits`` adds the digit whitelist. ``digits`` / ``enhance`` keep
-    Tesseract pipelines with binarization.
+    ``fast_digits`` adds the digit whitelist. ``enhance`` / ``enhance_line`` /
+    ``digits`` keep Tesseract pipelines with binarization.
     """
     if explicit:
         v = str(explicit).strip().lower()

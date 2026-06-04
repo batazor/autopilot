@@ -71,6 +71,35 @@
           }
         },
         {
+          "name": "dreamscape_memory.level.name",
+          "action": "exist",
+          "threshold": 0.9,
+          "preprocess": "enhance_line",
+          "bbox": {
+            "x": 11.749384238506586,
+            "y": 1.2749959758308427,
+            "width": 50.664800296220996,
+            "height": 3.7697106505688067,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
+          "name": "Bird",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 26.384591584158372,
+            "y": 15.664940298831297,
+            "width": 8.168316831683175,
+            "height": 4.334181902337423,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        },
+        {
           "name": "dreamscape_memory.1",
           "action": "text",
           "threshold": 0.8,
@@ -207,6 +236,62 @@
             "y": 94.02698120160582,
             "width": 23.293269230769262,
             "height": 3.8489186376802955,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "screen_id": "",
+      "ocr": "references/maps_practice_level_aurora.png.png",
+      "regions": []
+    },
+    {
+      "id": 5,
+      "screen_id": "",
+      "ocr": "references/maps_practice_level_grilled.png.png",
+      "regions": []
+    },
+    {
+      "id": 6,
+      "screen_id": "dreamscape_memory.time_up",
+      "ocr": "references/time_up.png",
+      "screen_region": "dreamscape_memory.time_up",
+      "regions": [
+        {
+          "name": "dreamscape_memory.time_up",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 45.20432692307694,
+            "y": 29.561881059502014,
+            "width": 9.591346153846139,
+            "height": 6.582557583598176,
+            "rotation": 0,
+            "original_width": 720,
+            "original_height": 1280
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "screen_id": "dreamscape_memory.all_item_found",
+      "ocr": "references/dreamscape_memory.all_item_found.png",
+      "screen_region": "dreamscape_memory.all_item_found",
+      "regions": [
+        {
+          "name": "dreamscape_memory.all_item_found",
+          "action": "exist",
+          "threshold": 0.9,
+          "bbox": {
+            "x": 44.838164855590506,
+            "y": 36.38104089219331,
+            "width": 9.951923076923078,
+            "height": 7.999999999999995,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280

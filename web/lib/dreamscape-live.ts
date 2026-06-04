@@ -15,6 +15,17 @@ export const DREAMSCAPE_MULTIPLAYER_WORDS_REF =
 /** Labeling scope key for the dreamscape_memory module (see inferScopeFromRef). */
 export const DREAMSCAPE_SCOPE = "wos:events/dreamscape_memory";
 
+/** Scenario keys (filename stems) the live view enqueues to run the solver.
+ * Both wrap their OCR+solve in a ~300ms loop so the bot keeps up with the
+ * dynamic recall-road animation (see the scenario YAMLs). */
+export const DREAMSCAPE_SOLO_SCENARIO = "dreamscape_memory";
+export const DREAMSCAPE_MULTIPLAYER_SCENARIO = "dreamscape_memory_multiplayer";
+
+/** The screen-title region holding the level/room name (e.g. "Aquarium").
+ * The solver OCRs this to auto-pick the scene; we read it live too so the
+ * operator can see which level we recognised. Shared by solo and multiplayer. */
+export const DREAMSCAPE_LEVEL_NAME_REGION = "dreamscape_memory.level.name";
+
 /** The three word-button regions OCR'd at the bottom of a solo recall-road level. */
 export const DREAMSCAPE_WORD_REGIONS = [
   "dreamscape_memory.1",
@@ -47,6 +58,8 @@ export function isSystemRegion(name: string): boolean {
 }
 
 export const DREAMSCAPE_SCREEN_PREFIX = "dreamscape_memory";
+export const DREAMSCAPE_TIME_UP_SCREEN = "dreamscape_memory.time_up";
+export const DREAMSCAPE_ALL_ITEM_FOUND_SCREEN = "dreamscape_memory.all_item_found";
 
 export type LiveStatus = {
   /** Screen detection identified a screen on the current frame. */
@@ -97,6 +110,34 @@ export type WordBadge = {
   /** Per-region OCR time in ms (null when not OCR'd). */
   durationMs: number | null;
 };
+
+/** The recognised level/room name read live from the title region. */
+export type LevelNameRead = {
+  region: string;
+  text: string;
+  status: RegionOcrRow["status"];
+  confidence: number | null;
+  /** No text, low confidence, or an error/no-frame status — render dimmed. */
+  dimmed: boolean;
+};
+
+/** Pull the level-name read out of the OCR rows (the title region we poll
+ * alongside the word zones). Returns null when no row was requested. */
+export function levelNameRead(
+  rows: RegionOcrRow[] | null | undefined,
+  region: string = DREAMSCAPE_LEVEL_NAME_REGION,
+): LevelNameRead | null {
+  const row = (rows ?? []).find((r) => r.region === region);
+  if (!row) return null;
+  const text = (row.text || "").trim();
+  return {
+    region,
+    text,
+    status: row.status,
+    confidence: row.confidence ?? null,
+    dimmed: !text || row.status !== "ok" || Boolean(row.low_confidence),
+  };
+}
 
 /** Build the ordered word badges for the three regions, even when a row is missing. */
 export function wordBadges(

@@ -5,19 +5,26 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
-import { fetchLabelingDocument, testRegionOcr } from "@/lib/api";
+import {
+  fetchDreamscapeScene,
+  fetchDreamscapeScenes,
+  fetchLabelingDocument,
+  testRegionOcr,
+} from "@/lib/api";
 import type { PercentBBox } from "@/lib/bbox";
 import {
+  DREAMSCAPE_LEVEL_NAME_REGION,
   DREAMSCAPE_MULTIPLAYER_WORD_REGIONS,
   DREAMSCAPE_MULTIPLAYER_WORDS_REF,
   DREAMSCAPE_SCOPE,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
+  levelNameRead,
   statusFromDetectedScreen,
   wordBadges,
 } from "@/lib/dreamscape-live";
 import { apiToEditorRegions } from "@/lib/labeling-utils";
-import type { RegionOcrTestResult } from "@/lib/types";
+import type { DreamscapeScenePoint, RegionOcrTestResult } from "@/lib/types";
 import { DetectedWordsBadges } from "./DetectedWordsBadges";
 import { Button } from "./Button";
 
@@ -27,6 +34,60 @@ const MODE_TABS: { key: Mode; label: string }[] = [
   { key: "solo", label: "Solo · 3 words" },
   { key: "multiplayer", label: "Multiplayer · 6 words" },
 ];
+
+function normalizeWord(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeLevelName(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/\b\d+(?:\.\d+)?\s*%.*$/i, " ")
+    .replace(/(?<=[a-z])[\|/\\]+(?=[a-z])/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function stripSeasonTag(title: string): string {
+  return title.replace(/\s*\(s\d+\)\s*$/i, "");
+}
+
+function sceneMatchesLevel(
+  scene: { slug: string; title: string },
+  levelKey: string,
+): boolean {
+  return (
+    normalizeLevelName(stripSeasonTag(scene.title)) === levelKey ||
+    normalizeLevelName(scene.slug) === levelKey
+  );
+}
+
+function ScreenStatusPill({
+  detected,
+  screen,
+}: {
+  detected: boolean;
+  screen?: string;
+}) {
+  return (
+    <span
+      title={
+        screen
+          ? `Detected: ${screen}`
+          : "Screen detection found no labeled screen on this image"
+      }
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+        detected
+          ? "bg-emerald-500/15 text-emerald-400"
+          : "bg-rose-500/15 text-rose-400"
+      }`}
+    >
+      <span aria-hidden>{detected ? "●" : "○"}</span>
+      {detected ? "Detected" : "No screen"}
+    </span>
+  );
+}
 
 /** Compact two-state segmented toggle for the solo/multiplayer word set. */
 function ModeToggle({
@@ -94,7 +155,11 @@ export function TestTab() {
   }, [docQuery.data, wordRegions]);
 
   const uploadMutation = useMutation({
-    mutationFn: (file: File) => testRegionOcr(instanceId, file, [...wordRegions]),
+    mutationFn: (file: File) =>
+      testRegionOcr(instanceId, file, [
+        DREAMSCAPE_LEVEL_NAME_REGION,
+        ...wordRegions,
+      ]),
     onSuccess: (res, file) => {
       setTestImageUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev);
@@ -130,7 +195,58 @@ export function TestTab() {
   };
 
   const status = statusFromDetectedScreen(testResult?.detected_screen);
+  const levelName = levelNameRead(testResult?.rows);
   const badges = wordBadges(testResult?.rows, wordRegions);
+  const scenesQuery = useQuery({
+    queryKey: ["dreamscape-scenes"],
+    queryFn: fetchDreamscapeScenes,
+  });
+  const matchedSlug = useMemo(() => {
+    const level = normalizeLevelName(levelName?.text ?? "");
+    if (!level) return null;
+    const scenes = scenesQuery.data?.scenes ?? [];
+    const hit = scenes.find((s) => sceneMatchesLevel(s, level));
+    if (hit) return hit.slug;
+    const active = scenesQuery.data?.active;
+    return active && normalizeLevelName(active) === level ? active : null;
+  }, [levelName, scenesQuery.data]);
+  const sceneQuery = useQuery({
+    queryKey: ["dreamscape-scene", matchedSlug],
+    queryFn: () => fetchDreamscapeScene(matchedSlug as string),
+    enabled: !!matchedSlug,
+  });
+  const knownNames = useMemo(
+    () =>
+      new Set((sceneQuery.data?.points ?? []).map((p) => normalizeWord(p.name))),
+    [sceneQuery.data],
+  );
+  const wordKnown = useMemo<(boolean | null)[]>(
+    () =>
+      badges.map((b) => {
+        const word = normalizeWord(b.text);
+        if (!word || !matchedSlug) return null;
+        return knownNames.has(word);
+      }),
+    [badges, knownNames, matchedSlug],
+  );
+  const mappedPoints = useMemo(() => {
+    if (!sceneQuery.data) return [];
+    const byName = new Map(
+      sceneQuery.data.points.map((p) => [normalizeWord(p.name), p]),
+    );
+    const used = new Set<string>();
+    return badges.flatMap((b, i) => {
+      const key = normalizeWord(b.text);
+      if (!key || used.has(key)) return [];
+      const point = byName.get(key);
+      if (!point) return [];
+      used.add(key);
+      const rect = sceneQuery.data.scene_rect;
+      const xPct = rect ? rect.left + (point.xPct / 100) * rect.width : point.xPct;
+      const yPct = rect ? rect.top + (point.yPct / 100) * rect.height : point.yPct;
+      return [{ point, xPct, yPct, index: i + 1 }];
+    });
+  }, [badges, sceneQuery.data]);
   const textByRegion = useMemo(
     () =>
       new Map(
@@ -165,18 +281,6 @@ export function TestTab() {
             e.target.value = "";
           }}
         />
-        <Button
-          variant="primary"
-          disabled={!instanceId || uploadMutation.isPending}
-          onClick={() => fileInput.current?.click()}
-          title="Upload a custom screenshot and run our screen detection + word OCR on it"
-        >
-          {uploadMutation.isPending
-            ? "Detecting…"
-            : testResult
-              ? "Upload another"
-              : "Upload test image"}
-        </Button>
         {testResult ? (
           <Button variant="secondary" onClick={clearTest}>
             Clear
@@ -193,7 +297,13 @@ export function TestTab() {
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <section className="panel">
           <h2 className="mb-3 text-base font-semibold">Uploaded image</h2>
-          <div className="relative mx-auto aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep">
+          <button
+            type="button"
+            disabled={!instanceId || uploadMutation.isPending}
+            onClick={() => fileInput.current?.click()}
+            title="Click to upload a screenshot and run screen detection + word OCR"
+            className="group relative mx-auto block aspect-[9/16] w-full max-w-[280px] overflow-hidden rounded-lg border border-wos-border bg-wos-bg-deep enabled:cursor-pointer enabled:hover:border-wos-accent disabled:cursor-not-allowed"
+          >
             {testImageUrl ? (
               <>
                 <img
@@ -201,45 +311,98 @@ export function TestTab() {
                   alt="uploaded test image"
                   className="h-full w-full object-contain"
                 />
-                {zones.map((z) =>
-                  z.bbox ? (
-                    <ZoneBox
-                      key={z.name}
-                      bbox={z.bbox}
-                      index={z.index}
-                      text={textByRegion.get(z.name) ?? ""}
+                <div className="pointer-events-none absolute inset-0">
+                  {zones.map((z) =>
+                    z.bbox ? (
+                      <ZoneBox
+                        key={z.name}
+                        bbox={z.bbox}
+                        text={textByRegion.get(z.name) ?? ""}
+                      />
+                    ) : null,
+                  )}
+                  {mappedPoints.map((p) => (
+                    <ScenePointMarker
+                      key={`${p.point.name}-${p.index}`}
+                      point={p.point}
+                      xPct={p.xPct}
+                      yPct={p.yPct}
+                      index={p.index}
                     />
-                  ) : null,
-                )}
+                  ))}
+                </div>
+                {/* Hover hint: the whole card re-triggers upload. */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-wos-bg-deep/80 px-2 py-1 text-center text-xs text-wos-text-muted opacity-0 transition group-enabled:group-hover:opacity-100">
+                  Click to upload another
+                </div>
               </>
             ) : (
-              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-wos-text-muted">
-                {instanceId
-                  ? "Upload a screenshot to detect words and click-zones"
-                  : "Select an instance, then upload a screenshot"}
+              <div className="flex h-full items-center justify-center px-4 text-center text-sm text-wos-text-muted transition group-enabled:group-hover:text-wos-text">
+                {uploadMutation.isPending
+                  ? "Detecting…"
+                  : instanceId
+                    ? "Upload a screenshot to detect words and click-zones"
+                    : "Select an instance, then upload a screenshot"}
               </div>
             )}
-          </div>
-          {testResult ? (
-            <p className="meta mt-2">
-              Screen:{" "}
-              <span className="text-wos-text">
-                {status.detectedScreen || "—"}
-              </span>
-              {status.areaCovered ? " · area covered" : ""}
-            </p>
-          ) : null}
+          </button>
         </section>
 
         <section className="panel">
-          <h2 className="mb-3 text-base font-semibold">
-            Detected words{" "}
-            <span className="text-sm font-normal text-wos-text-muted">
-              ({mode === "multiplayer" ? "6" : "3"})
-            </span>
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">
+              Detected words{" "}
+              <span className="text-sm font-normal text-wos-text-muted">
+                ({mode === "multiplayer" ? "6" : "3"})
+              </span>
+            </h2>
+            <ScreenStatusPill
+              detected={status.screenDetected || Boolean(matchedSlug)}
+              screen={
+                status.detectedScreen ||
+                sceneQuery.data?.title ||
+                matchedSlug ||
+                undefined
+              }
+            />
+          </div>
           {testResult ? (
-            <DetectedWordsBadges badges={badges} />
+            <>
+              <p className="meta mb-3">
+                Title (OCR):{" "}
+                <span
+                  className={
+                    levelName && !levelName.dimmed
+                      ? "text-wos-text"
+                      : "text-wos-text-muted"
+                  }
+                >
+                  {levelName?.text ||
+                    (levelName?.status === "empty" ? "— not recognised —" : "—")}
+                </span>
+                {levelName?.confidence != null
+                  ? ` · ${Math.round(levelName.confidence * 100)}%`
+                  : ""}
+                {sceneQuery.data ? (
+                  <>
+                    {" "}
+                    · Scene:{" "}
+                    <span className="text-emerald-300">
+                      {sceneQuery.data.title}
+                    </span>
+                  </>
+                ) : scenesQuery.isLoading ? (
+                  " · loading scenes…"
+                ) : matchedSlug ? (
+                  " · loading scene…"
+                ) : scenesQuery.isError ? (
+                  " · scene list failed"
+                ) : levelName?.text ? (
+                  " · scene not in DB"
+                ) : null}
+              </p>
+              <DetectedWordsBadges badges={badges} wordKnown={wordKnown} />
+            </>
           ) : (
             <p className="meta">
               No result yet — upload an image to run detection.
@@ -252,14 +415,12 @@ export function TestTab() {
 }
 
 /** A single word click-zone overlaid on the uploaded image, positioned by its
- * percent bbox and labeled with its index + the detected OCR text. */
+ * percent bbox. */
 function ZoneBox({
   bbox,
-  index,
   text,
 }: {
   bbox: PercentBBox;
-  index: number;
   text: string;
 }) {
   return (
@@ -274,9 +435,36 @@ function ZoneBox({
         height: `${bbox.height}%`,
       }}
     >
-      <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-wos-bg-deep/90 px-1 text-[10px] font-medium text-wos-text">
+    </div>
+  );
+}
+
+function ScenePointMarker({
+  point,
+  xPct,
+  yPct,
+  index,
+}: {
+  point: DreamscapeScenePoint;
+  xPct: number;
+  yPct: number;
+  index: number;
+}) {
+  return (
+    <div
+      aria-label={`${point.name} (${Math.round(xPct)}%, ${Math.round(yPct)}%)`}
+      className="group/point pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+      style={{ left: `${xPct}%`, top: `${yPct}%` }}
+      title=""
+    >
+      <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-emerald-200 bg-emerald-500/85 text-[11px] font-bold text-emerald-950 shadow-[0_0_0_3px_rgba(16,185,129,0.22)]">
         {index}
-        {text ? ` · ${text}` : ""}
+      </span>
+      <span className="pointer-events-none absolute left-1/2 top-7 z-10 max-w-36 -translate-x-1/2 whitespace-nowrap rounded bg-emerald-950/95 px-1.5 py-0.5 text-[10px] font-medium text-emerald-100 opacity-0 shadow-lg transition group-hover/point:opacity-100">
+        {point.name}
+        <span className="ml-1 text-emerald-300/80">
+          {Math.round(xPct)}%, {Math.round(yPct)}%
+        </span>
       </span>
     </div>
   );

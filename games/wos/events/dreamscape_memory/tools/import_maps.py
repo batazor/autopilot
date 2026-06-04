@@ -273,9 +273,20 @@ def main() -> None:
         sheet_maps = {}
     names_only = {**_SHEET_FALLBACK, **sheet_maps}
 
+    # A room that has a dedicated season import (``<slug>-s2`` / ``-s3``, from the
+    # per-season sheets) is authoritative; the generic wostools entry for it is a
+    # stale duplicate, so skip it here.
+    def _superseded(slug: str) -> bool:
+        return any(
+            dreamscape_db.get_scene(f"{slug}-{s}") is not None for s in ("s2", "s3")
+        )
+
     # (slug, title, points, source, archived)
     plan: list[tuple[str, str, list[dict], str, bool]] = []
     for slug, title, active, pts in located:
+        if _superseded(slug):
+            print(f"skip {slug:14s} · superseded by a season-specific scene")
+            continue
         points = [{"n": n, "name": nm, "xPct": x, "yPct": y} for n, nm, x, y in pts]
         plan.append((slug, title, points, "located (dreamscape.ts)", not active))
     for slug, (title, items) in names_only.items():

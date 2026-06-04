@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FleetContextProvider } from "@/components/FleetContextProvider";
 import { AppTabs } from "@/components/headless";
@@ -132,7 +132,7 @@ function SceneTile({
 function SceneDetailView({ slug }: { slug: string }) {
   const [hovered, setHovered] = useState<number | null>(null);
   const [rect, setRect] = useState<EditorRegion | null>(null);
-  const [opacity, setOpacity] = useState(0.05);
+  const [opacity, setOpacity] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   // Selected gallery image (0 = primary / item-mapped image).
@@ -285,21 +285,9 @@ function SceneDetailView({ slug }: { slug: string }) {
                     onChange={(e) => setOpacity(Number(e.target.value))}
                   />
                 </label>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() =>
-                    setRect((r) =>
-                      r ? { ...r, bbox: { ...r.bbox, x: 0, y: 0, width: 100, height: 100 } } : r,
-                    )
-                  }
-                >
-                  Full frame
-                </Button>
                 <Button variant="primary" size="sm" disabled={saving} onClick={handleSave}>
                   {saving ? "Saving…" : "Save size"}
                 </Button>
-                <span>{scene.scene_rect ? "custom size" : "full frame"}</span>
                 {saveMsg ? <span className="text-emerald-400">{saveMsg}</span> : null}
               </div>
             ) : (
@@ -347,16 +335,19 @@ export function DreamscapeGuides() {
   const [onboarding, setOnboarding] = useState(false);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const params = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
   // Select a scene and reflect it in the URL (?scene=slug) so the view is
-  // shareable/deep-linkable without a full navigation.
+  // shareable/deep-linkable. The grid is driven by ``selectedSlug`` state, so
+  // the URL is only a mirror — sync it *shallowly* via the History API rather
+  // than ``router.replace`` (which would fire an RSC round-trip per click and
+  // can 404 mid-rebuild). ``useSearchParams`` still reflects it for reload.
   const selectScene = (slug: string) => {
     setSelectedSlug(slug);
-    const next = new URLSearchParams(params.toString());
+    if (typeof window === "undefined") return;
+    const next = new URLSearchParams(window.location.search);
     next.set("scene", slug);
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    window.history.replaceState(null, "", `${pathname}?${next.toString()}`);
   };
 
   const { data, isLoading } = useQuery({

@@ -6,10 +6,15 @@ live in a **module-level** database so operators get a single, queryable,
 atomically-written source of truth that ships with the module.
 
 The DB file sits next to the module (``games/wos/events/dreamscape_memory/
-scenes.db``, gitignored — operator/runtime data), while this access code lives
-here so both the worker solver (``exec.py``) and the onboarding API can import
-it. It reuses the shared per-path WAL engine from :mod:`config.orm` (the same
-machinery behind ``state.db`` / ``giftcodes_db``), just pointed at its own file.
+scenes.db``) and is the **committed source of truth**: scenes are seeded once
+via ``tools/import_maps*.py``, then hand-edited by operators (points, galleries,
+the practice-level scene), and those edits live only here — so the ``.db`` is
+tracked in git. Only the transient WAL/SHM sidecars are ignored; checkpoint the
+WAL (``PRAGMA wal_checkpoint(TRUNCATE)``) before committing so the ``.db`` is
+self-contained. This access code lives here so both the worker solver
+(``exec.py``) and the onboarding API can import it. It reuses the shared
+per-path WAL engine from :mod:`config.orm` (the same machinery behind
+``state.db`` / ``giftcodes_db``), just pointed at its own file.
 
 One row per scene; exactly one row is ``active`` (the scene the solver taps).
 ``points`` and ``scene_rect`` are stored as JSON. On first use, a legacy

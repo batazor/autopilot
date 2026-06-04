@@ -144,6 +144,30 @@ def test_enhance_uses_single_word_tesseract_psm(monkeypatch: pytest.MonkeyPatch)
     assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
 
 
+def test_enhance_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tconf\ttext\n"
+            stderr = b""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    OcrClient(get_settings())._run_tesseract(crop, preprocess="enhance_line")
+
+    assert captured_cmd[0][captured_cmd[0].index("--psm") + 1] == "7"
+    assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
+
+
 def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_cmd: list[list[str]] = []
 
