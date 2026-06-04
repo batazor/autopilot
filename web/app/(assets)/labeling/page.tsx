@@ -151,6 +151,9 @@ function LabelingPageInner() {
   const [screenIdOptions, setScreenIdOptions] = useState<string[]>([]);
   // Monotonic token to discard out-of-order document loads (see loadDoc).
   const loadSeqRef = useRef(0);
+  // A user/programmatic ref selection should win over one stale render of
+  // useSearchParams(); router.replace updates the URL asynchronously.
+  const selectedRefOverride = useRef("");
 
   const activeVersion = versionParam.trim() || null;
   // The fetched doc lags behind `refRel` during async loads and is left over
@@ -266,6 +269,10 @@ function LabelingPageInner() {
           list,
           urlRef: params.get("ref"),
           currentRef: refRel,
+          preferCurrent:
+            Boolean(selectedRefOverride.current) &&
+            selectedRefOverride.current === refRel &&
+            params.get("ref") !== refRel,
         });
         if (next !== null && next !== refRel) setRefRel(next);
       })
@@ -335,11 +342,18 @@ function LabelingPageInner() {
 
   const selectRef = useCallback(
     (rel: string, version?: string | null) => {
+      selectedRefOverride.current = rel;
       setRefRel(rel);
       updateUrl(rel, version ?? activeVersion);
     },
     [activeVersion, updateUrl],
   );
+
+  useEffect(() => {
+    if (selectedRefOverride.current && params.get("ref") === selectedRefOverride.current) {
+      selectedRefOverride.current = "";
+    }
+  }, [params]);
 
   const setActiveVersion = useCallback(
     (version: string | null) => {

@@ -30,8 +30,9 @@
       "regions": [
         {
           "name": "dreamscape_memory.level.name",
-          "action": "exist",
+          "action": "text",
           "threshold": 0.9,
+          "preprocess": "enhance_line",
           "bbox": {
             "x": 11.749384238506586,
             "y": 1.2749959758308427,
@@ -40,7 +41,8 @@
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory.1",
@@ -103,8 +105,9 @@
         },
         {
           "name": "dreamscape_memory.help.counter",
-          "action": "exist",
-          "threshold": 0.9,
+          "action": "text",
+          "threshold": 0.5,
+          "preprocess": "fast_digits",
           "bbox": {
             "x": 94.33930226197481,
             "y": 81.9535953583734,
@@ -113,7 +116,8 @@
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "int"
         }
       ]
     },

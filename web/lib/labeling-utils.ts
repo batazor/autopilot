@@ -47,9 +47,11 @@ export function resolveSelectedRef(args: {
   list: LabelingReferenceMeta[];
   urlRef: string | null;
   currentRef: string;
+  preferCurrent?: boolean;
 }): string | null {
-  const { list, urlRef, currentRef } = args;
+  const { list, urlRef, currentRef, preferCurrent = false } = args;
   const exists = (rel: string) => list.some((r) => r.rel === rel);
+  if (preferCurrent && currentRef && exists(currentRef)) return currentRef;
   if (urlRef && exists(urlRef)) return urlRef;
   if (currentRef && exists(currentRef)) return currentRef;
   if (list.length) return list[0].rel;

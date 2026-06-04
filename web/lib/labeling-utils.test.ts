@@ -87,6 +87,18 @@ describe("resolveSelectedRef", () => {
       resolveSelectedRef({ list, urlRef: PUBLISHED, currentRef: OTHER }),
     ).toBe(PUBLISHED);
   });
+
+  it("keeps an explicit current selection while the URL is catching up", () => {
+    const list = [ref(PUBLISHED), ref(TEMPORAL)];
+    expect(
+      resolveSelectedRef({
+        list,
+        urlRef: PUBLISHED,
+        currentRef: TEMPORAL,
+        preferCurrent: true,
+      }),
+    ).toBe(TEMPORAL);
+  });
 });
 
 describe("nextRefAfterRemoval", () => {

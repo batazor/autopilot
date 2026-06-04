@@ -291,6 +291,90 @@ def test_resolve_taps_fuzzy_keeps_near_collisions_apart() -> None:
     assert misses == ["Cat"]
 
 
+def test_point_to_scene_percent_reverses_scene_rect() -> None:
+    xy = solve._point_to_scene_percent(
+        solve.Point(360, 512),
+        720,
+        1280,
+        {"left": 10.0, "top": 20.0, "width": 50.0, "height": 40.0},
+    )
+    assert xy == (80.0, 50.0)
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_auto_add_help_point_to_scene_saves_missing_word() -> None:
+    dreamscape_db.upsert_scene(
+        "practice-level",
+        title="Practice Level",
+        source_image="ref.png",
+        scene_rect={"left": 10.0, "top": 20.0, "width": 50.0, "height": 40.0},
+        points=[{"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        activate=True,
+        season=0,
+    )
+
+    learned = solve._auto_add_help_point_to_scene(
+        "practice-level",
+        "Smoke",
+        solve.Point(360, 512),
+        720,
+        1280,
+    )
+
+    assert learned == {
+        "scene": "practice-level",
+        "word": "Smoke",
+        "xPct": 80.0,
+        "yPct": 50.0,
+        "n": 2,
+    }
+    scene = dreamscape_db.get_scene("practice-level")
+    assert scene is not None
+    assert scene["points"] == [
+        {"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0},
+        {"n": 2, "name": "Smoke", "xPct": 80.0, "yPct": 50.0},
+    ]
+
+
+@pytest.mark.usefixtures("scene_db")
+def test_auto_add_help_point_skips_existing_word() -> None:
+    dreamscape_db.upsert_scene(
+        "practice-level",
+        title="Practice Level",
+        source_image="ref.png",
+        scene_rect=None,
+        points=[{"n": 1, "name": "Smoke", "xPct": 50.0, "yPct": 40.0}],
+        activate=True,
+    )
+
+    assert (
+        solve._auto_add_help_point_to_scene(
+            "practice-level",
+            " smoke ",
+            solve.Point(180, 256),
+            720,
+            1280,
+        )
+        is None
+    )
+    scene = dreamscape_db.get_scene("practice-level")
+    assert scene is not None
+    assert scene["points"] == [{"n": 1, "name": "Smoke", "xPct": 50.0, "yPct": 40.0}]
+
+
+def test_detect_help_highlight_motion_from_two_frames() -> None:
+    before = np.zeros((1280, 720, 3), dtype=np.uint8)
+    after = before.copy()
+    cv2.circle(after, (325, 627), 44, (0, 180, 255), 10)
+    cv2.circle(after, (325, 627), 58, (80, 120, 255), 6)
+
+    point = solve._detect_help_highlight_motion(before, after)
+
+    assert point is not None
+    assert abs(point.x - 325) <= 5
+    assert abs(point.y - 627) <= 5
+
+
 class _FakeDreamscapeActions:
     def __init__(self) -> None:
         self.taps: list[tuple[int, int]] = []
@@ -301,7 +385,7 @@ class _FakeDreamscapeActions:
         return (720, 1280)
 
     def capture_screen_bgr_cached(self, _instance_id: str, *, max_age_ms: float) -> np.ndarray:
-        assert max_age_ms > 0
+        assert max_age_ms >= 0
         return self.frame
 
     def tap(
@@ -494,6 +578,77 @@ async def test_solve_loop_taps_help_once_for_new_unmapped_word(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("scene_db")
+async def test_solve_loop_learns_help_highlight_point(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = _FakeDreamscapeActions()
+    dreamscape_db.upsert_scene(
+        "practice-level",
+        title="Practice Level",
+        source_image="ref.png",
+        scene_rect=None,
+        points=[{"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0}],
+        activate=True,
+        season=0,
+    )
+
+    async def tap_help_target(
+        actions_arg: object,
+        instance_id: str,
+        *,
+        capture_delay_s: float,
+        diff_gap_s: float,
+    ) -> object:
+        assert capture_delay_s >= 0
+        assert diff_gap_s >= 0
+        point = solve.Point(180, 256)
+        actions_arg.tap(instance_id, point, require_approval=False)
+        return point
+
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: _FakeDreamscapeOcr())
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _level_name, _fuzz_threshold: dreamscape_db.get_scene("practice-level"),
+    )
+    monkeypatch.setattr(solve, "_tap_help_highlight_target", tap_help_target)
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1", "dreamscape_memory.2"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 2,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert actions.taps == [(360, 512), (612, 1088), (180, 256)]
+    assert actions.require_approval_values == [False, False, False]
+    assert ctx.result["clicked_keys"] == ["book", "smoke"]
+    assert ctx.result["help_target_taps"] == [{"word": "Smoke", "x": 180, "y": 256}]
+    assert ctx.result["learned_help_points"] == [
+        {"scene": "practice-level", "word": "Smoke", "xPct": 25.0, "yPct": 20.0, "n": 2}
+    ]
+    scene = dreamscape_db.get_scene("practice-level")
+    assert scene is not None
+    assert scene["points"] == [
+        {"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0},
+        {"n": 2, "name": "Smoke", "xPct": 25.0, "yPct": 20.0},
+    ]
+
+
+@pytest.mark.asyncio
 async def test_solve_loop_does_not_tap_help_when_counter_is_zero(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -570,6 +725,56 @@ async def test_solve_loop_stops_on_all_items_found(monkeypatch: pytest.MonkeyPat
     assert ctx.result["iterations"] == 1
     assert ctx.result["terminal_screen"] == solve._TERMINAL_ALL_FOUND
     assert ctx.result["status"] == "won"
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_requests_bot_stop_on_time_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actions = _FakeDreamscapeActions()
+    stop_reasons: list[str] = []
+
+    async def detect_terminal(_image, hint=None):
+        return solve._TERMINAL_TIME_UP
+
+    def request_stop(reason: str) -> dict[str, object]:
+        stop_reasons.append(reason)
+        return {"requested": True, "mode": "embedded", "reason": reason}
+
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(solve, "_detect_terminal_screen", detect_terminal)
+    monkeypatch.setattr(solve, "_request_local_bot_stop", request_stop)
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1", "dreamscape_memory.2"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 3,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert actions.taps == []
+    assert ctx.result["iterations"] == 1
+    assert ctx.result["terminal_screen"] == solve._TERMINAL_TIME_UP
+    assert ctx.result["status"] == "lost"
+    assert stop_reasons == [
+        f"terminal screen detected: {solve._TERMINAL_TIME_UP}",
+    ]
+    assert ctx.result["bot_stop"] == {
+        "requested": True,
+        "mode": "embedded",
+        "reason": f"terminal screen detected: {solve._TERMINAL_TIME_UP}",
+    }
 
 
 @pytest.mark.asyncio

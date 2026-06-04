@@ -19,7 +19,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
+import signal
+import sys
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -76,6 +80,8 @@ _DEFAULT_TAP_DELAY_S = 0.6
 _DEFAULT_LOOP_TTL_S = 5 * 60.0
 _DEFAULT_LOOP_WAIT_S = 0.3
 _DEFAULT_LOOP_MAX_ITERATIONS = 3000
+_DEFAULT_HELP_CAPTURE_DELAY_S = 0.12
+_DEFAULT_HELP_DIFF_GAP_S = 0.12
 _START_SCREEN = "dreamscape_memory"
 _TERMINAL_TIME_UP = "dreamscape_memory.time_up"
 _TERMINAL_ALL_FOUND = "dreamscape_memory.all_item_found"
@@ -95,6 +101,11 @@ _DEFAULT_FUZZ_THRESHOLD = 88.0
 class TapCandidate(NamedTuple):
     raw_word: str
     key: str
+    point: Point
+
+
+class HelpTargetTap(NamedTuple):
+    word: str
     point: Point
 
 
@@ -623,6 +634,234 @@ async def _capture_frame(actions: Any, instance_id: str) -> Any:
     return await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
 
 
+async def _capture_fresh_frame(actions: Any, instance_id: str) -> Any:
+    cached = getattr(actions, "capture_screen_bgr_cached", None)
+    if cached is not None:
+        return await asyncio.to_thread(cached, instance_id, max_age_ms=0.0)
+    return await asyncio.to_thread(actions.capture_screen_bgr, instance_id)
+
+
+def _detect_help_highlight_motion(before: Any, after: Any) -> Point | None:
+    """Find Dreamscape's animated hint circle from two otherwise-static frames."""
+    if (
+        before is None
+        or after is None
+        or not hasattr(before, "shape")
+        or not hasattr(after, "shape")
+        or before.shape != after.shape
+        or len(before.shape) != 3
+    ):
+        return None
+
+    try:
+        import cv2
+    except Exception:
+        logger.debug("dreamscape_memory_solve_loop: cv2/numpy unavailable", exc_info=True)
+        return None
+
+    frame_h, frame_w = int(before.shape[0]), int(before.shape[1])
+    if frame_w <= 0 or frame_h <= 0:
+        return None
+
+    # The word bar/help counter animate in the lower UI and the title/timer can
+    # tick near the top. The hint circle lives in the scene art between them.
+    roi_top = int(round(frame_h * 0.06))
+    roi_bottom = int(round(frame_h * 0.85))
+    if roi_bottom <= roi_top:
+        return None
+
+    before_roi = before[roi_top:roi_bottom, :]
+    after_roi = after[roi_top:roi_bottom, :]
+    gray_diff = cv2.absdiff(
+        cv2.cvtColor(before_roi, cv2.COLOR_BGR2GRAY),
+        cv2.cvtColor(after_roi, cv2.COLOR_BGR2GRAY),
+    )
+    before_v = cv2.cvtColor(before_roi, cv2.COLOR_BGR2HSV)[..., 2]
+    after_v = cv2.cvtColor(after_roi, cv2.COLOR_BGR2HSV)[..., 2]
+    diff = cv2.max(gray_diff, cv2.absdiff(before_v, after_v))
+    diff = cv2.GaussianBlur(diff, (5, 5), 0)
+
+    mean, stddev = cv2.meanStdDev(diff)
+    threshold = max(10.0, float(mean[0][0] + stddev[0][0] * 3.0))
+    _, mask = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)
+    if int(mask.sum()) == 0:
+        return None
+
+    kernel_open = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel_merge = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open)
+    mask = cv2.dilate(mask, kernel_merge, iterations=1)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_merge)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+
+    min_radius = max(20.0, min(frame_w, frame_h) * 0.03)
+    max_radius = max(90.0, min(frame_w, frame_h) * 0.18)
+    best: tuple[float, float, float] | None = None
+    best_score = 0.0
+    for contour in contours:
+        area = float(cv2.contourArea(contour))
+        if area < 80.0:
+            continue
+        _x, _y, w, h = cv2.boundingRect(contour)
+        if w <= 0 or h <= 0:
+            continue
+        aspect = w / float(h)
+        if aspect < 0.45 or aspect > 2.2:
+            continue
+        (cx, cy), radius = cv2.minEnclosingCircle(contour)
+        if radius < min_radius or radius > max_radius:
+            continue
+        bbox_area = float(w * h)
+        fill = area / bbox_area if bbox_area > 0 else 0.0
+        if fill < 0.04 or fill > 0.95:
+            continue
+        aspect_score = 1.0 - min(0.9, abs(1.0 - aspect))
+        radius_score = min(1.0, radius / 70.0)
+        score = area * aspect_score * radius_score
+        if score > best_score:
+            best_score = score
+            best = (float(cx), float(cy + roi_top), float(radius))
+
+    if best is None:
+        return None
+    return Point(int(round(best[0])), int(round(best[1])))
+
+
+def _point_to_scene_percent(
+    point: Point,
+    frame_w: int,
+    frame_h: int,
+    scene_rect: dict[str, Any] | None,
+) -> tuple[float, float] | None:
+    if frame_w <= 0 or frame_h <= 0:
+        return None
+    x_pct = point.x / float(frame_w) * 100.0
+    y_pct = point.y / float(frame_h) * 100.0
+    rect = _scene_rect(scene_rect)
+    if rect is None:
+        return (round(x_pct, 2), round(y_pct, 2))
+    left, top, width, height = rect
+    if width <= 0 or height <= 0:
+        return None
+    return (
+        round((x_pct - left) / width * 100.0, 2),
+        round((y_pct - top) / height * 100.0, 2),
+    )
+
+
+def _auto_add_help_point_to_scene(
+    scene_slug: str,
+    word: str,
+    point: Point,
+    frame_w: int,
+    frame_h: int,
+) -> dict[str, Any] | None:
+    scene_slug = str(scene_slug or "").strip()
+    word = str(word or "").strip()
+    key = _normalize_word(word)
+    if not scene_slug or not key:
+        return None
+
+    from config import dreamscape_db
+
+    scene = dreamscape_db.get_scene(scene_slug)
+    if not scene:
+        return None
+    points = scene.get("points") if isinstance(scene.get("points"), list) else []
+    if any(_normalize_word(p.get("name")) == key for p in points if isinstance(p, dict)):
+        return None
+    xy = _point_to_scene_percent(point, frame_w, frame_h, scene.get("scene_rect"))
+    if xy is None:
+        return None
+    x_pct, y_pct = xy
+    if not (-10.0 <= x_pct <= 110.0 and -10.0 <= y_pct <= 110.0):
+        logger.warning(
+            "dreamscape_memory_solve_loop: help point for %r outside scene %s: %.2f, %.2f",
+            word,
+            scene_slug,
+            x_pct,
+            y_pct,
+        )
+        return None
+
+    next_n = max(
+        (
+            int(p.get("n") or 0)
+            for p in points
+            if isinstance(p, dict) and str(p.get("n") or "").strip().isdigit()
+        ),
+        default=0,
+    ) + 1
+    new_point = {"n": next_n, "name": word, "xPct": x_pct, "yPct": y_pct}
+    updated_points = [p for p in points if isinstance(p, dict)] + [new_point]
+    dreamscape_db.upsert_scene(
+        scene_slug,
+        title=str(scene.get("title") or scene_slug),
+        source_image=str(scene.get("source_image") or ""),
+        scene_rect=scene.get("scene_rect"),
+        points=updated_points,
+        activate=bool(scene.get("active")),
+        archived=bool(scene.get("archived")),
+        season=int(scene.get("season") or 1),
+        images=scene.get("images") if isinstance(scene.get("images"), list) else None,
+    )
+    logger.info(
+        "dreamscape_memory_solve_loop: learned help point %r in scene %s -> %.2f, %.2f",
+        word,
+        scene_slug,
+        x_pct,
+        y_pct,
+    )
+    return {"scene": scene_slug, "word": word, "xPct": x_pct, "yPct": y_pct, "n": next_n}
+
+
+async def _tap_help_highlight_target(
+    actions: Any,
+    instance_id: str,
+    *,
+    capture_delay_s: float,
+    diff_gap_s: float,
+) -> Point | None:
+    if capture_delay_s > 0:
+        await asyncio.sleep(capture_delay_s)
+    try:
+        first = await _capture_fresh_frame(actions, instance_id)
+        if diff_gap_s > 0:
+            await asyncio.sleep(diff_gap_s)
+        second = await _capture_fresh_frame(actions, instance_id)
+    except Exception:
+        logger.exception(
+            "dreamscape_memory_solve_loop: help highlight capture failed instance=%s",
+            instance_id,
+        )
+        return None
+
+    point = await asyncio.to_thread(_detect_help_highlight_motion, first, second)
+    if point is None:
+        logger.info(
+            "dreamscape_memory_solve_loop: help highlight motion not detected instance=%s",
+            instance_id,
+        )
+        return None
+    ok = await asyncio.to_thread(
+        actions.tap,
+        instance_id,
+        point,
+        require_approval=False,
+    )
+    logger.info(
+        "dreamscape_memory_solve_loop: %s help-highlight target -> (%d,%d) instance=%s",
+        "tapped" if ok else "help-highlight-tap-rejected",
+        point.x,
+        point.y,
+        instance_id,
+    )
+    return point if ok else None
+
+
 async def _detect_terminal_screen(image: Any, hint: str | None = None) -> str:
     """Return a Dreamscape terminal screen id for ``image``, or empty string."""
     if image is None or not hasattr(image, "shape"):
@@ -655,6 +894,85 @@ async def _write_current_screen(ctx: DslExecContext, screen: str) -> None:
         logger.debug("dreamscape_memory_solve_loop: failed to write current_screen", exc_info=True)
 
 
+def _running_in_supervisor_process() -> bool:
+    argv = [str(arg) for arg in sys.argv]
+    return any(arg == "worker.supervisor" for arg in argv)
+
+
+def _request_local_bot_stop(reason: str) -> dict[str, Any]:
+    """Ask the local worker stack to stop without blocking this worker task."""
+    try:
+        from worker import local_bot
+
+        status = local_bot.bot_status()
+    except Exception as exc:
+        logger.warning(
+            "dreamscape_memory_solve_loop: failed to inspect bot status before stop: %s",
+            exc,
+        )
+        status = {"running": False, "mode": None}
+
+    mode = str(status.get("mode") or "")
+    if mode == "embedded":
+        try:
+            from dashboard.bot_services import request_embedded_bot_stop
+
+            request_embedded_bot_stop()
+            logger.warning(
+                "dreamscape_memory_solve_loop: requested embedded bot stop (%s)",
+                reason,
+            )
+            return {"requested": True, "mode": mode, "reason": reason}
+        except Exception as exc:
+            logger.warning(
+                "dreamscape_memory_solve_loop: embedded bot stop request failed: %s",
+                exc,
+            )
+            return {"requested": False, "mode": mode, "reason": reason, "error": str(exc)}
+
+    if bool(status.get("running")):
+        try:
+            from worker import local_bot
+
+            threading.Thread(
+                target=local_bot.stop_local_bot,
+                kwargs={"join_timeout_s": 0.5},
+                daemon=True,
+                name="dreamscape-time-up-stop-bot",
+            ).start()
+            logger.warning(
+                "dreamscape_memory_solve_loop: requested local bot stop (%s)",
+                reason,
+            )
+            return {"requested": True, "mode": mode, "reason": reason}
+        except Exception as exc:
+            logger.warning(
+                "dreamscape_memory_solve_loop: local bot stop request failed: %s",
+                exc,
+            )
+            return {"requested": False, "mode": mode, "reason": reason, "error": str(exc)}
+
+    if _running_in_supervisor_process():
+        def _terminate_self() -> None:
+            try:
+                os.kill(os.getpid(), signal.SIGTERM)
+            except Exception:
+                logger.exception("dreamscape_memory_solve_loop: self-stop failed")
+
+        threading.Timer(0.25, _terminate_self).start()
+        logger.warning(
+            "dreamscape_memory_solve_loop: scheduled supervisor self-stop (%s)",
+            reason,
+        )
+        return {"requested": True, "mode": "supervisor-self", "reason": reason}
+
+    logger.info(
+        "dreamscape_memory_solve_loop: bot already stopped; no stop request sent (%s)",
+        reason,
+    )
+    return {"requested": False, "mode": mode, "reason": reason}
+
+
 async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     """Stateful realtime Dreamscape solver.
 
@@ -677,6 +995,12 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     ttl_s = _parse_duration_s(args.get("ttl"), _DEFAULT_LOOP_TTL_S)
     wait_s = _parse_duration_s(args.get("wait"), _DEFAULT_LOOP_WAIT_S)
     tap_delay_s = _parse_duration_s(args.get("tap_delay"), _DEFAULT_TAP_DELAY_S)
+    help_capture_delay_s = _parse_duration_s(
+        args.get("help_capture_delay"), _DEFAULT_HELP_CAPTURE_DELAY_S
+    )
+    help_diff_gap_s = _parse_duration_s(
+        args.get("help_diff_gap"), _DEFAULT_HELP_DIFF_GAP_S
+    )
     try:
         max_iterations = int(args.get("max_iterations", args.get("max", _DEFAULT_LOOP_MAX_ITERATIONS)))
     except (TypeError, ValueError):
@@ -699,6 +1023,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     clicked_words: list[str] = []
     helped_keys: set[str] = set()
     helped_words: list[str] = []
+    help_target_taps: list[HelpTargetTap] = []
+    learned_help_points: list[dict[str, Any]] = []
     help_counter_reads: list[int] = []
     help_remaining = _DEFAULT_HELP_COUNT
     unmapped: list[str] = []
@@ -707,6 +1033,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     taps_total = 0
     last_level_name = ""
     terminal_screen = ""
+    stop_bot_after_result = False
+    bot_stop: dict[str, Any] = {}
 
     for iteration in range(max_iterations):
         if deadline is not None and time.monotonic() >= deadline:
@@ -729,6 +1057,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
         if terminal_screen:
             if terminal_screen != _START_SCREEN or taps_total > 0:
                 await _write_current_screen(ctx, terminal_screen)
+                if terminal_screen == _TERMINAL_TIME_UP:
+                    stop_bot_after_result = True
                 logger.info(
                     "dreamscape_memory_solve_loop: terminal screen detected %s; stopping instance=%s",
                     terminal_screen,
@@ -760,6 +1090,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             clicked_words.clear()
             helped_keys.clear()
             helped_words.clear()
+            help_target_taps.clear()
+            learned_help_points.clear()
             help_counter_reads.clear()
             help_remaining = _DEFAULT_HELP_COUNT
             skipped_clicked.clear()
@@ -849,6 +1181,27 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     helped_words.append(help_word)
                     help_remaining = max(0, help_remaining - 1)
                     taps_total += 1
+                    target_point = await _tap_help_highlight_target(
+                        actions,
+                        ctx.instance_id,
+                        capture_delay_s=help_capture_delay_s,
+                        diff_gap_s=help_diff_gap_s,
+                    )
+                    if target_point is not None:
+                        help_target_taps.append(HelpTargetTap(help_word, target_point))
+                        clicked_keys.add(help_key)
+                        clicked_words.append(help_word)
+                        taps_total += 1
+                        learned = await asyncio.to_thread(
+                            _auto_add_help_point_to_scene,
+                            scene_slug,
+                            help_word,
+                            target_point,
+                            dev_w,
+                            dev_h,
+                        )
+                        if learned is not None:
+                            learned_help_points.append(learned)
                     if tap_delay_s > 0:
                         await asyncio.sleep(tap_delay_s)
         elif help_word and help_region:
@@ -872,6 +1225,11 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             "clicked_keys": sorted(clicked_keys),
             "helped": helped_words,
             "helped_keys": sorted(helped_keys),
+            "help_target_taps": [
+                {"word": tap.word, "x": tap.point.x, "y": tap.point.y}
+                for tap in help_target_taps
+            ],
+            "learned_help_points": learned_help_points,
             "help_counter_reads": help_counter_reads,
             "help_remaining": help_remaining,
             "skipped_clicked": skipped_clicked,
@@ -885,8 +1243,16 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 if terminal_screen == _TERMINAL_TIME_UP
                 else "stopped"
             ),
+            "bot_stop": bot_stop,
         }
     )
+    if stop_bot_after_result:
+        bot_stop.update(
+            await asyncio.to_thread(
+                _request_local_bot_stop,
+                f"terminal screen detected: {terminal_screen}",
+            )
+        )
 
 
 DSL_EXEC_HANDLERS: dict[str, DslExecHandler] = {
