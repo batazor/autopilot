@@ -122,6 +122,53 @@ async def test_yield_when_gap_meets_margin(
 
 
 @pytest.mark.asyncio
+async def test_device_level_lower_priority_does_not_preempt(
+    monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
+) -> None:
+    """Device-level tasks bypass the margin, not priority ordering itself."""
+    _patch_read_current_screen(monkeypatch)
+    _patch_peek_top(
+        monkeypatch,
+        _top(task_type="dismiss_unknown_popup", effective_priority=70_000),
+    )
+    monkeypatch.setattr(
+        "dsl.dsl_schema.dsl_scenario_yaml_device_level",
+        lambda _root, _task_type: True,
+    )
+    task = _make_task(effective_priority=90_000, redis_client=redis_async)
+
+    result = await task._preempted_by_higher_priority("bs1", step_index=0)
+
+    assert result is None
+    assert await redis_async.get(_yield_count_key("bs1", "running-1")) is None
+
+
+@pytest.mark.asyncio
+async def test_device_level_positive_gap_bypasses_margin(
+    monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
+) -> None:
+    """A device-level task may still preempt with a positive gap below margin."""
+    _patch_read_current_screen(monkeypatch)
+    _patch_peek_top(
+        monkeypatch,
+        _top(task_type="dismiss_unknown_popup", effective_priority=82_000),
+    )
+    monkeypatch.setattr(
+        "dsl.dsl_schema.dsl_scenario_yaml_device_level",
+        lambda _root, _task_type: True,
+    )
+    task = _make_task(effective_priority=80_000, redis_client=redis_async)
+
+    result = await task._preempted_by_higher_priority("bs1", step_index=0)
+
+    assert result is not None
+    md = result.metadata or {}
+    assert md["preempted_by"] == "dismiss_unknown_popup"
+    assert md["preempted_by_priority"] == 82_000
+    assert md["running_effective_priority"] == 80_000
+
+
+@pytest.mark.asyncio
 async def test_anti_starvation_immunity_after_three_yields(
     monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
 ) -> None:
@@ -230,14 +277,7 @@ def test_preempt_constants_match_adr() -> None:
 async def test_no_yield_to_same_task_type_peer_at_equal_priority(
     monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
 ) -> None:
-    """A duplicate enqueue of our own scenario must NOT preempt us.
-
-    Without this guard, two device-level peers (e.g. ``who_i_am`` left over
-    from a prior boot plus the running one) ping-pong yields: the device-level
-    bypass (``not top_is_device_level``) overrides ``gap < PREEMPT_MARGIN``,
-    each yields to the other, ``yield_count`` resets per task_id and the
-    immunity threshold never sticks.
-    """
+    """Equal-or-lower priority peers must NOT preempt the running scenario."""
     _patch_read_current_screen(monkeypatch)
     # Top has the SAME task_type as the running task, same priority, different task_id.
     _patch_peek_top(
@@ -256,9 +296,7 @@ async def test_no_yield_to_same_task_type_peer_at_equal_priority(
 async def test_same_task_type_at_higher_priority_still_preempts(
     monkeypatch: pytest.MonkeyPatch, redis_async: aioredis.Redis
 ) -> None:
-    """Guard is scoped to ``gap <= 0``: a same-type peer at strictly higher
-    priority still preempts (unusual but legitimate — e.g. operator escalated
-    a debug re-run with explicit priority bump)."""
+    """A same-type peer at strictly higher priority still preempts."""
     _patch_read_current_screen(monkeypatch)
     _patch_peek_top(
         monkeypatch,

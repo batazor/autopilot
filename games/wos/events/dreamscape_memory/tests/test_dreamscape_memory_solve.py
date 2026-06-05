@@ -178,7 +178,7 @@ def _dreamscape_region_def(name: str) -> dict:
     raise AssertionError(msg)
 
 
-def test_practice_level_aurora_title_ocr_with_enhance_line() -> None:
+def test_practice_level_aurora_title_ocr_with_title_line() -> None:
     settings = get_settings()
     tesseract_cmd = str(settings.ocr.tesseract_cmd or "tesseract")
     if shutil.which(tesseract_cmd) is None and not Path(tesseract_cmd).exists():
@@ -195,7 +195,7 @@ def test_practice_level_aurora_title_ocr_with_enhance_line() -> None:
     assert image is not None, f"failed to read {image_path}"
 
     region = _dreamscape_region_def("dreamscape_memory.level.name")
-    assert region.get("preprocess") == "enhance_line"
+    assert region.get("preprocess") == "title_line"
     bbox = region["bbox"]
     frame_h, frame_w = image.shape[:2]
     x = int(round(float(bbox["x"]) / 100.0 * frame_w))
@@ -205,7 +205,7 @@ def test_practice_level_aurora_title_ocr_with_enhance_line() -> None:
 
     text, confidence = OcrClient(settings)._run_tesseract(
         image[y : y + h, x : x + w],
-        preprocess="enhance_line",
+        preprocess="title_line",
     )
 
     assert text == "Practice Level"
@@ -412,7 +412,7 @@ class _FakeDreamscapeOcr:
         region_ids: list[str] | None = None,
         region_preprocess: list[str | None] | None = None,
     ) -> list[OCRResult]:
-        assert region_preprocess == ["enhance_line", None, None, "fast_digits"]
+        assert region_preprocess == ["title_line", None, None, "fast_digits"]
         values = {
             "dreamscape_memory.level.name": "Practice Level",
             "dreamscape_memory.1": "Book",
@@ -452,7 +452,7 @@ def _minimal_solver_area_doc() -> dict:
             {
                 "screen_id": "",
                 "regions": [
-                    reg("dreamscape_memory.level.name", preprocess="enhance_line"),
+                    reg("dreamscape_memory.level.name", preprocess="title_line"),
                     reg("dreamscape_memory.1"),
                     reg("dreamscape_memory.2"),
                     {
@@ -697,12 +697,19 @@ async def test_solve_loop_does_not_tap_help_when_counter_is_zero(
 @pytest.mark.asyncio
 async def test_solve_loop_stops_on_all_items_found(monkeypatch: pytest.MonkeyPatch) -> None:
     actions = _FakeDreamscapeActions()
+    stop_reasons: list[str] = []
+
     async def detect_terminal(_image, hint=None):
         return solve._TERMINAL_ALL_FOUND
+
+    def request_stop(reason: str) -> dict[str, object]:
+        stop_reasons.append(reason)
+        return {"requested": True, "mode": "embedded", "reason": reason}
 
     monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
     monkeypatch.setattr(solve, "_detect_terminal_screen", detect_terminal)
+    monkeypatch.setattr(solve, "_request_local_bot_stop", request_stop)
 
     class _Ctx:
         def __init__(self) -> None:
@@ -725,6 +732,14 @@ async def test_solve_loop_stops_on_all_items_found(monkeypatch: pytest.MonkeyPat
     assert ctx.result["iterations"] == 1
     assert ctx.result["terminal_screen"] == solve._TERMINAL_ALL_FOUND
     assert ctx.result["status"] == "won"
+    assert stop_reasons == [
+        f"terminal screen detected: {solve._TERMINAL_ALL_FOUND}",
+    ]
+    assert ctx.result["bot_stop"] == {
+        "requested": True,
+        "mode": "embedded",
+        "reason": f"terminal screen detected: {solve._TERMINAL_ALL_FOUND}",
+    }
 
 
 @pytest.mark.asyncio
@@ -783,16 +798,22 @@ async def test_solve_loop_treats_start_screen_after_tap_as_win(
 ) -> None:
     actions = _FakeDreamscapeActions()
     detect_calls = 0
+    stop_reasons: list[str] = []
 
     async def detect_terminal(_image, hint=None):
         nonlocal detect_calls
         detect_calls += 1
         return solve._START_SCREEN
 
+    def request_stop(reason: str) -> dict[str, object]:
+        stop_reasons.append(reason)
+        return {"requested": True, "mode": "embedded", "reason": reason}
+
     monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
     monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: _FakeDreamscapeOcr())
     monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
     monkeypatch.setattr(solve, "_detect_terminal_screen", detect_terminal)
+    monkeypatch.setattr(solve, "_request_local_bot_stop", request_stop)
     monkeypatch.setattr(
         solve,
         "_select_scene",
@@ -827,6 +848,14 @@ async def test_solve_loop_treats_start_screen_after_tap_as_win(
     assert actions.taps == [(360, 512), (374, 384)]
     assert ctx.result["terminal_screen"] == solve._START_SCREEN
     assert ctx.result["status"] == "won"
+    assert stop_reasons == [
+        f"terminal screen detected: {solve._START_SCREEN}",
+    ]
+    assert ctx.result["bot_stop"] == {
+        "requested": True,
+        "mode": "embedded",
+        "reason": f"terminal screen detected: {solve._START_SCREEN}",
+    }
 
 
 # ── reference-sample scene (committed fixture, real 720x1280 ground truth) ─────

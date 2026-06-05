@@ -938,7 +938,7 @@ def _request_local_bot_stop(reason: str) -> dict[str, Any]:
                 target=local_bot.stop_local_bot,
                 kwargs={"join_timeout_s": 0.5},
                 daemon=True,
-                name="dreamscape-time-up-stop-bot",
+                name="dreamscape-terminal-stop-bot",
             ).start()
             logger.warning(
                 "dreamscape_memory_solve_loop: requested local bot stop (%s)",
@@ -1057,8 +1057,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
         if terminal_screen:
             if terminal_screen != _START_SCREEN or taps_total > 0:
                 await _write_current_screen(ctx, terminal_screen)
-                if terminal_screen == _TERMINAL_TIME_UP:
-                    stop_bot_after_result = True
+                stop_bot_after_result = True
                 logger.info(
                     "dreamscape_memory_solve_loop: terminal screen detected %s; stopping instance=%s",
                     terminal_screen,

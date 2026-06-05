@@ -156,17 +156,7 @@ class DslScenarioPreemptMixin(_Base):
             return None
         top_eff = int(top.effective_priority) or int(top.priority)
         gap = top_eff - my_eff
-        # Same-task-type peer at equal-or-lower priority is a duplicate
-        # enqueue of ourselves (boot race, restart leftover, etc.) — never
-        # yield to it. Without this guard, the device-level bypass below
-        # (``not top_is_device_level``) lets two who_i_am tasks at the same
-        # priority ping-pong yields forever: each peeks, sees the other,
-        # yields, reschedules; ``yield_count`` resets per task_id so the
-        # ``PREEMPT_MAX_YIELDS`` immunity never sticks across the duplicate.
-        if (
-            gap <= 0
-            and str(top.task_type or "") == str(self.scenario_key or "")
-        ):
+        if gap <= 0:
             return None
         try:
             from config.paths import repo_root

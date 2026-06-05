@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
 import {
+  ApiError,
   captureLabelingScreenshot,
   clickApprovalImageUrl,
   createQueueTask,
@@ -75,6 +76,20 @@ function sceneMatchesLevel(
     normalizeLevelName(stripSeasonTag(scene.title)) === levelKey ||
     normalizeLevelName(scene.slug) === levelKey
   );
+}
+
+function formatApiError(err: unknown): string {
+  if (err instanceof ApiError) {
+    let detail = err.body;
+    try {
+      const parsed = JSON.parse(err.body) as { detail?: unknown };
+      if (typeof parsed.detail === "string") detail = parsed.detail;
+    } catch {
+      /* keep raw body */
+    }
+    return detail ? `${err.status} — ${detail}` : err.message;
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 function ScreenStatusPill({
@@ -274,21 +289,27 @@ export function LiveEditorTab({
     // Start the local worker (idempotent if already up), then enqueue the
     // solver so it begins reading + tapping the level right away.
     mutationFn: async () => {
-      if (!scenarioKey) throw new Error("no scenario for this mode");
+      const scenario = (scenarioKey || "").trim();
+      const selectedInstance = instanceId.trim();
+      if (!scenario) throw new Error("No solver scenario is configured for this mode.");
+      if (!selectedInstance) throw new Error("Select an instance before starting Dreamscape.");
+      setMessage(botRunning ? "Queueing Dreamscape solver..." : "Starting bot worker...");
       if (!botRunning) await startLocalBot();
-      await createQueueTask({
-        scenario_key: scenarioKey,
-        instance_id: instanceId,
+      setMessage("Queueing Dreamscape solver...");
+      const queued = await createQueueTask({
+        scenario_key: scenario,
+        instance_id: selectedInstance,
         scheduled_at: Date.now() / 1000,
         priority: 90_000,
       });
+      return queued;
     },
-    onSuccess: () => {
+    onSuccess: (queued) => {
       setAutoCaptureArmed(true);
       botQuery.refetch();
-      setMessage("Bot started — solving this level (~300ms/frame).");
+      setMessage(`Dreamscape solver queued (${queued.task_id}).`);
     },
-    onError: (err: unknown) => setMessage(`Start failed: ${String(err)}`),
+    onError: (err: unknown) => setMessage(`Start failed: ${formatApiError(err)}`),
   });
 
   const stopMutation = useMutation({
@@ -422,11 +443,15 @@ export function LiveEditorTab({
         ) : (
           <Button
             variant="primary"
-            disabled={
-              !instanceId || !scenarioKey || startMutation.isPending
-            }
+            disabled={startMutation.isPending}
             onClick={() => startMutation.mutate()}
-            title="Start the bot and run this mode's solver in a fast ~300ms loop to keep up with the level's animation"
+            title={
+              !instanceId
+                ? "Select an instance before starting Dreamscape"
+                : !scenarioKey
+                  ? "No solver scenario is configured for this mode"
+                  : "Start the bot and queue this mode's Dreamscape solver"
+            }
           >
             {startMutation.isPending ? "Starting…" : "Play"}
           </Button>

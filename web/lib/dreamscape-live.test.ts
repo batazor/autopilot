@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { deriveLiveStatus, screenRefOptions, wordBadges } from "./dreamscape-live";
+import {
+  deriveLiveStatus,
+  levelNameRead,
+  screenRefOptions,
+  wordBadges,
+} from "./dreamscape-live";
 import type {
   LabelingReferenceMeta,
   OverlayTestResult,
@@ -104,6 +109,38 @@ describe("wordBadges", () => {
 
   it("dims everything when rows are empty/null", () => {
     expect(wordBadges(null).every((b) => b.dimmed)).toBe(true);
+  });
+});
+
+describe("levelNameRead", () => {
+  function titleRow(text: string, lowConfidence = false): RegionOcrRow {
+    return {
+      region: "dreamscape_memory.level.name",
+      text,
+      confidence: lowConfidence ? 0.27 : 0.83,
+      threshold: 0.8,
+      low_confidence: lowConfidence,
+      status: "ok",
+      duration_ms: 18,
+    };
+  }
+
+  it("cleans decorative OCR punctuation from the displayed title", () => {
+    expect(levelNameRead([titleRow("Practice)Level · 27%")])?.text).toBe(
+      "Practice Level",
+    );
+    expect(levelNameRead([titleRow(".Practice Level")])?.text).toBe(
+      "Practice Level",
+    );
+  });
+
+  it("keeps confidence dimming based on the backend row", () => {
+    const read = levelNameRead([titleRow("Practice)Level", true)]);
+
+    expect(read).toMatchObject({
+      text: "Practice Level",
+      dimmed: true,
+    });
   });
 });
 

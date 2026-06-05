@@ -168,6 +168,41 @@ def test_enhance_line_uses_single_line_tesseract_psm(monkeypatch: pytest.MonkeyP
     assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
 
 
+def test_title_line_uses_psm7_and_cleans_title_noise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = (
+                "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t"
+                "left\ttop\twidth\theight\tconf\ttext\n"
+                "5\t1\t1\t1\t1\t1\t0\t0\t10\t10\t83\t.Practice)Level\n"
+                "5\t1\t1\t1\t1\t2\t11\t0\t10\t10\t27\t27%\n"
+            ).encode()
+            stderr = b""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    text, confidence = OcrClient(get_settings())._run_tesseract(
+        crop, preprocess="title_line"
+    )
+
+    assert captured_cmd[0][captured_cmd[0].index("--psm") + 1] == "7"
+    assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
+    assert text == "Practice Level"
+    assert confidence == pytest.approx(0.55)
+
+
 def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:
     captured_cmd: list[list[str]] = []
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 # Highlight only the region **name** (region_id) in terminal OCR logs; bbox/conf/text stay plain.
 _OCR_YELLOW = "\033[33m"
 _OCR_RESET = "\033[0m"
+_TITLE_PROGRESS_RE = re.compile(r"\b\d+(?:\.\d+)?\s*%.*$", re.IGNORECASE)
 
 
 def _ocr_tty_yellow_name(name: str) -> str:
@@ -163,7 +165,7 @@ class OcrClient:
     @staticmethod
     def _prepare_crop(crop: np.ndarray, preprocess: str | None) -> np.ndarray:
         pre_tag = (preprocess or "").strip().lower()
-        if pre_tag in ("enhance", "enhance_line"):
+        if pre_tag in ("enhance", "enhance_line", "title_line"):
             return enhance_for_ocr(crop)
         if pre_tag == "digits":
             return digits_for_ocr(crop)
@@ -180,11 +182,18 @@ class OcrClient:
             return "7", True
         if pre_tag == "fast_line":
             return "7", False
-        if pre_tag == "enhance_line":
+        if pre_tag in ("enhance_line", "title_line"):
             return "7", False
         if pre_tag in ("enhance", "digits"):
             return "8", pre_tag == "digits"
         return "6", False
+
+    @staticmethod
+    def _clean_title_line_text(raw: str) -> str:
+        text = _TITLE_PROGRESS_RE.sub(" ", raw).replace("\n", " ")
+        text = re.sub(r"(?<=[A-Za-z0-9])[^A-Za-z0-9]+(?=[A-Za-z0-9])", " ", text)
+        text = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", text)
+        return " ".join(text.split())
 
     @staticmethod
     def _parse_tesseract_tsv(tsv: str) -> tuple[str, float]:
@@ -292,7 +301,10 @@ class OcrClient:
         if proc.returncode != 0:
             detail = (stderr or stdout or "").strip()
             raise RuntimeError(detail or f"tesseract exited with status {proc.returncode}")
-        return self._parse_tesseract_tsv(stdout)
+        text, confidence = self._parse_tesseract_tsv(stdout)
+        if (preprocess or "").strip().lower() == "title_line":
+            text = self._clean_title_line_text(text)
+        return text, confidence
 
     async def _ocr_crop(
         self,

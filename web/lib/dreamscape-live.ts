@@ -121,6 +121,15 @@ export type LevelNameRead = {
   dimmed: boolean;
 };
 
+function cleanLevelNameDisplayText(raw: string): string {
+  return raw
+    .replace(/\b\d+(?:\.\d+)?\s*%.*$/i, " ")
+    .replace(/(?<=[A-Za-z0-9])[^A-Za-z0-9]+(?=[A-Za-z0-9])/g, " ")
+    .replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Pull the level-name read out of the OCR rows (the title region we poll
  * alongside the word zones). Returns null when no row was requested. */
 export function levelNameRead(
@@ -129,7 +138,7 @@ export function levelNameRead(
 ): LevelNameRead | null {
   const row = (rows ?? []).find((r) => r.region === region);
   if (!row) return null;
-  const text = (row.text || "").trim();
+  const text = cleanLevelNameDisplayText((row.text || "").trim());
   return {
     region,
     text,

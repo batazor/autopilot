@@ -31,8 +31,8 @@
         {
           "name": "dreamscape_memory.level.name",
           "action": "text",
-          "threshold": 0.9,
-          "preprocess": "enhance_line",
+          "threshold": 0.8,
+          "preprocess": "title_line",
           "bbox": {
             "x": 11.749384238506586,
             "y": 1.2749959758308427,
@@ -49,10 +49,10 @@
           "action": "text",
           "threshold": 0.8,
           "bbox": {
-            "x": 8.624758721761525,
-            "y": 89.22080966416215,
-            "width": 24.014423076923073,
-            "height": 4.051410411451847,
+            "x": 5.970503489586113,
+            "y": 89.76365637378768,
+            "width": 28.491332709673028,
+            "height": 2.9657169922005275,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -64,10 +64,10 @@
           "action": "text",
           "threshold": 0.8,
           "bbox": {
-            "x": 38.730697740920796,
-            "y": 89.21915565593218,
-            "width": 23.653846153846164,
-            "height": 3.950164524566302,
+            "x": 35.869379871355925,
+            "y": 89.98990953167271,
+            "width": 28.336980853474643,
+            "height": 2.7594883739164704,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -79,10 +79,10 @@
           "action": "text",
           "threshold": 0.8,
           "bbox": {
-            "x": 68.64517800972256,
-            "y": 89.22080966416233,
-            "width": 22.932692307692317,
-            "height": 4.051410411452043,
+            "x": 66.20587394407922,
+            "y": 89.88032562711757,
+            "width": 28.01920064687894,
+            "height": 2.966266219429378,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
@@ -107,7 +107,6 @@
           "name": "dreamscape_memory.help.counter",
           "action": "text",
           "threshold": 0.5,
-          "preprocess": "fast_digits",
           "bbox": {
             "x": 94.33930226197481,
             "y": 81.9535953583734,
@@ -130,91 +129,91 @@
           "name": "dreamscape_memory_.multiplayer.1",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 7.112636724335124,
-            "y": 87.96450881578366,
-            "width": 22.391826923076906,
-            "height": 3.950164524566039,
+            "x": 4.466528767087379,
+            "y": 88.61818142849975,
+            "width": 27.26824242177195,
+            "height": 2.7597631660774935,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory_.multiplayer.2",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 38.18703978410061,
-            "y": 88.0624466862097,
-            "width": 24.55528846153848,
-            "height": 3.5451809770228584,
+            "x": 36.14466688243062,
+            "y": 88.3901832697353,
+            "width": 28.016333641177823,
+            "height": 3.0066516769152836,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory_.multiplayer.3",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 69.6153080954538,
-            "y": 88.06079267797988,
-            "width": 25.639272284928595,
-            "height": 3.4439350901369243,
+            "x": 67.97482552732512,
+            "y": 88.27581870311737,
+            "width": 27.88073638168472,
+            "height": 3.013883039861697,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory_.multiplayer.4",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 6.574563911924492,
-            "y": 93.7182815162584,
-            "width": 23.65384615384615,
-            "height": 4.152656298337811,
+            "x": 4.535791931204545,
+            "y": 94.14508258656693,
+            "width": 27.31558969948563,
+            "height": 3.0651664238328515,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory_.multiplayer.5",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 37.9955810337432,
-            "y": 94.12657308026169,
-            "width": 24.194711538461444,
-            "height": 3.5451809770227967,
+            "x": 36.1572705625283,
+            "y": 94.34211072547382,
+            "width": 27.24763185719055,
+            "height": 3.1141056865985983,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         },
         {
           "name": "dreamscape_memory_.multiplayer.6",
           "action": "text",
           "threshold": 0.8,
-          "type": "string",
           "bbox": {
-            "x": 70.13775200171558,
-            "y": 94.02698120160582,
-            "width": 23.293269230769262,
-            "height": 3.8489186376802955,
+            "x": 68.51538960124496,
+            "y": 94.3475062594696,
+            "width": 26.953794447510866,
+            "height": 3.090924655009293,
             "rotation": 0,
             "original_width": 720,
             "original_height": 1280
-          }
+          },
+          "type": "string"
         }
       ]
     },
