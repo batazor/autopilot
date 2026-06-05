@@ -23,15 +23,13 @@ def sqlite_db(tmp_path: Path) -> Path:
 
 
 def test_devices_default_to_empty_screenshot_backend(sqlite_db: Path) -> None:
-    """Empty marker = smart default (physical → scrcpy, emulator → quartz)
-    is chosen later by the dispatcher in bot_actions."""
+    """Empty marker = smart default (scrcpy for every device), chosen later by
+    the dispatcher in bot_actions."""
     upsert_device("bs1", adb_serial="127.0.0.1:5555")
 
     registry = load_devices()
     device = registry.devices[0]
     assert device.screenshot_backend == ""
-    assert device.quartz_window_id is None
-    assert device.quartz_crop is None
 
 
 def test_devices_parse_scrcpy_screenshot_backend(sqlite_db: Path) -> None:
@@ -41,22 +39,16 @@ def test_devices_parse_scrcpy_screenshot_backend(sqlite_db: Path) -> None:
     assert registry.devices[0].screenshot_backend == "scrcpy"
 
 
-def test_devices_persist_explicit_screenshot_backend_and_quartz_hints(sqlite_db: Path) -> None:
+def test_devices_persist_explicit_screenshot_backend(sqlite_db: Path) -> None:
     upsert_device(
         "bs1",
         adb_serial="127.0.0.1:5555",
         screenshot_backend="adb",
-        quartz_window_id=122,
-        quartz_window_title="BlueStacks Air 0",
-        quartz_crop=(0, 65, 1012, 1798),
     )
 
     registry = load_devices()
     device = registry.devices[0]
     assert device.screenshot_backend == "adb"
-    assert device.quartz_window_id == 122
-    assert device.quartz_window_title == "BlueStacks Air 0"
-    assert device.quartz_crop == (0, 65, 1012, 1798)
 
 
 def test_settings_instances_include_screenshot_backend(

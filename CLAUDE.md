@@ -251,8 +251,7 @@ do not hand-edit from scripts that bypass `src/config/devices_db.py` validation.
 
 Tables (see `src/config/devices_db.py` for the canonical schema):
 - `devices` — columns: `name`, `adb_serial`, `screenshot_backend`, `input_backend`,
-  `quartz_window_id`, `quartz_window_title`, `quartz_crop_*`, `display_json`,
-  `device_order`, `updated_at`.
+  `display_json`, `device_order`, `updated_at`.
 - `device_profiles`, `device_profile_gamers`, `gamers` — account-to-device mapping.
 
 Inspect with:
@@ -264,9 +263,8 @@ sqlite3 db/state/state.db "SELECT name, adb_serial, screenshot_backend, input_ba
 
 | backend     | screenshot | input | notes                                                       |
 | ----------- | ---------- | ----- | ----------------------------------------------------------- |
-| *(empty)*   | ✓          | ✓     | Smart default: emulator → quartz/adb, physical → scrcpy/adb |
+| *(empty)*   | ✓          | ✓     | Smart default: scrcpy for every device (falls back to adb)  |
 | `adb`       | ✓          | ✓     | Universal fallback (`exec-out screencap` / `input tap`)     |
-| `quartz`    | ✓          |       | macOS WindowServer capture (BlueStacks et al.)              |
 | `minitouch` |            | ✓     | DeviceFarmer native input (~5-20 ms/tap; rooted only)        |
 | `scrcpy`    | ✓          | ✓     | Genymobile scrcpy server: H.264 video + touch events through one device-side process. Auto-pushes `scrcpy-server.jar`. Any unrooted device. |
 

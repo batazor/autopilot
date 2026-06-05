@@ -46,7 +46,13 @@ def _is_repo_supervisor_process(proc: psutil.Process, repo: os.PathLike[str]) ->
                 and cmdline[idx + 1] == _SUPERVISOR_MODULE
                 for idx, arg in enumerate(cmdline)
             )
-            verdict = matches_module and Path(proc.cwd()).resolve() == Path(repo).resolve()
+            matches_console_script = any(
+                Path(arg).name == "bot"
+                and Path(arg).parent.name == "bin"
+                and Path(arg).parent.parent.name == ".venv"
+                for arg in cmdline
+            )
+            verdict = (matches_module or matches_console_script) and Path(proc.cwd()).resolve() == Path(repo).resolve()
         _PROCESS_VERDICT_CACHE[key] = verdict
         _PROCESS_VERDICT_CACHE.move_to_end(key)
         while len(_PROCESS_VERDICT_CACHE) > _PROCESS_VERDICT_CACHE_MAX:

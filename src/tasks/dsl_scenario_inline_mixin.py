@@ -36,6 +36,7 @@ from tasks.dsl_scenario_helpers import (
     _parse_wait_seconds,
     _read_current_screen,
     _resolve_push_delay_seconds,
+    _trace_exec_result_kwargs,
 )
 
 logger = logging.getLogger(__name__)
@@ -1242,6 +1243,7 @@ class DslScenarioInlineMixin(_Base):
             if name:
                 args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
                 exec_row = await self._run_exec_step(name, instance_id, args)
+            exec_row = _trace_exec_result_kwargs(exec_row)
             self._append_trace_row(trace_path, step, "ok", **exec_row)
             return None
         if "ocr" in step:

@@ -13,14 +13,11 @@ from config.device_display import DeviceDisplayConfig, parse_device_display
 class InstanceConfig:
     instance_id: str
     bluestacks_window_title: str  # ADB serial (adb -s …)
-    # Empty string = smart default (physical → scrcpy, emulator → quartz);
-    # set explicitly via devices.yaml to override.
+    # Empty string = smart default (scrcpy for every device);
+    # set explicitly via the dashboard to override.
     screenshot_backend: str = ""
     # Empty = smart default (scrcpy).
     input_backend: str = ""
-    quartz_window_id: int | None = None
-    quartz_window_title: str = ""
-    quartz_crop: tuple[int, int, int, int] | None = None
     display: DeviceDisplayConfig | None = None
     # Game id from ``config.games.GAMES`` — drives package resolution for
     # foreground checks, launch, screen-graph scope, etc.
@@ -192,9 +189,6 @@ def load_settings(path: Path | None = None) -> Settings:
             bluestacks_window_title=d.effective_serial,
             screenshot_backend=d.screenshot_backend,
             input_backend=d.input_backend,
-            quartz_window_id=d.quartz_window_id,
-            quartz_window_title=d.quartz_window_title,
-            quartz_crop=d.quartz_crop,
             display=d.display,
             game=d.game,
         )

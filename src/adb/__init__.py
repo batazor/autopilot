@@ -12,7 +12,6 @@ from adb.approvals import (
 )
 from adb.bot_actions import BotActions
 from adb.controller import AdbController, ProcessDetection
-from adb.quartz_screencap import DEFAULT_QUARTZ_TARGET_SIZE, quartz_screencap_bgr
 from adb.screencap import (
     DEFAULT_ADB_BIN,
     DEFAULT_ADB_TIMEOUT_SECONDS,
@@ -28,7 +27,6 @@ __all__ = [
     "APPROVAL_CURRENT_TTL_SECONDS",
     "DEFAULT_ADB_BIN",
     "DEFAULT_ADB_TIMEOUT_SECONDS",
-    "DEFAULT_QUARTZ_TARGET_SIZE",
     "MSG_ADB_NOT_FOUND",
     "AdbController",
     "BotActions",
@@ -42,6 +40,5 @@ __all__ = [
     "adb_screencap_to_file",
     "canonical_adb_serial",
     "click_approval_enabled",
-    "quartz_screencap_bgr",
     "resolve_adb_executable",
 ]

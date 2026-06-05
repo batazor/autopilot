@@ -97,7 +97,9 @@ def list_gallery(*, scope: str = "all", query: str = "") -> dict[str, Any]:
     seen_paths: set[Path] = set()
     paths: list[Path] = []
     for r in roots:
-        for p in list_reference_pngs(limit=500, root=r, exclude_temporal=True, exclude_crop=True):
+        for p in list_reference_pngs(
+            limit=500, root=r, exclude_temporal=True, exclude_crop=True, exclude_maps=True
+        ):
             if p not in seen_paths:
                 seen_paths.add(p)
                 paths.append(p)

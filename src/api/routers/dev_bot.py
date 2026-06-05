@@ -19,7 +19,7 @@ def get_bot_status() -> dict[str, Any]:
 @router.post("/bot/start")
 def post_bot_start() -> dict[str, Any]:
     try:
-        return local_bot.start_embedded_bot()
+        return local_bot.start_supervisor_subprocess()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

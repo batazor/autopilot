@@ -34,6 +34,21 @@ class _BreakRepeat(Exception):
     """Internal control-flow: break the nearest loop-like block."""
 
 
+def _trace_exec_result_kwargs(row: dict[str, Any]) -> dict[str, Any]:
+    """Return exec-handler result fields safe to pass to ``_append_trace_row``.
+
+    ``status`` is already the positional trace-row outcome (``ok``,
+    ``stopped``, ...). Exec handlers may also return a domain-specific status
+    such as Dreamscape's ``won`` / ``lost``; keep that value under
+    ``exec_status`` instead of colliding with the trace method signature.
+    """
+    if "status" not in row:
+        return row
+    safe = dict(row)
+    safe["exec_status"] = safe.pop("status")
+    return safe
+
+
 def _step_bool_guard(step: dict[str, Any], key: str) -> bool | None:
     """Read optional ``key: true|false`` on a DSL step (YAML bool only).
 

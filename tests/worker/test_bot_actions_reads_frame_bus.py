@@ -102,19 +102,45 @@ def test_capture_screen_bgr_does_not_call_adb_when_frame_on_bus(_fake_settings: 
         assert mocked_adb.call_count == 0
 
 
-def test_direct_capture_uses_quartz_by_default(_fake_settings: Settings) -> None:
+def test_direct_capture_uses_scrcpy_by_default(_fake_settings: Settings) -> None:
     actions = BotActions(_fake_settings)
     want = _make_frame(11)
 
     with (
-        patch("adb.bot_actions.quartz_screencap_bgr", return_value=want) as quartz_cap,
+        patch.object(actions, "capture_screen_bgr_scrcpy", return_value=want) as scrcpy_cap,
         patch.object(actions, "capture_screen_bgr_adb") as adb_cap,
     ):
         got = actions.capture_screen_bgr_direct("bs1")
 
     assert got is want
-    quartz_cap.assert_called_once()
+    scrcpy_cap.assert_called_once()
     adb_cap.assert_not_called()
+
+
+def test_direct_capture_preserves_scrcpy_error_when_adb_fallback_fails(
+    _fake_settings: Settings,
+) -> None:
+    actions = BotActions(_fake_settings)
+
+    with (
+        patch.object(
+            actions,
+            "capture_screen_bgr_scrcpy",
+            side_effect=RuntimeError("scrcpy stream unavailable"),
+        ),
+        patch.object(
+            actions,
+            "capture_screen_bgr_adb",
+            side_effect=RuntimeError("ADB failed (exit 255): error: device offline"),
+        ),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        actions.capture_screen_bgr_direct("bs1")
+
+    assert str(exc_info.value) == (
+        "scrcpy capture failed for bs1: scrcpy stream unavailable; "
+        "ADB fallback failed: ADB failed (exit 255): error: device offline"
+    )
 
 
 def test_direct_capture_respects_adb_backend(_fake_settings: Settings) -> None:
@@ -136,13 +162,13 @@ def test_direct_capture_respects_adb_backend(_fake_settings: Settings) -> None:
 
     with (
         patch.object(actions, "capture_screen_bgr_adb", return_value=want) as adb_cap,
-        patch("adb.bot_actions.quartz_screencap_bgr") as quartz_cap,
+        patch.object(actions, "capture_screen_bgr_scrcpy") as scrcpy_cap,
     ):
         got = actions.capture_screen_bgr_direct("bs1")
 
     assert got is want
     adb_cap.assert_called_once_with("bs1")
-    quartz_cap.assert_not_called()
+    scrcpy_cap.assert_not_called()
 
 
 def test_scrcpy_capture_normalizes_frame_for_analyzers(_fake_settings: Settings) -> None:

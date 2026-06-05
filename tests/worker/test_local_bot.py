@@ -5,6 +5,31 @@ from unittest.mock import MagicMock, patch
 from worker import local_bot
 
 
+class _Proc:
+    def __init__(self, *, cmdline: list[str], cwd: str = "/repo", pid: int = 4242) -> None:
+        self.pid = pid
+        self._cmdline = cmdline
+        self._cwd = cwd
+
+    def oneshot(self) -> _Proc:
+        return self
+
+    def __enter__(self) -> _Proc:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        return None
+
+    def create_time(self) -> float:
+        return 1700000000.0
+
+    def cmdline(self) -> list[str]:
+        return self._cmdline
+
+    def cwd(self) -> str:
+        return self._cwd
+
+
 def test_bot_status_not_running() -> None:
     with (
         patch.object(local_bot, "_supervisor_processes", return_value=[]),
@@ -16,6 +41,21 @@ def test_bot_status_not_running() -> None:
             "pid": None,
             "processes": [],
         }
+
+
+def test_supervisor_process_detection_accepts_console_script_bot() -> None:
+    proc = _Proc(
+        cmdline=["/repo/.venv/bin/python3", "/repo/.venv/bin/bot"],
+        cwd="/repo",
+    )
+
+    assert local_bot._is_repo_supervisor_process(proc, "/repo") is True
+
+
+def test_supervisor_process_detection_rejects_uv_parent() -> None:
+    proc = _Proc(cmdline=["uv", "run", "bot"], cwd="/repo", pid=4243)
+
+    assert local_bot._is_repo_supervisor_process(proc, "/repo") is False
 
 
 def test_bot_status_supervisor() -> None:

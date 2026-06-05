@@ -18,7 +18,13 @@ import cv2  # type: ignore[import-untyped]
 import numpy as np
 
 from ocr.digit_markers import DigitMarker, detect_digit_markers
-from ocr.preprocess import DIGITS_CHAR_WHITELIST, digits_for_ocr, enhance_for_ocr
+from ocr.preprocess import (
+    DIGITS_CHAR_WHITELIST,
+    WORD_CHAR_WHITELIST,
+    digits_for_ocr,
+    enhance_for_ocr,
+)
+from ocr.word_cleaning import clean_word_text
 
 if TYPE_CHECKING:
     from config.loader import Settings
@@ -172,21 +178,23 @@ class OcrClient:
         return crop
 
     @staticmethod
-    def _tesseract_psm_and_whitelist(preprocess: str | None) -> tuple[str, bool]:
-        """Return ``(psm, use_digit_whitelist)`` for the preprocess tag."""
+    def _tesseract_psm_and_whitelist(preprocess: str | None) -> tuple[str, str | None]:
+        """Return ``(psm, char_whitelist)`` for the preprocess tag."""
         pre_tag = (preprocess or "").strip().lower()
         if pre_tag == "fast_digits":
             # Single line of digits (player id, power, server id): force the
             # digit whitelist so an ambiguous glyph resolves to a digit instead
             # of a symbol that gets stripped, shortening the number.
-            return "7", True
+            return "7", DIGITS_CHAR_WHITELIST
         if pre_tag == "fast_line":
-            return "7", False
+            return "7", None
+        if pre_tag == "word_line":
+            return "7", WORD_CHAR_WHITELIST
         if pre_tag in ("enhance_line", "title_line"):
-            return "7", False
+            return "7", None
         if pre_tag in ("enhance", "digits"):
-            return "8", pre_tag == "digits"
-        return "6", False
+            return "8", DIGITS_CHAR_WHITELIST if pre_tag == "digits" else None
+        return "6", None
 
     @staticmethod
     def _clean_title_line_text(raw: str) -> str:
@@ -194,6 +202,10 @@ class OcrClient:
         text = re.sub(r"(?<=[A-Za-z0-9])[^A-Za-z0-9]+(?=[A-Za-z0-9])", " ", text)
         text = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", text)
         return " ".join(text.split())
+
+    @staticmethod
+    def _clean_word_line_text(raw: str) -> str:
+        return clean_word_text(raw)
 
     @staticmethod
     def _parse_tesseract_tsv(tsv: str) -> tuple[str, float]:
@@ -263,7 +275,7 @@ class OcrClient:
             msg = "cv2.imencode('.png', crop) failed"
             raise RuntimeError(msg)
 
-        psm, use_digit_whitelist = self._tesseract_psm_and_whitelist(preprocess)
+        psm, char_whitelist = self._tesseract_psm_and_whitelist(preprocess)
         # Pipe the PNG to tesseract via stdin (``tesseract stdin stdout``) rather
         # than writing a temp file: no per-OCR disk I/O, and no dependency on the
         # system temp dir being readable by the spawned process (sandboxed runs
@@ -279,8 +291,8 @@ class OcrClient:
             "--psm",
             psm,
         ]
-        if use_digit_whitelist:
-            cmd.extend(["-c", f"tessedit_char_whitelist={DIGITS_CHAR_WHITELIST}"])
+        if char_whitelist:
+            cmd.extend(["-c", f"tessedit_char_whitelist={char_whitelist}"])
         if self._tessdata_dir:
             cmd.extend(["--tessdata-dir", self._tessdata_dir])
         cmd.append("tsv")
@@ -302,8 +314,11 @@ class OcrClient:
             detail = (stderr or stdout or "").strip()
             raise RuntimeError(detail or f"tesseract exited with status {proc.returncode}")
         text, confidence = self._parse_tesseract_tsv(stdout)
-        if (preprocess or "").strip().lower() == "title_line":
+        pre_tag = (preprocess or "").strip().lower()
+        if pre_tag == "title_line":
             text = self._clean_title_line_text(text)
+        elif pre_tag == "word_line":
+            text = self._clean_word_line_text(text)
         return text, confidence
 
     async def _ocr_crop(

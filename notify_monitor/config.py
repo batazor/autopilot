@@ -81,6 +81,12 @@ _COMMON_PATTERNS: tuple[tuple[str, str, str], ...] = (
     ("shield_expiring", r"(shield|protection).*(expir|end|run out)", "Shield about to expire"),
     ("stamina_full", r"(stamina|energy).*(full|recovered)", "Stamina recovered"),
     ("help_request", r"(help|alliance help).*(request|needed)", "Alliance help requested"),
+    ("injured_healed", r"(injured.*heal|troops are healed|been healed)", "Injured troops healed"),
+    ("stamina_supply", r"stamina.*(supply|ready to be claimed|feast|replenish)",
+     "Limited-time stamina supply ready to claim"),
+    ("scout_detected", r"(is scouting|scout(ing)?.*(your city|detected|spotted))", "Enemy scouting your city"),
+    ("idle_income", r"idle income.*(max|claim|ready|explor)", "Idle exploration income ready to claim"),
+    ("pet_adventure", r"pet.*adventure.*(complete|finished|done)", "Pet adventure completed"),
 )
 
 GAMES: dict[str, Game] = {

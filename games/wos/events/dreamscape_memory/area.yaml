@@ -48,6 +48,7 @@
           "name": "dreamscape_memory.1",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 5.970503489586113,
             "y": 89.76365637378768,
@@ -63,6 +64,7 @@
           "name": "dreamscape_memory.2",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 35.869379871355925,
             "y": 89.98990953167271,
@@ -78,6 +80,7 @@
           "name": "dreamscape_memory.3",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 66.20587394407922,
             "y": 89.88032562711757,
@@ -129,6 +132,7 @@
           "name": "dreamscape_memory_.multiplayer.1",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 4.466528767087379,
             "y": 88.61818142849975,
@@ -144,6 +148,7 @@
           "name": "dreamscape_memory_.multiplayer.2",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 36.14466688243062,
             "y": 88.3901832697353,
@@ -159,6 +164,7 @@
           "name": "dreamscape_memory_.multiplayer.3",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 67.97482552732512,
             "y": 88.27581870311737,
@@ -174,6 +180,7 @@
           "name": "dreamscape_memory_.multiplayer.4",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 4.535791931204545,
             "y": 94.14508258656693,
@@ -189,6 +196,7 @@
           "name": "dreamscape_memory_.multiplayer.5",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 36.1572705625283,
             "y": 94.34211072547382,
@@ -204,6 +212,7 @@
           "name": "dreamscape_memory_.multiplayer.6",
           "action": "text",
           "threshold": 0.8,
+          "preprocess": "word_line",
           "bbox": {
             "x": 68.51538960124496,
             "y": 94.3475062594696,
@@ -272,6 +281,48 @@
           }
         }
       ]
+    },
+    {
+      "id": 8,
+      "screen_id": "",
+      "ocr": "references/practice_level_example.png",
+      "regions": []
+    },
+    {
+      "id": 9,
+      "screen_id": "main_city",
+      "ocr": "references/main_city.png",
+      "regions": []
+    },
+    {
+      "id": 10,
+      "screen_id": "dreamscape_memory",
+      "ocr": "references/dreamscape_memory.main.png",
+      "regions": []
+    },
+    {
+      "id": 11,
+      "screen_id": "",
+      "ocr": "references/dreamscape_memory.fusion.png",
+      "regions": []
+    },
+    {
+      "id": 12,
+      "screen_id": "",
+      "ocr": "references/dreamscape_memory.sojourner.png",
+      "regions": []
+    },
+    {
+      "id": 13,
+      "screen_id": "",
+      "ocr": "references/dreamscape_memory.pack.png",
+      "regions": []
+    },
+    {
+      "id": 14,
+      "screen_id": "",
+      "ocr": "references/dreamscape_memory.road.png",
+      "regions": []
     }
   ]
 }

@@ -64,20 +64,15 @@ def test_upsert_replaces_existing(sqlite_db: Path) -> None:
     assert device.screenshot_backend == "scrcpy"
 
 
-def test_upsert_persists_display_and_quartz(sqlite_db: Path) -> None:
+def test_upsert_persists_display(sqlite_db: Path) -> None:
     display = DeviceDisplayConfig(size="720x1280", density=320, brightness_percent=70)
     upsert_device(
         "bs1",
         adb_serial="127.0.0.1:5555",
-        quartz_window_id=42,
-        quartz_window_title="BlueStacks",
-        quartz_crop=(10, 20, 700, 1200),
         display=display,
     )
     device = load_registry().devices[0]
-    assert device.quartz_window_id == 42
-    assert device.quartz_window_title == "BlueStacks"
-    assert device.quartz_crop == (10, 20, 700, 1200)
+    assert device.adb_serial == "127.0.0.1:5555"
     assert device.display == display
 
 
@@ -173,7 +168,7 @@ def test_set_backend_partial_update(sqlite_db: Path) -> None:
     upsert_device(
         "bs1",
         adb_serial="X",
-        screenshot_backend="quartz",
+        screenshot_backend="adb",
         input_backend="adb",
     )
     new_screenshot, new_input = set_device_backend("bs1", screenshot_backend="scrcpy")

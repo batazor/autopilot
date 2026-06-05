@@ -53,9 +53,6 @@ class DeviceEntry:
     adb_serial: str = ""
     screenshot_backend: str = ""
     input_backend: str = ""
-    quartz_window_id: int | None = None
-    quartz_window_title: str = ""
-    quartz_crop: tuple[int, int, int, int] | None = None
     display: DeviceDisplayConfig | None = None
     game: str = "wos"
 

@@ -15,11 +15,9 @@ from adb.frame_normalize import (
     normalize_adb_frame_bgr_with_transform,
     normalized_point_to_source_point,
 )
-from adb.quartz_screencap import quartz_screencap_bgr
 from adb.scrcpy import DEFAULT_PORT_BASE as _SCRCPY_PORT_BASE
 from adb.scrcpy import ScrcpyClient, close_scrcpy_client, get_or_create_scrcpy_client
 from adb.screencap import DEFAULT_ADB_BIN, adb_screencap_bgr_with_transform, resolve_adb_executable
-from adb.serial import is_emulator_adb_serial
 from layout.types import Point
 from worker import frame_bus
 
@@ -376,45 +374,39 @@ class BotActions:
     def capture_screen_bgr_direct(self, instance_id: str) -> np.ndarray:
         """Direct screenshot using the instance's configured backend.
 
-        ``quartz`` is the default backend for speed. If WindowServer capture is
-        unavailable or the window cannot be found, fall back to ADB so scenarios
-        keep making progress instead of stalling on host-window state.
+        ``scrcpy`` is the smart default for every device (fast H.264 video
+        stream). If the scrcpy stream is unavailable, fall back to ADB
+        ``screencap`` so scenarios keep making progress instead of stalling.
         """
         inst = self._get_instance(instance_id)
         backend = (inst.screenshot_backend or "").strip().lower()
         if not backend:
-            # Smart default: physical Android device → scrcpy (fast video stream),
-            # emulator / BlueStacks (localhost serial) → quartz (no USB hop).
-            backend = (
-                "quartz"
-                if is_emulator_adb_serial(self._get_serial(instance_id))
-                else "scrcpy"
-            )
+            # Smart default for every device: scrcpy (fast video stream).
+            backend = "scrcpy"
         if backend == "adb":
             return self.capture_screen_bgr_adb(instance_id)
-        if backend == "scrcpy":
-            return self.capture_screen_bgr_scrcpy(instance_id)
-        if backend != "quartz":
+        if backend != "scrcpy":
             logger.warning(
-                "Unknown screenshot backend %r for %s; using quartz",
+                "Unknown screenshot backend %r for %s; using scrcpy",
                 inst.screenshot_backend,
                 instance_id,
             )
         try:
-            img = quartz_screencap_bgr(
-                instance_id=instance_id,
-                quartz_window_id=inst.quartz_window_id,
-                quartz_window_title=inst.quartz_window_title,
-                quartz_crop=inst.quartz_crop,
+            return self.capture_screen_bgr_scrcpy(instance_id)
+        except Exception as scrcpy_exc:
+            logger.debug(
+                "scrcpy capture failed for %s; falling back to ADB: %s",
+                instance_id,
+                scrcpy_exc,
             )
-        except Exception:
-            return self.capture_screen_bgr_adb(instance_id)
-        frame_bus.publish(instance_id, img)
-        with self._frame_cache_lock:
-            now = time.monotonic()
-            self._frame_cache[instance_id] = (now, img, None)
-            self._clear_settle_boundary_locked(instance_id, now)
-        return img
+            try:
+                return self.capture_screen_bgr_adb(instance_id)
+            except Exception as adb_exc:
+                msg = (
+                    f"scrcpy capture failed for {instance_id}: {scrcpy_exc}; "
+                    f"ADB fallback failed: {adb_exc}"
+                )
+                raise RuntimeError(msg) from adb_exc
 
     def capture_screen_bgr(self, instance_id: str) -> np.ndarray:
         """Latest BGR frame for ``instance_id``.
@@ -424,24 +416,33 @@ class BotActions:
         ~33ms old. The rolling loop's 2s ``frame_bus`` cadence would otherwise
         serialise every post-tap capture behind it.
 
-        For other backends, wait on ``frame_bus`` (fed by the rolling loop);
-        fall back to a direct capture if nothing was published within the
-        timeout (cold race, device offline, or capture stalled).
+        For other backends (empty smart default / ``adb``), wait on
+        ``frame_bus`` (fed by the rolling loop); fall back to a direct capture
+        if nothing was published within the timeout (cold race, device offline,
+        or capture stalled) — the direct path itself defaults to scrcpy.
 
-        When ``screenshot_backend=scrcpy`` is configured and scrcpy is
-        unavailable, this raises rather than silently routing through ADB —
-        a slow-but-functional bot would mask the real fault.
+        When ``screenshot_backend=scrcpy`` is configured, read the stream
+        directly; if it is unavailable, fall back to a direct ADB ``screencap``
+        (logged loudly) so the bot keeps making progress instead of stalling.
         """
         inst = self._get_instance(instance_id)
         backend = (inst.screenshot_backend or "").strip().lower()
         if backend == "scrcpy":
-            not_before = self._pop_next_frame_boundary(instance_id)
-            if not_before is not None:
-                return self.capture_screen_bgr_scrcpy(
+            try:
+                not_before = self._pop_next_frame_boundary(instance_id)
+                if not_before is not None:
+                    return self.capture_screen_bgr_scrcpy(
+                        instance_id,
+                        not_before_s=not_before,
+                    )
+                return self._capture_screen_bgr_scrcpy_fast(instance_id)
+            except Exception as scrcpy_exc:
+                logger.warning(
+                    "scrcpy capture unavailable for %s; falling back to ADB: %s",
                     instance_id,
-                    not_before_s=not_before,
+                    scrcpy_exc,
                 )
-            return self._capture_screen_bgr_scrcpy_fast(instance_id)
+                return self.capture_screen_bgr_adb(instance_id)
 
         await_next = self._pop_next_frame_boundary(instance_id) is not None
         try:

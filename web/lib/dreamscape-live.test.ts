@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveLiveStatus,
+  dreamscapeLetterCount,
   levelNameRead,
+  parseDreamscapeSolveState,
   screenRefOptions,
+  isActionableDreamscapeWord,
   wordBadges,
+  wordBadgesWithSolveState,
+  wordRunStates,
 } from "./dreamscape-live";
 import type {
   LabelingReferenceMeta,
@@ -109,6 +114,191 @@ describe("wordBadges", () => {
 
   it("dims everything when rows are empty/null", () => {
     expect(wordBadges(null).every((b) => b.dimmed)).toBe(true);
+  });
+});
+
+describe("dreamscape word filter", () => {
+  it("counts letters and ignores short OCR garbage", () => {
+    expect(dreamscapeLetterCount("H2O")).toBe(2);
+    expect(dreamscapeLetterCount(" Axe ")).toBe(3);
+    expect(isActionableDreamscapeWord("Se")).toBe(false);
+    expect(isActionableDreamscapeWord("Axe")).toBe(true);
+  });
+});
+
+describe("dreamscape solve state", () => {
+  it("parses live solver state and marks clicked/found word badges", () => {
+    const state = parseDreamscapeSolveState(
+      JSON.stringify({
+        status: "running",
+        scene: "practice-level",
+        level_name: "Practice Level",
+        regions: ["dreamscape_memory.1", "dreamscape_memory.2"],
+        clicked_regions: ["dreamscape_memory.1", "dreamscape_memory.2"],
+        settled_regions: ["dreamscape_memory.1"],
+        pending_click_regions: ["dreamscape_memory.2"],
+        updated_at: 123.5,
+        region_words: {
+          "dreamscape_memory.1": "Book",
+          "dreamscape_memory.2": "Smoke",
+        },
+        slot_states: {
+          "dreamscape_memory.1": {
+            status: "settled",
+            fsm_status: "found",
+            word: "Book",
+            key: "book",
+          },
+          "dreamscape_memory.2": {
+            status: "mapped",
+            fsm_status: "determined",
+            word: "Smoke",
+            key: "smoke",
+          },
+        },
+        events: [
+          {
+            at: 123.6,
+            kind: "mapped",
+            message: "Mapped Smoke -> smoke",
+            iteration: 2,
+            region: "dreamscape_memory.2",
+            word: "Smoke",
+            key: "smoke",
+            x: 374,
+            y: 384,
+            ok: true,
+          },
+        ],
+      }),
+    );
+    expect(state?.updatedAt).toBe(123.5);
+    expect(state?.slotStates["dreamscape_memory.2"]).toEqual({
+      status: "mapped",
+      fsmStatus: "determined",
+      word: "Smoke",
+      key: "smoke",
+    });
+    expect(state?.events[0]).toMatchObject({
+      kind: "mapped",
+      message: "Mapped Smoke -> smoke",
+      iteration: 2,
+      word: "Smoke",
+      x: 374,
+      y: 384,
+      ok: true,
+    });
+    const badges = wordBadgesWithSolveState(
+      wordBadges(
+        [
+          {
+            region: "dreamscape_memory.2",
+            text: "Smoke",
+            confidence: 0.9,
+            threshold: 0.8,
+            low_confidence: false,
+            status: "ok",
+            duration_ms: 8,
+          },
+        ],
+        ["dreamscape_memory.1", "dreamscape_memory.2"],
+      ),
+      state,
+    );
+
+    expect(badges.map((b) => b.text)).toEqual(["Book", "Smoke"]);
+    expect(badges[0].dimmed).toBe(false);
+    expect(wordRunStates(badges, state)).toEqual(["found", "determined"]);
+  });
+
+  it("drops a stale clicked status once the slot rotates to a new word", () => {
+    const state = parseDreamscapeSolveState(
+      JSON.stringify({
+        status: "running",
+        regions: ["dreamscape_memory.1"],
+        clicked_regions: ["dreamscape_memory.1"],
+        region_words: { "dreamscape_memory.1": "Book" },
+        slot_states: {
+          "dreamscape_memory.1": {
+            status: "clicked",
+            fsm_status: "clicked",
+            word: "Book",
+            key: "book",
+          },
+        },
+      }),
+    );
+    // Live OCR now reads a different word in the same slot — the old "clicked"
+    // verdict must not carry over to it.
+    const rotated = wordBadges(
+      [
+        {
+          region: "dreamscape_memory.1",
+          text: "Lantern",
+          confidence: 0.9,
+          threshold: 0.8,
+          low_confidence: false,
+          status: "ok",
+          duration_ms: 8,
+        },
+      ],
+      ["dreamscape_memory.1"],
+    );
+    expect(wordRunStates(rotated, state)).toEqual(["unknown"]);
+
+    // Same word still shown → status is preserved.
+    const same = wordBadges(
+      [
+        {
+          region: "dreamscape_memory.1",
+          text: "Book",
+          confidence: 0.9,
+          threshold: 0.8,
+          low_confidence: false,
+          status: "ok",
+          duration_ms: 8,
+        },
+      ],
+      ["dreamscape_memory.1"],
+    );
+    expect(wordRunStates(same, state)).toEqual(["clicked"]);
+  });
+
+  it("keeps a found status even when the struck-through pill re-OCRs differently", () => {
+    const state = parseDreamscapeSolveState(
+      JSON.stringify({
+        status: "running",
+        regions: ["dreamscape_memory.1"],
+        settled_regions: ["dreamscape_memory.1"],
+        slot_states: {
+          "dreamscape_memory.1": {
+            status: "settled",
+            fsm_status: "found",
+            word: "Book",
+            key: "book",
+          },
+        },
+      }),
+    );
+    const noisy = wordBadges(
+      [
+        {
+          region: "dreamscape_memory.1",
+          text: "B00k",
+          confidence: 0.4,
+          threshold: 0.8,
+          low_confidence: true,
+          status: "ok",
+          duration_ms: 8,
+        },
+      ],
+      ["dreamscape_memory.1"],
+    );
+    expect(wordRunStates(noisy, state)).toEqual(["found"]);
+  });
+
+  it("ignores malformed solve state", () => {
+    expect(parseDreamscapeSolveState("not json")).toBeNull();
   });
 });
 

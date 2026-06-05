@@ -60,6 +60,15 @@ export function isSystemRegion(name: string): boolean {
 export const DREAMSCAPE_SCREEN_PREFIX = "dreamscape_memory";
 export const DREAMSCAPE_TIME_UP_SCREEN = "dreamscape_memory.time_up";
 export const DREAMSCAPE_ALL_ITEM_FOUND_SCREEN = "dreamscape_memory.all_item_found";
+export const DREAMSCAPE_MIN_WORD_LETTERS = 3;
+
+export function dreamscapeLetterCount(raw: string): number {
+  return Array.from(raw).filter((ch) => /\p{L}/u.test(ch)).length;
+}
+
+export function isActionableDreamscapeWord(raw: string): boolean {
+  return dreamscapeLetterCount(raw) >= DREAMSCAPE_MIN_WORD_LETTERS;
+}
 
 export type LiveStatus = {
   /** Screen detection identified a screen on the current frame. */
@@ -110,6 +119,255 @@ export type WordBadge = {
   /** Per-region OCR time in ms (null when not OCR'd). */
   durationMs: number | null;
 };
+
+export type DreamscapeSolveState = {
+  status: string;
+  scene: string;
+  levelName: string;
+  updatedAt: number | null;
+  regions: string[];
+  clickedRegions: string[];
+  settledRegions: string[];
+  pendingClickRegions: string[];
+  regionWords: Record<string, string>;
+  slotStates: Record<string, DreamscapeSlotState>;
+  events: DreamscapeSolveEvent[];
+};
+
+export type DreamscapeSlotState = {
+  status: string;
+  fsmStatus: DreamscapeWordRunState;
+  word: string;
+  key: string;
+};
+
+export type DreamscapeSolveEvent = {
+  at: number | null;
+  kind: string;
+  message: string;
+  iteration: number | null;
+  region: string;
+  word: string;
+  key: string;
+  x: number | null;
+  y: number | null;
+  ok: boolean | null;
+  reason: string;
+};
+
+export type DreamscapeWordRunState =
+  | "unknown"
+  | "determined"
+  | "clicked"
+  | "help_requested"
+  | "detecting_on_map"
+  | "found"
+  | "rejected"
+  | null;
+
+function stringArray(raw: unknown): string[] {
+  return Array.isArray(raw)
+    ? raw.map((v) => String(v || "").trim()).filter(Boolean)
+    : [];
+}
+
+function stringRecord(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([k, v]) => [String(k).trim(), String(v || "").trim()] as const)
+      .filter(([k, v]) => k && v),
+  );
+}
+
+function slotStateRecord(raw: unknown): Record<string, DreamscapeSlotState> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([region, value]) => {
+        const row =
+          value && typeof value === "object" && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : {};
+        return [
+          String(region).trim(),
+          {
+            status: String(row.status || "").trim(),
+            fsmStatus: normalizeSlotFsmStatus(row.fsm_status || row.fsmStatus),
+            word: String(row.word || "").trim(),
+            key: String(row.key || row.raw_key || "").trim(),
+          },
+        ] as const;
+      })
+      .filter(([region, state]) => region && state.status),
+  );
+}
+
+function normalizeSlotFsmStatus(raw: unknown): DreamscapeWordRunState {
+  const status = String(raw || "").trim();
+  if (
+    status === "unknown" ||
+    status === "determined" ||
+    status === "clicked" ||
+    status === "help_requested" ||
+    status === "detecting_on_map" ||
+    status === "found" ||
+    status === "rejected"
+  ) {
+    return status;
+  }
+  return null;
+}
+
+function publicStatusFromInternal(status: string): DreamscapeWordRunState {
+  if (status === "settled") return "found";
+  if (status === "mapped") return "determined";
+  if (status === "clicked" || status === "retry_exhausted") return "clicked";
+  if (status === "help_requested") return "help_requested";
+  if (status === "help_detecting" || status === "detecting_on_map") {
+    return "detecting_on_map";
+  }
+  if (status === "tap_rejected") return "rejected";
+  if (status === "unknown" || status === "unmapped") return "unknown";
+  return null;
+}
+
+function finiteNumber(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+}
+
+function solveEvents(raw: unknown): DreamscapeSolveEvent[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((value) => {
+      const row =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? (value as Record<string, unknown>)
+          : {};
+      const kind = String(row.kind || "").trim();
+      const message = String(row.message || "").trim();
+      if (!kind && !message) return null;
+      return {
+        at: finiteNumber(row.at),
+        kind,
+        message,
+        iteration: finiteNumber(row.iteration),
+        region: String(row.region || "").trim(),
+        word: String(row.word || "").trim(),
+        key: String(row.key || "").trim(),
+        x: finiteNumber(row.x),
+        y: finiteNumber(row.y),
+        ok: typeof row.ok === "boolean" ? row.ok : null,
+        reason: String(row.reason || "").trim(),
+      } satisfies DreamscapeSolveEvent;
+    })
+    .filter((event): event is DreamscapeSolveEvent => event !== null);
+}
+
+export function parseDreamscapeSolveState(
+  raw: string | null | undefined,
+): DreamscapeSolveState | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return {
+      status: String(parsed.status || ""),
+      scene: String(parsed.scene || ""),
+      levelName: String(parsed.level_name || ""),
+      updatedAt:
+        typeof parsed.updated_at === "number" && Number.isFinite(parsed.updated_at)
+          ? parsed.updated_at
+          : null,
+      regions: stringArray(parsed.regions),
+      clickedRegions: stringArray(parsed.clicked_regions),
+      settledRegions: stringArray(parsed.settled_regions),
+      pendingClickRegions: stringArray(parsed.pending_click_regions),
+      regionWords: stringRecord(parsed.region_words),
+      slotStates: slotStateRecord(parsed.slot_states),
+      events: solveEvents(parsed.events),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function solveStateCoversRegion(state: DreamscapeSolveState, region: string): boolean {
+  return state.regions.length === 0 || state.regions.includes(region);
+}
+
+/** Mirror the solver's key normalization (exec `_normalize_word`): lower-case,
+ * trim, collapse inner whitespace so a live OCR read compares to a slot key. */
+function normalizeWordKey(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Public run-states bound to the word *currently* shown in a slot. When the
+ * live OCR word rotates to something new, such a status is stale and must not
+ * carry over to the fresh word. "found" is excluded on purpose: a found pill is
+ * struck through and re-OCRs poorly, so a text mismatch there is expected, not
+ * a rotation. */
+const WORD_BOUND_RUN_STATES: ReadonlySet<DreamscapeWordRunState> = new Set<
+  DreamscapeWordRunState
+>(["determined", "clicked", "help_requested", "detecting_on_map", "rejected"]);
+
+/** True when the slot's stored status still describes the word now in the badge.
+ * Empty live text can't contradict the slot (the pill may be greyed/found). */
+function slotWordMatchesBadge(slot: DreamscapeSlotState, badge: WordBadge): boolean {
+  const current = normalizeWordKey(badge.text);
+  if (!current) return true;
+  return (
+    current === normalizeWordKey(slot.word) ||
+    current === normalizeWordKey(slot.key)
+  );
+}
+
+export function wordBadgesWithSolveState(
+  badges: WordBadge[],
+  state: DreamscapeSolveState | null,
+): WordBadge[] {
+  if (!state) return badges;
+  return badges.map((badge) => {
+    if (!solveStateCoversRegion(state, badge.region)) return badge;
+    const text = (
+      state.regionWords[badge.region] ||
+      state.slotStates[badge.region]?.word ||
+      ""
+    ).trim();
+    if (!text || badge.text.trim()) return badge;
+    return { ...badge, text, dimmed: false };
+  });
+}
+
+export function wordRunStates(
+  badges: WordBadge[],
+  state: DreamscapeSolveState | null,
+): DreamscapeWordRunState[] {
+  if (!state) return badges.map(() => null);
+  const clicked = new Set(state.clickedRegions);
+  const settled = new Set(state.settledRegions);
+  return badges.map((badge) => {
+    if (!solveStateCoversRegion(state, badge.region)) return null;
+    const slot = state.slotStates[badge.region];
+    const publicStatus =
+      slot?.fsmStatus ?? publicStatusFromInternal(slot?.status || "");
+    if (publicStatus) {
+      // Drop a stale per-region status once the slot has rotated to a new word:
+      // the live OCR badge already shows the fresh word, so an old "clicked"/
+      // "determined" verdict no longer applies to it.
+      if (
+        slot &&
+        WORD_BOUND_RUN_STATES.has(publicStatus) &&
+        !slotWordMatchesBadge(slot, badge)
+      ) {
+        return "unknown";
+      }
+      return publicStatus;
+    }
+    if (settled.has(badge.region)) return "found";
+    if (clicked.has(badge.region)) return "clicked";
+    return "unknown";
+  });
+}
 
 /** The recognised level/room name read live from the title region. */
 export type LevelNameRead = {

@@ -32,10 +32,13 @@ def _runtime_error_is_device_offline(exc: BaseException) -> bool:
     """
     if not isinstance(exc, RuntimeError):
         return False
-    s = str(exc)
+    s = str(exc).lower()
     return (
-        "device '" in s and "' not found" in s
-    ) or "device not found" in s or "no devices/emulators found" in s
+        ("device '" in s and "' not found" in s)
+        or "device not found" in s
+        or "no devices/emulators found" in s
+        or "device offline" in s
+    )
 
 
 def _rolling_snapshot_interval(cfg: Any) -> float:
@@ -329,7 +332,7 @@ class InstanceWorkerRollingMixin(_Base):
         logger.debug(
             "[rolling] %s: screenshot (backend=%s serial=%s) → %s",
             self._cfg.instance_id,
-            getattr(self._cfg, "screenshot_backend", "quartz"),
+            getattr(self._cfg, "screenshot_backend", "scrcpy"),
             self._cfg.bluestacks_window_title,
             path,
         )
@@ -503,4 +506,3 @@ class InstanceWorkerRollingMixin(_Base):
                 logger.exception("device_reference_snapshot_loop error on %s", self._cfg.instance_id)
             except Exception:
                 logger.exception("device_reference_snapshot_loop error on %s", self._cfg.instance_id)
-

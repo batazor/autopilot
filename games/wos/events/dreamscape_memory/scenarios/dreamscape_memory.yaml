@@ -14,4 +14,4 @@ steps:
     ttl: 5m
     max_iterations: 3000
     wait: 300ms
-    tap_delay: 300ms
+    tap_delay: 0ms

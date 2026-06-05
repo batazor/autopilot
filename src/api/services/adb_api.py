@@ -266,11 +266,10 @@ def _effective_backends(
     input_backend: str,
 ) -> tuple[str, str]:
     # Mirror dispatcher defaults.
-    # Screenshot: smart per-serial (physical → scrcpy, emulator → quartz).
+    # Screenshot: defaults to scrcpy for every device; adb is an explicit
+    # compatibility override.
     # Input: defaults to scrcpy; adb is an explicit compatibility override.
-    screenshot = (screenshot_backend or "").strip().lower() or (
-        "quartz" if is_emulator_adb_serial(serial) else "scrcpy"
-    )
+    screenshot = (screenshot_backend or "").strip().lower() or "scrcpy"
     input_ = (input_backend or "").strip().lower() or "scrcpy"
     return screenshot, input_
 

@@ -123,6 +123,7 @@ async def test_exec_result_is_added_to_steps_trace(
             {
                 "reason": "no_popup",
                 "popup_action": "clear",
+                "status": "no_op",
             }
         )
 
@@ -140,6 +141,8 @@ async def test_exec_result_is_added_to_steps_trace(
 
     trace = result.metadata["steps_trace"]
     assert trace[0]["summary"] == "exec:diagnose"
+    assert trace[0]["status"] == "ok"
+    assert trace[0]["exec_status"] == "no_op"
     assert trace[0]["reason"] == "no_popup"
     assert trace[0]["popup_action"] == "clear"
 

@@ -221,7 +221,7 @@ def test_get_adb_status_uses_effective_serial_for_name_only_devices(
 
     row = next(d for d in status["configured"] if d["name"] == "127.0.0.1:5555")
     assert row["adb_serial"] == "127.0.0.1:5555"
-    assert row["screenshot_backend_effective"] == "quartz"
+    assert row["screenshot_backend_effective"] == "scrcpy"
     assert row["input_backend_effective"] == "scrcpy"
 
 

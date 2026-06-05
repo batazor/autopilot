@@ -268,8 +268,14 @@ export async function createQueueTask(body: {
   player_id?: string;
   scheduled_at: number;
   priority?: number;
+  replace_existing?: boolean;
 }): Promise<{ task_id: string }> {
-  const data = await apiFetch<{ ok: boolean; task_id: string; queue_key: string }>(
+  const data = await apiFetch<{
+    ok: boolean;
+    task_id: string;
+    queue_key: string;
+    replaced?: number;
+  }>(
     "/api/queue/enqueue",
     {
       method: "POST",

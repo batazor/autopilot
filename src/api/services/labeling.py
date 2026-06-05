@@ -89,6 +89,7 @@ def _list_reference_pngs_for_root(ref_root: Path, *, limit: int) -> list[Path]:
         exclude_temporal=True,
         exclude_crop=True,
         exclude_events=True,
+        exclude_maps=True,
     )
     published = [p for p in published if not _is_rolling_preview_png(p, ref_root)]
 

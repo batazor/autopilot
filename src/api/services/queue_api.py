@@ -1,9 +1,11 @@
 """Queue data for the dashboard API."""
 from __future__ import annotations
 
+import json
 import threading
 import time
 import uuid
+from contextlib import suppress
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
@@ -35,6 +37,50 @@ from optimizer.dispatcher import TaskEnvelope
 _VIEW_CACHE_LOCK = threading.Lock()
 _VIEW_CACHE_REVISION: str = ""
 _VIEW_CACHE: dict[str, Any] | None = None
+
+
+def _queue_key(instance_id: str) -> str:
+    return f"wos:queue:{str(instance_id or '').strip() or 'unknown'}"
+
+
+def _decode_queue_payload(raw: object) -> str:
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="replace")
+    return str(raw or "")
+
+
+def remove_pending_scenario_tasks(
+    client: redis.Redis,
+    *,
+    instance_id: str,
+    scenario_key: str,
+) -> int:
+    """Remove pending tasks for one scenario/instance before queueing a fresh run."""
+    iid = str(instance_id or "").strip()
+    scenario = str(scenario_key or "").strip()
+    if not iid or not scenario:
+        return 0
+    key = _queue_key(iid)
+    removed = 0
+    try:
+        payloads = client.zrange(key, 0, -1)
+    except Exception:
+        return 0
+    for raw in payloads:
+        payload = _decode_queue_payload(raw)
+        try:
+            data = json.loads(payload)
+        except (TypeError, ValueError):
+            continue
+        if str(data.get("instance_id") or "").strip() != iid:
+            continue
+        if str(data.get("dsl_scenario") or "").strip() != scenario:
+            continue
+        try:
+            removed += int(client.zrem(key, raw))
+        except Exception:
+            continue
+    return removed
 
 
 def _rel_time(ts: float, now: float) -> str:
@@ -299,6 +345,7 @@ def enqueue_user_task(
     player_id: str,
     scheduled_at: float,
     priority: int = 50_000,
+    replace_existing: bool = False,
 ) -> dict[str, Any]:
     """Enqueue an operator-created task from the calendar UI.
 
@@ -316,8 +363,23 @@ def enqueue_user_task(
     if not device_level and not pid:
         msg = "player_id required for account-level scenarios"
         raise ValueError(msg)
+    replaced = (
+        remove_pending_scenario_tasks(
+            client,
+            instance_id=str(instance_id),
+            scenario_key=scenario_key,
+        )
+        if replace_existing
+        else 0
+    )
+    if replace_existing and scenario_key.startswith("dreamscape_memory"):
+        with suppress(Exception):
+            client.hdel(
+                f"wos:instance:{instance_id}:state",
+                "dreamscape_memory.solve_state",
+            )
     env = TaskEnvelope(
-        task_id=f"manual:{uuid.uuid4().hex[:12]}",
+        task_id=f"queue:{uuid.uuid4().hex[:12]}",
         task_type="dsl_scenario",
         player_id=pid,
         instance_id=str(instance_id),
@@ -334,4 +396,4 @@ def enqueue_user_task(
     publish_dashboard_event(
         client, topic="queue", instance_id=instance_id, reason="enqueue"
     )
-    return {"task_id": env.task_id, "queue_key": qk}
+    return {"task_id": env.task_id, "queue_key": qk, "replaced": replaced}

@@ -20,6 +20,7 @@ from worker.instance_worker_rolling import (
     _rolling_overlay_device_level_only,
     _rolling_should_skip_overlay,
     _rolling_should_skip_screen_detect,
+    _runtime_error_is_device_offline,
 )
 
 
@@ -122,6 +123,24 @@ def test_rolling_overlay_device_level_only_gate(
         )
         is expected
     )
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "ADB failed (exit 255): error: device offline",
+        "scrcpy capture failed for bs1: stream gone; ADB fallback failed: ADB failed (exit 255): error: device offline",
+        "error: device '127.0.0.1:5555' not found",
+        "device not found",
+        "no devices/emulators found",
+    ],
+)
+def test_runtime_error_is_device_offline(message: str) -> None:
+    assert _runtime_error_is_device_offline(RuntimeError(message)) is True
+
+
+def test_runtime_error_is_device_offline_rejects_other_errors() -> None:
+    assert _runtime_error_is_device_offline(RuntimeError("scrcpy server not found")) is False
 
 
 # ---------------------------------------------------------------------------

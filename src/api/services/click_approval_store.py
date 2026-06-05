@@ -9,7 +9,6 @@ from urllib.parse import urlencode
 import redis
 
 from adb.approvals import click_approval_enabled
-from adb.serial import is_emulator_adb_serial
 from api.services.click_approval_overlay import (
     build_overlays,
     image_dimensions,
@@ -238,7 +237,9 @@ def reset_current_screen(client: Any, instance_id: str) -> None:
     Used when the operator wants to force the detector to re-classify from scratch
     (matches the "Reset node to none (unknown)" button on the Streamlit page).
     """
-    client.hset(f"wos:instance:{instance_id}:state", "current_screen", "")
+    key = f"wos:instance:{instance_id}:state"
+    client.hset(key, "current_screen", "")
+    client.hdel(key, "dreamscape_memory.solve_state")
 
 
 def _screenshot_backend_for_instance(instance_id: str) -> tuple[str, str]:
@@ -248,9 +249,8 @@ def _screenshot_backend_for_instance(instance_id: str) -> tuple[str, str]:
         configured = (inst.screenshot_backend or "").strip().lower()
         if configured:
             return configured, configured
-        serial = (inst.bluestacks_window_title or "").strip()
-        effective = "quartz" if is_emulator_adb_serial(serial) else "scrcpy"
-        return "", effective
+        # Smart default for every device: scrcpy.
+        return "", "scrcpy"
     return "", ""
 
 

@@ -22,6 +22,9 @@ INSTANCE_PREVIEW_DIR = "temporal"
 # Event icons (rendered next to scenario names in the UI).
 EVENTS_SUBDIR = "events"
 
+# Dreamscape solver scene guides (community map images, not labeling refs).
+MAPS_SUBDIR = "maps"
+
 
 def instance_preview_root(repo_root: Path) -> Path:
     """Top-level directory for ADB rolling/approval previews (``<repo>/temporal``)."""

@@ -231,8 +231,7 @@ export default function AdbPage() {
           Configured devices vs live adb scan. Reset display clears{" "}
           <code>wm size</code> / <code>wm density</code> overrides on the device.
           {" "}<strong>Scrcpy</strong> = one server process per device delivering H.264 frames;
-          physical devices use it by default, while emulators default to <code>quartz</code>.
-          Input defaults to <code>scrcpy</code>.
+          every device uses it by default for both capture and input.
           Scrcpy input works on unrooted devices and auto-pushes <code>scrcpy-server.jar</code> when enabled.
           Select the backend in the dropdowns below to opt in per device.
         </p>
@@ -327,9 +326,8 @@ export default function AdbPage() {
                           options={[
                             {
                               value: "",
-                              label: `auto (${d.screenshot_backend_effective || "quartz"})`,
+                              label: `auto (${d.screenshot_backend_effective || "scrcpy"})`,
                             },
-                            { value: "quartz", label: "quartz" },
                             { value: "adb", label: "adb" },
                             { value: "scrcpy", label: "scrcpy" },
                           ]}

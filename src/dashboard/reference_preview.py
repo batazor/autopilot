@@ -10,6 +10,7 @@ from config.loader import load_settings
 from config.paths import repo_root
 from config.reference_naming import (
     EVENTS_SUBDIR,
+    MAPS_SUBDIR,
     TEMPORAL_SUBDIR,
     instance_preview_root,
     reference_file_basename,
@@ -40,12 +41,14 @@ def list_reference_pngs(
     exclude_temporal: bool = False,
     exclude_crop: bool = False,
     exclude_events: bool = False,
+    exclude_maps: bool = False,
 ) -> list[Path]:
     """Newest-first PNG files under a references directory (recursive: ``**/*.png``).
 
     When ``exclude_temporal`` is True, omit everything under ``<root>/temporal/`` (rolling OCR preview).
     When ``exclude_crop`` is True, omit everything under ``<root>/crop/`` (exported bbox tiles, not full refs).
     When ``exclude_events`` is True, omit everything under ``<root>/events/`` (scenario icon assets).
+    When ``exclude_maps`` is True, omit everything under ``<root>/maps/`` (dreamscape scene guides).
     Omit ``unanswerable`` assets: decorative UI pieces, not actionable icons or screen references.
     """
     root = (root or references_root()).resolve()
@@ -67,6 +70,8 @@ def list_reference_pngs(
         files = [p for p in files if not _is_under_crop(root, p)]
     if exclude_events:
         files = [p for p in files if not _is_under_events(root, p)]
+    if exclude_maps:
+        files = [p for p in files if not _is_under_maps(root, p)]
     return files[:limit]
 
 
@@ -80,6 +85,10 @@ def _is_under_crop(root: Path, p: Path) -> bool:
 
 def _is_under_events(root: Path, p: Path) -> bool:
     return _is_under_subdir(root, p, EVENTS_SUBDIR)
+
+
+def _is_under_maps(root: Path, p: Path) -> bool:
+    return _is_under_subdir(root, p, MAPS_SUBDIR)
 
 
 def _is_under_subdir(root: Path, p: Path, subdir: str) -> bool:

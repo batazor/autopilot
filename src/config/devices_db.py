@@ -3,7 +3,7 @@
 Replaces ``db/devices.yaml``. Normalized schema across three tables:
 
     devices(name PK, adb_serial, screenshot_backend, input_backend,
-            quartz_*, display_json, device_order, updated_at)
+            display_json, device_order, updated_at)
     device_profiles(id PK autoincrement, device_name FK, email, profile_order)
     device_profile_gamers(profile_id FK, player_id, nickname, level, gamer_order,
                           PK(profile_id, player_id))
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 _conn_lock = threading.RLock()
 
 
-VALID_SCREENSHOT_BACKENDS = frozenset({"", "quartz", "adb", "scrcpy"})
+VALID_SCREENSHOT_BACKENDS = frozenset({"", "adb", "scrcpy"})
 VALID_INPUT_BACKENDS = frozenset({"", "adb", "scrcpy"})
 
 
@@ -59,12 +59,6 @@ class DeviceRow(SQLModel, table=True):
     adb_serial: str = Field(default="")
     screenshot_backend: str = Field(default="")
     input_backend: str = Field(default="")
-    quartz_window_id: int | None = Field(default=None)
-    quartz_window_title: str = Field(default="")
-    quartz_crop_x: int | None = Field(default=None)
-    quartz_crop_y: int | None = Field(default=None)
-    quartz_crop_w: int | None = Field(default=None)
-    quartz_crop_h: int | None = Field(default=None)
     display_json: str | None = Field(default=None)
     device_order: int = Field(default=0)
     game: str = Field(default="wos")
@@ -118,12 +112,6 @@ _COLUMN_DDL: dict[str, dict[str, str]] = {
         "adb_serial": "TEXT NOT NULL DEFAULT ''",
         "screenshot_backend": "TEXT NOT NULL DEFAULT ''",
         "input_backend": "TEXT NOT NULL DEFAULT ''",
-        "quartz_window_id": "INTEGER",
-        "quartz_window_title": "TEXT NOT NULL DEFAULT ''",
-        "quartz_crop_x": "INTEGER",
-        "quartz_crop_y": "INTEGER",
-        "quartz_crop_w": "INTEGER",
-        "quartz_crop_h": "INTEGER",
         "display_json": "TEXT",
         "device_order": "INTEGER NOT NULL DEFAULT 0",
         # Backfills to 'wos' — the only game before multi-game support.
@@ -168,6 +156,43 @@ def _normalize_backends(conn: sqlite3.Connection) -> None:
     conn.execute(
         "UPDATE devices SET input_backend = 'scrcpy' WHERE input_backend = 'minitouch'"
     )
+    # Quartz (macOS WindowServer capture) was removed; scrcpy is the fast default.
+    conn.execute(
+        "UPDATE devices SET screenshot_backend = 'scrcpy' WHERE screenshot_backend = 'quartz'"
+    )
+
+
+_QUARTZ_COLUMNS = (
+    "quartz_window_id",
+    "quartz_window_title",
+    "quartz_crop_x",
+    "quartz_crop_y",
+    "quartz_crop_w",
+    "quartz_crop_h",
+)
+
+
+def _drop_quartz_columns(conn: sqlite3.Connection) -> None:
+    """Drop the dead quartz_* columns from legacy ``devices`` tables.
+
+    ``ALTER TABLE ... DROP COLUMN`` needs SQLite >= 3.35. If unavailable, the
+    columns are left as harmless orphans (the ORM no longer reads or writes
+    them) rather than failing startup.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(devices)")}
+    for col_name in _QUARTZ_COLUMNS:
+        if col_name not in existing:
+            continue
+        try:
+            conn.execute(f"ALTER TABLE devices DROP COLUMN {col_name}")
+            logger.info("migrating devices: dropped column %s", col_name)
+        except Exception:
+            logger.warning(
+                "migrating devices: could not drop column %s (SQLite too old?); "
+                "leaving it as a dormant orphan",
+                col_name,
+                exc_info=True,
+            )
 
 
 def _ensure_schema(engine: Engine) -> None:
@@ -183,6 +208,7 @@ def _ensure_schema(engine: Engine) -> None:
     orm.apply_migrations(engine, "devices", [
         ("001_backfill_columns", _ensure_columns),
         ("002_normalize_backends", _normalize_backends),
+        ("003_drop_quartz_columns", _drop_quartz_columns),
     ])
 
 
@@ -226,9 +252,6 @@ def upsert_device(
     adb_serial: str = "",
     screenshot_backend: str = "",
     input_backend: str = "",
-    quartz_window_id: int | None = None,
-    quartz_window_title: str = "",
-    quartz_crop: tuple[int, int, int, int] | None = None,
     display: DeviceDisplayConfig | None = None,
     device_order: int = 0,
     game: str | None = None,
@@ -256,7 +279,6 @@ def upsert_device(
         msg = f"input_backend must be one of {sorted(VALID_INPUT_BACKENDS - {''})} or empty"
         raise ValueError(msg)
     now = time.time()
-    crop = quartz_crop or (None, None, None, None)
     game_value = (game or default_game()).strip()
     with _conn_lock, Session(_engine()) as s:
         row = s.get(DeviceRow, name)
@@ -269,9 +291,6 @@ def upsert_device(
         row.adb_serial = adb_serial.strip()
         row.screenshot_backend = screenshot_backend_clean
         row.input_backend = input_backend_clean
-        row.quartz_window_id = quartz_window_id
-        row.quartz_window_title = quartz_window_title.strip()
-        row.quartz_crop_x, row.quartz_crop_y, row.quartz_crop_w, row.quartz_crop_h = crop
         row.display_json = _serialize_display(display)
         row.device_order = device_order
         row.game = game_value
@@ -700,17 +719,6 @@ def load_registry() -> Any:
                 )
             )
 
-        crop: tuple[int, int, int, int] | None
-        if all(c is not None for c in (d.quartz_crop_x, d.quartz_crop_y, d.quartz_crop_w, d.quartz_crop_h)):
-            crop = (
-                int(d.quartz_crop_x),
-                int(d.quartz_crop_y),
-                int(d.quartz_crop_w),
-                int(d.quartz_crop_h),
-            )
-        else:
-            crop = None
-
         entries.append(
             DeviceEntry(
                 name=d.name,
@@ -718,9 +726,6 @@ def load_registry() -> Any:
                 adb_serial=d.adb_serial or "",
                 screenshot_backend=d.screenshot_backend or "",
                 input_backend=d.input_backend or "",
-                quartz_window_id=d.quartz_window_id,
-                quartz_window_title=d.quartz_window_title or "",
-                quartz_crop=crop,
                 display=_deserialize_display(d.display_json),
                 game=device_game,
             )

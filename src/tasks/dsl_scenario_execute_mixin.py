@@ -29,6 +29,7 @@ from tasks.dsl_scenario_helpers import (
     _read_active_player,
     _read_current_screen,
     _resolve_push_delay_seconds,
+    _trace_exec_result_kwargs,
 )
 
 logger = logging.getLogger(__name__)
@@ -1540,6 +1541,7 @@ class DslScenarioExecuteMixin(_Base):
                     args = {k: v for k, v in step.items() if k not in ("exec", "cond")}
                     exec_row = await self._run_exec_step(cmd, instance_id, args)
                 await _mark_top_level_step_done()
+                exec_row = _trace_exec_result_kwargs(exec_row)
                 _trace_row(_resumable_step, step, "ok", **exec_row)
                 continue
             if "click" in step:

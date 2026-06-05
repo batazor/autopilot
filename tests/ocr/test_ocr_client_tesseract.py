@@ -6,6 +6,7 @@ import pytest
 from config.loader import get_settings
 from layout.types import Region
 from ocr.client import OcrClient, OCRResult
+from ocr.preprocess import WORD_CHAR_WHITELIST
 
 
 @pytest.fixture(autouse=True)
@@ -181,11 +182,11 @@ def test_title_line_uses_psm7_and_cleans_title_noise(
         class _Proc:
             returncode = 0
             stdout = (
-                "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t"
-                "left\ttop\twidth\theight\tconf\ttext\n"
-                "5\t1\t1\t1\t1\t1\t0\t0\t10\t10\t83\t.Practice)Level\n"
-                "5\t1\t1\t1\t1\t2\t11\t0\t10\t10\t27\t27%\n"
-            ).encode()
+                b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t"
+                b"left\ttop\twidth\theight\tconf\ttext\n"
+                b"5\t1\t1\t1\t1\t1\t0\t0\t10\t10\t83\t.Practice)Level\n"
+                b"5\t1\t1\t1\t1\t2\t11\t0\t10\t10\t27\t27%\n"
+            )
             stderr = b""
 
         return _Proc()
@@ -201,6 +202,44 @@ def test_title_line_uses_psm7_and_cleans_title_noise(
     assert "tessedit_char_whitelist" not in " ".join(captured_cmd[0])
     assert text == "Practice Level"
     assert confidence == pytest.approx(0.55)
+
+
+def test_word_line_uses_psm7_letter_whitelist_and_cleans_noise(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_cmd: list[list[str]] = []
+
+    monkeypatch.setattr("ocr.client.shutil.which", lambda cmd: f"/usr/bin/{cmd}")
+
+    def _fake_run(cmd, **kwargs):
+        captured_cmd.append(list(cmd))
+
+        class _Proc:
+            returncode = 0
+            stdout = (
+                b"level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\t"
+                b"left\ttop\twidth\theight\tconf\ttext\n"
+                b"5\t1\t1\t1\t1\t1\t0\t0\t10\t10\t91\t.Book-Case\n"
+                b"5\t1\t1\t1\t1\t2\t11\t0\t10\t10\t73\tWatering/Can2\n"
+            )
+            stderr = b""
+
+        return _Proc()
+
+    monkeypatch.setattr("ocr.client.subprocess.run", _fake_run)
+    crop = np.zeros((10, 20, 3), dtype=np.uint8)
+
+    assert OcrClient._prepare_crop(crop, "word_line") is crop
+    text, confidence = OcrClient(get_settings())._run_tesseract(
+        crop, preprocess="word_line"
+    )
+
+    cmd = captured_cmd[0]
+    assert cmd[cmd.index("--psm") + 1] == "7"
+    wl_idx = cmd.index("-c") + 1
+    assert cmd[wl_idx] == f"tessedit_char_whitelist={WORD_CHAR_WHITELIST}"
+    assert text == "Book Case Watering Can"
+    assert confidence == pytest.approx(0.82)
 
 
 def test_digits_uses_psm8_and_digit_whitelist(monkeypatch: pytest.MonkeyPatch) -> None:

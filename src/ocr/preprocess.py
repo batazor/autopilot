@@ -16,6 +16,11 @@ _OCR_BINARY_UPSCALE = 3.0
 # Tesseract whitelist for digit-only regions (``digits`` preprocess / ``type: int``).
 DIGITS_CHAR_WHITELIST = "0123456789"
 
+# Tesseract whitelist for item word regions. Spaces are restored by TSV line
+# joining and final cleanup; keeping them out of the whitelist avoids shell/CLI
+# ambiguity around trailing whitespace in the config value.
+WORD_CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
 
 def crop_region(image: np.ndarray, region: Region) -> np.ndarray:
     return image[region.y : region.y + region.h, region.x : region.x + region.w]
@@ -75,7 +80,8 @@ def resolve_preprocess(
     3. ``None`` — raw crop, Tesseract block mode (PSM 6).
 
     ``fast_line`` / ``fast_digits`` are both PSM 7 on the raw crop; only
-    ``fast_digits`` adds the digit whitelist. ``enhance`` / ``enhance_line`` /
+    ``fast_digits`` adds the digit whitelist. ``word_line`` is raw PSM 7 with an
+    English-letter whitelist plus cleanup. ``enhance`` / ``enhance_line`` /
     ``title_line`` / ``digits`` keep Tesseract pipelines with binarization.
     """
     if explicit:

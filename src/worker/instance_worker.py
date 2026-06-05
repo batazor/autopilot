@@ -782,7 +782,7 @@ class InstanceWorker(
         logger.info(
             "Capture config for %s: backend=%s serial=%s adb_executable=%s",
             self._cfg.instance_id,
-            getattr(self._cfg, "screenshot_backend", "quartz"),
+            getattr(self._cfg, "screenshot_backend", "scrcpy"),
             self._cfg.bluestacks_window_title,
             self._worker_adb_bin(),
         )

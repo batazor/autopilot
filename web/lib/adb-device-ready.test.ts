@@ -9,7 +9,7 @@ const configuredDevice: AdbDeviceRow = {
   instance_id: "",
   bluestacks_window_title: "",
   screenshot_backend: "",
-  screenshot_backend_effective: "quartz",
+  screenshot_backend_effective: "scrcpy",
   input_backend: "",
   input_backend_effective: "scrcpy",
 };

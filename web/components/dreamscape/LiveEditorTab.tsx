@@ -16,6 +16,7 @@ import {
   fetchDreamscapeScenes,
   fetchRegionOcr,
   fetchScreenDetect,
+  resetCurrentScreen,
   startLocalBot,
   stopLocalBot,
 } from "@/lib/api";
@@ -27,15 +28,21 @@ import {
   DREAMSCAPE_TIME_UP_SCREEN,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
+  isActionableDreamscapeWord,
   levelNameRead,
+  parseDreamscapeSolveState,
   statusFromDetectedScreen,
   wordBadges,
+  wordBadgesWithSolveState,
+  wordRunStates,
 } from "@/lib/dreamscape-live";
 import {
   addDreamscapeNewCapture,
   hasDreamscapeNewCapture,
 } from "@/lib/dreamscape-new-captures";
 import type {
+  DreamscapeSolveEvent,
+  DreamscapeWordRunState,
   LevelNameRead,
   LiveStatus,
   WordBadge,
@@ -142,8 +149,13 @@ export function LiveEditorTab({
   const [message, setMessage] = useState<string | null>(null);
   const [autoCaptureArmed, setAutoCaptureArmed] = useState(false);
   const [confettiVisible, setConfettiVisible] = useState(false);
+  const [runStartedAtSec, setRunStartedAtSec] = useState<number | null>(null);
   const autoCaptureKeys = useRef<Set<string>>(new Set());
   const autoCaptureBusy = useRef(false);
+  // Sticky for the current armed run: flips true once the solver shows real
+  // progress (a tap/found item). Gates the "returned to start = win" heuristic
+  // so it cannot fire while the run is still sitting on the start screen.
+  const enteredGameplayRef = useRef(false);
 
   // ── Live polling (status + detected words) ──
   const screenQuery = useQuery({
@@ -152,31 +164,51 @@ export function LiveEditorTab({
     enabled: Boolean(instanceId),
     refetchInterval: POLL_MS,
   });
-  const ocrQuery = useQuery({
-    queryKey: ["dreamscape-ocr", instanceId, wordsRef],
-    queryFn: () =>
-      fetchRegionOcr(instanceId, [levelNameRegion, ...wordRegions]),
+  // Read ONLY the level-name title each tick. Word slots are intentionally not
+  // OCR'd here: until the title resolves to a known scene we don't touch the
+  // word buttons (see wordOcrQuery), so a "scene not in DB" frame never burns
+  // OCR on words.
+  const levelOcrQuery = useQuery({
+    queryKey: ["dreamscape-level-ocr", instanceId],
+    queryFn: () => fetchRegionOcr(instanceId, [levelNameRegion]),
     enabled: Boolean(instanceId),
     refetchInterval: POLL_MS,
   });
+  const instanceDetailQuery = useQuery({
+    queryKey: ["dreamscape-instance-detail", instanceId],
+    queryFn: () => fetchInstanceDetail(instanceId),
+    enabled: Boolean(instanceId),
+    refetchInterval: POLL_MS,
+  });
+  const instanceDetail =
+    instanceDetailQuery.data && "preview_available" in instanceDetailQuery.data
+      ? instanceDetailQuery.data
+      : null;
 
+  const detectedPreviewMtime =
+    screenQuery.data?.preview?.mtime == null
+      ? null
+      : Number(screenQuery.data.preview.mtime);
+  const detectedScreenIsFromStaleRun =
+    runStartedAtSec != null &&
+    detectedPreviewMtime != null &&
+    detectedPreviewMtime <= runStartedAtSec;
+  const effectiveDetectedScreen = detectedScreenIsFromStaleRun
+    ? ""
+    : screenQuery.data?.detected_screen;
   const status = useMemo(
-    () => statusFromDetectedScreen(screenQuery.data?.detected_screen),
-    [screenQuery.data],
+    () => statusFromDetectedScreen(effectiveDetectedScreen),
+    [effectiveDetectedScreen],
   );
   const terminalScreen = status.detectedScreen;
-  const badges = useMemo(
-    () => wordBadges(ocrQuery.data?.rows, wordRegions),
-    [ocrQuery.data, wordRegions],
-  );
   const levelName = useMemo(
-    () => levelNameRead(ocrQuery.data?.rows, levelNameRegion),
-    [ocrQuery.data, levelNameRegion],
+    () => levelNameRead(levelOcrQuery.data?.rows, levelNameRegion),
+    [levelOcrQuery.data, levelNameRegion],
   );
 
-  // ── Scene/word coverage (green = the bot has it, red-orange = it doesn't) ──
-  // Match the OCR'd level name to a scene in the solver DB; if found, pull its
-  // item names so each detected word can be flagged as mapped (solvable) or not.
+  // ── Scene match: title → scene in the solver DB ──
+  // Match the OCR'd level name to a scene; word slots are read only once this
+  // resolves — the gate: no scene caught → no word OCR.
   const scenesQuery = useQuery({
     queryKey: ["dreamscape-scenes"],
     queryFn: fetchDreamscapeScenes,
@@ -190,6 +222,48 @@ export function LiveEditorTab({
     const active = scenesQuery.data?.active;
     return active && normalizeLevelName(active) === lvl ? active : null;
   }, [levelName, scenesQuery.data]);
+  const sceneMatched = Boolean(matchedSlug);
+
+  // ── Word slots: OCR them only once the scene is caught ──
+  // The instant the title matches a scene we begin reading word buttons (the
+  // same frame if the match landed on it); before that they are never polled.
+  const wordOcrQuery = useQuery({
+    queryKey: ["dreamscape-word-ocr", instanceId, wordsRef],
+    queryFn: () => fetchRegionOcr(instanceId, [...wordRegions]),
+    enabled: Boolean(instanceId) && sceneMatched,
+    refetchInterval: POLL_MS,
+  });
+  // Empty when no scene is matched so stale word badges don't linger after the
+  // gate closes (React Query keeps the last data while a query is disabled).
+  const rawBadges = useMemo(
+    () => (sceneMatched ? wordBadges(wordOcrQuery.data?.rows, wordRegions) : []),
+    [sceneMatched, wordOcrQuery.data, wordRegions],
+  );
+  const solveStateRaw =
+    instanceDetail?.state?.["dreamscape_memory.solve_state"] ?? null;
+  const parsedSolveState = useMemo(
+    () => parseDreamscapeSolveState(solveStateRaw),
+    [solveStateRaw],
+  );
+  const solveState = useMemo(() => {
+    if (!parsedSolveState) return null;
+    if (
+      runStartedAtSec != null &&
+      parsedSolveState.updatedAt != null &&
+      parsedSolveState.updatedAt <= runStartedAtSec
+    ) {
+      return null;
+    }
+    return parsedSolveState;
+  }, [parsedSolveState, runStartedAtSec]);
+  const badges = useMemo(
+    () => wordBadgesWithSolveState(rawBadges, solveState),
+    [rawBadges, solveState],
+  );
+  const wordRunState = useMemo<DreamscapeWordRunState[]>(
+    () => wordRunStates(badges, solveState),
+    [badges, solveState],
+  );
   const sceneQuery = useQuery({
     queryKey: ["dreamscape-scene", matchedSlug],
     queryFn: () => fetchDreamscapeScene(matchedSlug as string),
@@ -214,21 +288,45 @@ export function LiveEditorTab({
   const unknownWords = useMemo(
     () =>
       badges
-        .filter((b, i) => wordKnown[i] === false && !b.dimmed && b.text.trim())
+        .filter(
+          (b, i) =>
+            wordKnown[i] === false &&
+            !b.dimmed &&
+            isActionableDreamscapeWord(b.text),
+        )
         .map((b) => b.text.trim()),
     [badges, wordKnown],
   );
   const mode = wordRegions === DREAMSCAPE_MULTIPLAYER_WORD_REGIONS ? "multiplayer" : "solo";
+
+  // ── Bot/instance status ──
+  const botQuery = useQuery({
+    queryKey: ["bot-status"],
+    queryFn: fetchBotStatus,
+    refetchInterval: 4000,
+  });
+  const botRunning = Boolean(botQuery.data?.running);
+  const solverButtonLabel = "Play";
+  const solverPendingLabel = "Starting...";
 
   // Live device frame, 1:1 with the approvals page: the worker's rolling
   // preview PNG, refreshed the instant the instance revision advances (SSE
   // below) by bumping a cache-busting tick.
   const [imageTick, setImageTick] = useState(0);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const previewMtime =
+    instanceDetail?.preview_mtime == null
+      ? null
+      : Number(instanceDetail.preview_mtime);
+  const previewIsFromStaleRun =
+    runStartedAtSec != null &&
+    previewMtime != null &&
+    previewMtime <= runStartedAtSec;
   const cardImageUrl = instanceId
     ? `${clickApprovalImageUrl(instanceId, "live")}&tick=${imageTick}`
     : null;
-  const showImage = Boolean(cardImageUrl) && cardImageUrl !== failedImageUrl;
+  const showImage =
+    Boolean(cardImageUrl) && cardImageUrl !== failedImageUrl && !previewIsFromStaleRun;
 
   // Keep the frame continuously current like the approvals screen: the SSE
   // stream watches the rolling preview mtime, and a short client fallback covers
@@ -257,22 +355,6 @@ export function LiveEditorTab({
   });
 
   // ── Bot control: start the worker + enqueue this mode's fast solve loop ──
-  const botQuery = useQuery({
-    queryKey: ["bot-status"],
-    queryFn: fetchBotStatus,
-    refetchInterval: 4000,
-  });
-  const botRunning = Boolean(botQuery.data?.running);
-  const instanceDetailQuery = useQuery({
-    queryKey: ["dreamscape-instance-detail", instanceId],
-    queryFn: () => fetchInstanceDetail(instanceId),
-    enabled: Boolean(instanceId),
-    refetchInterval: POLL_MS,
-  });
-  const instanceDetail =
-    instanceDetailQuery.data && "preview_available" in instanceDetailQuery.data
-      ? instanceDetailQuery.data
-      : null;
   const liveFramePlaceholder = !instanceId
     ? "Select an instance"
     : !botRunning
@@ -281,7 +363,9 @@ export function LiveEditorTab({
         ? "Checking rolling preview…"
         : !instanceDetail?.preview_available
           ? "No rolling preview PNG from worker yet."
-          : cardImageUrl === failedImageUrl
+          : previewIsFromStaleRun
+            ? "Waiting for a fresh frame from the new Dreamscape run..."
+            : cardImageUrl === failedImageUrl
             ? "Rolling preview image failed to load."
             : "Waiting for a live frame…";
 
@@ -293,21 +377,37 @@ export function LiveEditorTab({
       const selectedInstance = instanceId.trim();
       if (!scenario) throw new Error("No solver scenario is configured for this mode.");
       if (!selectedInstance) throw new Error("Select an instance before starting Dreamscape.");
-      setMessage(botRunning ? "Queueing Dreamscape solver..." : "Starting bot worker...");
+      const startedAt = Date.now() / 1000;
+      setRunStartedAtSec(startedAt);
+      enteredGameplayRef.current = false;
+      setConfettiVisible(false);
+      setFailedImageUrl(null);
+      setImageTick((t) => t + 1);
+      setMessage("Preparing a fresh Dreamscape run...");
+      await resetCurrentScreen(selectedInstance);
+      void screenQuery.refetch();
+      void levelOcrQuery.refetch();
+      void wordOcrQuery.refetch();
+      setMessage(botRunning ? "Bot is already running." : "Starting bot worker...");
       if (!botRunning) await startLocalBot();
-      setMessage("Queueing Dreamscape solver...");
+      setMessage("Starting Dreamscape solver...");
       const queued = await createQueueTask({
         scenario_key: scenario,
         instance_id: selectedInstance,
         scheduled_at: Date.now() / 1000,
         priority: 90_000,
+        replace_existing: true,
       });
       return queued;
     },
     onSuccess: (queued) => {
       setAutoCaptureArmed(true);
-      botQuery.refetch();
-      setMessage(`Dreamscape solver queued (${queued.task_id}).`);
+      void botQuery.refetch();
+      void instanceDetailQuery.refetch();
+      void screenQuery.refetch();
+      void levelOcrQuery.refetch();
+      void wordOcrQuery.refetch();
+      setMessage(`Dreamscape solver started (${queued.task_id}).`);
     },
     onError: (err: unknown) => setMessage(`Start failed: ${formatApiError(err)}`),
   });
@@ -316,7 +416,8 @@ export function LiveEditorTab({
     mutationFn: () => stopLocalBot(),
     onSuccess: () => {
       setAutoCaptureArmed(false);
-      botQuery.refetch();
+      void botQuery.refetch();
+      setRunStartedAtSec(null);
       setMessage("Bot stopped.");
     },
     onError: (err: unknown) => setMessage(`Stop failed: ${String(err)}`),
@@ -325,10 +426,23 @@ export function LiveEditorTab({
   const instanceOptions = instances.map((id) => ({ value: id, label: id }));
 
   useEffect(() => {
+    if (!autoCaptureArmed) return undefined;
+    // The run must show real solve progress before a return to the start screen
+    // can count as a win. Without this, the effect fires the instant the solver
+    // is armed — still on the dreamscape_memory start screen — and falsely
+    // reports "All items found". The all_item_found screen is an explicit win
+    // and needs no such guard.
+    if (
+      solveState != null &&
+      (solveState.settledRegions.length > 0 || solveState.clickedRegions.length > 0)
+    ) {
+      enteredGameplayRef.current = true;
+    }
     const returnedToStartAfterSolving =
-      terminalScreen === "dreamscape_memory" && autoCaptureArmed;
+      terminalScreen === "dreamscape_memory" && enteredGameplayRef.current;
     if (terminalScreen === DREAMSCAPE_ALL_ITEM_FOUND_SCREEN || returnedToStartAfterSolving) {
       setAutoCaptureArmed(false);
+      setRunStartedAtSec(null);
       setConfettiVisible(true);
       setMessage("All items found — Dreamscape solved.");
       const timer = window.setTimeout(() => setConfettiVisible(false), 4500);
@@ -336,11 +450,12 @@ export function LiveEditorTab({
     }
     if (terminalScreen === DREAMSCAPE_TIME_UP_SCREEN) {
       setAutoCaptureArmed(false);
+      setRunStartedAtSec(null);
       setConfettiVisible(false);
       setMessage("Time up — Dreamscape run lost.");
     }
     return undefined;
-  }, [autoCaptureArmed, terminalScreen]);
+  }, [autoCaptureArmed, terminalScreen, solveState]);
 
   useEffect(() => {
     if (!autoCaptureArmed || !botRunning || !instanceId || autoCaptureBusy.current) return;
@@ -433,6 +548,22 @@ export function LiveEditorTab({
           placeholder="Select a device"
           inline
         />
+        {!botRunning ? (
+          <Button
+            variant="primary"
+            disabled={startMutation.isPending || !instanceId || !scenarioKey}
+            onClick={() => startMutation.mutate()}
+            title={
+              !instanceId
+                ? "Select an instance before starting Dreamscape"
+                : !scenarioKey
+                  ? "No solver scenario is configured for this mode"
+                  : "Start the bot and Dreamscape solver"
+            }
+          >
+            {startMutation.isPending ? solverPendingLabel : solverButtonLabel}
+          </Button>
+        ) : null}
         {botRunning ? (
           <span
             title="Bot is running the game loop"
@@ -440,22 +571,7 @@ export function LiveEditorTab({
           >
             Gaming
           </span>
-        ) : (
-          <Button
-            variant="primary"
-            disabled={startMutation.isPending}
-            onClick={() => startMutation.mutate()}
-            title={
-              !instanceId
-                ? "Select an instance before starting Dreamscape"
-                : !scenarioKey
-                  ? "No solver scenario is configured for this mode"
-                  : "Start the bot and queue this mode's Dreamscape solver"
-            }
-          >
-            {startMutation.isPending ? "Starting…" : "Play"}
-          </Button>
-        )}
+        ) : null}
         {botRunning ? (
           <Button
             variant="secondary"
@@ -522,10 +638,12 @@ export function LiveEditorTab({
           scenesLoading={scenesQuery.isLoading}
           scenesError={scenesQuery.isError}
           wordKnown={wordKnown}
-          loading={ocrQuery.isFetching}
+          wordRunState={wordRunState}
+          loading={levelOcrQuery.isFetching || wordOcrQuery.isFetching}
           instanceSelected={Boolean(instanceId)}
         />
       </div>
+      <SolveLogPanel events={solveState?.events ?? []} />
     </div>
   );
 }
@@ -578,6 +696,141 @@ function WinConfetti() {
   );
 }
 
+function eventTone(kind: string): string {
+  if (kind.includes("error") || kind.includes("rejected")) {
+    return "border-rose-400/50 bg-rose-500/10 text-rose-200";
+  }
+  if (kind.includes("helper") || kind === "learned") {
+    return "border-amber-300/50 bg-amber-500/10 text-amber-100";
+  }
+  if (kind === "click" || kind === "retry") {
+    return "border-sky-300/50 bg-sky-500/10 text-sky-100";
+  }
+  if (kind === "mapped" || kind === "settled") {
+    return "border-emerald-300/50 bg-emerald-500/10 text-emerald-100";
+  }
+  if (kind === "unmapped" || kind === "retry_exhausted") {
+    return "border-orange-300/50 bg-orange-500/10 text-orange-100";
+  }
+  return "border-wos-border-subtle bg-wos-panel-raised text-wos-text-muted";
+}
+
+function formatEventTime(at: number | null): string {
+  if (at == null) return "";
+  const date = new Date(at * 1000);
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function eventDetails(event: DreamscapeSolveEvent): string[] {
+  const details: string[] = [];
+  if (event.word) details.push(event.word);
+  if (event.region) details.push(event.region);
+  if (event.key && event.key !== event.word.toLowerCase()) details.push(event.key);
+  if (event.x != null && event.y != null) details.push(`${event.x},${event.y}`);
+  if (event.reason) details.push(event.reason);
+  if (event.ok === false) details.push("rejected");
+  return details;
+}
+
+function SolveLogPanel({ events }: { events: DreamscapeSolveEvent[] }) {
+  const visible = events.slice(-60).reverse();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    const json = JSON.stringify(events, null, 2);
+    try {
+      await navigator.clipboard.writeText(json);
+    } catch {
+      // Fallback for non-secure contexts / older browsers
+      const ta = document.createElement("textarea");
+      ta.value = json;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <section className="panel">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">Solver log</h2>
+        <div className="flex items-center gap-2">
+          <span className="meta">{events.length ? `${events.length} events` : "idle"}</span>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={!events.length}
+            className="rounded border border-wos-border-subtle bg-wos-panel-raised px-2 py-1 text-xs font-medium text-wos-text-muted transition hover:text-wos-text disabled:cursor-not-allowed disabled:opacity-40"
+            title="Copy solver actions as JSON"
+          >
+            {copied ? "Copied ✓" : "Copy JSON"}
+          </button>
+        </div>
+      </div>
+      {visible.length ? (
+        <div className="max-h-72 overflow-y-auto rounded border border-wos-border-subtle bg-wos-bg-deep/40">
+          <table className="w-full min-w-[680px] text-left text-xs">
+            <thead className="sticky top-0 bg-wos-panel-raised text-wos-text-muted">
+              <tr>
+                <th className="px-3 py-2 font-medium">Time</th>
+                <th className="px-3 py-2 font-medium">Iter</th>
+                <th className="px-3 py-2 font-medium">Event</th>
+                <th className="px-3 py-2 font-medium">Message</th>
+                <th className="px-3 py-2 font-medium">Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((event, index) => {
+                const details = eventDetails(event);
+                return (
+                  <tr
+                    key={`${event.at ?? "na"}-${event.kind}-${index}`}
+                    className="border-t border-wos-border-subtle/70"
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 text-wos-text-muted">
+                      {formatEventTime(event.at) || "—"}
+                    </td>
+                    <td className="px-3 py-2 tabular-nums text-wos-text-muted">
+                      {event.iteration ?? "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 font-medium ${eventTone(
+                          event.kind,
+                        )}`}
+                      >
+                        {event.kind || "event"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-wos-text">{event.message || "—"}</td>
+                    <td className="px-3 py-2 text-wos-text-muted">
+                      {details.length ? details.join(" · ") : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="meta">Start the solver to see OCR, mapping, click, and helper history.</p>
+      )}
+    </section>
+  );
+}
+
 /** Right-hand panel mirroring TestTab: OCR title, matched scene, and word badges. */
 function WordSearchPanel({
   badges,
@@ -588,6 +841,7 @@ function WordSearchPanel({
   scenesLoading,
   scenesError,
   wordKnown,
+  wordRunState,
   loading,
   instanceSelected,
 }: {
@@ -600,6 +854,8 @@ function WordSearchPanel({
   scenesError: boolean;
   /** Per-badge coverage aligned to `badges` (mapped / unmapped / unknown). */
   wordKnown: (boolean | null)[];
+  /** Per-badge live solver state aligned to `badges`. */
+  wordRunState: DreamscapeWordRunState[];
   loading: boolean;
   instanceSelected: boolean;
 }) {
@@ -653,7 +909,11 @@ function WordSearchPanel({
               " · scene not in DB"
             ) : null}
           </p>
-          <DetectedWordsBadges badges={badges} wordKnown={wordKnown} />
+          <DetectedWordsBadges
+            badges={badges}
+            wordKnown={wordKnown}
+            wordRunState={wordRunState}
+          />
         </>
       ) : null}
 
