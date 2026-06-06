@@ -49,6 +49,18 @@ docker compose up -d redis
 
 Edit `src/config/settings.yaml` (`redis.url`, `ocr.tesseract_cmd`, worker settings) and `db/devices.yaml` (players per device) before the first run. `WOS_REDIS_URL`, `WOS_TESSERACT_CMD`, `TESSDATA_PREFIX`, and related env vars can override the YAML values.
 
+## Encrypted databases (SQLCipher)
+
+Every SQLite database (`db/state/state.db`, `games/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. The key is baked into the app (`src/config/sqlcipher.py:APP_SYSTEM_KEY`); there is nothing to configure. Fresh installs work transparently — new DBs are created encrypted.
+
+**Upgrading an existing checkout/deployment that still has plaintext DBs:** run the one-shot migration **once, with the bot/API/worker stopped**, before starting the new code. The keyed engine cannot read a plaintext file, so this must happen while nothing holds the DBs open:
+
+```sh
+uv run python scripts/encrypt_databases.py     # encrypts in place, keeps *.plaintext.bak
+```
+
+It is idempotent (already-encrypted files are skipped) and writes a gitignored `<file>.plaintext.bak` next to each migrated DB — delete those once you've confirmed the app reads the encrypted data. `state.db` and `notify_monitor.db` are not tracked in git, so this step runs per machine/deployment. The diskcache template-search cache (`.cache/wos/search_positions/`) is intentionally **not** encrypted (regenerable, no secrets).
+
 ## Running
 
 Entry points are defined in `pyproject.toml` under `[project.scripts]`:

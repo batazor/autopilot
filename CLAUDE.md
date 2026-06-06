@@ -111,7 +111,7 @@ games/                # Per-game module tree (Phase 3: replaces top-level module
   notify/             # Game-agnostic notification monitor (dumpsys → Redis queue; not a DSL module)
 
 temporal/             # Live ADB rolling/approval previews (gitignored, regenerated per tick)
-db/state/state.db     # SQLite: devices + accounts + per-player state (canonical, multi-game)
+db/state/state.db     # SQLite (SQLCipher-encrypted): devices + accounts + per-player state (canonical, multi-game)
 ```
 
 ### Key Concepts
@@ -258,10 +258,23 @@ Tables (see `src/config/devices_db.py` for the canonical schema):
   `display_json`, `device_order`, `updated_at`.
 - `device_profiles`, `device_profile_gamers`, `gamers` — account-to-device mapping.
 
-Inspect with:
+Inspect with (the DB is SQLCipher-encrypted, so the stdlib `sqlite3` CLI **cannot** open it — use a keyed connection):
 ```sh
-sqlite3 db/state/state.db "SELECT name, adb_serial, screenshot_backend, input_backend FROM devices ORDER BY device_order;"
+uv run python -c "from config import sqlcipher; \
+  print(sqlcipher.connect('db/state/state.db').execute( \
+  'SELECT name, adb_serial, screenshot_backend, input_backend FROM devices ORDER BY device_order').fetchall())"
 ```
+
+#### Database encryption (SQLCipher)
+
+Every SQLite database the app owns (`db/state/state.db`, `games/notify/data/notify_monitor.db`, the dreamscape `scenes.db`) is **encrypted at rest with SQLCipher**. `src/config/sqlcipher.py` is the single wiring point:
+
+- One application-wide key, `APP_SYSTEM_KEY` (baked into the Nuitka build — no env/file/keychain lookup). No per-user derivation, no machine fingerprinting.
+- All persistence goes through SQLAlchemy: `config.orm.get_engine()` (covers `state.db` + `scenes.db`) and notify's `_make_engine` build on `sqlcipher.DBAPI_MODULE` and call `sqlcipher.apply_key_pragmas()` first in their `connect` hook. **Do not open these DBs with the stdlib `sqlite3` module** — use `sqlcipher.connect()` (one-off) or an engine.
+- Settings: `cipher_page_size = 4096`, `kdf_iter = 64000` (passphrase form, so the KDF applies). Changing either makes existing files unreadable until migrated.
+- Migrating plaintext DBs: `uv run python scripts/encrypt_databases.py` (one-shot, idempotent, with the worker stopped). See [`CONTRIBUTOR.md`](CONTRIBUTOR.md).
+- **Rotating the key:** change `APP_SYSTEM_KEY`, then re-key existing files with `PRAGMA rekey` (old files are unreadable under a new key otherwise). New installs need no action.
+- The diskcache template-search cache (`.cache/wos/search_positions/`) is intentionally left unencrypted (third-party `diskcache`, regenerable, no secrets).
 
 **Per-device backend selection** (`screenshot_backend` / `input_backend` columns):
 
