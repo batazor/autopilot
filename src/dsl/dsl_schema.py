@@ -154,6 +154,15 @@ class DslStep(BaseModel):
         # action, so don't count ``wait`` as a competing key.
         if "long_click" in present and "wait" in present:
             present = [k for k in present if k != "wait"]
+        # An ``exec:`` step hands every sibling key to its handler as an arg
+        # (e.g. the dreamscape solver reads ``ttl``/``wait``/``mode``), and the
+        # runtime additionally applies step-level ``wait`` (post-exec pause) and
+        # ``ttl`` (early-exit reschedule) around it — see the independent
+        # ``if "exec"`` / ``if "ttl"`` branches in
+        # ``tasks/dsl_scenario_execute_mixin.py``. So ``wait``/``ttl`` are
+        # modifiers of the exec action, not competing actions; don't count them.
+        if "exec" in present:
+            present = [k for k in present if k not in ("wait", "ttl")]
         # Action-less group: must carry ``steps`` (optionally with ``cond``).
         # The runtime grouped-step handler iterates these inline.
         is_group = (

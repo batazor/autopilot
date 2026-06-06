@@ -43,6 +43,7 @@ class QueueEnqueueBody(BaseModel):
     scheduled_at: float = Field(description="UNIX epoch seconds")
     priority: int = 50_000
     replace_existing: bool = False
+    abort_running: bool = False
 
 
 def _page_items(
@@ -205,6 +206,7 @@ def post_queue_enqueue(body: QueueEnqueueBody, client: RedisDep) -> dict[str, An
             scheduled_at=body.scheduled_at,
             priority=body.priority,
             replace_existing=body.replace_existing,
+            abort_running=body.abort_running,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

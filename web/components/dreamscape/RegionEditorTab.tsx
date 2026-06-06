@@ -6,6 +6,10 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { AppListbox } from "@/components/headless";
 import { SceneCalibrator } from "@/components/dreamscape/SceneCalibrator";
 import {
+  AltTitlesEditor,
+  cleanAltTitles,
+} from "@/components/dreamscape/AltTitlesEditor";
+import {
   ScenePointEditor,
   type ScenePin,
 } from "@/components/dreamscape/ScenePointEditor";
@@ -76,6 +80,7 @@ export function RegionEditorTab() {
     defaultRegion(FRAME_W, FRAME_H, "scene_rect"),
   );
   const [activate, setActivate] = useState(false);
+  const [altTitles, setAltTitles] = useState<string[]>([]);
   const [sceneOpacity, setSceneOpacity] = useState(0.5);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [dirty, setDirty] = useState(false);
@@ -137,6 +142,7 @@ export function RegionEditorTab() {
     );
     setRect(rectFromScene(detail));
     setActivate(detail.active);
+    setAltTitles(detail.alt_titles ?? []);
     setSelectedN(null);
     setPreviewIndex(0);
     setDirty(false);
@@ -184,6 +190,7 @@ export function RegionEditorTab() {
       if (!detail) throw new Error("no scene loaded");
       return saveDreamscapeScene(detail.slug, {
         title: detail.title,
+        alt_titles: cleanAltTitles(altTitles),
         source_image: detail.source_image,
         scene_rect: {
           left: rect.bbox.x,
@@ -251,7 +258,14 @@ export function RegionEditorTab() {
               inline
             />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-start gap-3">
+            <AltTitlesEditor
+              value={altTitles}
+              onChange={(next) => {
+                setAltTitles(next);
+                setDirty(true);
+              }}
+            />
             <label className="flex items-center gap-1.5 text-xs text-wos-text-muted">
               <input
                 type="checkbox"

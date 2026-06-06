@@ -14,11 +14,14 @@ from pydantic import BaseModel
 
 from api.services.dreamscape_onboarding import (
     DetectMarkersResult,
+    DetectSceneResult,
     ListMapsResult,
     ParseNamesResult,
     SaveMapResult,
     SceneDetail,
+    activate_scene,
     detect_markers_on_image,
+    detect_scene,
     get_scene,
     list_scenes,
     parse_name_list,
@@ -31,6 +34,10 @@ router = APIRouter(prefix="/api/dreamscape", tags=["dreamscape-onboarding"])
 
 class ParseNamesBody(BaseModel):
     text: str
+
+
+class DetectSceneBody(BaseModel):
+    words: list[str]
 
 
 class SceneRectBody(BaseModel):
@@ -49,6 +56,8 @@ class ScenePointBody(BaseModel):
 
 class SaveSceneBody(BaseModel):
     title: str
+    alt_title: str | None = None
+    alt_titles: list[str] | None = None
     source_image: str
     scene_rect: SceneRectBody | None = None
     points: list[ScenePointBody]
@@ -84,6 +93,11 @@ def post_parse_names(body: ParseNamesBody) -> ParseNamesResult:
     return parse_name_list(body.text)
 
 
+@router.post("/detect-scene")
+def post_detect_scene(body: DetectSceneBody) -> DetectSceneResult:
+    return detect_scene(body.words)
+
+
 @router.post("/scenes/{slug}/image")
 async def post_scene_image(
     slug: str,
@@ -102,11 +116,23 @@ def post_save_scene(slug: str, body: SaveSceneBody) -> SaveMapResult:
         return save_scene(
             slug,
             title=body.title,
+            alt_title=body.alt_title,
+            alt_titles=body.alt_titles,
             source_image=body.source_image,
             scene_rect=body.scene_rect.model_dump() if body.scene_rect else None,
             points=[p.model_dump() for p in body.points],
             activate=body.activate,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/scenes/{slug}/activate")
+def post_activate_scene(slug: str) -> SaveMapResult:
+    try:
+        return activate_scene(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 

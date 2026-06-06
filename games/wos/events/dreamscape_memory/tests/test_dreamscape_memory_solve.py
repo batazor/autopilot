@@ -185,6 +185,33 @@ def test_match_scene_no_match_is_none() -> None:
     assert solve._match_scene_slug("", _SCENES) is None
 
 
+def test_match_scene_resolves_via_alt_title() -> None:
+    # A scene whose in-game level name differs from its title resolves through
+    # the operator-supplied alternate name (and still by its own title).
+    scenes = [{"slug": "yard", "title": "Yard", "alt_title": "Backyard", "season": 1}]
+    assert solve._match_scene_slug("Backyard", scenes) == "yard"
+    assert solve._match_scene_slug("Yard", scenes) == "yard"
+    # Fuzzy recovery works against the alias too.
+    assert solve._match_scene_slug("Backyrd", scenes) == "yard"
+
+
+def test_match_scene_resolves_via_any_alt_title_in_list() -> None:
+    # A scene can carry several aliases; the level name resolves through any of
+    # them (and still by its own title).
+    scenes = [
+        {
+            "slug": "yard",
+            "title": "Yard",
+            "alt_titles": ["Backyard", "Patio"],
+            "season": 1,
+        }
+    ]
+    assert solve._match_scene_slug("Yard", scenes) == "yard"
+    assert solve._match_scene_slug("Backyard", scenes) == "yard"
+    assert solve._match_scene_slug("Patio", scenes) == "yard"
+    assert solve._match_scene_slug("Spaceport", scenes) is None
+
+
 def _dreamscape_region_def(name: str) -> dict:
     area_doc = yaml.safe_load((MODULE_DIR / "area.yaml").read_text(encoding="utf-8"))
     for screen in area_doc.get("screens", []):
@@ -265,9 +292,10 @@ def test_practice_level_word_ocr_with_word_line() -> None:
 
 
 @pytest.mark.usefixtures("scene_db")
-def test_select_scene_matches_level_within_active_season() -> None:
-    # Active scene marks Season 3 as live; the OCR'd level name picks the room,
-    # not the same-named Season 1 scene (different coordinates).
+def test_select_scene_detects_by_words_within_active_season() -> None:
+    # Active scene marks Season 3 as live. "Shark" lives in both the S1 and S3
+    # Aquarium (different coordinates); detection by the on-screen word resolves
+    # to the live season, not the same-named Season 1 scene.
     dreamscape_db.upsert_scene(
         "museum-s3", title="Museum (S3)", source_image="", scene_rect=None,
         points=[{"n": 1, "name": "X", "xPct": 1.0, "yPct": 1.0}],
@@ -283,20 +311,59 @@ def test_select_scene_matches_level_within_active_season() -> None:
         points=[{"n": 2, "name": "Shark", "xPct": 80.0, "yPct": 80.0}],
         activate=False, season=3,
     )
-    scene = solve._select_scene("Aquarium", solve._DEFAULT_FUZZ_THRESHOLD)
+    scene = solve._select_scene(["Shark"], solve._DEFAULT_FUZZ_THRESHOLD)
     assert scene is not None and scene["slug"] == "aquarium-s3"
     assert solve._targets_for_scene(scene) == {"shark": (80.0, 80.0)}
 
 
 @pytest.mark.usefixtures("scene_db")
-def test_select_scene_falls_back_to_active_without_level_name() -> None:
+def test_select_scene_falls_back_to_active_without_words() -> None:
     dreamscape_db.upsert_scene(
         "yard", title="Yard", source_image="", scene_rect=None,
         points=[{"n": 1, "name": "Cat", "xPct": 5.0, "yPct": 6.0}],
         activate=True,
     )
-    scene = solve._select_scene("", solve._DEFAULT_FUZZ_THRESHOLD)
+    scene = solve._select_scene([], solve._DEFAULT_FUZZ_THRESHOLD)
     assert scene is not None and scene["slug"] == "yard"
+
+
+def test_match_scene_by_words_relaxes_overlap_three_then_two_then_one() -> None:
+    # The detector demands the strongest overlap first, relaxing only when nothing
+    # matches: all three words → two → one.
+    scenes = [
+        {"slug": "kitchen", "season": 1, "names": ["Apple", "Bread", "Cup"]},
+        {"slug": "garden", "season": 1, "names": ["Apple", "Rose"]},
+        {"slug": "study", "season": 1, "names": ["Pen"]},
+    ]
+    # All three present → the scene holding all three.
+    assert solve._match_scene_by_words(["Apple", "Bread", "Cup"], scenes) == "kitchen"
+    # No scene holds all three; "Apple"+"Rose" overlap (2) beats kitchen's 1.
+    assert solve._match_scene_by_words(["Apple", "Rose", "Zebra"], scenes) == "garden"
+    # Only one word lands anywhere.
+    assert solve._match_scene_by_words(["Pen", "Zebra", "Yak"], scenes) == "study"
+    # Nothing matches.
+    assert solve._match_scene_by_words(["Zebra", "Yak"], scenes) is None
+
+
+def test_match_scene_by_words_drops_ocr_garbage_before_counting() -> None:
+    # Garbage reads (too short / noise) are ignored, so a junk slot lowers the bar
+    # instead of mis-matching.
+    scenes = [{"slug": "kitchen", "season": 1, "names": ["Apple", "Bread"]}]
+    assert solve._match_scene_by_words(["Apple", "oe", "iin"], scenes) == "kitchen"
+
+
+def test_match_scene_by_words_accepts_short_exact_known_word() -> None:
+    scenes = [{"slug": "attic-s3", "season": 3, "names": ["X"]}]
+    assert solve._match_scene_by_words(["X"], scenes, prefer_season=3) == "attic-s3"
+
+
+def test_match_scene_by_words_breaks_season_ties_toward_prefer() -> None:
+    scenes = [
+        {"slug": "aquarium", "season": 1, "names": ["Shark"]},
+        {"slug": "aquarium-s3", "season": 3, "names": ["Shark"]},
+    ]
+    assert solve._match_scene_by_words(["Shark"], scenes, prefer_season=3) == "aquarium-s3"
+    assert solve._match_scene_by_words(["Shark"], scenes, prefer_season=1) == "aquarium"
 
 
 # ── _resolve_taps ─────────────────────────────────────────────────────────────
@@ -312,6 +379,13 @@ def test_resolve_taps_maps_words_to_pixels_and_reports_misses() -> None:
         ("  smoke", (374, 384)),
     ]
     assert misses == ["Wolf"]
+
+
+def test_resolve_taps_maps_single_letter_dictionary_word() -> None:
+    targets = {"x": (25.0, 75.0)}
+    hits, misses = solve._resolve_taps(["X"], targets, 720, 1280, fuzz_threshold=0)
+    assert [(w, (p.x, p.y)) for w, p in hits] == [("X", (180, 960))]
+    assert misses == []
 
 
 def test_resolve_taps_fuzzy_recovers_ocr_typos() -> None:
@@ -371,67 +445,6 @@ def test_point_to_scene_percent_reverses_scene_rect() -> None:
         {"left": 10.0, "top": 20.0, "width": 50.0, "height": 40.0},
     )
     assert xy == (80.0, 50.0)
-
-
-@pytest.mark.usefixtures("scene_db")
-def test_auto_add_help_point_to_scene_saves_missing_word() -> None:
-    dreamscape_db.upsert_scene(
-        "practice-level",
-        title="Practice Level",
-        source_image="ref.png",
-        scene_rect={"left": 10.0, "top": 20.0, "width": 50.0, "height": 40.0},
-        points=[{"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0}],
-        activate=True,
-        season=0,
-    )
-
-    learned = solve._auto_add_help_point_to_scene(
-        "practice-level",
-        "Smoke",
-        solve.Point(360, 512),
-        720,
-        1280,
-    )
-
-    assert learned == {
-        "scene": "practice-level",
-        "word": "Smoke",
-        "xPct": 80.0,
-        "yPct": 50.0,
-        "n": 2,
-    }
-    scene = dreamscape_db.get_scene("practice-level")
-    assert scene is not None
-    assert scene["points"] == [
-        {"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0},
-        {"n": 2, "name": "Smoke", "xPct": 80.0, "yPct": 50.0},
-    ]
-
-
-@pytest.mark.usefixtures("scene_db")
-def test_auto_add_help_point_skips_existing_word() -> None:
-    dreamscape_db.upsert_scene(
-        "practice-level",
-        title="Practice Level",
-        source_image="ref.png",
-        scene_rect=None,
-        points=[{"n": 1, "name": "Smoke", "xPct": 50.0, "yPct": 40.0}],
-        activate=True,
-    )
-
-    assert (
-        solve._auto_add_help_point_to_scene(
-            "practice-level",
-            " smoke ",
-            solve.Point(180, 256),
-            720,
-            1280,
-        )
-        is None
-    )
-    scene = dreamscape_db.get_scene("practice-level")
-    assert scene is not None
-    assert scene["points"] == [{"n": 1, "name": "Smoke", "xPct": 50.0, "yPct": 40.0}]
 
 
 def test_detect_help_highlight_motion_from_two_frames() -> None:
@@ -512,6 +525,28 @@ def test_word_region_visual_found_ignores_long_active_word() -> None:
         2,
         cv2.LINE_AA,
     )
+    assert solve._is_word_region_visually_found(active) is False
+
+
+def test_word_region_visual_found_ignores_selected_active_word() -> None:
+    # A selected active pill can have saturation in the "found" colour band
+    # (observed on "Pocket Watch"), but it has no dark strike-through.
+    hsv = np.full((54, 320, 3), (111, 73, 189), dtype=np.uint8)
+    active = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    cv2.putText(
+        active,
+        "Pocket Watch",
+        (28, 36),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.9,
+        (250, 250, 255),
+        2,
+        cv2.LINE_AA,
+    )
+
+    sat = solve._word_pill_background_saturation(active)
+    assert sat is not None
+    assert solve._FOUND_WORD_BG_SAT_MIN <= sat <= solve._FOUND_WORD_BG_SAT_MAX
     assert solve._is_word_region_visually_found(active) is False
 
 
@@ -831,12 +866,13 @@ async def test_solve_loop_remembers_clicked_words(monkeypatch: pytest.MonkeyPatc
     assert ctx.result["click_retries"] == []
     assert ctx.result["skipped_clicked"] == []
     assert ocr.region_id_calls == [
-        [
-            "dreamscape_memory.level.name",
-        ],
+        # Scene detected from the word slots (no title OCR); the help counter is
+        # then read on the same discovery tick.
         [
             "dreamscape_memory.1",
             "dreamscape_memory.2",
+        ],
+        [
             "dreamscape_memory.help.counter",
         ],
         # Both slots confirmed found on iteration 2 → only the helper counter
@@ -858,6 +894,8 @@ async def test_solve_loop_retaps_then_rejects_when_colour_never_confirms(
     actions = _FakeDreamscapeActions()
     ocr = _FakeDreamscapeOcr(
         word_values_by_call=[
+            {"dreamscape_memory.1": "Book"},
+            {"dreamscape_memory.1": "Book"},
             {"dreamscape_memory.1": "Book"},
             {"dreamscape_memory.1": "Book"},
             {"dreamscape_memory.1": "Book"},
@@ -894,7 +932,7 @@ async def test_solve_loop_retaps_then_rejects_when_colour_never_confirms(
                 "tap_delay": "0ms",
                 "tap_confirm_wait": 1,
                 "max_tap_attempts": 2,
-                "max_iterations": 3,
+                "max_iterations": 5,
             }
             self.result: dict[str, object] = {}
 
@@ -923,6 +961,7 @@ async def test_solve_loop_retaps_then_rejects_when_colour_never_confirms(
         },
     ]
     assert ctx.result["slot_states"]["dreamscape_memory.1"]["fsm_status"] == "rejected"
+    assert any(event["kind"] == "skip_rejected" for event in ctx.result["events"])
 
 
 @pytest.mark.asyncio
@@ -1042,15 +1081,17 @@ async def test_solve_loop_skips_ocr_for_visually_found_slot(
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
     assert ocr.region_id_calls == [
-        [
-            "dreamscape_memory.level.name",
-        ],
+        # Scene detected from the word slots (no title OCR), then the help counter
+        # on the same discovery tick.
         [
             "dreamscape_memory.1",
             "dreamscape_memory.2",
+        ],
+        [
             "dreamscape_memory.help.counter",
         ],
-        # Title locked after the first match — no longer re-read each iteration.
+        # Scene locked after the first match; slot 1 is visually found, so only
+        # slot 2 and the help counter are read.
         [
             "dreamscape_memory.2",
             "dreamscape_memory.help.counter",
@@ -1133,12 +1174,12 @@ async def test_solve_loop_treats_pre_greyed_slot_as_found_not_clicked(
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
     assert ocr.region_id_calls == [
-        [
-            "dreamscape_memory.level.name",
-        ],
-        # Slot 1 is already found (greyed) → skipped; only slot 2 is read.
+        # Slot 1 is already found (greyed) → skipped; the scene is detected from
+        # slot 2 (the only readable word), then the help counter on the same tick.
         [
             "dreamscape_memory.2",
+        ],
+        [
             "dreamscape_memory.help.counter",
         ],
     ]
@@ -1211,17 +1252,20 @@ async def test_solve_loop_reopens_slot_when_next_word_wave_turns_active(
     await solve._exec_dreamscape_memory_solve_loop(ctx)
 
     assert ocr.region_id_calls == [
-        [
-            "dreamscape_memory.level.name",
-        ],
+        # Scene detected from the word slot (no title OCR), then the help counter
+        # on the same discovery tick.
         [
             "dreamscape_memory.1",
-            "dreamscape_memory.help.counter",
         ],
-        # Title locked after the first match — no longer re-read each iteration.
         [
             "dreamscape_memory.help.counter",
         ],
+        # Scene locked after the first match; slot 1 found this tick → only the
+        # help counter is read.
+        [
+            "dreamscape_memory.help.counter",
+        ],
+        # Wave turns active and the slot reopens → its word is read again.
         [
             "dreamscape_memory.1",
             "dreamscape_memory.help.counter",
@@ -1233,6 +1277,77 @@ async def test_solve_loop_reopens_slot_when_next_word_wave_turns_active(
     # yet confirmed within the run, so only Book is recorded clicked.
     assert ctx.result["clicked"] == ["Book"]
     assert ctx.result["region_words"] == {"dreamscape_memory.1": "Smoke"}
+
+
+@pytest.mark.asyncio
+async def test_solve_loop_ocr_probes_closed_batch_when_visual_reopen_misses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # If the colour detector keeps reporting the solved pill as grey after the
+    # next wave has loaded, pending_regions stays empty. The solver must still
+    # probe the word buttons and reopen the batch when OCR sees a new word.
+    actions = _FakeDreamscapeActions()
+    ocr = _FakeDreamscapeOcr(
+        word_values_by_call=[
+            {"dreamscape_memory.1": "Book"},
+            {"dreamscape_memory.1": "Smoke"},
+        ]
+    )
+
+    monkeypatch.setattr(solve.dsl_runtime, "bot_actions", lambda: actions)
+    monkeypatch.setattr(solve.dsl_runtime, "ocr_client", lambda: ocr)
+    monkeypatch.setattr(solve, "_load_area", _minimal_solver_area_doc)
+    monkeypatch.setattr(
+        solve,
+        "_found_word_regions_from_frame",
+        lambda _image, _area_doc, _names: (
+            {"dreamscape_memory.1"} if actions.taps else set()
+        ),
+    )
+    monkeypatch.setattr(
+        solve,
+        "_select_scene",
+        lambda _level_name, _fuzz_threshold: {
+            "slug": "practice-level",
+            "scene_rect": None,
+            "points": [
+                {"name": "Book", "xPct": 50.0, "yPct": 40.0},
+                {"name": "Smoke", "xPct": 52.0, "yPct": 30.0},
+            ],
+        },
+    )
+
+    class _Ctx:
+        def __init__(self) -> None:
+            self.redis_client = None
+            self.player_id = ""
+            self.instance_id = "bs1"
+            self.args = {
+                "regions": ["dreamscape_memory.1"],
+                "ttl": "10s",
+                "wait": "0ms",
+                "tap_delay": "0ms",
+                "max_iterations": 3,
+            }
+            self.result: dict[str, object] = {}
+
+    ctx = _Ctx()
+    await solve._exec_dreamscape_memory_solve_loop(ctx)
+
+    assert ocr.region_id_calls == [
+        ["dreamscape_memory.1"],
+        ["dreamscape_memory.help.counter"],
+        ["dreamscape_memory.help.counter"],
+        ["dreamscape_memory.1", "dreamscape_memory.help.counter"],
+    ]
+    assert actions.taps == [(360, 512), (374, 384)]
+    assert ctx.result["clicked"] == ["Book"]
+    assert ctx.result["region_words"] == {"dreamscape_memory.1": "Smoke"}
+    assert any(
+        event["kind"] == "batch_reset"
+        and "OCR probe reopened" in event["message"]
+        for event in ctx.result["events"]
+    )
 
 
 @pytest.mark.asyncio
@@ -1563,12 +1678,13 @@ async def test_solve_loop_taps_help_once_for_new_unmapped_word(
     assert ctx.result["help_remaining"] == 1
     assert ctx.result["unmapped"] == ["Smoke"]
     assert ocr.region_id_calls == [
-        [
-            "dreamscape_memory.level.name",
-        ],
+        # Scene detected from the word slots (no title OCR), then the help counter
+        # on the same discovery tick.
         [
             "dreamscape_memory.1",
             "dreamscape_memory.2",
+        ],
+        [
             "dreamscape_memory.help.counter",
         ],
         # Book confirmed found on iteration 2 → its slot is skipped; only the
@@ -1634,7 +1750,7 @@ async def test_solve_loop_defers_help_for_single_read_unmapped_word(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("scene_db")
-async def test_solve_loop_learns_help_highlight_point(
+async def test_solve_loop_taps_help_highlight_without_saving_point(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     actions = _FakeDreamscapeActions()
@@ -1655,10 +1771,12 @@ async def test_solve_loop_learns_help_highlight_point(
         capture_delay_s: float,
         diff_gap_s: float,
         before_frame: object | None = None,
+        word: str = "",
     ) -> object:
         assert capture_delay_s >= 0
         assert diff_gap_s >= 0
         assert before_frame is not None
+        assert word
         point = solve.Point(180, 256)
         actions_arg.tap(instance_id, point, require_approval=False)
         return point
@@ -1711,15 +1829,11 @@ async def test_solve_loop_learns_help_highlight_point(
     assert actions.require_approval_values == [False, False, False]
     assert ctx.result["clicked_keys"] == ["book", "smoke"]
     assert ctx.result["help_target_taps"] == [{"word": "Smoke", "x": 180, "y": 256}]
-    assert ctx.result["learned_help_points"] == [
-        {"scene": "practice-level", "word": "Smoke", "xPct": 25.0, "yPct": 20.0, "n": 2}
-    ]
+    assert ctx.result["learned_help_points"] == []
+    assert ctx.result["help_learn_errors"] == []
     scene = dreamscape_db.get_scene("practice-level")
     assert scene is not None
-    assert scene["points"] == [
-        {"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0},
-        {"n": 2, "name": "Smoke", "xPct": 25.0, "yPct": 20.0},
-    ]
+    assert scene["points"] == [{"n": 1, "name": "Book", "xPct": 50.0, "yPct": 40.0}]
 
 
 @pytest.mark.asyncio
@@ -1841,7 +1955,7 @@ async def test_solve_loop_ignores_short_unmapped_ocr_garbage(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("scene_db")
-async def test_solve_loop_learns_static_help_highlight_from_pre_help_frame(
+async def test_solve_loop_taps_static_help_highlight_without_saving_point(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _StaticHintActions(_FakeDreamscapeActions):
@@ -1935,11 +2049,11 @@ async def test_solve_loop_learns_static_help_highlight_from_pre_help_frame(
     assert actions.taps[:2] == [(360, 512), (612, 1088)]
     assert abs(actions.taps[2][0] - 325) <= 5
     assert abs(actions.taps[2][1] - 627) <= 5
-    assert ctx.result["learned_help_points"][0]["word"] == "Smoke"
+    assert ctx.result["learned_help_points"] == []
     assert ctx.result["help_learn_errors"] == []
     scene = dreamscape_db.get_scene("practice-level")
     assert scene is not None
-    assert [p["name"] for p in scene["points"]] == ["Book", "Smoke"]
+    assert [p["name"] for p in scene["points"]] == ["Book"]
 
 
 @pytest.mark.asyncio

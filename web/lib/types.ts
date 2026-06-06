@@ -664,6 +664,10 @@ export type DreamscapeSceneRect = {
 export type DreamscapeSceneSummary = {
   slug: string;
   title: string;
+  /** First alias (legacy single-value mirror of `alt_titles[0]`). */
+  alt_title: string;
+  /** Alternate on-screen names the scene also matches against. */
+  alt_titles: string[];
   source_image: string;
   point_count: number;
   active: boolean;
@@ -679,6 +683,10 @@ export type DreamscapeListMapsResult = {
 export type DreamscapeSceneDetail = {
   slug: string;
   title: string;
+  /** First alias (legacy single-value mirror of `alt_titles[0]`). */
+  alt_title: string;
+  /** Alternate on-screen names the scene also matches against. */
+  alt_titles: string[];
   source_image: string;
   /** Full reference-image gallery (primary first). Empty = single-image scene. */
   images: string[];

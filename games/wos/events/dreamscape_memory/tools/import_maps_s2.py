@@ -67,7 +67,7 @@ def _slugify(title: str) -> str:
 
 def _fetch(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "autopilot-import"})
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (trusted URL)
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 
 
@@ -118,10 +118,12 @@ def _to_png(raw: bytes) -> bytes:
     """Re-encode to PNG — the gallery API only serves ``.png`` references."""
     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
-        raise ValueError("could not decode embedded image")
+        msg = "could not decode embedded image"
+        raise ValueError(msg)
     ok, buf = cv2.imencode(".png", img)
     if not ok:
-        raise ValueError("could not re-encode image as PNG")
+        msg = "could not re-encode image as PNG"
+        raise ValueError(msg)
     return buf.tobytes()
 
 
@@ -185,7 +187,7 @@ def main() -> None:
         _MAPS_DIR.mkdir(parents=True, exist_ok=True)
 
     total = placed = 0
-    for (title, items), img in zip(maps, images):
+    for (title, items), img in zip(maps, images, strict=False):
         slug = f"{_slugify(title)}-s2"
         # One folder per scene: references/maps/<slug>/<slug>.png.
         rel = f"{_MODULE_REL}/references/maps/{slug}/{slug}.png"

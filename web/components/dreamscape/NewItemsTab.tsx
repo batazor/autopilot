@@ -174,6 +174,7 @@ export function NewItemsTab() {
       if (!detail) throw new Error("select a scene first");
       return saveDreamscapeScene(detail.slug, {
         title: detail.title,
+        alt_titles: detail.alt_titles,
         source_image: detail.source_image,
         scene_rect: detail.scene_rect,
         points: pins

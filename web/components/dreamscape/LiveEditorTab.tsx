@@ -2,14 +2,16 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
 import {
   ApiError,
+  activateDreamscapeScene,
   captureLabelingScreenshot,
   clickApprovalImageUrl,
   createQueueTask,
+  detectDreamscapeScene,
   fetchBotStatus,
   fetchInstanceDetail,
   fetchDreamscapeScene,
@@ -22,14 +24,12 @@ import {
 } from "@/lib/api";
 import {
   DREAMSCAPE_ALL_ITEM_FOUND_SCREEN,
-  DREAMSCAPE_LEVEL_NAME_REGION,
   DREAMSCAPE_MULTIPLAYER_WORD_REGIONS,
   DREAMSCAPE_SCOPE,
   DREAMSCAPE_TIME_UP_SCREEN,
   DREAMSCAPE_WORD_REGIONS,
   DREAMSCAPE_WORDS_REF,
   isActionableDreamscapeWord,
-  levelNameRead,
   parseDreamscapeSolveState,
   statusFromDetectedScreen,
   wordBadges,
@@ -43,7 +43,6 @@ import {
 import type {
   DreamscapeSolveEvent,
   DreamscapeWordRunState,
-  LevelNameRead,
   LiveStatus,
   WordBadge,
 } from "@/lib/dreamscape-live";
@@ -53,36 +52,27 @@ import { Button } from "./Button";
 
 const POLL_MS = 1500;
 
+// Season buckets (kept in sync with config/dreamscape_db.py): 0 = practice,
+// 100 = co-op Multiplayer, otherwise the numbered content season.
+const PRACTICE_SEASON = 0;
+const MULTIPLAYER_SEASON = 100;
+
+function seasonTag(season: number): string {
+  if (season === PRACTICE_SEASON) return "Practice";
+  if (season === MULTIPLAYER_SEASON) return "MP";
+  return `S${season}`;
+}
+
+function seasonRank(season: number): number {
+  if (season === PRACTICE_SEASON) return Number.MAX_SAFE_INTEGER;
+  if (season === MULTIPLAYER_SEASON) return Number.MAX_SAFE_INTEGER - 1;
+  return season;
+}
+
 /** Mirror the solver's key normalization (config exec `_normalize_word`):
  * lower-case and collapse inner whitespace so OCR text matches scene item keys. */
 function normalizeWord(raw: string): string {
   return raw.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function normalizeLevelName(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\b\d+(?:\.\d+)?\s*%.*$/i, " ")
-    .replace(/(?<=[a-z])[\|/\\]+(?=[a-z])/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-/** Drop a trailing season tag ("Garden (S3)" → "Garden") so a recognised level
- * name matches a scene title regardless of its season suffix. */
-function stripSeasonTag(title: string): string {
-  return title.replace(/\s*\(s\d+\)\s*$/i, "");
-}
-
-function sceneMatchesLevel(
-  scene: { slug: string; title: string },
-  levelKey: string,
-): boolean {
-  return (
-    normalizeLevelName(stripSeasonTag(scene.title)) === levelKey ||
-    normalizeLevelName(scene.slug) === levelKey
-  );
 }
 
 function formatApiError(err: unknown): string {
@@ -132,8 +122,6 @@ export type LiveEditorTabProps = {
   wordRegions?: readonly string[];
   /** Reference screen this mode keys its OCR poll on (defaults to solo's). */
   wordsRef?: string;
-  /** Title region whose text is the recognised level name (shared by both modes). */
-  levelNameRegion?: string;
   /** Scenario key enqueued by "Start solving" (the mode's fast solve loop). */
   scenarioKey?: string;
 };
@@ -141,11 +129,12 @@ export type LiveEditorTabProps = {
 export function LiveEditorTab({
   wordRegions = DREAMSCAPE_WORD_REGIONS,
   wordsRef = DREAMSCAPE_WORDS_REF,
-  levelNameRegion = DREAMSCAPE_LEVEL_NAME_REGION,
   scenarioKey,
 }: LiveEditorTabProps = {}) {
   const { instanceId, instances, setInstanceId, instancesLoading } = useFleet();
   const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const [message, setMessage] = useState<string | null>(null);
   const [autoCaptureArmed, setAutoCaptureArmed] = useState(false);
   const [confettiVisible, setConfettiVisible] = useState(false);
@@ -161,16 +150,6 @@ export function LiveEditorTab({
   const screenQuery = useQuery({
     queryKey: ["dreamscape-screen", instanceId],
     queryFn: () => fetchScreenDetect(instanceId),
-    enabled: Boolean(instanceId),
-    refetchInterval: POLL_MS,
-  });
-  // Read ONLY the level-name title each tick. Word slots are intentionally not
-  // OCR'd here: until the title resolves to a known scene we don't touch the
-  // word buttons (see wordOcrQuery), so a "scene not in DB" frame never burns
-  // OCR on words.
-  const levelOcrQuery = useQuery({
-    queryKey: ["dreamscape-level-ocr", instanceId],
-    queryFn: () => fetchRegionOcr(instanceId, [levelNameRegion]),
     enabled: Boolean(instanceId),
     refetchInterval: POLL_MS,
   });
@@ -201,44 +180,57 @@ export function LiveEditorTab({
     [effectiveDetectedScreen],
   );
   const terminalScreen = status.detectedScreen;
-  const levelName = useMemo(
-    () => levelNameRead(levelOcrQuery.data?.rows, levelNameRegion),
-    [levelOcrQuery.data, levelNameRegion],
+
+  // ── Word slots: OCR every tick ──
+  // The on-screen title is unreliable, so the scene is identified from the *set
+  // of words shown*. We therefore always read the word buttons (no title gate) —
+  // they are both what we display and the key the scene detector matches on.
+  const wordOcrQuery = useQuery({
+    queryKey: ["dreamscape-word-ocr", instanceId, wordsRef],
+    queryFn: () => fetchRegionOcr(instanceId, [...wordRegions]),
+    enabled: Boolean(instanceId),
+    refetchInterval: POLL_MS,
+  });
+  const rawBadges = useMemo(
+    () => wordBadges(wordOcrQuery.data?.rows, wordRegions),
+    [wordOcrQuery.data, wordRegions],
+  );
+  // Actionable words on screen (drop blanks / OCR noise) — the detector key.
+  const detectedWords = useMemo(
+    () =>
+      rawBadges
+        .map((b) => b.text.trim())
+        .filter((t) => isActionableDreamscapeWord(t)),
+    [rawBadges],
+  );
+  const detectKey = useMemo(
+    () => detectedWords.map((w) => w.toLowerCase()).sort().join("|"),
+    [detectedWords],
   );
 
-  // ── Scene match: title → scene in the solver DB ──
-  // Match the OCR'd level name to a scene; word slots are read only once this
-  // resolves — the gate: no scene caught → no word OCR.
   const scenesQuery = useQuery({
     queryKey: ["dreamscape-scenes"],
     queryFn: fetchDreamscapeScenes,
   });
-  const matchedSlug = useMemo(() => {
-    const lvl = normalizeLevelName(levelName?.text ?? "");
-    if (!lvl) return null;
-    const scenes = scenesQuery.data?.scenes ?? [];
-    const hit = scenes.find((s) => sceneMatchesLevel(s, lvl));
-    if (hit) return hit.slug;
-    const active = scenesQuery.data?.active;
-    return active && normalizeLevelName(active) === lvl ? active : null;
-  }, [levelName, scenesQuery.data]);
-  const sceneMatched = Boolean(matchedSlug);
 
-  // ── Word slots: OCR them only once the scene is caught ──
-  // The instant the title matches a scene we begin reading word buttons (the
-  // same frame if the match landed on it); before that they are never polled.
-  const wordOcrQuery = useQuery({
-    queryKey: ["dreamscape-word-ocr", instanceId, wordsRef],
-    queryFn: () => fetchRegionOcr(instanceId, [...wordRegions]),
-    enabled: Boolean(instanceId) && sceneMatched,
-    refetchInterval: POLL_MS,
+  // ── Scene detection: which scene holds the words on screen (3→2→1 overlap) ──
+  const detectQuery = useQuery({
+    queryKey: ["dreamscape-detect-scene", detectKey],
+    queryFn: () => detectDreamscapeScene(detectedWords),
+    enabled: Boolean(instanceId) && detectedWords.length > 0,
   });
-  // Empty when no scene is matched so stale word badges don't linger after the
-  // gate closes (React Query keeps the last data while a query is disabled).
-  const rawBadges = useMemo(
-    () => (sceneMatched ? wordBadges(wordOcrQuery.data?.rows, wordRegions) : []),
-    [sceneMatched, wordOcrQuery.data, wordRegions],
+  const autoSlug = detectQuery.data?.slug || null;
+
+  // Manual override (operator-picked scene), deep-linked via ?scene=slug and
+  // synced shallowly (History API). It wins over auto-detection when set.
+  const [overrideSlug, setOverrideSlug] = useState<string | null>(
+    () => params.get("scene")?.trim() || null,
   );
+  useEffect(() => {
+    setOverrideSlug(params.get("scene")?.trim() || null);
+  }, [params]);
+  const matchedSlug = overrideSlug || autoSlug;
+  const sceneMatched = Boolean(matchedSlug);
   const solveStateRaw =
     instanceDetail?.state?.["dreamscape_memory.solve_state"] ?? null;
   const parsedSolveState = useMemo(
@@ -298,6 +290,42 @@ export function LiveEditorTab({
     [badges, wordKnown],
   );
   const mode = wordRegions === DREAMSCAPE_MULTIPLAYER_WORD_REGIONS ? "multiplayer" : "solo";
+  const sceneTitle = sceneQuery.data?.title ?? null;
+
+  // ── Manual override selector ──
+  // Tag each option with its season ("S3 · Garden", "Practice ·", "MP ·") so the
+  // operator can tell apart same-named rooms reused across seasons.
+  const sceneOptions = useMemo(
+    () =>
+      [...(scenesQuery.data?.scenes ?? [])]
+        .sort(
+          (a, b) =>
+            seasonRank(a.season) - seasonRank(b.season) ||
+            a.title.localeCompare(b.title, undefined, { sensitivity: "base" }),
+        )
+        .map((s) => ({
+          value: s.slug,
+          label: `${seasonTag(s.season)} · ${s.title}`,
+        })),
+    [scenesQuery.data],
+  );
+  const activateMutation = useMutation({
+    mutationFn: (slug: string) => activateDreamscapeScene(slug),
+  });
+  // Pin the scene (wins over auto-detection), deep-link it via ?scene=, and make
+  // it active so the solver taps it too. Empty slug clears the override.
+  const selectScene = (slug: string) => {
+    const next = slug.trim() || null;
+    setOverrideSlug(next);
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search);
+      if (next) q.set("scene", next);
+      else q.delete("scene");
+      const qs = q.toString();
+      window.history.replaceState(null, "", qs ? `${pathname}?${qs}` : pathname);
+    }
+    if (next) activateMutation.mutate(next);
+  };
 
   // ── Bot/instance status ──
   const botQuery = useQuery({
@@ -372,7 +400,7 @@ export function LiveEditorTab({
   const startMutation = useMutation({
     // Start the local worker (idempotent if already up), then enqueue the
     // solver so it begins reading + tapping the level right away.
-    mutationFn: async () => {
+    mutationFn: async (action: "start" | "restart" = "start") => {
       const scenario = (scenarioKey || "").trim();
       const selectedInstance = instanceId.trim();
       if (!scenario) throw new Error("No solver scenario is configured for this mode.");
@@ -383,10 +411,13 @@ export function LiveEditorTab({
       setConfettiVisible(false);
       setFailedImageUrl(null);
       setImageTick((t) => t + 1);
-      setMessage("Preparing a fresh Dreamscape run...");
+      setMessage(
+        action === "restart"
+          ? "Resetting solver state for a fresh Dreamscape run..."
+          : "Preparing a fresh Dreamscape run...",
+      );
       await resetCurrentScreen(selectedInstance);
       void screenQuery.refetch();
-      void levelOcrQuery.refetch();
       void wordOcrQuery.refetch();
       setMessage(botRunning ? "Bot is already running." : "Starting bot worker...");
       if (!botRunning) await startLocalBot();
@@ -397,19 +428,24 @@ export function LiveEditorTab({
         scheduled_at: Date.now() / 1000,
         priority: 90_000,
         replace_existing: true,
+        abort_running: action === "restart",
       });
       return queued;
     },
-    onSuccess: (queued) => {
+    onSuccess: (queued, action) => {
       setAutoCaptureArmed(true);
       void botQuery.refetch();
       void instanceDetailQuery.refetch();
       void screenQuery.refetch();
-      void levelOcrQuery.refetch();
       void wordOcrQuery.refetch();
-      setMessage(`Dreamscape solver started (${queued.task_id}).`);
+      setMessage(
+        `Dreamscape solver ${action === "restart" ? "restarted" : "started"} (${queued.task_id}).`,
+      );
     },
-    onError: (err: unknown) => setMessage(`Start failed: ${formatApiError(err)}`),
+    onError: (err: unknown, action) =>
+      setMessage(
+        `${action === "restart" ? "Restart" : "Start"} failed: ${formatApiError(err)}`,
+      ),
   });
 
   const stopMutation = useMutation({
@@ -461,30 +497,16 @@ export function LiveEditorTab({
     if (!autoCaptureArmed || !botRunning || !instanceId || autoCaptureBusy.current) return;
     if (scenesQuery.isLoading || sceneQuery.isLoading) return;
 
-    const levelText = (levelName?.text ?? "").trim();
-    const unknownScene =
-      Boolean(levelText) &&
-      !levelName?.dimmed &&
-      !matchedSlug &&
-      !scenesQuery.isError;
+    // Scene is now picked by word-detection / the operator, so the only auto
+    // capture left is "new word in a known scene" — words the matched scene
+    // doesn't yet map. (Unknown-scene capture went away with the title detector.)
     const hasNewWords = Boolean(matchedSlug) && unknownWords.length > 0;
-    if (!unknownScene && !hasNewWords) return;
+    if (!hasNewWords) return;
 
-    const reason = unknownScene ? "unknown_scene" : "new_word";
-    const levelKey = normalizeLevelName(levelText);
-    const key = [
-      instanceId,
-      mode,
-      reason,
-      matchedSlug || levelKey,
-      unknownWords.join("|"),
-    ].join(":");
+    const key = [instanceId, mode, "new_word", matchedSlug, unknownWords.join("|")].join(":");
     if (autoCaptureKeys.current.has(key)) return;
     const alreadyQueued = hasDreamscapeNewCapture((capture) => {
-      if (capture.reason !== reason || capture.mode !== mode) return false;
-      if (reason === "unknown_scene") {
-        return normalizeLevelName(capture.levelName) === levelKey;
-      }
+      if (capture.reason !== "new_word" || capture.mode !== mode) return false;
       if (capture.sceneSlug !== matchedSlug) return false;
       const queuedWords = new Set(capture.words.map(normalizeWord));
       return unknownWords.some((word) => queuedWords.has(normalizeWord(word)));
@@ -501,19 +523,17 @@ export function LiveEditorTab({
         addDreamscapeNewCapture({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           ref,
-          reason,
+          reason: "new_word",
           createdAt: Date.now(),
           instanceId,
           mode,
-          levelName: levelText,
+          levelName: sceneTitle ?? "",
           sceneSlug: matchedSlug,
-          sceneTitle: sceneQuery.data?.title ?? null,
-          words: unknownScene ? [] : unknownWords,
+          sceneTitle,
+          words: unknownWords,
         });
         setMessage(
-          reason === "unknown_scene"
-            ? "Unknown Dreamscape scene captured — open New to assign it."
-            : `New word captured: ${unknownWords.join(", ")} — open New to place it.`,
+          `New word captured: ${unknownWords.join(", ")} — open New to place it.`,
         );
       })
       .catch((err: unknown) => {
@@ -526,12 +546,10 @@ export function LiveEditorTab({
     autoCaptureArmed,
     botRunning,
     instanceId,
-    levelName,
     matchedSlug,
     mode,
-    sceneQuery.data,
+    sceneTitle,
     sceneQuery.isLoading,
-    scenesQuery.isError,
     scenesQuery.isLoading,
     unknownWords,
   ]);
@@ -552,7 +570,7 @@ export function LiveEditorTab({
           <Button
             variant="primary"
             disabled={startMutation.isPending || !instanceId || !scenarioKey}
-            onClick={() => startMutation.mutate()}
+            onClick={() => startMutation.mutate("start")}
             title={
               !instanceId
                 ? "Select an instance before starting Dreamscape"
@@ -574,8 +592,23 @@ export function LiveEditorTab({
         ) : null}
         {botRunning ? (
           <Button
+            variant="primary"
+            disabled={
+              startMutation.isPending ||
+              stopMutation.isPending ||
+              !instanceId ||
+              !scenarioKey
+            }
+            onClick={() => startMutation.mutate("restart")}
+            title="Reset current screen and solver state, replace the pending solver task, and start Dreamscape again"
+          >
+            {startMutation.isPending ? "Restarting…" : "Restart"}
+          </Button>
+        ) : null}
+        {botRunning ? (
+          <Button
             variant="secondary"
-            disabled={stopMutation.isPending}
+            disabled={stopMutation.isPending || startMutation.isPending}
             onClick={() => stopMutation.mutate()}
             title="Stop the bot worker"
           >
@@ -631,15 +664,19 @@ export function LiveEditorTab({
         </section>
         <WordSearchPanel
           badges={badges}
-          levelName={levelName}
           status={status}
-          sceneTitle={sceneQuery.data?.title ?? null}
+          sceneTitle={sceneTitle}
           matchedSlug={matchedSlug}
+          autoSlug={autoSlug}
+          overrideSlug={overrideSlug}
+          sceneOptions={sceneOptions}
+          onSelectScene={selectScene}
+          detectedCount={detectedWords.length}
           scenesLoading={scenesQuery.isLoading}
           scenesError={scenesQuery.isError}
           wordKnown={wordKnown}
           wordRunState={wordRunState}
-          loading={levelOcrQuery.isFetching || wordOcrQuery.isFetching}
+          loading={detectQuery.isFetching || wordOcrQuery.isFetching}
           instanceSelected={Boolean(instanceId)}
         />
       </div>
@@ -831,13 +868,18 @@ function SolveLogPanel({ events }: { events: DreamscapeSolveEvent[] }) {
   );
 }
 
-/** Right-hand panel mirroring TestTab: OCR title, matched scene, and word badges. */
+/** Right-hand panel: scene detected from the on-screen words, a manual override
+ * selector, and the word badges. */
 function WordSearchPanel({
   badges,
-  levelName,
   status,
   sceneTitle,
   matchedSlug,
+  autoSlug,
+  overrideSlug,
+  sceneOptions,
+  onSelectScene,
+  detectedCount,
   scenesLoading,
   scenesError,
   wordKnown,
@@ -846,10 +888,17 @@ function WordSearchPanel({
   instanceSelected,
 }: {
   badges: WordBadge[];
-  levelName: LevelNameRead | null;
   status: LiveStatus;
   sceneTitle: string | null;
   matchedSlug: string | null;
+  /** Scene auto-detected from the words (null when nothing matched). */
+  autoSlug: string | null;
+  /** Operator-pinned scene (null when auto-detection is in charge). */
+  overrideSlug: string | null;
+  sceneOptions: { value: string; label: string }[];
+  onSelectScene: (slug: string) => void;
+  /** Count of actionable words feeding detection. */
+  detectedCount: number;
   scenesLoading: boolean;
   scenesError: boolean;
   /** Per-badge coverage aligned to `badges` (mapped / unmapped / unknown). */
@@ -879,36 +928,43 @@ function WordSearchPanel({
 
       {instanceSelected ? (
         <>
-          <p className="meta mb-3">
-            Title (OCR):{" "}
-            <span
-              className={
-                levelName && !levelName.dimmed
-                  ? "text-wos-text"
-                  : "text-wos-text-muted"
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <AppListbox
+              label="Scene"
+              options={sceneOptions}
+              value={matchedSlug ?? ""}
+              onChange={onSelectScene}
+              loading={scenesLoading}
+              placeholder={
+                detectedCount === 0 ? "Waiting for words…" : "Pick a scene"
               }
-            >
-              {levelName?.text ||
-                (levelName?.status === "empty" ? "— not recognised —" : "—")}
+              minWidth={200}
+              inline
+            />
+            <span className="meta">
+              {overrideSlug ? (
+                <>
+                  pinned{" "}
+                  <button
+                    type="button"
+                    onClick={() => onSelectScene("")}
+                    className="underline hover:text-wos-text"
+                    title="Clear the manual override and return to auto-detection"
+                  >
+                    (use auto)
+                  </button>
+                </>
+              ) : autoSlug ? (
+                <>auto-detected from words</>
+              ) : scenesError ? (
+                "scene list failed"
+              ) : detectedCount === 0 ? (
+                "no words read yet"
+              ) : (
+                "no scene matches these words"
+              )}
             </span>
-            {levelName?.confidence != null
-              ? ` · ${Math.round(levelName.confidence * 100)}%`
-              : ""}
-            {sceneTitle ? (
-              <>
-                {" "}
-                · Scene: <span className="text-emerald-300">{sceneTitle}</span>
-              </>
-            ) : scenesLoading ? (
-              " · loading scenes…"
-            ) : matchedSlug ? (
-              " · loading scene…"
-            ) : scenesError ? (
-              " · scene list failed"
-            ) : levelName?.text ? (
-              " · scene not in DB"
-            ) : null}
-          </p>
+          </div>
           <DetectedWordsBadges
             badges={badges}
             wordKnown={wordKnown}

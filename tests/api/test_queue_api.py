@@ -56,3 +56,46 @@ def test_remove_pending_scenario_tasks_is_instance_and_scenario_scoped(
     remaining_bs2 = [json.loads(raw) for raw in redis_sync.zrange(key_bs2, 0, -1)]  # type: ignore[attr-defined]
     assert [row["task_id"] for row in remaining_bs1] == ["cron:keep"]
     assert [row["task_id"] for row in remaining_bs2] == ["manual:other-instance"]
+
+
+def test_enqueue_user_task_can_abort_running_task(
+    redis_sync: object,
+    monkeypatch,
+) -> None:
+    published: list[tuple[str, dict[str, str]]] = []
+
+    monkeypatch.setattr(
+        queue_api._tmpl,
+        "resolve",
+        lambda _root, _scenario_key: object(),
+    )
+    monkeypatch.setattr(
+        queue_api._tmpl,
+        "load_doc",
+        lambda _root, _scenario_key: (None, {"device_level": True}),
+    )
+    monkeypatch.setattr(queue_api, "enqueue_envelope", lambda _env, _client: "wos:queue:bs1")
+    monkeypatch.setattr(queue_api, "push_scheduler_command", lambda _client, _cmd: None)
+
+    def publish(channel: str, payload: str) -> int:
+        published.append((channel, json.loads(payload)))
+        return 1
+
+    monkeypatch.setattr(redis_sync, "publish", publish)
+
+    result = queue_api.enqueue_user_task(
+        redis_sync,  # type: ignore[arg-type]
+        scenario_key="dreamscape_memory",
+        instance_id="bs1",
+        player_id="",
+        scheduled_at=123.0,
+        priority=90000,
+        replace_existing=True,
+        abort_running=True,
+    )
+
+    assert result["queue_key"] == "wos:queue:bs1"
+    assert (
+        "wos:events:abort_task:bs1",
+        {"reason": "operator restart requested: dreamscape_memory"},
+    ) in published

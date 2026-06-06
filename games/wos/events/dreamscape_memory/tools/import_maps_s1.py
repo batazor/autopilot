@@ -141,7 +141,7 @@ def _slugify(title: str) -> str:
 
 def _fetch(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "autopilot-import"})
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (trusted URL)
+    with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.read()
 
 
@@ -192,10 +192,12 @@ def _to_png(raw: bytes) -> bytes:
     """Re-encode to PNG — the gallery API only serves ``.png`` references."""
     img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
-        raise ValueError("could not decode embedded image")
+        msg = "could not decode embedded image"
+        raise ValueError(msg)
     ok, buf = cv2.imencode(".png", img)
     if not ok:
-        raise ValueError("could not re-encode image as PNG")
+        msg = "could not re-encode image as PNG"
+        raise ValueError(msg)
     return buf.tobytes()
 
 
@@ -321,7 +323,7 @@ def main() -> None:
 
     keep: set[str] = set()
     total = placed = 0
-    for (title, items), img in zip(maps, season1_imgs):
+    for (title, items), img in zip(maps, season1_imgs, strict=False):
         slug = f"{_slugify(title)}-s1"
         keep.add(slug)
         slug, npts, n_ocr = _import_one(
@@ -332,7 +334,7 @@ def main() -> None:
         ocr_note = f" · OCR placed {n_ocr}/{npts}" if ocr else ""
         print(f"{'DRY ' if dry else ''}{slug:18s} S1  {npts:3d} pts{ocr_note}")
 
-    for (title, items), img in zip(_MULTIPLAYER, mp_imgs):
+    for (title, items), img in zip(_MULTIPLAYER, mp_imgs, strict=False):
         slug = f"{_slugify(title)}-mp"
         slug, npts, n_ocr = _import_one(
             title, items, img, slug=slug, season=SEASON_MULTIPLAYER, ocr=ocr, dry=dry

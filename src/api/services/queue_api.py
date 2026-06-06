@@ -346,6 +346,7 @@ def enqueue_user_task(
     scheduled_at: float,
     priority: int = 50_000,
     replace_existing: bool = False,
+    abort_running: bool = False,
 ) -> dict[str, Any]:
     """Enqueue an operator-created task from the calendar UI.
 
@@ -390,6 +391,16 @@ def enqueue_user_task(
         run_at=float(scheduled_at),
     )
     qk = enqueue_envelope(env, client)
+    if abort_running:
+        with suppress(Exception):
+            client.publish(
+                f"wos:events:abort_task:{instance_id}",
+                json.dumps(
+                    {
+                        "reason": f"operator restart requested: {scenario_key}",
+                    }
+                ),
+            )
     push_scheduler_command(client, {"cmd": "optimize_now"})
     from dashboard.dashboard_events import publish_dashboard_event
 

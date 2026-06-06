@@ -269,6 +269,7 @@ export async function createQueueTask(body: {
   scheduled_at: number;
   priority?: number;
   replace_existing?: boolean;
+  abort_running?: boolean;
 }): Promise<{ task_id: string }> {
   const data = await apiFetch<{
     ok: boolean;
@@ -631,6 +632,8 @@ export async function saveDreamscapeScene(
   slug: string,
   body: {
     title: string;
+    alt_title?: string;
+    alt_titles?: string[];
     source_image: string;
     scene_rect: DreamscapeSceneRect | null;
     points: DreamscapeScenePoint[];
@@ -656,6 +659,34 @@ export async function fetchDreamscapeScene(
 ): Promise<DreamscapeSceneDetail> {
   return apiFetch<DreamscapeSceneDetail>(
     `/api/dreamscape/scenes/${encodeURIComponent(slug)}`,
+  );
+}
+
+export type DreamscapeDetectSceneResult = {
+  slug: string;
+  title: string;
+  matched: number;
+};
+
+/** Auto-detect the scene from the on-screen item words (3→2→1 overlap). Returns
+ * an empty slug when the words match nothing. */
+export async function detectDreamscapeScene(
+  words: string[],
+): Promise<DreamscapeDetectSceneResult> {
+  return apiFetch<DreamscapeDetectSceneResult>("/api/dreamscape/detect-scene", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ words }),
+  });
+}
+
+/** Make a scene the active one (the scene the solver taps). */
+export async function activateDreamscapeScene(
+  slug: string,
+): Promise<DreamscapeSaveMapResult> {
+  return apiFetch<DreamscapeSaveMapResult>(
+    `/api/dreamscape/scenes/${encodeURIComponent(slug)}/activate`,
+    { method: "POST" },
   );
 }
 

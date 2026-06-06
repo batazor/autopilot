@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import sys
 
-from config import dreamscape_db
-
 # Reuse the base importer's sheet parsing, guide-image extraction and OCR.
-import import_maps_s3 as base  # noqa: E402  (sibling module, run via -m or path)
+import import_maps_s3 as base
+
+from config import dreamscape_db
 
 
 def main() -> None:
@@ -37,7 +37,7 @@ def main() -> None:
         )
 
     grand_new = grand_placed = 0
-    for (title, items), img in zip(maps, images):
+    for (title, items), img in zip(maps, images, strict=False):
         slug = f"{base._slugify(title)}-s3"
         scene = dreamscape_db.get_scene(slug)
         if scene is None:

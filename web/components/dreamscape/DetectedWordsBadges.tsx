@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { DreamscapeWordRunState, WordBadge } from "@/lib/dreamscape-live";
 
 function runStateLabel(state: DreamscapeWordRunState): string {
@@ -11,6 +13,113 @@ function runStateLabel(state: DreamscapeWordRunState): string {
   if (state === "found") return "found";
   if (state === "rejected") return "rejected";
   return "";
+}
+
+/**
+ * The word-slot lifecycle, in order, with what each status actually means. The
+ * key invariant: a slot only becomes `clicked` once the background colour
+ * confirms our tap greyed the pill — a tap that never landed is never "clicked".
+ */
+const STATUS_LEGEND: {
+  state: DreamscapeWordRunState;
+  dot: string;
+  text: string;
+  desc: string;
+}[] = [
+  {
+    state: "unknown",
+    dot: "bg-wos-text-muted",
+    text: "text-wos-text-muted",
+    desc: "Slot not read yet (or its word hasn't resolved).",
+  },
+  {
+    state: "determined",
+    dot: "bg-emerald-400",
+    text: "text-emerald-200",
+    desc: "Word recognised and located on the scene map — ready to tap.",
+  },
+  {
+    state: "clicked",
+    dot: "bg-sky-400",
+    text: "text-sky-200",
+    desc: "We tapped AND the background confirmed it (pill greyed out). Only ever set after colour confirmation — a tap that didn't land stays 'detected' and is re-tapped.",
+  },
+  {
+    state: "found",
+    dot: "bg-emerald-400",
+    text: "text-emerald-200",
+    desc: "Pill greyed out without a tap of ours — already solved, or solved by a teammate.",
+  },
+  {
+    state: "help_requested",
+    dot: "bg-amber-300",
+    text: "text-amber-100",
+    desc: "Word isn't in the scene map — asked the in-game helper to reveal it.",
+  },
+  {
+    state: "detecting_on_map",
+    dot: "bg-amber-300",
+    text: "text-amber-100",
+    desc: "Scanning the scene for the helper highlight to learn the word's position.",
+  },
+  {
+    state: "rejected",
+    dot: "bg-rose-300",
+    text: "text-rose-100",
+    desc: "Tap was rejected, or the colour never confirmed it after the re-tap budget (likely a wrong map coordinate).",
+  },
+];
+
+function StatusLegendButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="What do the word statuses mean?"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-wos-border-subtle bg-wos-panel-raised text-[11px] font-semibold text-wos-text-muted transition hover:text-wos-text"
+      >
+        ?
+      </button>
+      {open ? (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+            aria-hidden
+          />
+          <div className="absolute left-0 top-7 z-20 w-80 rounded-lg border border-wos-border-subtle bg-wos-panel p-3 shadow-xl">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-wos-text-muted">
+                Word statuses
+              </p>
+              <span className="text-[10px] text-wos-text-muted">
+                detected → clicked → found
+              </span>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {STATUS_LEGEND.map((row) => (
+                <li key={row.state} className="flex gap-2">
+                  <span
+                    className={`mt-1 h-2 w-2 shrink-0 rounded-full ${row.dot}`}
+                    aria-hidden
+                  />
+                  <span className="text-xs leading-snug text-wos-text-muted">
+                    <span className={`font-semibold ${row.text}`}>
+                      {runStateLabel(row.state)}
+                    </span>{" "}
+                    — {row.desc}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : null}
+    </span>
+  );
 }
 
 /** The three word buttons the bot currently reads at the bottom of a level. */
@@ -85,6 +194,7 @@ export function DetectedWordsBadges({
           </span>
         );
       })}
+      <StatusLegendButton />
     </div>
   );
 }

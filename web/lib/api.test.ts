@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  createQueueTask,
   discardLabelingCapture,
   fetchLabelingScreenIds,
   fetchRegionOcr,
@@ -100,6 +101,33 @@ describe("labeling API game scope", () => {
 
     const url = String(fetchMock.mock.calls[0]?.[0]);
     expect(url).toBe("/api/instances/bs1/screen-detect");
+  });
+
+  it("passes abort_running when queueing a Dreamscape restart", async () => {
+    const fetchMock = mockFetchJson({
+      ok: true,
+      task_id: "queue:restart",
+      queue_key: "wos:queue:bs1",
+    });
+
+    await createQueueTask({
+      scenario_key: "dreamscape_memory",
+      instance_id: "bs1",
+      scheduled_at: 123,
+      priority: 90000,
+      replace_existing: true,
+      abort_running: true,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/queue/enqueue");
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({
+      scenario_key: "dreamscape_memory",
+      instance_id: "bs1",
+      replace_existing: true,
+      abort_running: true,
+    });
   });
 });
 

@@ -88,7 +88,6 @@ _DEFAULT_LOOP_MAX_ITERATIONS = 3000
 _DEFAULT_HELP_CAPTURE_DELAY_S = 0.12
 _DEFAULT_HELP_DIFF_GAP_S = 0.12
 _HELP_CAPTURE_FRAMES = 3
-_DEFAULT_CLICK_CONFIRM_RETRIES = 0
 # After dispatching a tap we keep the slot ``determined`` and wait for the
 # background-colour detector to confirm the pill greyed out before promoting it
 # to ``clicked``. If the colour has not confirmed within this many iterations we
@@ -98,6 +97,7 @@ _DEFAULT_CLICK_CONFIRM_RETRIES = 0
 _DEFAULT_TAP_CONFIRM_WAIT_ITERS = 2
 _DEFAULT_MAX_TAP_ATTEMPTS = 3
 _DEFAULT_WORD_OCR_THRESHOLD = 0.0
+_DEFAULT_BATCH_REOPEN_OCR_PROBE_ITERS = 2
 _MAX_LIVE_EVENTS = 120
 _MIN_UNMAPPED_WORD_LETTERS = 3
 # An unmapped word must be read on this many separate iterations before it is
@@ -167,11 +167,6 @@ class FuzzyLookup(NamedTuple):
 class HelpTargetTap(NamedTuple):
     word: str
     point: Point
-
-
-class HelpLearnResult(NamedTuple):
-    point: dict[str, Any] | None
-    reason: str
 
 
 class HelpMotionCandidate(NamedTuple):
@@ -304,16 +299,28 @@ def _is_actionable_unmapped_word(raw: object) -> bool:
 
 
 def _looks_like_clicked_word_noise(current_key: str, pending: PendingClick) -> bool:
+    return _word_keys_overlap(current_key, pending.raw_key, pending.key)
+
+
+def _tap_signature(region: str, key: str, point: Point) -> tuple[str, str, int, int]:
+    return (region, key, point.x, point.y)
+
+
+def _discard_tap_signatures_for_region(
+    signatures: set[tuple[str, str, int, int]],
+    region: str,
+) -> None:
+    signatures.difference_update(sig for sig in signatures if sig[0] == region)
+
+
+def _word_keys_overlap(current_key: str, *previous_keys: str) -> bool:
     current = re.sub(r"\s+", "", current_key)
-    raw = re.sub(r"\s+", "", pending.raw_key)
-    key = re.sub(r"\s+", "", pending.key)
+    previous = [re.sub(r"\s+", "", key) for key in previous_keys if key]
     return bool(
         current
-        and (
-            (raw and raw in current)
-            or (key and key in current)
-            or (current in raw and len(current) >= 3)
-            or (current in key and len(current) >= 3)
+        and any(
+            key in current or (current in key and len(current) >= 3)
+            for key in previous
         )
     )
 
@@ -455,8 +462,26 @@ def _match_scene_slug(
 
     by_base: dict[str, list[dict[str, Any]]] = {}
     for scene in scenes:
-        base = _normalize_level_name(_scene_base_name(scene.get("title"), scene.get("slug")))
-        by_base.setdefault(base, []).append(scene)
+        # A scene is reachable by its title-derived room name and by any
+        # operator-supplied alternate name (the same room labeled differently
+        # in-game). ``alt_titles`` holds the full list; ``alt_title`` is the
+        # legacy single value (still honoured for older callers/tests).
+        names = {
+            _normalize_level_name(_scene_base_name(scene.get("title"), scene.get("slug")))
+        }
+        raw_aliases = scene.get("alt_titles")
+        alt_values = list(raw_aliases) if isinstance(raw_aliases, list) else []
+        if scene.get("alt_title"):
+            alt_values.append(scene.get("alt_title"))
+        for raw_alt in alt_values:
+            alt = _normalize_level_name(
+                _SEASON_TAG_RE.sub("", str(raw_alt or "")).strip()
+            )
+            if alt:
+                names.add(alt)
+        for base in names:
+            if base:
+                by_base.setdefault(base, []).append(scene)
 
     bucket = by_base.get(key) or (
         by_base.get(_fuzzy_key(key, list(by_base), fuzz_threshold) or "") or []
@@ -466,71 +491,75 @@ def _match_scene_slug(
     return str(max(bucket, key=rank)["slug"])
 
 
+def _match_scene_by_words(
+    words: list[str],
+    scenes: list[dict[str, Any]],
+    *,
+    prefer_season: int | None = None,
+) -> str | None:
+    """Best scene slug for the set of on-screen item words (3→2→1 overlap).
+
+    Thin wrapper over :func:`config.dreamscape_db.match_scene_by_words` (the
+    canonical matcher shared with the onboarding API) pinned to the solver's
+    unmapped-word letter gate. See that function for the full algorithm.
+    """
+    from config import dreamscape_db
+
+    return dreamscape_db.match_scene_by_words(
+        words,
+        scenes,
+        prefer_season=prefer_season,
+        min_letters=_MIN_UNMAPPED_WORD_LETTERS,
+    )
+
+
 def _resolve_scene(
-    level_name: str, fuzz_threshold: float
+    words: list[str], fuzz_threshold: float
 ) -> tuple[dict[str, Any] | None, bool]:
-    """``(scene, matched_from_title)`` — the live scene resolver against the DB.
+    """``(scene, locked)`` — detect the scene from the on-screen item words.
 
-    ``matched_from_title`` is True only when the OCR'd level name resolved to a
-    scene in the DB. It is False for the active-scene fallback (no/unreadable
-    title, or a title that matched nothing) — callers must not lock onto a scene
-    until the title genuinely matches, or an early unreadable frame would pin the
-    run to the operator's active scene.
-
-    The active scene also supplies the preferred season (the live event) used to
-    break same-name ties; with no level name we keep the active scene as-is.
+    The title detector is removed: the scene is identified by the set of words
+    shown (see :func:`_match_scene_by_words`). ``locked`` is True only on a real
+    word match, so the loop fixes onto it and stops re-detecting; when nothing
+    matches we fall back to the operator's **active** scene (the manual override
+    selected on the game page) *unlocked*, so detection retries on later frames.
+    The active scene also supplies the preferred season for same-name tie-breaks.
     """
     from config import dreamscape_db
 
     active = dreamscape_db.get_active_scene()
-    if not level_name.strip():
-        return active, False
-
-    listing = dreamscape_db.list_scenes()
+    index = dreamscape_db.scene_word_index()
     prefer = int(active["season"]) if active and "season" in active else None
-    slug = _match_scene_slug(
-        level_name, listing["scenes"], prefer_season=prefer, fuzz_threshold=fuzz_threshold
-    )
+    slug = _match_scene_by_words(words, index["scenes"], prefer_season=prefer)
     if slug:
         scene = dreamscape_db.get_scene(slug)
         if scene:
-            logger.info(
-                "dreamscape_memory_solve: level %r -> scene %r (season %s)",
-                level_name,
-                slug,
-                scene.get("season"),
-            )
             return scene, True
-    logger.warning(
-        "dreamscape_memory_solve: level %r matched no scene; using active scene %r",
-        level_name,
-        active.get("slug") if active else None,
-    )
     return active, False
 
 
-def _select_scene(level_name: str, fuzz_threshold: float) -> dict[str, Any] | None:
-    """Scene to solve: match the OCR'd level name, else the operator's active scene.
+def _select_scene(words: list[str], fuzz_threshold: float) -> dict[str, Any] | None:
+    """Scene to solve: detect from the item words, else the active (override) scene.
 
     This is the single seam tests patch to inject a fixed scene; keep all scene
     selection routed through it.
     """
-    scene, _matched = _resolve_scene(level_name, fuzz_threshold)
+    scene, _locked = _resolve_scene(words, fuzz_threshold)
     return scene
 
 
 def _select_scene_ex(
-    level_name: str, fuzz_threshold: float
+    words: list[str], fuzz_threshold: float
 ) -> tuple[dict[str, Any] | None, bool]:
-    """``(scene, matched_from_title)`` for callers that also need the lock flag.
+    """``(scene, locked)`` for callers that also need the lock flag.
 
     The scene is sourced through :func:`_select_scene` so a test that patches that
-    seam stays isolated from the live DB, while the title-match flag comes from
-    the real lookup.
+    seam stays isolated from the live DB, while the lock flag comes from the real
+    word-set lookup.
     """
-    scene = _select_scene(level_name, fuzz_threshold)
-    _resolved, matched_from_title = _resolve_scene(level_name, fuzz_threshold)
-    return scene, matched_from_title
+    scene = _select_scene(words, fuzz_threshold)
+    _resolved, locked = _resolve_scene(words, fuzz_threshold)
+    return scene, locked
 
 
 def _fuzzy_key(
@@ -772,14 +801,12 @@ def _word_pill_background_saturation(crop: Any) -> float | None:
 def _is_word_region_visually_found(crop: Any) -> bool:
     """True when a Dreamscape word pill is already greyed out (word found).
 
-    Primary signal is the pill-background colour: there are only two pill states,
-    so the background saturation alone separates active (vivid) from found
-    (greyed/desaturated) and, unlike the strike-through, does not flicker with the
-    strike-in animation. A vivid background (above the found window) means the pill
-    is active — we return early without consulting the dark-text heuristic, since a
-    long/dense word has enough dark letter pixels to trip it and would otherwise
-    lock an active slot as "found" so it is never OCR'd or tapped. The dark-strike
-    heuristic is kept only as a fallback for when the saturation is unreadable.
+    The pill-background colour is the first gate: active chrome is usually vivid,
+    while found/struck pills are desaturated. A selected active pill can also be
+    desaturated, though, so the found colour must be confirmed by darkened text or
+    a strike-through in the center band. A vivid background means the pill is
+    active — return early without consulting the dark-text heuristic, since a
+    long/dense active word can have enough dark letter pixels to trip it.
     """
     if crop is None or not hasattr(crop, "shape") or len(crop.shape) != 3:
         return False
@@ -806,26 +833,27 @@ def _is_word_region_visually_found(crop: Any) -> bool:
     if float(gray.mean()) < _FOUND_WORD_MIN_MEAN_GRAY:
         return False
 
+    dark = gray < _FOUND_WORD_DARK_PIXEL_THRESHOLD
+    dark_ratio = float(dark.mean())
+    row_ratio = float(dark.mean(axis=1).max()) if dark.shape[0] else 0.0
+    has_dark_strike = (
+        dark_ratio >= _FOUND_WORD_MIN_DARK_RATIO
+        and row_ratio >= _FOUND_WORD_MIN_DARK_ROW_RATIO
+    )
+
     bg_sat = _word_pill_background_saturation(crop)
     if bg_sat is not None:
         if _FOUND_WORD_BG_SAT_MIN <= bg_sat <= _FOUND_WORD_BG_SAT_MAX:
-            return True
+            return has_dark_strike
         if bg_sat > _FOUND_WORD_BG_SAT_MAX:
             # Vivid lavender chrome → the pill is still active. Do NOT fall through
             # to the dark-text heuristic: a long, dense word ("Grilled Skewer")
             # has enough dark letter pixels to trip it, which would lock an active
-            # slot as "found" so it is never OCR'd or tapped. The fallback only
-            # makes sense when the saturation is unreadable or already desaturated.
+            # slot as "found" so it is never OCR'd or tapped.
             return False
 
-    # Fallback: darkened text / strike-through pixels in the center band.
-    dark = gray < _FOUND_WORD_DARK_PIXEL_THRESHOLD
-    dark_ratio = float(dark.mean())
-    row_ratio = float(dark.mean(axis=1).max()) if dark.shape[0] else 0.0
-    return (
-        dark_ratio >= _FOUND_WORD_MIN_DARK_RATIO
-        and row_ratio >= _FOUND_WORD_MIN_DARK_ROW_RATIO
-    )
+    # Fallback when the background sample is unreadable or unusually desaturated.
+    return has_dark_strike
 
 
 def _found_word_regions_from_frame(
@@ -972,15 +1000,6 @@ async def _exec_dreamscape_memory_solve(ctx: DslExecContext) -> None:
         fuzz_threshold = float(args.get("fuzz_threshold", _DEFAULT_FUZZ_THRESHOLD))
     except (TypeError, ValueError):
         fuzz_threshold = _DEFAULT_FUZZ_THRESHOLD
-    try:
-        click_confirm_retries = int(
-            args.get("click_confirm_retries", _DEFAULT_CLICK_CONFIRM_RETRIES)
-        )
-    except (TypeError, ValueError):
-        click_confirm_retries = _DEFAULT_CLICK_CONFIRM_RETRIES
-    click_confirm_retries = max(0, click_confirm_retries)
-
-    level_region = args.get("level_region", _DEFAULT_LEVEL_REGION)
 
     player_id = await _resolve_player_id(ctx)
     words = [await _read_word(ctx, player_id, str(r)) for r in regions]
@@ -993,12 +1012,9 @@ async def _exec_dreamscape_memory_solve(ctx: DslExecContext) -> None:
         )
         return
 
-    # Auto-select the scene from the on-screen level name; the active scene is
-    # the fallback (and supplies the live season for same-name tie-breaks).
-    level_name = (
-        await _read_word(ctx, player_id, str(level_region)) if level_region else ""
-    )
-    scene = await asyncio.to_thread(_select_scene, level_name, fuzz_threshold)
+    # Title detector removed: identify the scene from the set of item words read
+    # above (falls back to the active/override scene when none match).
+    scene = await asyncio.to_thread(_select_scene, words, fuzz_threshold)
     targets = _targets_for_scene(scene)
     actions = dsl_runtime.bot_actions()
     dev_w, dev_h = await asyncio.to_thread(actions.screen_resolution, ctx.instance_id)
@@ -1032,7 +1048,7 @@ async def _exec_dreamscape_memory_solve(ctx: DslExecContext) -> None:
     ctx.result.update(
         {
             "scene": scene.get("slug") if scene else "",
-            "level_name": level_name,
+            "level_name": str(scene.get("title") or "") if scene else "",
             "words": words,
             "tapped": tapped,
             "unmapped": misses,
@@ -1252,91 +1268,6 @@ def _point_to_scene_percent(
     )
 
 
-def _auto_add_help_point_to_scene_result(
-    scene_slug: str,
-    word: str,
-    point: Point,
-    frame_w: int,
-    frame_h: int,
-) -> HelpLearnResult:
-    scene_slug = str(scene_slug or "").strip()
-    word = str(word or "").strip()
-    key = _normalize_word(word)
-    if not scene_slug or not key:
-        return HelpLearnResult(None, "missing_scene_or_word")
-
-    from config import dreamscape_db
-
-    scene = dreamscape_db.get_scene(scene_slug)
-    if not scene:
-        return HelpLearnResult(None, "scene_not_found")
-    points = scene.get("points") if isinstance(scene.get("points"), list) else []
-    if any(_normalize_word(p.get("name")) == key for p in points if isinstance(p, dict)):
-        return HelpLearnResult(None, "duplicate_word")
-    xy = _point_to_scene_percent(point, frame_w, frame_h, scene.get("scene_rect"))
-    if xy is None:
-        return HelpLearnResult(None, "invalid_scene_percent")
-    x_pct, y_pct = xy
-    if not (-10.0 <= x_pct <= 110.0 and -10.0 <= y_pct <= 110.0):
-        logger.warning(
-            "dreamscape_memory_solve_loop: help point for %r outside scene %s: %.2f, %.2f",
-            word,
-            scene_slug,
-            x_pct,
-            y_pct,
-        )
-        return HelpLearnResult(None, "outside_scene")
-
-    next_n = max(
-        (
-            int(p.get("n") or 0)
-            for p in points
-            if isinstance(p, dict) and str(p.get("n") or "").strip().isdigit()
-        ),
-        default=0,
-    ) + 1
-    new_point = {"n": next_n, "name": word, "xPct": x_pct, "yPct": y_pct}
-    updated_points = [p for p in points if isinstance(p, dict)] + [new_point]
-    dreamscape_db.upsert_scene(
-        scene_slug,
-        title=str(scene.get("title") or scene_slug),
-        source_image=str(scene.get("source_image") or ""),
-        scene_rect=scene.get("scene_rect"),
-        points=updated_points,
-        activate=bool(scene.get("active")),
-        archived=bool(scene.get("archived")),
-        season=int(scene.get("season") or 1),
-        images=scene.get("images") if isinstance(scene.get("images"), list) else None,
-    )
-    logger.info(
-        "dreamscape_memory_solve_loop: learned help point %r in scene %s -> %.2f, %.2f",
-        word,
-        scene_slug,
-        x_pct,
-        y_pct,
-    )
-    return HelpLearnResult(
-        {"scene": scene_slug, "word": word, "xPct": x_pct, "yPct": y_pct, "n": next_n},
-        "saved",
-    )
-
-
-def _auto_add_help_point_to_scene(
-    scene_slug: str,
-    word: str,
-    point: Point,
-    frame_w: int,
-    frame_h: int,
-) -> dict[str, Any] | None:
-    return _auto_add_help_point_to_scene_result(
-        scene_slug,
-        word,
-        point,
-        frame_w,
-        frame_h,
-    ).point
-
-
 async def _tap_help_highlight_target(
     actions: Any,
     instance_id: str,
@@ -1344,6 +1275,7 @@ async def _tap_help_highlight_target(
     capture_delay_s: float,
     diff_gap_s: float,
     before_frame: Any | None = None,
+    word: str = "",
 ) -> Point | None:
     try:
         frames: list[Any] = []
@@ -1367,7 +1299,8 @@ async def _tap_help_highlight_target(
     if point is None:
         logger.info(
             "dreamscape_memory_solve_loop: help highlight motion not detected "
-            "across %d frame(s) instance=%s",
+            "for word=%r across %d frame(s) instance=%s",
+            word,
             _HELP_CAPTURE_FRAMES,
             instance_id,
         )
@@ -1379,10 +1312,12 @@ async def _tap_help_highlight_target(
         require_approval=False,
     )
     logger.info(
-        "dreamscape_memory_solve_loop: %s help-highlight target -> (%d,%d) instance=%s",
+        "dreamscape_memory_solve_loop: %s help-highlight target -> (%d,%d) "
+        "reason=help-detected-motion word=%r instance=%s",
         "tapped" if ok else "help-highlight-tap-rejected",
         point.x,
         point.y,
+        word,
         instance_id,
     )
     return point if ok else None
@@ -1479,6 +1414,7 @@ async def _dispatch_mapped_taps(
     pending_clicks: dict[str, PendingClick],
     click_retry_counts: dict[str, int],
     tap_attempt_iter: dict[str, int],
+    exhausted_tap_signatures: set[tuple[str, str, int, int]],
     tap_delay_s: float,
     events: list[dict[str, Any]],
     iteration: int,
@@ -1507,8 +1443,9 @@ async def _dispatch_mapped_taps(
             require_approval=False,
         )
         logger.info(
-            "dreamscape_memory_solve_loop: %s mapped %r key=%r region=%s -> (%d,%d) "
-            "instance=%s (awaiting colour confirm)",
+            "dreamscape_memory_solve_loop: %s mapped word=%r key=%r region=%s -> "
+            "(%d,%d) reason=ocr-word-mapped-to-scene-point instance=%s "
+            "(awaiting colour confirm)",
             "tapped" if ok else "tap-rejected",
             state.raw_word,
             state.key,
@@ -1530,6 +1467,7 @@ async def _dispatch_mapped_taps(
             ok=ok,
         )
         if not ok:
+            exhausted_tap_signatures.add(_tap_signature(region, state.key, state.point))
             _set_slot(
                 slot_states,
                 region,
@@ -1694,7 +1632,6 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     """
     args = ctx.args or {}
     regions = _solver_regions_from_args(args)
-    level_region = str(args.get("level_region") or _DEFAULT_LEVEL_REGION).strip()
     help_region = str(args.get("help_region", _DEFAULT_HELP_REGION) or "").strip()
     help_counter_region = str(
         args.get("help_counter_region", _DEFAULT_HELP_COUNTER_REGION) or ""
@@ -1737,9 +1674,10 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     deadline = time.monotonic() + ttl_s if ttl_s > 0 else None
 
     last_scene_slug = ""
-    # Once the title OCR matches a scene that exists in the DB, the room is fixed
-    # for the rest of the run. We cache it and stop re-reading/re-matching the
-    # title every iteration (see the title-lock branch in the loop below).
+    # The scene is the operator's active scene (selected on the game page). It is
+    # resolved once on the first tick and cached for the rest of the run; the
+    # title detector is removed, so there is nothing to re-read (see the
+    # scene-resolution branch in the loop below).
     title_locked = False
     cached_scene: dict[str, Any] | None = None
     seen_keys: set[str] = set()
@@ -1755,6 +1693,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     # Iteration at which each in-flight tap was last sent, so the confirmation
     # block can wait a few frames for the colour detector before re-tapping.
     tap_attempt_iter: dict[str, int] = {}
+    exhausted_tap_signatures: set[tuple[str, str, int, int]] = set()
     click_retries: list[dict[str, Any]] = []
     click_retry_exhausted: list[dict[str, Any]] = []
     helped_keys: set[str] = set()
@@ -1773,6 +1712,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
     skipped_clicked: list[str] = []
     iterations = 0
     taps_total = 0
+    settled_batch_idle_iterations = 0
     last_level_name = ""
     terminal_screen = ""
     stop_bot_after_result = False
@@ -1816,6 +1756,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             pending_clicks=pending_clicks,
             click_retry_counts=click_retry_counts,
             tap_attempt_iter=tap_attempt_iter,
+            exhausted_tap_signatures=exhausted_tap_signatures,
             tap_delay_s=tap_delay_s,
             events=events,
             iteration=iterations,
@@ -1865,11 +1806,13 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             # The full word set was solved and a fresh set is loading: drop the
             # per-batch click memory so repeated words in the next set are clicked
             # again, keeping only the append-only clicked/seen logs.
+            settled_batch_idle_iterations = 0
             settled_regions.difference_update(reopened_regions)
             for region in reopened_regions:
                 pending_clicks.pop(region, None)
                 click_retry_counts.pop(region, None)
                 tap_attempt_iter.pop(region, None)
+                _discard_tap_signatures_for_region(exhausted_tap_signatures, region)
                 _set_slot(
                     slot_states,
                     region,
@@ -1952,13 +1895,22 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             )
 
         pending_regions = [region for region in regions if region not in settled_regions]
+        batch_reopen_probe_regions: list[str] = []
         scene_known_before_ocr = bool(last_scene_slug)
-        # Skip the title region once the scene is locked — re-OCRing and
-        # re-matching a title we already resolved is wasted work.
-        read_title = bool(level_region) and not title_locked
-        ocr_region_names = ([level_region] if read_title else [])
-        if scene_known_before_ocr:
-            ocr_region_names.extend(pending_regions)
+        if scene_known_before_ocr and not pending_regions and not pending_clicks and settled_regions:
+            settled_batch_idle_iterations += 1
+            if settled_batch_idle_iterations >= _DEFAULT_BATCH_REOPEN_OCR_PROBE_ITERS:
+                batch_reopen_probe_regions = list(regions)
+        else:
+            settled_batch_idle_iterations = 0
+        # Title detector removed: the scene is detected from the *set of item
+        # words on screen*, so the word slots are OCR'd every tick (they are also
+        # what the solver taps). The help counter only matters once a scene is
+        # locked. ``level_region`` is no longer read.
+        ocr_region_names = list(pending_regions)
+        for region in batch_reopen_probe_regions:
+            if region not in ocr_region_names:
+                ocr_region_names.append(region)
         if scene_known_before_ocr and help_region and help_counter_region:
             ocr_region_names.append(help_counter_region)
 
@@ -1967,18 +1919,16 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
         if title_locked:
             scene = cached_scene
             scene_slug = last_scene_slug
-            level_name = last_level_name
         else:
-            level_name = ocr_values.get(level_region, "") if level_region else ""
-            if level_name:
-                last_level_name = level_name
-            scene, matched_from_title = await asyncio.to_thread(
-                _select_scene_ex, level_name, fuzz_threshold
+            detected_words = [ocr_values.get(region, "") for region in pending_regions]
+            scene, scene_locked = await asyncio.to_thread(
+                _select_scene_ex, detected_words, fuzz_threshold
             )
             scene_slug = str(scene.get("slug") or "") if scene else ""
-            if matched_from_title and scene_slug:
+            if scene_locked and scene_slug:
                 title_locked = True
                 cached_scene = scene
+        level_name = last_level_name
         if scene_slug and scene_slug != last_scene_slug:
             if last_scene_slug:
                 logger.info(
@@ -2006,6 +1956,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             pending_clicks.clear()
             click_retry_counts.clear()
             tap_attempt_iter.clear()
+            exhausted_tap_signatures.clear()
             click_retries.clear()
             click_retry_exhausted.clear()
             helped_keys.clear()
@@ -2019,6 +1970,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             unmapped.clear()
             unmapped_seen_counts.clear()
             unconfirmed_logged.clear()
+            settled_batch_idle_iterations = 0
             # Per-batch memory was just cleared, so any already-greyed pill is a
             # pre-solved word, not one of ours → mark it ``found``.
             if greyed_regions:
@@ -2027,6 +1979,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     pending_clicks.pop(region, None)
                     click_retry_counts.pop(region, None)
                     tap_attempt_iter.pop(region, None)
+                    _discard_tap_signatures_for_region(exhausted_tap_signatures, region)
                     _set_slot(
                         slot_states,
                         region,
@@ -2049,20 +2002,22 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             pending_regions = [region for region in regions if region not in settled_regions]
 
         if scene_slug and not scene_known_before_ocr:
-            word_ocr_region_names = list(pending_regions)
+            # The scene was just identified from the word slots, which the main
+            # OCR above already read this tick. Only the help counter still needs
+            # reading (it's skipped until a scene is known), so fetch just that —
+            # re-reading the words here would burn an extra OCR pass on the same
+            # frame and double-advance staged test word values.
             if help_region and help_counter_region:
-                word_ocr_region_names.append(help_counter_region)
-            if word_ocr_region_names:
                 ocr_values.update(
-                    await _ocr_current_frame(image, area_doc, word_ocr_region_names)
+                    await _ocr_current_frame(image, area_doc, [help_counter_region])
                 )
-                _append_event(
-                    events,
-                    "scene_ready",
-                    "Scene matched; reading word slots",
-                    iteration=iterations,
-                    scene=scene_slug,
-                )
+            _append_event(
+                events,
+                "scene_ready",
+                "Scene matched from word slots",
+                iteration=iterations,
+                scene=scene_slug,
+            )
 
         if not scene_slug:
             _append_event(
@@ -2100,6 +2055,64 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             if wait_s > 0:
                 await asyncio.sleep(wait_s)
             continue
+
+        if batch_reopen_probe_regions:
+            changed_probe_regions: set[str] = set()
+            for region in batch_reopen_probe_regions:
+                current_word = ocr_values.get(region, "")
+                current_key = _normalize_word(current_word)
+                if not current_key:
+                    continue
+                previous = slot_states.get(region)
+                previous_keys = [
+                    previous.raw_key if previous else "",
+                    previous.key if previous else "",
+                    _normalize_word(region_words.get(region, "")),
+                ]
+                if _word_keys_overlap(current_key, *previous_keys):
+                    continue
+                changed_probe_regions.add(region)
+            if changed_probe_regions:
+                reopened_regions = set(regions) & settled_regions
+                settled_batch_idle_iterations = 0
+                settled_regions.difference_update(reopened_regions)
+                for region in reopened_regions:
+                    pending_clicks.pop(region, None)
+                    click_retry_counts.pop(region, None)
+                    tap_attempt_iter.pop(region, None)
+                    _discard_tap_signatures_for_region(exhausted_tap_signatures, region)
+                    _set_slot(
+                        slot_states,
+                        region,
+                        None,
+                        events=events,
+                        iteration=iterations,
+                        instance_id=ctx.instance_id,
+                    )
+                    region_words.pop(region, None)
+                    clicked_regions.discard(region)
+                clicked_keys.clear()
+                seen_keys.clear()
+                helped_keys.clear()
+                unmapped_seen_counts.clear()
+                unconfirmed_logged.clear()
+                skipped_clicked.clear()
+                pending_regions = [
+                    region for region in regions if region not in settled_regions
+                ]
+                logger.info(
+                    "dreamscape_memory_solve_loop: OCR probe reopened solved word "
+                    "set; changed slot(s): %s",
+                    sorted(changed_probe_regions),
+                )
+                _append_event(
+                    events,
+                    "batch_reset",
+                    "Word set solved; OCR probe reopened slots for the next batch",
+                    iteration=iterations,
+                    regions=sorted(reopened_regions),
+                    changed_regions=sorted(changed_probe_regions),
+                )
 
         word_items = [
             (region, word)
@@ -2193,6 +2206,9 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 pending_clicks.pop(region, None)
                 click_retry_counts.pop(region, None)
                 tap_attempt_iter.pop(region, None)
+                exhausted_tap_signatures.add(
+                    _tap_signature(region, pending.key, pending.point)
+                )
                 _set_slot(
                     slot_states,
                     region,
@@ -2243,8 +2259,9 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 require_approval=False,
             )
             logger.info(
-                "dreamscape_memory_solve_loop: %s re-tap for %r key=%r region=%s -> "
-                "(%d,%d) instance=%s (awaiting colour confirm)",
+                "dreamscape_memory_solve_loop: %s re-tap word=%r key=%r region=%s -> "
+                "(%d,%d) reason=colour-unconfirmed-retry instance=%s "
+                "(awaiting colour confirm)",
                 "tapped" if ok else "tap-retry-rejected",
                 pending.raw_word,
                 pending.key,
@@ -2286,6 +2303,9 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 pending_clicks.pop(region, None)
                 click_retry_counts.pop(region, None)
                 tap_attempt_iter.pop(region, None)
+                exhausted_tap_signatures.add(
+                    _tap_signature(region, pending.key, pending.point)
+                )
                 _set_slot(
                     slot_states,
                     region,
@@ -2349,6 +2369,23 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                 )
 
         for candidate in candidates:
+            if (
+                candidate.region
+                and _tap_signature(candidate.region, candidate.key, candidate.point)
+                in exhausted_tap_signatures
+            ):
+                _append_event(
+                    events,
+                    "skip_rejected",
+                    f"Skipped exhausted tap {candidate.raw_word}",
+                    iteration=iterations,
+                    region=candidate.region,
+                    word=candidate.raw_word,
+                    key=candidate.key,
+                    x=candidate.point.x,
+                    y=candidate.point.y,
+                )
+                continue
             if candidate.key in clicked_keys:
                 if candidate.raw_word not in skipped_clicked:
                     skipped_clicked.append(candidate.raw_word)
@@ -2400,6 +2437,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
             pending_clicks=pending_clicks,
             click_retry_counts=click_retry_counts,
             tap_attempt_iter=tap_attempt_iter,
+            exhausted_tap_signatures=exhausted_tap_signatures,
             tap_delay_s=tap_delay_s,
             events=events,
             iteration=iterations,
@@ -2539,7 +2577,8 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                     require_approval=False,
                 )
                 logger.info(
-                    "dreamscape_memory_solve_loop: %s help for unmapped %r -> (%d,%d) instance=%s",
+                    "dreamscape_memory_solve_loop: %s help-pill word=%r -> (%d,%d) "
+                    "reason=unmapped-word-request-help instance=%s",
                     "tapped" if ok else "help-tap-rejected",
                     help_word,
                     help_point.x,
@@ -2599,6 +2638,7 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                         capture_delay_s=help_capture_delay_s,
                         diff_gap_s=help_diff_gap_s,
                         before_frame=help_baseline,
+                        word=help_word,
                     )
                     if target_point is not None:
                         help_target_taps.append(HelpTargetTap(help_word, target_point))
@@ -2633,47 +2673,6 @@ async def _exec_dreamscape_memory_solve_loop(ctx: DslExecContext) -> None:
                             x=target_point.x,
                             y=target_point.y,
                         )
-                        learn_result = await asyncio.to_thread(
-                            _auto_add_help_point_to_scene_result,
-                            scene_slug,
-                            help_word,
-                            target_point,
-                            dev_w,
-                            dev_h,
-                        )
-                        if learn_result.point is not None:
-                            learned_help_points.append(learn_result.point)
-                            _append_event(
-                                events,
-                                "learned",
-                                f"Learned point for {help_word}",
-                                iteration=iterations,
-                                word=help_word,
-                                scene=scene_slug,
-                                xPct=learn_result.point.get("xPct"),
-                                yPct=learn_result.point.get("yPct"),
-                            )
-                        else:
-                            help_learn_errors.append(
-                                {
-                                    "word": help_word,
-                                    "scene": scene_slug,
-                                    "reason": learn_result.reason,
-                                    "x": target_point.x,
-                                    "y": target_point.y,
-                                }
-                            )
-                            _append_event(
-                                events,
-                                "helper_error",
-                                f"Could not save helper point for {help_word}",
-                                iteration=iterations,
-                                word=help_word,
-                                scene=scene_slug,
-                                reason=learn_result.reason,
-                                x=target_point.x,
-                                y=target_point.y,
-                            )
                     else:
                         help_learn_errors.append(
                             {

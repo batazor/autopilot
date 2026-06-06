@@ -100,6 +100,31 @@ def test_long_click_accepts_wait_as_duration() -> None:
     DslStep.model_validate({"long_click": "upgrade_button", "wait": "5s"})
 
 
+def test_exec_accepts_ttl_and_wait_modifiers() -> None:
+    """An ``exec:`` step hands siblings to its handler as args and the runtime
+    also applies step-level ``wait`` / ``ttl`` around it (see the independent
+    ``if "exec"`` / ``if "ttl"`` branches in
+    ``tasks/dsl_scenario_execute_mixin.py``). Schema must agree so the dreamscape
+    solver scenarios validate."""
+    step = DslStep.model_validate(
+        {
+            "exec": "dreamscape_memory_solve_loop",
+            "mode": "solo",
+            "ttl": "5m",
+            "wait": "300ms",
+            "max_iterations": 3000,
+        }
+    )
+    assert step.step_type() == "exec"
+
+
+def test_exec_still_rejects_real_action_conflicts() -> None:
+    """Only ``wait`` / ``ttl`` are modifiers on an ``exec`` step — a true second
+    action key (``click``, ``match``, …) still fails validation."""
+    with pytest.raises(ValidationError):
+        DslStep.model_validate({"exec": "x", "click": "y"})
+
+
 def test_system_back_is_action_key() -> None:
     step = DslStep.model_validate({"system_back": True})
     assert step.step_type() == "system_back"

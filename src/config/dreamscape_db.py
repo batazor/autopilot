@@ -32,6 +32,7 @@ from sqlmodel import Field, Session, SQLModel, select
 
 from config import orm
 from config.paths import repo_root
+from ocr.word_cleaning import is_plausible_word_text, normalize_word_text
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -77,6 +78,16 @@ class DreamscapeSceneRow(SQLModel, table=True):
 
     slug: str = Field(primary_key=True)
     title: str = ""
+    # Optional matching alias: an alternate on-screen level name the OCR'd title
+    # can resolve to (some rooms are labeled differently in-game than their
+    # ``title``). Empty = no alias. Used alongside ``title`` in scene matching.
+    # Legacy single-value field; superseded by ``alt_titles_json`` (kept in sync
+    # to the first alias so older readers still resolve).
+    alt_title: str = ""
+    # JSON: ["Backyard", "Patio", ...] — the full alias list. A scene can carry
+    # several alternate on-screen names (different in-game labels for one room).
+    # Empty list = no aliases; legacy rows fall back to ``alt_title``.
+    alt_titles_json: str = Field(default="[]")
     source_image: str = ""
     # JSON: ["games/.../a.png", ...] — extra reference images for a multi-shot
     # scene (e.g. the Multiplayer "Monument"). ``source_image`` is the primary /
@@ -131,6 +142,16 @@ def _add_missing_columns(engine: Engine) -> None:
             conn.exec_driver_sql(
                 "ALTER TABLE dreamscape_scenes "
                 "ADD COLUMN images_json TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "alt_title" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes "
+                "ADD COLUMN alt_title VARCHAR NOT NULL DEFAULT ''"
+            )
+        if "alt_titles_json" not in cols:
+            conn.exec_driver_sql(
+                "ALTER TABLE dreamscape_scenes "
+                "ADD COLUMN alt_titles_json TEXT NOT NULL DEFAULT '[]'"
             )
 
 
@@ -232,10 +253,36 @@ def _load_json(raw: str | None, default: Any) -> Any:
         return default
 
 
+def _clean_alias_list(values: Any) -> list[str]:
+    """Trim/collapse whitespace, drop blanks, and de-dupe (case-insensitive)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    if not isinstance(values, list):
+        return out
+    for value in values:
+        text = " ".join(str(value).split())
+        key = text.lower()
+        if text and key not in seen:
+            seen.add(key)
+            out.append(text)
+    return out
+
+
+def _alt_titles(row: DreamscapeSceneRow) -> list[str]:
+    """Alias list for a row, falling back to the legacy single ``alt_title``."""
+    aliases = _clean_alias_list(_load_json(row.alt_titles_json, []))
+    if not aliases and row.alt_title.strip():
+        return [row.alt_title.strip()]
+    return aliases
+
+
 def _row_to_detail(row: DreamscapeSceneRow) -> dict[str, Any]:
+    aliases = _alt_titles(row)
     return {
         "slug": row.slug,
         "title": row.title or row.slug,
+        "alt_title": aliases[0] if aliases else "",
+        "alt_titles": aliases,
         "source_image": row.source_image,
         "images": _load_json(row.images_json, []),
         "scene_rect": _load_json(row.scene_rect_json, None),
@@ -262,13 +309,19 @@ def upsert_scene(
     archived: bool | None = None,
     season: int | None = None,
     images: list[str] | None = None,
+    alt_title: str | None = None,
+    alt_titles: list[str] | None = None,
 ) -> dict[str, Any]:
     """Insert/replace a scene; when ``activate`` make it the sole active scene.
 
-    ``archived``/``season``/``images`` are left untouched on update when
-    ``None`` (so re-imports and rect/point saves don't reset an operator's
-    rotation/season tagging or gallery); new rows default to not-archived,
-    Season 1, single-image.
+    ``archived``/``season``/``images``/``alt_title``/``alt_titles`` are left
+    untouched on update when ``None`` (so re-imports and rect/point saves don't
+    reset an operator's rotation/season tagging, gallery, or matching aliases);
+    new rows default to not-archived, Season 1, single-image, no aliases.
+
+    ``alt_titles`` (the full alias list) takes precedence over the legacy
+    single-value ``alt_title``; the ``alt_title`` column is kept in sync with the
+    first alias so older readers still resolve.
     """
     now = time.time()
     with _conn_lock, Session(_engine()) as s:
@@ -277,6 +330,14 @@ def upsert_scene(
             row = DreamscapeSceneRow(slug=slug)
             s.add(row)
         row.title = title or slug
+        if alt_titles is not None:
+            cleaned = _clean_alias_list(alt_titles)
+            row.alt_titles_json = json.dumps(cleaned)
+            row.alt_title = cleaned[0] if cleaned else ""
+        elif alt_title is not None:
+            alias = alt_title.strip()
+            row.alt_title = alias
+            row.alt_titles_json = json.dumps([alias] if alias else [])
         row.source_image = source_image
         if images is not None:
             row.images_json = json.dumps([str(x) for x in images])
@@ -308,20 +369,156 @@ def list_scenes() -> dict[str, Any]:
     with Session(_engine()) as s:
         rows = s.exec(select(DreamscapeSceneRow)).all()
         active = _active_slug(s)
+    scenes = []
+    for r in rows:
+        aliases = _alt_titles(r)
+        scenes.append(
+            {
+                "slug": r.slug,
+                "title": r.title or r.slug,
+                "alt_title": aliases[0] if aliases else "",
+                "alt_titles": aliases,
+                "source_image": r.source_image,
+                "point_count": len(_load_json(r.points_json, [])),
+                "active": bool(r.active),
+                "archived": bool(r.archived),
+                "season": int(r.season),
+            }
+        )
+    scenes.sort(key=lambda d: d["slug"])
+    return {"active": active, "scenes": scenes}
+
+
+def scene_word_index() -> dict[str, Any]:
+    """All scenes with their item-name lists, for word-based scene detection.
+
+    Unlike :func:`list_scenes` (summaries), this carries each scene's full set of
+    mapped item names so the detector can match the on-screen words against them.
+    """
+    with Session(_engine()) as s:
+        rows = s.exec(select(DreamscapeSceneRow)).all()
+        active = _active_slug(s)
     scenes = [
         {
             "slug": r.slug,
             "title": r.title or r.slug,
-            "source_image": r.source_image,
-            "point_count": len(_load_json(r.points_json, [])),
+            "season": int(r.season),
             "active": bool(r.active),
             "archived": bool(r.archived),
-            "season": int(r.season),
+            "names": [
+                str(p.get("name", ""))
+                for p in _load_json(r.points_json, [])
+                if isinstance(p, dict)
+            ],
         }
         for r in rows
     ]
     scenes.sort(key=lambda d: d["slug"])
     return {"active": active, "scenes": scenes}
+
+
+# Min letters for a word to count toward scene detection (mirrors the solver's
+# unmapped-word gate). Garbage shorter than this is ignored before counting.
+_MIN_DETECT_WORD_LETTERS = 3
+
+
+def match_scene_by_words(
+    words: list[str],
+    scenes: list[dict[str, Any]],
+    *,
+    prefer_season: int | None = None,
+    min_letters: int = _MIN_DETECT_WORD_LETTERS,
+) -> str | None:
+    """Best scene slug for the set of on-screen item words.
+
+    The on-screen title is unreliable, so a scene is identified by *which scene
+    contains the words shown*. We require the strongest overlap first and relax it
+    only when nothing matches: with three readable words, demand a scene holding
+    all three; if none, two; otherwise one. OCR garbage (too short / noise) is
+    dropped before counting, so a junk slot just lowers the bar instead of
+    mis-matching. A room reused across seasons breaks toward ``prefer_season``,
+    then the highest season.
+
+    ``scenes`` are the entries from :func:`scene_word_index` (each with a
+    ``names`` list and ``season``).
+    """
+    known_names = {
+        normalize_word_text(name)
+        for scene in scenes
+        for name in scene.get("names", [])
+        if normalize_word_text(name)
+    }
+    detected: list[str] = []
+    seen: set[str] = set()
+    for raw in words:
+        key = normalize_word_text(raw)
+        if not key:
+            continue
+        if key not in known_names and not is_plausible_word_text(
+            raw, min_letters=min_letters
+        ):
+            continue
+        if key and key not in seen:
+            seen.add(key)
+            detected.append(key)
+    if not detected or not scenes:
+        return None
+
+    def rank(scene: dict[str, Any]) -> tuple[int, int]:
+        season = int(scene.get("season") or 0)
+        return (1 if season == prefer_season else 0, season)
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for scene in scenes:
+        names = {normalize_word_text(n) for n in scene.get("names", [])}
+        overlap = sum(1 for key in detected if key in names)
+        if overlap:
+            scored.append((overlap, scene))
+    if not scored:
+        return None
+
+    for need in range(min(len(detected), 3), 0, -1):
+        bucket = [(overlap, scene) for overlap, scene in scored if overlap >= need]
+        if bucket:
+            _overlap, scene = max(bucket, key=lambda item: (item[0], rank(item[1])))
+            return str(scene["slug"])
+    return None
+
+
+def detect_scene_by_words(words: list[str]) -> dict[str, Any] | None:
+    """Auto-detect the scene from the on-screen item words (no active fallback).
+
+    Returns the full scene detail (as :func:`get_scene`) or ``None`` when nothing
+    matches. The active scene only supplies the preferred season for same-name
+    tie-breaks — it is *not* returned as a fallback, so callers can distinguish a
+    real detection from "nothing recognised".
+    """
+    index = scene_word_index()
+    active = get_active_scene()
+    prefer = int(active["season"]) if active and "season" in active else None
+    slug = match_scene_by_words(words, index["scenes"], prefer_season=prefer)
+    return get_scene(slug) if slug else None
+
+
+def set_active(slug: str) -> bool:
+    """Make ``slug`` the sole active scene (the one the solver taps).
+
+    Returns True if the scene exists. Clears ``active`` on every other row so the
+    invariant "exactly one active scene" holds.
+    """
+    with _conn_lock, Session(_engine()) as s:
+        row = s.get(DreamscapeSceneRow, slug)
+        if row is None:
+            return False
+        for other in s.exec(
+            select(DreamscapeSceneRow).where(DreamscapeSceneRow.active)
+        ).all():
+            if other.slug != slug:
+                other.active = False
+        row.active = True
+        row.updated_at = time.time()
+        s.commit()
+    return True
 
 
 def set_archived(slug: str, archived: bool) -> bool:

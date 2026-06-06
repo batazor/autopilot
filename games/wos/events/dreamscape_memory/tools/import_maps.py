@@ -175,7 +175,7 @@ def _fetch_sheet_maps() -> dict[str, tuple[str, list[tuple[int, str]]]]:
     sheet's two item columns, so the first name seen per number wins.
     """
     req = urllib.request.Request(SHEET_CSV_URL, headers={"User-Agent": "autopilot-import"})
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (trusted URL)
+    with urllib.request.urlopen(req, timeout=30) as resp:
         text = resp.read().decode("utf-8", "replace")
     out: dict[str, tuple[str, dict[int, str]]] = {}
     cur: str | None = None
@@ -268,7 +268,7 @@ def main() -> None:
     try:
         sheet_maps = _fetch_sheet_maps()
         print(f"fetched {len(sheet_maps)} map(s) from the King Shield sheet")
-    except Exception as exc:  # noqa: BLE001 (network/parse — fall back gracefully)
+    except Exception as exc:
         print(f"warning: sheet fetch failed ({exc}); using bundled fallback only")
         sheet_maps = {}
     names_only = {**_SHEET_FALLBACK, **sheet_maps}

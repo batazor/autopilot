@@ -7,6 +7,10 @@ import { useFleet } from "@/components/FleetContextProvider";
 import { AppListbox } from "@/components/headless";
 import { SceneCalibrator } from "@/components/dreamscape/SceneCalibrator";
 import {
+  AltTitlesEditor,
+  cleanAltTitles,
+} from "@/components/dreamscape/AltTitlesEditor";
+import {
   ScenePointEditor,
   type ScenePin as Pin,
 } from "@/components/dreamscape/ScenePointEditor";
@@ -44,6 +48,7 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
+  const [altTitles, setAltTitles] = useState<string[]>([]);
   const slug = useMemo(() => slugify(title), [title]);
 
   // ── Step 1: guide image ──
@@ -224,6 +229,7 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
     try {
       const res = await saveDreamscapeScene(slug, {
         title: title.trim() || slug,
+        alt_titles: cleanAltTitles(altTitles),
         source_image: sourceImage,
         scene_rect: {
           left: rect.bbox.x,
@@ -295,6 +301,7 @@ export function SceneOnboarding({ onClose }: { onClose: () => void }) {
                   className="w-56 rounded border border-wos-border bg-wos-bg-deep px-2 py-1.5 text-sm text-wos-text"
                 />
               </label>
+              <AltTitlesEditor value={altTitles} onChange={setAltTitles} />
               <span className="text-xs text-wos-text-muted">
                 slug: <code className="rounded bg-wos-panel-raised px-1">{slug}</code>
               </span>

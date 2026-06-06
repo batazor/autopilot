@@ -24,6 +24,7 @@ import numpy as np
 
 from config import dreamscape_db
 from config.paths import repo_root
+from ocr.word_cleaning import normalize_word_text
 from services import get_ocr_client
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,8 @@ class SceneRect(TypedDict):
 class SceneSummary(TypedDict):
     slug: str
     title: str
+    alt_title: str
+    alt_titles: list[str]
     source_image: str
     point_count: int
     active: bool
@@ -94,6 +97,8 @@ class ListMapsResult(TypedDict):
 class SceneDetail(TypedDict):
     slug: str
     title: str
+    alt_title: str
+    alt_titles: list[str]
     source_image: str
     images: list[str]
     scene_rect: SceneRect | None
@@ -306,6 +311,8 @@ def save_scene(
     scene_rect: Any,
     points: list[dict[str, Any]],
     activate: bool,
+    alt_title: str | None = None,
+    alt_titles: list[str] | None = None,
 ) -> SaveMapResult:
     """Upsert a scene into the module DB (optionally activating it)."""
     slug = _clean_slug(slug)
@@ -342,6 +349,8 @@ def save_scene(
         scene_rect=rect,
         points=points_out,
         activate=activate,
+        alt_title=alt_title.strip() if alt_title is not None else None,
+        alt_titles=alt_titles,
     )
     return {
         "ok": True,
@@ -351,12 +360,55 @@ def save_scene(
     }
 
 
+class DetectSceneResult(TypedDict):
+    # The detected scene slug, or "" when the words match nothing.
+    slug: str
+    title: str
+    # How many of the supplied words landed in the matched scene (0 when none).
+    matched: int
+
+
+def detect_scene(words: list[str]) -> DetectSceneResult:
+    """Auto-detect the scene from the on-screen item words (3→2→1 overlap).
+
+    Returns the matched scene (or an empty slug when nothing matches) so the live
+    editor can show the recognised scene without OCR-ing an unreliable title.
+    """
+    scene = dreamscape_db.detect_scene_by_words([str(w) for w in words])
+    if scene is None:
+        return {"slug": "", "title": "", "matched": 0}
+    names = {
+        normalize_word_text(str(p.get("name", "")))
+        for p in (scene.get("points") or [])
+        if isinstance(p, dict)
+    }
+    matched = sum(1 for w in words if normalize_word_text(str(w)) in names)
+    return {
+        "slug": str(scene.get("slug") or ""),
+        "title": str(scene.get("title") or ""),
+        "matched": matched,
+    }
+
+
+def activate_scene(slug: str) -> SaveMapResult:
+    """Make ``slug`` the active scene (the one the solver taps)."""
+    slug = _clean_slug(slug)
+    if not dreamscape_db.set_active(slug):
+        msg = f"unknown scene: {slug}"
+        raise FileNotFoundError(msg)
+    scene = dreamscape_db.get_scene(slug)
+    point_count = len(scene.get("points") or []) if scene else 0
+    return {"ok": True, "slug": slug, "point_count": point_count, "active": slug}
+
+
 def list_scenes() -> ListMapsResult:
     data = dreamscape_db.list_scenes()
     scenes: list[SceneSummary] = [
         {
             "slug": str(s["slug"]),
             "title": str(s["title"]),
+            "alt_title": str(s.get("alt_title", "")),
+            "alt_titles": [str(x) for x in (s.get("alt_titles") or [])],
             "source_image": str(s["source_image"]),
             "point_count": int(s["point_count"]),
             "active": bool(s["active"]),
@@ -388,6 +440,8 @@ def get_scene(slug: str) -> SceneDetail:
     return {
         "slug": slug,
         "title": str(scene.get("title") or slug),
+        "alt_title": str(scene.get("alt_title") or ""),
+        "alt_titles": [str(x) for x in (scene.get("alt_titles") or [])],
         "source_image": str(scene.get("source_image") or ""),
         "images": [str(x) for x in (scene.get("images") or []) if str(x).strip()],
         "scene_rect": _coerce_rect(rect) if isinstance(rect, dict) else None,

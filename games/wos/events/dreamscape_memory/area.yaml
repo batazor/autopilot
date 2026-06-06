@@ -323,6 +323,12 @@
       "screen_id": "",
       "ocr": "references/dreamscape_memory.road.png",
       "regions": []
+    },
+    {
+      "id": 15,
+      "screen_id": "",
+      "ocr": "references/season-3-stage-2-1.png",
+      "regions": []
     }
   ]
 }

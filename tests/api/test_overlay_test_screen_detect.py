@@ -42,7 +42,8 @@ def test_run_screen_detect_skips_overlay_analysis(tmp_path, monkeypatch) -> None
     )
 
     def _no_overlay(*_args, **_kwargs):
-        raise AssertionError("screen-detect must not run overlay analysis")
+        msg = "screen-detect must not run overlay analysis"
+        raise AssertionError(msg)
 
     monkeypatch.setattr(overlay_test, "run_overlay_analysis_sync", _no_overlay)
 
