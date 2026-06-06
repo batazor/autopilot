@@ -51,7 +51,7 @@ jobs:
           # Pin the BuildKit image so the boot pull is reproducible instead of
           # re-resolving the floating ``buildx-stable-1`` tag every run. If the
           # anonymous Docker Hub pull times out, just re-run the job.
-          driver-opts: image=moby/buildkit:v0.18.1
+          driver-opts: image=moby/buildkit:v0.30.0
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
