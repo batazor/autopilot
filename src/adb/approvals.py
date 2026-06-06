@@ -262,6 +262,58 @@ def _record_approval_block(
         logger.debug("Failed to record approval block reason", exc_info=True)
 
 
+def _decision_channel(req_id: str) -> str:
+    return f"wos:ui:click_approval:decision:{req_id}"
+
+
+def _subscribe_decision_channel(req_id: str) -> object | None:
+    try:
+        pubsub = _redis().pubsub(ignore_subscribe_messages=True)
+        pubsub.subscribe(_decision_channel(req_id))
+    except Exception:
+        logger.debug("Failed to subscribe to approval decision channel", exc_info=True)
+        return None
+    return pubsub
+
+
+def _close_decision_channel(pubsub: object | None, req_id: str) -> None:
+    if pubsub is None:
+        return
+    try:
+        unsubscribe = getattr(pubsub, "unsubscribe", None)
+        if callable(unsubscribe):
+            unsubscribe(_decision_channel(req_id))
+        close = getattr(pubsub, "close", None)
+        if callable(close):
+            close()
+    except Exception:
+        logger.debug("Failed to close approval decision channel", exc_info=True)
+
+
+def _wait_for_decision_signal(pubsub: object | None, timeout_s: float) -> str:
+    if pubsub is None or timeout_s <= 0:
+        if timeout_s > 0:
+            time.sleep(timeout_s)
+        return ""
+    try:
+        get_message = getattr(pubsub, "get_message", None)
+        msg = get_message(timeout=timeout_s) if callable(get_message) else None
+    except Exception:
+        logger.debug("Failed while waiting on approval decision signal", exc_info=True)
+        time.sleep(timeout_s)
+        return ""
+    if not msg or msg.get("type") != "message":
+        return ""
+    raw = msg.get("data")
+    raw_s = (
+        raw.decode("utf-8", errors="replace")
+        if isinstance(raw, bytes)
+        else str(raw or "")
+    )
+    decision = raw_s.strip().lower()
+    return decision if decision in {"approve", "reject", "skip"} else ""
+
+
 def _emit_approval_timeline(
     instance_id: str,
     *,
@@ -588,6 +640,7 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
     decision_reason = ""
     decision_detail = ""
     missing_current_republishes = 0
+    decision_pubsub = _subscribe_decision_channel(req_id)
     wait_deadline = (
         time.monotonic() + _APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS
         if _APPROVAL_WALL_CLOCK_TIMEOUT_SECONDS is not None
@@ -657,7 +710,13 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
                             detail=f"{missing_current_republishes}/{_APPROVAL_MISSING_CURRENT_REPUBLISH_LIMIT}",
                             ctx=ctx,
                         )
-                    time.sleep(_APPROVAL_POLL_SECONDS)
+                    signal_decision = _wait_for_decision_signal(
+                        decision_pubsub, _APPROVAL_POLL_SECONDS
+                    )
+                    if signal_decision:
+                        decision = signal_decision
+                        decision_reason = f"signal:{signal_decision}"
+                        break
                     continue
                 decision = "reject"
                 decision_reason = "current_missing_after_republish"
@@ -694,7 +753,15 @@ def _require_approval(instance_id: str, payload: dict[str, object]) -> tuple[boo
         except Exception:
             logger.debug("Failed to refresh current approval payload", exc_info=True)
 
-        time.sleep(_APPROVAL_POLL_SECONDS)
+        signal_decision = _wait_for_decision_signal(
+            decision_pubsub, _APPROVAL_POLL_SECONDS
+        )
+        if signal_decision:
+            decision = signal_decision
+            decision_reason = f"signal:{signal_decision}"
+            break
+
+    _close_decision_channel(decision_pubsub, req_id)
 
     if decision in {"approve", "reject", "skip"}:
         # Persist decision time on the current payload for UI/debug.
@@ -800,4 +867,3 @@ def _consume_skip(req_id: str | None) -> bool:
         _skipped_req_ids.discard(req_id)
         return True
     return False
-

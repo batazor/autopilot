@@ -19,6 +19,7 @@ class _FakeRedis:
         self.kv = dict(kv or {})
         self.on_set = on_set
         self.deleted: list[str] = []
+        self.published: list[tuple[str, str]] = []
 
     def get(self, key: str) -> str | None:
         return self.kv.get(key)
@@ -35,7 +36,7 @@ class _FakeRedis:
         return int(self.kv.pop(key, None) is not None)
 
     def publish(self, key: str, value: str) -> int:
-        del key, value
+        self.published.append((key, value))
         return 0
 
 
@@ -64,6 +65,7 @@ def test_submit_decision_records_response_and_clears_current() -> None:
 
     assert client.kv[f"wos:ui:click_approval:response:{req_id}"] == "approve"
     assert current_key not in client.kv
+    assert (f"wos:ui:click_approval:decision:{req_id}", "approve") in client.published
 
 
 def test_submit_decision_rejects_stale_request_id_without_touching_current() -> None:

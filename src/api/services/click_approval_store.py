@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import suppress
 from typing import Any
 from urllib.parse import urlencode
 
@@ -11,8 +12,7 @@ import redis
 from adb.approvals import click_approval_enabled
 from api.services.click_approval_overlay import (
     build_overlays,
-    image_dimensions,
-    load_preview_bytes,
+    load_preview_metadata,
 )
 from config.loader import load_settings
 from config.paths import repo_root
@@ -558,14 +558,13 @@ def get_approval_view(
         if region_label:
             labeling_href = _labeling_href_for_region(client, instance_id, region_label)
 
-    png, rel, mtime = load_preview_bytes(
+    preview_available, rel, mtime, width, height = load_preview_metadata(
         instance_id=instance_id,
         payload=payload,
         source=image_source,
     )
-    width, height = image_dimensions(png) if png else (0, 0)
     overlays: list[dict[str, Any]] = []
-    if payload and png and width > 0 and height > 0:
+    if payload and preview_available and width > 0 and height > 0:
         overlays = [
             dict(o)
             for o in build_overlays(
@@ -619,7 +618,7 @@ def get_approval_view(
         "tap_x": x,
         "tap_y": y,
         "preview": {
-            "available": png is not None,
+            "available": preview_available,
             "rel": rel,
             "mtime": mtime,
             "width": width,
@@ -718,6 +717,13 @@ local response_key = tostring(payload["response_key"] or "")
 if response_key ~= "" then
   redis.call("SET", response_key, decision, "EX", 120)
 end
+if actual_request_id ~= "" then
+  redis.call(
+    "PUBLISH",
+    "wos:ui:click_approval:decision:" .. actual_request_id,
+    decision
+  )
+end
 redis.call("DEL", KEYS[1])
 return 1
 """
@@ -729,6 +735,20 @@ _DECISION_ALREADY_RECORDED = 2
 
 def _response_key_for_request_id(request_id: str) -> str:
     return f"wos:ui:click_approval:response:{request_id}"
+
+
+def _decision_channel_for_request_id(request_id: str) -> str:
+    return f"wos:ui:click_approval:decision:{request_id}"
+
+
+def _publish_decision_signal(client: Any, request_id: str, decision: str) -> None:
+    if not request_id:
+        return
+    publish = getattr(client, "publish", None)
+    if not callable(publish):
+        return
+    with suppress(Exception):
+        publish(_decision_channel_for_request_id(request_id), decision)
 
 
 def _submit_decision_result_fallback(
@@ -763,6 +783,7 @@ def _submit_decision_result_fallback(
     response_key = _as_text(payload.get("response_key"))
     if response_key:
         client.set(response_key, decision, ex=120)
+    _publish_decision_signal(client, actual_request_id, decision)
 
     # Test doubles do not always support Redis scripting. Keep the fallback
     # conservative: only clear the visible slot if it still names the request we

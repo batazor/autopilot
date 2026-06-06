@@ -1,8 +1,10 @@
 enabled: true
 name: "Deals: Home & Beyond claim"
+
 priority: 80_000
 nodes:
   - deals.home_and_beyond
+
 steps:
   # The "Claim All" CTA at the bottom collects every available reward in one
   # tap. Loop in case the button re-renders after a sub-popup confirmation,

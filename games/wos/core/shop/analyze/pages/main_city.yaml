@@ -4,6 +4,7 @@ overlay:
     isRedDot: true
     screens:
       - main_city
+      - survivor_status.status
     steps:
       - push_scenario:
           name: shop.event

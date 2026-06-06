@@ -1,6 +1,7 @@
 """Build overlay descriptors for click-approval preview (browser canvas)."""
 from __future__ import annotations
 
+import struct
 from pathlib import Path  # noqa: TC003 — used at runtime for area.json
 from typing import Any, Literal, TypedDict
 
@@ -11,7 +12,10 @@ from dashboard.click_approvals import (
     load_area_doc,
     pct_bbox_to_px_rect,
 )
-from dashboard.reference_preview import load_rolling_instance_preview
+from dashboard.reference_preview import (
+    load_rolling_instance_preview,
+    rolling_live_preview_path,
+)
 from layout.area_lookup import screen_region_by_name
 
 
@@ -212,6 +216,77 @@ def load_preview_bytes(
             except (OSError, ValueError):
                 pass
     return load_rolling_instance_preview(instance_id)
+
+
+def _png_dimensions_from_header(path: Path) -> tuple[int, int]:
+    """Read PNG width/height from IHDR without decoding the image."""
+    try:
+        with path.open("rb") as f:
+            header = f.read(24)
+    except OSError:
+        return 0, 0
+    if len(header) < 24:
+        return 0, 0
+    if header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        return 0, 0
+    try:
+        w, h = struct.unpack(">II", header[16:24])
+    except struct.error:
+        return 0, 0
+    return int(w), int(h)
+
+
+def _preview_path_for_source(
+    *,
+    instance_id: str,
+    payload: dict[str, Any] | None,
+    source: str,
+) -> tuple[Path | None, str]:
+    src = (source or "capture").strip().lower()
+    if src not in {"capture", "live"}:
+        src = "capture"
+    root = repo_root()
+    if src == "capture" and isinstance(payload, dict):
+        rel_raw = _as_text(payload.get("preview_png_rel")).replace("\\", "/").lstrip("/")
+        if rel_raw:
+            path = (root / rel_raw).resolve()
+            try:
+                path.relative_to(root.resolve())
+                if path.is_file():
+                    return path, path.relative_to(root).as_posix()
+            except (OSError, ValueError):
+                pass
+    path = rolling_live_preview_path(instance_id)
+    if path.is_file():
+        return path, path.relative_to(root).as_posix()
+    return None, ""
+
+
+def load_preview_metadata(
+    *,
+    instance_id: str,
+    payload: dict[str, Any] | None,
+    source: str,
+) -> tuple[bool, str, float | None, int, int]:
+    """Cheap preview metadata for UI refreshes.
+
+    The browser fetches the bitmap through the image endpoint, so the approval
+    view only needs availability, rel, mtime, and dimensions for overlay math.
+    Dimensions come from the PNG header instead of a full OpenCV decode.
+    """
+    path, rel = _preview_path_for_source(
+        instance_id=instance_id,
+        payload=payload,
+        source=source,
+    )
+    if path is None:
+        return False, "", None, 0, 0
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return False, "", None, 0, 0
+    width, height = _png_dimensions_from_header(path)
+    return True, rel, mtime, width, height
 
 
 def image_dimensions(png: bytes) -> tuple[int, int]:
