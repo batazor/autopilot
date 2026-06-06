@@ -104,7 +104,11 @@ games/                # Per-game module tree (Phase 3: replaces top-level module
     events/           # Event-specific automations (trials, 7-day, etc.)
     vip/              # VIP daily login check
     db/buildings/     # Static reference data (building specs, etc.)
-  # kingshot/         # (stub planned in Phase 5)
+  kingshot/           # Kingshot (in progress)
+    core/             # Core features (main_city)
+    alliance/         # Alliance operations (help)
+    events/           # Event-specific automations (fishing_tournament)
+  notify/             # Game-agnostic notification monitor (dumpsys → Redis queue; not a DSL module)
 
 temporal/             # Live ADB rolling/approval previews (gitignored, regenerated per tick)
 db/state/state.db     # SQLite: devices + accounts + per-player state (canonical, multi-game)
