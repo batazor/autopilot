@@ -11,6 +11,7 @@ which need testcontainers.
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -305,6 +306,37 @@ def test_overlay_push_wins_locality_over_older_far_push(monkeypatch):
     assert ranked[0][2]["task_type"] == "heroes.bahiti.wiki", (
         "0-hop wiki should beat 6-hop molly even though molly is much older"
     )
+
+
+def test_pop_candidates_log_includes_ranking_breakdown(monkeypatch, caplog):
+    """The queue pop log should explain why one due task beat another."""
+    _patch_required_nodes(
+        monkeypatch,
+        {"squad_fight": "squad_settings", "deals.deals": "deals"},
+    )
+    _patch_hops(
+        monkeypatch,
+        {("squad_settings", "squad_settings"): 0, ("squad_settings", "deals"): 3},
+    )
+
+    fight = _due_item(task_type="squad_fight", priority=80_000, task_id="fight")
+    deals = _due_item(task_type="deals.deals", priority=80_000, task_id="deals")
+    ranked = _rank([deals, fight], current_screen="squad_settings")
+
+    with caplog.at_level(logging.INFO, logger="scheduler.queue"):
+        RedisQueue._log_pop_candidates(
+            instance_id="bs1",
+            current_screen="squad_settings",
+            claimed_task_id="fight",
+            ranked=ranked,
+        )
+
+    assert "queue.pop_due candidates" in caplog.text
+    assert "current_screen='squad_settings'" in caplog.text
+    assert "claimed=fight" in caplog.text
+    assert "squad_fight#fight" in caplog.text
+    assert "deals.deals#deals" in caplog.text
+    assert "graph=1500" in caplog.text
 
 
 @pytest.mark.asyncio

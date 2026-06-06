@@ -126,74 +126,116 @@ function WikiPageInner() {
     window.history.replaceState(null, "", url.pathname + url.search);
   };
 
+  const showSearch = tab !== "gear" && tab !== "faq";
+  const listCount = tab === "gear" ? gearList.length : entries.length;
+  const countNoun = tab === "gear" ? "gear sets" : "entries";
+  const activeTabLabel = TABS.find((t) => t.key === tab)?.label ?? "";
+
   return (
     <>
-      <PageHeader title="Wiki reference" />
-      <div className="toolbar">
-        <AppListbox
-          inline
-          label="Game"
-          value={game}
-          onChange={(v) => {
-            // Only switch to a game whose wiki data has shipped.
-            if (WIKI_GAMES.find((g) => g.value === v)?.available) setGame(v);
-          }}
-          options={WIKI_GAMES.map((g) => ({ value: g.value, label: g.label }))}
-          minWidth={200}
-        />
-      </div>
-      <p className="meta">
-        Buildings, heroes, items, gear — data from <code>db/</code> and{" "}
-        <code>modules/*/wiki/</code>.
-      </p>
+      <PageHeader title="Wiki reference">
+        Buildings, heroes, items, gear and FAQ — reference data from{" "}
+        <code>db/</code> and <code>modules/*/wiki/</code>.
+      </PageHeader>
+
       {error ? <div className="error-banner">{error}</div> : null}
 
       <AppTabs
+        variant="section"
         tabs={TABS}
         selectedKey={tab}
         onChange={(key) => onTab(key as EntityTab)}
         renderPanels={false}
-        afterTabs={
-          tab !== "gear" && tab !== "faq" ? (
+      />
+
+      <div className="wiki-filterbar">
+        <div className="wiki-filterbar__field">
+          <AppListbox
+            fullWidth
+            label="Game"
+            value={game}
+            onChange={(v) => {
+              // Only switch to a game whose wiki data has shipped.
+              if (WIKI_GAMES.find((g) => g.value === v)?.available) setGame(v);
+            }}
+            options={WIKI_GAMES.map((g) => ({ value: g.value, label: g.label }))}
+            maxWidth={220}
+          />
+        </div>
+
+        {tab !== "gear" && tab !== "faq" ? (
+          <div className="wiki-filterbar__field">
             <AppListbox
-              inline
-              className="meta"
+              fullWidth
               label="Scope"
               value={scope}
               onChange={setScope}
               options={scopes.map((s) => ({ value: s.key, label: s.label }))}
-              minWidth={160}
+              maxWidth={220}
             />
-          ) : null
-        }
-      />
+          </div>
+        ) : null}
+
+        {showSearch ? (
+          <label className="wiki-search">
+            <span>Search</span>
+            <div className="wiki-search__field">
+              <input
+                type="search"
+                placeholder="Name or id…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="wiki-search__input"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  className="wiki-search__clear"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                >
+                  ✕
+                </button>
+              ) : null}
+            </div>
+          </label>
+        ) : null}
+
+        {tab !== "faq" ? (
+          <div className="wiki-filterbar__count">
+            <strong>{listCount}</strong> {countNoun}
+          </div>
+        ) : null}
+      </div>
 
       {tab === "faq" && faq ? (
-        <section className="panel">
+        <div className="wiki-faq-grid">
           {faq.sections.map((sec) => (
-            <div key={sec.heading} className="wiki-section-block">
+            <section key={sec.heading} className="panel wiki-section-block">
               <h2>{sec.heading}</h2>
-              {sec.text ? <p>{sec.text}</p> : null}
+              {sec.text ? <p className="meta">{sec.text}</p> : null}
               {sec.items?.length && sec.items[0].key ? (
                 <WikiFaqSync items={sec.items} />
               ) : null}
-            </div>
+            </section>
           ))}
-        </section>
+        </div>
       ) : null}
 
       {tab !== "faq" ? (
         <div className="wiki-layout">
-          <section className="panel">
+          <section className="panel wiki-list-panel">
+            <div className="wiki-list-panel__head">
+              <h2>{activeTabLabel}</h2>
+              <span className="wiki-count-chip">{listCount}</span>
+            </div>
             {tab !== "gear" ? (
-              <>
-                <input
-                  type="search"
-                  placeholder="Search…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  style={{ width: "100%", marginBottom: "0.75rem" }}
-                />
+              entries.length === 0 ? (
+                <div className="wiki-empty wiki-empty--list">
+                  <span className="wiki-empty__icon">🔍</span>
+                  <p>No entries match the current filters.</p>
+                </div>
+              ) : (
                 <div className="wiki-tiles">
                   {entries.map((e) => (
                     <button
@@ -201,6 +243,7 @@ function WikiPageInner() {
                       type="button"
                       className={`wiki-tile${selectedId === e.id ? " active" : ""}`}
                       onClick={() => setSelectedId(e.id)}
+                      title={e.name || e.id}
                     >
                       {e.has_icon ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -219,10 +262,14 @@ function WikiPageInner() {
                     </button>
                   ))}
                 </div>
-                <p className="meta">{entries.length} entries</p>
-              </>
+              )
+            ) : gearList.length === 0 ? (
+              <div className="wiki-empty wiki-empty--list">
+                <span className="wiki-empty__icon">🛡️</span>
+                <p>No gear sets available.</p>
+              </div>
             ) : (
-              <ul className="ref-list">
+              <ul className="ref-list wiki-gear-list">
                 {gearList.map((g) => (
                   <li key={g.id}>
                     <button
@@ -239,7 +286,14 @@ function WikiPageInner() {
           </section>
 
           <section className="panel wiki-detail-panel">
-            <WikiDetailPanel detail={detail as WikiDetail | null} />
+            {detail ? (
+              <WikiDetailPanel detail={detail as WikiDetail | null} />
+            ) : (
+              <div className="wiki-empty">
+                <span className="wiki-empty__icon">📖</span>
+                <p>Select an entry to see its details.</p>
+              </div>
+            )}
           </section>
         </div>
       ) : null}

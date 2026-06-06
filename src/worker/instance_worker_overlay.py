@@ -371,6 +371,7 @@ class InstanceWorkerOverlayMixin(_Base):
         tpl_bright_snap = _overlay_metric_float(payload.get("template_bright_ratio"))
         patch_bright_snap = _overlay_metric_float(payload.get("patch_bright_ratio"))
         set_node_snap = str(payload.get("set_node") or "").strip()
+        current_screen_snap = set_node_snap
         if self._redis is not None:
             try:
                 snap: dict[str, str] = {}
@@ -419,6 +420,16 @@ class InstanceWorkerOverlayMixin(_Base):
                         f"wos:instance:{self._cfg.instance_id}:state",
                         mapping=snap,
                     )
+                if not current_screen_snap:
+                    raw_cur = await self._redis.hget(
+                        f"wos:instance:{self._cfg.instance_id}:state",
+                        "current_screen",
+                    )
+                    current_screen_snap = (
+                        raw_cur.decode()
+                        if isinstance(raw_cur, bytes)
+                        else str(raw_cur or "")
+                    ).strip()
             except Exception:
                 logger.debug("overlay enqueue: Redis snapshot failed", exc_info=True)
 
@@ -624,7 +635,7 @@ class InstanceWorkerOverlayMixin(_Base):
                 ovl_task_id = (
                     f"ovl:{self._cfg.instance_id}:{t}:{uuid.uuid4().hex[:8]}"
                 )
-                await self._queue.schedule(
+                enqueued = await self._queue.schedule(
                     task_id=ovl_task_id,
                     player_id=player_id,
                     task_type=t,
@@ -645,9 +656,26 @@ class InstanceWorkerOverlayMixin(_Base):
                     skip_if_duplicate=True,
                     dedup_ignore_region=True,
                 )
+                logger.info(
+                    "overlay push_scenario enqueue instance=%s current_screen=%r "
+                    "scenario=%s player=%s active_player=%s region=%s priority=%s "
+                    "run_at=%s score=%s threshold=%s enqueued=%s task_id=%s",
+                    self._cfg.instance_id,
+                    current_screen_snap,
+                    t,
+                    player_id,
+                    active_player or "",
+                    reg_nm,
+                    pr,
+                    run_at,
+                    score,
+                    threshold,
+                    enqueued,
+                    ovl_task_id,
+                )
                 _record_push_scenario(
                     scenario=t, screen=set_node_snap, region=reg_snap,
-                    outcome="enqueued",
+                    outcome="enqueued" if enqueued else "duplicate",
                 )
                 if is_device_level:
                     cancel = getattr(self, "_cancel_current_task", None)

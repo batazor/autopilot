@@ -171,6 +171,23 @@ def test_production_screen_verify_yaml_contains_main_city_rule() -> None:
     assert expected[0] in landmarks
 
 
+def test_production_screen_verify_yaml_contains_hero_recruitment_route_nodes() -> None:
+    screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+    try:
+        names = set(screen_graph.screen_verify_screen_names())
+        hero_rules = screen_graph.screen_verify_rules("heroes")
+        recruit_rules = screen_graph.screen_verify_rules("hero.recrutment")
+        route = screen_graph.bfs_route("shop.dawn_market", "hero.recrutment")
+    finally:
+        screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
+
+    assert "heroes" in names
+    assert "hero.recrutment" in names
+    assert hero_rules == [{"match": "heroes.grid", "threshold": 0.9}]
+    assert recruit_rules == [{"match": "isHeroRecruitment", "threshold": 0.9}]
+    assert route == ["shop.dawn_market", "main_city", "heroes", "hero.recrutment"]
+
+
 def test_production_screen_verify_yaml_active_rules_are_template_matches() -> None:
     screen_graph.load_screen_verify_config.cache_clear()  # ty: ignore[unresolved-attribute]
     try:

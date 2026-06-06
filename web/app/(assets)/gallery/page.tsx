@@ -1,6 +1,13 @@
 "use client";
 
-import { Dialog, DialogBackdrop, DialogPanel } from "@headlessui/react";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogPanel,
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+} from "@headlessui/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -350,50 +357,77 @@ function GalleryPageInner() {
           className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto"
         >
           {visibleGroups.map((g) => (
-            <section key={g.name} className="gallery-section flex flex-col gap-2">
-              <div className="sticky top-0 z-10 flex items-baseline gap-2 bg-wos-bg pb-1">
-                <h2 className="text-sm font-semibold text-wos-text">
-                  {g.name}
-                </h2>
-                <span className="text-xs text-wos-text-muted">
-                  {g.list.length}
-                </span>
-              </div>
-              <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-                {g.list.map((it) => {
-                  const imageIndex = renderedImageIndex++;
-                  return (
-                    <li key={it.rel} className="gallery-thumb-card">
-                      <button
-                        type="button"
-                        onClick={() => setPreview(it)}
-                        className="group flex w-full flex-col gap-1 rounded border border-wos-border bg-wos-surface p-2 text-left transition hover:border-accent"
-                        title={it.rel}
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={galleryImageUrl(it.rel, it.mtime_ms)}
-                          alt={it.name}
-                          loading={
-                            imageIndex < EAGER_IMAGE_COUNT ? "eager" : "lazy"
-                          }
-                          decoding="async"
-                          className="h-28 w-full rounded bg-black/40 object-contain"
-                        />
-                        <span className="truncate text-xs text-wos-text">
-                          {it.name}
-                        </span>
-                        <span className="truncate text-[10px] text-wos-text-muted">
-                          {it.screen_ids.length > 0
-                            ? it.screen_ids.join(", ")
-                            : "—"}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+            <Disclosure
+              key={g.name}
+              as="section"
+              defaultOpen
+              className="gallery-section flex flex-col gap-2"
+            >
+              <DisclosureButton className="group sticky top-0 z-10 flex items-baseline gap-2 bg-wos-bg pb-1 text-left">
+                {({ open }) => (
+                  <>
+                    <svg
+                      viewBox="0 0 12 12"
+                      aria-hidden="true"
+                      className={`size-3 shrink-0 self-center text-wos-text-muted transition-transform ${
+                        open ? "rotate-90" : ""
+                      }`}
+                    >
+                      <path
+                        d="M4 2l4 4-4 4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <h2 className="text-sm font-semibold text-wos-text">
+                      {g.name}
+                    </h2>
+                    <span className="text-xs text-wos-text-muted">
+                      {g.list.length}
+                    </span>
+                  </>
+                )}
+              </DisclosureButton>
+              <DisclosurePanel>
+                <ul className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+                  {g.list.map((it) => {
+                    const imageIndex = renderedImageIndex++;
+                    return (
+                      <li key={it.rel} className="gallery-thumb-card">
+                        <button
+                          type="button"
+                          onClick={() => setPreview(it)}
+                          className="group flex w-full flex-col gap-1 rounded border border-wos-border bg-wos-surface p-2 text-left transition hover:border-accent"
+                          title={it.rel}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={galleryImageUrl(it.rel, it.mtime_ms)}
+                            alt={it.name}
+                            loading={
+                              imageIndex < EAGER_IMAGE_COUNT ? "eager" : "lazy"
+                            }
+                            decoding="async"
+                            className="h-28 w-full rounded bg-black/40 object-contain"
+                          />
+                          <span className="truncate text-xs text-wos-text">
+                            {it.name}
+                          </span>
+                          <span className="truncate text-[10px] text-wos-text-muted">
+                            {it.screen_ids.length > 0
+                              ? it.screen_ids.join(", ")
+                              : "—"}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </DisclosurePanel>
+            </Disclosure>
           ))}
           {hasMoreItems ? (
             <div

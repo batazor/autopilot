@@ -1,4 +1,16 @@
 screens:
+  heroes:
+    priority: 30
+    rules:
+    - match: heroes.grid
+      threshold: 0.9
+
+  hero.recrutment:
+    priority: 30
+    rules:
+    - match: isHeroRecruitment
+      threshold: 0.9
+
   heroes.sr.new:
     priority: 25
     rules:

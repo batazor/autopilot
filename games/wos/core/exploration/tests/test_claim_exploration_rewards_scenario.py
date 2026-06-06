@@ -48,6 +48,23 @@ def test_claim_exploration_rewards_scenario_is_registered_with_expected_shape(sn
     assert doc == snapshot
 
 
+def test_squad_fight_victory_repush_waits_until_squad_settings() -> None:
+    loaded = template_resolver.load_doc(REPO_ROOT, "squad_fight")
+    assert loaded is not None
+
+    _path, doc = loaded
+    victory_step = next(
+        step for step in doc["steps"]
+        if isinstance(step, dict) and step.get("cond") == "currentNode == exploration.victory"
+    )
+
+    assert victory_step["steps"] == [
+        {"click": "page.exploration.victory.next"},
+        {"wait_screen": {"any": ["squad_settings"], "max": 5, "interval": "500ms"}},
+        {"push_scenario": "squad_fight"},
+    ]
+
+
 @pytest.mark.asyncio
 async def test_claim_exploration_rewards_rehearses_main_city_reward_flow(
     mocker,

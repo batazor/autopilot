@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 """Stitch ./frames/frame_<row>_<col>.png into a single ./map_full.png.
 
-The WoS map is isometric: buildings have height, so rooftops parallax-shift
-more than the ground when the camera pans. We therefore estimate every
-homography from the BOTTOM 33% of each frame only (ground tiles / roads — the
-near-zero-parallax zone), then warp the FULL frame with that ground homography.
-Building tops will ghost slightly in overlaps; per the spec that is accepted.
-
-Pipeline:
-  1. Load frames in grid order.
-  2. ORB features on the ground band; BFMatcher (Hamming) pairwise matches.
-  3. RANSAC homography for each grid-adjacent pair.
-  4. BFS from the centre frame (anchor); chain homographies to anchor space.
-  5. warpPerspective every frame onto one canvas; alpha-feather the overlaps.
-  6. Crop to the bounding box of valid pixels; write map_full.png.
+The WoS world view is a controlled grid capture, not a free panorama: every
+frame already has a logical (row, col). Feature-only stitching is fragile here
+because the screenshots contain large static HUD regions and low-texture snow /
+water. The stitcher therefore estimates the real screen-space grid basis from
+overlap strips, masks the HUD for matching, and always lays out every captured
+frame on one canvas. If overlap confidence is weak, it falls back to the
+requested overlap geometry instead of dropping frames.
 
 OpenCV only (no cv2.Stitcher).
 
@@ -25,6 +19,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 
 import cv2
@@ -34,11 +29,44 @@ import numpy as np
 _BASE = Path(__file__).resolve().parent
 FRAMES_DIR = _BASE / "frames"
 OUTPUT_PATH = _BASE / "map_full.png"
-GROUND_BAND = 0.33        # bottom fraction used for feature matching
+GROUND_BAND = 0.33        # retained for CLI compatibility / old docs
 ORB_FEATURES = 4000       # keypoint budget per frame
 MIN_MATCH_COUNT = 12      # below this we treat the pair as unmatched
 RANSAC_REPROJ_THRESH = 4.0
+DEFAULT_OVERLAP = 0.30
+MIN_TEMPLATE_SCORE = 0.12
+
+# Crop to the actual map viewport. These percentages intentionally discard the
+# top resource bar, bottom nav/chat, and most right-side floating buttons. The
+# missing map edge is usually present in the neighbouring capture.
+VIEW_TOP_FRAC = 0.09
+VIEW_BOTTOM_FRAC = 0.25
+VIEW_LEFT_FRAC = 0.00
+VIEW_RIGHT_FRAC = 0.25
 # ============================================================================
+
+
+@dataclass(frozen=True)
+class CropBox:
+    x0: int
+    y0: int
+    x1: int
+    y1: int
+
+    @property
+    def width(self) -> int:
+        return self.x1 - self.x0
+
+    @property
+    def height(self) -> int:
+        return self.y1 - self.y0
+
+
+@dataclass(frozen=True)
+class TranslationEstimate:
+    dx: float
+    dy: float
+    score: float
 
 
 def _load_frames(frames_dir: Path) -> dict[tuple[int, int], np.ndarray]:
@@ -53,6 +81,188 @@ def _load_frames(frames_dir: Path) -> dict[tuple[int, int], np.ndarray]:
             continue
         frames[(r, c)] = img
     return frames
+
+
+def _viewport_crop(img: np.ndarray) -> CropBox:
+    """Return the stable game-map crop, scaled to the current device size."""
+    h, w = img.shape[:2]
+    x0 = int(round(w * VIEW_LEFT_FRAC))
+    y0 = int(round(h * VIEW_TOP_FRAC))
+    x1 = int(round(w * (1.0 - VIEW_RIGHT_FRAC)))
+    y1 = int(round(h * (1.0 - VIEW_BOTTOM_FRAC)))
+    # Keep a usable viewport even on unusual aspect ratios.
+    if x1 - x0 < w * 0.45:
+        x0, x1 = 0, w
+    if y1 - y0 < h * 0.45:
+        y0, y1 = 0, h
+    return CropBox(x0=x0, y0=y0, x1=x1, y1=y1)
+
+
+def _crop_frame(img: np.ndarray, crop: CropBox) -> np.ndarray:
+    return img[crop.y0:crop.y1, crop.x0:crop.x1]
+
+
+def _match_ready(img: np.ndarray) -> np.ndarray:
+    """Preprocess a cropped frame for template matching.
+
+    High-pass grayscale reduces snow/water gradients and makes roads, cliffs,
+    shorelines, and building edges dominate the correlation score.
+    """
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    highpass = cv2.absdiff(gray, cv2.GaussianBlur(gray, (0, 0), 5))
+    return cv2.equalizeHist(highpass)
+
+
+def _template_translation(
+    parent: np.ndarray,
+    child: np.ndarray,
+    *,
+    direction: str,
+    overlap: float,
+) -> TranslationEstimate | None:
+    """Estimate child->parent translation for one grid-adjacent pair.
+
+    ``direction`` is the logical child direction: ``right`` for (r, c+1) and
+    ``down`` for (r+1, c). The search is two-dimensional because in the
+    isometric WoS map a horizontal/vertical drag can produce diagonal screen
+    motion after inertia settles.
+    """
+    parent_p = _match_ready(parent)
+    child_p = _match_ready(child)
+    h, w = child_p.shape[:2]
+
+    if direction == "right":
+        tw = min(max(80, int(w * 0.28)), 180)
+        th = min(max(260, int(h * 0.58)), 520)
+        tx = 0
+        ty = (h - th) // 2
+        expected_x = int(w * (1.0 - overlap))
+        expected_y = 0
+    elif direction == "down":
+        tw = min(max(240, int(w * 0.62)), 360)
+        th = min(max(110, int(h * 0.28)), 240)
+        tx = (w - tw) // 2
+        ty = 0
+        expected_x = 0
+        expected_y = int(h * (1.0 - overlap))
+    else:
+        msg = f"unsupported direction: {direction}"
+        raise ValueError(msg)
+
+    if tw >= w or th >= h:
+        return None
+
+    margin_x = int(w * 0.45)
+    margin_y = int(h * 0.45)
+    sx0 = max(0, tx + expected_x - margin_x)
+    sx1 = min(w - tw, tx + expected_x + margin_x)
+    sy0 = max(0, ty + expected_y - margin_y)
+    sy1 = min(h - th, ty + expected_y + margin_y)
+    if sx1 <= sx0 or sy1 <= sy0:
+        return None
+
+    template = child_p[ty:ty + th, tx:tx + tw]
+    if float(template.std()) < 2.0:
+        return None
+    target = parent_p[sy0:sy1 + th, sx0:sx1 + tw]
+    result = cv2.matchTemplate(target, template, cv2.TM_CCOEFF_NORMED)
+    _, score, _, loc = cv2.minMaxLoc(result)
+    return TranslationEstimate(
+        dx=float(sx0 + loc[0] - tx),
+        dy=float(sy0 + loc[1] - ty),
+        score=float(score),
+    )
+
+
+def _weighted_median(values: list[float], weights: list[float]) -> float:
+    order = np.argsort(values)
+    sorted_values = np.asarray(values, np.float64)[order]
+    sorted_weights = np.asarray(weights, np.float64)[order]
+    cutoff = sorted_weights.sum() * 0.5
+    idx = int(np.searchsorted(np.cumsum(sorted_weights), cutoff, side="left"))
+    return float(sorted_values[min(idx, len(sorted_values) - 1)])
+
+
+def _basis_from_estimates(
+    frames: dict[tuple[int, int], np.ndarray],
+    cropped: dict[tuple[int, int], np.ndarray],
+    *,
+    overlap: float,
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Return ``(right_basis, down_basis)`` in cropped-frame pixels."""
+    sample = next(iter(cropped.values()))
+    h, w = sample.shape[:2]
+    fallback_right = (w * (1.0 - overlap), 0.0)
+    fallback_down = (0.0, h * (1.0 - overlap))
+
+    right_estimates: list[TranslationEstimate] = []
+    down_estimates: list[TranslationEstimate] = []
+    for r, c in sorted(frames):
+        if (r, c + 1) in frames:
+            est = _template_translation(
+                cropped[(r, c)], cropped[(r, c + 1)],
+                direction="right", overlap=overlap,
+            )
+            if est and est.score >= MIN_TEMPLATE_SCORE:
+                right_estimates.append(est)
+        if (r + 1, c) in frames:
+            est = _template_translation(
+                cropped[(r, c)], cropped[(r + 1, c)],
+                direction="down", overlap=overlap,
+            )
+            if est and est.score >= MIN_TEMPLATE_SCORE:
+                down_estimates.append(est)
+
+    def robust_basis(
+        estimates: list[TranslationEstimate],
+        fallback: tuple[float, float],
+        *,
+        axis: str,
+    ) -> tuple[float, float]:
+        if not estimates:
+            return fallback
+        if axis == "right":
+            estimates = [
+                e for e in estimates
+                if 0.15 * w <= e.dx <= 0.90 * w and abs(e.dy) <= 0.60 * h
+            ]
+        else:
+            estimates = [
+                e for e in estimates
+                if 0.30 * h <= e.dy <= 0.90 * h and abs(e.dx) <= 0.60 * w
+            ]
+        if not estimates:
+            return fallback
+        weights = [max(e.score, MIN_TEMPLATE_SCORE) ** 2 for e in estimates]
+        dx = _weighted_median([e.dx for e in estimates], weights)
+        dy = _weighted_median([e.dy for e in estimates], weights)
+        return dx, dy
+
+    right = robust_basis(right_estimates, fallback_right, axis="right")
+    down = robust_basis(down_estimates, fallback_down, axis="down")
+    print(
+        "Grid basis: "
+        f"right=({right[0]:.1f},{right[1]:.1f}) from {len(right_estimates)} edge(s); "
+        f"down=({down[0]:.1f},{down[1]:.1f}) from {len(down_estimates)} edge(s)",
+        flush=True,
+    )
+    return right, down
+
+
+def _grid_positions(
+    frames: dict[tuple[int, int], np.ndarray],
+    right: tuple[float, float],
+    down: tuple[float, float],
+) -> dict[tuple[int, int], tuple[float, float]]:
+    min_r = min(r for r, _ in frames)
+    min_c = min(c for _, c in frames)
+    return {
+        (r, c): (
+            (c - min_c) * right[0] + (r - min_r) * down[0],
+            (c - min_c) * right[1] + (r - min_r) * down[1],
+        )
+        for r, c in frames
+    }
 
 
 def _detect(
@@ -248,6 +458,41 @@ def _blend(
     return out.astype(np.uint8), valid
 
 
+def _blend_grid(
+    cropped: dict[tuple[int, int], np.ndarray],
+    positions: dict[tuple[int, int], tuple[float, float]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Blend cropped frames onto a grid-positioned canvas."""
+    sample = next(iter(cropped.values()))
+    fh, fw = sample.shape[:2]
+    rounded = {
+        key: (int(round(x)), int(round(y)))
+        for key, (x, y) in positions.items()
+    }
+    min_x = min(x for x, _ in rounded.values())
+    min_y = min(y for _, y in rounded.values())
+    max_x = max(x + fw for x, _ in rounded.values())
+    max_y = max(y + fh for _, y in rounded.values())
+    width = max_x - min_x
+    height = max_y - min_y
+    acc = np.zeros((height, width, 3), np.float32)
+    wsum = np.zeros((height, width), np.float32)
+    weight = _feather_weight(fh, fw)
+
+    for key in sorted(cropped):
+        img = cropped[key].astype(np.float32)
+        x, y = rounded[key]
+        x -= min_x
+        y -= min_y
+        acc[y:y + fh, x:x + fw] += img * weight[..., None]
+        wsum[y:y + fh, x:x + fw] += weight
+
+    valid = wsum > 1e-6
+    out = np.zeros_like(acc)
+    out[valid] = acc[valid] / wsum[valid, None]
+    return out.astype(np.uint8), valid
+
+
 def _crop_to_valid(img: np.ndarray, valid: np.ndarray) -> np.ndarray:
     """Crop to the bounding box of contributing (non-empty) pixels."""
     ys, xs = np.where(valid)
@@ -261,17 +506,22 @@ def stitch(frames_dir: Path = FRAMES_DIR, output: Path = OUTPUT_PATH) -> Path:
     if not frames:
         msg = f"no frames found in {frames_dir}"
         raise RuntimeError(msg)
-    print(f"Loaded {len(frames)} frames; detecting ORB features...", flush=True)
+    print(f"Loaded {len(frames)} frames; estimating grid mosaic...", flush=True)
 
-    orb = cv2.ORB_create(nfeatures=ORB_FEATURES)
-    feats = {key: _detect(img, orb) for key, img in frames.items()}
+    crop = _viewport_crop(next(iter(frames.values())))
+    cropped = {key: _crop_frame(img, crop) for key, img in frames.items()}
+    print(
+        f"Using map viewport crop: x={crop.x0}:{crop.x1}, y={crop.y0}:{crop.y1}",
+        flush=True,
+    )
 
-    print("Estimating homographies (BFS from anchor)...", flush=True)
-    H_to_anchor = _chain_to_anchor(frames, feats)
+    right, down = _basis_from_estimates(
+        frames, cropped, overlap=DEFAULT_OVERLAP,
+    )
+    positions = _grid_positions(frames, right, down)
 
-    print("Warping + blending onto canvas...", flush=True)
-    translation, size = _canvas_bounds(frames, H_to_anchor)
-    blended, valid = _blend(frames, H_to_anchor, translation, size)
+    print("Blending grid frames onto canvas...", flush=True)
+    blended, valid = _blend_grid(cropped, positions)
     result = _crop_to_valid(blended, valid)
 
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -600,9 +600,25 @@ async def _enqueue_scenario(
     from scheduler.queue import RedisQueue
     from services import get_settings
 
+    current_screen = ""
+    try:
+        raw = await redis_async.hget(
+            f"wos:instance:{instance_id}:state", "current_screen"
+        )
+        current_screen = (
+            raw.decode() if isinstance(raw, bytes) else str(raw or "")
+        ).strip()
+    except Exception:
+        logger.debug(
+            "push_scenario: current_screen read failed instance=%s",
+            instance_id,
+            exc_info=True,
+        )
+
     queue = RedisQueue(redis_async, get_settings())
-    return await queue.schedule(
-        task_id=f"dsl:push:{scenario}:{player_id}:{int(run_at)}",
+    task_id = f"dsl:push:{scenario}:{player_id}:{int(run_at)}"
+    enqueued = await queue.schedule(
+        task_id=task_id,
         player_id=player_id,
         task_type=scenario,
         priority=int(priority),
@@ -613,6 +629,20 @@ async def _enqueue_scenario(
         # preserve that — there's no region context on a DSL ``push_scenario``.
         dedup_ignore_region=True,
     )
+    logger.info(
+        "push_scenario enqueue instance=%s current_screen=%r scenario=%s "
+        "player=%s priority=%s run_at=%s skip_if_duplicate=%s enqueued=%s task_id=%s",
+        instance_id,
+        current_screen,
+        scenario,
+        player_id,
+        int(priority),
+        float(run_at),
+        bool(skip_if_duplicate),
+        enqueued,
+        task_id,
+    )
+    return enqueued
 
 
 def _load_yaml(path: Path) -> dict[str, Any]:

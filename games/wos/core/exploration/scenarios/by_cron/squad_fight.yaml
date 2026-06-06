@@ -39,8 +39,12 @@ steps:
 
   - cond: currentNode == exploration.victory
     steps:
-      - push_scenario: squad_fight
       - click: page.exploration.victory.next
+      - wait_screen:
+          any: [squad_settings]
+          max: 5
+          interval: 500ms
+      - push_scenario: squad_fight
 
   - cond: currentNode == exploration.defeat
     steps:

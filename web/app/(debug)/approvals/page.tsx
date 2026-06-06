@@ -203,6 +203,7 @@ export default function ApprovalsPage() {
     topics: approvalStreamTopics,
     instanceId: instanceId || undefined,
     enabled: autoRefresh && !!instanceId,
+    debounceMs: 0,
     onEvent: (topic) => {
       if (topic === "approval") void refresh();
       if (topic === "notifications") void pollNotifications();
@@ -333,8 +334,38 @@ export default function ApprovalsPage() {
       decisionInFlightRef.current = `${instanceId}:${requestId || "(unknown)"}`;
       setBusyAction(decision);
       try {
-        await submitDecision(instanceId, decision, requestId);
-        await refresh();
+        const ok = await submitDecision(instanceId, decision, requestId);
+        if (!ok) {
+          await refresh();
+          return;
+        }
+        setView((prev) => {
+          if (!prev?.has_pending) return prev;
+          const currentRequestId =
+            typeof prev.pending?.request_id === "string" ? prev.pending.request_id : "";
+          if (requestId && currentRequestId && currentRequestId !== requestId) {
+            return prev;
+          }
+          return {
+            ...prev,
+            has_pending: false,
+            pending: null,
+            overlays: [],
+            tap_x: null,
+            tap_y: null,
+            action_type: "",
+            action_label: "",
+            region_label: "",
+            trace_id: "",
+            tempo_trace_url: "",
+            labeling_href: "",
+            navigation: null,
+            task_context: null,
+            set_node_target: "",
+          };
+        });
+        setError(null);
+        void refresh();
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           try {

@@ -2,12 +2,13 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { FleetContextProvider } from "@/components/FleetContextProvider";
-import { AppTabs } from "@/components/headless";
+import { AppCombobox, AppTabs } from "@/components/headless";
 import { ErrorBanner, useFeedback } from "@/components/feedback";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { PageLoading } from "@/components/ui/Spinner";
-import { ApiError } from "@/lib/api";
+import { ApiError, fetchModuleScenarios } from "@/lib/api";
+import type { SelectOption } from "@/components/AppSelect";
 import { downloadCsv, type CsvColumn } from "@/lib/csv";
 import {
   addNotifyPattern,
@@ -86,6 +87,77 @@ function NotifyEmpty({
       </span>
       <div className="nm-empty__title">{title}</div>
       {hint ? <div className="nm-empty__hint">{hint}</div> : null}
+    </div>
+  );
+}
+
+const PAGE_SIZE = 20;
+
+/** Client-side pagination over an in-memory list. Clamps the current page when
+ *  the underlying list shrinks (filter/refresh) so we never strand the user on
+ *  an out-of-range page. */
+function usePaged<T>(rows: T[], pageSize = PAGE_SIZE) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  useEffect(() => {
+    setPage((p) => Math.min(p, pageCount));
+  }, [pageCount]);
+  const current = Math.min(page, pageCount);
+  const start = (current - 1) * pageSize;
+  return {
+    page: current,
+    setPage,
+    pageCount,
+    pageRows: rows.slice(start, start + pageSize),
+    total: rows.length,
+    pageSize,
+  };
+}
+
+function NotifyPager({
+  page,
+  pageCount,
+  total,
+  pageSize,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  total: number;
+  pageSize: number;
+  onPage: (page: number) => void;
+}) {
+  if (pageCount <= 1) return null;
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+  return (
+    <div className="nm-pager">
+      <span className="nm-pager__info">
+        {from}–{to} of {total}
+      </span>
+      <div className="nm-pager__controls">
+        <button
+          type="button"
+          className="nm-pager__btn"
+          disabled={page <= 1}
+          onClick={() => onPage(page - 1)}
+          aria-label="Previous page"
+        >
+          <Icon name="chevron-left" size="sm" />
+        </button>
+        <span className="nm-pager__page">
+          Page {page} / {pageCount}
+        </span>
+        <button
+          type="button"
+          className="nm-pager__btn"
+          disabled={page >= pageCount}
+          onClick={() => onPage(page + 1)}
+          aria-label="Next page"
+        >
+          <Icon name="chevron-right" size="sm" />
+        </button>
+      </div>
     </div>
   );
 }
@@ -253,6 +325,8 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
     return () => clearInterval(id);
   }, [load]);
 
+  const { page, setPage, pageCount, pageRows, total, pageSize } = usePaged(events);
+
   const m = status?.monitor;
   const c = status?.counts;
   const running = !!m?.running;
@@ -362,7 +436,7 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
                 </td>
               </tr>
             ) : (
-              events.map((ev) => (
+              pageRows.map((ev) => (
                 <tr key={ev.id}>
                   <td className="mono muted">{ev.timestamp}</td>
                   <td>
@@ -379,6 +453,13 @@ function DashboardTab({ status, games }: { status: NotifyStatus | null; games: N
           </tbody>
         </table>
       </div>
+      <NotifyPager
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        pageSize={pageSize}
+        onPage={setPage}
+      />
     </section>
   );
 }
@@ -401,6 +482,8 @@ function PlayersTab({ games, onChange }: { games: NotifyGame[]; onChange: () => 
   useEffect(() => {
     if (games.length && !game) setGame(games[0].id);
   }, [games, game]);
+
+  const { page, setPage, pageCount, pageRows, total, pageSize } = usePaged(players);
 
   const add = async () => {
     if (!nickname.trim()) return;
@@ -485,7 +568,7 @@ function PlayersTab({ games, onChange }: { games: NotifyGame[]; onChange: () => 
                 </td>
               </tr>
             ) : (
-              players.map((p) => (
+              pageRows.map((p) => (
                 <tr key={p.id}>
                   <td>{p.nickname}</td>
                   <td>
@@ -507,6 +590,13 @@ function PlayersTab({ games, onChange }: { games: NotifyGame[]; onChange: () => 
           </tbody>
         </table>
       </div>
+      <NotifyPager
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        pageSize={pageSize}
+        onPage={setPage}
+      />
     </section>
   );
 }
@@ -529,6 +619,10 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
   const [testText, setTestText] = useState("");
   const [testResult, setTestResult] = useState<PatternTestResult | null>(null);
 
+  // Available DSL scenarios for the searchable scenario picker. The pushed
+  // value is the scenario key (YAML filename, no ext) — exactly ScenarioRow.key.
+  const [scenarioOptions, setScenarioOptions] = useState<SelectOption[]>([]);
+
   const load = useCallback(() => {
     fetchNotifyPatterns(filter || undefined)
       .then(setPatterns)
@@ -540,6 +634,21 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
   useEffect(() => {
     if (games.length && !game) setGame(games[0].id);
   }, [games, game]);
+  useEffect(() => {
+    fetchModuleScenarios()
+      .then((rows) => {
+        const opts = rows
+          .map((r) => ({
+            value: r.key,
+            label: r.name && r.name !== r.key ? `${r.key} — ${r.name}` : r.key,
+          }))
+          .sort((a, b) => a.value.localeCompare(b.value));
+        setScenarioOptions([{ value: "", label: "— none —" }, ...opts]);
+      })
+      .catch(() => setScenarioOptions([{ value: "", label: "— none —" }]));
+  }, []);
+
+  const { page, setPage, pageCount, pageRows, total, pageSize } = usePaged(patterns);
 
   const add = async () => {
     if (!eventType.trim() || !regex) {
@@ -620,11 +729,13 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
             onChange={(e) => setRegex(e.target.value)}
           />
           <input placeholder="description" value={desc} onChange={(e) => setDesc(e.target.value)} />
-          <input
-            placeholder="scenario to push (optional)"
-            className="mono"
+          <AppCombobox
             value={scenario}
-            onChange={(e) => setScenario(e.target.value)}
+            onChange={setScenario}
+            options={scenarioOptions}
+            placeholder="scenario to push (optional)"
+            loading={scenarioOptions.length === 0}
+            minWidth={240}
           />
           <button type="button" className="btn btn-primary" onClick={add}>
             Add
@@ -734,7 +845,7 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
                 </td>
               </tr>
             ) : (
-              patterns.map((p) => (
+              pageRows.map((p) => (
                 <tr key={p.id}>
                   <td>
                     <GameTag game={p.game} />
@@ -762,12 +873,13 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
                     />
                   </td>
                   <td>
-                    <input
-                      defaultValue={p.scenario}
-                      className="mono"
+                    <AppCombobox
+                      value={p.scenario}
+                      onChange={(v) => v !== p.scenario && edit(p, "scenario", v)}
+                      options={scenarioOptions}
                       placeholder="—"
-                      style={{ width: 170 }}
-                      onBlur={(e) => e.target.value !== p.scenario && edit(p, "scenario", e.target.value)}
+                      loading={scenarioOptions.length === 0}
+                      minWidth={180}
                     />
                   </td>
                   <td>
@@ -785,6 +897,13 @@ function PatternsTab({ games, onChange }: { games: NotifyGame[]; onChange: () =>
           </tbody>
         </table>
       </div>
+      <NotifyPager
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        pageSize={pageSize}
+        onPage={setPage}
+      />
     </section>
   );
 }
@@ -805,6 +924,8 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const { page, setPage, pageCount, pageRows, total, pageSize } = usePaged(rows);
 
   const review = async (id: number) => {
     await reviewNotifyUnrecognized(id).catch((e) => setError(errMsg(e)));
@@ -880,7 +1001,7 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
                 </td>
               </tr>
             ) : (
-              rows.map((u) => (
+              pageRows.map((u) => (
                 <tr key={u.id}>
                   <td className="mono muted">{u.timestamp}</td>
                   <td>
@@ -907,6 +1028,13 @@ function UnrecognizedTab({ onChange }: { onChange: () => void }) {
           </tbody>
         </table>
       </div>
+      <NotifyPager
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        pageSize={pageSize}
+        onPage={setPage}
+      />
     </section>
   );
 }

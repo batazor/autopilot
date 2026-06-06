@@ -39,6 +39,9 @@ QUEUE_DUE_ZRANGE_BATCH = 64
 # Log when due ZSET size exceeds this (observability). ``_collect_ranked_due`` still
 # parses every due member so priority ranking is correct; queues should stay small.
 QUEUE_DUE_PARSE_MAX = 512
+# Keep the per-pop ranking log compact while still showing enough runner-ups to
+# explain "why did task X beat task Y?" without needing a live debugger.
+QUEUE_POP_LOG_CANDIDATE_LIMIT = 5
 
 
 def _queue_key(instance_id: str) -> str:
@@ -710,7 +713,18 @@ class RedisQueue:
                 player_id=str(data.get("player_id", "")),
                 now=now,
             )
-            self._log_pop_winner(instance_id=instance_id, data=data, meta=winner_meta)
+            self._log_pop_winner(
+                instance_id=instance_id,
+                current_screen=current_screen,
+                data=data,
+                meta=winner_meta,
+            )
+            self._log_pop_candidates(
+                instance_id=instance_id,
+                current_screen=current_screen,
+                claimed_task_id=str(data.get("task_id") or ""),
+                ranked=ranked,
+            )
             return self._build_queue_item(
                 data,
                 default_run_at=now,
@@ -1189,20 +1203,26 @@ class RedisQueue:
                 "unreachable_flag": unreachable_flag,
                 "required_node": required_node,
                 "recent_count": recent_count,
+                "current_screen": current_screen,
             }
             out.append((sort_key, raw, data, meta))
         return out
 
     @staticmethod
     def _log_pop_winner(
-        *, instance_id: str, data: dict[str, Any], meta: dict[str, Any]
+        *,
+        instance_id: str,
+        current_screen: str,
+        data: dict[str, Any],
+        meta: dict[str, Any],
     ) -> None:
         logger.info(
-            "queue.pop_due winner instance=%s task_type=%s player=%s "
+            "queue.pop_due winner instance=%s current_screen=%r task_type=%s player=%s "
             "base=%s effective=%s graph_debuff=%s recent_debuff=%s "
             "hops=%s reachable=%s required_node=%r recent_count=%s "
             "run_at=%s created_at=%s task_id=%s",
             instance_id,
+            current_screen,
             data.get("task_type"),
             data.get("player_id"),
             meta["base_priority"],
@@ -1216,4 +1236,49 @@ class RedisQueue:
             data.get("run_at"),
             data.get("created_at"),
             data.get("task_id"),
+        )
+
+    @staticmethod
+    def _format_pop_candidate(data: dict[str, Any], meta: dict[str, Any]) -> str:
+        return (
+            f"{data.get('task_type')}#{data.get('task_id')}"
+            f"(player={data.get('player_id')},"
+            f"base={meta.get('base_priority')},"
+            f"effective={meta.get('effective_priority')},"
+            f"graph={meta.get('graph_debuff')},"
+            f"recent={meta.get('recent_debuff')},"
+            f"hops={meta.get('hops')},"
+            f"reachable={meta.get('unreachable_flag') == 0},"
+            f"node={meta.get('required_node')!r},"
+            f"run_at={data.get('run_at')},"
+            f"created_at={data.get('created_at')})"
+        )
+
+    @staticmethod
+    def _log_pop_candidates(
+        *,
+        instance_id: str,
+        current_screen: str,
+        claimed_task_id: str,
+        ranked: list[
+            tuple[
+                tuple[int, int, int, float, float],
+                str,
+                dict[str, Any],
+                dict[str, Any],
+            ]
+        ],
+    ) -> None:
+        top = [
+            RedisQueue._format_pop_candidate(data, meta)
+            for _sort_key, _raw, data, meta in ranked[:QUEUE_POP_LOG_CANDIDATE_LIMIT]
+        ]
+        logger.info(
+            "queue.pop_due candidates instance=%s current_screen=%r claimed=%s "
+            "count=%s top=%s",
+            instance_id,
+            current_screen,
+            claimed_task_id,
+            len(ranked),
+            " | ".join(top),
         )
