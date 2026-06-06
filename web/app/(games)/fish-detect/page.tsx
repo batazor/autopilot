@@ -1,12 +1,16 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { ApprovalCanvas } from "@/components/ApprovalCanvas";
 import { FishVideoPanel } from "@/components/fish/FishVideoPanel";
-import { useFleet } from "@/components/FleetContextProvider";
+import {
+  FleetContextProvider,
+  useFleet,
+} from "@/components/FleetContextProvider";
 import { FleetPageHeader } from "@/components/FleetPageHeader";
 import { AppCheckbox } from "@/components/headless";
+import { PageLoading } from "@/components/ui/Spinner";
 import {
   fetchFishDetections,
   fishDetectImageUrl,
@@ -37,7 +41,7 @@ function detectionsToOverlays(result: FishDetectResult | null): OverlayShape[] {
   return shapes;
 }
 
-export default function FishDetectPage() {
+function FishDetectPageContent() {
   const { instanceId, instancesError } = useFleet();
   const [threshold, setThreshold] = useState(0.4);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -232,5 +236,15 @@ export default function FishDetectPage() {
 
       <FishVideoPanel threshold={threshold} />
     </>
+  );
+}
+
+export default function FishDetectPage() {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <FleetContextProvider>
+        <FishDetectPageContent />
+      </FleetContextProvider>
+    </Suspense>
   );
 }

@@ -44,6 +44,11 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Dreamscape Memory",
         description: "Item-location guides for the scavenger-hunt event (solo + co-op)",
       },
+      {
+        href: "/fish-detect",
+        label: "Fish detect",
+        description: "Fishing Tournament model debugger",
+      },
     ],
   },
   {
@@ -61,11 +66,6 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/overlay-test",
         label: "Overlay test",
         description: "Rule match debugger",
-      },
-      {
-        href: "/fish-detect",
-        label: "Fish detect",
-        description: "Fishing Tournament model debugger",
       },
       {
         href: "/map-stitch",
