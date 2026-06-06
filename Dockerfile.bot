@@ -16,9 +16,10 @@
 # Build args:
 #   PYTHON_VERSION         (default: 3.13)
 #   UV_VERSION             (default: 0.5.18) — pin uv to a known-good release
-#   WOS_NUITKA_PACKAGES    (default: "__all__") — packages compiled to ``.so``
-#                           via Nuitka. ``__all__`` discovers every top-level
-#                           package under ``src/``. Set to "" to disable.
+#   WOS_NUITKA_PACKAGES    packages compiled to ``.so`` via Nuitka. Keep this
+#                           as an explicit allow-list so framework-facing
+#                           packages (notably ``api`` / FastAPI) stay as normal
+#                           Python source. Set to "" to disable.
 #
 # Layer plan:
 #   builder   — resolve lockfile + install project into ``.venv`` (cached)
@@ -27,7 +28,7 @@
 
 ARG PYTHON_VERSION=3.13
 ARG UV_VERSION=0.5.18
-ARG WOS_NUITKA_PACKAGES="__all__"
+ARG WOS_NUITKA_PACKAGES="adb analysis century config dashboard dsl inference layout licensing navigation ocr optimizer popup scheduler services tasks wiki worker"
 
 
 # --- Stage 1: builder --------------------------------------------------------
@@ -143,6 +144,11 @@ COPY --from=compiler /app/.venv ./.venv
 COPY --from=compiler /app/src ./src
 COPY --from=compiler /app/games ./games
 COPY --from=compiler /app/db ./db
+
+# Fail the image build if the runtime venv is broken or the API was accidentally
+# compiled. Importing ``fastapi.exceptions`` catches the pydantic BaseModel crash
+# without importing ``api.main`` and starting application side effects.
+RUN /app/.venv/bin/python -c "import importlib.util; from pydantic import BaseModel; import fastapi.exceptions; spec = importlib.util.find_spec('api.main'); assert spec and spec.origin and spec.origin.endswith('.py'), spec; print('runtime import smoke ok')"
 
 # License-data directory exists in the image so a fresh ``docker run`` that
 # *doesn't* bind-mount one still has a valid target path for the loader. The
